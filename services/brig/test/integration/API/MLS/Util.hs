@@ -27,13 +27,16 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Map as Map
 import Data.Qualified
+import qualified Data.Text as Text
 import Data.Timeout
 import Imports
 import System.FilePath
 import System.Process
+import Test.Tasty.HUnit
 import Util
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 import Wire.API.User.Client
 
 data SetKey = SetKey | DontSetKey
@@ -47,6 +50,39 @@ data KeyingInfo = KeyingInfo
 instance Default KeyingInfo where
   def = KeyingInfo SetKey Nothing
 
+cliCmd :: FilePath -> ClientIdentity -> [String]
+cliCmd tmp qcid =
+  ["mls-test-cli", "--store", tmp </> (show qcid <> ".db")]
+
+initStore ::
+  HasCallStack =>
+  MonadIO m =>
+  FilePath ->
+  ClientIdentity ->
+  m ()
+initStore tmp qcid = do
+  let cmd0 = cliCmd tmp qcid
+  void . liftIO . flip spawn Nothing . shell . unwords $
+    cmd0 <> ["init", show qcid]
+
+generateKeyPackage ::
+  HasCallStack =>
+  MonadIO m =>
+  FilePath ->
+  ClientIdentity ->
+  Maybe Timeout ->
+  m (RawMLS KeyPackage, KeyPackageRef)
+generateKeyPackage tmp qcid lifetime = do
+  let cmd0 = cliCmd tmp qcid
+  kp <-
+    liftIO $
+      decodeMLSError <=< (flip spawn Nothing . shell . unwords) $
+        cmd0
+          <> ["key-package", "create"]
+          <> (("--lifetime " <>) . show . (#> Second) <$> maybeToList lifetime)
+  let ref = fromJust (kpRef' kp)
+  pure (kp, ref)
+
 uploadKeyPackages ::
   HasCallStack =>
   Brig ->
@@ -57,15 +93,10 @@ uploadKeyPackages ::
   Int ->
   Http ()
 uploadKeyPackages brig tmp KeyingInfo {..} u c n = do
-  let cmd0 = ["mls-test-cli", "--store", tmp </> (show cid <> ".db")]
+  let cmd0 = cliCmd tmp cid
       cid = mkClientIdentity u c
-  void . liftIO . flip spawn Nothing . shell . unwords $
-    cmd0 <> ["init", show cid]
-  kps <-
-    replicateM n . liftIO . flip spawn Nothing . shell . unwords $
-      cmd0
-        <> ["key-package", "create"]
-        <> (("--lifetime " <>) . show . (#> Second) <$> maybeToList kiLifetime)
+  initStore tmp cid
+  kps <- replicateM n (fst <$> generateKeyPackage tmp cid kiLifetime)
   when (kiSetKey == SetKey) $
     do
       pk <-
@@ -78,7 +109,7 @@ uploadKeyPackages brig tmp KeyingInfo {..} u c n = do
             . json defUpdateClient {updateClientMLSPublicKeys = Map.fromList [(Ed25519, pk)]}
         )
       !!! const 200 === statusCode
-  let upload = object ["key_packages" .= toJSON (map Base64ByteString kps)]
+  let upload = object ["key_packages" .= toJSON (map (Base64ByteString . rmRaw) kps)]
   post
     ( brig
         . paths ["mls", "key-packages", "self", toByteString' c]
@@ -95,3 +126,8 @@ getKeyPackageCount brig u c =
           . zUser (qUnqualified u)
       )
     <!! const 200 === statusCode
+
+decodeMLSError :: ParseMLS a => ByteString -> IO a
+decodeMLSError s = case decodeMLS' s of
+  Left e -> assertFailure ("Could not parse MLS object: " <> Text.unpack e)
+  Right x -> pure x
