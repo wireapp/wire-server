@@ -1301,9 +1301,6 @@ testExternalAddProposalNonAdminCommit = do
       createPendingProposalCommit bob1
         >>= sendAndConsumeCommit
 
--- bob adds charlie
--- void $ createAddCommit bob2 [charlie] >>= sendAndConsumeCommit
-
 -- scenario:
 -- alice adds bob and charlie
 -- charlie sends an external proposal for bob
