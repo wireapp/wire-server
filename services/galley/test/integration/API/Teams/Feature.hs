@@ -1170,6 +1170,12 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList = do
           const 409 === statusCode
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
 
+-- | Ensure that the server config takes precedence over a saved team config.
+--
+-- In other words: When a team id is no longer in the
+-- `setExposeInvitationURLsTeamAllowlist` the
+-- `ExposeInvitationURLsToTeamAdminConfig` is always disabled (even tough it
+-- might have been enabled before).
 testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence :: TestM ()
 testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
   owner <- Util.randomUser
