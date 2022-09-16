@@ -418,6 +418,30 @@ type AccountAPI =
                     GetActivateResponse
                     ActivationRespWithStatus
            )
+    -- docs/reference/user/activation.md {#RefActivationSubmit}
+    --
+    -- This endpoint can lead to the following events being sent:
+    -- - UserActivated event to the user, if account gets activated
+    -- - UserIdentityUpdated event to the user, if email or phone get activated
+    :<|> Named
+           "post-activate"
+           ( Summary "Activate (i.e. confirm) an email address or phone number."
+               :> Description
+                    "Activation only succeeds once and the number of \
+                    \failed attempts for a valid key is limited."
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'InvalidActivationCodeWrongUser
+               :> CanThrow 'InvalidActivationCodeWrongCode
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'InvalidPhone
+               :> "activate"
+               :> ReqBody '[JSON] Activate
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    GetActivateResponse
+                    ActivationRespWithStatus
+           )
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse
