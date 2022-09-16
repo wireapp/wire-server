@@ -1621,7 +1621,7 @@ testTooManyMembersForLegalhold opts brig = do
                   "cannot add more members to team when legalhold service is enabled."
               )
         | mth == "GET"
-        && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
+            && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
           pure . Wai.responseLBS HTTP.status200 mempty $
             encode
               ( withStatus
