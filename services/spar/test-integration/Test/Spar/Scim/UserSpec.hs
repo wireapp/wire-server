@@ -2043,34 +2043,59 @@ specAzureQuirks = do
 specEmailValidation :: SpecWith TestEnv
 specEmailValidation = do
   describe "email validation" $ do
-    let setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
-        setup enabled = do
-          (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
+    let setup :: HasCallStack => Bool -> Bool -> TestSpar (UserId, Email, PlainTextPassword, Maybe SAML.IdPId)
+        setup enabled withidp = do
+          brig <- view teBrig
+          galley <- view teGalley
+          (tok, (_ownerid, teamid, mbIdp :: Maybe IdP)) <- do
+            if withidp
+              then do
+                (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
+                pure (tok, (_ownerid, teamid, Just idp))
+              else do
+                (uid, tid) <- createUserWithTeam brig galley
+                tok <- registerScimToken tid Nothing
+                pure (tok, (uid, tid, Nothing))
           if enabled
             then setSamlEmailValidation teamid Feature.FeatureStatusEnabled
             else setSamlEmailValidation teamid Feature.FeatureStatusDisabled
           (user, email) <- randomScimUserWithEmail
           scimStoredUser <- createUser tok user
+          let password = error "password has not been set yet.  use something random?"
+          assertUserLoginRespStatus mbIdp email password 409
           uref :: SAML.UserRef <-
             either (error . show) (pure . (^?! veidUref)) $
-              mkValidExternalId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
+              mkValidExternalId mbIdp (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
           uid :: UserId <-
             getUserIdViaRef uref
-          brig <- view teBrig
           -- we intentionally activate the email even if it's not set up to work, to make sure
           -- it doesn't if the feature is disabled.
           if enabled
             then call $ activateEmail brig email
-            else call $ failActivatingEmail brig email
-          pure (uid, email)
+            else call $ failActivatingEmail brig email -- FUTUREWORK: remove this flag and enable it mandatorily?
+          pure (uid, email, error "`password`, but make sure it's the one the user has set if /a", view SAML.idpId <$> mbIdp)
 
-    context "enabled in team" . it "gives user email" $ do
-      (uid, email) <- setup True
-      eventually $ checkEmail uid (Just email)
+    context "w idp" $ do
+      context "enabled in team" . it "gives user email" $ do
+        (uid, email, password, mbidpid) <- setup True True
+        eventually $ checkEmail uid (Just email)
+        assertUserLoginRespStatus mbidpid email password 200
 
-    context "not enabled in team" . it "does not give user email" $ do
-      (uid, _) <- setup False
-      eventually $ checkEmail uid Nothing
+      context "not enabled in team" . it "does not give user email" $ do
+        (uid, email, password, mbidpid) <- setup False True
+        eventually $ checkEmail uid Nothing
+        assertUserLoginRespStatus mbidpid email password 409
+
+    context "w/o idp" $ do
+      context "enabled in team" . it "gives user email" $ do
+        (uid, email, password, Nothing) <- setup True False
+        eventually $ checkEmail uid (Just email)
+        assertUserLoginRespStatus Nothing email password 200
+
+      context "not enabled in team" . it "does not give user email" $ do
+        (uid, email, password, Nothing) <- setup False False
+        eventually $ checkEmail uid Nothing
+        assertUserLoginRespStatus Nothing email password 409
 
 testDeletedUsersFreeExternalIdNoIdp :: TestSpar ()
 testDeletedUsersFreeExternalIdNoIdp = do
