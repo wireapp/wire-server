@@ -40,14 +40,19 @@ module Wire.API.User.Activation
   )
 where
 
+import Control.Lens ((?~))
 import Data.Aeson
 import Data.ByteString.Conversion
+import Data.Data (Proxy (Proxy))
 import Data.Json.Util ((#))
-import Data.Schema (Schema (..), ToSchema, schemaIn)
+import Data.Schema as Schema (Schema (..), ToSchema (..), description)
+import qualified Data.Schema as Schema
+import Data.Swagger (ToParamSchema)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
+import Servant (FromHttpApiData (..))
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -77,6 +82,12 @@ newtype ActivationKey = ActivationKey
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
 
+instance ToParamSchema ActivationKey where
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
+
+instance FromHttpApiData ActivationKey where
+  parseUrlPiece = fmap ActivationKey . parseUrlPiece
+
 --------------------------------------------------------------------------------
 -- ActivationCode
 
@@ -88,6 +99,12 @@ newtype ActivationCode = ActivationCode
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToByteString, FromByteString, ToSchema, Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema ActivationCode
+
+instance ToParamSchema ActivationCode where
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
+
+instance FromHttpApiData ActivationCode where
+  parseQueryParam = fmap ActivationCode . parseUrlPiece
 
 --------------------------------------------------------------------------------
 -- Activate
@@ -158,6 +175,14 @@ data ActivationResponse = ActivationResponse
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ActivationResponse)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ActivationResponse
+
+instance ToSchema ActivationResponse where
+  schema =
+    Schema.objectWithDocModifier "ActivationResponse" (description ?~ "Response body of a successful activation request") $
+      ActivationResponse
+        <$> activatedIdentity Schema..= userIdentityObjectSchema
+        <*> activatedFirst Schema..= Schema.fieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") Schema.schema
 
 modelActivationResponse :: Doc.Model
 modelActivationResponse = Doc.defineModel "ActivationResponse" $ do
@@ -170,22 +195,6 @@ modelActivationResponse = Doc.defineModel "ActivationResponse" $ do
     Doc.optional
   Doc.property "first" Doc.bool' $
     Doc.description "Whether this is the first successful activation (i.e. account activation)."
-
--- FUTUREWORK: de-deduplicate work with JSON instance for 'UserIdentity'?
-instance ToJSON ActivationResponse where
-  toJSON (ActivationResponse ident first) =
-    object $
-      "email" .= emailIdentity ident
-        # "phone" .= phoneIdentity ident
-        # "sso_id" .= ssoIdentity ident
-        # "first" .= first
-        # []
-
-instance FromJSON ActivationResponse where
-  parseJSON = withObject "ActivationResponse" $ \o ->
-    ActivationResponse
-      <$> schemaIn userIdentityObjectSchema o
-      <*> o .:? "first" .!= False
 
 --------------------------------------------------------------------------------
 -- SendActivationCode
