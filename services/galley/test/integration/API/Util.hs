@@ -34,6 +34,7 @@ import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -79,6 +80,7 @@ import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports
+import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media.MediaType
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai (Application, defaultRequest)
@@ -120,7 +122,6 @@ import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
@@ -143,7 +144,12 @@ class HasGalley m where
   viewGalleyOpts :: m Opts.Opts
 
 instance HasGalley TestM where
-  viewGalley = view tsUnversionedGalley
+  viewGalley = fmap (addPrefix .) (view tsUnversionedGalley)
+    where
+      addPrefix r = r {HTTP.path = "v2/" <> removeSlash (HTTP.path r)}
+      removeSlash s = case B8.uncons s of
+        Just ('/', s') -> s'
+        _ -> s
   viewGalleyOpts = view tsGConf
 
 instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
@@ -938,12 +944,16 @@ getConvs u r s = do
       . zType "access"
       . convRange r s
 
-listConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversations -> m ResponseLBS
+listConvs ::
+  (MonadIO m, MonadHttp m, MonadReader TestSetup m) =>
+  UserId ->
+  ListConversations ->
+  m ResponseLBS
 listConvs u req = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   post $
     g
-      . path "/conversations/list/v2"
+      . path "/v1/conversations/list/v2"
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -997,17 +1007,17 @@ listRemoteConvs remoteDomain uid = do
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers ::
-  (HasGalley m, MonadIO m, MonadHttp m) =>
+  (MonadReader TestSetup m, MonadIO m, MonadHttp m) =>
   UserId ->
   NonEmpty (Qualified UserId) ->
   ConvId ->
   m ResponseLBS
 postQualifiedMembers zusr invitees conv = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   let invite = InviteQualified invitees roleNameWireAdmin
   post $
     g
-      . paths ["conversations", toByteString' conv, "members", "v2"]
+      . paths ["v1", "conversations", toByteString' conv, "members", "v2"]
       . zUser zusr
       . zConn "conn"
       . zType "access"
@@ -1034,8 +1044,7 @@ postMembersWithRole u us c r = do
   post $
     g
       . paths
-        [ v2,
-          "conversations",
+        [ "conversations",
           toByteString' (qDomain c),
           toByteString' (qUnqualified c),
           "members"
@@ -1044,8 +1053,6 @@ postMembersWithRole u us c r = do
       . zConn "conn"
       . zType "access"
       . json i
-  where
-    v2 = toByteString' (toLower <$> show V2)
 
 deleteMemberQualified ::
   (HasCallStack, MonadIO m, MonadHttp m, HasGalley m) =>

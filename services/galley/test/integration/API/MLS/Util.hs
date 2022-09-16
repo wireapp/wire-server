@@ -110,7 +110,7 @@ postMessage ::
 postMessage sender msg = do
   galley <- viewGalley
   post
-    ( galley . paths ["v2", "mls", "messages"]
+    ( galley . paths ["mls", "messages"]
         . zUser sender
         . zConn "conn"
         . content "message/mls"
