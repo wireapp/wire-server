@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLists #-}
+
 
 -- This file is part of the Wire Server implementation.
 --
@@ -31,10 +31,10 @@ import Wire.API.User.Profile (Name (Name, fromName))
 testObject_Invitation_team_1 :: Invitation
 testObject_Invitation_team_1 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000002"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000002")),
       inRole = RoleAdmin,
-      inInvitation = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-11T20:13:15.856Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000000")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-11T20:13:15.856Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
       inInviteeEmail = Email {emailLocal = "\FS\58114Y", emailDomain = "7"},
       inInviteeName = Nothing,
@@ -45,10 +45,10 @@ testObject_Invitation_team_1 =
 testObject_Invitation_team_2 :: Invitation
 testObject_Invitation_team_2 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
       inRole = RoleExternalPartner,
-      inInvitation = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-12T14:47:35.551Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-12T14:47:35.551Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000001"))),
       inInviteeEmail = Email {emailLocal = "i", emailDomain = "m_:"},
       inInviteeName = Just (Name {fromName = "\1067847} 2pGEW+\rT\171609p\174643\157218&\146145v0\b"}),
@@ -59,10 +59,10 @@ testObject_Invitation_team_2 =
 testObject_Invitation_team_3 :: Invitation
 testObject_Invitation_team_3 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000001"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000001")),
       inRole = RoleExternalPartner,
-      inInvitation = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-08T22:07:35.846Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T22:07:35.846Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000001"))),
       inInviteeEmail = Email {emailLocal = "", emailDomain = "\31189L"},
       inInviteeName = Nothing,
@@ -73,10 +73,10 @@ testObject_Invitation_team_3 =
 testObject_Invitation_team_4 :: Invitation
 testObject_Invitation_team_4 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
       inRole = RoleAdmin,
-      inInvitation = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-09T09:23:58.270Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-09T09:23:58.270Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
       inInviteeEmail = Email {emailLocal = "^", emailDomain = "e"},
       inInviteeName = Nothing,
@@ -87,10 +87,10 @@ testObject_Invitation_team_4 =
 testObject_Invitation_team_5 :: Invitation
 testObject_Invitation_team_5 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000001"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000001")),
       inRole = RoleOwner,
-      inInvitation = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-09T03:42:15.266Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-09T03:42:15.266Z"),
       inCreatedBy = Nothing,
       inInviteeEmail = Email {emailLocal = "\SOHV", emailDomain = "f\1086249\43462"},
       inInviteeName =
@@ -107,10 +107,10 @@ testObject_Invitation_team_5 =
 testObject_Invitation_team_6 :: Invitation
 testObject_Invitation_team_6 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
       inRole = RoleAdmin,
-      inInvitation = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000000"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-09T08:56:40.919Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000000")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-09T08:56:40.919Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000000"))),
       inInviteeEmail = Email {emailLocal = "", emailDomain = "OC"},
       inInviteeName =
@@ -127,10 +127,10 @@ testObject_Invitation_team_6 =
 testObject_Invitation_team_7 :: Invitation
 testObject_Invitation_team_7 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001")),
       inRole = RoleExternalPartner,
-      inInvitation = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-07T18:46:22.786Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-07T18:46:22.786Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))),
       inInviteeEmail = Email {emailLocal = "oj", emailDomain = ""},
       inInviteeName =
@@ -147,10 +147,10 @@ testObject_Invitation_team_7 =
 testObject_Invitation_team_8 :: Invitation
 testObject_Invitation_team_8 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000001")),
       inRole = RoleAdmin,
-      inInvitation = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000000"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-07T12:20:00.738Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000000")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-07T12:20:00.738Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
       inInviteeEmail = Email {emailLocal = "", emailDomain = "Y\fr"},
       inInviteeName = Just (Name {fromName = "\67592\154970\1102305lE\990376\SYN\rjI!@\RS\1094043"}),
@@ -161,10 +161,10 @@ testObject_Invitation_team_8 =
 testObject_Invitation_team_9 :: Invitation
 testObject_Invitation_team_9 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000000"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000000")),
       inRole = RoleAdmin,
-      inInvitation = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-06T13:15:34.606Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-06T13:15:34.606Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000002"))),
       inInviteeEmail = Email {emailLocal = "Qi\183990", emailDomain = "\144719"},
       inInviteeName = Nothing,
@@ -175,10 +175,10 @@ testObject_Invitation_team_9 =
 testObject_Invitation_team_10 :: Invitation
 testObject_Invitation_team_10 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000001"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000001")),
       inRole = RoleExternalPartner,
-      inInvitation = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-10T19:57:59.926Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-10T19:57:59.926Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000002"))),
       inInviteeEmail = Email {emailLocal = "\SOH", emailDomain = "\SUB"},
       inInviteeName = Nothing,
@@ -189,10 +189,10 @@ testObject_Invitation_team_10 =
 testObject_Invitation_team_11 :: Invitation
 testObject_Invitation_team_11 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
       inRole = RoleAdmin,
-      inInvitation = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-10T16:20:51.120Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-10T16:20:51.120Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))),
       inInviteeEmail = Email {emailLocal = "6", emailDomain = "\1101264N"},
       inInviteeName =
@@ -209,10 +209,10 @@ testObject_Invitation_team_11 =
 testObject_Invitation_team_12 :: Invitation
 testObject_Invitation_team_12 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002")),
       inRole = RoleAdmin,
-      inInvitation = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-12T22:47:35.829Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-12T22:47:35.829Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000000000000"))),
       inInviteeEmail = Email {emailLocal = "\1016862\141073\RS", emailDomain = ""},
       inInviteeName =
@@ -229,10 +229,10 @@ testObject_Invitation_team_12 =
 testObject_Invitation_team_13 :: Invitation
 testObject_Invitation_team_13 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000001"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000001")),
       inRole = RoleMember,
-      inInvitation = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-08T01:18:31.982Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T01:18:31.982Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000100000002"))),
       inInviteeEmail = Email {emailLocal = "", emailDomain = "\DELr"},
       inInviteeName = Just (Name {fromName = "U"}),
@@ -243,10 +243,10 @@ testObject_Invitation_team_13 =
 testObject_Invitation_team_14 :: Invitation
 testObject_Invitation_team_14 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000000"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000000")),
       inRole = RoleOwner,
-      inInvitation = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-12T23:54:25.090Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-12T23:54:25.090Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000000"))),
       inInviteeEmail = Email {emailLocal = "EI", emailDomain = "{"},
       inInviteeName = Nothing,
@@ -257,10 +257,10 @@ testObject_Invitation_team_14 =
 testObject_Invitation_team_15 :: Invitation
 testObject_Invitation_team_15 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001")),
       inRole = RoleOwner,
-      inInvitation = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-08T22:22:28.568Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000200000001")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T22:22:28.568Z"),
       inCreatedBy = Nothing,
       inInviteeEmail = Email {emailLocal = ".", emailDomain = "\DEL"},
       inInviteeName =
@@ -277,10 +277,10 @@ testObject_Invitation_team_15 =
 testObject_Invitation_team_16 :: Invitation
 testObject_Invitation_team_16 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002")),
       inRole = RoleExternalPartner,
-      inInvitation = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000001"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-09T09:56:33.113Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000001")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-09T09:56:33.113Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
       inInviteeEmail = Email {emailLocal = "\\", emailDomain = "\"\DEL{"},
       inInviteeName = Just (Name {fromName = "\GS\DC4Q;6/_f*7\1093966\SI+\1092810\41698\&9"}),
@@ -291,10 +291,10 @@ testObject_Invitation_team_16 =
 testObject_Invitation_team_17 :: Invitation
 testObject_Invitation_team_17 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000002"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000002")),
       inRole = RoleAdmin,
-      inInvitation = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-08T06:30:23.239Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T06:30:23.239Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
       inInviteeEmail = Email {emailLocal = "", emailDomain = "\SOH[\97119"},
       inInviteeName =
@@ -311,10 +311,10 @@ testObject_Invitation_team_17 =
 testObject_Invitation_team_18 :: Invitation
 testObject_Invitation_team_18 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
       inRole = RoleAdmin,
-      inInvitation = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-08T06:07:59.528Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-08T06:07:59.528Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
       inInviteeEmail = Email {emailLocal = "\SOH", emailDomain = "l\42676a"},
       inInviteeName =
@@ -331,10 +331,10 @@ testObject_Invitation_team_18 =
 testObject_Invitation_team_19 :: Invitation
 testObject_Invitation_team_19 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000000"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000200000000")),
       inRole = RoleMember,
-      inInvitation = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000001"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-07T15:08:06.796Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000001")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-07T15:08:06.796Z"),
       inCreatedBy = Nothing,
       inInviteeEmail = Email {emailLocal = "\1019726\96050\DEL", emailDomain = "(S\ETB"},
       inInviteeName =
@@ -351,10 +351,10 @@ testObject_Invitation_team_19 =
 testObject_Invitation_team_20 :: Invitation
 testObject_Invitation_team_20 =
   Invitation
-    { inTeam = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+    { inTeam = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
       inRole = RoleExternalPartner,
-      inInvitation = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000001"))),
-      inCreatedAt = (fromJust (readUTCTimeMillis "1864-05-12T08:07:17.747Z")),
+      inInvitation = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000001")),
+      inCreatedAt = fromJust (readUTCTimeMillis "1864-05-12T08:07:17.747Z"),
       inCreatedBy = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
       inInviteeEmail = Email {emailLocal = "b", emailDomain = "u9T"},
       inInviteeName = Nothing,

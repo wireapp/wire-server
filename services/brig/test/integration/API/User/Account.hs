@@ -1611,29 +1611,26 @@ testTooManyMembersForLegalhold opts brig = do
     responseJsonError =<< postInvitation brig tid owner invite
       <!! statusCode === const 201
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-  let mockGalley (ReceivedRequest mth pth _body) =
-        if mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"]
-          then
-            pure . Wai.responseLBS HTTP.status403 mempty $
-              encode
-                ( Wai.mkError
-                    HTTP.status403
-                    "too-many-members-for-legalhold"
-                    "cannot add more members to team when legalhold service is enabled."
-                )
-          else
-            if mth == "GET"
-              && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"]
-              then
-                pure . Wai.responseLBS HTTP.status200 mempty $
-                  encode
-                    ( withStatus
-                        FeatureStatusDisabled
-                        LockStatusLocked
-                        ExposeInvitationURLsToTeamAdminConfig
-                        FeatureTTLUnlimited
-                    )
-              else pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
+  let mockGalley (ReceivedRequest mth pth _body)
+        | mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"] =
+          pure . Wai.responseLBS HTTP.status403 mempty $
+            encode
+              ( Wai.mkError
+                  HTTP.status403
+                  "too-many-members-for-legalhold"
+                  "cannot add more members to team when legalhold service is enabled."
+              )
+        | mth == "GET"
+        && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
+          pure . Wai.responseLBS HTTP.status200 mempty $
+            encode
+              ( withStatus
+                  FeatureStatusDisabled
+                  LockStatusLocked
+                  ExposeInvitationURLsToTeamAdminConfig
+                  FeatureTTLUnlimited
+              )
+        | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
 
   void . withMockedGalley opts mockGalley $ do
     post

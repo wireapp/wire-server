@@ -450,8 +450,7 @@ testClassifiedDomainsDisabled = do
         liftIO $ Public.wsStatus result @?= Public.wssStatus expected'
         liftIO $ Public.wsConfig result @?= Public.wssConfig expected'
 
-  let classifiedDomainsDisabled = \opts ->
-        opts
+  let classifiedDomainsDisabled opts = opts
           & over
             (optSettings . setFeatureFlags . flagClassifiedDomains)
             (\(ImplicitLockStatus s) -> ImplicitLockStatus (s & Public.setStatus Public.FeatureStatusDisabled & Public.setConfig (Public.ClassifiedDomainsConfig [])))
