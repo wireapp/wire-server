@@ -222,7 +222,9 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"change-handle" changeHandle
 
     accountAPI :: ServerT AccountAPI (Handler r)
-    accountAPI = Named @"register" createUser
+    accountAPI =
+      Named @"register" createUser
+        :<|> Named @"verify-delete" verifyDeleteUser
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -309,20 +311,6 @@ sitemap ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
-  -- This endpoint can lead to the following events being sent:
-  -- UserDeleted event to contacts of deleted user
-  -- MemberLeave event to members for all conversations the user was in (via galley)
-  post "/delete" (continue verifyDeleteUserH) $
-    jsonRequest @Public.VerifyDeleteUser
-      .&. accept "application" "json"
-  document "POST" "verifyDeleteUser" $ do
-    Doc.summary "Verify account deletion with a code."
-    Doc.body (Doc.ref Public.modelVerifyDelete) $
-      Doc.description "JSON body"
-    Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse (errorToWai @'E.InvalidCode)
-
-  -- TODO: put delete here, too?
   -- /activate, /password-reset ----------------------------------
 
   -- This endpoint can lead to the following events being sent:
@@ -989,11 +977,8 @@ deleteSelfUser ::
 deleteSelfUser u body =
   API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
-verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> (Handler r) Response
-verifyDeleteUserH (r ::: _) = do
-  body <- parseJsonBody r
-  API.verifyDeleteUser body !>> deleteUserError
-  pure (setStatus status200 empty)
+verifyDeleteUser :: Public.VerifyDeleteUser -> Handler r ()
+verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 
 updateUserEmail :: Member BlacklistStore r => UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do

@@ -1312,6 +1312,7 @@ data VerifyDeleteUser = VerifyDeleteUser
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform VerifyDeleteUser)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifyDeleteUser)
 
 modelVerifyDelete :: Doc.Model
 modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
@@ -1324,18 +1325,12 @@ modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
 mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
 mkVerifyDeleteUser = VerifyDeleteUser
 
-instance ToJSON VerifyDeleteUser where
-  toJSON d =
-    A.object
-      [ "key" A..= verifyDeleteUserKey d,
-        "code" A..= verifyDeleteUserCode d
-      ]
-
-instance FromJSON VerifyDeleteUser where
-  parseJSON = A.withObject "VerifyDeleteUser" $ \o ->
-    VerifyDeleteUser
-      <$> o A..: "key"
-      <*> o A..: "code"
+instance ToSchema VerifyDeleteUser where
+  schema =
+    object "VerifyDeleteUser" $
+      VerifyDeleteUser
+        <$> verifyDeleteUserKey .= field "key" schema
+        <*> verifyDeleteUserCode .= field "code" schema
 
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout
