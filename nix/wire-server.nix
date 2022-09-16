@@ -121,6 +121,9 @@ let lib = pkgs.lib;
           mkdir -p /usr/share/wire/
           ln -s ${brig-templates} /usr/share/wire/templates
           '';
+        config = {
+          Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${staticExecs.brig}/bin/brig"];
+        };
       };
       brig-integration = pkgs.dockerTools.buildImage {
         name = "quay.io/wire/brig-integration";
@@ -129,6 +132,9 @@ let lib = pkgs.lib;
           name = "mls-test-cli";
           paths = [pkgs.mls-test-cli];
         };
+        config = {
+          Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${staticExecs.brig-integration}/bin/brig-integration"];
+        };
       };
       galley-integration = pkgs.dockerTools.buildImage {
         name = "quay.io/wire/galley-integration";
@@ -136,6 +142,9 @@ let lib = pkgs.lib;
         copyToRoot = pkgs.buildEnv {
           name = "mls-test-cli";
           paths = [pkgs.mls-test-cli];
+        };
+        config = {
+          Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${staticExecs.galley-integration}/bin/galley-integration"];
         };
       };
     };
