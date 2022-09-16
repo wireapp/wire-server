@@ -32,24 +32,17 @@ module Wire.API.User.Activation
 
     -- * SendActivationCode
     SendActivationCode (..),
-
-    -- * Swagger
-    modelSendActivationCode,
-    modelActivationResponse,
   )
 where
 
 import Control.Lens ((?~))
-import Data.Aeson
+import qualified Data.Aeson as A
 import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
 import Data.Data (Proxy (Proxy))
-import Data.Json.Util ((#))
-import Data.Schema as Schema (Schema (..), ToSchema (..), description)
-import qualified Data.Schema as Schema
+import Data.Schema
 import Data.Swagger (ToParamSchema)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
@@ -81,41 +74,13 @@ instance ToByteString ActivationTarget where
 newtype ActivationKey = ActivationKey
   {fromActivationKey :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToSchema, ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
+  deriving newtype (ToSchema, ToByteString, FromByteString, A.ToJSON, A.FromJSON, Arbitrary)
 
 instance ToParamSchema ActivationKey where
   toParamSchema _ = S.toParamSchema (Proxy @Text)
 
 instance FromHttpApiData ActivationKey where
   parseUrlPiece = fmap ActivationKey . parseUrlPiece
-
-maybeActivationKeyObjectSchema :: Schema.ObjectSchemaP Schema.SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email) ActivationTarget
-maybeActivationKeyObjectSchema =
-  Schema.withParser activationKeyTupleObjectSchema maybeActivationKeyTargetFromTuple
-  where
-    activationKeyTupleObjectSchema :: Schema.ObjectSchema Schema.SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email)
-    activationKeyTupleObjectSchema =
-      (,,)
-        <$> fst3 Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "key" keyDocs Schema.schema)
-        <*> snd3 Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "phone" phoneDocs Schema.schema)
-        <*> thd3 Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "email" emailDocs Schema.schema)
-      where
-        keyDocs = description ?~ "An opaque key to activate, as it was sent by the API."
-        phoneDocs = description ?~ "A known phone number to activate."
-        emailDocs = description ?~ "A known email address to activate."
-
-    maybeActivationKeyTargetFromTuple :: (Maybe ActivationKey, Maybe Phone, Maybe Email) -> Parser ActivationTarget
-    maybeActivationKeyTargetFromTuple = \case
-      (Just key, _, _) -> pure $ ActivateKey key
-      (_, _, Just email) -> pure $ ActivateEmail email
-      (_, Just phone, _) -> pure $ ActivatePhone phone
-      _ -> fail "key, email or phone must be present"
-
-maybeActivationTargetToTuple :: ActivationTarget -> (Maybe ActivationKey, Maybe Phone, Maybe Email)
-maybeActivationTargetToTuple = \case
-  ActivateKey key -> (Just key, Nothing, Nothing)
-  ActivatePhone phone -> (Nothing, Just phone, Nothing)
-  ActivateEmail email -> (Nothing, Nothing, Just email)
 
 --------------------------------------------------------------------------------
 -- ActivationCode
@@ -127,7 +92,7 @@ newtype ActivationCode = ActivationCode
   {fromActivationCode :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToByteString, FromByteString, ToSchema, Arbitrary)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ActivationCode
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema ActivationCode
 
 instance ToParamSchema ActivationCode where
   toParamSchema _ = S.toParamSchema (Proxy @Text)
@@ -146,24 +111,57 @@ data Activate = Activate
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Activate)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema Activate
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema Activate
 
 instance ToSchema Activate where
   schema =
-    Schema.objectWithDocModifier "Activate" objectDocs $
+    objectWithDocModifier "Activate" objectDocs $
       Activate
-        <$> (maybeActivationTargetToTuple . activateTarget) Schema..= maybeActivationKeyObjectSchema
-        <*> activateCode Schema..= Schema.fieldWithDocModifier "code" codeDocs schema
-        <*> activateDryrun Schema..= Schema.fieldWithDocModifier "dryrun" dryrunDocs schema
+        <$> (maybeActivationTargetToTuple . activateTarget) .= maybeActivationTargetObjectSchema
+        <*> activateCode .= fieldWithDocModifier "code" codeDocs schema
+        <*> activateDryrun .= fieldWithDocModifier "dryrun" dryRunDocs schema
     where
+      objectDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
       objectDocs = description ?~ "Data for an activation request."
+
+      codeDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
       codeDocs = description ?~ "The activation code."
-      dryrunDocs =
+
+      dryRunDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      dryRunDocs =
         description
           ?~ "Whether to perform a dryrun, i.e. to only check whether \
              \activation would succeed. Dry-runs never issue access \
              \cookies or tokens on success but failures still count \
              \towards the maximum failure count."
+
+      maybeActivationTargetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email) ActivationTarget
+      maybeActivationTargetObjectSchema =
+        withParser activationTargetTupleObjectSchema maybeActivationTargetTargetFromTuple
+        where
+          activationTargetTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email)
+          activationTargetTupleObjectSchema =
+            (,,)
+              <$> fst3 .= maybe_ (optFieldWithDocModifier "key" keyDocs schema)
+              <*> snd3 .= maybe_ (optFieldWithDocModifier "phone" phoneDocs schema)
+              <*> thd3 .= maybe_ (optFieldWithDocModifier "email" emailDocs schema)
+            where
+              keyDocs = description ?~ "An opaque key to activate, as it was sent by the API."
+              phoneDocs = description ?~ "A known phone number to activate."
+              emailDocs = description ?~ "A known email address to activate."
+
+          maybeActivationTargetTargetFromTuple :: (Maybe ActivationKey, Maybe Phone, Maybe Email) -> Parser ActivationTarget
+          maybeActivationTargetTargetFromTuple = \case
+            (Just key, _, _) -> pure $ ActivateKey key
+            (_, _, Just email) -> pure $ ActivateEmail email
+            (_, Just phone, _) -> pure $ ActivatePhone phone
+            _ -> fail "key, email or phone must be present"
+
+      maybeActivationTargetToTuple :: ActivationTarget -> (Maybe ActivationKey, Maybe Phone, Maybe Email)
+      maybeActivationTargetToTuple = \case
+        ActivateKey key -> (Just key, Nothing, Nothing)
+        ActivatePhone phone -> (Nothing, Just phone, Nothing)
+        ActivateEmail email -> (Nothing, Nothing, Just email)
 
 -- | Information returned as part of a successful activation.
 data ActivationResponse = ActivationResponse
@@ -174,26 +172,14 @@ data ActivationResponse = ActivationResponse
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ActivationResponse)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ActivationResponse
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema ActivationResponse
 
 instance ToSchema ActivationResponse where
   schema =
-    Schema.objectWithDocModifier "ActivationResponse" (description ?~ "Response body of a successful activation request") $
+    objectWithDocModifier "ActivationResponse" (description ?~ "Response body of a successful activation request") $
       ActivationResponse
-        <$> activatedIdentity Schema..= userIdentityObjectSchema
-        <*> activatedFirst Schema..= Schema.fieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") Schema.schema
-
-modelActivationResponse :: Doc.Model
-modelActivationResponse = Doc.defineModel "ActivationResponse" $ do
-  Doc.description "Response body of a successful activation request"
-  Doc.property "email" Doc.string' $ do
-    Doc.description "The email address that was activated."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "The phone number that was activated."
-    Doc.optional
-  Doc.property "first" Doc.bool' $
-    Doc.description "Whether this is the first successful activation (i.e. account activation)."
+        <$> activatedIdentity .= userIdentityObjectSchema
+        <*> activatedFirst .= (fromMaybe False <$> optFieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") schema)
 
 --------------------------------------------------------------------------------
 -- SendActivationCode
@@ -208,43 +194,43 @@ data SendActivationCode = SendActivationCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SendActivationCode)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema SendActivationCode
 
-modelSendActivationCode :: Doc.Model
-modelSendActivationCode = Doc.defineModel "SendActivationCode" $ do
-  Doc.description
-    "Data for requesting an email or phone activation code to be sent. \
-    \One of 'email' or 'phone' must be present."
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email address to send the code to."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "E.164 phone number to send the code to."
-    Doc.optional
-  Doc.property "locale" Doc.string' $ do
-    Doc.description "Locale to use for the activation code template."
-    Doc.optional
-  Doc.property "voice_call" Doc.bool' $ do
-    Doc.description "Request the code with a call instead (default is SMS)."
-    Doc.optional
-
-instance ToJSON SendActivationCode where
-  toJSON (SendActivationCode userKey locale call) =
-    object $
-      either ("email" .=) ("phone" .=) userKey
-        # "locale" .= locale
-        # "voice_call" .= call
-        # []
-
-instance FromJSON SendActivationCode where
-  parseJSON = withObject "SendActivationCode" $ \o -> do
-    e <- o .:? "email"
-    p <- o .:? "phone"
-    SendActivationCode
-      <$> key e p
-      <*> o .:? "locale"
-      <*> o .:? "voice_call" .!= False
+instance ToSchema SendActivationCode where
+  schema =
+    objectWithDocModifier "SendActivationCode" objectDesc $
+      SendActivationCode
+        <$> (maybeUserKeyToTuple . saUserKey) .= userKeyObjectSchema
+        <*> saLocale .= maybe_ (optFieldWithDocModifier "locale" (description ?~ "Locale to use for the activation code template.") schema)
+        <*> saCall .= (fromMaybe False <$> optFieldWithDocModifier "voice_call" (description ?~ "Request the code with a call instead (default is SMS).") schema)
     where
-      key (Just _) (Just _) = fail "Only one of 'email' or 'phone' allowed."
-      key Nothing Nothing = fail "One of 'email' or 'phone' required."
-      key (Just e) Nothing = pure $ Left e
-      key Nothing (Just p) = pure $ Right p
+      maybeUserKeyToTuple :: Either Email Phone -> (Maybe Email, Maybe Phone)
+      maybeUserKeyToTuple = \case
+        Left email -> (Just email, Nothing)
+        Right phone -> (Nothing, Just phone)
+
+      objectDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
+      objectDesc =
+        description
+          ?~ "Data for requesting an email or phone activation code to be sent. \
+             \One of 'email' or 'phone' must be present."
+
+      userKeyObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe Email, Maybe Phone) (Either Email Phone)
+      userKeyObjectSchema =
+        withParser userKeyTupleObjectSchema maybeUserKeyFromTuple
+        where
+          userKeyTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Phone)
+          userKeyTupleObjectSchema =
+            (,)
+              <$> fst .= maybe_ (optFieldWithDocModifier "email" phoneDocs schema)
+              <*> snd .= maybe_ (optFieldWithDocModifier "phone" emailDocs schema)
+            where
+              emailDocs = description ?~ "Email address to send the code to."
+              phoneDocs = description ?~ "E.164 phone number to send the code to."
+
+          maybeUserKeyFromTuple :: (Maybe Email, Maybe Phone) -> Parser (Either Email Phone)
+          maybeUserKeyFromTuple = \case
+            (Just _, Just _) -> fail "Only one of 'email' or 'phone' allowed."
+            (Just email, Nothing) -> pure $ Left email
+            (Nothing, Just phone) -> pure $ Right phone
+            (Nothing, Nothing) -> fail "One of 'email' or 'phone' required."

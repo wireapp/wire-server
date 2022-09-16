@@ -66,6 +66,7 @@ data BrigError
   | InsufficientTeamPermissions
   | KeyPackageDecodingError
   | InvalidKeyPackageRef
+  | CustomerExtensionBlockedDomain
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -178,3 +179,12 @@ type instance MapError 'InsufficientTeamPermissions = 'StaticError 403 "insuffic
 type instance MapError 'KeyPackageDecodingError = 'StaticError 409 "decoding-error" "Key package could not be TLS-decoded"
 
 type instance MapError 'InvalidKeyPackageRef = 'StaticError 409 "invalid-reference" "Key package's reference does not match its data"
+
+type instance
+  MapError 'CustomerExtensionBlockedDomain =
+    'StaticError
+      451
+      "domain-blocked-for-registration"
+      "[Customer extension] the email domain example.com \
+      \that you are attempting to register a user with has been \
+      \blocked for creating wire users.  Please contact your IT department."

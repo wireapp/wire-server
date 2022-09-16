@@ -227,6 +227,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"verify-delete" verifyDeleteUser
         :<|> Named @"get-activate" activate
         :<|> Named @"post-activate" activateKey
+        :<|> Named @"post-activate-send" sendActivationCode
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -314,21 +315,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- /activate, /password-reset ----------------------------------
-
-  -- docs/reference/user/activation.md {#RefActivationRequest}
-  post "/activate/send" (continue sendActivationCodeH) $
-    jsonRequest @Public.SendActivationCode
-  document "POST" "sendActivationCode" $ do
-    Doc.summary "Send (or resend) an email or phone activation code."
-    Doc.body (Doc.ref Public.modelSendActivationCode) $
-      Doc.description "JSON body"
-    Doc.response 200 "Activation code sent." Doc.end
-    Doc.errorResponse (errorToWai @'E.InvalidEmail)
-    Doc.errorResponse (errorToWai @'E.InvalidPhone)
-    Doc.errorResponse (errorToWai @'E.UserKeyExists)
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse (errorToWai @'E.BlacklistedPhone)
-    Doc.errorResponse (customerExtensionBlockedDomain (either undefined id $ mkDomain "example.com"))
 
   post "/password-reset" (continue beginPasswordResetH) $
     accept "application" "json"
@@ -811,17 +797,6 @@ completePasswordResetH (_ ::: req) = do
   Public.CompletePasswordReset {..} <- parseJsonBody req
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
   pure empty
-
-sendActivationCodeH ::
-  Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore
-     ]
-    r =>
-  JsonRequest Public.SendActivationCode ->
-  (Handler r) Response
-sendActivationCodeH req =
-  empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
