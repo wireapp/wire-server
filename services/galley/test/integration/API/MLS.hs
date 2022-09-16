@@ -1232,8 +1232,8 @@ testExternalAddProposal = do
       createAddCommit alice1 [bob]
         >>= sendAndConsumeCommit
 
-    bob2 <- createMLSClient bob
     -- bob joins with an external proposal
+    bob2 <- createMLSClient bob
     mlsBracket [alice1, bob1] $ \wss -> do
       void $
         createExternalAddProposal bob2
@@ -1254,6 +1254,16 @@ testExternalAddProposal = do
         liftTest $
           WS.assertMatchN_ (5 # Second) wss $
             wsAssertMLSMessage qcnv alice (mpMessage msg)
+
+    -- bob adds charlie
+    putOtherMemberQualified
+      (qUnqualified alice)
+      bob
+      (OtherMemberUpdate (Just roleNameWireAdmin))
+      qcnv
+      !!! const 200 === statusCode
+    createAddCommit bob2 [charlie]
+      >>= sendAndConsumeCommit
 
 testExternalAddProposalNonAdminCommit :: TestM ()
 testExternalAddProposalNonAdminCommit = do
