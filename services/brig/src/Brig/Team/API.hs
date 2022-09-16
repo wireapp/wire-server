@@ -36,7 +36,6 @@ import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
-import Brig.Team.DB (getTeamExposeInvitationURLsToTeamAdmin)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
@@ -379,14 +378,14 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   let locale = irLocale body
   let inviteeName = irInviteeName body
-  showInvitationUrl <- lift $ wrapHttp $ getTeamExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
 
   lift $ do
     iid <- liftIO DB.mkInvitationId
     now <- liftIO =<< view currentTime
     timeout <- setTeamInvitationTimeout <$> view settings
     (newInv, code) <-
-      wrapHttp $
+      wrapClient $
         DB.insertInvitation
           showInvitationUrl
           iid
@@ -416,7 +415,7 @@ listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
 listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
 listInvitations uid tid start size = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ wrapHttp $ getTeamExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
   rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start size
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
@@ -430,7 +429,7 @@ getInvitationH (_ ::: uid ::: tid ::: iid) = do
 getInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ wrapHttp $ getTeamExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
   lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
 
 getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response

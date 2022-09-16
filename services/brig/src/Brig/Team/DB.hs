@@ -32,7 +32,6 @@ module Brig.Team.DB
     lookupInvitationByEmail,
     mkInvitationCode,
     mkInvitationId,
-    getTeamExposeInvitationURLsToTeamAdmin,
     InvitationInfo (..),
     InvitationByEmail (..),
   )
@@ -41,7 +40,6 @@ where
 import Brig.App as App
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
-import Brig.IO.Intra
 import Brig.Options
 import Brig.Team.Template
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
