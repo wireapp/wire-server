@@ -16,7 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.MLS.Removal
-  ( removeUserWithClientMap,
+  ( removeClientsWithClientMap,
+    removeClient,
+    removeUserWithClientMap,
     removeUser,
   )
 where
@@ -26,6 +28,7 @@ import Control.Lens (view)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
+import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
 import Galley.API.MLS.Propagate
@@ -42,11 +45,75 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
+-- | Send remove proposals for a set of clients to clients in the ClientMap.
+removeClientsWithClientMap ::
+  ( Members
+      '[ Input UTCTime,
+         TinyLog,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Error InternalError,
+         ProposalStore,
+         Input Env
+       ]
+      r
+  ) =>
+  Local Data.Conversation ->
+  Set (ClientId, KeyPackageRef) ->
+  ClientMap ->
+  Qualified UserId ->
+  Sem r ()
+removeClientsWithClientMap lc cs cm qusr = do
+  case Data.convProtocol (tUnqualified lc) of
+    ProtocolProteus -> pure ()
+    ProtocolMLS meta -> do
+      keyPair <- mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
+      (secKey, pubKey) <- note (InternalErrorWithDescription "backend removal key missing") $ keyPair
+      for_ cs $ \(_client, kpref) -> do
+        let proposal = mkRemoveProposal kpref
+            msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
+            msgEncoded = encodeMLS' msg
+        storeProposal
+          (cnvmlsGroupId meta)
+          (cnvmlsEpoch meta)
+          (proposalRef (cnvmlsCipherSuite meta) proposal)
+          proposal
+        propagateMessage qusr lc cm Nothing msgEncoded
+
+-- | Send remove proposals for a single client of a user to the local conversation.
+removeClient ::
+  ( Members
+      '[ Error InternalError,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input UTCTime,
+         MemberStore,
+         ProposalStore,
+         TinyLog
+       ]
+      r
+  ) =>
+  Local Data.Conversation ->
+  Qualified UserId ->
+  ClientId ->
+  Sem r ()
+removeClient lc qusr cid = do
+  cm <- lookupMLSClients (fmap Data.convId lc)
+  let cidAndKP = Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
+  removeClientsWithClientMap lc cidAndKP cm qusr
+
+-- | Send remove proposals for all clients of the user to clients in the ClientMap.
+--
+-- All clients of the user have to be contained in the ClientMap.
 removeUserWithClientMap ::
   ( Members
       '[ Input UTCTime,
@@ -64,23 +131,10 @@ removeUserWithClientMap ::
   ClientMap ->
   Qualified UserId ->
   Sem r ()
-removeUserWithClientMap lc cm qusr = do
-  case Data.convProtocol (tUnqualified lc) of
-    ProtocolProteus -> pure ()
-    ProtocolMLS meta -> do
-      keyPair <- mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
-      (secKey, pubKey) <- note (InternalErrorWithDescription "backend removal key missing") $ keyPair
-      for_ (Map.findWithDefault mempty qusr cm) $ \(_client, kpref) -> do
-        let proposal = mkRemoveProposal kpref
-            msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
-            msgEncoded = encodeMLS' msg
-        storeProposal
-          (cnvmlsGroupId meta)
-          (cnvmlsEpoch meta)
-          (proposalRef (cnvmlsCipherSuite meta) proposal)
-          proposal
-        propagateMessage qusr lc cm Nothing msgEncoded
+removeUserWithClientMap lc cm qusr =
+  removeClientsWithClientMap lc (Map.findWithDefault mempty qusr cm) cm qusr
 
+-- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
   ( Members
       '[ Error InternalError,

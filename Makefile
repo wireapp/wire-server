@@ -121,6 +121,15 @@ ghcid:
 hlint-check-all:
 	./tools/hlint.sh -f all -m check
 
+.PHONY: hlint-check-pr
+hlint-check-pr:
+	./tools/hlint.sh -f pr -m check
+
+.PHONY: hlint-inplace-pr
+hlint-inplace-pr:
+	./tools/hlint.sh -f pr -m inplace
+
+
 .PHONY: hlint-inplace-all
 hlint-inplace-all:
 	./tools/hlint.sh -f all -m inplace

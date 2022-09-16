@@ -24,6 +24,7 @@ where
 
 import qualified API.Search.Util as SearchUtil
 import API.Team.Util
+import API.User.Util as Util hiding (listConnections)
 import Bilge hiding (accept, head, timeout)
 import qualified Bilge
 import Bilge.Assert
@@ -57,6 +58,7 @@ import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
 import Wire.API.Connection
 import Wire.API.Team hiding (newTeam)
+import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member hiding (invitation, userId)
 import qualified Wire.API.Team.Member as Member
@@ -65,6 +67,7 @@ import Wire.API.Team.Role
 import Wire.API.Team.Size
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.API.User.Client (ClientType (PermanentClientType))
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 
@@ -108,7 +111,8 @@ tests conf m n b c g aws = do
         testGroup "sso" $
           [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g,
             test m "delete /i/users/:uid - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g,
-            test m "get /i/teams/:tid/is-team-owner/:uid" $ testSSOIsTeamOwner b g
+            test m "get /i/teams/:tid/is-team-owner/:uid" $ testSSOIsTeamOwner b g,
+            test m "2FA disabled for SSO user" $ test2FaDisabledForSsoUser b g
           ],
         testGroup "size" $ [test m "get /i/teams/:tid/size" $ testTeamSize b]
       ]
@@ -819,6 +823,21 @@ testDeleteUserSSO brig galley = do
   -- delete second owner now, we don't enforce existence of emails in the backend
   updatePermissions user3 tid (creator', Team.rolePermissions RoleMember) galley
   deleteUser creator' (Just defPassword) brig !!! const 200 === statusCode
+
+test2FaDisabledForSsoUser :: Brig -> Galley -> Http ()
+test2FaDisabledForSsoUser brig galley = do
+  teamid <- snd <$> createUserWithTeam brig
+  setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley teamid Public.LockStatusUnlocked
+  setTeamSndFactorPasswordChallenge galley teamid Public.FeatureStatusEnabled
+  let ssoid = UserSSOId mkSimpleSampleUref
+  createUserResp <-
+    postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
+      const 201 === statusCode
+      const (Just ssoid) === (userSSOId . selfUser <=< responseJsonMaybe)
+  let Just uid = userId <$> responseJsonMaybe createUserResp
+  let verificationCode = Nothing
+  addClient brig uid (defNewClientWithVerificationCode verificationCode PermanentClientType [head somePrekeys] (head someLastPrekeys))
+    !!! const 201 === statusCode
 
 -- TODO:
 -- add sso service.  (we'll need a name for that now.)

@@ -50,6 +50,7 @@ import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
+import Galley.Effects.ConversationStore (getConversation)
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
@@ -79,7 +80,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
+import Wire.API.Federation.API.Galley (ClientRemovedRequest, ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
@@ -108,6 +109,35 @@ federationSitemap =
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
     :<|> Named @"send-mls-message" sendMLSMessage
+    :<|> Named @"on-client-removed" onClientRemoved
+
+onClientRemoved ::
+  ( Members
+      '[ ConversationStore,
+         Error InternalError,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input (Local ()),
+         Input UTCTime,
+         MemberStore,
+         ProposalStore,
+         TinyLog
+       ]
+      r
+  ) =>
+  Domain ->
+  ClientRemovedRequest ->
+  Sem r EmptyResponse
+onClientRemoved domain req = do
+  let qusr = Qualified (F.crrUser req) domain
+  for_ (F.crrConvs req) $ \convId -> do
+    mConv <- getConversation convId
+    for mConv $ \conv -> do
+      lconv <- qualifyLocal conv
+      removeClient lconv qusr (F.crrClient req)
+  pure EmptyResponse
 
 onConversationCreated ::
   Members
