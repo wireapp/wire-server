@@ -39,7 +39,6 @@ module Galley.Types.Teams
     flagTeamFeatureSndFactorPasswordChallengeStatus,
     flagTeamFeatureSearchVisibilityInbound,
     flagMLS,
-    flagTeamFeatureExposeInvitationURLsTeamAllowlist,
     Defaults (..),
     ImplicitLockStatus (..),
     unImplicitLockStatus,
@@ -151,8 +150,7 @@ data FeatureFlags = FeatureFlags
     _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
     _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
-    _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig)),
-    _flagTeamFeatureExposeInvitationURLsTeamAllowlist :: !ExposeInvitationURLsTeamAllowlistConfig
+    _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig))
   }
   deriving (Eq, Show, Generic)
 
@@ -202,7 +200,6 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
       <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
       <*> withImplicitLockStatusOrDefault obj "mls"
-      <*> (fromMaybe [] <$> (obj .:? "exposeInvitationURLsTeamAllowlist"))
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
@@ -223,7 +220,6 @@ instance ToJSON FeatureFlags where
         sndFactorPasswordChallenge
         searchVisibilityInbound
         mls
-        exposeInvitationURLsTeamAllowlist
       ) =
       object
         [ "sso" .= sso,
@@ -238,8 +234,7 @@ instance ToJSON FeatureFlags where
           "validateSAMLEmails" .= validateSAMLEmails,
           "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
           "searchVisibilityInbound" .= searchVisibilityInbound,
-          "mls" .= mls,
-          "exposeInvitationURLsTeamAllowlist" .= exposeInvitationURLsTeamAllowlist
+          "mls" .= mls
         ]
 
 instance FromJSON FeatureSSO where

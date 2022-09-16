@@ -68,7 +68,6 @@ module Wire.API.Team.Feature
     ConferenceCallingConfig (..),
     GuestLinksConfig (..),
     ExposeInvitationURLsToTeamAdminConfig (..),
-    ExposeInvitationURLsTeamAllowlistConfig,
     SndFactorPasswordChallengeConfig (..),
     SearchVisibilityInboundConfig (..),
     ClassifiedDomainsConfig (..),
@@ -961,11 +960,6 @@ instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
 
 instance FeatureTrivialConfig ExposeInvitationURLsToTeamAdminConfig where
   trivialConfig = ExposeInvitationURLsToTeamAdminConfig
-
-----------------------------------------------------------------------
--- ExposeInvitationURLsTeamAllowlistConfig
-
-type ExposeInvitationURLsTeamAllowlistConfig = [TeamId]
 
 ----------------------------------------------------------------------
 -- FeatureStatus

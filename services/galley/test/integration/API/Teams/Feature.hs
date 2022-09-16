@@ -27,7 +27,7 @@ import Bilge
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
 import Cassandra as Cql
-import Control.Lens (over, to, view, (.~))
+import Control.Lens (over, to, view, (.~), (?~))
 import Control.Lens.Operators ()
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON)
@@ -42,7 +42,7 @@ import Data.Schema (ToSchema)
 import qualified Data.Set as Set
 import Data.Timeout (TimeoutUnit (Second), (#))
 import GHC.TypeLits (KnownSymbol)
-import Galley.Options (optSettings, setFeatureFlags)
+import Galley.Options (optSettings, setExposeInvitationURLsTeamAllowlist, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities (label)
@@ -1146,7 +1146,7 @@ testExposeInvitationURLsToTeamAdminTeamIdInAllowList = do
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ [tid]) $ do
+    withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
       g <- view tsGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusUnlocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
@@ -1161,7 +1161,7 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList = do
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ []) $ do
+    withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist .~ Nothing) $ do
       g <- view tsGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
@@ -1176,7 +1176,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ [tid]) $ do
+    withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
       g <- view tsGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusUnlocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
@@ -1185,7 +1185,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
           const 200 === statusCode
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled Public.LockStatusUnlocked
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ []) $ do
+    withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist .~ Nothing) $ do
       g <- view tsGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited

@@ -864,7 +864,7 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
         FeatureTTLUnlimited
 
   getConfigForTeam tid = do
-    allowList <- input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist)
+    allowList <- input <&> view (optSettings . setExposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     mbOldStatus <- TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus
     let teamAllowed = tid `elem` allowList
     pure $ case mbOldStatus of

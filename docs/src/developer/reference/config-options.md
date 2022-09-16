@@ -133,8 +133,7 @@ be added to the list of teams for which this feature *can* be enabled
 
 ```yaml
 settings:
-  featureFlags:
-    exposeInvitationURLsTeamAllowlist: ["51612209-3b61-49b0-8c55-d21ae65efc1a"]
+  exposeInvitationURLsTeamAllowlist: ["51612209-3b61-49b0-8c55-d21ae65efc1a", ...]
 ```
 
 Then, the feature can be set for the team by enabling the

@@ -54,6 +54,9 @@ data:
       {{- if .settings.maxFanoutSize }}
       maxFanoutSize: {{ .settings.maxFanoutSize }}
       {{- end }}
+      {{- if .settings.exposeInvitationURLsTeamAllowlist }}
+      exposeInvitationURLsTeamAllowlist: {{ .settings.exposeInvitationURLsTeamAllowlist }}
+      {{- end }}
       conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
       {{- if .settings.enableIndexedBillingTeamMembers }}
       enableIndexedBillingTeamMembers: {{ .settings.enableIndexedBillingTeamMembers }}
@@ -112,9 +115,6 @@ data:
         {{- if .settings.featureFlags.mls }}
         mls:
           {{- toYaml .settings.featureFlags.mls | nindent 10 }}
-        {{- end }}
-        {{- if .settings.featureFlags.exposeInvitationURLsTeamAllowlist }}
-        exposeInvitationURLsTeamAllowlist: {{ .settings.featureFlags.exposeInvitationURLsTeamAllowlist }}
         {{- end }}
       {{- end }}
   {{- end }}

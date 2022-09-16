@@ -22,6 +22,7 @@ module Galley.Options
     setHttpPoolSize,
     setMaxTeamSize,
     setMaxFanoutSize,
+    setExposeInvitationURLsTeamAllowlist,
     setMaxConvSize,
     setIntraListing,
     setConversationCodeURI,
@@ -56,6 +57,7 @@ where
 import Control.Lens hiding (Level, (.=))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
+import Data.Id (TeamId)
 import Data.Misc
 import Data.Range
 import Galley.Keys
@@ -76,6 +78,10 @@ data Settings = Settings
     --   This defaults to setMaxTeamSize and cannot be > HardTruncationLimit. Useful
     --   to tune mainly for testing purposes.
     _setMaxFanoutSize :: !(Maybe (Range 1 HardTruncationLimit Int32)),
+    -- | List of teams for which the invitation URL can be added to the list of all
+    -- invitations retrievable by team admins.  See also:
+    -- 'ExposeInvitationURLsToTeamAdminConfig'.
+    _setExposeInvitationURLsTeamAllowlist :: !(Maybe [TeamId]),
     -- | Max number of members in a conversation. NOTE: This must be in sync with Brig
     _setMaxConvSize :: !Word16,
     -- | Whether to call Brig for device listing
