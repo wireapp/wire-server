@@ -114,7 +114,7 @@ data:
           {{- toYaml .settings.featureFlags.mls | nindent 10 }}
         {{- end }}
         {{- if .settings.featureFlags.exposeInvitationURLsTeamAllowlist }}
-        exposeInvitationURLsTeamAllowlist: {{- .settings.featureFlags.exposeInvitationURLsTeamAllowlist }}
+        exposeInvitationURLsTeamAllowlist: {{ .settings.featureFlags.exposeInvitationURLsTeamAllowlist }}
         {{- end }}
       {{- end }}
   {{- end }}
