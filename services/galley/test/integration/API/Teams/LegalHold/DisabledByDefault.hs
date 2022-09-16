@@ -841,7 +841,7 @@ testClaimKeys testcase = do
 
 getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
 getEnabled tid = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
@@ -857,7 +857,7 @@ renewToken tok = do
 
 putEnabled :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
 putEnabled tid enabled = do
-  g <- view tsGalley
+  g <- viewGalley
   putEnabledM g tid enabled
 
 putEnabledM :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> Public.FeatureStatus -> m ()
@@ -865,7 +865,7 @@ putEnabledM g tid enabled = void $ putEnabledM' g expect2xx tid enabled
 
 putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> TestM ResponseLBS
 putEnabled' extra tid enabled = do
-  g <- view tsGalley
+  g <- viewGalley
   putEnabledM' g extra tid enabled
 
 putEnabledM' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> m ResponseLBS
@@ -881,7 +881,7 @@ postSettings uid tid new =
   -- Retry calls to this endpoint, on k8s it sometimes takes a while to establish a working
   -- connection.
   retrying policy only412 $ \_ -> do
-    g <- view tsGalley
+    g <- viewGalley
     post $
       g
         . paths ["teams", toByteString' tid, "legalhold", "settings"]
@@ -900,7 +900,7 @@ getSettingsTyped uid tid = responseJsonUnsafe <$> (getSettings uid tid <!! testR
 
 getSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getSettings uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["teams", toByteString' tid, "legalhold", "settings"]
@@ -910,7 +910,7 @@ getSettings uid tid = do
 
 deleteSettings :: HasCallStack => Maybe PlainTextPassword -> UserId -> TeamId -> TestM ResponseLBS
 deleteSettings mPassword uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   delete $
     g
       . paths ["teams", toByteString' tid, "legalhold", "settings"]
@@ -921,7 +921,7 @@ deleteSettings mPassword uid tid = do
 
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   getUserStatusTyped' g uid tid
 
 getUserStatusTyped' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> m UserLegalHoldStatusResponse
@@ -940,7 +940,7 @@ getUserStatus' g uid tid = do
 
 approveLegalHoldDevice :: HasCallStack => Maybe PlainTextPassword -> UserId -> UserId -> TeamId -> TestM ResponseLBS
 approveLegalHoldDevice mPassword zusr uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   approveLegalHoldDevice' g mPassword zusr uid tid
 
 approveLegalHoldDevice' ::
@@ -968,7 +968,7 @@ disableLegalHoldForUser ::
   UserId ->
   TestM ResponseLBS
 disableLegalHoldForUser mPassword tid zusr uid = do
-  g <- view tsGalley
+  g <- viewGalley
   disableLegalHoldForUser' g mPassword tid zusr uid
 
 disableLegalHoldForUser' ::
@@ -1012,7 +1012,7 @@ assertZeroLegalHoldDevices uid = do
 
 grantConsent :: HasCallStack => TeamId -> UserId -> TestM ()
 grantConsent tid zusr = do
-  g <- view tsGalley
+  g <- viewGalley
   grantConsent' g tid zusr
 
 grantConsent' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> UserId -> m ()
@@ -1030,7 +1030,7 @@ grantConsent'' expectation g tid zusr = do
 
 requestLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
 requestLegalHoldDevice zusr uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   requestLegalHoldDevice' g zusr uid tid
 
 requestLegalHoldDevice' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> UserId -> TeamId -> m ResponseLBS

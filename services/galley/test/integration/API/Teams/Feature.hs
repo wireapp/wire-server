@@ -335,14 +335,14 @@ testSearchVisibility :: TestM ()
 testSearchVisibility = do
   let getTeamSearchVisibility :: TeamId -> UserId -> Public.FeatureStatus -> TestM ()
       getTeamSearchVisibility teamid uid expected = do
-        g <- view tsGalley
+        g <- viewGalley
         getTeamSearchVisibilityAvailable g uid teamid !!! do
           statusCode === const 200
           responseJsonEither === const (Right (Public.WithStatusNoLock expected Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited))
 
   let getTeamSearchVisibilityInternal :: TeamId -> Public.FeatureStatus -> TestM ()
       getTeamSearchVisibilityInternal teamid expected = do
-        g <- view tsGalley
+        g <- viewGalley
         getTeamSearchVisibilityAvailableInternal g teamid !!! do
           statusCode === const 200
           responseJsonEither === const (Right (Public.WithStatusNoLock expected Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited))
@@ -354,7 +354,7 @@ testSearchVisibility = do
 
   let setTeamSearchVisibilityInternal :: TeamId -> Public.FeatureStatus -> TestM ()
       setTeamSearchVisibilityInternal teamid val = do
-        g <- view tsGalley
+        g <- viewGalley
         putTeamSearchVisibilityAvailableInternal g teamid val
 
   (owner, tid, [member]) <- createBindingTeamWithNMembers 1
@@ -715,7 +715,7 @@ testSimpleFlagWithLockStatus ::
   Public.LockStatus ->
   TestM ()
 testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
-  galley <- view tsGalley
+  galley <- viewGalley
   (owner, tid, member : _) <- createBindingTeamWithNMembers 1
   nonMember <- randomUser
 
@@ -826,7 +826,7 @@ testSelfDeletingMessages = do
     liftIO $ result @?= settingWithLockStatus FeatureStatusEnabled 0 defLockStatus
 
   -- team users
-  galley <- view tsGalley
+  galley <- viewGalley
   (owner, tid, []) <- createBindingTeamWithNMembers 0
 
   let checkSet :: FeatureStatus -> Int32 -> Int -> TestM ()
@@ -893,7 +893,7 @@ testSelfDeletingMessages = do
 
 testGuestLinksInternal :: TestM ()
 testGuestLinksInternal = do
-  galley <- view tsGalley
+  galley <- viewGalley
   testGuestLinks
     (const $ getTeamFeatureFlagInternal @Public.GuestLinksConfig)
     (const $ putTeamFeatureFlagInternal @Public.GuestLinksConfig galley)
@@ -901,7 +901,7 @@ testGuestLinksInternal = do
 
 testGuestLinksPublic :: TestM ()
 testGuestLinksPublic = do
-  galley <- view tsGalley
+  galley <- viewGalley
   testGuestLinks
     (getTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley)
     (putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley)
@@ -966,7 +966,7 @@ testAllFeatures = do
   -- This block catches potential errors in the logic that reverts to default if there is a disinction made between
   -- 1. there is no row for a team_id in galley.team_features
   -- 2. there is a row for team_id in galley.team_features but the feature has a no entry (null value)
-  galley <- view tsGalley
+  galley <- viewGalley
   -- this sets the guest links config to its default value thereby creating a row for the team in galley.team_features
   putTeamFeatureFlagInternal @Public.GuestLinksConfig galley tid (Public.WithStatusNoLock FeatureStatusEnabled Public.GuestLinksConfig Public.FeatureTTLUnlimited)
     !!! statusCode === const 200
@@ -1074,7 +1074,7 @@ testMLS :: TestM ()
 testMLS = do
   (owner, tid, member : _) <- createBindingTeamWithNMembers 1
 
-  galley <- view tsGalley
+  galley <- viewGalley
   cannon <- view tsCannon
 
   let getForTeam :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
@@ -1146,7 +1146,7 @@ testExposeInvitationURLsToTeamAdminTeamIdInAllowList = do
   assertQueue "create team" tActivate
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
-      g <- view tsGalley
+      g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusUnlocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
       void $
@@ -1161,7 +1161,7 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList = do
   assertQueue "create team" tActivate
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist .~ Nothing) $ do
-      g <- view tsGalley
+      g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
       void $
@@ -1182,7 +1182,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
   assertQueue "create team" tActivate
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
-      g <- view tsGalley
+      g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusUnlocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
       void $
@@ -1191,7 +1191,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled Public.LockStatusUnlocked
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist .~ Nothing) $ do
-      g <- view tsGalley
+      g <- viewGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
       void $
@@ -1201,7 +1201,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
 
 assertExposeInvitationURLsToTeamAdminConfigStatus :: UserId -> TeamId -> FeatureStatus -> LockStatus -> TestM ()
 assertExposeInvitationURLsToTeamAdminConfigStatus owner tid fStatus lStatus = do
-  g <- view tsGalley
+  g <- viewGalley
   Util.getTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid !!! do
     const 200 === statusCode
     const (Right (Public.withStatus fStatus lStatus Public.ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited)) === responseJsonEither

@@ -247,7 +247,7 @@ tests s =
 
 status :: TestM ()
 status = do
-  g <- view tsGalley
+  g <- viewGalley
   get (g . path "/i/status")
     !!! const 200 === statusCode
   Bilge.head (g . path "/i/status")
@@ -255,7 +255,7 @@ status = do
 
 metrics :: TestM ()
 metrics = do
-  g <- view tsGalley
+  g <- viewGalley
   get (g . path "/i/metrics") !!! do
     const 200 === statusCode
     -- Should contain the request duration metric in its output
@@ -1216,7 +1216,7 @@ testJoinCodeConv = do
 
 testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
 testGetCodeRejectedIfGuestLinksDisabled = do
-  galley <- view tsGalley
+  galley <- viewGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, GuestAccessRole] []
   let createConvWithGuestLink = do
@@ -1237,7 +1237,7 @@ testGetCodeRejectedIfGuestLinksDisabled = do
 
 testPostCodeRejectedIfGuestLinksDisabled :: TestM ()
 testPostCodeRejectedIfGuestLinksDisabled = do
-  galley <- view tsGalley
+  galley <- viewGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   Right noGuestsAccess <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just noGuestsAccess) Nothing
@@ -1256,7 +1256,7 @@ testPostCodeRejectedIfGuestLinksDisabled = do
 -- Check if guests cannot join anymore if guest invite feature was disabled on team level
 testJoinTeamConvGuestLinksDisabled :: TestM ()
 testJoinTeamConvGuestLinksDisabled = do
-  galley <- view tsGalley
+  galley <- viewGalley
   let convName = "testConversation"
   (owner, teamId, [alice]) <- Util.createBindingTeamWithNMembers 1
   eve <- ephemeralUser
@@ -1315,7 +1315,7 @@ testJoinTeamConvGuestLinksDisabled = do
 
 testJoinNonTeamConvGuestLinksDisabled :: TestM ()
 testJoinNonTeamConvGuestLinksDisabled = do
-  galley <- view tsGalley
+  galley <- viewGalley
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   userNotInTeam <- randomUser
@@ -1606,7 +1606,7 @@ testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
 getGuestLinksStatusFromForeignTeamConv :: TestM ()
 getGuestLinksStatusFromForeignTeamConv = do
   localDomain <- viewFederationDomain
-  galley <- view tsGalley
+  galley <- viewGalley
   let setTeamStatus u tid tfStatus =
         TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley u tid (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig Public.FeatureTTLUnlimited) !!! do
           const 200 === statusCode
@@ -2064,7 +2064,7 @@ postConvQualifiedFederationNotEnabled = do
   connectWithRemoteUser alice bob
   let federatorNotConfigured = optFederator .~ Nothing
   withSettingsOverrides federatorNotConfigured $ do
-    g <- view tsGalley
+    g <- viewGalley
     postConvHelper g alice [bob] !!! do
       const 400 === statusCode
       const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
@@ -2100,7 +2100,7 @@ postO2OConvOk = do
 
 postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
@@ -2221,7 +2221,7 @@ postRepeatConnectConvCancel = do
     privateAccess @=? cnvAccess cnv4
   where
     cancel u c = do
-      g <- view tsGalley
+      g <- viewGalley
       let cnvId = qUnqualified . cnvQualifiedId
       put (g . paths ["/i/conversations", toByteString' (cnvId c), "block"] . zUser u)
         !!! const 200 === statusCode
@@ -2229,7 +2229,7 @@ postRepeatConnectConvCancel = do
 
 putBlockConvOk :: TestM ()
 putBlockConvOk = do
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   bob <- randomUser
   conv <- responseJsonUnsafeWithMsg "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
@@ -2289,7 +2289,7 @@ getConvQualifiedOk = do
 
 accessConvMeta :: TestM ()
 accessConvMeta = do
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
@@ -3114,7 +3114,7 @@ putQualifiedConvRenameWithRemotesOk = do
 putConvDeprecatedRenameOk :: TestM ()
 putConvDeprecatedRenameOk = do
   c <- view tsCannon
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
@@ -3600,7 +3600,7 @@ putReceiptModeWithRemotesOk = do
 
 postTypingIndicators :: TestM ()
 postTypingIndicators = do
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (singleton bob)
