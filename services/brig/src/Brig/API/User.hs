@@ -125,6 +125,7 @@ import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
@@ -413,7 +414,7 @@ createUser new = do
     findTeamInvitation (Just e) c =
       lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
         Just ii -> do
-          inv <- lift . wrapClient $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii) False
+          inv <- lift . wrapClient $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii) HideInvitationUrl
           case (inv, Team.inInviteeEmail <$> inv) of
             (Just invite, Just em)
               | e == userEmailKey em -> do

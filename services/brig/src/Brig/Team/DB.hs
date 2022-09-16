@@ -44,6 +44,7 @@ import Brig.Data.Types as T
 import Brig.IO.Intra
 import Brig.Options
 import Brig.Team.Template
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Template (renderTextWithBranding)
 import Cassandra as C
 import Control.Lens (view)
@@ -100,11 +101,11 @@ insertInvitation ::
   Maybe Phone ->
   -- | The timeout for the invitation code.
   Timeout ->
-  Bool ->
+  ShowOrHideInvitationUrl ->
   m (Invitation, InvitationCode)
 insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout showUrl = do
   code <- liftIO mkInvitationCode
-  url <- if showUrl then mkInviteUrl t code else pure Nothing
+  url <- mkInviteUrl t code showUrl
   let inv = Invitation t role iid now minviter email inviteeName phone url
   retry x5 . batch $ do
     setType BatchLogged
@@ -129,11 +130,11 @@ lookupInvitation ::
   ) =>
   TeamId ->
   InvitationId ->
-  Bool ->
+  ShowOrHideInvitationUrl ->
   m (Maybe Invitation)
-lookupInvitation t r showInvitationUrl = do
+lookupInvitation t r showUrl = do
   inv <- retry x1 (query1 cqlInvitation (params LocalQuorum (t, r)))
-  traverse (toInvitation showInvitationUrl) inv
+  traverse (toInvitation showUrl) inv
   where
     cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone, InvitationCode)
     cqlInvitation = "SELECT team, role, id, created_at, created_by, email, name, phone, code FROM team_invitation WHERE team = ? AND id = ?"
@@ -147,7 +148,7 @@ lookupInvitationByCode ::
   m (Maybe Invitation)
 lookupInvitationByCode i =
   lookupInvitationInfo i >>= \case
-    Just InvitationInfo {..} -> lookupInvitation iiTeam iiInvId False
+    Just InvitationInfo {..} -> lookupInvitation iiTeam iiInvId HideInvitationUrl
     _ -> pure Nothing
 
 lookupInvitationCode :: MonadClient m => TeamId -> InvitationId -> m (Maybe InvitationCode)
@@ -172,13 +173,13 @@ lookupInvitations ::
   TeamId ->
   Maybe InvitationId ->
   Range 1 500 Int32 ->
-  Bool ->
+  ShowOrHideInvitationUrl ->
   m (ResultPage Invitation)
-lookupInvitations team start (fromRange -> size) showInvitationUrl = do
+lookupInvitations team start (fromRange -> size) showUrl = do
   page <- case start of
     Just ref -> retry x1 $ paginate cqlSelectFrom (paramsP LocalQuorum (team, ref) (size + 1))
     Nothing -> retry x1 $ paginate cqlSelect (paramsP LocalQuorum (Identity team) (size + 1))
-  toResult (hasMore page) <$> traverse (toInvitation showInvitationUrl) (trim page)
+  toResult (hasMore page) <$> traverse (toInvitation showUrl) (trim page)
   where
     trim p = take (fromIntegral size) (result p)
     toResult more invs =
@@ -242,7 +243,7 @@ lookupInvitationByEmail ::
   m (Maybe Invitation)
 lookupInvitationByEmail e =
   lookupInvitationInfoByEmail e >>= \case
-    InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId False
+    InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId HideInvitationUrl
     _ -> pure Nothing
 
 lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail
@@ -277,7 +278,7 @@ toInvitation ::
   ( MonadReader Env m,
     Log.MonadLogger m
   ) =>
-  Bool ->
+  ShowOrHideInvitationUrl ->
   ( TeamId,
     Maybe Role,
     InvitationId,
@@ -290,7 +291,7 @@ toInvitation ::
   ) ->
   m Invitation
 toInvitation showUrl (t, r, i, tm, minviter, e, inviteeName, p, code) = do
-  url <- if showUrl then mkInviteUrl t code else pure Nothing
+  url <- mkInviteUrl t code showUrl
   pure $ Invitation t (fromMaybe defaultRole r) i tm minviter e inviteeName p url
 
 mkInviteUrl ::
@@ -299,8 +300,10 @@ mkInviteUrl ::
   ) =>
   TeamId ->
   InvitationCode ->
+  ShowOrHideInvitationUrl ->
   m (Maybe (URIRef Absolute))
-mkInviteUrl team (InvitationCode c) = do
+mkInviteUrl _ _ HideInvitationUrl = pure Nothing
+mkInviteUrl team (InvitationCode c) ShowInvitationUrl = do
   template <- invitationEmailUrl . invitationEmail . snd <$> teamTemplates Nothing
   branding <- view App.templateBranding
   let url = toStrict $ renderTextWithBranding template replace branding
