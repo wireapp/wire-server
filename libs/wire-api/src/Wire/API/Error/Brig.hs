@@ -67,6 +67,8 @@ data BrigError
   | KeyPackageDecodingError
   | InvalidKeyPackageRef
   | CustomerExtensionBlockedDomain
+  | InvalidPwResetKey
+  | DuplicatePwResetCode
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -188,3 +190,7 @@ type instance
       "[Customer extension] the email domain example.com \
       \that you are attempting to register a user with has been \
       \blocked for creating wire users.  Please contact your IT department."
+
+type instance MapError 'InvalidPwResetKey = 'StaticError 400 "invalid-key" "Invalid email or mobile number for password reset."
+
+type instance MapError 'DuplicatePwResetCode = 'StaticError 409 "code-exists" "A password reset is already in progress."
