@@ -556,7 +556,7 @@ listActivatedAccounts elh includePendingInvitations = do
         case (accountStatus account, includePendingInvitations, emailIdentity ident) of
           (PendingInvitation, False, _) -> pure False
           (PendingInvitation, True, Just email) -> do
-            hasInvitation <- isJust <$> wrapHttp (lookupInvitationByEmail email)
+            hasInvitation <- isJust <$> wrapClient (lookupInvitationByEmail email)
             unless hasInvitation $ do
               -- user invited via scim should expire together with its invitation
               API.deleteUserNoVerify (userId . accountUser $ account)

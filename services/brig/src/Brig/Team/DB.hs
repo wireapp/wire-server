@@ -32,6 +32,7 @@ module Brig.Team.DB
     lookupInvitationByEmail,
     mkInvitationCode,
     mkInvitationId,
+    getTeamExposeInvitationURLsToTeamAdmin,
     InvitationInfo (..),
     InvitationByEmail (..),
   )
@@ -128,20 +129,17 @@ insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName 
     cqlInvitationByEmail = "INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation ::
-  ( Log.MonadLogger m,
+  ( MonadClient m,
     MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadClient m
+    Log.MonadLogger m
   ) =>
   TeamId ->
   InvitationId ->
+  Bool ->
   m (Maybe Invitation)
-lookupInvitation t r = do
-  showUrl <- getTeamExposeInvitationURLsToTeamAdmin t
+lookupInvitation t r showInvitationUrl = do
   inv <- retry x1 (query1 cqlInvitation (params LocalQuorum (t, r)))
-  traverse (toInvitation showUrl) inv
+  traverse (toInvitation showInvitationUrl) inv
   where
     cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone, InvitationCode)
     cqlInvitation = "SELECT team, role, id, created_at, created_by, email, name, phone, code FROM team_invitation WHERE team = ? AND id = ?"
@@ -150,15 +148,13 @@ lookupInvitationByCode ::
   ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
     MonadClient m
   ) =>
   InvitationCode ->
   m (Maybe Invitation)
 lookupInvitationByCode i =
   lookupInvitationInfo i >>= \case
-    Just InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
+    Just InvitationInfo {..} -> lookupInvitation iiTeam iiInvId False
     _ -> pure Nothing
 
 lookupInvitationCode :: MonadClient m => TeamId -> InvitationId -> m (Maybe InvitationCode)
@@ -179,20 +175,18 @@ lookupInvitations ::
   ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
     MonadClient m
   ) =>
   TeamId ->
   Maybe InvitationId ->
   Range 1 500 Int32 ->
+  Bool ->
   m (ResultPage Invitation)
-lookupInvitations team start (fromRange -> size) = do
+lookupInvitations team start (fromRange -> size) showInvitationUrl = do
   page <- case start of
     Just ref -> retry x1 $ paginate cqlSelectFrom (paramsP LocalQuorum (team, ref) (size + 1))
     Nothing -> retry x1 $ paginate cqlSelect (paramsP LocalQuorum (Identity team) (size + 1))
-  showUrl <- getTeamExposeInvitationURLsToTeamAdmin team
-  toResult (hasMore page) <$> traverse (toInvitation showUrl) (trim page)
+  toResult (hasMore page) <$> traverse (toInvitation showInvitationUrl) (trim page)
   where
     trim p = take (fromIntegral size) (result p)
     toResult more invs =
@@ -251,15 +245,13 @@ lookupInvitationByEmail ::
   ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
     MonadClient m
   ) =>
   Email ->
   m (Maybe Invitation)
 lookupInvitationByEmail e =
   lookupInvitationInfoByEmail e >>= \case
-    InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
+    InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId False
     _ -> pure Nothing
 
 lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail

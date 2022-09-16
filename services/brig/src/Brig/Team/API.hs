@@ -36,6 +36,7 @@ import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
+import Brig.Team.DB (getTeamExposeInvitationURLsToTeamAdmin)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -412,7 +413,8 @@ listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
 listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
 listInvitations uid tid start size = do
   ensurePermissions uid tid [AddTeamMember]
-  rs <- lift $ wrapHttp $ DB.lookupInvitations tid start size
+  showInvitationUrl <- lift $ wrapHttp $ getTeamExposeInvitationURLsToTeamAdmin tid
+  rs <- lift $ wrapClient $ DB.lookupInvitations tid start size showInvitationUrl
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
@@ -425,7 +427,8 @@ getInvitationH (_ ::: uid ::: tid ::: iid) = do
 getInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  lift $ wrapHttp $ DB.lookupInvitation tid iid
+  showInvitationUrl <- lift $ wrapHttp $ getTeamExposeInvitationURLsToTeamAdmin tid
+  lift $ wrapClient $ DB.lookupInvitation tid iid showInvitationUrl
 
 getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
 getInvitationByCodeH (_ ::: c) = do
@@ -433,7 +436,7 @@ getInvitationByCodeH (_ ::: c) = do
 
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
-  inv <- lift . wrapHttp $ DB.lookupInvitationByCode c
+  inv <- lift . wrapClient $ DB.lookupInvitationByCode c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
 
 headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
@@ -453,7 +456,7 @@ getInvitationByEmailH (_ ::: email) =
 
 getInvitationByEmail :: Email -> (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift $ wrapHttp $ DB.lookupInvitationByEmail email
+  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
 suspendTeamH :: JSON ::: TeamId -> (Handler r) Response
