@@ -478,6 +478,9 @@ nginx_conf:
     - path: /mls/messages
       envs:
       - all
+    - path: /mls/commit-bundles
+      envs:
+      - all
     - path: /mls/public-keys
       envs:
       - all
