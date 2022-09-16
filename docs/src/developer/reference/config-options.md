@@ -102,7 +102,7 @@ future.
 ### Expose invitation URLs to team admin
 
 For further processing (e.g. sending custom emails or rendering the URLs as QR
-codes), team invitation URLs can be made part of the result of 
+codes), team invitation URLs can be made part of the result of
 `GET /teams/{tid}/invitations`.
 
 ```json
