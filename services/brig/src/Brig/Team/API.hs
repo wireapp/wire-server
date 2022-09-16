@@ -378,6 +378,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   let locale = irLocale body
   let inviteeName = irInviteeName body
+  showInvitationUrl <- lift $ wrapHttp $ getTeamExposeInvitationURLsToTeamAdmin tid
 
   lift $ do
     iid <- liftIO DB.mkInvitationId
@@ -395,6 +396,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
           inviteeName
           inviteePhone
           timeout
+          showInvitationUrl
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response

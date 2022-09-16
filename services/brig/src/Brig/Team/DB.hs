@@ -38,8 +38,6 @@ module Brig.Team.DB
   )
 where
 
-import Bilge.IO
-import Bilge.RPC
 import Brig.App as App
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
@@ -49,7 +47,6 @@ import Brig.Team.Template
 import Brig.Template (renderTextWithBranding)
 import Cassandra as C
 import Control.Lens (view)
-import Control.Monad.Catch (MonadMask)
 import Data.Bifunctor
 import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
@@ -88,15 +85,9 @@ data InvitationByEmail
   | InvitationByEmailNotFound
   | InvitationByEmailMoreThanOne
 
--- FUTUREWORK: This module (Brig.Team.DB) should not contain functions that need
--- MonadHttp. Split insertInvitation up into a database and a HTTP related part.
--- Then, move the HTTP part elsewhere.
 insertInvitation ::
   ( Log.MonadLogger m,
     MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
     MonadClient m
   ) =>
   InvitationId ->
@@ -109,10 +100,10 @@ insertInvitation ::
   Maybe Phone ->
   -- | The timeout for the invitation code.
   Timeout ->
+  Bool ->
   m (Invitation, InvitationCode)
-insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout = do
+insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout showUrl = do
   code <- liftIO mkInvitationCode
-  showUrl <- getTeamExposeInvitationURLsToTeamAdmin t
   url <- if showUrl then mkInviteUrl t code else pure Nothing
   let inv = Invitation t role iid now minviter email inviteeName phone url
   retry x5 . batch $ do
@@ -150,7 +141,6 @@ lookupInvitation t r showInvitationUrl = do
 lookupInvitationByCode ::
   ( Log.MonadLogger m,
     MonadReader Env m,
-    MonadMask m,
     MonadClient m
   ) =>
   InvitationCode ->
@@ -177,7 +167,6 @@ lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params 
 lookupInvitations ::
   ( Log.MonadLogger m,
     MonadReader Env m,
-    MonadMask m,
     MonadClient m
   ) =>
   TeamId ->
@@ -247,7 +236,6 @@ lookupInvitationInfo ic@(InvitationCode c)
 lookupInvitationByEmail ::
   ( Log.MonadLogger m,
     MonadReader Env m,
-    MonadMask m,
     MonadClient m
   ) =>
   Email ->
