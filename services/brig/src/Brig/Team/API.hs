@@ -39,6 +39,7 @@ import qualified Brig.Phone as Phone
 import Brig.Team.DB (getTeamExposeInvitationURLsToTeamAdmin)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAccount (..))
 import Brig.Types.Team (TeamSize)
@@ -438,7 +439,7 @@ getInvitationByCodeH (_ ::: c) = do
 
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
-  inv <- lift . wrapClient $ DB.lookupInvitationByCode c
+  inv <- lift . wrapClient $ DB.lookupInvitationByCode HideInvitationUrl c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
 
 headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
@@ -458,7 +459,7 @@ getInvitationByEmailH (_ ::: email) =
 
 getInvitationByEmail :: Email -> (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail email
+  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
 suspendTeamH :: JSON ::: TeamId -> (Handler r) Response

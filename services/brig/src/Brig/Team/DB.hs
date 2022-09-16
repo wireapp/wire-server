@@ -144,11 +144,12 @@ lookupInvitationByCode ::
     MonadReader Env m,
     MonadClient m
   ) =>
+  ShowOrHideInvitationUrl ->
   InvitationCode ->
   m (Maybe Invitation)
-lookupInvitationByCode i =
+lookupInvitationByCode showUrl i =
   lookupInvitationInfo i >>= \case
-    Just InvitationInfo {..} -> lookupInvitation HideInvitationUrl iiTeam iiInvId
+    Just InvitationInfo {..} -> lookupInvitation showUrl iiTeam iiInvId
     _ -> pure Nothing
 
 lookupInvitationCode :: MonadClient m => TeamId -> InvitationId -> m (Maybe InvitationCode)
@@ -239,11 +240,12 @@ lookupInvitationByEmail ::
     MonadReader Env m,
     MonadClient m
   ) =>
+  ShowOrHideInvitationUrl ->
   Email ->
   m (Maybe Invitation)
-lookupInvitationByEmail e =
+lookupInvitationByEmail showUrl e =
   lookupInvitationInfoByEmail e >>= \case
-    InvitationByEmail InvitationInfo {..} -> lookupInvitation HideInvitationUrl iiTeam iiInvId
+    InvitationByEmail InvitationInfo {..} -> lookupInvitation showUrl iiTeam iiInvId
     _ -> pure Nothing
 
 lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail
