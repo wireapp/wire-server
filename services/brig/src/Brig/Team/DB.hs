@@ -88,6 +88,9 @@ data InvitationByEmail
   | InvitationByEmailNotFound
   | InvitationByEmailMoreThanOne
 
+-- FUTUREWORK: This module (Brig.Team.DB) should not contain functions that need
+-- MonadHttp. Split insertInvitation up into a database and a HTTP related part.
+-- Then, move the HTTP part elsewhere.
 insertInvitation ::
   ( Log.MonadLogger m,
     MonadReader Env m,
