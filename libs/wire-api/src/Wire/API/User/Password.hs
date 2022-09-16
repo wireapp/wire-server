@@ -35,10 +35,14 @@ module Wire.API.User.Password
   )
 where
 
+import Control.Lens ((?~))
 import Data.Aeson
+import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (Ranged (..))
+import qualified Data.Schema as Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
@@ -52,6 +56,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 newtype NewPasswordReset = NewPasswordReset (Either Email Phone)
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema NewPasswordReset
 
 modelNewPasswordReset :: Doc.Model
 modelNewPasswordReset = Doc.defineModel "NewPasswordReset" $ do
@@ -63,17 +68,44 @@ modelNewPasswordReset = Doc.defineModel "NewPasswordReset" $ do
     Doc.description "Phone"
     Doc.optional
 
-instance ToJSON NewPasswordReset where
-  toJSON (NewPasswordReset ident) =
-    object
-      [either ("email" .=) ("phone" .=) ident]
+instance Schema.ToSchema NewPasswordReset where
+  schema =
+    Schema.objectWithDocModifier "NewPasswordReset" objectDesc $
+      NewPasswordReset
+        <$> (toTuple . getNewPasswordReset) Schema..= newPasswordResetObjectSchema
+    where
+      getNewPasswordReset :: NewPasswordReset -> Either Email Phone
+      getNewPasswordReset (NewPasswordReset v) = v
 
-instance FromJSON NewPasswordReset where
-  parseJSON = withObject "NewPasswordReset" $ \o ->
-    NewPasswordReset
-      <$> ( (Left <$> o .: "email")
-              <|> (Right <$> o .: "phone")
-          )
+      objectDesc :: Schema.NamedSwaggerDoc -> Schema.NamedSwaggerDoc
+      objectDesc = Schema.description ?~ "Data to initiate a password reset"
+
+      newPasswordResetObjectSchema :: Schema.ObjectSchemaP Schema.SwaggerDoc (Maybe Email, Maybe Phone) (Either Email Phone)
+      newPasswordResetObjectSchema = Schema.withParser newPasswordResetTupleObjectSchema maybeNewPasswordResetFromTuple
+        where
+          newPasswordResetTupleObjectSchema :: Schema.ObjectSchema Schema.SwaggerDoc (Maybe Email, Maybe Phone)
+          newPasswordResetTupleObjectSchema =
+            (,)
+              <$> fst Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "email" phoneDocs Schema.schema)
+              <*> snd Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "phone" emailDocs Schema.schema)
+            where
+              emailDocs :: Schema.NamedSwaggerDoc -> Schema.NamedSwaggerDoc
+              emailDocs = Schema.description ?~ "Email"
+
+              phoneDocs :: Schema.NamedSwaggerDoc -> Schema.NamedSwaggerDoc
+              phoneDocs = Schema.description ?~ "Phone"
+
+          maybeNewPasswordResetFromTuple :: (Maybe Email, Maybe Phone) -> Parser (Either Email Phone)
+          maybeNewPasswordResetFromTuple = \case
+            (Just _, Just _) -> fail "Only one of 'email' or 'phone' allowed."
+            (Just email, Nothing) -> pure $ Left email
+            (Nothing, Just phone) -> pure $ Right phone
+            (Nothing, Nothing) -> fail "One of 'email' or 'phone' required."
+
+      toTuple :: Either Email Phone -> (Maybe Email, Maybe Phone)
+      toTuple = \case
+        Left e -> (Just e, Nothing)
+        Right p -> (Nothing, Just p)
 
 --------------------------------------------------------------------------------
 -- CompletePasswordReset
