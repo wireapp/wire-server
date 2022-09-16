@@ -194,7 +194,8 @@ verifyCode mbCode action uid = do
   featureEnabled <- lift $ do
     mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
     pure $ fromMaybe (Public.wsStatus (Public.defFeatureStatus @Public.SndFactorPasswordChallengeConfig) == Public.FeatureStatusEnabled) mbFeatureEnabled
-  when featureEnabled $ do
+  isSsoUser <- Data.isSamlUser uid
+  when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
         key <- Code.mkKey $ Code.ForEmail email
