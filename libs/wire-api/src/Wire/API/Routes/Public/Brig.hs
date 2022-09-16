@@ -31,6 +31,7 @@ import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Swagger hiding (Contact, Header)
+import qualified Generics.SOP as GSOP
 import Imports hiding (head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -50,6 +51,7 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.User hiding (NoIdentity)
+import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
@@ -396,6 +398,44 @@ type AccountAPI =
                :> ReqBody '[JSON] VerifyDeleteUser
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Deletion is initiated."] ()
            )
+    -- This endpoint can lead to the following events being sent:
+    -- - UserActivated event to the user, if account gets activated
+    -- - UserIdentityUpdated event to the user, if email or phone get activated
+    :<|> Named
+           "get-activate"
+           ( Summary "Activate (i.e. confirm) an email address or phone number."
+               :> Description "See also 'POST /activate' which has a larger feature set."
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'InvalidActivationCodeWrongUser
+               :> CanThrow 'InvalidActivationCodeWrongCode
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'InvalidPhone
+               :> "activate"
+               :> QueryParam' '[Required, Strict, Description "Activation key"] "key" ActivationKey
+               :> QueryParam' '[Required, Strict, Description "Activation code"] "code" ActivationCode
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    GetActivateResponse
+                    ActivationRespWithStatus
+           )
+
+data ActivationRespWithStatus
+  = ActivationResp ActivationResponse
+  | ActivationRespDryRun
+  | ActivationRespPass
+  | ActivationRespSuccessNoIdent
+  deriving (Generic)
+  deriving (AsUnion GetActivateResponse) via GenericAsUnion GetActivateResponse ActivationRespWithStatus
+
+instance GSOP.Generic ActivationRespWithStatus
+
+type GetActivateResponse =
+  '[ Respond 200 "Activation successful." ActivationResponse,
+     RespondEmpty 200 "Activation successful. (Dry run)",
+     RespondEmpty 204 "A recent activation was already successful.",
+     RespondEmpty 200 "Activation successful."
+   ]
 
 type PrekeyAPI =
   Named
