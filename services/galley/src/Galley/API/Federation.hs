@@ -624,8 +624,6 @@ sendMLSCommitBundle remoteDomain msr =
     . runError
     . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
     . runError
-    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
-    . runError
     $ do
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
@@ -666,8 +664,6 @@ sendMLSMessage remoteDomain msr =
   fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
     . runError @MLSProtocolError
     . fmap (either F.MLSMessageResponseError id)
-    . runError
-    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
     . runError
     . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
     . runError
