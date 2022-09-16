@@ -64,6 +64,8 @@ data BrigError
   | PasswordAuthenticationFailed
   | TooManyTeamInvitations
   | InsufficientTeamPermissions
+  | KeyPackageDecodingError
+  | InvalidKeyPackageRef
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -172,3 +174,7 @@ type instance MapError 'PasswordAuthenticationFailed = 'StaticError 403 "passwor
 type instance MapError 'TooManyTeamInvitations = 'StaticError 403 "too-many-team-invitations" "Too many team invitations for this team"
 
 type instance MapError 'InsufficientTeamPermissions = 'StaticError 403 "insufficient-permissions" "Insufficient team permissions"
+
+type instance MapError 'KeyPackageDecodingError = 'StaticError 409 "decoding-error" "Key package could not be TLS-decoded"
+
+type instance MapError 'InvalidKeyPackageRef = 'StaticError 409 "invalid-reference" "Key package's reference does not match its data"

@@ -23,7 +23,6 @@ import Bilge.Assert
 import Brig.Options
 import Control.Timeout
 import qualified Data.Aeson as Aeson
-import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Id
@@ -32,7 +31,6 @@ import qualified Data.Set as Set
 import Data.Timeout
 import Federation.Util
 import Imports
-import Test.QuickCheck hiding ((===))
 import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO.Temporary
@@ -40,6 +38,7 @@ import Util
 import Web.HttpApiData
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 import Wire.API.User
 import Wire.API.User.Client
 
@@ -186,13 +185,18 @@ testKeyPackageRemoteClaim opts brig = do
 
   u' <- userQualifiedId <$> randomUser brig
 
-  entries <-
-    liftIO . replicateM 2 . generate $
-      -- claimed key packages are not validated by the backend, so it is fine to
-      -- make up some random data here
-      KeyPackageBundleEntry u <$> arbitrary
-        <*> (KeyPackageRef . BS.pack <$> vector 32)
-        <*> (KeyPackageData . BS.pack <$> vector 64)
+  qcid <- mkClientIdentity u <$> randomClient
+  entries <- withSystemTempDirectory "mls" $ \tmp -> do
+    initStore tmp qcid
+    replicateM 2 $ do
+      (r, kp) <- generateKeyPackage tmp qcid Nothing
+      pure $
+        KeyPackageBundleEntry
+          { kpbeUser = u,
+            kpbeClient = ciClient qcid,
+            kpbeRef = kp,
+            kpbeKeyPackage = KeyPackageData . rmRaw $ r
+          }
   let mockBundle = KeyPackageBundle (Set.fromList entries)
   (bundle :: KeyPackageBundle, _reqs) <-
     liftIO . withTempMockFederator opts (Aeson.encode mockBundle) $

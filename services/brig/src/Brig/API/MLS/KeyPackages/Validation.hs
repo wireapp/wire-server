@@ -35,6 +35,7 @@ import Brig.Options
 import Control.Applicative
 import Control.Lens (view)
 import qualified Data.ByteString.Lazy as LBS
+import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Imports
@@ -46,8 +47,12 @@ import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 
-validateKeyPackage :: ClientIdentity -> RawMLS KeyPackage -> Handler r (KeyPackageRef, KeyPackageData)
+validateKeyPackage ::
+  ClientIdentity ->
+  RawMLS KeyPackage ->
+  Handler r (KeyPackageRef, KeyPackageData)
 validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
+  loc <- qualifyLocal ()
   -- get ciphersuite
   cs <-
     maybe
@@ -60,19 +65,32 @@ validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
   when (signatureScheme ss /= bcSignatureScheme (kpCredential kp)) $
     mlsProtocolError "Signature scheme incompatible with ciphersuite"
 
-  -- authenticate signature key
-  key <-
-    fmap LBS.toStrict $
-      maybe
-        (mlsProtocolError "No key associated to the given identity and signature scheme")
-        pure
-        =<< lift (wrapClient (Data.lookupMLSPublicKey (ciUser identity) (ciClient identity) ss))
-  when (key /= bcSignatureKey (kpCredential kp)) $
-    mlsProtocolError "Unrecognised signature key"
+  -- Authenticate signature key. This is performed only upon uploading a key
+  -- package for a local client.
+  foldQualified
+    loc
+    ( \_ -> do
+        key <-
+          fmap LBS.toStrict $
+            maybe
+              (mlsProtocolError "No key associated to the given identity and signature scheme")
+              pure
+              =<< lift (wrapClient (Data.lookupMLSPublicKey (ciUser identity) (ciClient identity) ss))
+        when (key /= bcSignatureKey (kpCredential kp)) $
+          mlsProtocolError "Unrecognised signature key"
+    )
+    (pure . const ())
+    (cidQualifiedClient identity)
 
   -- validate signature
-  unless (csVerifySignature cs key (rmRaw (kpTBS kp)) (kpSignature kp)) $
-    mlsProtocolError "Invalid signature"
+  unless
+    ( csVerifySignature
+        cs
+        (bcSignatureKey (kpCredential kp))
+        (rmRaw (kpTBS kp))
+        (kpSignature kp)
+    )
+    $ mlsProtocolError "Invalid signature"
   -- validate protocol version
   maybe
     (mlsProtocolError "Unsupported protocol version")
