@@ -856,6 +856,7 @@ instance SetFeatureConfig db MLSConfig where
 
 instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   getConfigForServer =
+    -- we could look at the galley settings, but we don't have a team here, so there is not much else we can say.
     pure $
       withStatus
         FeatureStatusDisabled
