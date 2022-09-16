@@ -117,6 +117,27 @@ postMessage sender msg = do
         . bytes msg
     )
 
+postCommitBundle ::
+  ( HasCallStack,
+    MonadIO m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  UserId ->
+  ByteString ->
+  m ResponseLBS
+postCommitBundle sender bundle = do
+  galley <- viewGalley
+  post
+    ( galley . paths ["v2", "mls", "commit-bundles"]
+        . zUser sender
+        . zConn "conn"
+        . content "message/mls"
+        . bytes bundle
+    )
+
 postWelcome :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ByteString -> m ResponseLBS
 postWelcome uid welcome = do
   galley <- viewGalley
@@ -775,25 +796,24 @@ mkBundle mp = do
     CommitBundle commitB welcomeB $
       GroupInfoBundle UnencryptedGroupInfo TreeFull pgsB
 
+createBundle :: MonadIO m => MessagePackage -> m ByteString
+createBundle mp = do
+  bundle <-
+    either (liftIO . assertFailure . T.unpack) pure $
+      mkBundle mp
+  pure (encodeMLS' bundle)
+
 sendAndConsumeCommitBundle ::
   HasCallStack =>
   MessagePackage ->
   MLSTest [Event]
 sendAndConsumeCommitBundle mp = do
-  galley <- viewGalley
-  bundle <-
-    either (liftIO . assertFailure . T.unpack) pure $
-      mkBundle mp
+  bundle <- createBundle mp
   events <-
-    fmap mmssEvents . responseJsonError
-      =<< post
-        ( galley . paths ["v2", "mls", "commit-bundles"]
-            . zUser (ciUser (mpSender mp))
-            . zConn "conn"
-            . content "message/mls"
-            . bytes (encodeMLS' bundle)
-        )
-        <!! const 201 === statusCode
+    fmap mmssEvents
+      . responseJsonError
+      =<< postCommitBundle (ciUser (mpSender mp)) bundle
+      <!! const 201 === statusCode
   consumeMessage mp
   traverse_ consumeWelcome (mpWelcome mp)
 

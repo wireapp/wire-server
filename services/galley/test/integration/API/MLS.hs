@@ -65,6 +65,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.User.Client
 
@@ -94,6 +95,7 @@ tests s =
         "Commit"
         [ test s "add user to a conversation" testAddUser,
           test s "add user with a commit bundle" testAddUserWithBundle,
+          test s "add user with an incomplete welcome" testAddUserWithBundleIncompleteWelcome,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
@@ -324,6 +326,33 @@ testAddUserWithBundle = do
     assertBool
       "Users added to an MLS group should find it when listing conversations"
       (qcnv `elem` map cnvQualifiedId (convList convs))
+
+testAddUserWithBundleIncompleteWelcome :: TestM ()
+testAddUserWithBundleIncompleteWelcome = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    (alice1 : bobClients) <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage bobClients
+    void $ setupMLSGroup alice1
+
+    -- create commit, but remove first recipient from welcome message
+    commit <- do
+      commit <- createAddCommit alice1 [bob]
+      liftIO $ do
+        welcome <- assertJust (mpWelcome commit)
+        w <- either (assertFailure . T.unpack) pure $ decodeMLS' welcome
+        let w' = w {welSecrets = take 1 (welSecrets w)}
+            welcome' = encodeMLS' w'
+            commit' = commit {mpWelcome = Just welcome'}
+        pure commit'
+
+    bundle <- createBundle commit
+    err <-
+      responseJsonError
+        =<< postCommitBundle (ciUser (mpSender commit)) bundle
+        <!! const 400 === statusCode
+    liftIO $ Wai.label err @?= "mls-welcome-mismatch"
 
 testAddUser :: TestM ()
 testAddUser = do
