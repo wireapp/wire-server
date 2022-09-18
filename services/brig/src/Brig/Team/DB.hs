@@ -315,8 +315,8 @@ mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
 
     parseHttpsUrl :: Log.MonadLogger m => Text -> m (Maybe (URIRef Absolute))
     parseHttpsUrl url =
-      either (\e -> logError url e >> pure Nothing) (\s' -> pure $ Just s') $
-        first show $ parseURI laxURIParserOptions (encodeUtf8 url)
+      either (\e -> logError url e >> pure Nothing) (pure . Just) $
+        parseURI laxURIParserOptions (encodeUtf8 url)
 
     logError :: (Log.MonadLogger m, Show e) => Text -> e -> m ()
     logError url e =
