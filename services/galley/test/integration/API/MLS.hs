@@ -905,7 +905,7 @@ testAppMessage = do
       liftIO $ events @?= []
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
-        wsAssertMLSMessage qcnv alice Nothing (mpMessage message)
+          wsAssertMLSMessage qcnv alice Nothing (mpMessage message)
 
 testAppMessage2 :: TestM ()
 testAppMessage2 = do

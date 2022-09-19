@@ -2814,7 +2814,7 @@ wsAssertBackendRemoveProposal fromUser convId kpref n = do
   pure bs
   where
     getMLSMessageData :: Conv.EventData -> ByteString
-    getMLSMessageData (EdMLSMessage (MLSMessage  bs _)) = bs
+    getMLSMessageData (EdMLSMessage (MLSMessage bs _)) = bs
     getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
 
 wsAssertAddProposal ::

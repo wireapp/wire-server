@@ -285,7 +285,7 @@ testObject_Event_user_15 =
     (Qualified (Id (fromJust (UUID.fromString "7cd50991-3cdd-40ec-bb0f-63ae17b2309d"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "04e68c50-027e-4e84-a33a-e2e28a7b8ea3"))) (Domain "faraway.example.com"))
     (read "2021-11-10 05:39:44.297 UTC")
-    (EdMLSMessage $ MLSMessage { mlsData = "hello world", mlsSenderId = Nothing })
+    (EdMLSMessage $ MLSMessage {mlsData = "hello world", mlsSenderId = Nothing})
 
 testObject_Event_user_16 :: Event
 testObject_Event_user_16 =
