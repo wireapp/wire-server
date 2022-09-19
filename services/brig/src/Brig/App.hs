@@ -233,10 +233,10 @@ newEnv o = do
   mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
     Just True -> do
-      Log.warn lgr $ Log.msg (Log.val "randomPrekeys: active")
+      Log.info lgr $ Log.msg (Log.val "randomPrekeys: active")
       Just <$> newMVar ()
     _ -> do
-      Log.warn lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
+      Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
       pure Nothing
   kpLock <- newMVar ()
   pure $!
