@@ -230,9 +230,6 @@ onUserDeleted origDomain udcn = lift $ do
     map csv2From
       . filter (\x -> csv2Status x == Accepted)
       <$> wrapClient (Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser))
-  -- wrapHttp $
-  --   pooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
-  -- TODO(md): run this in an effect interpreter because this is purely an optimisation
   for_ (nonEmpty acceptedLocals) $ \recipients ->
     liftSem $ notify event (tUnqualified deletedUser) Push.RouteDirect Nothing recipients
   wrapClient $ Data.deleteRemoteConnections deletedUser connections
