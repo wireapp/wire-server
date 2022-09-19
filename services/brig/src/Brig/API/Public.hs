@@ -210,15 +210,15 @@ servantSitemap ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Async,
-       BlacklistStore,
        BlacklistPhonePrefixStore,
+       BlacklistStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       P.Error ReAuthError,
-       P.Error Twilio.ErrorResponse,
        PasswordResetStore,
        PasswordResetSupply,
+       P.Error ReAuthError,
+       P.Error Twilio.ErrorResponse,
        Race,
        Resource,
        Twilio,
@@ -351,7 +351,6 @@ sitemap ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        BlacklistStore,
        BlacklistPhonePrefixStore,
        BudgetStore,
@@ -497,7 +496,6 @@ apiDocs ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        BlacklistStore,
        BlacklistPhonePrefixStore,
        BudgetStore,
@@ -532,7 +530,7 @@ apiDocs =
 -- Handlers
 
 setProperty ::
-  Members '[Async, GundeckAccess] r =>
+  Members '[GundeckAccess] r =>
   UserId ->
   ConnId ->
   Public.PropertyKey ->
@@ -577,7 +575,7 @@ parseStoredPropertyValue raw = case propertyValueFromRaw raw of
     throwStd internalServerError
 
 deleteProperty ::
-  Members '[Async, GundeckAccess] r =>
+  Members '[GundeckAccess] r =>
   UserId ->
   ConnId ->
   Public.PropertyKey ->
@@ -585,7 +583,7 @@ deleteProperty ::
 deleteProperty u c k = lift (API.deleteProperty u c k)
 
 clearProperties ::
-  Members '[Async, GundeckAccess] r =>
+  Members '[GundeckAccess] r =>
   UserId ->
   ConnId ->
   Handler r ()
@@ -641,8 +639,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
 
 addClient ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery,
@@ -758,7 +755,6 @@ createUser ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        BlacklistStore,
        GalleyAccess,
        GundeckAccess,
@@ -917,8 +913,7 @@ instance ToJSON GetActivationCodeResp where
 
 updateUser ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UserQuery
      ]
@@ -956,8 +951,7 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
 
 removePhone ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
@@ -972,8 +966,7 @@ removePhone self conn =
 
 removeEmail ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
@@ -997,7 +990,7 @@ changePassword ::
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale ::
-  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  Members '[GalleyAccess, GundeckAccess] r =>
   UserId ->
   ConnId ->
   Public.LocaleUpdate ->
@@ -1162,7 +1155,7 @@ customerExtensionCheckBlockedDomains email = do
           throwM $ customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   UserId ->
   ConnId ->
   Public.ConnectionRequest ->
@@ -1173,7 +1166,7 @@ createConnectionUnqualified self conn cr = do
   API.createConnection lself conn (qUntagged target) !>> connError
 
 createConnection ::
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   UserId ->
   ConnId ->
   Qualified UserId ->
@@ -1183,7 +1176,7 @@ createConnection self conn target = do
   API.createConnection lself conn target !>> connError
 
 updateLocalConnection ::
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   UserId ->
   ConnId ->
   UserId ->
@@ -1194,7 +1187,7 @@ updateLocalConnection self conn other update = do
   updateConnection self conn (qUntagged lother) update
 
 updateConnection ::
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   UserId ->
   ConnId ->
   Qualified UserId ->
@@ -1266,8 +1259,7 @@ getConnection self other = do
 
 deleteSelfUser ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
@@ -1285,8 +1277,7 @@ deleteSelfUser u body =
 
 verifyDeleteUserH ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
@@ -1356,7 +1347,6 @@ activateKeyH ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1378,7 +1368,6 @@ activateH ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1400,7 +1389,6 @@ activate ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),

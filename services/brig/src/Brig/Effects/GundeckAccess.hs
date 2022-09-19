@@ -39,5 +39,46 @@ data GundeckAccess m a where
     -- | The originating device connection.
     Maybe ConnId ->
     GundeckAccess m ()
+  PushEventsAsync ::
+    -- | The events to push.
+    NonEmpty Event ->
+    -- | The users to push to.
+    NonEmpty UserId ->
+    -- | The originator of the events.
+    UserId ->
+    -- | The push routing strategy.
+    Route ->
+    -- | The originating device connection.
+    Maybe ConnId ->
+    GundeckAccess m ()
 
 makeSem ''GundeckAccess
+
+-- | (Asynchronously) notifies other users of events.
+notify ::
+  Member GundeckAccess r =>
+  NonEmpty Event ->
+  -- | Origin user, TODO: Delete
+  UserId ->
+  -- | Push routing strategy.
+  Route ->
+  -- | Origin device connection, if any.
+  Maybe ConnId ->
+  -- | Users to notify.
+  NonEmpty UserId ->
+  Sem r ()
+notify events orig route conn recipients =
+  pushEventsAsync events recipients orig route conn
+
+notifySelf ::
+  Member GundeckAccess r =>
+  NonEmpty Event ->
+  -- | Origin user.
+  UserId ->
+  -- | Push routing strategy.
+  Route ->
+  -- | Origin device connection, if any.
+  Maybe ConnId ->
+  Sem r ()
+notifySelf events orig route conn =
+  notify events orig route conn (pure orig)

@@ -22,16 +22,20 @@ module Brig.Effects.GundeckAccess.Http (gundeckAccessToHttp) where
 import qualified Bilge as RPC
 import Bilge.IO
 import Bilge.RPC
-import Bilge.Request
+import Bilge.Request hiding (requestId)
+import Brig.App
 import Brig.Effects.Common
 import Brig.Effects.GundeckAccess
 import Brig.RPC
 import Brig.Types.User.Event
-import Control.Lens ((.~), (?~))
+import Control.Error.Util
+import Control.Lens (view, (.~), (?~))
 import Control.Monad.Catch
+import Control.Monad.Trans.Except
 import Data.Aeson (object, (.=))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as A
+import Data.ByteString.Conversion.To
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List.NonEmpty
@@ -44,6 +48,7 @@ import Imports hiding (toList)
 import Network.HTTP.Types.Method
 import Polysemy
 import System.Logger.Class as Log hiding (name, (.=))
+import qualified System.Logger.Extended as ExLog
 import Wire.API.Connection
 import Wire.API.Properties
 import Wire.API.User
@@ -55,6 +60,8 @@ gundeckAccessToHttp ::
     MonadLogger m,
     MonadMask m,
     MonadHttp m,
+    MonadUnliftIO m,
+    MonadReader Env m,
     HasRequestId m,
     Member (Embed m) r
   ) =>
@@ -66,6 +73,26 @@ gundeckAccessToHttp g =
     embed @m . \case
       PushEvents events users orig route mConn -> do
         push g events users orig route mConn
+      PushEventsAsync events users orig route mConn -> do
+        fork (Just orig) $
+          push g events users orig route mConn
+
+fork ::
+  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
+  Maybe UserId ->
+  m a ->
+  m ()
+fork u ma = do
+  g <- view applog
+  r <- view requestId
+  let logErr e = ExLog.err g $ request r ~~ user u ~~ msg (show e)
+  withRunInIO $ \lower ->
+    void . liftIO . forkIO $
+      either logErr (const $ pure ())
+        =<< runExceptT (syncIO $ lower ma)
+  where
+    request = field "request" . unRequestId
+    user = maybe id (field "user" . toByteString)
 
 -- | Push events to other users.
 push ::

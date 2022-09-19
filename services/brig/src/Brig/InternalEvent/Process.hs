@@ -41,7 +41,6 @@ import Data.ByteString.Conversion
 import Data.Qualified
 import Imports
 import Polysemy
-import Polysemy.Async
 import Polysemy.Conc.Effect.Race
 import Polysemy.Conc.Race
 import Polysemy.Input
@@ -55,8 +54,7 @@ import System.Logger.Class (field, msg, val, (~~))
 onEvent ::
   forall r.
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        P.TinyLog,

@@ -120,7 +120,6 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
-import Polysemy.Async
 import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
@@ -143,8 +142,7 @@ import Wire.API.User.Client
 
 onUserEvent ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess
      ]
     r =>
@@ -160,7 +158,7 @@ onUserEvent orig conn e =
     -- perhaps that's an effect on its own.
 
 onConnectionEvent ::
-  Members '[Async, GundeckAccess] r =>
+  Member GundeckAccess r =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID, if any.
@@ -178,7 +176,7 @@ onConnectionEvent orig conn evt = do
     (pure from)
 
 onPropertyEvent ::
-  Members '[Async, GundeckAccess] r =>
+  Member GundeckAccess r =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID.
@@ -268,8 +266,7 @@ journalEvent orig e = case e of
 -- or profile.
 dispatchNotifications ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess
      ]
     r =>
@@ -300,7 +297,7 @@ dispatchNotifications orig conn e = case e of
     event = pure $ UserEvent e
 
 notifyUserDeletionLocals ::
-  Members '[Async, GundeckAccess] r =>
+  Member GundeckAccess r =>
   UserId ->
   Maybe ConnId ->
   NonEmpty Event ->
@@ -346,64 +343,9 @@ notifyUserDeletionRemotes deleted = do
           . Log.field "domain" (domainText domain)
           . Log.field "error" (show fErr)
 
--- | (Asynchronously) notifies other users of events.
-notify ::
-  Members '[Async, GundeckAccess] r =>
-  NonEmpty Event ->
-  -- | Origin user, TODO: Delete
-  UserId ->
-  -- | Push routing strategy.
-  Push.Route ->
-  -- | Origin device connection, if any.
-  Maybe ConnId ->
-  -- | Users to notify.
-  NonEmpty UserId ->
-  Sem r ()
-notify events orig route conn recipients = do
-  fork (Just orig) $ do
-    pushEvents events recipients orig route conn
-
-fork ::
-  Members '[Async] r =>
-  Maybe UserId ->
-  Sem r a ->
-  Sem r ()
-fork _u act = do
-  -- g <- view applog
-  -- r <- view requestId
-  -- let logErr e = P.err $ request r ~~ user u ~~ msg (show e)
-  -- TODO(md): see what exceptions (if any) I can catch here. This is used
-  -- exclusively in making a call to Gundeck, which is an effect
-  void $ async act -- >>= \case
-  -- Nothing -> liftSem $ logErr "sending events via Gundeck failed"
-  -- Just _ -> pure ()
-  where
-
--- withRunInIO $ \lower ->
---   void . liftIO . forkIO $
---     either logErr (const $ pure ())
---       =<< runExceptT (syncIO $ lower ma)
-
--- request = field "request" . unRequestId
--- user = maybe id (field "user" . toByteString)
-
-notifySelf ::
-  Members '[Async, GundeckAccess] r =>
-  NonEmpty Event ->
-  -- | Origin user.
-  UserId ->
-  -- | Push routing strategy.
-  Push.Route ->
-  -- | Origin device connection, if any.
-  Maybe ConnId ->
-  Sem r ()
-notifySelf events orig route conn =
-  notify events orig route conn (pure orig)
-
 notifyContacts ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess
      ]
     r =>

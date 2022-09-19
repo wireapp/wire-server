@@ -54,7 +54,6 @@ import Data.Range
 import qualified Data.UUID.V4 as UUID
 import Imports
 import Polysemy
-import Polysemy.Async hiding (cancel)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
@@ -79,7 +78,7 @@ ensureNotSameTeam self target = do
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   Local UserId ->
   ConnId ->
   Qualified UserId ->
@@ -100,7 +99,7 @@ createConnection self con target = do
 
 createConnectionToLocalUser ::
   forall r.
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   Local UserId ->
   ConnId ->
   Local UserId ->
@@ -211,7 +210,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   Local UserId ->
   Qualified UserId ->
   Relation ->
@@ -232,7 +231,7 @@ updateConnection self other newStatus conn =
 -- {#RefConnectionTeam}
 updateConnectionToLocalUser ::
   forall r.
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   -- | From
   Local UserId ->
   -- | To
@@ -394,7 +393,7 @@ mkRelationWithHistory oldRel = \case
 
 updateConnectionInternal ::
   forall r.
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   UpdateConnectionsInternal ->
   ExceptT ConnectionError (AppT r) ()
 updateConnectionInternal = \case

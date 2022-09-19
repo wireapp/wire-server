@@ -36,11 +36,10 @@ import Control.Error
 import Data.Id
 import Imports
 import Polysemy
-import Polysemy.Async
 import Wire.API.Properties
 
 setProperty ::
-  Members '[Async, GundeckAccess] r =>
+  Members '[GundeckAccess] r =>
   UserId ->
   ConnId ->
   PropertyKey ->
@@ -51,7 +50,7 @@ setProperty u c k v = do
   lift . liftSem $ Intra.onPropertyEvent u c (PropertySet u k v)
 
 deleteProperty ::
-  Members '[Async, GundeckAccess] r =>
+  Members '[GundeckAccess] r =>
   UserId ->
   ConnId ->
   PropertyKey ->
@@ -61,7 +60,7 @@ deleteProperty u c k = do
   liftSem $ Intra.onPropertyEvent u c (PropertyDeleted u k)
 
 clearProperties ::
-  Members '[Async, GundeckAccess] r =>
+  Members '[GundeckAccess] r =>
   UserId ->
   ConnId ->
   AppT r ()

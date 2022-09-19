@@ -74,7 +74,6 @@ import qualified Network.Wai.Utilities.Response as WaiResp
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy
-import Polysemy.Async
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
@@ -90,7 +89,6 @@ routesPublic ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        BlacklistStore,
        BudgetStore,
        Error Twilio.ErrorResponse,
@@ -233,8 +231,7 @@ routesPublic = do
 
 routesInternal ::
   Members
-    '[ Async,
-       Error ReAuthError,
+    '[ Error ReAuthError,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -351,8 +348,7 @@ reAuthUser uid body = do
 
 loginH ::
   Members
-    '[ Async,
-       BudgetStore,
+    '[ BudgetStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
        GundeckAccess,
@@ -372,8 +368,7 @@ loginH (req ::: persist ::: _) = do
 
 login ::
   Members
-    '[ Async,
-       BudgetStore,
+    '[ BudgetStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
        GundeckAccess,
@@ -395,8 +390,7 @@ login l persist = do
 
 ssoLoginH ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery
@@ -409,8 +403,7 @@ ssoLoginH (req ::: persist ::: _) = do
 
 ssoLogin ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery
@@ -425,8 +418,7 @@ ssoLogin l persist = do
 
 legalHoldLoginH ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery
@@ -439,8 +431,7 @@ legalHoldLoginH (req ::: _) = do
 
 legalHoldLogin ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery
@@ -531,8 +522,7 @@ rmCookies uid (Public.RemoveCookies pw lls ids) =
 
 renewH ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UserQuery
      ]
@@ -548,8 +538,7 @@ renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew u
 -- Other combinations of provided inputs will cause an error to be raised.
 renew ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UserQuery
      ]

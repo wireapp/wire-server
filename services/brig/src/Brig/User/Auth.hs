@@ -82,7 +82,6 @@ import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
-import Polysemy.Async
 import Polysemy.Error
 import qualified Polysemy.Error as P
 import Polysemy.Input
@@ -162,8 +161,7 @@ lookupLoginCode phone =
 login ::
   forall r.
   Members
-    '[ Async,
-       BudgetStore,
+    '[ BudgetStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
        GundeckAccess,
@@ -326,8 +324,7 @@ renewAccess ::
   forall u a r.
   ZAuth.TokenPair u a =>
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UserQuery
      ]
@@ -365,8 +362,7 @@ revokeAccess u pw cc ll = do
 
 catchSuspendInactiveUser ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UserQuery
      ]
@@ -394,8 +390,7 @@ newAccess ::
   forall u a r.
   ZAuth.TokenPair u a =>
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UserQuery
      ]
@@ -539,8 +534,7 @@ validateToken ut at = do
 -- | Allow to login as any user without having the credentials.
 ssoLogin ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery
@@ -571,8 +565,7 @@ ssoLogin (SsoLogin uid label) typ = do
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery

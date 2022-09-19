@@ -69,7 +69,6 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy
-import Polysemy.Async
 import qualified Polysemy.Error as P
 import Polysemy.Input
 import qualified Ropes.Twilio as Twilio
@@ -212,8 +211,7 @@ routesPublic = do
 
 routesInternal ::
   Members
-    '[ Async,
-       BlacklistStore,
+    '[ BlacklistStore,
        GalleyAccess,
        GundeckAccess,
        P.Error Twilio.ErrorResponse,
@@ -537,14 +535,14 @@ getInvitationByEmail email = do
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
 suspendTeamH ::
-  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  Members '[GalleyAccess, GundeckAccess] r =>
   JSON ::: TeamId ->
   Handler r Response
 suspendTeamH (_ ::: tid) = do
   empty <$ suspendTeam tid
 
 suspendTeam ::
-  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  Members '[GalleyAccess, GundeckAccess] r =>
   TeamId ->
   Handler r ()
 suspendTeam tid = do
@@ -553,14 +551,14 @@ suspendTeam tid = do
   lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Suspended Nothing
 
 unsuspendTeamH ::
-  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  Members '[GalleyAccess, GundeckAccess] r =>
   JSON ::: TeamId ->
   Handler r Response
 unsuspendTeamH (_ ::: tid) = do
   empty <$ unsuspendTeam tid
 
 unsuspendTeam ::
-  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  Members '[GalleyAccess, GundeckAccess] r =>
   TeamId ->
   Handler r ()
 unsuspendTeam tid = do
@@ -571,7 +569,7 @@ unsuspendTeam tid = do
 -- Internal
 
 changeTeamAccountStatuses ::
-  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  Members '[GalleyAccess, GundeckAccess] r =>
   TeamId ->
   AccountStatus ->
   Handler r ()

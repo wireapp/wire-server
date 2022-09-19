@@ -53,7 +53,6 @@ import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
-import Polysemy.Async
 import Servant (ServerT)
 import Servant.API
 import qualified System.Logger.Class as Log
@@ -75,8 +74,7 @@ type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
   Members
-    '[ Async,
-       GundeckAccess,
+    '[ GundeckAccess,
        UserHandleStore,
        UserQuery
      ]
@@ -97,7 +95,7 @@ federationSitemap =
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
 
 sendConnectionAction ::
-  Members '[Async, GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery] r =>
   Domain ->
   NewConnectionRequest ->
   Handler r NewConnectionResponse
@@ -218,7 +216,7 @@ getMLSClients _domain mcr = do
   Internal.getMLSClients (mcrUserId mcr) (mcrSignatureScheme mcr)
 
 onUserDeleted ::
-  Members '[Async, GundeckAccess] r =>
+  Members '[GundeckAccess] r =>
   Domain ->
   UserDeletedConnectionsNotification ->
   Handler r EmptyResponse

@@ -326,7 +326,6 @@ createUser ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        BlacklistStore,
        GalleyAccess,
        GundeckAccess,
@@ -633,8 +632,7 @@ checkRestrictedUserCreation new = do
 
 updateUser ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UserQuery
      ]
@@ -665,8 +663,7 @@ updateUser uid mconn uu allowScim = do
 
 changeLocale ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess
      ]
     r =>
@@ -683,8 +680,7 @@ changeLocale uid conn (LocaleUpdate loc) = do
 
 changeManagedBy ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess
      ]
     r =>
@@ -920,8 +916,7 @@ changePhone u phone = do
 
 removeEmail ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
@@ -947,8 +942,7 @@ removeEmail uid conn = do
 
 removePhone ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
@@ -979,8 +973,7 @@ removePhone uid conn = do
 revokeIdentity ::
   forall r.
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
@@ -1026,8 +1019,7 @@ revokeIdentity key = do
 changeAccountStatus ::
   forall r.
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess
      ]
     r =>
@@ -1060,21 +1052,11 @@ changeAccountStatus usrs status = do
 
 changeSingleAccountStatus ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UserQuery
      ]
     r =>
-  -- ( MonadClient m,
-  --   MonadLogger m,
-  --   MonadIndexIO m,
-  --   MonadReader Env m,
-  --   MonadMask m,
-  --   MonadHttp m,
-  --   HasRequestId m,
-  --   MonadUnliftIO m
-  -- ) =>
   UserId ->
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
@@ -1108,7 +1090,6 @@ activate ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1131,7 +1112,6 @@ activateWithCurrency ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       Async,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1194,8 +1174,7 @@ preverify tgt code creds m = do
 
 onActivated ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UserQuery
      ]
@@ -1445,8 +1424,7 @@ mkPasswordResetKey ident = case ident of
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteSelfUser ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
@@ -1535,8 +1513,7 @@ deleteSelfUser uid pwd = do
 -- 'deleteUser'.  Called via @post /delete@.
 verifyDeleteUser ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
@@ -1562,8 +1539,7 @@ verifyDeleteUser d = do
 -- Called via @delete /i/user/:uid@.
 ensureAccountDeleted ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
@@ -1613,8 +1589,7 @@ ensureAccountDeleted uid = do
 deleteAccount ::
   forall r.
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        UniqueClaimsStore,
        UserHandleStore,

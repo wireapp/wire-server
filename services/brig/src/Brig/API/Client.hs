@@ -87,7 +87,6 @@ import qualified Data.Set as Set
 import Imports
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import Polysemy.Async
 import Polysemy.Error
 import Polysemy.Input
 import System.Logger.Class (field, msg, val, (~~))
@@ -140,8 +139,7 @@ lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery,
@@ -160,8 +158,7 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 addClientWithReAuthPolicy ::
   forall r.
   Members
-    '[ Async,
-       GalleyAccess,
+    '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery,
@@ -457,7 +454,7 @@ pubClient c =
     }
 
 legalHoldClientRequested ::
-  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  Members '[GalleyAccess, GundeckAccess] r =>
   UserId ->
   LegalHoldClientRequest ->
   AppT r ()
@@ -472,7 +469,7 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     lhClientEvent = LegalHoldClientRequested eventData
 
 removeLegalHoldClient ::
-  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  Members '[GalleyAccess, GundeckAccess] r =>
   UserId ->
   AppT r ()
 removeLegalHoldClient uid = do
