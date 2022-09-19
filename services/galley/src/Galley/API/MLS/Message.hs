@@ -292,7 +292,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
         Left _ -> throwS @'MLSUnsupportedMessage
 
     -- forward message
-    propagateMessage qusr lconv cm con (rmRaw smsg)
+    propagateMessage qusr senderClient lconv cm con (rmRaw smsg)
 
     pure events
 

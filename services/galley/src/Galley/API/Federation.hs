@@ -719,11 +719,15 @@ onMLSMessageSent domain rmm = do
           )
   let recipients = filter (\(u, _) -> Set.member u members) (F.rmmRecipients rmm)
   -- FUTUREWORK: support local bots
-  let e =
-        Event (qUntagged rcnv) (F.rmmSender rmm) (F.rmmTime rmm) $
-          EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
   let mkPush :: (UserId, ClientId) -> MessagePush 'NormalMessage
-      mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e
+      mkPush (u, c) =
+        newMessagePush loc mempty Nothing (F.rmmMetadata rmm) (u, c) $
+          Event (qUntagged rcnv) (F.rmmSender rmm) (F.rmmTime rmm) $
+            EdMLSMessage $
+              MLSMessage
+                { mlsData = fromBase64ByteString (F.rmmMessage rmm),
+                  mlsSenderId = Just c
+                }
 
   runMessagePush loc (Just (qUntagged rcnv)) $
     foldMap mkPush recipients

@@ -26,6 +26,7 @@ module Wire.API.Event.Conversation
     EventType (..),
     EventData (..),
     AddCodeResult (..),
+    MLSMessage (..),
 
     -- * Event lenses
     _EdMembersJoin,
@@ -169,7 +170,7 @@ data EventData
   | EdConversation Conversation
   | EdTyping TypingData
   | EdOtrMessage OtrMessage
-  | EdMLSMessage ByteString
+  | EdMLSMessage MLSMessage
   | EdMLSWelcome ByteString
   deriving stock (Eq, Show, Generic)
 
@@ -318,6 +319,23 @@ data AddCodeResult
   = CodeAdded Event
   | CodeAlreadyExisted ConversationCode
 
+data MLSMessage = MLSMessage
+  { mlsData :: ByteString,
+    mlsSenderId :: Maybe ClientId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MLSMessage)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MLSMessage
+
+instance ToSchema MLSMessage where
+  schema =
+    objectWithDocModifier
+      "MLSMessage"
+      (description ?~ "Encrypted MLS message of a conversation")
+      $ MLSMessage
+        <$> mlsData .= field "data" base64Schema
+        <*> mlsSenderId .= maybe_ (optField "sender_id" schema)
+
 data OtrMessage = OtrMessage
   { otrSender :: ClientId,
     otrRecipient :: ClientId,
@@ -378,7 +396,7 @@ taggedEventDataSchema =
       ConvMessageTimerUpdate -> tag _EdConvMessageTimerUpdate (unnamed schema)
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)
-      MLSMessageAdd -> tag _EdMLSMessage base64Schema
+      MLSMessageAdd -> tag _EdMLSMessage (unnamed schema)
       MLSWelcome -> tag _EdMLSWelcome base64Schema
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_

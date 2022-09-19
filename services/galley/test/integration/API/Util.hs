@@ -1608,7 +1608,7 @@ assertMLSMessageEvent conv u message e = do
   evtConv e @?= conv
   evtType e @?= MLSMessageAdd
   evtFrom e @?= u
-  evtData e @?= EdMLSMessage message
+  evtData e @?= EdMLSMessage (MLSMessage message Nothing) -- TODO: use the correct data
 
 -- | This assumes the default role name
 wsAssertMemberJoin :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
@@ -2812,7 +2812,7 @@ wsAssertBackendRemoveProposal fromUser convId kpref n = do
   pure bs
   where
     getMLSMessageData :: Conv.EventData -> ByteString
-    getMLSMessageData (EdMLSMessage bs) = bs
+    getMLSMessageData (EdMLSMessage (MLSMessage  bs _)) = bs
     getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
 
 wsAssertAddProposal ::
@@ -2844,7 +2844,7 @@ wsAssertAddProposal fromUser convId n = do
   pure bs
   where
     getMLSMessageData :: Conv.EventData -> ByteString
-    getMLSMessageData (EdMLSMessage bs) = bs
+    getMLSMessageData (EdMLSMessage (MLSMessage bs _)) = bs
     getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
 
 createAndConnectUsers :: [Maybe Text] -> TestM [Qualified UserId]

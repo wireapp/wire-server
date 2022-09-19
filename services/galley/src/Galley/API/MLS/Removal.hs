@@ -76,7 +76,7 @@ removeClientsWithClientMap lc cs cm qusr = do
     ProtocolMLS meta -> do
       keyPair <- mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
       (secKey, pubKey) <- note (InternalErrorWithDescription "backend removal key missing") $ keyPair
-      for_ cs $ \(_client, kpref) -> do
+      for_ cs $ \(client, kpref) -> do
         let proposal = mkRemoveProposal kpref
             msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
             msgEncoded = encodeMLS' msg
@@ -85,7 +85,7 @@ removeClientsWithClientMap lc cs cm qusr = do
           (cnvmlsEpoch meta)
           (proposalRef (cnvmlsCipherSuite meta) proposal)
           proposal
-        propagateMessage qusr lc cm Nothing msgEncoded
+        propagateMessage qusr (Just client) lc cm Nothing msgEncoded
 
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::

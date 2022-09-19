@@ -55,12 +55,13 @@ propagateMessage ::
     Member TinyLog r
   ) =>
   Qualified UserId ->
+  Maybe ClientId ->
   Local Data.Conversation ->
   ClientMap ->
   Maybe ConnId ->
   ByteString ->
   Sem r ()
-propagateMessage qusr lconv cm con raw = do
+propagateMessage qusr senderClient lconv cm con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers . tUnqualified $ lconv
       botMap = Map.fromList $ do
@@ -71,7 +72,7 @@ propagateMessage qusr lconv cm con raw = do
   now <- input @UTCTime
   let lcnv = fmap Data.convId lconv
       qcnv = qUntagged lcnv
-      e = Event qcnv qusr now $ EdMLSMessage raw
+      e = Event qcnv qusr now $ EdMLSMessage (MLSMessage { mlsData = raw, mlsSenderId = senderClient })
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
   runMessagePush lconv (Just qcnv) $
