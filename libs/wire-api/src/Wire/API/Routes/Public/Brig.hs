@@ -490,8 +490,6 @@ type AccountAPI =
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
            )
 
---     .&. capture "key"
-
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse
   | ActivationRespDryRun
