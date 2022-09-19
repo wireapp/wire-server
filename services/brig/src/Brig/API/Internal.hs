@@ -50,6 +50,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -556,7 +557,7 @@ listActivatedAccounts elh includePendingInvitations = do
         case (accountStatus account, includePendingInvitations, emailIdentity ident) of
           (PendingInvitation, False, _) -> pure False
           (PendingInvitation, True, Just email) -> do
-            hasInvitation <- isJust <$> wrapClient (lookupInvitationByEmail email)
+            hasInvitation <- isJust <$> wrapClient (lookupInvitationByEmail HideInvitationUrl email)
             unless hasInvitation $ do
               -- user invited via scim should expire together with its invitation
               API.deleteUserNoVerify (userId . accountUser $ account)

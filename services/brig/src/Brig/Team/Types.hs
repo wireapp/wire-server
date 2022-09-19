@@ -15,9 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Brig.Team.Types where
 
 import Imports
 
-schemaVersion :: Int32
-schemaVersion = 74
+data ShowOrHideInvitationUrl = ShowInvitationUrl | HideInvitationUrl
+  deriving (Eq, Show)

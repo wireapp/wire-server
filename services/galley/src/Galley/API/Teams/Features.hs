@@ -179,7 +179,8 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db GuestLinksConfig,
     FeaturePersistentConstraint db SndFactorPasswordChallengeConfig,
     FeaturePersistentConstraint db MLSConfig,
-    FeaturePersistentConstraint db SearchVisibilityInboundConfig
+    FeaturePersistentConstraint db SearchVisibilityInboundConfig,
+    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig
   )
 
 getFeatureStatus ::
@@ -440,6 +441,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @db @GuestLinksConfig
     <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
     <*> getConfigForServer @db @MLSConfig
+    <*> getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -473,6 +475,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @GuestLinksConfig uid
     <*> getConfigForUser @db @SndFactorPasswordChallengeConfig uid
     <*> getConfigForUser @db @MLSConfig uid
+    <*> getConfigForUser @db @ExposeInvitationURLsToTeamAdminConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -505,6 +508,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @GuestLinksConfig tid
     <*> getConfigForTeam @db @SndFactorPasswordChallengeConfig tid
     <*> getConfigForTeam @db @MLSConfig tid
+    <*> getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -849,6 +853,44 @@ instance GetFeatureConfig db MLSConfig where
 instance SetFeatureConfig db MLSConfig where
   setConfigForTeam tid wsnl = do
     persistAndPushEvent @db tid wsnl
+
+instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
+  getConfigForServer =
+    -- we could look at the galley settings, but we don't have a team here, so there is not much else we can say.
+    pure $
+      withStatus
+        FeatureStatusDisabled
+        LockStatusLocked
+        ExposeInvitationURLsToTeamAdminConfig
+        FeatureTTLUnlimited
+
+  getConfigForTeam tid = do
+    allowList <- input <&> view (optSettings . setExposeInvitationURLsTeamAllowlist . to (fromMaybe []))
+    mbOldStatus <- TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus
+    let teamAllowed = tid `elem` allowList
+    pure $ computeConfigForTeam teamAllowed (fromMaybe FeatureStatusDisabled mbOldStatus)
+    where
+      computeConfigForTeam :: Bool -> FeatureStatus -> WithStatus ExposeInvitationURLsToTeamAdminConfig
+      computeConfigForTeam teamAllowed teamDbStatus =
+        if teamAllowed
+          then makeConfig LockStatusUnlocked teamDbStatus
+          else makeConfig LockStatusLocked FeatureStatusDisabled
+
+      makeConfig :: LockStatus -> FeatureStatus -> WithStatus ExposeInvitationURLsToTeamAdminConfig
+      makeConfig lockStatus status =
+        withStatus
+          status
+          lockStatus
+          ExposeInvitationURLsToTeamAdminConfig
+          FeatureTTLUnlimited
+
+instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
+  type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
+  setConfigForTeam tid wsnl = do
+    lockStatus <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsLockStatus
+    case lockStatus of
+      LockStatusLocked -> throwS @OperationDenied
+      LockStatusUnlocked -> persistAndPushEvent @db tid wsnl
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

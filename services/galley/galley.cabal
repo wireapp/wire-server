@@ -670,6 +670,7 @@ executable galley-schema
     V71_MemberClientKeypackage
     V72_DropManagedConversations
     V73_MemberClientTable
+    V74_ExposeInvitationsToTeamAdmin
 
   hs-source-dirs:     schema/src
   default-extensions:

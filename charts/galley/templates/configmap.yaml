@@ -54,6 +54,9 @@ data:
       {{- if .settings.maxFanoutSize }}
       maxFanoutSize: {{ .settings.maxFanoutSize }}
       {{- end }}
+      {{- if .settings.exposeInvitationURLsTeamAllowlist }}
+      exposeInvitationURLsTeamAllowlist: {{ .settings.exposeInvitationURLsTeamAllowlist }}
+      {{- end }}
       conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
       {{- if .settings.enableIndexedBillingTeamMembers }}
       enableIndexedBillingTeamMembers: {{ .settings.enableIndexedBillingTeamMembers }}
@@ -92,15 +95,15 @@ data:
         {{- if .settings.featureFlags.appLock }}
         appLock:
           {{- toYaml .settings.featureFlags.appLock | nindent 10 }}
-        {{- end }}        
+        {{- end }}
         {{- if .settings.featureFlags.conferenceCalling }}
         conferenceCalling:
           {{- toYaml .settings.featureFlags.conferenceCalling | nindent 10 }}
-        {{- end }}        
+        {{- end }}
         {{- if .settings.featureFlags.selfDeletingMessages }}
         selfDeletingMessages:
           {{- toYaml .settings.featureFlags.selfDeletingMessages | nindent 10 }}
-        {{- end }}        
+        {{- end }}
         {{- if .settings.featureFlags.conversationGuestLinks }}
         conversationGuestLinks:
           {{- toYaml .settings.featureFlags.conversationGuestLinks | nindent 10 }}
