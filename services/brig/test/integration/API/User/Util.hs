@@ -186,7 +186,8 @@ initiateEmailUpdateLogin brig email loginCreds uid = do
 initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.AccessToken) -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
 initiateEmailUpdateCreds brig email (cky, tok) uid = do
   put $
-    brig
+    unversioned
+      . brig
       . path "/access/self/email"
       . cookie cky
       . header "Authorization" ("Bearer " <> toByteString' tok)

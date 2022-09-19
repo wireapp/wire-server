@@ -40,6 +40,7 @@ import Control.Exception (throw)
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import qualified Control.Monad.Catch as Catch
+import qualified Control.Monad.State as State
 import Control.Monad.State.Class (MonadState)
 import qualified Control.Monad.State.Class as MonadState
 import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
@@ -50,6 +51,7 @@ import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import Data.Domain (Domain (..), domainText, mkDomain)
@@ -134,6 +136,38 @@ type Nginz = Request -> Request
 type Spar = Request -> Request
 
 data FedClient (comp :: Component) = FedClient HTTP.Manager Endpoint
+
+-- | Note: Apply this function last when composing (Request -> Request) functions
+apiVersion :: ByteString -> Request -> Request
+apiVersion newVersion r = r {HTTP.path = setVersion newVersion (HTTP.path r)}
+  where
+    setVersion :: ByteString -> ByteString -> ByteString
+    setVersion v p =
+      let p' = removeSlash' p
+       in v <> "/" <> fromMaybe p' (removeVersionPrefix p')
+
+removeSlash' :: ByteString -> ByteString
+removeSlash' s = case B8.uncons s of
+  Just ('/', s') -> s'
+  _ -> s
+
+removeVersionPrefix :: ByteString -> Maybe ByteString
+removeVersionPrefix bs = do
+  let (x, s) = C8.splitAt 1 bs
+  guard (x == C8.pack "v")
+  (_, s') <- C8.readInteger s
+  pure (C8.tail s')
+
+-- | Note: Apply this function last when composing (Request -> Request) functions
+unversioned :: Request -> Request
+unversioned r =
+  r
+    { HTTP.path =
+        maybe
+          (HTTP.path r)
+          (C8.pack "/" <>)
+          (removeVersionPrefix . removeSlash' $ HTTP.path r)
+    }
 
 runFedClient ::
   forall (name :: Symbol) comp api.
@@ -450,7 +484,8 @@ login :: Brig -> Login -> CookieType -> (MonadIO m, MonadHttp m) => m ResponseLB
 login b l t =
   let js = RequestBodyLBS (encode l)
    in post $
-        b
+        unversioned
+          . b
           . path "/login"
           . contentJson
           . (if t == PersistentCookie then queryItem "persist" "true" else id)
@@ -649,7 +684,8 @@ defNewClientWithVerificationCode mbCode ty pks lpk =
 getPreKey :: Brig -> UserId -> UserId -> ClientId -> Http ResponseLBS
 getPreKey brig zusr u c =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["users", toByteString' u, "prekeys", toByteString' c]
       . zUser zusr
 

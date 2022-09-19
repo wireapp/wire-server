@@ -41,6 +41,7 @@ import qualified Brig.Options as Opts
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
+import qualified Data.ByteString.Char8 as B8
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding (encodeUtf8)
@@ -48,6 +49,7 @@ import Data.Yaml (decodeFileEither)
 import qualified Federation.End2end
 import Imports hiding (local)
 import qualified Index.Create
+import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
@@ -104,18 +106,18 @@ instance FromJSON Config
 
 runTests :: Config -> Opts.Opts -> [String] -> IO ()
 runTests iConf brigOpts otherArgs = do
-  let b = mkRequest $ brig iConf
-      c = mkRequest $ cannon iConf
-      gd = mkRequest $ gundeck iConf
-      ch = mkRequest $ cargohold iConf
-      g = mkRequest $ galley iConf
-      n = mkRequest $ nginz iConf
-      s = mkRequest $ spar iConf
+  let b = mkVersionedRequest $ brig iConf
+      c = mkVersionedRequest $ cannon iConf
+      gd = mkVersionedRequest $ gundeck iConf
+      ch = mkVersionedRequest $ cargohold iConf
+      g = mkVersionedRequest $ galley iConf
+      n = mkVersionedRequest $ nginz iConf
+      s = mkVersionedRequest $ spar iConf
       f = federatorInternal iConf
-      brigTwo = mkRequest $ remoteBrig (backendTwo iConf)
-      cannonTwo = mkRequest $ remoteCannon (backendTwo iConf)
-      galleyTwo = mkRequest $ remoteGalley (backendTwo iConf)
-      ch2 = mkRequest $ remoteCargohold (backendTwo iConf)
+      brigTwo = mkVersionedRequest $ remoteBrig (backendTwo iConf)
+      cannonTwo = mkVersionedRequest $ remoteCannon (backendTwo iConf)
+      galleyTwo = mkVersionedRequest $ remoteGalley (backendTwo iConf)
+      ch2 = mkVersionedRequest $ remoteCargohold (backendTwo iConf)
 
   let Opts.TurnServersFiles turnFile turnFileV2 = case Opts.serversSource $ Opts.turn brigOpts of
         Opts.TurnSourceFiles files -> files
@@ -177,6 +179,15 @@ runTests iConf brigOpts otherArgs = do
         <> [federationEnd2End | includeFederationTests]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
+
+    mkVersionedRequest endpoint = addPrefix . mkRequest endpoint
+
+    addPrefix :: Request -> Request
+    addPrefix r = r {HTTP.path = "v2/" <> removeSlash (HTTP.path r)}
+      where
+        removeSlash s = case B8.uncons s of
+          Just ('/', s') -> s'
+          _ -> s
 
     parseEmailAWSOpts :: IO (Maybe Opts.EmailAWSOpts)
     parseEmailAWSOpts = case Opts.email . Opts.emailSMS $ brigOpts of
