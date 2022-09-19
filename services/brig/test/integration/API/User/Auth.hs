@@ -199,7 +199,7 @@ testNginz b n = do
   liftIO $ assertEqual "Ensure nginz is started. Ensure nginz and brig share the same private/public zauth keys. Ensure ACL file is correct." 200 (statusCode _rs)
   -- ensure nginz allows refresh at /access
   _rs <-
-    post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> toByteString' t)) <!! do
+    post (unversioned . n . path "/access" . cookie c . header "Authorization" ("Bearer " <> toByteString' t)) <!! do
       const 200 === statusCode
   -- ensure regular user tokens can fetch notifications
   get (n . path "/notifications" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
@@ -233,7 +233,7 @@ testNginzLegalHold b g n = do
       =<< createConversation g (userId alice) [] <!! const 201 === statusCode
 
   -- ensure nginz allows passing legalhold cookies / tokens through to /access
-  post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> toByteString' t)) !!! do
+  post (unversioned . n . path "/access" . cookie c . header "Authorization" ("Bearer " <> toByteString' t)) !!! do
     const 200 === statusCode
   -- ensure legalhold tokens CANNOT fetch /clients
   get (n . path "/clients" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 403 === statusCode
@@ -274,16 +274,16 @@ testNginzMultipleCookies o b n = do
   badCookie2 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAC==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
 
   -- Basic sanity checks
-  post (n . path "/access" . cookie goodCookie) !!! const 200 === statusCode
-  post (n . path "/access" . cookie badCookie1) !!! const 403 === statusCode
-  post (n . path "/access" . cookie badCookie2) !!! const 403 === statusCode
+  post (unversioned . n . path "/access" . cookie goodCookie) !!! const 200 === statusCode
+  post (unversioned . n . path "/access" . cookie badCookie1) !!! const 403 === statusCode
+  post (unversioned . n . path "/access" . cookie badCookie2) !!! const 403 === statusCode
 
   -- Sending both cookies should always work, regardless of the order (they are ordered by time)
-  post (n . path "/access" . cookie badCookie1 . cookie goodCookie . cookie badCookie2) !!! const 200 === statusCode
-  post (n . path "/access" . cookie goodCookie . cookie badCookie1 . cookie badCookie2) !!! const 200 === statusCode
-  post (n . path "/access" . cookie badCookie1 . cookie badCookie2 . cookie goodCookie) !!! const 200 === statusCode -- -- Sending a bad cookie and an unparseble one should work too
-  post (n . path "/access" . cookie unparseableCookie . cookie goodCookie) !!! const 200 === statusCode
-  post (n . path "/access" . cookie goodCookie . cookie unparseableCookie) !!! const 200 === statusCode
+  post (unversioned . n . path "/access" . cookie badCookie1 . cookie goodCookie . cookie badCookie2) !!! const 200 === statusCode
+  post (unversioned . n . path "/access" . cookie goodCookie . cookie badCookie1 . cookie badCookie2) !!! const 200 === statusCode
+  post (unversioned . n . path "/access" . cookie badCookie1 . cookie badCookie2 . cookie goodCookie) !!! const 200 === statusCode -- -- Sending a bad cookie and an unparseble one should work too
+  post (unversioned . n . path "/access" . cookie unparseableCookie . cookie goodCookie) !!! const 200 === statusCode
+  post (unversioned . n . path "/access" . cookie goodCookie . cookie unparseableCookie) !!! const 200 === statusCode
 
   -- We want to make sure we are using a cookie that was deleted from the DB but not expired - this way the client
   -- will still have it in the cookie jar because it did not get overriden
@@ -291,10 +291,10 @@ testNginzMultipleCookies o b n = do
   now <- liftIO getCurrentTime
   liftIO $ assertBool "cookie should not be expired" (cookie_expiry_time deleted > now)
   liftIO $ assertBool "cookie should not be expired" (cookie_expiry_time valid > now)
-  post (n . path "/access" . cookie deleted) !!! const 403 === statusCode
-  post (n . path "/access" . cookie valid) !!! const 200 === statusCode
-  post (n . path "/access" . cookie deleted . cookie valid) !!! const 200 === statusCode
-  post (n . path "/access" . cookie valid . cookie deleted) !!! const 200 === statusCode
+  post (unversioned . n . path "/access" . cookie deleted) !!! const 403 === statusCode
+  post (unversioned . n . path "/access" . cookie valid) !!! const 200 === statusCode
+  post (unversioned . n . path "/access" . cookie deleted . cookie valid) !!! const 200 === statusCode
+  post (unversioned . n . path "/access" . cookie valid . cookie deleted) !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Login
@@ -663,11 +663,11 @@ testLegalHoldLogout brig galley = do
   uid <- prepareLegalHoldUser brig galley
   _rs <- legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie <!! const 200 === statusCode
   let (t, c) = (decodeToken' @ZAuth.LegalHoldAccess _rs, decodeCookie _rs)
-  post (brig . path "/access" . cookie c)
+  post (unversioned . brig . path "/access" . cookie c)
     !!! const 200 === statusCode
-  post (brig . path "/access/logout" . cookie c . queryItem "access_token" (toByteString' t))
+  post (unversioned . brig . path "/access/logout" . cookie c . queryItem "access_token" (toByteString' t))
     !!! const 200 === statusCode
-  post (brig . path "/access" . cookie c)
+  post (unversioned . brig . path "/access" . cookie c)
     !!! const 403 === statusCode
 
 -------------------------------------------------------------------------------
@@ -719,7 +719,7 @@ testNoUserSsoLogin brig = do
 testInvalidCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
 testInvalidCookie z b = do
   -- Syntactically invalid
-  post (b . path "/access" . cookieRaw "zuid" "xxx") !!! do
+  post (unversioned . b . path "/access" . cookieRaw "zuid" "xxx") !!! do
     const 403 === statusCode
     const (Just "Invalid user token") =~= responseBody
   -- Expired
@@ -727,7 +727,7 @@ testInvalidCookie z b = do
   let f = set (ZAuth.userTTL (Proxy @u)) 0
   t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user))
   liftIO $ threadDelay 1000000
-  post (b . path "/access" . cookieRaw "zuid" t) !!! do
+  post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
     const (Just "expired") =~= responseBody
 
@@ -736,9 +736,9 @@ testInvalidCookie z b = do
 testInvalidToken :: Brig -> Http ()
 testInvalidToken b = do
   -- Syntactically invalid
-  post (b . path "/access" . queryItem "access_token" "xxx")
+  post (unversioned . b . path "/access" . queryItem "access_token" "xxx")
     !!! errResponse
-  post (b . path "/access" . header "Authorization" "Bearer xxx")
+  post (unversioned . b . path "/access" . header "Authorization" "Bearer xxx")
     !!! errResponse
   where
     errResponse = do
@@ -748,12 +748,12 @@ testInvalidToken b = do
 testMissingCookie :: forall u a. ZAuth.TokenPair u a => ZAuth.Env -> Brig -> Http ()
 testMissingCookie z b = do
   -- Missing cookie, i.e. token refresh mandates a cookie.
-  post (b . path "/access")
+  post (unversioned . b . path "/access")
     !!! errResponse
   t <- toByteString' <$> runZAuth z (randomAccessToken @u @a)
-  post (b . path "/access" . header "Authorization" ("Bearer " <> t))
+  post (unversioned . b . path "/access" . header "Authorization" ("Bearer " <> t))
     !!! errResponse
-  post (b . path "/access" . queryItem "access_token" t)
+  post (unversioned . b . path "/access" . queryItem "access_token" t)
     !!! errResponse
   where
     errResponse = do
@@ -765,7 +765,7 @@ testUnknownCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Htt
 testUnknownCookie z b = do
   -- Valid cookie but unknown to the server.
   t <- toByteString' <$> runZAuth z (randomUserToken @u)
-  post (b . path "/access" . cookieRaw "zuid" t) !!! do
+  post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
     const (Just "invalid-credentials") =~= responseBody
 
@@ -779,7 +779,7 @@ testTokenMismatchLegalhold z brig galley = do
   -- try refresh with a regular UserCookie but a LegalHoldAccessToken
   let c = decodeCookie _rs
   t <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess)
-  post (brig . path "/access" . cookie c . header "Authorization" ("Bearer " <> t)) !!! do
+  post (unversioned . brig . path "/access" . cookie c . header "Authorization" ("Bearer " <> t)) !!! do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
   -- try refresh with a regular AccessToken but a LegalHoldUserCookie
@@ -788,7 +788,7 @@ testTokenMismatchLegalhold z brig galley = do
   _rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
   let c' = decodeCookie _rs
   t' <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
-  post (brig . path "/access" . cookie c' . header "Authorization" ("Bearer " <> t')) !!! do
+  post (unversioned . brig . path "/access" . cookie c' . header "Authorization" ("Bearer " <> t')) !!! do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
 
@@ -808,7 +808,8 @@ testAccessSelfEmailAllowed nginz brig = do
           decodeToken rsp
         )
     let req =
-          nginz
+          unversioned
+            . nginz
             . path "/access/self/email"
             . maybe id cookie mbCky
             . header "Authorization" ("Bearer " <> toByteString' tok)
@@ -836,7 +837,8 @@ testAccessSelfEmailDenied zenv nginz brig = do
           pure Nothing
     tok <- runZAuth zenv (randomAccessToken @ZAuth.User @ZAuth.Access)
     let req =
-          nginz
+          unversioned
+            . nginz
             . path "/access/self/email"
             . Bilge.json ()
             . maybe id cookie mbCky
@@ -877,7 +879,7 @@ getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   liftIO $ threadDelay minAge
   -- Refresh tokens
   _rs <-
-    post (n . path "/access" . cookie c) <!! do
+    post (unversioned . n . path "/access" . cookie c) <!! do
       const 200 === statusCode
       const Nothing =/= getHeader "Set-Cookie"
       const (Just "access_token") =~= responseBody
@@ -887,7 +889,7 @@ getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   -- duration of another BRIG_COOKIE_RENEW_AGE seconds,
   -- but the response should keep advertising the new cookie.
   _rs <-
-    post (n . path "/access" . cookie c) <!! do
+    post (unversioned . n . path "/access" . cookie c) <!! do
       const 200 === statusCode
       const Nothing =/= getHeader "Set-Cookie"
       const (Just "access_token") =~= responseBody
@@ -895,7 +897,7 @@ getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   liftIO $ assertBool "cookie" (c' `equivCookie` decodeCookie _rs)
   -- Refresh with the new cookie should succeed
   -- (without advertising yet another new cookie).
-  post (n . path "/access" . cookie c') !!! do
+  post (unversioned . n . path "/access" . cookie c') !!! do
     const 200 === statusCode
     const Nothing === getHeader "Set-Cookie"
     const (Just "access_token") =~= responseBody
@@ -928,7 +930,7 @@ testNewSessionCookie config b = do
   let c = decodeCookie _rs
   liftIO $ threadDelay minAge
   -- Session cookies are never renewed
-  post (b . path "/access" . cookie c) !!! do
+  post (unversioned . b . path "/access" . cookie c) !!! do
     const 200 === statusCode
     const Nothing === getHeader "Set-Cookie"
 
@@ -953,7 +955,7 @@ testSuspendInactiveUsers config brig = do
         liftIO $ threadDelay (1000000 * waitTime)
         case endPoint of
           "/access" -> do
-            post (brig . path "/access" . cookie cky) !!! do
+            post (unversioned . brig . path "/access" . cookie cky) !!! do
               const 403 === statusCode
               const Nothing === getHeader "Set-Cookie"
           "/login" -> do
@@ -1108,11 +1110,11 @@ testLogout b = do
   Just email <- userEmail <$> randomUser b
   _rs <- login b (defEmailLogin email) SessionCookie
   let (t, c) = (decodeToken _rs, decodeCookie _rs)
-  post (b . path "/access" . cookie c)
+  post (unversioned . b . path "/access" . cookie c)
     !!! const 200 === statusCode
-  post (b . path "/access/logout" . cookie c . queryItem "access_token" (toByteString' t))
+  post (unversioned . b . path "/access/logout" . cookie c . queryItem "access_token" (toByteString' t))
     !!! const 200 === statusCode
-  post (b . path "/access" . cookie c)
+  post (unversioned . b . path "/access" . cookie c)
     !!! const 403 === statusCode
 
 testReauthentication :: Brig -> Http ()
