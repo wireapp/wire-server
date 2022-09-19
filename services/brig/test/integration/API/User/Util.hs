@@ -290,7 +290,8 @@ deleteClient brig u c pw =
 listConnections :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 listConnections brig u =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . path "connections"
       . zUser u
 
@@ -453,7 +454,7 @@ uploadAsset c usr sts dat = do
       mpb = buildMultipartBody sts ct (LB.fromStrict dat)
   post
     ( c
-        . path "/assets/v3"
+        . path "/assets"
         . zUser usr
         . zConn "conn"
         . content "multipart/mixed"
@@ -471,7 +472,7 @@ downloadAsset ::
 downloadAsset c usr ast =
   get
     ( c
-        . paths ["/assets/v4", toByteString' (qDomain ast), toByteString' (qUnqualified ast)]
+        . paths ["/assets", toByteString' (qDomain ast), toByteString' (qUnqualified ast)]
         . zUser usr
         . zConn "conn"
     )

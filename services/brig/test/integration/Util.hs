@@ -367,7 +367,8 @@ assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
 getConnection :: Brig -> UserId -> UserId -> Http ResponseLBS
 getConnection brig from to =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["/connections", toByteString' to]
       . zUser from
       . zConn "conn"
@@ -545,7 +546,8 @@ sendLoginCode b p typ force =
 postConnection :: Brig -> UserId -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 postConnection brig from to =
   post $
-    brig
+    apiVersion "v1"
+      . brig
       . path "/connections"
       . contentJson
       . body payload
@@ -568,7 +570,8 @@ postConnectionQualified brig from (Qualified toUser toDomain) =
 putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
   put $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["/connections", toByteString' to]
       . contentJson
       . body payload

@@ -589,11 +589,11 @@ testNonExistingUserUnqualified :: Brig -> Http ()
 testNonExistingUserUnqualified brig = do
   findingOne <- liftIO $ Id <$> UUID.nextRandom
   foundOne <- liftIO $ Id <$> UUID.nextRandom
-  get (brig . paths ["users", pack $ show foundOne] . zUser findingOne)
+  get (apiVersion "v1" . brig . paths ["users", pack $ show foundOne] . zUser findingOne)
     !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
-  get (brig . paths ["users", pack $ show foundOne] . zUser foundOne)
+  get (apiVersion "v1" . brig . paths ["users", pack $ show foundOne] . zUser foundOne)
     !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
@@ -605,11 +605,11 @@ testNonExistingUser brig = do
   uid2 <- liftIO $ Id <$> UUID.nextRandom
   let uid = qUnqualified qself
       domain = qDomain qself
-  get (brig . paths ["users", toByteString' domain, toByteString' uid1] . zUser uid)
+  get (apiVersion "v1" . brig . paths ["users", toByteString' domain, toByteString' uid1] . zUser uid)
     !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
-  get (brig . paths ["users", toByteString' domain, toByteString' uid2] . zUser uid)
+  get (apiVersion "v1" . brig . paths ["users", toByteString' domain, toByteString' uid2] . zUser uid)
     !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
@@ -629,7 +629,7 @@ testUserInvalidDomain brig = do
 testExistingUserUnqualified :: Brig -> Http ()
 testExistingUserUnqualified brig = do
   uid <- userId <$> randomUser brig
-  get (brig . paths ["users", pack $ show uid] . zUser uid) !!! do
+  get (apiVersion "v1" . brig . paths ["users", pack $ show uid] . zUser uid) !!! do
     const 200 === statusCode
     const (Just uid)
       === ( \r -> do
@@ -643,7 +643,8 @@ testExistingUser brig = do
   let uid = qUnqualified quser
       domain = qDomain quser
   get
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . zUser uid
         . paths
           [ "users",
@@ -664,7 +665,8 @@ testUserExistsUnqualified brig = do
   qself <- userQualifiedId <$> randomUser brig
   quser <- userQualifiedId <$> randomUser brig
   head
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . paths ["users", toByteString' (qUnqualified quser)]
         . zUser (qUnqualified qself)
     )
@@ -726,7 +728,8 @@ testMultipleUsersUnqualified brig = do
             (Just $ userDisplayName u3, Nothing)
           ]
   get
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . zUser (userId u1)
         . contentJson
         . path "users"
@@ -794,7 +797,7 @@ testCreateUserAnonExpiry b = do
   liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
   where
     getProfile :: UserId -> UserId -> Http ResponseLBS
-    getProfile zusr uid = get (b . zUser zusr . paths ["users", toByteString' uid]) <!! const 200 === statusCode
+    getProfile zusr uid = get (apiVersion "v1" . b . zUser zusr . paths ["users", toByteString' uid]) <!! const 200 === statusCode
     awaitExpiry :: Int -> UserId -> UserId -> Http ()
     awaitExpiry n zusr uid = do
       -- after expiration, a profile lookup should trigger garbage collection of ephemeral users
@@ -818,7 +821,7 @@ testCreateUserAnonExpiry b = do
     field :: FromJSON a => Text -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
-testUserUpdate :: Brig -> Cannon -> AWS.Env -> Http ()
+testUserUpdate :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
 testUserUpdate brig cannon aws = do
   aliceUser <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user create alice" aws (userActivateJournaled aliceUser)
@@ -1749,7 +1752,7 @@ execAndAssertUserDeletion brig cannon u hdl others aws execDelete = do
   Search.refreshIndex brig
   -- Does not appear in search; public profile shows the user as deleted
   forM_ others $ \usr -> do
-    get (brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
+    get (apiVersion "v1" . brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
     Search.assertCan'tFind brig usr quid (fromName (userDisplayName u))
     Search.assertCan'tFind brig usr quid (fromHandle hdl)
   -- Email address is available again
