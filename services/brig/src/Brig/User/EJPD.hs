@@ -24,10 +24,10 @@ import Brig.API.Handler
 import Brig.App
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
+import Brig.Effects.UserHandleStore
+import Brig.Effects.UserQuery (UserQuery)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setDefaultUserLocale)
-import Brig.Sem.UserHandleStore
-import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))

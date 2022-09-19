@@ -180,9 +180,7 @@ discoverSRVRecords domain =
 srvDiscoveryLoop :: Members [DNSLookup, TinyLog, Delay] r => DNS.Domain -> Int -> (NonEmpty SrvEntry -> Sem r ()) -> Sem r ()
 srvDiscoveryLoop domain discoveryInterval saveAction = forever $ do
   servers <- discoverSRVRecords domain
-  case servers of
-    Nothing -> pure ()
-    Just es -> saveAction es
+  forM_ servers saveAction
   delay discoveryInterval
 
 mkSFTDomain :: SFTOptions -> DNS.Domain

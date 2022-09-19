@@ -7,11 +7,10 @@ metrics:
     enable: false
 resources:
   requests:
-    memory: "128Mi"
-    cpu: "100m"
+    memory: "25Mi"
+    cpu: "50m"
   limits:
-    memory: "512Mi"
-    cpu: "500m"
+    memory: "50Mi"
 service:
   externalPort: 8080
   internalPort: 8080

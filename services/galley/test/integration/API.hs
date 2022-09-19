@@ -388,6 +388,9 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
   -- Deleted eve
   WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
     deleteClient eve ec (Just defPassword) !!! const 200 === statusCode
+    liftIO $
+      WS.assertMatch_ (5 # WS.Second) wsE $
+        wsAssertClientRemoved ec
     let m4 = [(bob, bc, toBase64Text "ciphertext4"), (eve, ec, toBase64Text "ciphertext4")]
     postOtrMessage id alice ac conv m4 !!! do
       const 201 === statusCode
@@ -1449,7 +1452,7 @@ postConvertTeamConv = do
   dave <- view Teams.userId <$> addUserToTeam alice tid
   assertQueue "team member (dave) join" $ tUpdate 3 [alice]
   refreshIndex
-  eve <- randomUser
+  (eve, qeve) <- randomUserTuple
   connectUsers alice (singleton eve)
   let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
   -- creating a team-only conversation containing eve should fail
@@ -1478,9 +1481,11 @@ postConvertTeamConv = do
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
         wsAssertConvAccessUpdate qconv qalice teamAccess
     -- non-team members get kicked out
-    void . liftIO $
-      WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave qconv qalice $ (`Qualified` localDomain) <$> [eve, mallory]
+    liftIO $ do
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
+        wsAssertMemberLeave qconv qeve (pure qeve)
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
+        wsAssertMemberLeave qconv qmallory (pure qmallory)
     -- joining (for mallory) is no longer possible
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
@@ -1532,16 +1537,41 @@ testAccessUpdateGuestRemoved = do
       -- note that removing users happens asynchronously, so this check should
       -- happen while the mock federator is still available
       WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie, dee]
+        wsAssertMembersLeave (cnvQualifiedId conv) charlie [charlie]
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMembersLeave (cnvQualifiedId conv) dee [dee]
 
     -- dee's remote receives a notification
-    liftIO . assertBool "remote users are not notified" . isJust . flip find reqs $ \freq ->
-      (frComponent freq == Galley)
-        && ( frRPC freq == "on-conversation-updated"
-           )
-        && ( fmap F.cuAction (eitherDecode (frBody freq))
-               == Right (SomeConversationAction (sing @'ConversationLeaveTag) (charlie :| [dee]))
-           )
+    liftIO $
+      sortOn
+        (fmap fst)
+        ( map
+            ( \fr -> do
+                cu <- eitherDecode (frBody fr)
+                pure (F.cuOrigUserId cu, F.cuAction cu)
+            )
+            ( filter
+                ( \fr ->
+                    frComponent fr == Galley
+                      && frRPC fr == "on-conversation-updated"
+                )
+                reqs
+            )
+        )
+        @?= sortOn
+          (fmap fst)
+          [ Right (charlie, SomeConversationAction (sing @'ConversationLeaveTag) ()),
+            Right (dee, SomeConversationAction (sing @'ConversationLeaveTag) ()),
+            Right
+              ( alice,
+                SomeConversationAction
+                  (sing @'ConversationAccessDataTag)
+                  ConversationAccessData
+                    { cupAccess = mempty,
+                      cupAccessRoles = Set.fromList [TeamMemberAccessRole]
+                    }
+              )
+          ]
 
   -- only alice and bob remain
   conv2 <-
@@ -2409,7 +2439,7 @@ testGetQualifiedRemoteConv = do
       remoteConvId = Qualified convId remoteDomain
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       aliceAsLocal =
-        LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin Set.empty
+        LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
       aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
       aliceAsSelfMember = localMemberToSelf loc aliceAsLocal
 
@@ -3372,7 +3402,6 @@ putRemoteConvMemberOk update = do
           defMemberStatus
           Nothing
           roleNameWireAdmin
-          Set.empty
   let mockConversation =
         mkProteusConv
           (qUnqualified qconv)
@@ -3740,25 +3769,29 @@ removeUser = do
       bConvUpdates <- mapM (assertRight . eitherDecode . frBody) bConvUpdateRPCs
 
       bConvUpdatesA2 <- assertOne $ filter (\cu -> cuConvId cu == convA2) bConvUpdates
-      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId bConvUpdatesA2 @?= alexDel
+      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers bConvUpdatesA2 @?= [qUnqualified berta]
 
       bConvUpdatesA4 <- assertOne $ filter (\cu -> cuConvId cu == convA4) bConvUpdates
-      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId bConvUpdatesA4 @?= alexDel
+      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers bConvUpdatesA4 @?= [qUnqualified bart]
 
     liftIO $ do
       cConvUpdateRPC <- assertOne $ filter (matchFedRequest cDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ cConvUpdateRPC
       cuConvId convUpdate @?= convA4
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId convUpdate @?= alexDel
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
 
     liftIO $ do
       dConvUpdateRPC <- assertOne $ filter (matchFedRequest dDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ dConvUpdateRPC
       cuConvId convUpdate @?= convA2
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId convUpdate @?= alexDel
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified dwight]
 
   -- Check memberships

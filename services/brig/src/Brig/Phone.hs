@@ -37,9 +37,9 @@ where
 
 import Bilge.Retry (httpHandlers)
 import Brig.App
-import Brig.Sem.BudgetStore
-import Brig.Sem.BudgetStore.Cassandra
-import Brig.Sem.Twilio
+import Brig.Effects.BudgetStore
+import Brig.Effects.BudgetStore.Cassandra
+import Brig.Effects.Twilio
 import Brig.Types.Common
 import Cassandra (MonadClient)
 import Control.Lens (view)

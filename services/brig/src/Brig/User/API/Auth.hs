@@ -27,20 +27,21 @@ import Brig.API.Types
 import qualified Brig.API.User as User
 import Brig.App
 -- import Brig.Options (setDefaultUserLocale)
+
+import Brig.Effects.ActivationKeyStore
+import Brig.Effects.ActivationSupply
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Phone
-import Brig.Sem.ActivationKeyStore
-import Brig.Sem.ActivationSupply
-import Brig.Sem.BudgetStore
+import Brig.Effects.BudgetStore
 -- import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 -- import Control.Lens (view)
-import Brig.Sem.GalleyAccess
-import Brig.Sem.GundeckAccess (GundeckAccess)
-import Brig.Sem.Twilio
-import Brig.Sem.UserHandleStore
-import Brig.Sem.UserKeyStore
-import Brig.Sem.UserQuery (UserQuery)
-import Brig.Sem.VerificationCodeStore
+import Brig.Effects.GalleyAccess
+import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.Twilio
+import Brig.Effects.UserHandleStore
+import Brig.Effects.UserKeyStore
+import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.VerificationCodeStore
+import Brig.Phone
 import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth

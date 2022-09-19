@@ -37,9 +37,9 @@ import Brig.App
 import qualified Brig.Calling as Calling
 import Brig.CanonicalInterpreter
 -- import qualified Brig.InternalEvent.Process as Internal
+import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
+import qualified Brig.Effects.UserPendingActivationStore as UsersPendingActivationStore
 import Brig.Options hiding (internalEvents, sesQueue)
-import Brig.Sem.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
-import qualified Brig.Sem.UserPendingActivationStore as UsersPendingActivationStore
 -- import qualified Brig.Queue as Queue
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version

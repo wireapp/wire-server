@@ -29,6 +29,7 @@ settings:
   httpPoolSize: 128
   maxTeamSize: 32
   maxFanoutSize: 18
+  exposeInvitationURLsTeamAllowlist: []
   maxConvSize: 16
   intraListing: false
   conversationCodeURI: https://account.wire.com/conversation-join/

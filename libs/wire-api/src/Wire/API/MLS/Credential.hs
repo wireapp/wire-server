@@ -19,6 +19,7 @@
 
 module Wire.API.MLS.Credential where
 
+import Cassandra.CQL
 import Control.Error.Util
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
@@ -84,6 +85,14 @@ data SignatureSchemeTag = Ed25519
   deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform SignatureSchemeTag
 
+instance Cql SignatureSchemeTag where
+  ctype = Tagged TextColumn
+  toCql = CqlText . signatureSchemeName
+  fromCql (CqlText name) =
+    note ("Unexpected signature scheme: " <> T.unpack name) $
+      signatureSchemeFromName name
+  fromCql _ = Left "SignatureScheme: Text expected"
+
 signatureSchemeNumber :: SignatureSchemeTag -> Word16
 signatureSchemeNumber Ed25519 = 0x807
 
@@ -130,11 +139,22 @@ data ClientIdentity = ClientIdentity
     ciUser :: UserId,
     ciClient :: ClientId
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientIdentity
+
+instance Show ClientIdentity where
+  show (ClientIdentity dom u c) =
+    show u
+      <> ":"
+      <> T.unpack (client c)
+      <> "@"
+      <> T.unpack (domainText dom)
 
 cidQualifiedClient :: ClientIdentity -> Qualified (UserId, ClientId)
 cidQualifiedClient cid = Qualified (ciUser cid, ciClient cid) (ciDomain cid)
+
+cidQualifiedUser :: ClientIdentity -> Qualified UserId
+cidQualifiedUser = fmap fst . cidQualifiedClient
 
 instance ToSchema ClientIdentity where
   schema =

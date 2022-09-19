@@ -186,6 +186,18 @@ type ConversationAPI =
         :> Get '[Servant.JSON] Conversation
     )
     :<|> Named
+           "get-unqualified-conversation-legalhold-alias"
+           -- This alias exists, so that it can be uniquely selected in zauth.acl
+           ( Summary "Get a conversation by ID (Legalhold alias)"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> ZLocalUser
+               :> "legalhold"
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> Get '[Servant.JSON] Conversation
+           )
+    :<|> Named
            "get-conversation"
            ( Summary "Get a conversation by ID"
                :> CanThrow 'ConvNotFound
@@ -1124,6 +1136,8 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() SndFactorPasswordChallengeConfig
     :<|> FeatureStatusGet MLSConfig
     :<|> FeatureStatusPut '() MLSConfig
+    :<|> FeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
+    :<|> FeatureStatusPut '() ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureStatusGet SearchVisibilityInboundConfig
     :<|> FeatureStatusPut '() SearchVisibilityInboundConfig
     :<|> AllFeatureConfigsUserGet

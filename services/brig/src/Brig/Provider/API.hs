@@ -36,6 +36,9 @@ import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
+import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.UserQuery.Cassandra
+import Brig.Effects.VerificationCodeStore
 import Brig.Email (mkEmailKey)
 import qualified Brig.IO.Intra as RPC
 import qualified Brig.InternalEvent.Types as Internal
@@ -47,9 +50,6 @@ import qualified Brig.Provider.DB as DB
 import Brig.Provider.Email
 import qualified Brig.Provider.RPC as RPC
 import qualified Brig.Queue as Queue
-import Brig.Sem.UserQuery (UserQuery)
-import Brig.Sem.UserQuery.Cassandra
-import Brig.Sem.VerificationCodeStore
 import Brig.Team.Util
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
 import Brig.Types.User

@@ -28,6 +28,7 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.Types
 import qualified Brig.API.User as API
 import qualified Brig.API.User as Api
@@ -39,27 +40,28 @@ import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.MLS.KeyPackage as Data
 import qualified Brig.Data.User as Data
+import Brig.Effects.ActivationKeyStore
+import Brig.Effects.ActivationSupply
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
+import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.GalleyAccess
+import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.PasswordResetSupply (PasswordResetSupply)
+import Brig.Effects.Twilio
+import Brig.Effects.UniqueClaimsStore
+import Brig.Effects.UserHandleStore
+import Brig.Effects.UserKeyStore
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.VerificationCodeStore
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
-import Brig.Sem.ActivationKeyStore
-import Brig.Sem.ActivationSupply
-import Brig.Sem.CodeStore (CodeStore)
-import Brig.Sem.GalleyAccess
-import Brig.Sem.GundeckAccess (GundeckAccess)
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
-import Brig.Sem.Twilio
-import Brig.Sem.UniqueClaimsStore
-import Brig.Sem.UserHandleStore
-import Brig.Sem.UserKeyStore
-import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Sem.UserQuery (UserQuery)
-import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -104,7 +106,8 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.Internal.Brig (NewKeyPackageRef)
+import Wire.API.MLS.Serialisation
+import Wire.API.Routes.Internal.Brig
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -167,6 +170,7 @@ mlsAPI =
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
+    :<|> Named @"put-key-package-add" upsertKeyPackage
 
 accountAPI ::
   Members
@@ -237,6 +241,39 @@ getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRe
 postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
 postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 
+-- Used by galley to update key package refs and also validate
+upsertKeyPackage :: NewKeyPackage -> Handler r NewKeyPackageResult
+upsertKeyPackage nkp = do
+  kp <-
+    either
+      (const $ mlsProtocolError "upsertKeyPackage: Cannot decocode KeyPackage")
+      pure
+      $ decodeMLS' @(RawMLS KeyPackage) (kpData . nkpKeyPackage $ nkp)
+  ref <- kpRef' kp & noteH "upsertKeyPackage: Unsupported CipherSuite"
+
+  identity <-
+    either
+      (const $ mlsProtocolError "upsertKeyPackage: Cannot decode ClientIdentity")
+      pure
+      $ kpIdentity (rmValue kp)
+  mp <- lift . wrapClient . runMaybeT $ Data.derefKeyPackage ref
+  when (isNothing mp) $ do
+    void $ validateKeyPackage identity kp
+    lift . wrapClient $
+      Data.addKeyPackageRef
+        ref
+        ( NewKeyPackageRef
+            (fst <$> cidQualifiedClient identity)
+            (ciClient identity)
+            (nkpConversation nkp)
+        )
+
+  pure $ NewKeyPackageResult identity ref
+  where
+    noteH :: Text -> Maybe a -> Handler r a
+    noteH errMsg Nothing = mlsProtocolError errMsg
+    noteH _ (Just y) = pure y
+
 getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientInfo)
 getMLSClients usr _ss = do
   -- FUTUREWORK: check existence of key packages with a given ciphersuite
@@ -251,8 +288,8 @@ getMLSClients usr _ss = do
       | otherwise = getResult rs
 
     getValidity lusr cid =
-      fmap ((cid,) . (> 0)) $
-        Data.countKeyPackages lusr cid
+      (cid,) . (> 0)
+        <$> Data.countKeyPackages lusr cid
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do
@@ -328,7 +365,7 @@ sitemap = do
   -- This endpoint will lead to the following events being sent:
   -- - UserDeleted event to all of its contacts
   -- - MemberLeave event to members for all conversations the user was in (via galley)
-  delete "/i/users/:uid" (continue deleteUserNoVerifyH) $
+  delete "/i/users/:uid" (continue deleteUserNoAuthH) $
     capture "uid"
 
   put "/i/connections/connection-update" (continue updateConnectionInternalH) $
@@ -614,23 +651,26 @@ createUserNoVerifySpar uData =
        in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
     pure . SelfProfile $ usr
 
-deleteUserNoVerifyH ::
-  Members '[Input (Local ()), UserQuery] r =>
+deleteUserNoAuthH ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   Handler r Response
-deleteUserNoVerifyH uid = do
-  setStatus status202 empty <$ deleteUserNoVerify uid
-
-deleteUserNoVerify ::
-  Members '[Input (Local ()), UserQuery] r =>
-  UserId ->
-  Handler r ()
-deleteUserNoVerify uid = do
-  locale <- setDefaultUserLocale <$> view settings
-  void $
-    lift (liftSem $ API.lookupAccount locale uid)
-      >>= ifNothing (errorToWai @'E.UserNotFound)
-  lift $ API.deleteUserNoVerify uid
+deleteUserNoAuthH uid = do
+  r <- lift $ API.ensureAccountDeleted uid
+  case r of
+    NoUser -> throwStd (errorToWai @'E.UserNotFound)
+    AccountAlreadyDeleted -> pure $ setStatus ok200 empty
+    AccountDeleted -> pure $ setStatus accepted202 empty
 
 changeSelfEmailMaybeSendH ::
   Members
@@ -715,7 +755,7 @@ listActivatedAccounts elh includePendingInvitations = do
         case (accountStatus account, includePendingInvitations, emailIdentity ident) of
           (PendingInvitation, False, _) -> pure False
           (PendingInvitation, True, Just email) -> do
-            hasInvitation <- isJust <$> wrapClient (lookupInvitationByEmail email)
+            hasInvitation <- isJust <$> wrapClient (lookupInvitationByEmail HideInvitationUrl email)
             unless hasInvitation $ do
               -- user invited via scim should expire together with its invitation
               API.deleteUserNoVerify (userId . accountUser $ account)
@@ -1027,8 +1067,3 @@ getContactListH :: JSON ::: UserId -> (Handler r) Response
 getContactListH (_ ::: uid) = do
   contacts <- lift . wrapClient $ API.lookupContactList uid
   pure $ json $ UserIds contacts
-
--- Utilities
-
-ifNothing :: Utilities.Error -> Maybe a -> (Handler r) a
-ifNothing e = maybe (throwStd e) pure

@@ -29,6 +29,7 @@ module Wire.API.MLS.KeyPackage
     kpInitKey,
     kpCredential,
     kpExtensions,
+    kpIdentity,
     kpRef,
     kpRef',
     KeyPackageTBS (..),
@@ -37,6 +38,7 @@ module Wire.API.MLS.KeyPackage
   )
 where
 
+import Cassandra.CQL hiding (Set)
 import Control.Applicative
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
@@ -44,6 +46,7 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LBS
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
@@ -78,6 +81,12 @@ instance ToSchema KeyPackageData where
       ( KeyPackageData <$> kpData
           .= named "KeyPackage" base64Schema
       )
+
+instance Cql KeyPackageData where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . LBS.fromStrict . kpData
+  fromCql (CqlBlob b) = pure . KeyPackageData . LBS.toStrict $ b
+  fromCql _ = Left "Expected CqlBlob"
 
 data KeyPackageBundleEntry = KeyPackageBundleEntry
   { kpbeUser :: Qualified UserId,
@@ -132,6 +141,12 @@ instance ParseMLS KeyPackageRef where
 instance SerialiseMLS KeyPackageRef where
   serialiseMLS = putByteString . unKeyPackageRef
 
+instance Cql KeyPackageRef where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . LBS.fromStrict . unKeyPackageRef
+  fromCql (CqlBlob b) = pure . KeyPackageRef . LBS.toStrict $ b
+  fromCql _ = Left "Expected CqlBlob"
+
 -- | Compute key package ref given a ciphersuite and the raw key package data.
 kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
 kpRef cs =
@@ -174,6 +189,9 @@ data KeyPackage = KeyPackage
   }
   deriving stock (Eq, Show)
 
+instance S.ToSchema KeyPackage where
+  declareNamedSchema _ = pure (mlsSwagger "KeyPackage")
+
 kpProtocolVersion :: KeyPackage -> ProtocolVersion
 kpProtocolVersion = kpuProtocolVersion . rmValue . kpTBS
 
@@ -188,6 +206,9 @@ kpCredential = kpuCredential . rmValue . kpTBS
 
 kpExtensions :: KeyPackage -> [Extension]
 kpExtensions = kpuExtensions . rmValue . kpTBS
+
+kpIdentity :: KeyPackage -> Either Text ClientIdentity
+kpIdentity = decodeMLS' @ClientIdentity . bcIdentity . kpCredential
 
 rawKeyPackageSchema :: ValueSchema NamedSwaggerDoc (RawMLS KeyPackage)
 rawKeyPackageSchema =

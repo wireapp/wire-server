@@ -391,6 +391,7 @@ data BotsAndMembers = BotsAndMembers
     bmRemotes :: Set (Remote UserId),
     bmBots :: Set BotMember
   }
+  deriving (Show)
 
 bmQualifiedMembers :: Local x -> BotsAndMembers -> [Qualified UserId]
 bmQualifiedMembers loc bm =

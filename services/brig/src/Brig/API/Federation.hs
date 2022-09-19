@@ -32,10 +32,10 @@ import Brig.API.Util (lookupSearchPolicy)
 import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
+import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.UserHandleStore
+import Brig.Effects.UserQuery
 import Brig.IO.Intra (notify)
-import Brig.Sem.GundeckAccess (GundeckAccess)
-import Brig.Sem.UserHandleStore
-import Brig.Sem.UserQuery
 import Brig.Types.User.Event
 import Brig.User.API.Handle
 import qualified Brig.User.Search.SearchIndex as Q

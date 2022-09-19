@@ -24,42 +24,42 @@ where
 import Bilge.IO
 import Brig.API.Types (ReAuthError)
 import Brig.App
+import Brig.Effects.ActivationKeyStore (ActivationKeyStore)
+import Brig.Effects.ActivationKeyStore.Cassandra
+import Brig.Effects.ActivationSupply (ActivationSupply)
+import Brig.Effects.ActivationSupply.IO
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhonePrefixStoreToCassandra)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
+import Brig.Effects.BudgetStore (BudgetStore)
+import Brig.Effects.BudgetStore.Cassandra
+import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra)
+import Brig.Effects.Common
+import Brig.Effects.GalleyAccess (GalleyAccess)
+import Brig.Effects.GalleyAccess.Http
+import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.GundeckAccess.Http (gundeckAccessToHttp)
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
+import Brig.Effects.PasswordResetSupply (PasswordResetSupply)
+import Brig.Effects.PasswordResetSupply.IO
+import Brig.Effects.Twilio (Twilio)
+import Brig.Effects.Twilio.IO
+import Brig.Effects.UniqueClaimsStore (UniqueClaimsStore)
+import Brig.Effects.UniqueClaimsStore.Cassandra
+import Brig.Effects.UserHandleStore (UserHandleStore)
+import Brig.Effects.UserHandleStore.Cassandra
+import Brig.Effects.UserKeyStore (UserKeyStore)
+import Brig.Effects.UserKeyStore.Cassandra
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.UserQuery.Cassandra
+import Brig.Effects.VerificationCodeStore (VerificationCodeStore)
+import Brig.Effects.VerificationCodeStore.Cassandra
 import qualified Brig.Options as Opt
-import Brig.Sem.ActivationKeyStore (ActivationKeyStore)
-import Brig.Sem.ActivationKeyStore.Cassandra
-import Brig.Sem.ActivationSupply (ActivationSupply)
-import Brig.Sem.ActivationSupply.IO
-import Brig.Sem.BudgetStore (BudgetStore)
-import Brig.Sem.BudgetStore.Cassandra
-import Brig.Sem.CodeStore (CodeStore)
-import Brig.Sem.CodeStore.Cassandra (codeStoreToCassandra)
-import Brig.Sem.Common
-import Brig.Sem.GalleyAccess (GalleyAccess)
-import Brig.Sem.GalleyAccess.Http
-import Brig.Sem.GundeckAccess (GundeckAccess)
-import Brig.Sem.GundeckAccess.Http (gundeckAccessToHttp)
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import Brig.Sem.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
-import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
-import Brig.Sem.PasswordResetSupply.IO
-import Brig.Sem.Twilio (Twilio)
-import Brig.Sem.Twilio.IO
-import Brig.Sem.UniqueClaimsStore (UniqueClaimsStore)
-import Brig.Sem.UniqueClaimsStore.Cassandra
-import Brig.Sem.UserHandleStore (UserHandleStore)
-import Brig.Sem.UserHandleStore.Cassandra
-import Brig.Sem.UserKeyStore (UserKeyStore)
-import Brig.Sem.UserKeyStore.Cassandra
-import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Sem.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
-import Brig.Sem.UserQuery (UserQuery)
-import Brig.Sem.UserQuery.Cassandra
-import Brig.Sem.VerificationCodeStore (VerificationCodeStore)
-import Brig.Sem.VerificationCodeStore.Cassandra
 import Cassandra
 import qualified Cassandra as Cas
 import Control.Lens (view, (^.))

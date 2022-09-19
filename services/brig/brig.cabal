@@ -53,12 +53,43 @@ library
     Brig.Data.Types
     Brig.Data.User
     Brig.Data.UserKey
+    Brig.Effects.ActivationKeyStore
+    Brig.Effects.ActivationKeyStore.Cassandra
+    Brig.Effects.ActivationSupply
+    Brig.Effects.ActivationSupply.IO
     Brig.Effects.BlacklistPhonePrefixStore
     Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
     Brig.Effects.BlacklistStore.Cassandra
+    Brig.Effects.BudgetStore
+    Brig.Effects.BudgetStore.Cassandra
+    Brig.Effects.CodeStore
+    Brig.Effects.CodeStore.Cassandra
+    Brig.Effects.Common
     Brig.Effects.Delay
+    Brig.Effects.GalleyAccess
+    Brig.Effects.GalleyAccess.Http
+    Brig.Effects.GundeckAccess
+    Brig.Effects.GundeckAccess.Http
+    Brig.Effects.PasswordResetStore
+    Brig.Effects.PasswordResetStore.CodeStore
+    Brig.Effects.PasswordResetSupply
+    Brig.Effects.PasswordResetSupply.IO
     Brig.Effects.SFT
+    Brig.Effects.Twilio
+    Brig.Effects.Twilio.IO
+    Brig.Effects.UniqueClaimsStore
+    Brig.Effects.UniqueClaimsStore.Cassandra
+    Brig.Effects.UserHandleStore
+    Brig.Effects.UserHandleStore.Cassandra
+    Brig.Effects.UserKeyStore
+    Brig.Effects.UserKeyStore.Cassandra
+    Brig.Effects.UserPendingActivationStore
+    Brig.Effects.UserPendingActivationStore.Cassandra
+    Brig.Effects.UserQuery
+    Brig.Effects.UserQuery.Cassandra
+    Brig.Effects.VerificationCodeStore
+    Brig.Effects.VerificationCodeStore.Cassandra
     Brig.Email
     Brig.Federation.Client
     Brig.Index.Eval
@@ -85,42 +116,12 @@ library
     Brig.RPC
     Brig.RPC.Decode
     Brig.Run
-    Brig.Sem.ActivationKeyStore
-    Brig.Sem.ActivationKeyStore.Cassandra
-    Brig.Sem.ActivationSupply
-    Brig.Sem.ActivationSupply.IO
-    Brig.Sem.BudgetStore
-    Brig.Sem.BudgetStore.Cassandra
-    Brig.Sem.CodeStore
-    Brig.Sem.CodeStore.Cassandra
-    Brig.Sem.Common
-    Brig.Sem.GalleyAccess
-    Brig.Sem.GalleyAccess.Http
-    Brig.Sem.GundeckAccess
-    Brig.Sem.GundeckAccess.Http
-    Brig.Sem.PasswordResetStore
-    Brig.Sem.PasswordResetStore.CodeStore
-    Brig.Sem.PasswordResetSupply
-    Brig.Sem.PasswordResetSupply.IO
-    Brig.Sem.Twilio
-    Brig.Sem.Twilio.IO
-    Brig.Sem.UniqueClaimsStore
-    Brig.Sem.UniqueClaimsStore.Cassandra
-    Brig.Sem.UserHandleStore
-    Brig.Sem.UserHandleStore.Cassandra
-    Brig.Sem.UserKeyStore
-    Brig.Sem.UserKeyStore.Cassandra
-    Brig.Sem.UserPendingActivationStore
-    Brig.Sem.UserPendingActivationStore.Cassandra
-    Brig.Sem.UserQuery
-    Brig.Sem.UserQuery.Cassandra
-    Brig.Sem.VerificationCodeStore
-    Brig.Sem.VerificationCodeStore.Cassandra
     Brig.SMTP
     Brig.Team.API
     Brig.Team.DB
     Brig.Team.Email
     Brig.Team.Template
+    Brig.Team.Types
     Brig.Team.Util
     Brig.Template
     Brig.Unique
@@ -229,6 +230,7 @@ library
     , errors                     >=1.4
     , exceptions                 >=0.5
     , extended
+    , extra
     , file-embed
     , file-embed-lzma
     , filepath                   >=1.3

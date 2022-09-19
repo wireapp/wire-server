@@ -36,14 +36,14 @@ where
 
 import Brig.Data.User
 import Brig.Data.UserKey
+import Brig.Effects.ActivationKeyStore
+import Brig.Effects.ActivationSupply
+import Brig.Effects.PasswordResetStore
+import qualified Brig.Effects.PasswordResetStore as E
+import qualified Brig.Effects.PasswordResetSupply as E
+import Brig.Effects.UserKeyStore (UserKeyStore)
+import Brig.Effects.UserQuery (UserQuery)
 import Brig.Options
-import Brig.Sem.ActivationKeyStore
-import Brig.Sem.ActivationSupply
-import Brig.Sem.PasswordResetStore
-import qualified Brig.Sem.PasswordResetStore as E
-import qualified Brig.Sem.PasswordResetSupply as E
-import Brig.Sem.UserKeyStore (UserKeyStore)
-import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types.Common
 import Brig.Types.Intra
 import Cassandra

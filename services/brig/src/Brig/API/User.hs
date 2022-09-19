@@ -30,7 +30,7 @@ module Brig.API.User
     changeHandle,
     CheckHandleResp (..),
     checkHandle,
-    lookupHandle,
+    Brig.Effects.UserHandleStore.lookupHandle,
     changeManagedBy,
     changeAccountStatus,
     changeSingleAccountStatus,
@@ -54,6 +54,7 @@ module Brig.API.User
     deleteUsersNoVerify,
     deleteSelfUser,
     verifyDeleteUser,
+    ensureAccountDeleted,
     deleteAccount,
     checkHandles,
     isBlacklistedHandle,
@@ -100,48 +101,51 @@ import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.Client as Data
+import Brig.Data.Connection (countConnections)
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.Properties as Data
 import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
+import Brig.Effects.ActivationKeyStore (ActivationKeyStore)
+import Brig.Effects.ActivationSupply (ActivationSupply)
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.GalleyAccess
+import Brig.Effects.GundeckAccess
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import qualified Brig.Effects.PasswordResetStore as E
+import Brig.Effects.PasswordResetSupply (PasswordResetSupply)
+import qualified Brig.Effects.PasswordResetSupply as E
+import Brig.Effects.Twilio (Twilio)
+import Brig.Effects.UniqueClaimsStore
+import Brig.Effects.UserHandleStore
+import Brig.Effects.UserKeyStore (UserKeyStore)
+import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
+import qualified Brig.Effects.UserPendingActivationStore as UserPendingActivationStore
+import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.UserQuery.Cassandra
+import Brig.Effects.VerificationCodeStore
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
+import qualified Brig.Options as Opt
 import Brig.Password
 import qualified Brig.Queue as Queue
-import Brig.Sem.ActivationKeyStore (ActivationKeyStore)
-import Brig.Sem.ActivationSupply (ActivationSupply)
-import Brig.Sem.GalleyAccess
-import Brig.Sem.GundeckAccess
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import qualified Brig.Sem.PasswordResetStore as E
-import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
-import qualified Brig.Sem.PasswordResetSupply as E
-import Brig.Sem.Twilio (Twilio)
-import Brig.Sem.UniqueClaimsStore
-import Brig.Sem.UserHandleStore
-import Brig.Sem.UserKeyStore (UserKeyStore)
-import Brig.Sem.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
-import qualified Brig.Sem.UserPendingActivationStore as UserPendingActivationStore
-import Brig.Sem.UserQuery (UserQuery)
-import Brig.Sem.UserQuery.Cassandra
-import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.DB as Team
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.User (HavePendingInvitations (..), ManagedByUpdate (..), PasswordResetPair)
 import Brig.Types.User.Event
-import Brig.User.Auth.Cookie (revokeAllCookies)
+import Brig.User.Auth.Cookie (listCookies, revokeAllCookies)
 import Brig.User.Email
-import Brig.User.Handle
+import Brig.User.Handle hiding (lookupHandle)
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
 import Brig.User.Search.Index (reindex)
@@ -158,6 +162,7 @@ import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
+import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
@@ -466,7 +471,7 @@ createUser new = do
     findTeamInvitation (Just e) c =
       lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
         Just ii -> do
-          inv <- lift . wrapClient $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
+          inv <- lift . wrapClient $ Team.lookupInvitation HideInvitationUrl (Team.iiTeam ii) (Team.iiInvId ii)
           case (inv, Team.inInviteeEmail <$> inv) of
             (Just invite, Just em)
               | e == userEmailKey em -> do
@@ -1553,10 +1558,58 @@ verifyDeleteUser d = do
   for_ account $ lift . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
--- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
--- via deleting self.
--- Team owners can be deleted if the team is not orphaned, i.e. there is at least one
--- other owner left.
+-- | Check if `deleteAccount` succeeded and run it again if needed.
+-- Called via @delete /i/user/:uid@.
+ensureAccountDeleted ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
+  UserId ->
+  AppT r DeleteUserResult
+ensureAccountDeleted uid = do
+  locale <- Opt.setDefaultUserLocale <$> view settings
+  mbAcc <- liftSem $ lookupAccount locale uid
+  case mbAcc of
+    Nothing -> pure NoUser
+    Just acc -> do
+      probs <- wrapClient $ Data.lookupPropertyKeysAndValues uid
+
+      let accIsDeleted = accountStatus acc == Deleted
+      clients <- wrapClient $ Data.lookupClients uid
+
+      localUid <- qualifyLocal uid
+      conCount <-
+        wrapClient $
+          countConnections localUid [(minBound @Relation) .. maxBound]
+      cookies <- wrapClient $ listCookies uid []
+
+      if notNull probs
+        || not accIsDeleted
+        || notNull clients
+        || conCount > 0
+        || notNull cookies
+        then do
+          deleteAccount acc
+          pure AccountDeleted
+        else pure AccountAlreadyDeleted
+
+-- | Internal deletion without validation.
+--
+-- Called via @delete /i/user/:uid@ (through `ensureAccountDeleted`), or
+-- indirectly via deleting self. Team owners can be deleted if the team is not
+-- orphaned, i.e. there is at least one other owner left.
+--
+-- N.B.: As Cassandra doesn't support transactions, the order of database
+-- statements matters! Other functions reason upon some states to imply other
+-- states. Please change this order only with care!
 deleteAccount ::
   forall r.
   Members
@@ -1588,8 +1641,8 @@ deleteAccount account@(accountUser -> user) = do
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
   d <- view digestSHA256
-  for_ (userEmail user) $ liftSem . deleteKey d . userEmailKey
-  for_ (userPhone user) $ liftSem . deleteKey d . userPhoneKey
+  for_ (userEmail user) $ liftSem . deleteKeyForUser d uid . userEmailKey
+  for_ (userPhone user) $ liftSem . deleteKeyForUser d uid . userPhoneKey
   liftSem $ for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
   wrapClient $ Data.clearProperties uid

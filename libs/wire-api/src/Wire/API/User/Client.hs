@@ -72,7 +72,6 @@ module Wire.API.User.Client
     modelClientCapabilityList,
     typeClientCapability,
     modelDeleteClient,
-    modelClient,
     modelSigkeys,
     modelLocation, -- re-export from types-common
   )
@@ -80,7 +79,7 @@ where
 
 import qualified Cassandra as Cql
 import Control.Applicative
-import Control.Lens (over, view, (?~), (^.))
+import Control.Lens hiding (element, enum, set, (#), (.=))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Key as Key
@@ -97,6 +96,7 @@ import Data.Qualified
 import Data.Schema
 import qualified Data.Semigroup as Semigroup
 import qualified Data.Set as Set
+import Data.Swagger hiding (Schema, ToSchema, schema)
 import qualified Data.Swagger as Swagger
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
@@ -477,6 +477,24 @@ data Client = Client
 
 type MLSPublicKeys = Map SignatureSchemeTag ByteString
 
+mlsPublicKeysSchema :: ValueSchema NamedSwaggerDoc MLSPublicKeys
+mlsPublicKeysSchema =
+  mapSchema
+    & doc
+      %~ ( (description ?~ "Mapping from signature scheme (tags) to public key data")
+             . (example ?~ toJSON (Map.fromList $ map (,exampleValue) keys))
+         )
+    & named "MLSPublicKeys"
+  where
+    keys :: [SignatureSchemeTag]
+    keys = [minBound .. maxBound]
+
+    exampleValue :: A.Value
+    exampleValue = fromMaybe (toJSON ("base64==" :: Text)) (base64Schema ^. doc . example)
+
+    mapSchema :: ValueSchema SwaggerDoc MLSPublicKeys
+    mapSchema = map_ base64Schema
+
 instance ToSchema Client where
   schema =
     object "Client" $
@@ -490,42 +508,10 @@ instance ToSchema Client where
         <*> clientLocation .= maybe_ (optField "location" schema)
         <*> clientModel .= maybe_ (optField "model" schema)
         <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
-        <*> clientMLSPublicKeys .= mlsPublicKeysSchema
+        <*> clientMLSPublicKeys .= mlsPublicKeysFieldSchema
 
-mlsPublicKeysSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
-mlsPublicKeysSchema =
-  fmap
-    (fromMaybe mempty)
-    ( optField
-        "mls_public_keys"
-        (map_ base64Schema)
-    )
-
-modelClient :: Doc.Model
-modelClient = Doc.defineModel "Client" $ do
-  Doc.description "A registered client."
-  Doc.property "type" typeClientType $
-    Doc.description "The client type."
-  Doc.property "id" Doc.string' $
-    Doc.description "The client ID."
-  Doc.property "label" Doc.string' $ do
-    Doc.description "An optional label associated with the client."
-    Doc.optional
-  Doc.property "time" Doc.dateTime' $
-    Doc.description "The date and time when this client was registered."
-  Doc.property "class" typeClientClass $
-    Doc.description "The device class this client belongs to."
-  Doc.property "cookie" Doc.string' $
-    Doc.description "The cookie label of this client."
-  Doc.property "address" Doc.string' $ do
-    Doc.description "IP address from which this client has been registered"
-    Doc.optional
-  Doc.property "location" (Doc.ref modelLocation) $ do
-    Doc.description "Location from which this client has been registered."
-    Doc.optional
-  Doc.property "model" Doc.string' $ do
-    Doc.description "Optional model information of this client"
-    Doc.optional
+mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
+mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
 
 --------------------------------------------------------------------------------
 -- PubClient
@@ -738,7 +724,7 @@ instance ToSchema NewClient where
             )
         <*> newClientModel .= maybe_ (optField "model" schema)
         <*> newClientCapabilities .= maybe_ capabilitiesFieldSchema
-        <*> newClientMLSPublicKeys .= mlsPublicKeysSchema
+        <*> newClientMLSPublicKeys .= mlsPublicKeysFieldSchema
         <*> newClientVerificationCode .= maybe_ (optField "verification_code" schema)
 
 newClient :: ClientType -> LastPrekey -> NewClient
@@ -808,7 +794,7 @@ instance ToSchema UpdateClient where
                 schema
             )
         <*> updateClientCapabilities .= maybe_ capabilitiesFieldSchema
-        <*> updateClientMLSPublicKeys .= mlsPublicKeysSchema
+        <*> updateClientMLSPublicKeys .= mlsPublicKeysFieldSchema
 
 modelUpdateClient :: Doc.Model
 modelUpdateClient = Doc.defineModel "UpdateClient" $ do

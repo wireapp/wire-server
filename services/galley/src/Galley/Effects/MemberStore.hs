@@ -39,6 +39,8 @@ module Galley.Effects.MemberStore
     setSelfMember,
     setOtherMember,
     addMLSClients,
+    removeMLSClients,
+    lookupMLSClients,
 
     -- * Delete members
     deleteMembers,
@@ -55,6 +57,7 @@ import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation.Member hiding (Member)
+import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
 
 data MemberStore m a where
@@ -71,7 +74,11 @@ data MemberStore m a where
   SetOtherMember :: Local ConvId -> Qualified UserId -> OtherMemberUpdate -> MemberStore m ()
   DeleteMembers :: ConvId -> UserList UserId -> MemberStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
-  AddMLSClients :: Local ConvId -> Qualified UserId -> Set ClientId -> MemberStore m ()
+  AddMLSClients :: Local ConvId -> Qualified UserId -> Set (ClientId, KeyPackageRef) -> MemberStore m ()
+  RemoveMLSClients :: Local ConvId -> Qualified UserId -> Set ClientId -> MemberStore m ()
+  LookupMLSClients ::
+    Local ConvId ->
+    MemberStore m (Map (Qualified UserId) (Set (ClientId, KeyPackageRef)))
 
 makeSem ''MemberStore
 

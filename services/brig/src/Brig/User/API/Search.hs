@@ -26,10 +26,10 @@ import Brig.API.Error (fedError)
 import Brig.API.Handler
 import Brig.App
 import qualified Brig.Data.User as DB
+import Brig.Effects.UserHandleStore
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
-import Brig.Sem.UserHandleStore
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
 import qualified Brig.User.API.Handle as HandleAPI

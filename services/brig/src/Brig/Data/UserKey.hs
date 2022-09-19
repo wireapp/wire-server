@@ -28,16 +28,17 @@ module Brig.Data.UserKey
     keyAvailable,
     getKey,
     deleteKey,
+    deleteKeyForUser,
     lookupPhoneHashes,
   )
 where
 
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
+import Brig.Effects.UserKeyStore
+import Brig.Effects.UserQuery (UserQuery)
 import Brig.Email
 import Brig.Phone
-import Brig.Sem.UserKeyStore
-import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types.Common
 import Cassandra
 import qualified Data.ByteString as B
@@ -97,6 +98,26 @@ keyAvailable k u = do
     (Nothing, _) -> pure True
     (Just x, Just y) | x == y -> pure True
     (Just x, _) -> not <$> User.isActivated x
+
+-- | Delete `UserKey` for `UserId`
+--
+-- This function ensures that keys of other users aren't accidentally deleted.
+-- E.g. the email address or phone number of a partially deleted user could
+-- already belong to a new user. To not interrupt deletion flows (that may be
+-- executed several times due to cassandra not supporting transactions)
+-- `deleteKeyForUser` does not fail for missing keys or keys that belong to
+-- another user: It always returns `()` as result.
+deleteKeyForUser ::
+  Member UserKeyStore r =>
+  Digest ->
+  UserId ->
+  UserKey ->
+  Sem r ()
+deleteKeyForUser d uid k = do
+  mbKeyUid <- getKey k
+  case mbKeyUid of
+    Just keyUid | keyUid == uid -> deleteKey d k
+    _ -> pure ()
 
 lookupPhoneHashes :: MonadClient m => [ByteString] -> m [(ByteString, UserId)]
 lookupPhoneHashes hp =

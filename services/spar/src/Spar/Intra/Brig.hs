@@ -29,7 +29,7 @@ module Spar.Intra.Brig
     setBrigUserRichInfo,
     setBrigUserLocale,
     checkHandleAvailable,
-    deleteBrigUser,
+    deleteBrigUserInternal,
     createBrigUserSAML,
     createBrigUserNoSAML,
     updateEmail,
@@ -329,15 +329,19 @@ checkHandleAvailable hnd = do
       | otherwise ->
         rethrow "brig" resp
 
--- | Call brig to delete a user
-deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
-deleteBrigUser buid = do
-  resp :: ResponseLBS <-
+-- | Call brig to delete a user.
+-- If the user wasn't deleted completely before, another deletion attempt will be made.
+deleteBrigUserInternal :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m DeleteUserResult
+deleteBrigUserInternal buid = do
+  resp <-
     call $
       method DELETE
         . paths ["/i/users", toByteString' buid]
-  unless (statusCode resp == 202) $
-    rethrow "brig" resp
+  case statusCode resp of
+    200 -> pure AccountAlreadyDeleted
+    202 -> pure AccountDeleted
+    404 -> pure NoUser
+    _ -> rethrow "brig" resp
 
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::

@@ -168,7 +168,7 @@ data Relation
   | Cancelled
   | -- | behaves like blocked, the extra constructor is just to inform why.
     MissingLegalholdConsent
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Relation)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Relation)
 

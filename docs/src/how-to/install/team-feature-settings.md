@@ -31,7 +31,9 @@ galley:
 
 Note that the lock status is required but has no effect, as it is currently not supported for team admins to enable or disable `sndFactorPasswordChallenge`. We recommend to set the lock status to `locked`.
 
-### Rate limiting of code generation requests
+Currently the 2nd factor password challenge if enabled has no effect for SSO users.
+
+## Rate limiting of code generation requests
 
 The default delay between code generation requests is 5 minutes. This setting can be overridden in the Helm charts:
 
@@ -68,7 +70,7 @@ galley:
             lockStatus: locked            
 ```
 
-### TTL for nonces
+## TTL for nonces
 
 Nonces that can be retrieved e.g. by calling `HEAD /nonce/clients` have a default time-to-live of 5 minutes. To change this setting add the following to your Helm overrides in `values/wire-server/values.yaml`:
 

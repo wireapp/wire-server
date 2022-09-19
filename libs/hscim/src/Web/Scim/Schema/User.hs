@@ -3,7 +3,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -349,7 +348,7 @@ instance (UserTypes tag, FromJSON (User tag), Patchable (UserExtra tag)) => Patc
     | isUserSchema schema = applyUserOperation user op
     | isSupportedCustomSchema schema = (\x -> user {extra = x}) <$> applyOperation (extra user) op
     | otherwise =
-      throwError $ badRequest InvalidPath $ Just $ "we only support these schemas: " <> (Text.intercalate ", " $ map getSchemaUri (supportedSchemas @tag))
+      throwError $ badRequest InvalidPath $ Just $ "we only support these schemas: " <> Text.intercalate ", " (map getSchemaUri (supportedSchemas @tag))
     where
       isSupportedCustomSchema = maybe False (`elem` supportedSchemas @tag)
   applyOperation user op = applyUserOperation user op

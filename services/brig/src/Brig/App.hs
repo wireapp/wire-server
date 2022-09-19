@@ -388,8 +388,8 @@ initCassandra o g = do
   c <-
     maybe
       (Cas.initialContactsPlain (Opt.cassandra o ^. casEndpoint . epHost))
-      (Cas.initialContactsDisco "cassandra_brig")
-      (unpack <$> Opt.discoUrl o)
+      (Cas.initialContactsDisco "cassandra_brig" . unpack)
+      (Opt.discoUrl o)
   p <-
     Cas.init $
       Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))

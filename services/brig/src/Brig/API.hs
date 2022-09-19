@@ -24,23 +24,23 @@ import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
 import Brig.API.Types
+import Brig.Effects.ActivationKeyStore
+import Brig.Effects.ActivationSupply
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Sem.ActivationKeyStore
-import Brig.Sem.ActivationSupply
-import Brig.Sem.BudgetStore
-import Brig.Sem.CodeStore
-import Brig.Sem.GalleyAccess
-import Brig.Sem.GundeckAccess (GundeckAccess)
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
-import Brig.Sem.Twilio
-import Brig.Sem.UniqueClaimsStore
-import Brig.Sem.UserHandleStore
-import Brig.Sem.UserKeyStore
-import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Sem.UserQuery
-import Brig.Sem.VerificationCodeStore
+import Brig.Effects.BudgetStore
+import Brig.Effects.CodeStore
+import Brig.Effects.GalleyAccess
+import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.PasswordResetSupply (PasswordResetSupply)
+import Brig.Effects.Twilio
+import Brig.Effects.UniqueClaimsStore
+import Brig.Effects.UserHandleStore
+import Brig.Effects.UserKeyStore
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.UserQuery
+import Brig.Effects.VerificationCodeStore
 import Data.Qualified
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)

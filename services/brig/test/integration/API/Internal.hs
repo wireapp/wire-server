@@ -26,8 +26,8 @@ import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
+import Brig.Effects.UserQuery.Cassandra
 import qualified Brig.Options as Opt
-import Brig.Sem.UserQuery.Cassandra
 import Brig.Types.Intra
 import qualified Cassandra as Cass
 import Control.Exception (ErrorCall (ErrorCall), throwIO)

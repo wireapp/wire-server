@@ -19,6 +19,7 @@
 
 module Spar.Sem.SAMLUserStore.Mem
   ( samlUserStoreToMem,
+    UserRefOrd,
   )
 where
 
@@ -33,7 +34,7 @@ import qualified SAML2.WebSSO as SAML
 import Spar.Sem.SAMLUserStore
 
 newtype UserRefOrd = UserRefOrd {unUserRefOrd :: SAML.UserRef}
-  deriving (Eq)
+  deriving (Eq, Show)
 
 instance Ord UserRefOrd where
   compare (UserRefOrd (SAML.UserRef is ni)) (UserRefOrd (SAML.UserRef is' ni')) =

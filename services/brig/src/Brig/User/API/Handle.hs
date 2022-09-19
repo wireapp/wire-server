@@ -28,9 +28,9 @@ import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import Brig.App
 import qualified Brig.Data.User as Data
+import Brig.Effects.UserHandleStore
 import qualified Brig.Federation.Client as Federation
 import Brig.Options (searchSameTeamOnly)
-import Brig.Sem.UserHandleStore
 import Control.Lens (view)
 import Data.Handle (Handle, fromHandle)
 import Data.Id (UserId)

@@ -1,0 +1,1 @@
+Clients and key package refs in an MLS conversation are now stored in their own table.

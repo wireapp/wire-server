@@ -200,8 +200,8 @@ enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCa
   where
     req =
       SQS.newSendMessage url (Text.decodeLatin1 (BL.toStrict m))
-        & SQS.sendMessage_messageGroupId .~ Just group
-        & SQS.sendMessage_messageDeduplicationId .~ Just (toText dedup)
+        & SQS.sendMessage_messageGroupId ?~ group
+        & SQS.sendMessage_messageDeduplicationId ?~ toText dedup
 
 -------------------------------------------------------------------------------
 -- SES

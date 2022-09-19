@@ -36,10 +36,10 @@ import Brig.API.Types
 import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.User as Data
+import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.VerificationCodeStore (VerificationCodeStore)
 import Brig.Options (FederationDomainConfig, federationDomainConfigs, set2FACodeGenerationDelaySecs)
 import qualified Brig.Options as Opts
-import Brig.Sem.UserQuery (UserQuery)
-import Brig.Sem.VerificationCodeStore (VerificationCodeStore)
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)

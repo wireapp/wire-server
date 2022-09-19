@@ -22,15 +22,19 @@ where
 
 import qualified Brig.API.User as API
 import Brig.App
+import qualified Brig.Data.Client as Data
+import Brig.Effects.GalleyAccess (GalleyAccess)
+import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.UniqueClaimsStore
+import Brig.Effects.UserHandleStore
+import Brig.Effects.UserKeyStore (UserKeyStore)
+import Brig.Effects.UserQuery
+import Brig.IO.Intra (rmClient)
+import qualified Brig.IO.Intra as Intra
 import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDefaultUserLocale, setDeleteThrottleMillis)
 import qualified Brig.Provider.API as API
-import Brig.Sem.GalleyAccess (GalleyAccess)
-import Brig.Sem.GundeckAccess (GundeckAccess)
-import Brig.Sem.UniqueClaimsStore
-import Brig.Sem.UserHandleStore
-import Brig.Sem.UserKeyStore (UserKeyStore)
-import Brig.Sem.UserQuery
+import Brig.Types.User.Event
 import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
@@ -69,6 +73,12 @@ onEvent n = do
   locale <- setDefaultUserLocale <$> view settings
   delay <- fromMaybe defDeleteThrottleMillis . setDeleteThrottleMillis <$> view settings
   handleTimeout $ case n of
+    DeleteClient cid uid mcon -> do
+      mc <- wrapClient $ Data.lookupClient uid cid
+      for_ mc $ \c -> do
+        wrapHttp $ rmClient uid cid
+        wrapClient $ Data.rmClient uid cid
+        liftSem $ Intra.onClientEvent uid mcon (ClientRemoved uid c)
     DeleteUser uid -> do
       liftSem . P.info $
         msg (val "Processing user delete event")

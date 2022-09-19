@@ -33,7 +33,6 @@ where
 import Data.Domain
 import Data.Id as Id
 import Data.Qualified
-import qualified Data.Set as Set
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
@@ -42,8 +41,7 @@ import Wire.API.Provider.Service (ServiceRef)
 -- | Internal (cassandra) representation of a remote conversation member.
 data RemoteMember = RemoteMember
   { rmId :: Remote UserId,
-    rmConvRoleName :: RoleName,
-    rmMLSClients :: Set ClientId
+    rmConvRoleName :: RoleName
   }
   deriving stock (Show)
 
@@ -63,8 +61,7 @@ data LocalMember = LocalMember
   { lmId :: UserId,
     lmStatus :: MemberStatus,
     lmService :: Maybe ServiceRef,
-    lmConvRoleName :: RoleName,
-    lmMLSClients :: Set ClientId
+    lmConvRoleName :: RoleName
   }
   deriving stock (Show)
 
@@ -77,8 +74,7 @@ newMemberWithRole (u, r) =
     { lmId = u,
       lmService = Nothing,
       lmStatus = defMemberStatus,
-      lmConvRoleName = r,
-      lmMLSClients = Set.empty
+      lmConvRoleName = r
     }
 
 localMemberToOther :: Domain -> LocalMember -> OtherMember

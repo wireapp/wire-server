@@ -29,8 +29,8 @@ where
 import Brig.App
 import Brig.Data.Properties (PropertiesDataError)
 import qualified Brig.Data.Properties as Data
+import Brig.Effects.GundeckAccess (GundeckAccess)
 import qualified Brig.IO.Intra as Intra
-import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Types.User.Event
 import Control.Error
 import Data.Id

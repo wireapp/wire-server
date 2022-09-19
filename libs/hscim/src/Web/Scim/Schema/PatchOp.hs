@@ -105,16 +105,16 @@ operationFromJSON schemas' =
     let o = KeyMap.fromList . map (first lowerKey) . KeyMap.toList $ v
     Operation
       <$> (o .: "op")
-      <*> (Aeson.explicitParseFieldMaybe (pathFromJSON schemas') o "path")
+      <*> Aeson.explicitParseFieldMaybe (pathFromJSON schemas') o "path"
       <*> (o .:? "value")
 
 pathFromJSON :: [Schema] -> Value -> Aeson.Parser Path
 pathFromJSON schemas' =
-  withText "Path" $ either fail pure . (parsePath schemas')
+  withText "Path" $ either fail pure . parsePath schemas'
 
 instance ToJSON Operation where
   toJSON (Operation op' path' value') =
-    object $ ("op" .= op') : concat [optionalField "path" path', optionalField "value" value']
+    object $ ("op" .= op') : optionalField "path" path' ++ optionalField "value" value'
     where
       optionalField fname = \case
         Nothing -> []

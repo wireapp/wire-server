@@ -44,26 +44,26 @@ import qualified Brig.Data.Connection as Data
 import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as UserKey
+import Brig.Effects.ActivationKeyStore
+import Brig.Effects.ActivationSupply
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
+import Brig.Effects.BudgetStore
+import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.GalleyAccess
+import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.PasswordResetSupply (PasswordResetSupply)
+import Brig.Effects.Twilio
+import Brig.Effects.UniqueClaimsStore
+import Brig.Effects.UserHandleStore
+import Brig.Effects.UserKeyStore
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.VerificationCodeStore
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
-import Brig.Sem.ActivationKeyStore
-import Brig.Sem.ActivationSupply
-import Brig.Sem.BudgetStore
-import Brig.Sem.CodeStore (CodeStore)
-import Brig.Sem.GalleyAccess
-import Brig.Sem.GundeckAccess (GundeckAccess)
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
-import Brig.Sem.Twilio
-import Brig.Sem.UniqueClaimsStore
-import Brig.Sem.UserHandleStore
-import Brig.Sem.UserKeyStore
-import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Sem.UserQuery (UserQuery)
-import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)

@@ -1,0 +1,2 @@
+Drop Client model (unused) from old swagger.
+Add a description and example data for mls_public_keys field in new swagger.

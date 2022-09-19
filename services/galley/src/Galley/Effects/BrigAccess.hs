@@ -51,6 +51,7 @@ module Galley.Effects.BrigAccess
     getClientByKeyPackageRef,
     getLocalMLSClients,
     addKeyPackageRef,
+    validateAndAddKeyPackageRef,
     updateKeyPackageRef,
 
     -- * Features
@@ -73,6 +74,7 @@ import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.Internal.Brig
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
@@ -129,6 +131,7 @@ data BrigAccess m a where
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
   GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientInfo)
   AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()
+  ValidateAndAddKeyPackageRef :: NewKeyPackage -> BrigAccess m (Maybe NewKeyPackageResult)
   UpdateKeyPackageRef :: KeyPackageUpdate -> BrigAccess m ()
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->

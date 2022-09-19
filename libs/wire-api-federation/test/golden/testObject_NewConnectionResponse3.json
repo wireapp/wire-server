@@ -1,4 +1,4 @@
 {
-    "tag": "NewConnectionResponseOk",
-    "contents": "RemoteRescind"
+    "contents": "RemoteRescind",
+    "tag": "NewConnectionResponseOk"
 }

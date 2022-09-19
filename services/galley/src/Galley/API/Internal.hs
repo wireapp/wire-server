@@ -37,8 +37,10 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
+import Galley.API.MLS.Removal
 import Galley.API.One2One
 import Galley.API.Public
 import Galley.API.Public.Servant
@@ -58,6 +60,7 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
+import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
 import qualified Galley.Intra.Push as Intra
 import Galley.Monad
@@ -189,6 +192,10 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet MLSConfig
     :<|> IFeatureStatusPut '() MLSConfig
     :<|> IFeatureStatusPatch '() MLSConfig
+    -- ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusPut '() ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusPatch '() ExposeInvitationURLsToTeamAdminConfig
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
     :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
@@ -527,6 +534,9 @@ featureAPI =
     <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", MLSConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", MLSConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal @Cassandra)
@@ -629,10 +639,13 @@ rmUser ::
          FederatorAccess,
          GundeckAccess,
          Input UTCTime,
+         Input Env,
          ListItems p1 ConvId,
          ListItems p1 (Remote ConvId),
          ListItems p2 TeamId,
+         Input (Local ()),
          MemberStore,
+         ProposalStore,
          TeamStore,
          P.TinyLog
        ]
@@ -678,6 +691,9 @@ rmUser lusr conn = do
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+            runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
+              Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+              Right _ -> pure ()
             deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
             let e =
                   Event
@@ -708,7 +724,7 @@ rmUser lusr conn = do
                 cuOrigUserId = qUser,
                 cuConvId = cid,
                 cuAlreadyPresentUsers = tUnqualified remotes,
-                cuAction = SomeConversationAction (sing @'ConversationLeaveTag) (pure qUser)
+                cuAction = SomeConversationAction (sing @'ConversationLeaveTag) ()
               }
       let rpc = fedClient @'Galley @"on-conversation-updated" convUpdate
       runFederatedEither remotes rpc

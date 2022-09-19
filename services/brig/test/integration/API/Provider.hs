@@ -28,8 +28,8 @@ import qualified API.Team.Util as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
-import Brig.Sem.Common
-import Brig.Sem.VerificationCodeStore.Cassandra
+import Brig.Effects.Common
+import Brig.Effects.VerificationCodeStore.Cassandra
 import qualified Brig.Types.Intra as Intra
 import qualified Cassandra as DB
 import Control.Arrow ((&&&))
@@ -1857,7 +1857,7 @@ svcAssertBotCreated buf bid cid = liftIO $ do
       -- TODO: Verify the conversation name
       -- TODO: Verify the list of members
       pure b
-    _ -> throwM $ HUnitFailure Nothing "Event timeout (TestBotCreated)"
+    _ -> assertFailure "Event timeout (TestBotCreated)"
 
 svcAssertMessage :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified ConvId -> m ()
 svcAssertMessage buf from msg cnv = liftIO $ do

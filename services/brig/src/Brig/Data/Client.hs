@@ -58,7 +58,7 @@ import Brig.Data.Instances ()
 -- import Brig.Data.User (AuthError (..), ReAuthError (..))
 -- import qualified Brig.Data.User as User
 -- import Brig.Options (setDefaultUserLocale)
-import Brig.Sem.UserQuery
+import Brig.Effects.UserQuery
 import Brig.Types.Instances ()
 import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
@@ -107,6 +107,8 @@ data ClientDataError
   | ClientMissingAuth
   | MalformedPrekeys
   | MLSPublicKeyDuplicate
+  | KeyPackageDecodingError
+  | InvalidKeyPackageRef
 
 -- | Re-authentication policy.
 --
@@ -156,7 +158,7 @@ addClientWithReAuthPolicy _reAuthPolicy u newId c maxPermClients loc cps = do
   --     . semToExceptT
   --     . raise @(P.Error ReAuthError)
   --     $ User.reauthenticate locale u (newClientPassword c)
-  let capacity = fmap (+ (- count)) limit
+  let capacity = fmap (+ (-count)) limit
   unless (maybe True (> 0) capacity || upsert) $
     throwE TooManyClients
   new <- insert

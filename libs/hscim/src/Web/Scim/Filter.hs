@@ -57,7 +57,7 @@ module Web.Scim.Filter
   )
 where
 
-import Control.Applicative (optional, (<|>))
+import Control.Applicative (optional)
 import Data.Aeson as Aeson
 import Data.Aeson.Parser as Aeson
 import Data.Aeson.Text as Aeson
@@ -176,7 +176,7 @@ parseFilter supportedSchemas =
 -- @
 pAttrPath :: [Schema] -> Parser AttrPath
 pAttrPath supportedSchemas = do
-  schema <- (Just <$> (pSchema supportedSchemas <* char ':')) <|> pure Nothing
+  schema <- optional (pSchema supportedSchemas <* char ':')
   AttrPath schema <$> pAttrName <*> optional pSubAttr
 
 -- | subAttr   = "." ATTRNAME
@@ -193,8 +193,8 @@ pCompValue :: Parser CompValue
 pCompValue =
   choice
     [ ValNull <$ string "null",
-      ValBool True <$ (stringCI "true"),
-      ValBool False <$ (stringCI "false"),
+      ValBool True <$ stringCI "true",
+      ValBool False <$ stringCI "false",
       ValNumber <$> Aeson.scientific,
       ValString <$> Aeson.jstring
     ]

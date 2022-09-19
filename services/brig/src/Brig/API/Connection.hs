@@ -39,9 +39,9 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
+import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.UserQuery (UserQuery)
 import qualified Brig.IO.Intra as Intra
-import Brig.Sem.GundeckAccess (GundeckAccess)
-import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types.Connection
 import Brig.Types.User.Event
 import Control.Error
@@ -452,9 +452,7 @@ updateConnectionInternal = \case
               handleConns (resultList page)
               case resultList page of
                 (conn : rest) ->
-                  if resultHasMore page
-                    then go (Just (maximum (qUnqualified . ucTo <$> (conn : rest))))
-                    else pure ()
+                  when (resultHasMore page) $ go (Just (maximum (qUnqualified . ucTo <$> (conn : rest))))
                 [] -> pure ()
 
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) ()

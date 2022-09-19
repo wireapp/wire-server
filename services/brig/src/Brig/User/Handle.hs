@@ -26,16 +26,15 @@ where
 
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
-import Brig.Sem.UniqueClaimsStore
-import Brig.Sem.UserHandleStore
+import Brig.Effects.UniqueClaimsStore
+import Brig.Effects.UserHandleStore
   ( Consistency (..),
     UserHandleStore,
     deleteHandle,
     getHandleWithConsistency,
     insertHandle,
-    lookupHandle,
   )
-import Brig.Sem.UserQuery
+import Brig.Effects.UserQuery
 import Brig.Unique
 import Data.Handle (Handle, fromHandle)
 import Data.Id
@@ -85,9 +84,20 @@ freeHandle ::
   Handle ->
   Sem r ()
 freeHandle uid h = do
-  deleteHandle h
-  let key = "@" <> fromHandle h
-  deleteClaims uid (30 # Minute) key
+  mbHandleUid <- lookupHandle h
+  case mbHandleUid of
+    Just handleUid | handleUid == uid -> do
+      deleteHandle h
+      let key = "@" <> fromHandle h
+      deleteClaims uid (30 # Minute) key
+    _ -> pure () -- this shouldn't happen, the call side should always check that `h` and `uid` belong to the same account.
+
+-- | Lookup the current owner of a 'Handle'.
+lookupHandle ::
+  Member UserHandleStore r =>
+  Handle ->
+  Sem r (Maybe UserId)
+lookupHandle = getHandleWithConsistency LocalQuorum
 
 -- | A weaker version of 'lookupHandle' that trades availability
 -- (and potentially speed) for the possibility of returning stale data.

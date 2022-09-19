@@ -104,7 +104,7 @@ instance UserTypes Mock where
 
 instance UserDB Mock TestServer where
   getUsers () mbFilter = do
-    m <- userDB <$> ask
+    m <- asks userDB
     users <- liftSTM $ ListT.toList $ STMMap.listT m
     let check user = case mbFilter of
           Nothing -> pure True
@@ -116,20 +116,20 @@ instance UserDB Mock TestServer where
     fromList . sortWith (Common.id . thing) <$> filterM check (snd <$> users)
 
   getUser () uid = do
-    m <- userDB <$> ask
+    m <- asks userDB
     liftSTM (STMMap.lookup uid m) >>= \case
       Nothing -> throwScim (notFound "User" (pack (show uid)))
       Just x -> pure x
 
   postUser () user = do
-    m <- userDB <$> ask
+    m <- asks userDB
     uid <- Id <$> liftSTM (STMMap.size m)
     let newUser = WithMeta (createMeta UserResource) $ WithId uid user
     liftSTM $ STMMap.insert newUser uid m
-    return newUser
+    pure newUser
 
   putUser () uid user = do
-    m <- userDB <$> ask
+    m <- asks userDB
     liftSTM (STMMap.lookup uid m) >>= \case
       Nothing -> throwScim (notFound "User" (pack (show uid)))
       Just stored -> do
@@ -138,7 +138,7 @@ instance UserDB Mock TestServer where
         pure newUser
 
   deleteUser () uid = do
-    m <- userDB <$> ask
+    m <- asks userDB
     liftSTM (STMMap.lookup uid m) >>= \case
       Nothing -> throwScim (notFound "User" (pack (show uid)))
       Just _ -> liftSTM $ STMMap.delete uid m
@@ -155,25 +155,25 @@ instance GroupTypes Mock where
 
 instance GroupDB Mock TestServer where
   getGroups () = do
-    m <- groupDB <$> ask
+    m <- asks groupDB
     groups <- liftSTM $ ListT.toList $ STMMap.listT m
-    return $ fromList . sortWith (Common.id . thing) $ snd <$> groups
+    pure $ fromList . sortWith (Common.id . thing) $ snd <$> groups
 
   getGroup () gid = do
-    m <- groupDB <$> ask
+    m <- asks groupDB
     liftSTM (STMMap.lookup gid m) >>= \case
       Nothing -> throwScim (notFound "Group" (pack (show gid)))
       Just grp -> pure grp
 
   postGroup () grp = do
-    m <- groupDB <$> ask
+    m <- asks groupDB
     gid <- Id <$> liftSTM (STMMap.size m)
     let newGroup = WithMeta (createMeta GroupResource) $ WithId gid grp
     liftSTM $ STMMap.insert newGroup gid m
-    return newGroup
+    pure newGroup
 
   putGroup () gid grp = do
-    m <- groupDB <$> ask
+    m <- asks groupDB
     liftSTM (STMMap.lookup gid m) >>= \case
       Nothing -> throwScim (notFound "Group" (pack (show gid)))
       Just stored -> do
@@ -184,7 +184,7 @@ instance GroupDB Mock TestServer where
   patchGroup _ _ _ = throwScim (serverError "PATCH /Users not implemented")
 
   deleteGroup () gid = do
-    m <- groupDB <$> ask
+    m <- asks groupDB
     liftSTM (STMMap.lookup gid m) >>= \case
       Nothing -> throwScim (notFound "Group" (pack (show gid)))
       Just _ -> liftSTM $ STMMap.delete gid m
@@ -243,7 +243,7 @@ filterUser :: Filter -> User extra -> Either Text Bool
 filterUser (FilterAttrCompare (AttrPath schema' attrib subAttr) op val) user
   | isUserSchema schema' =
     case (subAttr, val) of
-      (Nothing, (ValString str))
+      (Nothing, ValString str)
         | attrib == "userName" ->
           Right (compareStr op (CI.foldCase (userName user)) (CI.foldCase str))
       (Nothing, _)

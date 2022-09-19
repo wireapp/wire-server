@@ -21,12 +21,12 @@ module API.User.Util where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
+import qualified Brig.Code as Code
+import Brig.Effects.Common
+import Brig.Effects.PasswordResetSupply
+import Brig.Effects.PasswordResetSupply.IO
+import Brig.Effects.VerificationCodeStore.Cassandra
 import Brig.Options (Opts)
-import Brig.Sem.Common
-import Brig.Sem.PasswordResetSupply
-import Brig.Sem.PasswordResetSupply.IO
-import qualified Brig.Sem.VerificationCodeStore as Code
-import Brig.Sem.VerificationCodeStore.Cassandra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.ZAuth
 import qualified Cassandra as DB

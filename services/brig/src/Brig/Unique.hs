@@ -29,7 +29,7 @@ module Brig.Unique
 where
 
 import Brig.Data.Instances ()
-import Brig.Sem.UniqueClaimsStore
+import Brig.Effects.UniqueClaimsStore
 import Data.Id
 import Data.Timeout
 import Imports

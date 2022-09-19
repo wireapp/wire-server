@@ -58,8 +58,7 @@ module Brig.Code
 where
 
 import Brig.Data.Instances ()
-import Brig.Email
-import Brig.Sem.VerificationCodeStore
+import Brig.Effects.VerificationCodeStore
   ( Code (..),
     CodeFor (..),
     Retries (..),
@@ -70,7 +69,8 @@ import Brig.Sem.VerificationCodeStore
     insertCode,
     verifyCode,
   )
-import Brig.Sem.VerificationCodeStore.Cassandra ()
+import Brig.Effects.VerificationCodeStore.Cassandra ()
+import Brig.Email
 import Brig.Types.Common
 import Cassandra hiding (Value)
 import qualified Data.ByteString as BS
@@ -210,7 +210,7 @@ generate gen scope retries ttl account = do
 --------------------------------------------------------------------------------
 -- Storage
 
--- 'insert' is available in Brig.Sem.VerificationCodeStore.Cassandra only
+-- 'insert' is available in Brig.Effects.VerificationCodeStore.Cassandra only
 
 -- insertInternal :: MonadClient m => Code -> m ()
 -- insertInternal c = do

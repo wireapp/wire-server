@@ -1,0 +1,1 @@
+wire-server helm charts: Adjust default CPU/Memory resources: Remove CPU limits to avoid CPU throttling; adjust request CPU and memory based on observed values. Overall this decreases the amount of CPU/memory that the wire-server chart needs to install/schedule pods.

@@ -52,15 +52,17 @@ import Brig.API.Util
 import Brig.App
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
+import Brig.Effects.GalleyAccess
+import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.VerificationCodeStore
 import Brig.Federation.Client (getUserClients)
 import qualified Brig.Federation.Client as Federation
 import Brig.IO.Intra (guardLegalhold)
 import qualified Brig.IO.Intra as Intra
+import qualified Brig.InternalEvent.Types as Internal
 import qualified Brig.Options as Opt
-import Brig.Sem.GalleyAccess
-import Brig.Sem.GundeckAccess (GundeckAccess)
-import Brig.Sem.UserQuery (UserQuery)
-import Brig.Sem.VerificationCodeStore
+import qualified Brig.Queue as Queue
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
@@ -407,18 +409,16 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 
 -- Utilities
 
--- | Perform an orderly deletion of an existing client.
+-- | Enqueue an orderly deletion of an existing client.
 execDelete ::
-  Members '[GundeckAccess] r =>
   UserId ->
   Maybe ConnId ->
   Client ->
   AppT r ()
 execDelete u con c = do
-  wrapHttp $ Intra.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
-  liftSem $ Intra.onClientEvent u con (ClientRemoved u c)
-  wrapClient $ Data.rmClient u (clientId c)
+  queue <- view internalEvents
+  Queue.enqueue queue (Internal.DeleteClient (clientId c) u con)
 
 -- | Defensive measure when no prekey is found for a
 -- requested client: Ensure that the client does indeed

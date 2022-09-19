@@ -46,20 +46,20 @@ import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
+import Brig.Effects.BudgetStore
+import Brig.Effects.Common
+import Brig.Effects.GalleyAccess
+import Brig.Effects.GundeckAccess
+import Brig.Effects.Twilio (Twilio)
+import Brig.Effects.UserHandleStore
+import Brig.Effects.UserKeyStore (UserKeyStore)
+import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.UserQuery.Cassandra
+import Brig.Effects.VerificationCodeStore (VerificationCodeStore)
 import Brig.Email
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Phone
-import Brig.Sem.BudgetStore
-import Brig.Sem.Common
-import Brig.Sem.GalleyAccess
-import Brig.Sem.GundeckAccess
-import Brig.Sem.Twilio (Twilio)
-import Brig.Sem.UserHandleStore
-import Brig.Sem.UserKeyStore (UserKeyStore)
-import Brig.Sem.UserQuery (UserQuery)
-import Brig.Sem.UserQuery.Cassandra
-import Brig.Sem.VerificationCodeStore (VerificationCodeStore)
 import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User.Auth
@@ -244,7 +244,9 @@ verifyCode mbCode action uid = do
     --     (== TeamFeatureEnabled)
     --     mbFeatureEnabled
     pure $ fromMaybe (Public.wsStatus (Public.defFeatureStatus @Public.SndFactorPasswordChallengeConfig) == Public.FeatureStatusEnabled) mbFeatureEnabled
-  when featureEnabled $ do
+  locale <- Opt.setDefaultUserLocale <$> view settings
+  isSsoUser <- lift . liftSem $ Data.isSamlUser locale uid
+  when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
         key <- Code.mkKey $ Code.ForEmail email
@@ -354,7 +356,8 @@ revokeAccess u pw cc ll = do
   locale <- Opt.setDefaultUserLocale <$> view settings
   unlessM (lift . liftSem $ Data.isSamlUser locale u)
     . mapExceptT liftSem
-    . semErrToExceptT $Data.authenticate u pw
+    . semErrToExceptT
+    $ Data.authenticate u pw
   lift . wrapClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
