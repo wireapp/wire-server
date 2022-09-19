@@ -105,7 +105,8 @@ tests _cl _at opts p db b c g =
       test p "get /clients/:client/prekeys - 200" $ testListPrekeyIds b,
       test p "post /clients - 400" $ testTooManyClients opts b,
       test p "client/prekeys not empty" $ testPrekeysNotEmptyRandomPrekeys opts b,
-      test p "lastprekeys not bogus" $ testRegularPrekeysCannotBeSentAsLastPrekeys opts b,
+      test p "lastprekeys not bogus" $ testRegularPrekeysCannotBeSentAsLastPrekeys b,
+      test p "lastprekeys not bogus during update" $ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate b,
       test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
       test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
       test p "delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
@@ -740,11 +741,33 @@ ensurePrekeysNotEmpty opts brig = withSettingsOverrides opts $ do
   let pId3 = prekeyId . prekeyData <$> responseJsonMaybe rs3
   liftIO $ assertEqual "last prekey rs3" (Just lastPrekeyId) pId3
 
-testRegularPrekeysCannotBeSentAsLastPrekeys :: Opt.Opts -> Brig -> Http ()
-testRegularPrekeysCannotBeSentAsLastPrekeys opts brig = do
+testRegularPrekeysCannotBeSentAsLastPrekeys :: Brig -> Http ()
+testRegularPrekeysCannotBeSentAsLastPrekeys brig = do
   uid <- userId <$> randomUser brig
   -- The parser should reject a normal prekey in the lastPrekey field
   addClient brig uid (defNewClient PermanentClientType [head somePrekeys] fakeLastPrekey) !!! const 400 === statusCode
+
+testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate :: Brig -> Http ()
+testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate brig = do
+  uid <- userId <$> randomUser brig
+  c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [head somePrekeys] (someLastPrekeys !! 11)) <!! const 200 === statusCode
+  let newPrekey = somePrekeys !! 2
+  let update =
+        defUpdateClient
+          { updateClientPrekeys = [newPrekey],
+            updateClientLastKey = Just fakeLastPrekey,
+            updateClientLabel = Just "label"
+          }
+  -- The parser should reject a normal prekey in the lastPrekey field
+  put
+    ( brig
+        . paths ["clients", toByteString' (clientId c)]
+        . zUser uid
+        . contentJson
+        . body (RequestBodyLBS $ encode update)
+    )
+    !!! const 400
+    === statusCode
 
 -- @END
 
