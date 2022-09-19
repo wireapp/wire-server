@@ -30,7 +30,6 @@ module Wire.API.User.Password
     PasswordReset (..),
 
     -- * Swagger
-    modelNewPasswordReset,
     modelCompletePasswordReset,
   )
 where
@@ -57,16 +56,6 @@ newtype NewPasswordReset = NewPasswordReset (Either Email Phone)
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema NewPasswordReset
-
-modelNewPasswordReset :: Doc.Model
-modelNewPasswordReset = Doc.defineModel "NewPasswordReset" $ do
-  Doc.description "Data to initiate a password reset"
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email"
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "Phone"
-    Doc.optional
 
 instance Schema.ToSchema NewPasswordReset where
   schema =
