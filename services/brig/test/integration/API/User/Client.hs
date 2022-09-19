@@ -750,7 +750,7 @@ testRegularPrekeysCannotBeSentAsLastPrekeys brig = do
 testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate :: Brig -> Http ()
 testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate brig = do
   uid <- userId <$> randomUser brig
-  c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [head somePrekeys] (someLastPrekeys !! 11)) <!! const 200 === statusCode
+  c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [head somePrekeys] (someLastPrekeys !! 11)) <!! const 201 === statusCode
   let newPrekey = somePrekeys !! 2
   let update =
         defUpdateClient
