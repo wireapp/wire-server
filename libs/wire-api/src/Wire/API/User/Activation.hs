@@ -182,7 +182,7 @@ instance ToSchema ActivationResponse where
     Schema.objectWithDocModifier "ActivationResponse" (description ?~ "Response body of a successful activation request") $
       ActivationResponse
         <$> activatedIdentity Schema..= userIdentityObjectSchema
-        <*> activatedFirst Schema..= Schema.fieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") Schema.schema
+        <*> activatedFirst Schema..= (fromMaybe False <$> Schema.optFieldWithDocModifier "first" (description ?~ "Whether this is the first successful activation (i.e. account activation).") Schema.schema)
 
 modelActivationResponse :: Doc.Model
 modelActivationResponse = Doc.defineModel "ActivationResponse" $ do
