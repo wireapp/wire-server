@@ -321,6 +321,9 @@ data AddCodeResult
 
 data MLSMessage = MLSMessage
   { mlsData :: ByteString,
+    -- | ClientId isn't always present or knowable.
+    -- | External proposals have no clientIds, and
+    -- | Application messages, being encrypted, can't be inspected
     mlsSenderId :: Maybe ClientId
   }
   deriving stock (Eq, Show, Generic)

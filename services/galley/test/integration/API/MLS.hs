@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -906,7 +905,7 @@ testAppMessage = do
       liftIO $ events @?= []
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
-        wsAssertMLSMessage qcnv alice (Just . ciClient $ alice1) (mpMessage message)
+        wsAssertMLSMessage qcnv alice Nothing (mpMessage message)
 
 testAppMessage2 :: TestM ()
 testAppMessage2 = do
@@ -937,7 +936,7 @@ testAppMessage2 = do
 
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
-          wsAssertMLSMessage conversation bob (Just . ciClient $ bob1) (mpMessage message)
+          wsAssertMLSMessage conversation bob Nothing (mpMessage message)
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -1050,7 +1049,7 @@ testRemoteToLocal = do
       liftIO $ do
         resp @?= MLSMessageResponseUpdates []
         WS.assertMatch_ (5 # Second) ws $
-          wsAssertMLSMessage qcnv bob (Just . ciClient $ bob1) (mpMessage message)
+          wsAssertMLSMessage qcnv bob Nothing (mpMessage message)
 
 testRemoteToLocalWrongConversation :: TestM ()
 testRemoteToLocalWrongConversation = do
@@ -1253,7 +1252,9 @@ testExternalAddProposal = do
         void $ sendAndConsumeMessage msg
         liftTest $
           WS.assertMatchN_ (5 # Second) wss $
-            wsAssertMLSMessage qcnv alice (Just . ciClient $ alice1) (mpMessage msg)
+            -- We use Nothing here for the client id, because applications messages
+            -- are encrypted, therefore we cannot inspect it and match on the client id.
+            wsAssertMLSMessage qcnv alice Nothing (mpMessage msg)
 
     -- bob adds charlie
     putOtherMemberQualified

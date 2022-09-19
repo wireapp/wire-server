@@ -45,6 +45,11 @@ import Wire.API.Federation.Error
 import Wire.API.Message
 
 -- | Propagate a message.
+-- |
+-- | ClientId is a Maybe here, because for certain cases (including application messages)
+-- | the client is either inexistent or unknowable. External proposals would have no client ids
+-- | and application messages, being encrypted, cannot be inspected, and therefore we're not aware of
+-- | a client id for them.
 propagateMessage ::
   ( Member ExternalAccess r,
     Member FederatorAccess r,
