@@ -921,7 +921,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
         evtConv e @?= qconvId
         evtType e @?= MLSMessageAdd
         evtFrom e @?= userQualifiedId bob
-        evtData e @?= EdMLSMessage (MLSMessage dove Nothing) -- TODO: add real data
+        evtData e @?= EdMLSMessage (MLSMessage dove (Just aliceClient))
 
     -- send the reply and assert reception
     WS.bracketR cannon2 (userId bob) $ \wsBob -> do
@@ -944,4 +944,4 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
         evtConv e @?= qconvId
         evtType e @?= MLSMessageAdd
         evtFrom e @?= userQualifiedId alice
-        evtData e @?= EdMLSMessage (MLSMessage reply Nothing) -- TODO: add real data
+        evtData e @?= EdMLSMessage (MLSMessage reply (Just aliceClient))

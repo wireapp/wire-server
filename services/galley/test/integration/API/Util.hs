@@ -1577,13 +1577,14 @@ wsAssertMLSMessage ::
   HasCallStack =>
   Qualified ConvId ->
   Qualified UserId ->
+  Maybe ClientId ->
   ByteString ->
   Notification ->
   IO ()
-wsAssertMLSMessage conv u message n = do
+wsAssertMLSMessage conv u cid message n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  assertMLSMessageEvent conv u message e
+  assertMLSMessageEvent conv u cid message e
 
 wsAssertClientRemoved ::
   HasCallStack =>
@@ -1601,14 +1602,15 @@ assertMLSMessageEvent ::
   HasCallStack =>
   Qualified ConvId ->
   Qualified UserId ->
+  Maybe ClientId ->
   ByteString ->
   Conv.Event ->
   IO ()
-assertMLSMessageEvent conv u message e = do
+assertMLSMessageEvent conv u cid message e = do
   evtConv e @?= conv
   evtType e @?= MLSMessageAdd
   evtFrom e @?= u
-  evtData e @?= EdMLSMessage (MLSMessage message Nothing) -- TODO: use the correct data
+  evtData e @?= EdMLSMessage (MLSMessage message cid)
 
 -- | This assumes the default role name
 wsAssertMemberJoin :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()

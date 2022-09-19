@@ -906,7 +906,7 @@ testAppMessage = do
       liftIO $ events @?= []
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
-          wsAssertMLSMessage qcnv alice (mpMessage message)
+        wsAssertMLSMessage qcnv alice (Just . ciClient $ alice1) (mpMessage message)
 
 testAppMessage2 :: TestM ()
 testAppMessage2 = do
@@ -937,7 +937,7 @@ testAppMessage2 = do
 
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
-          wsAssertMLSMessage conversation bob (mpMessage message)
+          wsAssertMLSMessage conversation bob (Just . ciClient $ bob1) (mpMessage message)
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -987,8 +987,8 @@ testRemoteToRemote = do
     void $ runFedClient @"on-mls-message-sent" fedGalleyClient bdom rm
     liftIO $ do
       -- alice should receive the message on her first client
-      WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage qconv qbob txt n
-      WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage qconv qbob txt n
+      WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage qconv qbob (Just aliceC1) txt n
+      WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage qconv qbob (Just aliceC2) txt n
 
       -- eve should not receive the message
       WS.assertNoEvent (1 # Second) [wsE]
@@ -1050,7 +1050,7 @@ testRemoteToLocal = do
       liftIO $ do
         resp @?= MLSMessageResponseUpdates []
         WS.assertMatch_ (5 # Second) ws $
-          wsAssertMLSMessage qcnv bob (mpMessage message)
+          wsAssertMLSMessage qcnv bob (Just . ciClient $ bob1) (mpMessage message)
 
 testRemoteToLocalWrongConversation :: TestM ()
 testRemoteToLocalWrongConversation = do
@@ -1253,7 +1253,7 @@ testExternalAddProposal = do
         void $ sendAndConsumeMessage msg
         liftTest $
           WS.assertMatchN_ (5 # Second) wss $
-            wsAssertMLSMessage qcnv alice (mpMessage msg)
+            wsAssertMLSMessage qcnv alice (Just . ciClient $ alice1) (mpMessage msg)
 
     -- bob adds charlie
     putOtherMemberQualified
