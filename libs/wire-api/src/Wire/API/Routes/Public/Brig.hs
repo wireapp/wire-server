@@ -55,7 +55,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
-import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset)
+import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
@@ -476,6 +476,21 @@ type AccountAPI =
                :> ReqBody '[JSON] CompletePasswordReset
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
            )
+    :<|> Named
+           "post-password-reset-key-deprecated"
+           ( Summary "Complete a password reset."
+               :> CanThrow 'PasswordResetInProgress
+               :> CanThrow 'InvalidPasswordResetKey
+               :> CanThrow 'InvalidPasswordResetCode
+               :> CanThrow 'ResetPasswordMustDiffer
+               :> Description "DEPRECATED: Use 'POST /password-reset/complete'."
+               :> "password-reset"
+               :> QueryParam' '[Required, Strict, Description "An opaque key for a pending password reset."] "key" PasswordResetKey
+               :> ReqBody '[JSON] PasswordReset
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
+           )
+
+--     .&. capture "key"
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse
