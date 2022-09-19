@@ -52,8 +52,7 @@ import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
 newtype ProtocolVersion = ProtocolVersion {pvNumber :: Word8}
-  deriving newtype (Eq, Ord, Show, Binary, Arbitrary)
-  deriving (ParseMLS) via (BinaryMLS ProtocolVersion)
+  deriving newtype (Eq, Ord, Show, Binary, Arbitrary, ParseMLS, SerialiseMLS)
 
 data ProtocolVersionTag = ProtocolMLS10 | ProtocolMLSDraft11
   deriving stock (Bounded, Enum, Eq, Show, Generic)

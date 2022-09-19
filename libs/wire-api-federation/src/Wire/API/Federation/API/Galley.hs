@@ -69,6 +69,7 @@ type GalleyApi =
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest EmptyResponse
     :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
     :<|> FedEndpoint "send-mls-message" MessageSendRequest MLSMessageResponse
+    :<|> FedEndpoint "send-mls-commit-bundle" MessageSendRequest MLSMessageResponse
     :<|> FedEndpoint "on-client-removed" ClientRemovedRequest EmptyResponse
 
 data ClientRemovedRequest = ClientRemovedRequest

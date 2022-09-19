@@ -83,6 +83,7 @@ import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley (ClientRemovedRequest, ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
+import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
@@ -109,6 +110,7 @@ federationSitemap =
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
     :<|> Named @"send-mls-message" sendMLSMessage
+    :<|> Named @"send-mls-commit-bundle" sendMLSCommitBundle
     :<|> Named @"on-client-removed" onClientRemoved
 
 onClientRemoved ::
@@ -590,6 +592,49 @@ updateConversation origDomain updateRequest = do
     toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
     toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
 
+sendMLSCommitBundle ::
+  ( Members
+      [ BrigAccess,
+        ConversationStore,
+        ExternalAccess,
+        Error FederationError,
+        Error InternalError,
+        FederatorAccess,
+        GundeckAccess,
+        Input (Local ()),
+        Input Env,
+        Input Opts,
+        Input UTCTime,
+        LegalHoldStore,
+        MemberStore,
+        Resource,
+        TeamStore,
+        P.TinyLog,
+        ProposalStore
+      ]
+      r
+  ) =>
+  Domain ->
+  F.MessageSendRequest ->
+  Sem r F.MLSMessageResponse
+sendMLSCommitBundle remoteDomain msr =
+  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
+    . runError @MLSProtocolError
+    . fmap (either F.MLSMessageResponseError id)
+    . runError
+    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
+    . runError
+    $ do
+      loc <- qualifyLocal ()
+      let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
+      bundle <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
+      mapToGalleyError @MLSBundleStaticErrors $ do
+        let msg = rmValue (cbCommitMsg (rmValue bundle))
+        qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+        when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
+        F.MLSMessageResponseUpdates . map lcuUpdate
+          <$> postMLSCommitBundle loc (qUntagged sender) qcnv Nothing bundle
+
 sendMLSMessage ::
   ( Members
       [ BrigAccess,
@@ -619,8 +664,6 @@ sendMLSMessage remoteDomain msr =
   fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
     . runError @MLSProtocolError
     . fmap (either F.MLSMessageResponseError id)
-    . runError
-    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
     . runError
     . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
     . runError

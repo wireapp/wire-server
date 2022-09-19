@@ -65,6 +65,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.User.Client
 
@@ -93,12 +94,15 @@ tests s =
       testGroup
         "Commit"
         [ test s "add user to a conversation" testAddUser,
+          test s "add user with a commit bundle" testAddUserWithBundle,
+          test s "add user with an incomplete welcome" testAddUserWithBundleIncompleteWelcome,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
+          test s "add remote user with a commit bundle" testAddRemoteUserWithBundle,
           test s "return error when commit is locked" testCommitLock,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
@@ -292,6 +296,64 @@ testRemoteWelcome = do
     let req :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
     liftIO $ req @?= (Just . MLSWelcomeRequest . Base64ByteString) welcome
 
+testAddUserWithBundle :: TestM ()
+testAddUserWithBundle = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  qcnv <- runMLSTest $ do
+    (alice1 : bobClients) <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage bobClients
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+    welcome <- assertJust (mpWelcome commit)
+
+    events <- mlsBracket bobClients $ \wss -> do
+      events <- sendAndConsumeCommitBundle commit
+      for_ (zip bobClients wss) $ \(c, ws) ->
+        WS.assertMatch (5 # Second) ws $
+          wsAssertMLSWelcome (cidQualifiedUser c) welcome
+      pure events
+
+    event <- assertOne events
+    liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
+    pure qcnv
+
+  -- check that bob can now see the conversation
+  convs <-
+    responseJsonError =<< getConvs (qUnqualified bob) Nothing Nothing
+      <!! const 200 === statusCode
+  liftIO $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (qcnv `elem` map cnvQualifiedId (convList convs))
+
+testAddUserWithBundleIncompleteWelcome :: TestM ()
+testAddUserWithBundleIncompleteWelcome = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    (alice1 : bobClients) <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage bobClients
+    void $ setupMLSGroup alice1
+
+    -- create commit, but remove first recipient from welcome message
+    commit <- do
+      commit <- createAddCommit alice1 [bob]
+      liftIO $ do
+        welcome <- assertJust (mpWelcome commit)
+        w <- either (assertFailure . T.unpack) pure $ decodeMLS' welcome
+        let w' = w {welSecrets = take 1 (welSecrets w)}
+            welcome' = encodeMLS' w'
+            commit' = commit {mpWelcome = Just welcome'}
+        pure commit'
+
+    bundle <- createBundle commit
+    err <-
+      responseJsonError
+        =<< postCommitBundle (ciUser (mpSender commit)) bundle
+        <!! const 400 === statusCode
+    liftIO $ Wai.label err @?= "mls-welcome-mismatch"
+
 testAddUser :: TestM ()
 testAddUser = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
@@ -422,7 +484,7 @@ testSendAnotherUsersCommit = do
     err <-
       responseJsonError
         =<< postMessage (qUnqualified bob) (mpMessage mp)
-          <!! const 409 === statusCode
+          <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
 
 testAddUsersToProteus :: TestM ()
@@ -564,6 +626,52 @@ testAddRemoteUser = do
     event <- assertOne events
     assertJoinEvent qcnv alice [bob] roleNameWireMember event
 
+testAddRemoteUserWithBundle :: TestM ()
+testAddRemoteUserWithBundle = do
+  users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+  (events, reqs, qcnv) <- runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True . ciClient)
+              $ [bob1]
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    commit <- createAddCommit alice1 [bob]
+    (events, reqs) <-
+      withTempMockFederator' mock $
+        sendAndConsumeCommitBundle commit
+    pure (events, reqs, qcnv)
+
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
+    frTargetDomain req @?= qDomain bob
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
+    cuOrigUserId bdy @?= alice
+    cuConvId bdy @?= qUnqualified qcnv
+    cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
+    cuAction bdy
+      @?= SomeConversationAction
+        SConversationJoinTag
+        ConversationJoin
+          { cjUsers = pure bob,
+            cjRole = roleNameWireMember
+          }
+
+  liftIO $ do
+    event <- assertOne events
+    assertJoinEvent qcnv alice [bob] roleNameWireMember event
+
 testCommitLock :: TestM ()
 testCommitLock = do
   users <- createAndConnectUsers (replicate 4 Nothing)
@@ -666,7 +774,7 @@ testCommitNotReferencingAllProposals = do
     -- send commit and expect and error
     err <-
       responseJsonError =<< postMessage (ciUser alice1) (mpMessage commit)
-        <!! const 409 === statusCode
+        <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
 testAdminRemovesUserFromConv :: TestM ()

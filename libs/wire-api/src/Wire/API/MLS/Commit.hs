@@ -21,6 +21,7 @@ import Imports
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 data Commit = Commit
   { cProposals :: [ProposalOrRef],
@@ -53,7 +54,13 @@ data HPKECiphertext = HPKECiphertext
   { hcOutput :: ByteString,
     hcCiphertext :: ByteString
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform HPKECiphertext)
 
 instance ParseMLS HPKECiphertext where
   parseMLS = HPKECiphertext <$> parseMLSBytes @Word16 <*> parseMLSBytes @Word16
+
+instance SerialiseMLS HPKECiphertext where
+  serialiseMLS (HPKECiphertext out ct) = do
+    serialiseMLSBytes @Word16 out
+    serialiseMLSBytes @Word16 ct
