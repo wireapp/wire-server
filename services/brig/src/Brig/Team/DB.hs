@@ -46,7 +46,6 @@ import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Template (renderTextWithBranding)
 import Cassandra as C
 import Control.Lens (view)
-import Data.Bifunctor
 import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Id
