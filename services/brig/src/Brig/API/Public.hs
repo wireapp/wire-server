@@ -95,7 +95,6 @@ import qualified Data.ZAuth.Token as ZAuth
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
-import Network.HTTP.Types.Status
 import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
@@ -190,7 +189,8 @@ servantSitemap ::
   Members
     '[ BlacklistStore,
        BlacklistPhonePrefixStore,
-       UserPendingActivationStore p
+       UserPendingActivationStore p,
+       PasswordResetStore
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -228,6 +228,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-activate" activate
         :<|> Named @"post-activate" activateKey
         :<|> Named @"post-activate-send" sendActivationCode
+        :<|> Named @"post-password-reset" beginPasswordReset
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -315,17 +316,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- /activate, /password-reset ----------------------------------
-
-  post "/password-reset" (continue beginPasswordResetH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.NewPasswordReset
-  document "POST" "beginPasswordReset" $ do
-    Doc.summary "Initiate a password reset."
-    Doc.body (Doc.ref Public.modelNewPasswordReset) $
-      Doc.description "JSON body"
-    Doc.response 201 "Password reset code created and sent by email." Doc.end
-    Doc.errorResponse invalidPwResetKey
-    Doc.errorResponse duplicatePwResetCode
 
   post "/password-reset/complete" (continue completePasswordResetH) $
     accept "application" "json"
@@ -769,13 +759,6 @@ changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Pu
 changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
-
-beginPasswordResetH ::
-  Members '[PasswordResetStore] r =>
-  JSON ::: JsonRequest Public.NewPasswordReset ->
-  (Handler r) Response
-beginPasswordResetH (_ ::: req) =
-  setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
 beginPasswordReset ::
   Members '[PasswordResetStore] r =>
