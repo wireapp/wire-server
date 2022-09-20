@@ -281,7 +281,6 @@ library
     , types-common               >=0.16
     , types-common-aws
     , types-common-journal       >=0.1
-    , unix
     , unliftio                   >=0.2
     , unordered-containers       >=0.2
     , uri-bytestring             >=0.2

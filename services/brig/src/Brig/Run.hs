@@ -43,7 +43,6 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
-import Control.Concurrent (myThreadId, throwTo)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
@@ -73,7 +72,6 @@ import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
-import qualified System.Posix.Signals as Signals
 import Util.Options
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
@@ -104,10 +102,7 @@ run o = do
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
   pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
-  tid <- myThreadId
-  mapM_ (\signal -> Signals.installHandler signal (signalHandler tid) Nothing) [Signals.sigTERM, Signals.sigINT]
   runSettingsWithShutdown s app 5 `finally` do
-    writeFile "/tmp/x1" "asdfasdf"
     mapM_ Async.cancel emailListener
     Async.cancel internalEventListener
     mapM_ Async.cancel sftDiscovery
@@ -118,16 +113,6 @@ run o = do
   where
     endpoint = brig o
     server e = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (e ^. applog) (e ^. metrics)
-
-signalHandler :: ThreadId -> Signals.Handler
-signalHandler mainThread = Signals.CatchOnce $ do
-  writeFile "/tmp/x2" "asdfasdf"
-  throwTo mainThread SignalledToExit
-
-data SignalledToExit = SignalledToExit
-  deriving (Show)
-
-instance Exception SignalledToExit
 
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
