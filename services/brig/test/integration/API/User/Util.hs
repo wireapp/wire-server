@@ -262,7 +262,8 @@ getClientCapabilities brig u c =
 getUserClientsUnqualified :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getUserClientsUnqualified brig uid =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["users", toByteString' uid, "clients"]
       . zUser uid
 
