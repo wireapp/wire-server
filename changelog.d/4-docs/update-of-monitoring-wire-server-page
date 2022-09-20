@@ -1,0 +1,1 @@
+Monitoring page showed wrong wrong configuration charts. Updated prometheus-operator to kube-prometheus-stack chart in the documentation. 
