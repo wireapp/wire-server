@@ -1,0 +1,1 @@
+The `POST /delete` endpoint of the account API is now migrated to servant
