@@ -35,6 +35,14 @@ while getopts ':f:m:' opt
      esac
 done
 
+ret=$?
+if [ $ret -ne 0 ]; then
+  echo
+else
+  echo "No files to check"
+  exit 1
+fi
+
 if [ -z "${f}" ] || [ -z "${m}" ]; then
     usage
 fi
@@ -47,7 +55,7 @@ for f in $files
 do
   echo "$f"
   if [ $check = true ]; then
-    hlint "$f" | grep -v 'No hints'
+    hlint --no-summary "$f"
   else
     hlint --refactor --refactor-options="--inplace" "$f"
   fi
