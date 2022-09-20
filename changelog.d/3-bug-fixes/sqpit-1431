@@ -1,0 +1,1 @@
+Less surprising handling of SIGINT, SIGTERM for proxy, stern
