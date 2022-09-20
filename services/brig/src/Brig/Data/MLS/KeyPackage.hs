@@ -21,6 +21,7 @@ module Brig.Data.MLS.KeyPackage
     mapKeyPackageRef,
     countKeyPackages,
     derefKeyPackage,
+    derefKeyPackageData,
     keyPackageRefConvId,
     keyPackageRefSetConvId,
     addKeyPackageRef,
@@ -39,6 +40,7 @@ import Control.Exception
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Random (randomRIO)
+import qualified Data.ByteString as BS
 import Data.Domain
 import Data.Functor
 import Data.Id
@@ -156,6 +158,22 @@ derefKeyPackage ref = do
   where
     q :: PrepQuery R (Identity KeyPackageRef) (Domain, UserId, ClientId)
     q = "SELECT domain, user, client from mls_key_package_refs WHERE ref = ?"
+
+-- | Key package data for a given ref.
+--
+-- Errors in MaybeT if ref cannot be resolved in DB.
+-- Returns pure Nothing if no data has been stored at the time of claiming the key package.
+--
+-- FUTUREWORK: remove Maybe in result as all claimed key packages should be stored with key package data.
+derefKeyPackageData :: MonadClient m => KeyPackageRef -> MaybeT m (Maybe KeyPackageData)
+derefKeyPackageData ref = do
+  kpd <- runIdentity <$> (MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref)))
+  if BS.length (kpData kpd) == 0
+    then pure Nothing
+    else pure . Just $ kpd
+  where
+    q :: PrepQuery R (Identity KeyPackageRef) (Identity KeyPackageData)
+    q = "SELECT data from mls_key_package_refs WHERE ref = ?"
 
 keyPackageRefConvId :: MonadClient m => KeyPackageRef -> MaybeT m (Qualified ConvId)
 keyPackageRefConvId ref = MaybeT $ do
