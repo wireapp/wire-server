@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 usage() { echo "Usage: $0 -f [all, changeset] -m [check, inplace]" 1>&2; exit 1; }
 
 files=''
@@ -34,18 +36,6 @@ while getopts ':f:m:' opt
          *) usage;;
      esac
 done
-
-ret=$?
-if [ $ret -ne 0 ]; then
-  echo
-else
-  echo "No files to check"
-  exit 1
-fi
-
-if [ -z "${f}" ] || [ -z "${m}" ]; then
-    usage
-fi
 
 count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
 
