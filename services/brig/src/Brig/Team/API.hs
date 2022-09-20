@@ -53,7 +53,7 @@ import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
-import qualified Data.List1 as List1
+import Data.List.NonEmpty (nonEmpty)
 import Data.Qualified
 import Data.Range
 import Data.String.Conversions (cs)
@@ -577,8 +577,13 @@ changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> lift (wrapHttp $ Intra.getTeam tid)
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
+  uids <- do
+    r <-
+      lift
+        ( fmap (view Teams.userId) . view teamMembers
+            <$> wrapHttp (Intra.getTeamMembers tid)
+        )
+    case nonEmpty r of
+      Nothing -> throwStd (notFound "Team not found or no members")
+      Just v -> pure v
   API.changeAccountStatus uids s !>> accountStatusError
-  where
-    toList1 (x : xs) = pure $ List1.list1 x xs
-    toList1 [] = throwStd (notFound "Team not found or no members")

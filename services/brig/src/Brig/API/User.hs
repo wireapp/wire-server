@@ -163,7 +163,7 @@ import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra
-import Data.List1 as List1 (List1, singleton)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
@@ -1023,16 +1023,7 @@ changeAccountStatus ::
        GundeckAccess
      ]
     r =>
-  -- ( MonadClient m,
-  --   MonadLogger m,
-  --   MonadIndexIO m,
-  --   MonadReader Env m,
-  --   MonadMask m,
-  --   MonadHttp m,
-  --   HasRequestId m,
-  --   MonadUnliftIO m
-  -- ) =>
-  List1 UserId ->
+  NonEmpty UserId ->
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeAccountStatus usrs status = do
@@ -1062,7 +1053,7 @@ changeSingleAccountStatus ::
   ExceptT AccountStatusError (AppT r) ()
 changeSingleAccountStatus uid status = do
   unlessM (lift . liftSem $ Data.userExists uid) $ throwE AccountNotFound
-  ev <- wrapClientE $ mkUserEvent (singleton uid) status
+  ev <- wrapClientE $ mkUserEvent [uid] status
   wrapClientE $ Data.updateStatus uid status
   lift $ Intra.onUserEvent uid Nothing (ev uid)
 
