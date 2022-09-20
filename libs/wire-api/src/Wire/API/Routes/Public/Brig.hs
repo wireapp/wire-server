@@ -19,6 +19,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
@@ -30,7 +31,9 @@ import Data.Nonce (Nonce)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
-import Data.Swagger hiding (Contact, Header)
+import Data.Schema as Schema
+import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
+import qualified Data.Swagger as S
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
 import Servant (JSON)
@@ -489,6 +492,35 @@ type AccountAPI =
                :> ReqBody '[JSON] PasswordReset
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
            )
+    :<|> Named
+           "onboarding"
+           ( Summary "Upload contacts and invoke matching."
+               :> Description
+                    "DEPRECATED: the feature has been turned off, the end-point does \
+                    \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
+               :> ZUser
+               :> "onboarding"
+               :> "v3"
+               :> ReqBody '[JSON] JsonValue
+               :> Post '[JSON] DeprecatedMatchingResult
+           )
+
+newtype JsonValue = JsonValue {fromJsonValue :: A.Value}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema JsonValue)
+
+instance ToSchema JsonValue where
+  schema = fromJsonValue .= (JsonValue <$> named "Body" jsonValue)
+
+data DeprecatedMatchingResult = DeprecatedMatchingResult
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DeprecatedMatchingResult)
+
+instance ToSchema DeprecatedMatchingResult where
+  schema =
+    object
+      "DeprecatedMatchingResult"
+      $ DeprecatedMatchingResult
+        <$ const [] .= field "results" (array (null_ @SwaggerDoc))
+        <* const [] .= field "auto-connects" (array (null_ @SwaggerDoc))
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse
