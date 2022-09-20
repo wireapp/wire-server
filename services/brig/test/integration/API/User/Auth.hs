@@ -150,8 +150,10 @@ tests conf m z db b g n =
         ],
       testGroup
         "update /access/self/email"
-        [ test m "valid token (idempotency case)" (testAccessSelfEmailAllowed n b),
-          test m "invalid or missing token" (testAccessSelfEmailDenied z n b)
+        [ test m "valid token (idempotency case) (with cookie)" (testAccessSelfEmailAllowed n b True),
+          test m "valid token (idempotency case) (without cookie)" (testAccessSelfEmailAllowed n b False),
+          test m "invalid or missing token (with cookie)" (testAccessSelfEmailDenied z n b True),
+          test m "invalid or missing token (without cookie)" (testAccessSelfEmailDenied z n b False)
         ],
       testGroup
         "cookies"
@@ -793,66 +795,65 @@ testTokenMismatchLegalhold z brig galley = do
     const (Just "Token mismatch") =~= responseBody
 
 -- | This only tests access; the logic is tested in 'testEmailUpdate' in `Account.hs`.
-testAccessSelfEmailAllowed :: Nginz -> Brig -> Http ()
-testAccessSelfEmailAllowed nginz brig = do
-  -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
-  forM_ [True, False] $ \withCookie -> do
-    usr <- randomUser brig
-    let Just email = userEmail usr
-    (mbCky, tok) <- do
-      rsp <-
-        login nginz (emailLogin email defPassword (Just "nexus1")) PersistentCookie
-          <!! const 200 === statusCode
-      pure
-        ( if withCookie then Just (decodeCookie rsp) else Nothing,
-          decodeToken rsp
-        )
-    let req =
-          unversioned
-            . nginz
-            . path "/access/self/email"
-            . maybe id cookie mbCky
-            . header "Authorization" ("Bearer " <> toByteString' tok)
+-- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
+testAccessSelfEmailAllowed :: Nginz -> Brig -> Bool -> Http ()
+testAccessSelfEmailAllowed nginz brig withCookie = do
+  usr <- randomUser brig
+  let Just email = userEmail usr
+  (mbCky, tok) <- do
+    rsp <-
+      login nginz (emailLogin email defPassword (Just "nexus1")) PersistentCookie
+        <!! const 200 === statusCode
+    pure
+      ( if withCookie then Just (decodeCookie rsp) else Nothing,
+        decodeToken rsp
+      )
+  let req =
+        unversioned
+          . nginz
+          . path "/access/self/email"
+          . maybe id cookie mbCky
+          . header "Authorization" ("Bearer " <> toByteString' tok)
 
-    put (req . Bilge.json ())
-      !!! const (if withCookie then 400 else 403) === statusCode
-    put (req . Bilge.json (EmailUpdate email))
-      !!! const (if withCookie then 204 else 403) === statusCode
+  put (req . Bilge.json ())
+    !!! const (if withCookie then 400 else 403) === statusCode
 
-testAccessSelfEmailDenied :: ZAuth.Env -> Nginz -> Brig -> Http ()
-testAccessSelfEmailDenied zenv nginz brig = do
-  -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
-  forM_ [True, False] $ \withCookie -> do
-    mbCky <-
-      if withCookie
-        then do
-          usr <- randomUser brig
-          let Just email = userEmail usr
-          rsp <-
-            login nginz (emailLogin email defPassword (Just "nexus1")) PersistentCookie
-              <!! const 200 === statusCode
-          pure
-            (if withCookie then Just (decodeCookie rsp) else Nothing)
-        else do
-          pure Nothing
-    tok <- runZAuth zenv (randomAccessToken @ZAuth.User @ZAuth.Access)
-    let req =
-          unversioned
-            . nginz
-            . path "/access/self/email"
-            . Bilge.json ()
-            . maybe id cookie mbCky
+  put (req . Bilge.json (EmailUpdate email))
+    !!! const (if withCookie then 204 else 403) === statusCode
 
-    put req
-      !!! errResponse withCookie "invalid-credentials" "Missing access token"
-    put (req . header "Authorization" "xxx")
-      !!! errResponse withCookie "invalid-credentials" "Missing access token"
-    put (req . header "Authorization" "Bearer xxx")
-      !!! errResponse withCookie "client-error" "invalid: Invalid access token"
-    put (req . header "Authorization" ("Bearer " <> toByteString' tok))
-      !!! errResponse withCookie "invalid-credentials" "Invalid token"
+-- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
+testAccessSelfEmailDenied :: ZAuth.Env -> Nginz -> Brig -> Bool -> Http ()
+testAccessSelfEmailDenied zenv nginz brig withCookie = do
+  mbCky <-
+    if withCookie
+      then do
+        usr <- randomUser brig
+        let Just email = userEmail usr
+        rsp <-
+          login nginz (emailLogin email defPassword (Just "nexus1")) PersistentCookie
+            <!! const 200 === statusCode
+        pure
+          (if withCookie then Just (decodeCookie rsp) else Nothing)
+      else do
+        pure Nothing
+  tok <- runZAuth zenv (randomAccessToken @ZAuth.User @ZAuth.Access)
+  let req =
+        unversioned
+          . nginz
+          . path "/access/self/email"
+          . Bilge.json ()
+          . maybe id cookie mbCky
+
+  put req
+    !!! errResponse "invalid-credentials" "Missing access token"
+  put (req . header "Authorization" "xxx")
+    !!! errResponse "invalid-credentials" "Missing access token"
+  put (req . header "Authorization" "Bearer xxx")
+    !!! errResponse "client-error" "invalid: Invalid access token"
+  put (req . header "Authorization" ("Bearer " <> toByteString' tok))
+    !!! errResponse "invalid-credentials" "Invalid token"
   where
-    errResponse withCookie label msg = do
+    errResponse label msg = do
       const 403 === statusCode
       when withCookie $ do
         const (Just label) =~= responseBody
