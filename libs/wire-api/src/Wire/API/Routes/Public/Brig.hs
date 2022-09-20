@@ -384,6 +384,17 @@ type AccountAPI =
         :> ReqBody '[JSON] NewUserPublic
         :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
     )
+    -- This endpoint can lead to the following events being sent:
+    -- UserDeleted event to contacts of deleted user
+    -- MemberLeave event to members for all conversations the user was in (via galley)
+    :<|> Named
+           "verify-delete"
+           ( Summary "Verify account deletion with a code."
+               :> CanThrow 'InvalidCode
+               :> "delete"
+               :> ReqBody '[JSON] VerifyDeleteUser
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Deletion is initiated."] ()
+           )
 
 type PrekeyAPI =
   Named
