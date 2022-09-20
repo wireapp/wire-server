@@ -387,7 +387,6 @@ type AccountAPI =
     -- This endpoint can lead to the following events being sent:
     -- UserDeleted event to contacts of deleted user
     -- MemberLeave event to members for all conversations the user was in (via galley)
-    -- TODO: put delete here, too?
     :<|> Named
            "verify-delete"
            ( Summary "Verify account deletion with a code."
