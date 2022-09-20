@@ -37,6 +37,10 @@ while getopts ':f:m:' opt
      esac
 done
 
+if [ -z "${f}" ] || [ -z "${m}" ]; then
+    usage
+fi
+
 count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
 
 echo "Analysing $count file(s)…"
