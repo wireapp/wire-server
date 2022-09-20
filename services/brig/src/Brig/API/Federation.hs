@@ -19,8 +19,6 @@
 
 module Brig.API.Federation (federationSitemap, FederationAPI) where
 
-import Bilge.IO
-import Bilge.RPC
 import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
@@ -39,9 +37,7 @@ import Brig.IO.Intra (notify)
 import Brig.Types.User.Event
 import Brig.User.API.Handle
 import qualified Brig.User.Search.SearchIndex as Q
-import Cassandra (MonadClient)
 import Control.Error.Util
-import Control.Monad.Catch (MonadMask)
 import Control.Monad.Trans.Except
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
@@ -53,9 +49,9 @@ import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
+import Polysemy.Input
 import Servant (ServerT)
 import Servant.API
-import qualified System.Logger.Class as Log
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
@@ -75,6 +71,7 @@ type FederationAPI = "federation" :> BrigApi
 federationSitemap ::
   Members
     '[ GundeckAccess,
+       Input (Local ()),
        UserHandleStore,
        UserQuery
      ]
@@ -83,7 +80,7 @@ federationSitemap ::
 federationSitemap =
   Named @"api-version" (\_ _ -> pure versionInfo)
     :<|> Named @"get-user-by-handle" getUserByHandle
-    :<|> Named @"get-users-by-ids" (\d us -> wrapHttpClientE $ getUsersByIds d us)
+    :<|> Named @"get-users-by-ids" getUsersByIds
     :<|> Named @"claim-prekey" claimPrekey
     :<|> Named @"claim-prekey-bundle" claimPrekeyBundle
     :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
@@ -111,7 +108,12 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle ::
-  Members '[UserHandleStore] r =>
+  Members
+    '[ Input (Local ()),
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   Domain ->
   Handle ->
   ExceptT Error (AppT r) (Maybe UserProfile)
@@ -131,21 +133,15 @@ getUserByHandle domain handle = do
         Nothing ->
           pure Nothing
         Just ownerId ->
-          listToMaybe <$> wrapHttpClient (API.lookupLocalProfiles Nothing [ownerId])
+          listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
 
 getUsersByIds ::
-  ( MonadClient m,
-    MonadReader Env m,
-    Log.MonadLogger m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
+  Members '[Input (Local ()), UserQuery] r =>
   Domain ->
   [UserId] ->
-  ExceptT Error m [UserProfile]
+  ExceptT Error (AppT r) [UserProfile]
 getUsersByIds _ uids =
-  lift (API.lookupLocalProfiles Nothing uids)
+  lift $ API.lookupLocalProfiles Nothing uids
 
 claimPrekey :: Domain -> (UserId, ClientId) -> (Handler r) (Maybe ClientPrekey)
 claimPrekey _ (user, client) = do
@@ -170,7 +166,12 @@ fedClaimKeyPackages domain ckpr = do
 -- (This decision may change in the future)
 searchUsers ::
   forall r.
-  Members '[UserHandleStore] r =>
+  Members
+    '[ Input (Local ()),
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   Domain ->
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse
@@ -187,7 +188,11 @@ searchUsers domain (SearchRequest searchTerm) = do
   contacts <- go [] maxResults searches
   pure $ SearchResponse contacts searchPolicy
   where
-    go :: [Contact] -> Int -> [Int -> ExceptT Error (AppT r) [Contact]] -> ExceptT Error (AppT r) [Contact]
+    go ::
+      [Contact] ->
+      Int ->
+      [Int -> ExceptT Error (AppT r) [Contact]] ->
+      ExceptT Error (AppT r) [Contact]
     go contacts _ [] = pure contacts
     go contacts maxResult (search : searches) = do
       contactsNew <- search maxResult
@@ -205,7 +210,7 @@ searchUsers domain (SearchRequest searchTerm) = do
         maybeOwnerId <- maybe (pure Nothing) (lift . liftSem . API.lookupHandle) maybeHandle
         case maybeOwnerId of
           Nothing -> pure []
-          Just foundUser -> lift $ contactFromProfile <$$> wrapHttpClient (API.lookupLocalProfiles Nothing [foundUser])
+          Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
       | otherwise = pure []
 
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))

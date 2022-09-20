@@ -90,8 +90,7 @@ module Brig.API.User
   )
 where
 
-import Bilge.IO (Manager, MonadHttp)
-import Bilge.RPC (HasRequestId)
+import Bilge.IO (Manager)
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler, UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
@@ -127,7 +126,6 @@ import Brig.Effects.UserKeyStore (UserKeyStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import qualified Brig.Effects.UserPendingActivationStore as UserPendingActivationStore
 import Brig.Effects.UserQuery (UserQuery)
-import Brig.Effects.UserQuery.Cassandra
 import Brig.Effects.VerificationCodeStore
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
@@ -1588,18 +1586,6 @@ deleteAccount ::
        UserQuery
      ]
     r =>
-  -- ( MonadLogger m,
-  --   MonadCatch m,
-  --   -- MonadThrow m,
-  --   MonadIndexIO m,
-  --   MonadReader Env m,
-  --   MonadIO m,
-  --   MonadMask m,
-  --   MonadHttp m,
-  --   HasRequestId m,
-  --   -- MonadUnliftIO m,
-  --   MonadClient m
-  -- ) =>
   UserAccount ->
   AppT r ()
 deleteAccount account@(accountUser -> user) = do
@@ -1711,16 +1697,10 @@ userGC u = case userExpire u of
     pure u
 
 lookupProfile ::
-  ( MonadClient m,
-    MonadReader Env m,
-    MonadLogger m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
+  Members '[Input (Local ()), UserQuery] r =>
   Local UserId ->
   Qualified UserId ->
-  ExceptT FederationError m (Maybe UserProfile)
+  ExceptT FederationError (AppT r) (Maybe UserProfile)
 lookupProfile self other =
   listToMaybe
     <$> lookupProfilesFromDomain
@@ -1733,36 +1713,37 @@ lookupProfile self other =
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
-  ( MonadUnliftIO m,
-    MonadClient m,
-    MonadReader Env m,
-    MonadLogger m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
+  Members '[Input (Local ()), UserQuery] r =>
+  -- ( MonadUnliftIO m,
+  --   MonadClient m,
+  --   MonadReader Env m,
+  --   MonadLogger m,
+  --   MonadMask m,
+  --   MonadHttp m,
+  --   HasRequestId m
+  -- ) =>
+
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
-  ExceptT FederationError m [UserProfile]
+  ExceptT FederationError (AppT r) [UserProfile]
 lookupProfiles self others =
   concat
-    <$> traverseConcurrentlyWithErrors
+    <$>
+    -- <$> traverseConcurrentlyWithErrors
+    --   (lookupProfilesFromDomain self)
+    --   (bucketQualified others)
+    -- TODO(md): Use an effect with error handling for this
+    traverse
       (lookupProfilesFromDomain self)
       (bucketQualified others)
 
 lookupProfilesFromDomain ::
-  ( MonadClient m,
-    MonadReader Env m,
-    MonadLogger m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
+  Members '[Input (Local ()), UserQuery] r =>
   Local UserId ->
   Qualified [UserId] ->
-  ExceptT FederationError m [UserProfile]
+  ExceptT FederationError (AppT r) [UserProfile]
 lookupProfilesFromDomain self =
   foldQualified
     self
@@ -1770,12 +1751,8 @@ lookupProfilesFromDomain self =
     lookupRemoteProfiles
 
 lookupRemoteProfiles ::
-  ( MonadIO m,
-    MonadReader Env m,
-    MonadLogger m
-  ) =>
   Remote [UserId] ->
-  ExceptT FederationError m [UserProfile]
+  ExceptT FederationError (AppT r) [UserProfile]
 lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
   Federation.getUsersByIds domain uids
 
@@ -1783,30 +1760,23 @@ lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
 -- ids, but it is also very complex. Maybe this can be made easy by extracting a
 -- pure function and writing tests for that.
 lookupLocalProfiles ::
-  forall m.
-  ( MonadClient m,
-    MonadReader Env m,
-    MonadLogger m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
+  forall r.
+  Members '[Input (Local ()), UserQuery] r =>
   -- | This is present only when an authenticated user is requesting access.
   Maybe UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [UserId] ->
-  m [UserProfile]
+  AppT r [UserProfile]
 lookupLocalProfiles requestingUser others = do
   loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
   locale <- setDefaultUserLocale <$> view settings
   users <-
-    runM
-      ( userQueryToCassandra @m @'[Embed m]
-          (Data.lookupUsers loc locale NoPendingInvitations others)
-      )
+    liftSem (Data.lookupUsers loc locale NoPendingInvitations others)
       >>= mapM userGC
   css <- case requestingUser of
-    Just localReqUser -> toMap <$> Data.lookupConnectionStatus (map userId users) [localReqUser]
+    Just localReqUser ->
+      toMap
+        <$> wrapClient (Data.lookupConnectionStatus (map userId users) [localReqUser])
     Nothing -> pure mempty
   emailVisibility' <- view (settings . emailVisibility)
   emailVisibility'' <- case emailVisibility' of
@@ -1821,19 +1791,16 @@ lookupLocalProfiles requestingUser others = do
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
 
-    getSelfInfo :: Local x -> Locale -> UserId -> m (Maybe (TeamId, TeamMember))
+    getSelfInfo :: Local x -> Locale -> UserId -> AppT r (Maybe (TeamId, TeamMember))
     getSelfInfo loc locale selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
       mUser <-
-        runM
-          ( userQueryToCassandra @m @'[Embed m]
-              (Data.lookupUser loc locale NoPendingInvitations selfId)
-          )
+        liftSem (Data.lookupUser loc locale NoPendingInvitations selfId)
       case userTeam =<< mUser of
         Nothing -> pure Nothing
-        Just tid -> (tid,) <$$> Intra.getTeamMember selfId tid
+        Just tid -> (tid,) <$$> wrapHttp (Intra.getTeamMember selfId tid)
 
     toProfile :: EmailVisibility' -> Map UserId Relation -> (User, UserLegalHoldStatus) -> UserProfile
     toProfile emailVisibility'' css (u, userLegalHold) =
@@ -1846,37 +1813,24 @@ lookupLocalProfiles requestingUser others = do
        in baseProfile {profileEmail = profileEmail'}
 
 getLegalHoldStatus ::
-  forall m.
-  ( MonadLogger m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadClient m
-  ) =>
+  Members '[Input (Local ()), UserQuery] r =>
   UserId ->
-  m (Maybe UserLegalHoldStatus)
+  AppT r (Maybe UserLegalHoldStatus)
 getLegalHoldStatus uid = do
   locale <- setDefaultUserLocale <$> view settings
-  locDomain <- qualifyLocal ()
   traverse (getLegalHoldStatus' . accountUser)
-    =<< (runM . userQueryToCassandra @m @'[Embed m] . runInputConst locDomain $ lookupAccount locale uid)
+    =<< liftSem (lookupAccount locale uid)
 
 getLegalHoldStatus' ::
-  ( MonadLogger m,
-    MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
+  forall r.
+  Members '[Input (Local ()), UserQuery] r =>
   User ->
-  m UserLegalHoldStatus
+  AppT r UserLegalHoldStatus
 getLegalHoldStatus' user =
   case userTeam user of
     Nothing -> pure defUserLegalHoldStatus
     Just tid -> do
-      teamMember <- Intra.getTeamMember (userId user) tid
+      teamMember <- wrapHttp $ Intra.getTeamMember (userId user) tid
       pure $ maybe defUserLegalHoldStatus (^. legalHoldStatus) teamMember
 
 data EmailVisibility'

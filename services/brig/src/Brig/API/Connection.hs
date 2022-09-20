@@ -54,6 +54,7 @@ import Data.Range
 import qualified Data.UUID.V4 as UUID
 import Imports
 import Polysemy
+import Polysemy.Input
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
@@ -78,7 +79,12 @@ ensureNotSameTeam self target = do
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
-  Members '[GundeckAccess, UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       GundeckAccess,
+       UserQuery
+     ]
+    r =>
   Local UserId ->
   ConnId ->
   Qualified UserId ->
@@ -99,7 +105,12 @@ createConnection self con target = do
 
 createConnectionToLocalUser ::
   forall r.
-  Members '[GundeckAccess, UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       GundeckAccess,
+       UserQuery
+     ]
+    r =>
   Local UserId ->
   ConnId ->
   Local UserId ->
@@ -187,15 +198,19 @@ createConnectionToLocalUser self conn target = do
 --
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
-checkLegalholdPolicyConflict :: UserId -> UserId -> ExceptT ConnectionError (AppT r) ()
+checkLegalholdPolicyConflict ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  UserId ->
+  ExceptT ConnectionError (AppT r) ()
 checkLegalholdPolicyConflict uid1 uid2 = do
   let catchProfileNotFound =
         -- Does not fit into 'ExceptT', so throw in '(AppT r)'.  Anyway at the time of writing
         -- this, users are guaranteed to exist when called from 'createConnectionToLocalUser'.
         maybe (throwM (errorToWai @'E.UserNotFound)) pure
 
-  status1 <- lift (wrapHttpClient $ getLegalHoldStatus uid1) >>= catchProfileNotFound
-  status2 <- lift (wrapHttpClient $ getLegalHoldStatus uid2) >>= catchProfileNotFound
+  status1 <- lift (getLegalHoldStatus uid1) >>= catchProfileNotFound
+  status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound
 
   let oneway s1 s2 = case (s1, s2) of
         (LH.UserLegalHoldNoConsent, LH.UserLegalHoldNoConsent) -> pure ()

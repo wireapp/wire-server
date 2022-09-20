@@ -846,19 +846,32 @@ getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorToWai @'E.UserNotFound)
 
-getUserUnqualifiedH :: UserId -> UserId -> (Handler r) (Maybe Public.UserProfile)
+getUserUnqualifiedH ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  UserId ->
+  Handler r (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
   getUser self (Qualified uid domain)
 
-getUser :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserProfile)
+getUser ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  Qualified UserId ->
+  Handler r (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
   lself <- qualifyLocal self
-  wrapHttpClientE $ API.lookupProfile lself qualifiedUserId !>> fedError
+  API.lookupProfile lself qualifiedUserId !>> fedError
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  Members '[UserHandleStore] r =>
+  Members
+    '[ Input (Local ()),
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
   Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
@@ -880,7 +893,12 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
 
 listUsersByIdsOrHandles ::
   forall r.
-  Members '[UserHandleStore] r =>
+  Members
+    '[ Input (Local ()),
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   Public.ListUsersQuery ->
   Handler r [Public.UserProfile]
@@ -903,7 +921,7 @@ listUsersByIdsOrHandles self q = do
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
-    byIds lself uids = wrapHttpClientE (API.lookupProfiles lself uids) !>> fedError
+    byIds lself uids = API.lookupProfiles lself uids !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
@@ -1026,7 +1044,12 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  Members '[UserHandleStore] r =>
+  Members
+    '[ Input (Local ()),
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   Handle ->
   Handler r (Maybe Public.UserHandleInfo)
@@ -1155,7 +1178,12 @@ customerExtensionCheckBlockedDomains email = do
           throwM $ customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  Members '[GundeckAccess, UserQuery] r =>
+  Members
+    '[ GundeckAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   Public.ConnectionRequest ->
@@ -1166,7 +1194,12 @@ createConnectionUnqualified self conn cr = do
   API.createConnection lself conn (qUntagged target) !>> connError
 
 createConnection ::
-  Members '[GundeckAccess, UserQuery] r =>
+  Members
+    '[ GundeckAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   Qualified UserId ->

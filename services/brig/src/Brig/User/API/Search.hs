@@ -27,6 +27,7 @@ import Brig.API.Handler
 import Brig.App
 import qualified Brig.Data.User as DB
 import Brig.Effects.UserHandleStore
+import Brig.Effects.UserQuery
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
@@ -41,12 +42,14 @@ import Data.Domain (Domain)
 import Data.Handle (parseHandle)
 import Data.Id
 import Data.Predicate
+import Data.Qualified
 import Data.Range
 import Imports
 import Network.Wai.Routing
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Response (empty)
 import Polysemy
+import Polysemy.Input
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
@@ -85,7 +88,12 @@ routesInternal = do
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
 search ::
-  Members '[UserHandleStore] r =>
+  Members
+    '[ Input (Local ()),
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   Text ->
   Maybe Domain ->
@@ -118,7 +126,12 @@ searchRemotely domain searchTerm = do
 
 searchLocally ::
   forall r.
-  Members '[UserHandleStore] r =>
+  Members
+    '[ Input (Local ()),
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   Text ->
   Maybe (Range 1 500 Int32) ->
