@@ -91,6 +91,7 @@ run o = do
   void $ installHandler sigTERM (signalHandler (env e) tid) Nothing
   void $ installHandler sigINT (signalHandler (env e) tid) Nothing
   runSettings s app `finally` do
+    writeFile "/tmp/x1" "asdfasdf"
     Async.cancel refreshMetricsThread
     L.close (applog e)
   where
@@ -106,6 +107,7 @@ run o = do
 
 signalHandler :: Env -> ThreadId -> Signals.Handler
 signalHandler e mainThread = CatchOnce $ do
+  writeFile "/tmp/x2" "asdfasdf"
   runWS e drain
   throwTo mainThread SignalledToExit
 
