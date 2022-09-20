@@ -133,7 +133,7 @@ file.
 
    # This configuration switches to use memory instead of disk for metrics services
    # NOTE: If the pods are killed you WILL lose all your metrics history
-   prometheus-operator:
+   kube-prometheus-stack:
      grafana:
        persistence:
          enabled: false
@@ -160,7 +160,7 @@ file.
 
 .. code:: yaml
 
-   prometheus-operator:
+   kube-prometheus-stack:
      grafana:
        persistence:
          storageClassName: "<my-storage-class>"
