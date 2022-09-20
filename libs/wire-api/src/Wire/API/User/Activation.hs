@@ -160,7 +160,9 @@ instance ToSchema Activate where
       codeDocs = description ?~ "The activation code."
       dryrunDocs =
         description
-          ?~ "Whether to perform a dryrun, i.e. to only check whether \
+          ?~ "At least one of key, email, or phone has to be present \
+             \while key takes precedence over email, and email takes precedence over phone. \
+             \Whether to perform a dryrun, i.e. to only check whether \
              \activation would succeed. Dry-runs never issue access \
              \cookies or tokens on success but failures still count \
              \towards the maximum failure count."
