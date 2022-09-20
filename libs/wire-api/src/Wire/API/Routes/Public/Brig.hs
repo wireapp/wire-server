@@ -461,8 +461,8 @@ type AccountAPI =
     :<|> Named
            "post-password-reset"
            ( Summary "Initiate a password reset."
-               :> CanThrow 'InvalidPwResetKey
-               :> CanThrow 'DuplicatePwResetCode
+               :> CanThrow 'PasswordResetInProgress
+               :> CanThrow 'InvalidPasswordResetKey
                :> "password-reset"
                :> ReqBody '[JSON] NewPasswordReset
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 201 "Password reset code created and sent by email."] ()

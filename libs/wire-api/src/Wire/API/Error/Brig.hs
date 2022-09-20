@@ -67,8 +67,10 @@ data BrigError
   | KeyPackageDecodingError
   | InvalidKeyPackageRef
   | CustomerExtensionBlockedDomain
-  | InvalidPwResetKey
-  | DuplicatePwResetCode
+  | PasswordResetInProgress
+  | InvalidPasswordResetKey
+  | InvalidPasswordResetCode
+  | ResetPasswordMustDiffer
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -191,6 +193,10 @@ type instance
       \that you are attempting to register a user with has been \
       \blocked for creating wire users.  Please contact your IT department."
 
-type instance MapError 'InvalidPwResetKey = 'StaticError 400 "invalid-key" "Invalid email or mobile number for password reset."
+type instance MapError 'PasswordResetInProgress = 'StaticError 409 "code-exists" "A password reset is already in progress."
 
-type instance MapError 'DuplicatePwResetCode = 'StaticError 409 "code-exists" "A password reset is already in progress."
+type instance MapError 'InvalidPasswordResetKey = 'StaticError 400 "invalid-key" "Invalid email or mobile number for password reset."
+
+type instance MapError 'InvalidPasswordResetCode = 'StaticError 400 "invalid-code" "Invalid password reset code."
+
+type instance MapError 'ResetPasswordMustDiffer = 'StaticError 409 "password-must-differ" "For password reset, new and old password must be different."
