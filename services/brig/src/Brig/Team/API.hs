@@ -432,10 +432,8 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   -- Validate phone
   inviteePhone <- for (irInviteePhone body) $ \p -> do
-    c <- view twilioCreds
-    m <- view httpManager
     validatedPhone <-
-      maybe (throwStd (errorToWai @'E.InvalidPhone)) pure =<< lift (liftSem $ Phone.validatePhone c m p)
+      maybe (throwStd (errorToWai @'E.InvalidPhone)) pure =<< lift (liftSem $ Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ liftSem $ BlacklistStore.exists ukp
     when blacklistedPh $

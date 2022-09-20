@@ -90,7 +90,6 @@ module Brig.API.User
   )
 where
 
-import Bilge.IO (Manager)
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler, UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
@@ -449,14 +448,12 @@ createUser new = do
           pure
           (validateEmail e)
 
-      c <- view twilioCreds
-      m <- view httpManager
       -- Validate phone
       phone <- for (newUserPhone newUser) $ \p ->
         maybe
           (throwE RegisterErrorInvalidPhone)
           pure
-          =<< lift (liftSem $ validatePhone c m p)
+          =<< lift (liftSem $ validatePhone p)
 
       for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
@@ -887,13 +884,11 @@ changePhone ::
   Phone ->
   ExceptT ChangePhoneError (AppT r) (Activation, Phone)
 changePhone u phone = do
-  c <- view twilioCreds
-  m <- view httpManager
   canonical <-
     maybe
       (throwE InvalidNewPhone)
       pure
-      =<< lift (liftSem $ validatePhone c m phone)
+      =<< lift (liftSem $ validatePhone phone)
   let pk = userPhoneKey canonical
   available <- lift . liftSem $ Data.keyAvailable pk (Just u)
   unless available $
@@ -1121,9 +1116,7 @@ activateWithCurrency ::
   Maybe Currency.Alpha ->
   ExceptT ActivationError (AppT r) ActivationResult
 activateWithCurrency tgt code usr cur = do
-  tc <- view twilioCreds
-  m <- view httpManager
-  key <- liftSemE $ mkActivationKey tgt tc m
+  key <- liftSemE $ mkActivationKey tgt
   lift . Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
@@ -1154,11 +1147,9 @@ preverify ::
     r =>
   ActivationTarget ->
   ActivationCode ->
-  Twilio.Credentials ->
-  Manager ->
   ExceptT ActivationError (Sem r) ()
-preverify tgt code creds m = do
-  key <- mkActivationKey tgt creds m
+preverify tgt code = do
+  key <- mkActivationKey tgt
   void $ Data.verifyCode key code
 
 onActivated ::
@@ -1224,13 +1215,11 @@ sendActivationCode emailOrPhone loc call = do
         Just (Just uid, c) -> sendActivationEmail timeout ek c uid -- User re-requesting activation
     Right phone -> do
       -- validatePhone returns the canonical E.164 phone number format
-      creds <- view twilioCreds
-      m <- view httpManager
       canonical <-
         maybe
           (throwE $ InvalidRecipient (userPhoneKey phone))
           pure
-          =<< lift (liftSem $ validatePhone creds m phone)
+          =<< lift (liftSem $ validatePhone phone)
       let pk = userPhoneKey canonical
       exists <- lift $ isJust <$> liftSem (Data.getKey pk)
       when exists $
@@ -1297,23 +1286,21 @@ mkActivationKey ::
      ]
     r =>
   ActivationTarget ->
-  Twilio.Credentials ->
-  Manager ->
   ExceptT ActivationError (Sem r) ActivationKey
-mkActivationKey (ActivateKey k) _c _m = pure k
-mkActivationKey (ActivateEmail e) _c _m = do
+mkActivationKey (ActivateKey k) = pure k
+mkActivationKey (ActivateEmail e) = do
   ek <-
     either
       (throwE . InvalidActivationEmail e)
       (pure . userEmailKey)
       (validateEmail e)
   lift $ Data.makeActivationKey ek
-mkActivationKey (ActivatePhone p) c m = do
+mkActivationKey (ActivatePhone p) = do
   pk <-
     maybe
       (throwE $ InvalidActivationPhone p)
       (pure . userPhoneKey)
-      =<< lift (validatePhone c m p)
+      =<< lift (validatePhone p)
   lift $ Data.makeActivationKey pk
 
 -------------------------------------------------------------------------------

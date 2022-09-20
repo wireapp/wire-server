@@ -18,7 +18,9 @@
 module Brig.Effects.Twilio.IO (twilioToIO) where
 
 import Bilge.Retry
+import Brig.App
 import Brig.Effects.Twilio
+import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
 import Imports
@@ -26,14 +28,16 @@ import Polysemy
 import qualified Ropes.Twilio as Ropes
 
 twilioToIO ::
-  forall r a.
-  Member (Embed IO) r =>
+  forall m r a.
+  (Member (Embed m) r, MonadReader Env m, MonadIO m) =>
   Sem (Twilio ': r) a ->
   Sem r a
 twilioToIO =
   interpret $
-    embed @IO . \case
-      LookupPhone cred m txt detail code ->
+    embed @m . \case
+      LookupPhone txt detail code -> do
+        cred <- view twilioCreds
+        m <- view httpManager
         liftIO . try @_ @Ropes.ErrorResponse $
           recovering x3 httpHandlers $
             const $ Ropes.lookupPhone cred m txt detail code

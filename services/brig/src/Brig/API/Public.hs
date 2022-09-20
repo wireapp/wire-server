@@ -1437,9 +1437,7 @@ activate ::
   Handler r ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
-    tc <- view twilioCreds
-    m <- view httpManager
-    liftSemE (API.preverify tgt code tc m) !>> actError
+    liftSemE (API.preverify tgt code) !>> actError
     pure ActivationRespDryRun
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError

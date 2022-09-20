@@ -208,14 +208,12 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
 -- E.164 format of the given phone number on success.
 validatePhone ::
   Members '[P.Error Twilio.ErrorResponse, Twilio] r =>
-  Twilio.Credentials ->
-  Manager ->
   Phone ->
   Sem r (Maybe Phone)
-validatePhone c m (Phone p)
+validatePhone (Phone p)
   | isTestPhone p = pure (Just (Phone p))
   | otherwise = do
-    lookupPhone c m p LookupNoDetail Nothing >>= \case
+    lookupPhone p LookupNoDetail Nothing >>= \case
       Right x -> pure (Just (Phone (Twilio.lookupE164 x)))
       Left e | Twilio.errStatus e == 404 -> pure Nothing
       Left e -> P.throw e

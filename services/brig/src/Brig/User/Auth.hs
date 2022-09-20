@@ -36,7 +36,6 @@ module Brig.User.Auth
   )
 where
 
-import Bilge.IO
 import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
@@ -115,13 +114,11 @@ sendLoginCode ::
   Bool ->
   ExceptT SendLoginCodeError (AppT r) PendingLoginCode
 sendLoginCode phone call force = do
-  creds <- view twilioCreds
-  m <- view httpManager
   pk <-
     maybe
       (throwE $ SendLoginInvalidPhone phone)
       (pure . userPhoneKey)
-      =<< lift (liftSem $ validatePhone creds m phone)
+      =<< lift (liftSem $ validatePhone phone)
   user <- lift . liftSem $ Data.getKey pk
   case user of
     Nothing -> throwE $ SendLoginInvalidPhone phone
@@ -178,9 +175,7 @@ login ::
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
 login (PasswordLogin li pw label code) typ = do
-  c <- view twilioCreds
-  man <- view httpManager
-  uid <- resolveLoginId c man li
+  uid <- resolveLoginId li
   lift . liftSem . P.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
   liftSemE . semErrToExceptT $ checkRetryLimit uid mLimitFailedLogins
@@ -206,9 +201,7 @@ login (PasswordLogin li pw label code) typ = do
           VerificationCodeRequired -> liftSemE . semErrToExceptT $ loginFailedWith LoginCodeRequired uid mLimitFailedLogins
           VerificationCodeNoEmail -> liftSemE . semErrToExceptT $ loginFailed uid mLimitFailedLogins
 login (SmsLogin phone code label) typ = do
-  c <- view twilioCreds
-  man <- view httpManager
-  uid <- resolveLoginId c man (LoginByPhone phone)
+  uid <- resolveLoginId (LoginByPhone phone)
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
   e <- lift . liftSem . runError $ checkRetryLimit uid mLimitFailedLogins
@@ -416,13 +409,11 @@ resolveLoginId ::
        Twilio
      ]
     r =>
-  Twilio.Credentials ->
-  Manager ->
   LoginId ->
   ExceptT LoginError (AppT r) UserId
-resolveLoginId c m li = do
+resolveLoginId li = do
   usr <-
-    liftSemE (validateLoginId c m li)
+    liftSemE (validateLoginId li)
       >>= lift
         . either
           (liftSem . getKey)
@@ -438,21 +429,19 @@ resolveLoginId c m li = do
 
 validateLoginId ::
   Members '[P.Error Twilio.ErrorResponse, Twilio] r =>
-  Twilio.Credentials ->
-  Manager ->
   LoginId ->
   ExceptT LoginError (Sem r) (Either UserKey Handle)
-validateLoginId _ _ (LoginByEmail email) =
+validateLoginId (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)
     (pure . Left . userEmailKey)
     (validateEmail email)
-validateLoginId c m (LoginByPhone phone) =
+validateLoginId (LoginByPhone phone) =
   maybe
     (throwE LoginFailed)
     (pure . Left . userPhoneKey)
-    =<< lift (validatePhone c m phone)
-validateLoginId _ _ (LoginByHandle h) =
+    =<< lift (validatePhone phone)
+validateLoginId (LoginByHandle h) =
   pure (Right h)
 
 isPendingActivation :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> m Bool

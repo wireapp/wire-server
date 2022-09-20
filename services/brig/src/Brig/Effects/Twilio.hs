@@ -21,14 +21,11 @@ module Brig.Effects.Twilio where
 
 import Data.ISO3166_CountryCodes
 import Imports
-import Network.HTTP.Client
 import Polysemy
 import Ropes.Twilio
 
 data Twilio m a where
   LookupPhone ::
-    Credentials ->
-    Manager ->
     Text ->
     LookupDetail ->
     Maybe CountryCode ->
