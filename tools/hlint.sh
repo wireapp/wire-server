@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 usage() { echo "Usage: $0 -f [all, changeset] -m [check, inplace]" 1>&2; exit 1; }
 
 files=''
@@ -47,7 +49,7 @@ for f in $files
 do
   echo "$f"
   if [ $check = true ]; then
-    hlint "$f" | grep -v 'No hints'
+    hlint --no-summary "$f"
   else
     hlint --refactor --refactor-options="--inplace" "$f"
   fi
