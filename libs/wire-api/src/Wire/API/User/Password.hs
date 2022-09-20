@@ -61,16 +61,16 @@ instance Schema.ToSchema NewPasswordReset where
   schema =
     Schema.objectWithDocModifier "NewPasswordReset" objectDesc $
       NewPasswordReset
-        <$> (toTuple . getNewPasswordReset) Schema..= newPasswordResetObjectSchema
+        <$> (toTuple . unNewPasswordReset) Schema..= newPasswordResetObjectSchema
     where
-      getNewPasswordReset :: NewPasswordReset -> Either Email Phone
-      getNewPasswordReset (NewPasswordReset v) = v
+      unNewPasswordReset :: NewPasswordReset -> Either Email Phone
+      unNewPasswordReset (NewPasswordReset v) = v
 
       objectDesc :: Schema.NamedSwaggerDoc -> Schema.NamedSwaggerDoc
       objectDesc = Schema.description ?~ "Data to initiate a password reset"
 
       newPasswordResetObjectSchema :: Schema.ObjectSchemaP Schema.SwaggerDoc (Maybe Email, Maybe Phone) (Either Email Phone)
-      newPasswordResetObjectSchema = Schema.withParser newPasswordResetTupleObjectSchema maybeNewPasswordResetFromTuple
+      newPasswordResetObjectSchema = Schema.withParser newPasswordResetTupleObjectSchema fromTuple
         where
           newPasswordResetTupleObjectSchema :: Schema.ObjectSchema Schema.SwaggerDoc (Maybe Email, Maybe Phone)
           newPasswordResetTupleObjectSchema =
@@ -84,12 +84,12 @@ instance Schema.ToSchema NewPasswordReset where
               phoneDocs :: Schema.NamedSwaggerDoc -> Schema.NamedSwaggerDoc
               phoneDocs = Schema.description ?~ "Phone"
 
-          maybeNewPasswordResetFromTuple :: (Maybe Email, Maybe Phone) -> Parser (Either Email Phone)
-          maybeNewPasswordResetFromTuple = \case
-            (Just _, Just _) -> fail "Only one of 'email' or 'phone' allowed."
-            (Just email, Nothing) -> pure $ Left email
-            (Nothing, Just phone) -> pure $ Right phone
-            (Nothing, Nothing) -> fail "One of 'email' or 'phone' required."
+      fromTuple :: (Maybe Email, Maybe Phone) -> Parser (Either Email Phone)
+      fromTuple = \case
+        (Just _, Just _) -> fail "Only one of 'email' or 'phone' allowed."
+        (Just email, Nothing) -> pure $ Left email
+        (Nothing, Just phone) -> pure $ Right phone
+        (Nothing, Nothing) -> fail "One of 'email' or 'phone' required."
 
       toTuple :: Either Email Phone -> (Maybe Email, Maybe Phone)
       toTuple = \case
