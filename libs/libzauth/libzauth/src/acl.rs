@@ -15,31 +15,34 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::HashMap;
 use asexp::Sexp;
-use tree::Tree;
+use matcher::Matcher;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    Parse(&'static str)
+    Parse(&'static str),
 }
 
 pub type AclResult<A> = Result<A, Error>;
 
 #[derive(Debug, Clone)]
 pub struct Acl {
-    acl: HashMap<String, List>
+    acl: HashMap<String, List>,
 }
 
 impl Acl {
     pub fn new() -> Acl {
-        Acl { acl: HashMap::new() }
+        Acl {
+            acl: HashMap::new(),
+        }
     }
 
     pub fn from_str(s: &str) -> AclResult<Acl> {
-        match Sexp::parse_toplevel(s) {
-            Err(())  => Err(Error::Parse("invalid s-expressions")),
-            Ok(sexp) => Acl::from_sexp(&sexp)
+        let sexp = Sexp::parse_toplevel(s);
+        match sexp {
+            Err(()) => Err(Error::Parse("invalid s-expressions")),
+            Ok(sexp) => Acl::from_sexp(&sexp),
         }
     }
 
@@ -51,31 +54,30 @@ impl Acl {
                     if let Some(k) = key.get_str().map(String::from) {
                         acl.insert(k, List::from_sexp(&list)?);
                     } else {
-                        return Err(Error::Parse("not a string"))
+                        return Err(Error::Parse("not a string"));
                     }
                 }
                 Ok(Acl { acl })
             }
-            _ => Err(Error::Parse("expected key and values"))
+            _ => Err(Error::Parse("expected key and values")),
         }
     }
 
     pub fn allowed(&self, key: &str, path: &str) -> bool {
-        self.acl.get(key).map(|list| {
-            match *list {
-                List::Black(Some(ref t)) => !t.contains(path),
-                List::Black(None)        =>  true,
-                List::White(Some(ref t)) =>  t.contains(path),
-                List::White(None)        =>  false
-            }
-        }).unwrap_or(false)
+        self.acl
+            .get(key)
+            .map(|list| match *list {
+                List::Black(ref t) => !t.contains(path),
+                List::White(ref t) => t.contains(path),
+            })
+            .unwrap_or(false)
     }
 }
 
 #[derive(Debug, Clone)]
 enum List {
-    Black(Option<Tree>),
-    White(Option<Tree>)
+    Black(Matcher),
+    White(Matcher),
 }
 
 impl List {
@@ -83,39 +85,24 @@ impl List {
         let items = match *s {
             Sexp::Tuple(ref a) => a.as_slice(),
             Sexp::Array(ref a) => a.as_slice(),
-            _                  => return Err(Error::Parse("s-expr not a list"))
+            _ => return Err(Error::Parse("s-expr not a list")),
         };
 
         if items.is_empty() {
-            return Err(Error::Parse("list is empty"))
+            return Err(Error::Parse("list is empty"));
         }
 
         match items[0].get_str() {
-            Some("blacklist") => List::items(&items[1 ..]).map(List::Black),
-            Some("whitelist") => List::items(&items[1 ..]).map(List::White),
-            _                 => Err(Error::Parse("'blacklist' or 'whitelist' expected"))
+            Some("blacklist") => List::items(&items[1..]).map(List::Black),
+            Some("whitelist") => List::items(&items[1..]).map(List::White),
+            _ => Err(Error::Parse("'blacklist' or 'whitelist' expected")),
         }
     }
 
-    fn items(xs: &[Sexp]) -> AclResult<Option<Tree>> {
-        match xs.len() {
-            0                          => Ok(None),
-            1 if List::is_unit(&xs[0]) => Ok(None),
-            _ => {
-                let mut t = Tree::new();
-                for x in xs {
-                    t.add(&List::read_path(x)?)
-                }
-                Ok(Some(t))
-            }
-        }
-    }
-
-    fn is_unit(s: &Sexp) -> bool {
-        match *s {
-            Sexp::Tuple(ref a) if a.is_empty() => true,
-            _                                  => false
-        }
+    fn items(xs: &[Sexp]) -> AclResult<Matcher> {
+        let items: AclResult<Vec<_>> = xs.iter().map(List::read_path).collect();
+        let m = Matcher::new(&items?);
+        Ok(m)
     }
 
     fn read_path(s: &Sexp) -> AclResult<String> {
@@ -123,10 +110,10 @@ impl List {
             Sexp::Tuple(ref a) | Sexp::Array(ref a) if a.len() == 2 => {
                 match (a[0].get_str(), a[1].get_str()) {
                     (Some("path"), Some(x)) => Ok(String::from(x)),
-                    _                       => Err(Error::Parse("'path' not found"))
+                    _ => Err(Error::Parse("'path' not found")),
                 }
             }
-            _ => return Err(Error::Parse("s-expr not a list"))
+            _ => return Err(Error::Parse("s-expr not a list")),
         }
     }
 }
@@ -149,9 +136,9 @@ mod tests {
         # this is a comment that should not lead to a parse failure.
         la (whitelist (path "/legalhold/**"))
 
-        x (blacklist ())
+        x (blacklist)
 
-        y (whitelist ())
+        y (whitelist)
         "#;
 
     #[test]

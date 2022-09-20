@@ -11,6 +11,8 @@ name = "zauth"
 asexp           = ">= 0.3"
 rustc-serialize = ">= 0.3"
 sodiumoxide     = "^0.2.7"
+regex           = "1.6"
+lazy_static     = "1.4"
 
 [dev-dependencies]
 clap = ">= 2.0"
