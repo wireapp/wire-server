@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.MLS.Message
   ( postMLSCommitBundle,
@@ -858,7 +857,8 @@ processProposal qusr conv msg prop = do
 
 checkExternalProposalSignature ::
   Members
-    '[ ErrorS 'MLSUnsupportedProposal
+    '[ BrigAccess,
+       ErrorS 'MLSUnsupportedProposal
      ]
     r =>
   CipherSuiteTag ->
@@ -868,14 +868,31 @@ checkExternalProposalSignature ::
 checkExternalProposalSignature csTag msg prop = case rmValue prop of
   AddProposal kp -> do
     let pubKey = bcSignatureKey . kpCredential $ rmValue kp
-    unless (verifyMessageSignature csTag msg pubKey) $ throwS @'MLSUnsupportedProposal
-  _ -> pure () -- FUTUREWORK: check signature of other proposals as well
+    unless (verifyMessageSignature csTag msg pubKey) throwUnsupported
+  RemoveProposal ref -> do
+    ciM <- getClientByKeyPackageRef ref
+    maybe throwUnsupported f ciM
+  _ -> pure ()
+  where
+    throwUnsupported = throwS @'MLSUnsupportedProposal
+
+    f ci = do
+      UserClientsFull clientsFull <- lookupClientsFull [ciUser ci]
+      for_ clientsFull $ \clients' ->
+        maybe throwUnsupported f2 (find (\c -> clientId c == ciClient ci) clients')
+
+    f2 client =
+      let pubKeyMap = clientMLSPublicKeys client
+       in case Map.lookup (csSignatureScheme csTag) pubKeyMap of
+            Nothing -> throwUnsupported
+            Just pubKey ->
+              unless (verifyMessageSignature csTag msg pubKey) throwUnsupported
 
 isExternalProposal :: Message 'MLSPlainText -> Bool
 isExternalProposal msg = case msgSender msg of
   NewMemberSender -> True
   PreconfiguredSender _ -> True
-  _ -> False
+  MemberSender _ -> False
 
 -- check owner/subject of the key package exists and belongs to the user
 checkExternalProposalUser ::
@@ -1027,8 +1044,7 @@ executeProposalAction qusr con lconv cm action = do
 
     existingLocalMembers :: Set (Qualified UserId)
     existingLocalMembers =
-      Set.fromList . map (fmap lmId . qUntagged) . sequenceA $
-        fmap convLocalMembers lconv
+      (Set.fromList . map (fmap lmId . qUntagged)) (traverse convLocalMembers lconv)
 
     existingRemoteMembers :: Set (Qualified UserId)
     existingRemoteMembers =
