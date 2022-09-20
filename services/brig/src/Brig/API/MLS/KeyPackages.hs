@@ -124,7 +124,7 @@ claimRemoteKeyPackages lusr target = do
       . throwE
       . clientDataError
       $ InvalidKeyPackageRef
-    wrapClientE $ Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
+    wrapClientE $ Data.mapKeyPackageRef (kpbeRef e) (kpbeKeyPackage e) (kpbeUser e) (kpbeClient e)
 
   pure bundle
   where

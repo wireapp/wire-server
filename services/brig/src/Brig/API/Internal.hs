@@ -242,7 +242,7 @@ mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do
   wrapClientE $
     for_ (kpbEntries bundle) $ \e ->
-      Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
+      Data.mapKeyPackageRef (kpbeRef e) (kpbeKeyPackage e) (kpbeUser e) (kpbeClient e)
 
 getVerificationCode :: UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = do

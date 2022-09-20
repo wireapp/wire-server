@@ -79,7 +79,7 @@ claimKeyPackage u c = do
     for mk $ \(ref, kpd) -> do
       retry x5 $ write deleteByRef (params LocalQuorum (tUnqualified u, c, ref))
       pure (ref, kpd)
-  lift $ mapKeyPackageRef ref (qUntagged u) c
+  lift $ mapKeyPackageRef ref kpd (qUntagged u) c
   pure (ref, kpd)
   where
     deleteByRef :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
@@ -133,12 +133,12 @@ getNonClaimedKeyPackages u c = do
           either (const True) (const False) . validateLifetime' now mMaxLifetime $ lt
 
 -- | Add key package ref to mapping table.
-mapKeyPackageRef :: MonadClient m => KeyPackageRef -> Qualified UserId -> ClientId -> m ()
-mapKeyPackageRef ref u c =
-  write insertQuery (params LocalQuorum (ref, qDomain u, qUnqualified u, c))
+mapKeyPackageRef :: MonadClient m => KeyPackageRef -> KeyPackageData -> Qualified UserId -> ClientId -> m ()
+mapKeyPackageRef ref raw u c =
+  write insertQuery (params LocalQuorum (ref, raw, qDomain u, qUnqualified u, c))
   where
-    insertQuery :: PrepQuery W (KeyPackageRef, Domain, UserId, ClientId) ()
-    insertQuery = "INSERT INTO mls_key_package_refs (ref, domain, user, client) VALUES (?, ?, ?, ?)"
+    insertQuery :: PrepQuery W (KeyPackageRef, KeyPackageData, Domain, UserId, ClientId) ()
+    insertQuery = "INSERT INTO mls_key_package_refs (ref, data, domain, user, client) VALUES (?, ?, ?, ?, ?)"
 
 countKeyPackages ::
   ( MonadReader Env m,
