@@ -674,8 +674,14 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
             case senderClient of
               Just cli -> pure $ updateKeyPackageMapping lconv qusr cli (Just senderRef) updatedRef
               Nothing -> pure $ pure ()
+          (sender', Just updatedKeyPackage) -> do
+            _updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
+            let _csTag = csSignatureScheme <$> (cipherSuiteTag . kpuCipherSuite . rmValue . kpTBS . rmValue $ updatedKeyPackage)
+            case sender' of
+              PreconfiguredSender _ref -> pure . pure $ () -- checkExternalProposalSignature csTag msg
+              NewMemberSender -> pure . pure $ ()
+              _ -> throw (mlsProtocolError "Unexpected sender")
           (_, Nothing) -> pure $ pure () -- ignore commits without update path
-          _ -> throw (mlsProtocolError "Unexpected sender")
 
     -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposals groupId epoch
