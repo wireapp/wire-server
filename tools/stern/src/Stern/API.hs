@@ -28,6 +28,7 @@ where
 
 import Brig.Types.Intra
 import Control.Error
+import Control.Exception (finally)
 import Control.Lens ((^.))
 import Data.Aeson hiding (Error, json)
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -49,7 +50,6 @@ import qualified Galley.Types.Teams.Intra as Team
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Handler.Warp
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Predicate hiding (Error, reason, setStatus)
 import Network.Wai.Routing hiding (trace)
@@ -78,7 +78,7 @@ start :: Opts -> IO ()
 start o = do
   e <- newEnv o
   s <- Server.newSettings (server e)
-  runSettings s (pipeline e)
+  Server.runSettingsWithShutdown s (pipeline e) 5 `finally` pure () -- nothing to clean up?
   where
     server e = Server.defaultServer (unpack $ stern o ^. epHost) (stern o ^. epPort) (e ^. applog) (e ^. metrics)
     pipeline e = GZip.gzip GZip.def $ serve e
