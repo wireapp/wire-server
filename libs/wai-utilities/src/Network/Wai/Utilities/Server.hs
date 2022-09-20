@@ -122,6 +122,8 @@ newSettings (Server h p l m t) = do
 -- on receiving either the INT or TERM signals. After closing
 -- the listen socket, Warp will be allowed to drain existing
 -- connections up to the given number of seconds.
+--
+-- See also: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/7681
 runSettingsWithShutdown :: Settings -> Application -> Word16 -> IO ()
 runSettingsWithShutdown s app secs = do
   initialization
