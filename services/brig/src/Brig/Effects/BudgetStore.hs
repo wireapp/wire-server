@@ -67,18 +67,18 @@ withBudget k b ma = do
   Budget ttl val <- fromMaybe b <$> lookupBudget k
   let remaining = val - 1
   if remaining < 0
-    then return (BudgetExhausted ttl)
+    then pure (BudgetExhausted ttl)
     else do
       a <- ma
       insertBudget k (Budget ttl remaining)
-      return (BudgetedValue a remaining)
+      pure (BudgetedValue a remaining)
 
 -- | Like 'withBudget', but does not decrease budget, only takes a look.
 checkBudget :: Member BudgetStore r => BudgetKey -> Budget -> Sem r (Budgeted ())
 checkBudget k b = do
   Budget ttl val <- fromMaybe b <$> lookupBudget k
   let remaining = val - 1
-  return $
+  pure $
     if remaining < 0
       then BudgetExhausted ttl
       else BudgetedValue () remaining
