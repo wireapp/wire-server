@@ -16,7 +16,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use asexp::Sexp;
-use matcher::Matcher;
+use matcher::{Item, Matcher};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -105,11 +105,14 @@ impl List {
         Ok(m)
     }
 
-    fn read_path(s: &Sexp) -> AclResult<String> {
+    fn read_path(s: &Sexp) -> AclResult<Item> {
         match *s {
             Sexp::Tuple(ref a) | Sexp::Array(ref a) if a.len() == 2 => {
                 match (a[0].get_str(), a[1].get_str()) {
-                    (Some("path"), Some(x)) => Ok(String::from(x)),
+                    (Some("path"), Some(x)) => Ok(Item::Str(String::from(x))),
+                    (Some("regex"), Some(x)) => {
+                        Ok(Item::Regex(String::from(x)))
+                    }
                     _ => Err(Error::Parse("'path' not found")),
                 }
             }
@@ -131,7 +134,8 @@ mod tests {
                      (path "/a/**"))
 
         b (whitelist (path "/conversation/message")
-                     (path "/foo/bar/*"))
+                     (path "/foo/bar/*")
+                     (regex "(/v[0-9]+)?/foo/baz/[^/]+"))
 
         # this is a comment that should not lead to a parse failure.
         la (whitelist (path "/legalhold/**"))
@@ -152,8 +156,12 @@ mod tests {
         assert!(!acl.allowed("u", "/x/here/z"));
         assert!(acl.allowed("u", "/x/here/z/x"));
         assert!(acl.allowed("b", "/conversation/message"));
-        assert!(acl.allowed("b", "/foo/bar/baz"));
+        assert!(acl.allowed("b", "/foo/bar/quux"));
         assert!(!acl.allowed("b", "/foo/bar/"));
+        assert!(acl.allowed("b", "/foo/baz/quux"));
+        assert!(!acl.allowed("b", "/foo/bar/"));
+        assert!(acl.allowed("b", "/v97/foo/baz/quux"));
+        assert!(!acl.allowed("b", "/voo/foo/baz/quux"));
         assert!(!acl.allowed("b", "/anywhere/else/"));
         assert!(acl.allowed("x", "/everywhere"));
         assert!(acl.allowed("x", "/"));

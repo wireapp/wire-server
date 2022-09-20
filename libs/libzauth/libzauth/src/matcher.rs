@@ -18,6 +18,11 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 
+pub enum Item {
+    Str(String),
+    Regex(String),
+}
+
 #[derive(Debug, Clone)]
 pub struct Matcher {
     regex: Option<Regex>,
@@ -30,25 +35,29 @@ lazy_static! {
 }
 
 impl Matcher {
-    pub fn new(items: &Vec<String>) -> Self {
+    pub fn new(items: &Vec<Item>) -> Self {
         if items.len() == 0 {
             return Self { regex: None };
         }
 
         let items = items
             .iter()
-            .map(|item| {
-                let item = SLASHES.replace_all(item, "/");
-                let item = item.trim_end_matches("/");
-                let mut text = String::new();
-                let pattern = regex::escape(item);
-                let pattern = DOUBLE_STAR_PATTERN.replace_all(&pattern, ".*");
-                let pattern = STAR_PATTERN.replace_all(&pattern, "[^/]+");
+            .map(|item| match item {
+                Item::Str(item) => {
+                    let item = SLASHES.replace_all(item, "/");
+                    let item = item.trim_end_matches("/");
+                    let pattern = regex::escape(item);
+                    let pattern =
+                        DOUBLE_STAR_PATTERN.replace_all(&pattern, ".*");
+                    let pattern = STAR_PATTERN.replace_all(&pattern, "[^/]+");
 
-                text.push_str("(");
-                text.push_str(&pattern);
-                text.push_str(")");
-                text
+                    let mut text = String::new();
+                    text.push_str("(");
+                    text.push_str(&pattern);
+                    text.push_str(")");
+                    text
+                }
+                Item::Regex(r) => r.clone(),
             })
             .collect::<Vec<_>>();
 
@@ -82,13 +91,14 @@ mod tests {
     #[test]
     fn test() {
         let mut items = Vec::new();
-        items.push("/foo".to_string());
-        items.push("/foo/bar/baz".to_string());
-        items.push("/x/y/".to_string());
-        items.push("/i/**".to_string());
-        items.push("/j/*".to_string());
-        items.push("/k/v*".to_string());
-        items.push("/a//c".to_string());
+        items.push(Item::Str("/foo".to_string()));
+        items.push(Item::Str("/foo/bar/baz".to_string()));
+        items.push(Item::Str("/x/y/".to_string()));
+        items.push(Item::Str("/i/**".to_string()));
+        items.push(Item::Str("/j/*".to_string()));
+        items.push(Item::Str("/k/v*".to_string()));
+        items.push(Item::Str("/a//c".to_string()));
+        items.push(Item::Regex("(/v[0-9]+)?/notifications".to_string()));
         let t = Matcher::new(&items);
 
         assert!(t.contains("/foo"));
@@ -101,5 +111,8 @@ mod tests {
         assert!(t.contains("/i/foo/zoo"));
         assert!(t.contains("/j/foo"));
         assert!(!t.contains("/j/foo/zoo"));
+        assert!(t.contains("/notifications"));
+        assert!(t.contains("/v33/notifications"));
+        assert!(!t.contains("/versions/notifications"));
     }
 }
