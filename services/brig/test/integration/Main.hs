@@ -62,7 +62,9 @@ import Test.Tasty.HUnit
 import Util
 import Util.Options
 import Util.Test
+import Web.HttpApiData
 import Wire.API.Federation.API
+import Wire.API.Routes.Version
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 data BackendConf = BackendConf
@@ -183,11 +185,13 @@ runTests iConf brigOpts otherArgs = do
     mkVersionedRequest endpoint = addPrefix . mkRequest endpoint
 
     addPrefix :: Request -> Request
-    addPrefix r = r {HTTP.path = "v2/" <> removeSlash (HTTP.path r)}
+    addPrefix r = r {HTTP.path = "v" <> toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}
       where
         removeSlash s = case B8.uncons s of
           Just ('/', s') -> s'
           _ -> s
+        latestVersion :: Version
+        latestVersion = maxBound
 
     parseEmailAWSOpts :: IO (Maybe Opts.EmailAWSOpts)
     parseEmailAWSOpts = case Opts.email . Opts.emailSMS $ brigOpts of
