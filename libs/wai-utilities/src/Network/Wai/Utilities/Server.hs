@@ -125,7 +125,7 @@ newSettings (Server h p l m t) = do
 --
 -- See also: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/7681
 runSettingsWithShutdown :: Settings -> Application -> Maybe Word16 -> IO ()
-runSettingsWithShutdown s app (fromMaybe 5 -> secs) = do
+runSettingsWithShutdown s app (fromMaybe defaultShutdownTime -> secs) = do
   initialization
   latch <- newEmptyMVar
   let s' = setInstallShutdownHandler (catchSignals latch) s
@@ -146,6 +146,9 @@ runSettingsWithShutdown s app (fromMaybe 5 -> secs) = do
         Nothing | t > 0 -> threadDelay 1000000 >> await srv (t - 1)
         Just (Left ex) -> throwIO ex
         _ -> cancel srv
+
+defaultShutdownTime :: Word16
+defaultShutdownTime = 30
 
 compile :: Monad m => Routes a m b -> Tree (App m)
 compile routes = Route.prepare (Route.renderer predicateError >> routes)
