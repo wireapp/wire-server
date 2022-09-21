@@ -61,7 +61,9 @@ import Test.Tasty.HUnit
 import Util.Options
 import Util.Options.Common
 import Util.Test
+import Web.HttpApiData
 import Wire.API.Federation.Domain
+import Wire.API.Routes.Version
 
 type Cargohold = Request -> Request
 
@@ -111,7 +113,13 @@ unversioned r =
     }
 
 viewCargohold :: TestM Cargohold
-viewCargohold = fmap (apiVersion "v2" .) viewUnversionedCargohold
+viewCargohold =
+  fmap
+    (apiVersion ("v" <> toHeader latestVersion) .)
+    viewUnversionedCargohold
+  where
+    latestVersion :: Version
+    latestVersion = maxBound
 
 viewUnversionedCargohold :: TestM Cargohold
 viewUnversionedCargohold = mkRequest <$> view tsEndpoint
