@@ -83,11 +83,11 @@ import Imports
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media.MediaType
 import qualified Network.HTTP.Types as HTTP
-import Network.Wai (Application, defaultRequest)
+import Network.Wai (defaultRequest)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Wai
 import Network.Wai.Utilities.MockServer (withMockServer)
-import Servant (Handler, HasServer, Server, ServerT, serve, (:<|>) (..))
+import Servant
 import System.Exit
 import System.Process
 import System.Random
@@ -122,6 +122,7 @@ import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
@@ -139,11 +140,13 @@ import Wire.API.User.Client.Prekey
 -- API Operations
 
 addPrefix :: Request -> Request
-addPrefix r = r {HTTP.path = "v2/" <> removeSlash (HTTP.path r)}
+addPrefix r = r {HTTP.path = "v" <> toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}
   where
     removeSlash s = case B8.uncons s of
       Just ('/', s') -> s'
       _ -> s
+    latestVersion :: Version
+    latestVersion = maxBound
 
 -- | A class for monads with access to a Sem r instance
 class HasGalley m where

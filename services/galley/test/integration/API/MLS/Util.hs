@@ -131,7 +131,7 @@ postCommitBundle ::
 postCommitBundle sender bundle = do
   galley <- viewGalley
   post
-    ( galley . paths ["v2", "mls", "commit-bundles"]
+    ( galley . paths ["mls", "commit-bundles"]
         . zUser sender
         . zConn "conn"
         . content "message/mls"
