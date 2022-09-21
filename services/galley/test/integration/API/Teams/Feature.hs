@@ -552,6 +552,27 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   setFlagInternal otherValue ttl
   getFlag otherValue
   getFeatureConfig otherValue ttl
+  {-
+      *very* rarely, the above line trips over a timing issue:
+
+      TTL / Overrides
+        increase to unlimited:                                                                                                                FAIL (0.39s)
+          Error message: expected: FeatureTTLSeconds 2
+           but got: FeatureTTLSeconds 1
+
+          CallStack (from HasCallStack):
+            assertFailure, called at ./Test/Tasty/HUnit/Orig.hs:68:32 in tasty-hunit-0.10.0.2-7a8e82b312c39043182b210e48b6d2c04e709dd607f742efc62afac8e985fd23:Test.Tasty.HUnit.Orig
+            assertEqual, called at ./Test/Tasty/HUnit/Orig.hs:90:23 in tasty-hunit-0.10.0.2-7a8e82b312c39043182b210e48b6d2c04e709dd607f742efc62afac8e985fd23:Test.Tasty.HUnit.Orig
+            @?=, called at test/integration/API/Teams/Feature.hs:505:18 in main:API.Teams.Feature
+            getFeatureConfig, called at test/integration/API/Teams/Feature.hs:554:3 in main:API.Teams.Feature
+            testSimpleFlagTTLOverride, called at test/integration/API/Teams/Feature.hs:95:44 in main:API.Teams.Feature
+          Use -p '/increase to unlimited/' to rerun this test only.
+
+      probably easy to solve (just make the checks around here tolerant to one-off errors in
+      one direction), but i'm not sure this is worth our time?
+
+  -}
+
   getFlagInternal otherValue
 
   case (ttl, ttlAfter) of
