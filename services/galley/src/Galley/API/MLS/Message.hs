@@ -876,23 +876,23 @@ checkExternalProposalSignature csTag msg prop = case rmValue prop of
     let pubKey = bcSignatureKey . kpCredential $ rmValue kp
     unless (verifyMessageSignature csTag msg pubKey) throwUnsupported
   RemoveProposal ref -> do
-    ciM <- getClientByKeyPackageRef ref
-    maybe throwUnsupported f ciM
+    -- Get client identities by kpRef or throw
+    ci <- getJust =<< getClientByKeyPackageRef ref
+    -- Function to find the UserClientsFull we need to verify the signature
+    let findClientsFull = traverse $ find (\c -> clientId c == ciClient ci)
+    -- Get the correct UserClientsFull from the ClientIdentity or throw
+    clientsFull <- getJust . findClientsFull . userClientsFull =<< lookupClientsFull [ciUser ci]
+    -- FUTUREWORK(elland): Should we always assume a single possible client?
+    -- If so, should we throw an error if we somehow get two?
+    for_ clientsFull $ \client ->
+      case Map.lookup (csSignatureScheme csTag) (clientMLSPublicKeys client) of
+        Nothing -> throwUnsupported
+        Just pubKey ->
+          unless (verifyMessageSignature csTag msg pubKey) throwUnsupported
   _ -> pure ()
   where
+    getJust = noteS @'MLSUnsupportedProposal
     throwUnsupported = throwS @'MLSUnsupportedProposal
-
-    f ci = do
-      UserClientsFull clientsFull <- lookupClientsFull [ciUser ci]
-      for_ clientsFull $ \clients' ->
-        maybe throwUnsupported f2 (find (\c -> clientId c == ciClient ci) clients')
-
-    f2 client =
-      let pubKeyMap = clientMLSPublicKeys client
-       in case Map.lookup (csSignatureScheme csTag) pubKeyMap of
-            Nothing -> throwUnsupported
-            Just pubKey ->
-              unless (verifyMessageSignature csTag msg pubKey) throwUnsupported
 
 isExternalProposal :: Message 'MLSPlainText -> Bool
 isExternalProposal msg = case msgSender msg of
