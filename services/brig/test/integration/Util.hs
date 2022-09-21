@@ -52,7 +52,6 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as B8
-import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
@@ -153,10 +152,10 @@ removeSlash' s = case B8.uncons s of
 
 removeVersionPrefix :: ByteString -> Maybe ByteString
 removeVersionPrefix bs = do
-  let (x, s) = C8.splitAt 1 bs
-  guard (x == C8.pack "v")
-  (_, s') <- C8.readInteger s
-  pure (C8.tail s')
+  let (x, s) = B8.splitAt 1 bs
+  guard (x == B8.pack "v")
+  (_, s') <- B8.readInteger s
+  pure (B8.tail s')
 
 -- | Note: Apply this function last when composing (Request -> Request) functions
 unversioned :: Request -> Request
@@ -165,7 +164,7 @@ unversioned r =
     { HTTP.path =
         maybe
           (HTTP.path r)
-          (C8.pack "/" <>)
+          (B8.pack "/" <>)
           (removeVersionPrefix . removeSlash' $ HTTP.path r)
     }
 
@@ -843,7 +842,7 @@ zAuthAccess :: UserId -> ByteString -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
 
 zUser :: UserId -> Request -> Request
-zUser = header "Z-User" . C8.pack . show
+zUser = header "Z-User" . B8.pack . show
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
@@ -933,7 +932,7 @@ somePrekeys =
     Prekey (PrekeyId 23) "pQABARcCoQBYIASE94LjK6Raipk/lN/YewouqO+kcQGpxIqP+iW2hyHiA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY=",
     Prekey (PrekeyId 24) "pQABARgYAqEAWCBZ222LpS6/99Btlw+83PihrA655skwsNevt//8oz5axQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2",
     Prekey (PrekeyId 25) "pQABARgZAqEAWCDGEwo61w4O8T8lyw0HdoOjGWBKQUNqo6+jSfrPR9alrAOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2",
-    Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plC80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
+    Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plB80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
   ]
 
 -- | The client ID of the first of 'someLastPrekeys'
@@ -1278,7 +1277,7 @@ fromServantRequest domain r =
                 <> headers
                 <> [(originDomainHeaderName, T.encodeUtf8 (domainText domain))],
             Wai.isSecure = True,
-            Wai.pathInfo = filter (not . T.null) (map Data.String.Conversions.cs (C8.split '/' pathBS)),
+            Wai.pathInfo = filter (not . T.null) (map Data.String.Conversions.cs (B8.split '/' pathBS)),
             Wai.queryString = toList (Servant.requestQueryString r)
           }
    in WaiTest.SRequest req (cs bodyBS)

@@ -26,11 +26,14 @@ module TestSetup
     Cargohold,
     TestM,
     runTestM,
+    viewUnversionedCargohold,
     viewCargohold,
     createTestSetup,
     runFederationClient,
     withFederationClient,
     withFederationError,
+    apiVersion,
+    unversioned,
   )
 where
 
@@ -42,12 +45,14 @@ import Control.Monad.Codensity
 import Control.Monad.Except
 import Control.Monad.Morph
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion
 import qualified Data.Text as T
 import Data.Text.Encoding
 import Data.Yaml
 import Imports
 import Network.HTTP.Client hiding (responseBody)
+import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client.TLS
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client.Streaming
@@ -73,8 +78,43 @@ data TestSetup = TestSetup
 
 makeLenses ''TestSetup
 
+-- | Note: Apply this function last when composing (Request -> Request) functions
+apiVersion :: ByteString -> Request -> Request
+apiVersion newVersion r = r {HTTP.path = setVersion newVersion (HTTP.path r)}
+  where
+    setVersion :: ByteString -> ByteString -> ByteString
+    setVersion v p =
+      let p' = removeSlash' p
+       in v <> "/" <> fromMaybe p' (removeVersionPrefix p')
+
+removeSlash' :: ByteString -> ByteString
+removeSlash' s = case B8.uncons s of
+  Just ('/', s') -> s'
+  _ -> s
+
+removeVersionPrefix :: ByteString -> Maybe ByteString
+removeVersionPrefix bs = do
+  let (x, s) = B8.splitAt 1 bs
+  guard (x == B8.pack "v")
+  (_, s') <- B8.readInteger s
+  pure (B8.tail s')
+
+-- | Note: Apply this function last when composing (Request -> Request) functions
+unversioned :: Request -> Request
+unversioned r =
+  r
+    { HTTP.path =
+        maybe
+          (HTTP.path r)
+          (B8.pack "/" <>)
+          (removeVersionPrefix . removeSlash' $ HTTP.path r)
+    }
+
 viewCargohold :: TestM Cargohold
-viewCargohold = mkRequest <$> view tsEndpoint
+viewCargohold = fmap (apiVersion "v2" .) viewUnversionedCargohold
+
+viewUnversionedCargohold :: TestM Cargohold
+viewUnversionedCargohold = mkRequest <$> view tsEndpoint
 
 runTestM :: TestSetup -> TestM a -> IO a
 runTestM ts action = runHttpT (view tsManager ts) (runReaderT action ts)
