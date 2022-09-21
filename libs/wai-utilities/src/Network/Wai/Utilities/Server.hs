@@ -124,8 +124,8 @@ newSettings (Server h p l m t) = do
 -- connections up to the given number of seconds.
 --
 -- See also: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/7681
-runSettingsWithShutdown :: Settings -> Application -> Word16 -> IO ()
-runSettingsWithShutdown s app secs = do
+runSettingsWithShutdown :: Settings -> Application -> Maybe Word16 -> IO ()
+runSettingsWithShutdown s app (fromMaybe 5 -> secs) = do
   initialization
   latch <- newEmptyMVar
   let s' = setInstallShutdownHandler (catchSignals latch) s

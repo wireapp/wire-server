@@ -43,4 +43,4 @@ run o = do
         versionMiddleware
           . waiPrometheusMiddleware (sitemap e)
           . catchErrors (e ^. applog) [Right m]
-  runSettingsWithShutdown s (middleware app) 5 `finally` destroyEnv e
+  runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e

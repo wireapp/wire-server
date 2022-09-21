@@ -98,7 +98,7 @@ runServer sparCtxOpts = do
   (wrappedApp, ctxOpts) <- mkApp sparCtxOpts
   let logger = sparCtxLogger ctxOpts
   Log.info logger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
-  WU.runSettingsWithShutdown settings wrappedApp 5
+  WU.runSettingsWithShutdown settings wrappedApp Nothing
 
 mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do

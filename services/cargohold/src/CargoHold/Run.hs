@@ -69,7 +69,7 @@ run o = lowerCodensity $ do
           (o ^. optCargohold . epPort)
           (e ^. appLogger)
           (e ^. metrics)
-    runSettingsWithShutdown s app 5
+    runSettingsWithShutdown s app Nothing
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp o = Codensity $ \k ->
