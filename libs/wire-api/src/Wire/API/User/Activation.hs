@@ -34,7 +34,6 @@ module Wire.API.User.Activation
     SendActivationCode (..),
 
     -- * Swagger
-    modelActivate,
     modelSendActivationCode,
     modelActivationResponse,
   )
@@ -42,6 +41,7 @@ where
 
 import Control.Lens ((?~))
 import Data.Aeson
+import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
 import Data.Data (Proxy (Proxy))
 import Data.Json.Util ((#))
@@ -51,6 +51,7 @@ import Data.Swagger (ToParamSchema)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
+import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import Servant (FromHttpApiData (..))
 import Wire.API.User.Identity
@@ -80,13 +81,41 @@ instance ToByteString ActivationTarget where
 newtype ActivationKey = ActivationKey
   {fromActivationKey :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
+  deriving newtype (ToSchema, ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
 
 instance ToParamSchema ActivationKey where
   toParamSchema _ = S.toParamSchema (Proxy @Text)
 
 instance FromHttpApiData ActivationKey where
   parseUrlPiece = fmap ActivationKey . parseUrlPiece
+
+maybeActivationKeyObjectSchema :: Schema.ObjectSchemaP Schema.SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email) ActivationTarget
+maybeActivationKeyObjectSchema =
+  Schema.withParser activationKeyTupleObjectSchema maybeActivationKeyTargetFromTuple
+  where
+    activationKeyTupleObjectSchema :: Schema.ObjectSchema Schema.SwaggerDoc (Maybe ActivationKey, Maybe Phone, Maybe Email)
+    activationKeyTupleObjectSchema =
+      (,,)
+        <$> fst3 Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "key" keyDocs Schema.schema)
+        <*> snd3 Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "phone" phoneDocs Schema.schema)
+        <*> thd3 Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "email" emailDocs Schema.schema)
+      where
+        keyDocs = description ?~ "An opaque key to activate, as it was sent by the API."
+        phoneDocs = description ?~ "A known phone number to activate."
+        emailDocs = description ?~ "A known email address to activate."
+
+    maybeActivationKeyTargetFromTuple :: (Maybe ActivationKey, Maybe Phone, Maybe Email) -> Parser ActivationTarget
+    maybeActivationKeyTargetFromTuple = \case
+      (Just key, _, _) -> pure $ ActivateKey key
+      (_, _, Just email) -> pure $ ActivateEmail email
+      (_, Just phone, _) -> pure $ ActivatePhone phone
+      _ -> fail "key, email or phone must be present"
+
+maybeActivationTargetToTuple :: ActivationTarget -> (Maybe ActivationKey, Maybe Phone, Maybe Email)
+maybeActivationTargetToTuple = \case
+  ActivateKey key -> (Just key, Nothing, Nothing)
+  ActivatePhone phone -> (Nothing, Just phone, Nothing)
+  ActivateEmail email -> (Nothing, Nothing, Just email)
 
 --------------------------------------------------------------------------------
 -- ActivationCode
@@ -117,54 +146,26 @@ data Activate = Activate
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Activate)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema Activate
 
-modelActivate :: Doc.Model
-modelActivate = Doc.defineModel "Activate" $ do
-  Doc.description "Data for an activation request."
-  Doc.property "key" Doc.string' $ do
-    Doc.description "An opaque key to activate, as it was sent by the API."
-    Doc.optional
-  Doc.property "email" Doc.string' $ do
-    Doc.description "A known email address to activate."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "A known phone number to activate."
-    Doc.optional
-  Doc.property "code" Doc.string' $
-    Doc.description "The activation code."
-  Doc.property "label" Doc.string' $ do
-    Doc.description
-      "An optional label to associate with the access cookie, \
-      \if one is granted during account activation."
-    Doc.optional
-  Doc.property "dryrun" Doc.bool' $ do
-    Doc.description
-      "Whether to perform a dryrun, i.e. to only check whether \
-      \activation would succeed. Dry-runs never issue access \
-      \cookies or tokens on success but failures still count \
-      \towards the maximum failure count."
-    Doc.optional
-
-instance ToJSON Activate where
-  toJSON (Activate k c d) =
-    object
-      [key k, "code" .= c, "dryrun" .= d]
+instance ToSchema Activate where
+  schema =
+    Schema.objectWithDocModifier "Activate" objectDocs $
+      Activate
+        <$> (maybeActivationTargetToTuple . activateTarget) Schema..= maybeActivationKeyObjectSchema
+        <*> activateCode Schema..= Schema.fieldWithDocModifier "code" codeDocs schema
+        <*> activateDryrun Schema..= Schema.fieldWithDocModifier "dryrun" dryrunDocs schema
     where
-      key (ActivateKey ak) = "key" .= ak
-      key (ActivateEmail e) = "email" .= e
-      key (ActivatePhone p) = "phone" .= p
-
-instance FromJSON Activate where
-  parseJSON = withObject "Activation" $ \o ->
-    Activate
-      <$> key o
-      <*> o .: "code"
-      <*> o .:? "dryrun" .!= False
-    where
-      key o =
-        (ActivateKey <$> o .: "key")
-          <|> (ActivateEmail <$> o .: "email")
-          <|> (ActivatePhone <$> o .: "phone")
+      objectDocs = description ?~ "Data for an activation request."
+      codeDocs = description ?~ "The activation code."
+      dryrunDocs =
+        description
+          ?~ "At least one of key, email, or phone has to be present \
+             \while key takes precedence over email, and email takes precedence over phone. \
+             \Whether to perform a dryrun, i.e. to only check whether \
+             \activation would succeed. Dry-runs never issue access \
+             \cookies or tokens on success but failures still count \
+             \towards the maximum failure count."
 
 -- | Information returned as part of a successful activation.
 data ActivationResponse = ActivationResponse

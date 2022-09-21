@@ -226,6 +226,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
       Named @"register" createUser
         :<|> Named @"verify-delete" verifyDeleteUser
         :<|> Named @"get-activate" activate
+        :<|> Named @"post-activate" activateKey
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -313,26 +314,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- /activate, /password-reset ----------------------------------
-
-  -- docs/reference/user/activation.md {#RefActivationSubmit}
-  --
-  -- This endpoint can lead to the following events being sent:
-  -- - UserActivated event to the user, if account gets activated
-  -- - UserIdentityUpdated event to the user, if email or phone get activated
-  post "/activate" (continue activateKeyH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.Activate
-  document "POST" "activate" $ do
-    Doc.summary "Activate (i.e. confirm) an email address or phone number."
-    Doc.notes
-      "Activation only succeeds once and the number of \
-      \failed attempts for a valid key is limited."
-    Doc.body (Doc.ref Public.modelActivate) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelActivationResponse)
-    Doc.response 200 "Activation successful." Doc.end
-    Doc.response 204 "A recent activation was already successful." Doc.end
-    Doc.errorResponse activationCodeNotFound
 
   -- docs/reference/user/activation.md {#RefActivationRequest}
   post "/activate/send" (continue sendActivationCodeH) $
@@ -986,26 +967,14 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 
 -- activation
 
-respFromActivationRespWithStatus :: ActivationRespWithStatus -> Response
-respFromActivationRespWithStatus = \case
-  ActivationResp aresp -> json aresp
-  ActivationRespDryRun -> empty
-  ActivationRespPass -> setStatus status204 empty
-  ActivationRespSuccessNoIdent -> empty
-
--- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKeyH :: JSON ::: JsonRequest Public.Activate -> (Handler r) Response
-activateKeyH (_ ::: req) = do
-  activationRequest <- parseJsonBody req
-  respFromActivationRespWithStatus <$> activate' activationRequest
-
 activate :: Public.ActivationKey -> Public.ActivationCode -> (Handler r) ActivationRespWithStatus
 activate k c = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
-  activate' activationRequest
+  activateKey activationRequest
 
-activate' :: Public.Activate -> (Handler r) ActivationRespWithStatus
-activate' (Public.Activate tgt code dryrun)
+-- docs/reference/user/activation.md {#RefActivationSubmit}
+activateKey :: Public.Activate -> (Handler r) ActivationRespWithStatus
+activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
     wrapClientE (API.preverify tgt code) !>> actError
     pure ActivationRespDryRun
