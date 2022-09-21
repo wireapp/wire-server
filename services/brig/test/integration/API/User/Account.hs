@@ -24,7 +24,7 @@ module API.User.Account
 where
 
 import qualified API.Search.Util as Search
-import API.Team.Util hiding (listConnections)
+import API.Team.Util
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert

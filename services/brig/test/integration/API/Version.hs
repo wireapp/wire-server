@@ -50,7 +50,7 @@ testVersion brig = do
 testVersionV1 :: Brig -> Http ()
 testVersionV1 brig = do
   vinfo <-
-    responseJsonError =<< get (brig . path "/v1/api-version")
+    responseJsonError =<< get (apiVersion "v1" . brig . path "api-version")
       <!! const 200 === statusCode
   liftIO $
     vinfoSupported vinfo @?= supportedVersions \\ developmentVersions
@@ -68,7 +68,7 @@ testDevVersion opts brig = withSettingsOverrides
 testUnsupportedVersion :: Brig -> Http ()
 testUnsupportedVersion brig = do
   e <-
-    responseJsonError =<< get (brig . path "/v500/api-version")
+    responseJsonError =<< get (apiVersion "v500" . brig . path "api-version")
       <!! const 404 === statusCode
   liftIO $ Wai.label e @?= "unsupported-version"
 

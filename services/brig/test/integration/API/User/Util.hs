@@ -288,7 +288,7 @@ deleteClient brig u c pw =
       RequestBodyLBS . encode . object . maybeToList $
         fmap ("password" .=) pw
 
-listConnections :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+listConnections :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 listConnections brig u =
   get $
     apiVersion "v1"
@@ -437,7 +437,7 @@ sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
 
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()
 assertEmailVisibility brig a b visible =
-  get (brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
+  get (apiVersion "v1" . brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
     const 200 === statusCode
     if visible
       then const (Just (userEmail b)) === fmap userEmail . responseJsonMaybe

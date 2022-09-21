@@ -474,7 +474,8 @@ getSelfProfile brig usr = do
 getUser :: Brig -> UserId -> UserId -> Http ResponseLBS
 getUser brig zusr usr =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["users", toByteString' usr]
       . zUser zusr
 
