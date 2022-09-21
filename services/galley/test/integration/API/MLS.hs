@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -135,28 +134,31 @@ tests s =
             ] -- all is mocked
         ],
       testGroup
-        "Proposal"
-        [ test s "add a new client to a non-existing conversation" propNonExistingConv,
-          test s "add a new client to an existing conversation" propExistingConv,
-          test s "add a new client in an invalid epoch" propInvalidEpoch,
-          test s "forward an unsupported proposal" propUnsupported
-        ],
-      testGroup
-        "External Add Proposal"
-        [ test s "member adds new client" testExternalAddProposal,
-          test s "non-admin commits external add proposal" testExternalAddProposalNonAdminCommit,
-          test s "non-member adds new client" testExternalAddProposalWrongUser,
-          test s "member adds unknown new client" testExternalAddProposalWrongClient
-        ],
-      testGroup
-        "Backend-side External Remove Proposals"
-        [ test s "local conversation, local user deleted" testBackendRemoveProposalLocalConvLocalUser,
-          test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser,
-          test s "local conversation, creator leaving" testBackendRemoveProposalLocalConvLocalLeaverCreator,
-          test s "local conversation, local committer leaving" testBackendRemoveProposalLocalConvLocalLeaverCommitter,
-          test s "local conversation, remote user leaving" testBackendRemoveProposalLocalConvRemoteLeaver,
-          test s "local conversation, local client deleted" testBackendRemoveProposalLocalConvLocalClient,
-          test s "local conversation, remote client deleted" testBackendRemoveProposalLocalConvRemoteClient
+        "MLS Proposals"
+        [ testGroup
+            "Proposal"
+            [ test s "add a new client to a non-existing conversation" propNonExistingConv,
+              test s "add a new client to an existing conversation" propExistingConv,
+              test s "add a new client in an invalid epoch" propInvalidEpoch,
+              test s "forward an unsupported proposal" propUnsupported
+            ],
+          testGroup
+            "External Add Proposal"
+            [ test s "member adds new client" testExternalAddProposal,
+              test s "non-admin commits external add proposal" testExternalAddProposalNonAdminCommit,
+              test s "non-member adds new client" testExternalAddProposalWrongUser,
+              test s "member adds unknown new client" testExternalAddProposalWrongClient
+            ],
+          testGroup
+            "Backend-side External Remove Proposals"
+            [ test s "local conversation, local user deleted" testBackendRemoveProposalLocalConvLocalUser,
+              test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser,
+              test s "local conversation, creator leaving" testBackendRemoveProposalLocalConvLocalLeaverCreator,
+              test s "local conversation, local committer leaving" testBackendRemoveProposalLocalConvLocalLeaverCommitter,
+              test s "local conversation, remote user leaving" testBackendRemoveProposalLocalConvRemoteLeaver,
+              test s "local conversation, local client deleted" testBackendRemoveProposalLocalConvLocalClient,
+              test s "local conversation, remote client deleted" testBackendRemoveProposalLocalConvRemoteClient
+            ]
         ],
       testGroup
         "Protocol mismatch"

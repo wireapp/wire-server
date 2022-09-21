@@ -456,7 +456,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
     events <- case tag of
       SMLSPlainText -> case msgPayload msg of
         CommitMessage c ->
-          processCommit qusr senderClient con lconv cm (msgEpoch msg) (msgSender msg) c
+          processCommit qusr senderClient con lconv cm msg c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage prop ->
           processProposal qusr conv msg prop $> mempty
@@ -582,31 +582,80 @@ getCommitData lconv epoch commit = do
 
 processCommit ::
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input (Local ())) r,
-    Member ProposalStore r,
-    Member BrigAccess r,
-    Member Resource r
+    Members
+      '[ Error FederationError,
+         Error InternalError,
+         ErrorS 'ConvNotFound,
+         ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSSelfRemovalNotAllowed,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MissingLegalholdConsent,
+         Input (Local ()),
+         ProposalStore,
+         BrigAccess,
+         Resource
+       ]
+      r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
   Maybe ConnId ->
   Local Data.Conversation ->
   ClientMap ->
-  Epoch ->
-  Sender 'MLSPlainText ->
+  Message 'MLSPlainText ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommit qusr senderClient con lconv cm epoch sender commit = do
+processCommit qusr senderClient con lconv cm msg commit = do
+  let epoch = msgEpoch msg
+      sender = msgSender msg
+      csTagM = kpuCipherSuite . rmValue . kpTBS . rmValue . upLeaf <$> cPath commit
+  convCSTag <- case convProtocol (tUnqualified lconv) of
+    ProtocolProteus -> throwUnsupported
+    ProtocolMLS convData -> pure $ cnvmlsCipherSuite convData
   (groupId, action) <- getCommitData lconv epoch commit
+
+  -- 1. check ciphersuit tags match between commit and conversation state
+  case csTagM of
+    Nothing -> pure () -- no update path found, which is fine
+    Just cs ->
+      case cipherSuiteTag cs of
+        Nothing -> throwUnsupported -- TODO: throw a specific invalid cipher suite error
+        Just csTag ->
+          unless (csTag == convCSTag)
+            . throw
+            . mlsProtocolError
+            . T.pack
+            $ "The group's cipher suite "
+              <> show (cipherSuiteNumber . tagCipherSuite $ convCSTag)
+              <> " and the cipher suite of the proposal's key package "
+              <> show (cipherSuiteNumber cs)
+              <> " do not match."
+
+  -- 2. verify message signature
+  case (sender, csTagM) of
+    (MemberSender ref, Just csTag) -> do
+      case cipherSuiteTag csTag of
+        Nothing -> throwUnsupported
+        Just tag -> do
+          -- Get client identities by kpRef or throw
+          ci <- getJust =<< getClientByKeyPackageRef ref -- wrong, use commit kp
+          -- Function to find the UserClientsFull we need to verify the signature
+          let findClientsFull = traverse $ find (\c -> clientId c == ciClient ci)
+          -- Get the correct UserClientsFull from the ClientIdentity or throw
+          clientsFull <- getJust . findClientsFull . userClientsFull =<< lookupClientsFull [ciUser ci]
+          -- FUTUREWORK(elland): Should we always assume a single possible client?
+          -- If so, should we throw an error if we somehow get two?
+          for_ clientsFull $ \client ->
+            case Map.lookup (csSignatureScheme tag) (clientMLSPublicKeys client) of
+              Nothing -> throwUnsupported
+              Just pubKey -> unless (verifyMessageSignature tag msg pubKey) throwUnsupported
+    _ -> pure ()
   processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit
+  where
+    throwUnsupported = throwS @'MLSUnsupportedMessage
+    getJust = noteS @'MLSUnsupportedMessage
 
 processCommitWithAction ::
   ( HasProposalEffects r,
@@ -674,14 +723,8 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
             case senderClient of
               Just cli -> pure $ updateKeyPackageMapping lconv qusr cli (Just senderRef) updatedRef
               Nothing -> pure $ pure ()
-          (sender', Just updatedKeyPackage) -> do
-            _updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
-            let _csTag = csSignatureScheme <$> (cipherSuiteTag . kpuCipherSuite . rmValue . kpTBS . rmValue $ updatedKeyPackage)
-            case sender' of
-              PreconfiguredSender _ref -> pure . pure $ () -- checkExternalProposalSignature csTag msg
-              NewMemberSender -> pure . pure $ ()
-              _ -> throw (mlsProtocolError "Unexpected sender")
           (_, Nothing) -> pure $ pure () -- ignore commits without update path
+          _ -> throw (mlsProtocolError "Unexpected sender")
 
     -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposals groupId epoch
@@ -891,8 +934,8 @@ checkExternalProposalSignature csTag msg prop = case rmValue prop of
           unless (verifyMessageSignature csTag msg pubKey) throwUnsupported
   _ -> pure ()
   where
-    getJust = noteS @'MLSUnsupportedProposal
     throwUnsupported = throwS @'MLSUnsupportedProposal
+    getJust = noteS @'MLSUnsupportedProposal
 
 isExternalProposal :: Message 'MLSPlainText -> Bool
 isExternalProposal msg = case msgSender msg of
