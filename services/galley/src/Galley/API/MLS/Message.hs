@@ -36,6 +36,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Time
+import Debug.Trace
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
@@ -61,7 +62,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.Resource (Resource, bracket)
-import Polysemy.TinyLog
+import Polysemy.TinyLog hiding (trace)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -385,7 +386,7 @@ postMLSMessage ::
   Sem r [LocalConversationUpdate]
 postMLSMessage loc qusr qcnv con smsg = case rmValue smsg of
   SomeMessage tag msg -> do
-    mcid <- fmap ciClient <$> getSenderClient qusr tag msg
+    mcid <- ciClient <$$> getSenderClient qusr tag msg
     foldQualified
       loc
       (postMLSMessageToLocalConv qusr mcid con smsg)
@@ -455,7 +456,9 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
     -- validate message
     events <- case tag of
       SMLSPlainText -> case msgPayload msg of
-        CommitMessage c ->
+        CommitMessage c -> do
+          traceM $ "Qualified user is" <> show qusr
+          traceM $ "Sender client is " <> show senderClient
           processCommit qusr senderClient con lconv cm msg c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage prop ->
@@ -610,52 +613,60 @@ processCommit ::
 processCommit qusr senderClient con lconv cm msg commit = do
   let epoch = msgEpoch msg
       sender = msgSender msg
-      csTagM = kpuCipherSuite . rmValue . kpTBS . rmValue . upLeaf <$> cPath commit
-  convCSTag <- case convProtocol (tUnqualified lconv) of
-    ProtocolProteus -> throwUnsupported
-    ProtocolMLS convData -> pure $ cnvmlsCipherSuite convData
   (groupId, action) <- getCommitData lconv epoch commit
+  when (epochNumber epoch > 0) $ do
+    let csTagM = kpuCipherSuite . rmValue . kpTBS . rmValue . upLeaf <$> cPath commit
+    convCSTag <- case convProtocol (tUnqualified lconv) of
+      ProtocolProteus -> throwUnsupported
+      ProtocolMLS convData -> pure $ cnvmlsCipherSuite convData
 
-  -- 1. check ciphersuit tags match between commit and conversation state
-  case csTagM of
-    Nothing -> pure () -- no update path found, which is fine
-    Just cs ->
-      case cipherSuiteTag cs of
-        Nothing -> throwUnsupported -- TODO: throw a specific invalid cipher suite error
-        Just csTag ->
-          unless (csTag == convCSTag)
-            . throw
-            . mlsProtocolError
-            . T.pack
-            $ "The group's cipher suite "
-              <> show (cipherSuiteNumber . tagCipherSuite $ convCSTag)
-              <> " and the cipher suite of the proposal's key package "
-              <> show (cipherSuiteNumber cs)
-              <> " do not match."
+    -- 1. check ciphersuit tags match between commit and conversation state
+    case csTagM of
+      Nothing -> pure () -- no update path found, which is fine
+      Just cs ->
+        case cipherSuiteTag cs of
+          Nothing -> throwUnsupported -- TODO: throw a specific invalid cipher suite error
+          Just csTag ->
+            unless (csTag == convCSTag)
+              . throw
+              . mlsProtocolError
+              . T.pack
+              $ "The group's cipher suite "
+                <> show (cipherSuiteNumber . tagCipherSuite $ convCSTag)
+                <> " and the cipher suite of the proposal's key package "
+                <> show (cipherSuiteNumber cs)
+                <> " do not match."
 
-  -- 2. verify message signature
-  case (sender, csTagM) of
-    (MemberSender ref, Just csTag) -> do
-      case cipherSuiteTag csTag of
-        Nothing -> throwUnsupported
-        Just tag -> do
-          -- Get client identities by kpRef or throw
-          ci <- getJust =<< getClientByKeyPackageRef ref -- wrong, use commit kp
-          -- Function to find the UserClientsFull we need to verify the signature
-          let findClientsFull = traverse $ find (\c -> clientId c == ciClient ci)
-          -- Get the correct UserClientsFull from the ClientIdentity or throw
-          clientsFull <- getJust . findClientsFull . userClientsFull =<< lookupClientsFull [ciUser ci]
-          -- FUTUREWORK(elland): Should we always assume a single possible client?
-          -- If so, should we throw an error if we somehow get two?
-          for_ clientsFull $ \client ->
-            case Map.lookup (csSignatureScheme tag) (clientMLSPublicKeys client) of
-              Nothing -> throwUnsupported
-              Just pubKey -> unless (verifyMessageSignature tag msg pubKey) throwUnsupported
-    _ -> pure ()
+    -- 2. verify message signature
+    case (sender, csTagM) of
+      (MemberSender _ref, Just csTag) -> do
+        case cipherSuiteTag csTag of
+          Nothing -> throwUnsupported
+          Just tag -> do
+            -- -- Function to find the UserClientsFull we need to verify the signature
+            -- let findClientsFull = traverse $ find (\c -> Just (clientId c) == senderClient)
+            -- Get the correct UserClientsFull from the ClientIdentity or throw
+            clientsFull <- userClientsFull <$> lookupClientsFull [qUnqualified qusr]
+            traceM $ "===================== " <> show (length . Map.toList $ clientsFull)
+            -- clientsFull <- getJust . findClientsFull . userClientsFull =<< lookupClientsFull [qUnqualified qusr]
+            -- FUTUREWORK(elland): Should we always assume a single possible client?
+            -- If so, should we throw an error if we somehow get two?
+            let list = Set.toList =<< Map.elems clientsFull
+            traceM $ "---------------- " <> show (length list)
+            for_ list $ \client ->
+              case Map.lookup (csSignatureScheme tag) (clientMLSPublicKeys client) of
+                Nothing -> do
+                  traceM "$$$$$$$$$$$$$$ No client found"
+                  throwUnsupported
+                Just pubKey -> do
+                  -- Think a bit harder: whose pub key is supposed to be verifying this commit?
+                  unless (verifyMessageSignature tag msg pubKey) (throwS @'MLSStaleMessage)
+      _ -> pure ()
   processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit
   where
     throwUnsupported = throwS @'MLSUnsupportedMessage
-    getJust = noteS @'MLSUnsupportedMessage
+
+-- getJust = noteS @'MLSUnsupportedMessage
 
 processCommitWithAction ::
   ( HasProposalEffects r,
