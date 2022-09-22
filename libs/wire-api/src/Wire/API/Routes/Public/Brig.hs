@@ -442,6 +442,21 @@ type AccountAPI =
                     GetActivateResponse
                     ActivationRespWithStatus
            )
+    -- docs/reference/user/activation.md {#RefActivationRequest}
+    :<|> Named
+           "post-activate-send"
+           ( Summary "Send (or resend) an email or phone activation code."
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'InvalidPhone
+               :> CanThrow 'BlacklistedEmail
+               :> CanThrow 'BlacklistedPhone
+               :> CanThrow 'CustomerExtensionBlockedDomain
+               :> "activate"
+               :> "send"
+               :> ReqBody '[JSON] SendActivationCode
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Activation code sent."] ()
+           )
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse
