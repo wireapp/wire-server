@@ -28,7 +28,6 @@ where
 
 import Brig.Types.Intra
 import Control.Error
-import Control.Exception (finally)
 import Control.Lens ((^.))
 import Data.Aeson hiding (Error, json)
 import qualified Data.Aeson.KeyMap as KeyMap
