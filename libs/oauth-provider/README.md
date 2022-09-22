@@ -36,34 +36,28 @@ The ACME server API.
 sequenceDiagram
     autonumber
     actor User (Resource Owner)
-    User (Resource Owner)->>Client (App): Connect with Wire
-    Client (App)->>ACME (Resource Server): get authorization request
-    ACME (Resource Server)-->>Client (App): authorization request
-    Client (App)->>Wire backend (Authorization Server): authorization request
-    note right of Client (App): authorization request:<br/>client_id=abc123<br/>redirect_uri=<br/>response_type?code<br/>scope=openid acme<br/>state=foobar
-    note over User (Resource Owner),Wire backend (Authorization Server): Wire backend is requesting permission to access ACME resources.<br/>This may be implicit because user is logged in already?
-    Wire backend (Authorization Server)->>User (Resource Owner): getting user consent
-    User (Resource Owner)-->>Wire backend (Authorization Server): approve
-    Wire backend (Authorization Server)-->>Client (App): authorization code
-    note left of Wire backend (Authorization Server): code=sdSDfsdFSHGres3dfD<br/>state=foobar
-    Client (App)->>Wire backend (Authorization Server): request access and ID token (in exchange for auth code)
-    note right of Client (App): code=sdSDfsdFSHGres3dfD<br/>client_id=abc123<br/>client_secret=secret123<br/>grant_type=authorization_code
-    Wire backend (Authorization Server)-->>Client (App): issue access and ID token
-    note left of Wire backend (Authorization Server): {"access_token":"Phai6Eesheirae3r","expires_in":3920,"token_type":"Bearer"}
-    note over Client (App),ACME (Resource Server): The client can now access the required<br/>resources (the ACME server API)<br/>with the provided access token.<br/>This includes all the steps necessary<br/>for the ACME certificate enrollment process.
+    User (Resource Owner)->>Client (App): Access Wire client
+    note over Client (App): create random code verifier(v)<br/>$=sha256(v)
+    Client (App)->>Wire backend (Authorization Server): login with credentials and $
+    note over Wire backend (Authorization Server): store $
+    note over Wire backend (Authorization Server): authenticate user
+    Wire backend (Authorization Server)-->>Client (App): issue authorization code α
+    Client (App)->>Wire backend (Authorization Server): request access token
+    note over Client (App),Wire backend (Authorization Server): request includes:<br/>client_id=abc123<br/>authorization_code=α<br/>code_verifier=v<br/>scope=acme<br/>state=foobar
+    Wire backend (Authorization Server)->>Wire backend (Authorization Server): verify request
+    note over Wire backend (Authorization Server): validate:<br/>client_id<br/>sha265(v)=$<br/>α
+    Wire backend (Authorization Server)-->>Client (App): issue authorization token
+    note over Client (App),Wire backend (Authorization Server): {"access_token":"Phai6Eesheirae3r",<br/>"expires_in":3920,"token_type":"Bearer"}
+    note over Client (App),ACME (Resource Server): The client can now access the required<br/>resources (the ACME server API)<br/>with the provided access token.<br/>This includes all the steps necessary<br/>for the ACME certificate enrollment process.<br/>Specifically create ACME account.
     Client (App)->>ACME (Resource Server): resource request
     note right of Client (App): Authorization: Bearer Phai6Eesheirae3r
-    ACME (Resource Server)->>ACME (Resource Server): verify token
-    ACME (Resource Server)-->>Client (App): resource response
+    note over Client (App),ACME (Resource Server): and so on...
     note over Client (App),Wire backend: Client fetches DPoP access token
     Client (App)->>Wire backend: HEAD /clients/:cid/nonce
     Wire backend-->>Client (App): backend nonce
     Client (App)->>Wire backend: POST /clients/:cid/access-token
     Wire backend-->>Client (App): DPoP access token
     note over Client (App),ACME (Resource Server): Complete certificate enrollment process
-    Client (App)->>ACME (Resource Server): resource request
-    ACME (Resource Server)->>ACME (Resource Server): verify token
-    ACME (Resource Server)-->>Client (App): resource response    
 ``` 
 
 ### Questions
