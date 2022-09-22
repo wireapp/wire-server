@@ -35,23 +35,23 @@ testObject_QualifiedNewOtrMessage_user_1 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ ( Domain "2w.h0cp9f711d.kw7ar.88.932.y",
-                          Map.fromList
-                            [ ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))), Map.fromList [])
-                            ]
-                        ),
-                        ( Domain "970-7.b1fi9u9-z",
-                          Map.fromList
-                            [ ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))), Map.fromList [])
-                            ]
-                        )
-                      ]
-                  )
+                ( Map.fromList
+                    [ ( Domain "2w.h0cp9f711d.kw7ar.88.932.y",
+                        Map.fromList
+                          [ ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))), Map.fromList [])
+                          ]
+                      ),
+                      ( Domain "970-7.b1fi9u9-z",
+                        Map.fromList
+                          [ ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))), Map.fromList [])
+                          ]
+                      )
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = True,
       qualifiedNewOtrTransient = True,
@@ -120,16 +120,16 @@ testObject_QualifiedNewOtrMessage_user_5 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ ( Domain "74.w-5v9",
-                          Map.fromList
-                            [ ( (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000400000004"))),
-                                Map.fromList [(ClientId {client = "7"}, "\229")]
-                              )
-                            ]
-                        )
-                      ]
-                  )
+                ( Map.fromList
+                    [ ( Domain "74.w-5v9",
+                        Map.fromList
+                          [ ( (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000400000004"))),
+                              Map.fromList [(ClientId {client = "7"}, "\229")]
+                            )
+                          ]
+                      )
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = False,
       qualifiedNewOtrTransient = False,
@@ -167,17 +167,17 @@ testObject_QualifiedNewOtrMessage_user_7 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ ( Domain "9mns-s.ww-ph5oy",
-                          Map.fromList
-                            [ ( (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
-                                Map.fromList [(ClientId {client = "0"}, ""), (ClientId {client = "1"}, "")]
-                              ),
-                              ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))), Map.fromList [])
-                            ]
-                        )
-                      ]
-                  )
+                ( Map.fromList
+                    [ ( Domain "9mns-s.ww-ph5oy",
+                        Map.fromList
+                          [ ( (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000001"))),
+                              Map.fromList [(ClientId {client = "0"}, ""), (ClientId {client = "1"}, "")]
+                            ),
+                            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))), Map.fromList [])
+                          ]
+                      )
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = False,
       qualifiedNewOtrTransient = False,
@@ -209,15 +209,15 @@ testObject_QualifiedNewOtrMessage_user_9 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ (Domain "01l.s", Map.fromList []),
-                        (Domain "09v.uk", Map.fromList []),
-                        (Domain "2-28q.yda9.m", Map.fromList []),
-                        (Domain "95.pr8", Map.fromList []),
-                        (Domain "b0.l03.821--s5.0t.q7ky62t84r-0", Map.fromList []),
-                        (Domain "q.gy-7.w60zk24.n05", Map.fromList [])
-                      ]
-                  )
+                ( Map.fromList
+                    [ (Domain "01l.s", Map.fromList []),
+                      (Domain "09v.uk", Map.fromList []),
+                      (Domain "2-28q.yda9.m", Map.fromList []),
+                      (Domain "95.pr8", Map.fromList []),
+                      (Domain "b0.l03.821--s5.0t.q7ky62t84r-0", Map.fromList []),
+                      (Domain "q.gy-7.w60zk24.n05", Map.fromList [])
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = False,
       qualifiedNewOtrTransient = True,
@@ -234,15 +234,15 @@ testObject_QualifiedNewOtrMessage_user_10 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ (Domain "79-y-r4-9.d", Map.fromList []),
-                        (Domain "7f3.ra.9.r37.xavdz88-9vw-z", Map.fromList []),
-                        (Domain "7g.hw9aq-1", Map.fromList []),
-                        (Domain "8w5.g5l-7.tys", Map.fromList []),
-                        (Domain "n.659-s.nfd", Map.fromList []),
-                        (Domain "pc5s-p9-48-x.r8cq.ss89h", Map.fromList [])
-                      ]
-                  )
+                ( Map.fromList
+                    [ (Domain "79-y-r4-9.d", Map.fromList []),
+                      (Domain "7f3.ra.9.r37.xavdz88-9vw-z", Map.fromList []),
+                      (Domain "7g.hw9aq-1", Map.fromList []),
+                      (Domain "8w5.g5l-7.tys", Map.fromList []),
+                      (Domain "n.659-s.nfd", Map.fromList []),
+                      (Domain "pc5s-p9-48-x.r8cq.ss89h", Map.fromList [])
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = False,
       qualifiedNewOtrTransient = False,
@@ -306,21 +306,21 @@ testObject_QualifiedNewOtrMessage_user_13 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ ( Domain "0i7268.w",
-                          Map.fromList
-                            [((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))), Map.fromList [])]
-                        ),
-                        ( Domain "l6.3.cf9d-z9wd.ay4qmup",
-                          Map.fromList
-                            [((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))), Map.fromList [])]
-                        ),
-                        ( Domain "o.ecc22-8z0s",
-                          Map.fromList
-                            [((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))), Map.fromList [])]
-                        )
-                      ]
-                  )
+                ( Map.fromList
+                    [ ( Domain "0i7268.w",
+                        Map.fromList
+                          [((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))), Map.fromList [])]
+                      ),
+                      ( Domain "l6.3.cf9d-z9wd.ay4qmup",
+                        Map.fromList
+                          [((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))), Map.fromList [])]
+                      ),
+                      ( Domain "o.ecc22-8z0s",
+                        Map.fromList
+                          [((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))), Map.fromList [])]
+                      )
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = False,
       qualifiedNewOtrTransient = False,
@@ -350,16 +350,16 @@ testObject_QualifiedNewOtrMessage_user_15 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ ( Domain "32-d.o0t410.de1kn",
-                          Map.fromList
-                            [ ( (Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000002"))),
-                                Map.fromList [(ClientId {client = "1"}, "")]
-                              )
-                            ]
-                        )
-                      ]
-                  )
+                ( Map.fromList
+                    [ ( Domain "32-d.o0t410.de1kn",
+                        Map.fromList
+                          [ ( (Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000002"))),
+                              Map.fromList [(ClientId {client = "1"}, "")]
+                            )
+                          ]
+                      )
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = True,
       qualifiedNewOtrTransient = True,
@@ -376,23 +376,23 @@ testObject_QualifiedNewOtrMessage_user_16 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ ( Domain "skmj4.u5471dp4v",
-                          Map.fromList
-                            [ ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))), Map.fromList []),
-                              ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))), Map.fromList [])
-                            ]
-                        )
-                      ]
-                  )
+                ( Map.fromList
+                    [ ( Domain "skmj4.u5471dp4v",
+                        Map.fromList
+                          [ ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))), Map.fromList []),
+                            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))), Map.fromList [])
+                          ]
+                      )
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = False,
       qualifiedNewOtrTransient = True,
@@ -429,17 +429,17 @@ testObject_QualifiedNewOtrMessage_user_18 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ (Domain "28d6.q1s.e", Map.fromList []),
-                        (Domain "8.z7q.pfl", Map.fromList []),
-                        (Domain "9ihzlr.16.74.kbz-8p.46.2i-2qd897-lx.f-4", Map.fromList []),
-                        (Domain "c8v77-j.q5l1-u-y9h.0a.8.14.a", Map.fromList []),
-                        (Domain "d2.rt", Map.fromList []),
-                        (Domain "k6u.s.suf", Map.fromList []),
-                        (Domain "kohn-bnoq0.vqi", Map.fromList []),
-                        (Domain "y2-4i9.zq--dg", Map.fromList [])
-                      ]
-                  )
+                ( Map.fromList
+                    [ (Domain "28d6.q1s.e", Map.fromList []),
+                      (Domain "8.z7q.pfl", Map.fromList []),
+                      (Domain "9ihzlr.16.74.kbz-8p.46.2i-2qd897-lx.f-4", Map.fromList []),
+                      (Domain "c8v77-j.q5l1-u-y9h.0a.8.14.a", Map.fromList []),
+                      (Domain "d2.rt", Map.fromList []),
+                      (Domain "k6u.s.suf", Map.fromList []),
+                      (Domain "kohn-bnoq0.vqi", Map.fromList []),
+                      (Domain "y2-4i9.zq--dg", Map.fromList [])
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = True,
       qualifiedNewOtrTransient = True,
@@ -456,17 +456,17 @@ testObject_QualifiedNewOtrMessage_user_19 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ (Domain "54f.hc-82g.xjvk26y5v7.1.qc", Map.fromList []),
-                        ( Domain "8hhm.a-77q6",
-                          Map.fromList
-                            [ ( (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))),
-                                Map.fromList [(ClientId {client = "0"}, ""), (ClientId {client = "1"}, "")]
-                              )
-                            ]
-                        )
-                      ]
-                  )
+                ( Map.fromList
+                    [ (Domain "54f.hc-82g.xjvk26y5v7.1.qc", Map.fromList []),
+                      ( Domain "8hhm.a-77q6",
+                        Map.fromList
+                          [ ( (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000100000000"))),
+                              Map.fromList [(ClientId {client = "0"}, ""), (ClientId {client = "1"}, "")]
+                            )
+                          ]
+                      )
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = True,
       qualifiedNewOtrTransient = True,
@@ -490,20 +490,20 @@ testObject_QualifiedNewOtrMessage_user_20 =
         QualifiedOtrRecipients
           { qualifiedOtrRecipientsMap =
               QualifiedUserClientMap
-                  ( Map.fromList
-                      [ (Domain "0-89.1l.ls", Map.fromList []),
-                        (Domain "0x2.svo", Map.fromList []),
-                        (Domain "3.gq0--73uhk1n", Map.fromList []),
-                        (Domain "7.w95.uj", Map.fromList []),
-                        (Domain "h-o3.fi", Map.fromList []),
-                        (Domain "j3.h2xmcb", Map.fromList []),
-                        (Domain "l.pkx62-e-o2", Map.fromList []),
-                        (Domain "oj.e", Map.fromList []),
-                        (Domain "wh4.f-x3.fiqqx.zm-3q", Map.fromList []),
-                        (Domain "y5.f6", Map.fromList []),
-                        (Domain "yi5c.i-p", Map.fromList [])
-                      ]
-                  )
+                ( Map.fromList
+                    [ (Domain "0-89.1l.ls", Map.fromList []),
+                      (Domain "0x2.svo", Map.fromList []),
+                      (Domain "3.gq0--73uhk1n", Map.fromList []),
+                      (Domain "7.w95.uj", Map.fromList []),
+                      (Domain "h-o3.fi", Map.fromList []),
+                      (Domain "j3.h2xmcb", Map.fromList []),
+                      (Domain "l.pkx62-e-o2", Map.fromList []),
+                      (Domain "oj.e", Map.fromList []),
+                      (Domain "wh4.f-x3.fiqqx.zm-3q", Map.fromList []),
+                      (Domain "y5.f6", Map.fromList []),
+                      (Domain "yi5c.i-p", Map.fromList [])
+                    ]
+                )
           },
       qualifiedNewOtrNativePush = False,
       qualifiedNewOtrTransient = False,

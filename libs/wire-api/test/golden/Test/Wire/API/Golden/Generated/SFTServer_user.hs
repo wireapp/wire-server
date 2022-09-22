@@ -46,19 +46,19 @@ import Wire.API.Call.Config (SFTServer, sftServer)
 testObject_SFTServer_user_1 :: SFTServer
 testObject_SFTServer_user_1 =
   sftServer
-      ( coerce
-          URI
-            { uriScheme = Scheme {schemeBS = "https"},
-              uriAuthority =
-                Just
-                  ( Authority
-                      { authorityUserInfo = Nothing,
-                        authorityHost = Host {hostBS = "example.com"},
-                        authorityPort = Nothing
-                      }
-                  ),
-              uriPath = "",
-              uriQuery = Query {queryPairs = []},
-              uriFragment = Nothing
-            }
-      )
+    ( coerce
+        URI
+          { uriScheme = Scheme {schemeBS = "https"},
+            uriAuthority =
+              Just
+                ( Authority
+                    { authorityUserInfo = Nothing,
+                      authorityHost = Host {hostBS = "example.com"},
+                      authorityPort = Nothing
+                    }
+                ),
+            uriPath = "",
+            uriQuery = Query {queryPairs = []},
+            uriFragment = Nothing
+          }
+    )

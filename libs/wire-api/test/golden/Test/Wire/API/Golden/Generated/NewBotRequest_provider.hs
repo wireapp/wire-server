@@ -114,41 +114,41 @@ testObject_NewBotRequest_provider_1 =
           },
       newBotConv =
         botConvView
-            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))))
-            (Just "")
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      (fromJust (parseRoleName "nnu9fdovdb35gac26w1tou0uax_3b9l8y5sgh795f4d7yr1gzuewqfj8hx4"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
-                    omService = Nothing,
-                    omConvRoleName = (fromJust (parseRoleName "3m_oredfy0jqp1jvrociab2vq4z1rzklzs6_bpd04ht0"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
-                    omService = Nothing,
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "0ns0gbsu3sk2cj6qsbs8bkmmculfhcbp_wntqaciff2f3j0zwf24p2ga7lxkzd13c626ruj7evj1lyqn0u7m2q5su"
-                          )
-                      )
-                  }
-              ]
-            ),
+          ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))))
+          (Just "")
+          ( [ OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
+                          }
+                      ),
+                  omConvRoleName =
+                    (fromJust (parseRoleName "nnu9fdovdb35gac26w1tou0uax_3b9l8y5sgh795f4d7yr1gzuewqfj8hx4"))
+                },
+              OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
+                  omService = Nothing,
+                  omConvRoleName = (fromJust (parseRoleName "3m_oredfy0jqp1jvrociab2vq4z1rzklzs6_bpd04ht0"))
+                },
+              OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                  omService = Nothing,
+                  omConvRoleName =
+                    ( fromJust
+                        ( parseRoleName
+                            "0ns0gbsu3sk2cj6qsbs8bkmmculfhcbp_wntqaciff2f3j0zwf24p2ga7lxkzd13c626ruj7evj1lyqn0u7m2q5su"
+                        )
+                    )
+                }
+            ]
+          ),
       newBotToken = "&",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.TA, lCountry = Just (Country {fromCountry = CV})}
     }
@@ -197,28 +197,28 @@ testObject_NewBotRequest_provider_3 =
           },
       newBotConv =
         botConvView
-            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))))
-            (Nothing)
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "xawj0wsxkoiigr6hjuhzkt2qdrnx2hc3auf74uyekse8rrmrtv05sysqlhs9c2bq87h_pz5di6rjr8_bapds"
-                          )
-                      )
-                  }
-              ]
-            ),
+          ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))))
+          (Nothing)
+          ( [ OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
+                          }
+                      ),
+                  omConvRoleName =
+                    ( fromJust
+                        ( parseRoleName
+                            "xawj0wsxkoiigr6hjuhzkt2qdrnx2hc3auf74uyekse8rrmrtv05sysqlhs9c2bq87h_pz5di6rjr8_bapds"
+                        )
+                    )
+                }
+            ]
+          ),
       newBotToken = "0~",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.AB, lCountry = Just (Country {fromCountry = IO})}
     }
@@ -289,60 +289,60 @@ testObject_NewBotRequest_provider_6 =
           },
       newBotConv =
         botConvView
-            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))))
-            (Nothing)
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      (fromJust (parseRoleName "zv9nb4emt5hh_59ezmb7gy7vex5csr4hizv2bzuj67mjuwx2wc4zf_8valch1hkjc"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "pnj4jsurytr8p6wkxo1_1c8frkgjemx0y48aribcevovmbpeh2us5exkz_fkyfciz88zqw4z4f56orrphp2d5owojj7vxuus0db0eud_bci52125vmt"
-                          )
-                      )
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "3cwtdmxs2zcpv4k55pxg6354ab_2oqoz_jtetp3_u8rjfzac7jiq14oq24axxupapg08njxccrvix5b9q2r3ezmdsni5yx0oq55am8jeqv57815l5td3groa6vjm408"
-                          )
-                      )
-                  }
-              ]
-            ),
+          ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))))
+          (Nothing)
+          ( [ OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
+                          }
+                      ),
+                  omConvRoleName =
+                    (fromJust (parseRoleName "zv9nb4emt5hh_59ezmb7gy7vex5csr4hizv2bzuj67mjuwx2wc4zf_8valch1hkjc"))
+                },
+              OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
+                          }
+                      ),
+                  omConvRoleName =
+                    ( fromJust
+                        ( parseRoleName
+                            "pnj4jsurytr8p6wkxo1_1c8frkgjemx0y48aribcevovmbpeh2us5exkz_fkyfciz88zqw4z4f56orrphp2d5owojj7vxuus0db0eud_bci52125vmt"
+                        )
+                    )
+                },
+              OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
+                          }
+                      ),
+                  omConvRoleName =
+                    ( fromJust
+                        ( parseRoleName
+                            "3cwtdmxs2zcpv4k55pxg6354ab_2oqoz_jtetp3_u8rjfzac7jiq14oq24axxupapg08njxccrvix5b9q2r3ezmdsni5yx0oq55am8jeqv57815l5td3groa6vjm408"
+                        )
+                    )
+                }
+            ]
+          ),
       newBotToken = "\US",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.SK, lCountry = Just (Country {fromCountry = ML})}
     }
@@ -404,44 +404,44 @@ testObject_NewBotRequest_provider_9 =
           },
       newBotConv =
         botConvView
-            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))))
-            (Nothing)
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "18dmoaegl2lj3k9vvtivedw5umrfl3frcwsiv2f9wyhe66qgaeuzbxh_q5ja4sebpu9ofj826ufgeozzz5_0mt2kbnrl9fqxl9nfmgtbklecosycpw6fupemw7vj"
-                          )
-                      )
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          (parseRoleName "9vzqc64t8n6lfdea9ryucq_xu4x_v8mgjkv0jf8d5r34wxgac7yhqtnqnxivdzyhgotkpum07frl")
-                      )
-                  }
-              ]
-            ),
+          ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))))
+          (Nothing)
+          ( [ OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
+                          }
+                      ),
+                  omConvRoleName =
+                    ( fromJust
+                        ( parseRoleName
+                            "18dmoaegl2lj3k9vvtivedw5umrfl3frcwsiv2f9wyhe66qgaeuzbxh_q5ja4sebpu9ofj826ufgeozzz5_0mt2kbnrl9fqxl9nfmgtbklecosycpw6fupemw7vj"
+                        )
+                    )
+                },
+              OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
+                          }
+                      ),
+                  omConvRoleName =
+                    ( fromJust
+                        (parseRoleName "9vzqc64t8n6lfdea9ryucq_xu4x_v8mgjkv0jf8d5r34wxgac7yhqtnqnxivdzyhgotkpum07frl")
+                    )
+                }
+            ]
+          ),
       newBotToken = "\1020342X",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.HA, lCountry = Just (Country {fromCountry = MW})}
     }
@@ -541,28 +541,28 @@ testObject_NewBotRequest_provider_13 =
           },
       newBotConv =
         botConvView
-            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))))
-            (Just "")
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "f5kideyd0z_wa8k_u0o3wcgbx1iea5yqmkrz3vv86ehs77akep4ttw6eznzo7tefijy5zqxnzq8u4mghhp3m2pg9kqtxnaxukzw1cn"
-                          )
-                      )
-                  }
-              ]
-            ),
+          ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))))
+          (Just "")
+          ( [ OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
+                          }
+                      ),
+                  omConvRoleName =
+                    ( fromJust
+                        ( parseRoleName
+                            "f5kideyd0z_wa8k_u0o3wcgbx1iea5yqmkrz3vv86ehs77akep4ttw6eznzo7tefijy5zqxnzq8u4mghhp3m2pg9kqtxnaxukzw1cn"
+                        )
+                    )
+                }
+            ]
+          ),
       newBotToken = "",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.MI, lCountry = Just (Country {fromCountry = FI})}
     }
@@ -651,37 +651,37 @@ testObject_NewBotRequest_provider_17 =
           },
       newBotConv =
         botConvView
-            ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))))
-            (Just "")
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
-                            }
-                        ),
-                    omConvRoleName = (fromJust (parseRoleName "zi6nsx7hjs04d_1nxiaasqcb"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-                            }
-                        ),
-                    omConvRoleName =
-                      (fromJust (parseRoleName "c67nu5cxj9cru8018oquz_74mazgewq5fa6mwgwzktvep_7ftdtitzlwewqe"))
-                  }
-              ]
-            ),
+          ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))))
+          (Just "")
+          ( [ OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
+                          }
+                      ),
+                  omConvRoleName = (fromJust (parseRoleName "zi6nsx7hjs04d_1nxiaasqcb"))
+                },
+              OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
+                          }
+                      ),
+                  omConvRoleName =
+                    (fromJust (parseRoleName "c67nu5cxj9cru8018oquz_74mazgewq5fa6mwgwzktvep_7ftdtitzlwewqe"))
+                }
+            ]
+          ),
       newBotToken = "&))",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.NY, lCountry = Just (Country {fromCountry = NP})}
     }
@@ -705,39 +705,39 @@ testObject_NewBotRequest_provider_18 =
           },
       newBotConv =
         botConvView
-            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))))
-            (Just "\DC2")
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName = (fromJust (parseRoleName "a8r6vcnbte4ouwljafu5fid9r_"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          (parseRoleName "05bh82wu2bogl1wfzvdrt6l37s_1awtp4rbb5qyk9f2fezt8gq0u_f2eoa7qjloopp4yh0dg5h0ad")
-                      )
-                  }
-              ]
-            ),
+          ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))))
+          (Just "\DC2")
+          ( [ OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
+                          }
+                      ),
+                  omConvRoleName = (fromJust (parseRoleName "a8r6vcnbte4ouwljafu5fid9r_"))
+                },
+              OtherMember
+                { omQualifiedId =
+                    Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) domain,
+                  omService =
+                    Just
+                      ( ServiceRef
+                          { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
+                            _serviceRefProvider =
+                              (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
+                          }
+                      ),
+                  omConvRoleName =
+                    ( fromJust
+                        (parseRoleName "05bh82wu2bogl1wfzvdrt6l37s_1awtp4rbb5qyk9f2fezt8gq0u_f2eoa7qjloopp4yh0dg5h0ad")
+                    )
+                }
+            ]
+          ),
       newBotToken = "\175470\1078918Nr\1056432",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.GU, lCountry = Just (Country {fromCountry = SY})}
     }

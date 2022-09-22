@@ -1,5 +1,3 @@
-
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -30,7 +28,7 @@ testObject_LastPrekey_user_2 = lastPrekey ("\983748\156032\1056219\n\1099804?\11
 testObject_LastPrekey_user_3 :: LastPrekey
 testObject_LastPrekey_user_3 =
   lastPrekey
-      ("\ESC\992738\DC4\EM\1003033\1062557\f\n\RS\1091795\GS@#C\78461^3d\SUBa\167528\v]l\FS\tU\1047107\&4\42576")
+    ("\ESC\992738\DC4\EM\1003033\1062557\f\n\RS\1091795\GS@#C\78461^3d\SUBa\167528\v]l\FS\tU\1047107\&4\42576")
 
 testObject_LastPrekey_user_4 :: LastPrekey
 testObject_LastPrekey_user_4 = lastPrekey ("")

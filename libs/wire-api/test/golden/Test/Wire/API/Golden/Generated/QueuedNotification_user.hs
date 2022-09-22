@@ -30,9 +30,9 @@ import Wire.API.Notification (QueuedNotification, queuedNotification)
 testObject_QueuedNotification_user_1 :: QueuedNotification
 testObject_QueuedNotification_user_1 =
   queuedNotification
-      (Id (fromJust (UUID.fromString "0000005f-0000-007b-0000-001a0000000a")))
-      ( NonEmpty.fromList
-          [ fromList [],
-            fromList [("\179372\&3", Array [])]
-          ]
-      )
+    (Id (fromJust (UUID.fromString "0000005f-0000-007b-0000-001a0000000a")))
+    ( NonEmpty.fromList
+        [ fromList [],
+          fromList [("\179372\&3", Array [])]
+        ]
+    )
