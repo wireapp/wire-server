@@ -117,12 +117,12 @@ testObject_Service_provider_1 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("RA=="))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "RA==")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -207,13 +207,13 @@ testObject_Service_provider_2 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -270,9 +270,9 @@ testObject_Service_provider_3 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("9JE="))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "9JE=")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -357,10 +357,10 @@ testObject_Service_provider_4 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("ZGU="))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "ZGU=")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -456,7 +456,7 @@ testObject_Service_provider_5 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("hQ==")))]),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate "hQ=="))]),
       serviceKeys =
         List1
           ( NonEmpty.fromList
@@ -521,9 +521,9 @@ testObject_Service_provider_6 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("jK0="))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "jK0=")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -562,7 +562,7 @@ testObject_Service_provider_6 =
       serviceAssets =
         [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
-          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)
         ],
@@ -600,8 +600,8 @@ testObject_Service_provider_7 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("Csg="))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "Csg=")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -699,9 +699,9 @@ testObject_Service_provider_8 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("ow=="))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "ow==")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -825,7 +825,7 @@ testObject_Service_provider_9 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ""))]),
       serviceKeys =
         List1
           ( NonEmpty.fromList
@@ -877,7 +877,7 @@ testObject_Service_provider_10 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("ZQ==")))]),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate "ZQ=="))]),
       serviceKeys =
         List1
           ( NonEmpty.fromList
@@ -946,10 +946,10 @@ testObject_Service_provider_11 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("Ros="))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "Ros=")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -1027,7 +1027,7 @@ testObject_Service_provider_12 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ""))]),
       serviceKeys =
         List1
           ( NonEmpty.fromList
@@ -1128,7 +1128,7 @@ testObject_Service_provider_13 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ServiceToken (fromRight undefined (validate (""))), ServiceToken (fromRight undefined (validate ("")))]
+              [ServiceToken (fromRight undefined (validate "")), ServiceToken (fromRight undefined (validate ""))]
           ),
       serviceKeys =
         List1
@@ -1198,8 +1198,8 @@ testObject_Service_provider_14 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("Pw=="))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "Pw==")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -1295,7 +1295,7 @@ testObject_Service_provider_15 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("yA==")))]),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate "yA=="))]),
       serviceKeys =
         List1
           ( NonEmpty.fromList
@@ -1334,8 +1334,8 @@ testObject_Service_provider_15 =
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
-          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
-          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)
         ],
       serviceTags = fromList [DesignTag, LifestyleTag, QuizTag],
@@ -1369,7 +1369,7 @@ testObject_Service_provider_16 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ""))]),
       serviceKeys =
         List1
           ( NonEmpty.fromList
@@ -1438,8 +1438,8 @@ testObject_Service_provider_17 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("BA=="))),
-                ServiceToken (fromRight undefined (validate ("Fm4=")))
+              [ ServiceToken (fromRight undefined (validate "BA==")),
+                ServiceToken (fromRight undefined (validate "Fm4="))
               ]
           ),
       serviceKeys =
@@ -1496,9 +1496,9 @@ testObject_Service_provider_18 =
       serviceTokens =
         List1
           ( NonEmpty.fromList
-              [ ServiceToken (fromRight undefined (validate ("5jM="))),
-                ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "5jM=")),
+                ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       serviceKeys =
@@ -1590,7 +1590,7 @@ testObject_Service_provider_19 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ""))]),
       serviceKeys =
         List1
           ( NonEmpty.fromList
@@ -1642,7 +1642,7 @@ testObject_Service_provider_20 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ""))]),
       serviceKeys =
         List1
           ( NonEmpty.fromList

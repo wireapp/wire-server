@@ -25,7 +25,7 @@ import Wire.API.User (Asset (ImageAsset), AssetSize (AssetComplete, AssetPreview
 import qualified Wire.API.User.Profile as User.Profile (Asset)
 
 testObject_User_2eProfile_2eAsset_user_1 :: User.Profile.Asset
-testObject_User_2eProfile_2eAsset_user_1 = ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)
+testObject_User_2eProfile_2eAsset_user_1 = ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing
 
 testObject_User_2eProfile_2eAsset_user_2 :: User.Profile.Asset
 testObject_User_2eProfile_2eAsset_user_2 =
@@ -48,7 +48,7 @@ testObject_User_2eProfile_2eAsset_user_7 =
   ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)
 
 testObject_User_2eProfile_2eAsset_user_8 :: User.Profile.Asset
-testObject_User_2eProfile_2eAsset_user_8 = ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)
+testObject_User_2eProfile_2eAsset_user_8 = ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing
 
 testObject_User_2eProfile_2eAsset_user_9 :: User.Profile.Asset
 testObject_User_2eProfile_2eAsset_user_9 = ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)

@@ -42,7 +42,7 @@ testObject_CompletePasswordReset_user_1 =
               fromRight
                 undefined
                 ( validate
-                    ("uLtYG9FEhpfNHht=ndxYbhEsOaZJJTPjEsBsnJt0UngpmW5OvqpW2F9E5VuFikdraC8s1xMQs9yOzKlgdV4rf371UTMjWzc59HdqfqFDx8=ARnQtIJ8VyAnd784fYJv2A=IiSQJhfc=tc7UKa4n_TN9Hq7BvAQ0YLBFuCRsH1cBsr35-I0aEKev_48AFCC2r2LceURv7tsXpODU=pjneuYFQSD2u8GmiQ3NxRqJEiIfvj3IE_S2gFTqb3Qod=rvVoT7yAejNg=F89T6bacNnzM-sdRhB7ZoQrQYQRc7j7d_1hDOzKsmkBVqpZ3466SwlHld09GyIAYBOo7TipyvgBENFlXnor2sPS2TwCtzmMdyMxhEt780DAdUgiasCsS08_rFrx3j8_wNCBzYsWRTYi7LSaY_IxpcH-mOkH86L=8SAMcCs_pJpKsoWa1EY4Ep0h8jTspHT-6tKd2s0gT_v5GvTPEg8BZyz04gt6I5JgdSrOJ1A0=w_zy4O-KSS-ba73v2v4p3x-N19X88brW3VCwbqgS_G3DAMDEr76Ekn7q0UMAd2MR13SgKWjM35lFtS6vN6b5a4QVqIxOqAvA2EPHV2UY4zGhJsgl7KpgtCzUMKIl-mTyjXP_a_c9y0uu9u6I")
+                    "uLtYG9FEhpfNHht=ndxYbhEsOaZJJTPjEsBsnJt0UngpmW5OvqpW2F9E5VuFikdraC8s1xMQs9yOzKlgdV4rf371UTMjWzc59HdqfqFDx8=ARnQtIJ8VyAnd784fYJv2A=IiSQJhfc=tc7UKa4n_TN9Hq7BvAQ0YLBFuCRsH1cBsr35-I0aEKev_48AFCC2r2LceURv7tsXpODU=pjneuYFQSD2u8GmiQ3NxRqJEiIfvj3IE_S2gFTqb3Qod=rvVoT7yAejNg=F89T6bacNnzM-sdRhB7ZoQrQYQRc7j7d_1hDOzKsmkBVqpZ3466SwlHld09GyIAYBOo7TipyvgBENFlXnor2sPS2TwCtzmMdyMxhEt780DAdUgiasCsS08_rFrx3j8_wNCBzYsWRTYi7LSaY_IxpcH-mOkH86L=8SAMcCs_pJpKsoWa1EY4Ep0h8jTspHT-6tKd2s0gT_v5GvTPEg8BZyz04gt6I5JgdSrOJ1A0=w_zy4O-KSS-ba73v2v4p3x-N19X88brW3VCwbqgS_G3DAMDEr76Ekn7q0UMAd2MR13SgKWjM35lFtS6vN6b5a4QVqIxOqAvA2EPHV2UY4zGhJsgl7KpgtCzUMKIl-mTyjXP_a_c9y0uu9u6I"
                 )
           },
       cpwrPassword =
@@ -54,14 +54,14 @@ testObject_CompletePasswordReset_user_2 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_2 =
   CompletePasswordReset
     { cpwrIdent =
-        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate (""))}),
+        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("2I7=q77Q8QCiyaoKVP8TXpdDJIFfol2dXkYJJpNtOp6ne39Ktkfsdhiw-Hs=TCndYZBOHhGwXI7xi-0VYGH=B=6n5dUmNlG8IttqQyD17FRIiylJktAq7ZYH884=9TpOE-woQD=XQiwuAp=hXEIMayRAkoT2K=SHUR2n0P-o9tz8oJ=6DOBtQOxhn3yFtvJe6ZbgcJ0dJGHzG3UDxtAR1SBIjsKNNOVZSFckzxzH-K0IZX32h=oTWcNuqllszjvRpA4Q5JdO-cWpH4j71ZDLdrEbjAdj0l7=DgH187pgSvLedE-xi_gNmUKOKHRAHVd-j1")
+                    "2I7=q77Q8QCiyaoKVP8TXpdDJIFfol2dXkYJJpNtOp6ne39Ktkfsdhiw-Hs=TCndYZBOHhGwXI7xi-0VYGH=B=6n5dUmNlG8IttqQyD17FRIiylJktAq7ZYH884=9TpOE-woQD=XQiwuAp=hXEIMayRAkoT2K=SHUR2n0P-o9tz8oJ=6DOBtQOxhn3yFtvJe6ZbgcJ0dJGHzG3UDxtAR1SBIjsKNNOVZSFckzxzH-K0IZX32h=oTWcNuqllszjvRpA4Q5JdO-cWpH4j71ZDLdrEbjAdj0l7=DgH187pgSvLedE-xi_gNmUKOKHRAHVd-j1"
                 )
           },
       cpwrPassword =
@@ -74,14 +74,14 @@ testObject_CompletePasswordReset_user_3 =
   CompletePasswordReset
     { cpwrIdent =
         PasswordResetIdentityKey
-          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate ("cuBaj2u5"))}),
+          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "cuBaj2u5")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("3Hscxcggm_aoPZM=w-hJ5Z-xXSkr-X4MID-WGI42TXbR8rnMfnj4m7Kvv7PsVwkZ-DVxkR4Fitcfs=G4h0B-R5zmaJ67fShX-KWP0pqGoEsn=9jqUrfzJfHlVbEMgvxITTgmbaLF-yDREL5_fUzeWi1X3uM4aoqRQkU8tnJx6_Rl57T-nBM5v_cQPtP_8KrqWPyXjnA0wxZ72OXbSJiGyVZ8S4tM6ibL1SI2zj7xEAinA2wr4xDFsQRnBLNi0kI9wfsU4Ba5uxiMZ_KJOSFWeH_V=C7LaTX4u-ApwjieRe_O9xp6RRU5d-Dw41ZMYRH0QZqTPzaggqDBt0H9pv0k2E3FO4-foGKNreFIhhsvETA3EGetN-dpvb=v6WvBdV3Oke6KXPAGibFuTXZlygqkiG29afP_IwbBTi81tSsThZ_Ellw7Nn=N5Kqpo8qfTqEVr0ou72hQqcFw-d9F7jG30qhcHMoidQzru1qmF01F9mNmJmmFOlhhUImpVxeLroHheb6UaJj5kUFnlzZDjqtMCjKGaOL3che0NUlompYVZezm2KyIOMhCOqWAYzmsKNZZS1aliDqMrj_2B=txX3oLManHxFJljcKAX00CbObuwOw8IX98TmrZbSWUgpdLGL")
+                    "3Hscxcggm_aoPZM=w-hJ5Z-xXSkr-X4MID-WGI42TXbR8rnMfnj4m7Kvv7PsVwkZ-DVxkR4Fitcfs=G4h0B-R5zmaJ67fShX-KWP0pqGoEsn=9jqUrfzJfHlVbEMgvxITTgmbaLF-yDREL5_fUzeWi1X3uM4aoqRQkU8tnJx6_Rl57T-nBM5v_cQPtP_8KrqWPyXjnA0wxZ72OXbSJiGyVZ8S4tM6ibL1SI2zj7xEAinA2wr4xDFsQRnBLNi0kI9wfsU4Ba5uxiMZ_KJOSFWeH_V=C7LaTX4u-ApwjieRe_O9xp6RRU5d-Dw41ZMYRH0QZqTPzaggqDBt0H9pv0k2E3FO4-foGKNreFIhhsvETA3EGetN-dpvb=v6WvBdV3Oke6KXPAGibFuTXZlygqkiG29afP_IwbBTi81tSsThZ_Ellw7Nn=N5Kqpo8qfTqEVr0ou72hQqcFw-d9F7jG30qhcHMoidQzru1qmF01F9mNmJmmFOlhhUImpVxeLroHheb6UaJj5kUFnlzZDjqtMCjKGaOL3che0NUlompYVZezm2KyIOMhCOqWAYzmsKNZZS1aliDqMrj_2B=txX3oLManHxFJljcKAX00CbObuwOw8IX98TmrZbSWUgpdLGL"
                 )
           },
       cpwrPassword =
@@ -93,14 +93,14 @@ testObject_CompletePasswordReset_user_4 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_4 =
   CompletePasswordReset
     { cpwrIdent =
-        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate ("pg=="))}),
+        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "pg==")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("FKnQwRcbB-bCQwdDH6OTQsc5g-I9IDiHheM6TakPeV4ZwP3x3i5rlkV7mHpp07ciotHX_jsPVzD4xjtCgFHnVTP1jIflndRa558zctQSaIml6BKUej6fC6WmS_Y1=28ti0mhMAlxsU3FX84O6Dt83kW5aeRuVPK-yrzlEg7k_oWB36DY2F_wwbJMJ3294j4owo1Y-p3VAi7nB9FKZZd2WuJGk3jryStw3BNQIeOY66Y4n3RLeFOA3rfTd=TwjuWlD4M42UfTQkT_-H_h-oJiQG-dltrDXiT0bFtuu6u=Cotl8PPUY1YR5wp_fQZgzeNe5C94hXBctqRszGbHZVzdXbwq0-M3J4XL2tyAXqLhMfmyWB3EwCpo5DGA17=PfMkNBMIA0dIAnF5s=Ir7hOlc=Z98t2SxKcLgD8cxMnsVnbYRd3D3FsL0BSya92yYkqWSF=gE2i61-BiwlN=RReUKoHXWHXMGsjpiud5YykaWtUge78A=V2yPkzYCIbp8_3FWi3-Yp6g5eLEPtW=Dv6fcPbkCrQebdHgW4nQp3qRDCvE-qTH92")
+                    "FKnQwRcbB-bCQwdDH6OTQsc5g-I9IDiHheM6TakPeV4ZwP3x3i5rlkV7mHpp07ciotHX_jsPVzD4xjtCgFHnVTP1jIflndRa558zctQSaIml6BKUej6fC6WmS_Y1=28ti0mhMAlxsU3FX84O6Dt83kW5aeRuVPK-yrzlEg7k_oWB36DY2F_wwbJMJ3294j4owo1Y-p3VAi7nB9FKZZd2WuJGk3jryStw3BNQIeOY66Y4n3RLeFOA3rfTd=TwjuWlD4M42UfTQkT_-H_h-oJiQG-dltrDXiT0bFtuu6u=Cotl8PPUY1YR5wp_fQZgzeNe5C94hXBctqRszGbHZVzdXbwq0-M3J4XL2tyAXqLhMfmyWB3EwCpo5DGA17=PfMkNBMIA0dIAnF5s=Ir7hOlc=Z98t2SxKcLgD8cxMnsVnbYRd3D3FsL0BSya92yYkqWSF=gE2i61-BiwlN=RReUKoHXWHXMGsjpiud5YykaWtUge78A=V2yPkzYCIbp8_3FWi3-Yp6g5eLEPtW=Dv6fcPbkCrQebdHgW4nQp3qRDCvE-qTH92"
                 )
           },
       cpwrPassword =
@@ -113,14 +113,14 @@ testObject_CompletePasswordReset_user_5 =
   CompletePasswordReset
     { cpwrIdent =
         PasswordResetIdentityKey
-          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate ("2cpMpg9R9Lk="))}),
+          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "2cpMpg9R9Lk=")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("uflt8-lJr8O5DUtHfpzwZQ5-iv_WTBeV-pAWB1PHemDlUwPAE89lcppmSr43jwfaSLGrRWovF-APHJjreuOTvF9=HVLO63tQ-lE1=wmlKGIZx_guJr_mDF3Xa5aYjUH9")
+                    "uflt8-lJr8O5DUtHfpzwZQ5-iv_WTBeV-pAWB1PHemDlUwPAE89lcppmSr43jwfaSLGrRWovF-APHJjreuOTvF9=HVLO63tQ-lE1=wmlKGIZx_guJr_mDF3Xa5aYjUH9"
                 )
           },
       cpwrPassword =
@@ -133,14 +133,14 @@ testObject_CompletePasswordReset_user_6 =
   CompletePasswordReset
     { cpwrIdent =
         PasswordResetIdentityKey
-          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate ("nA48KL8="))}),
+          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "nA48KL8=")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("f2375AvFIRnzj4uO7vdU4GrYBhp_Ddfpv-W_0YOyiS6XyDlnNANkEl6ba9exKJfBhxedtQuAeie7L9OnscS8lG6TpFN=nsuSg3BW4a4hYCa-izXNj7")
+                    "f2375AvFIRnzj4uO7vdU4GrYBhp_Ddfpv-W_0YOyiS6XyDlnNANkEl6ba9exKJfBhxedtQuAeie7L9OnscS8lG6TpFN=nsuSg3BW4a4hYCa-izXNj7"
                 )
           },
       cpwrPassword =
@@ -158,7 +158,7 @@ testObject_CompletePasswordReset_user_7 =
               fromRight
                 undefined
                 ( validate
-                    ("bjOVKa11ziNp9wvnuPVs=p83OrCk9-7W-B6VqDTfOqVdJOsPguq08yUjmSp7IdMcCm5=ENBWRmN4cNsd2V8PMi9809xW2HncAxUiLCtGehB6y3DGDfi4l3VoajT3Q7E1EmgOtxwMVog5=ppAFPpJdI0vMKSCknZajOA_pOA4p1yAj-m=iH53-NcxRBCMTpVh2t34th03Lyh_sxnYInBzgsw7r1IgO3Uyh0KruIoK6nF=qzVpuy7g_J0Wpq-OemMG9PApaHZpMfGHKkWIevQrmP6DBcWHfmeJJPmzqIPN_cig-8grl=CLKQJM-tuNC5sEj82vFIa0ewAZ_VG-z56DL9v8J9v2Q-XQ6gK48y9VSFwYt=BFAOLRuwNUkbCP=BeM10OVgE6vd5zsz61M5rAGlOIgEXG4MsrDt5_iUmHsocsUGdRfk0_=SO84vkjxZl_D0HX-PhkYBzN71IIXY4Ycg5iswNSMV=4XFn9Pxy1bYGBnWs36Ayn6kDYPBRKPfZgPrX7ogYKWtFE")
+                    "bjOVKa11ziNp9wvnuPVs=p83OrCk9-7W-B6VqDTfOqVdJOsPguq08yUjmSp7IdMcCm5=ENBWRmN4cNsd2V8PMi9809xW2HncAxUiLCtGehB6y3DGDfi4l3VoajT3Q7E1EmgOtxwMVog5=ppAFPpJdI0vMKSCknZajOA_pOA4p1yAj-m=iH53-NcxRBCMTpVh2t34th03Lyh_sxnYInBzgsw7r1IgO3Uyh0KruIoK6nF=qzVpuy7g_J0Wpq-OemMG9PApaHZpMfGHKkWIevQrmP6DBcWHfmeJJPmzqIPN_cig-8grl=CLKQJM-tuNC5sEj82vFIa0ewAZ_VG-z56DL9v8J9v2Q-XQ6gK48y9VSFwYt=BFAOLRuwNUkbCP=BeM10OVgE6vd5zsz61M5rAGlOIgEXG4MsrDt5_iUmHsocsUGdRfk0_=SO84vkjxZl_D0HX-PhkYBzN71IIXY4Ycg5iswNSMV=4XFn9Pxy1bYGBnWs36Ayn6kDYPBRKPfZgPrX7ogYKWtFE"
                 )
           },
       cpwrPassword =
@@ -170,14 +170,14 @@ testObject_CompletePasswordReset_user_8 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_8 =
   CompletePasswordReset
     { cpwrIdent =
-        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate (""))}),
+        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("HT4YR3Ac3K6GCYNAgnzgbhNlP8wQLztp3kTgMzgcfZNgMDkrRlHRubahDXvPmSCGZxbF6wEPajDPybsW3KXV_vc1-ZSOHI4YxOCsOKiKGyE4LNtwZbG9bKAy9QikyM7tHi3he65-0l7heybNjr3z0IW9Ju4oe8CeQyxdCMuL=Qn3bZTqE97t71neQvy_DXv27gjQPTze2KuCHfQskIZI5LJ=iaTkm7V=273xb-8p=tIzAfNGFcBkq136zeeBPUvuiFa5y7YS25ajFbWF3SxFlbBnxclB_Burg2IFF=S5ueWWB0CrhkL0nZTE5c0blnJ9UbieK8L7LnuzEezronadngQcwL0iXW9sRq6MkpV4KISqdjvaTXDzR61ETnLpzM9zLeCPhnJSI9TLlz7BtgrtIlKvr6OCQiX9UF9YH46KdegQbGog3Hgejpeusa9gQLeKoRRstGqTrw1UERzJv=FJ2h4gUz6YuUKsktYUu-vu9C_Cbmaz1COaqsTGLd5Q8fUJUNYGRrl_6oRdoDcu_0YxfNJXRd_vk=7o4I6dtXhpUdvEH7q0X41bs5rli7CN9hoY_6tgeceOeISVI3amefP4fO75ZJAyHPkDJl1W-P2YpKuu8kylD9LvpanoMBCKT0PGStidrTxW0srUYbQi8O7QJ7OH4Tlwh7ndJ9qZYrxLNakB3SvHy62kRgSWSKAf8cZatgQq69easXNalOvs9J6_yNgUv_QbOuOdDJgXaYxNyetKSN2tN8tMAI7nkjJb5htohSPoIxKCnomb971LqSmHt5u-qvPQL9BCIkF=27CjGBr0MK7KdLOoVE9k-T=06uLB7Ah8vNuH6-p0npqBRKcznIVMWCUrqOaMJLvdpbHlPpanfaW1JPH8_HQsUZzW4WKvlQWW0QNb1c-zIYpNw-LXA1NDnYMOu3Rgdg0nDsa8jkvf_NCGrow7ncDH5DdNQc-HnIvzv0NEK5V7y1iLBsW")
+                    "HT4YR3Ac3K6GCYNAgnzgbhNlP8wQLztp3kTgMzgcfZNgMDkrRlHRubahDXvPmSCGZxbF6wEPajDPybsW3KXV_vc1-ZSOHI4YxOCsOKiKGyE4LNtwZbG9bKAy9QikyM7tHi3he65-0l7heybNjr3z0IW9Ju4oe8CeQyxdCMuL=Qn3bZTqE97t71neQvy_DXv27gjQPTze2KuCHfQskIZI5LJ=iaTkm7V=273xb-8p=tIzAfNGFcBkq136zeeBPUvuiFa5y7YS25ajFbWF3SxFlbBnxclB_Burg2IFF=S5ueWWB0CrhkL0nZTE5c0blnJ9UbieK8L7LnuzEezronadngQcwL0iXW9sRq6MkpV4KISqdjvaTXDzR61ETnLpzM9zLeCPhnJSI9TLlz7BtgrtIlKvr6OCQiX9UF9YH46KdegQbGog3Hgejpeusa9gQLeKoRRstGqTrw1UERzJv=FJ2h4gUz6YuUKsktYUu-vu9C_Cbmaz1COaqsTGLd5Q8fUJUNYGRrl_6oRdoDcu_0YxfNJXRd_vk=7o4I6dtXhpUdvEH7q0X41bs5rli7CN9hoY_6tgeceOeISVI3amefP4fO75ZJAyHPkDJl1W-P2YpKuu8kylD9LvpanoMBCKT0PGStidrTxW0srUYbQi8O7QJ7OH4Tlwh7ndJ9qZYrxLNakB3SvHy62kRgSWSKAf8cZatgQq69easXNalOvs9J6_yNgUv_QbOuOdDJgXaYxNyetKSN2tN8tMAI7nkjJb5htohSPoIxKCnomb971LqSmHt5u-qvPQL9BCIkF=27CjGBr0MK7KdLOoVE9k-T=06uLB7Ah8vNuH6-p0npqBRKcznIVMWCUrqOaMJLvdpbHlPpanfaW1JPH8_HQsUZzW4WKvlQWW0QNb1c-zIYpNw-LXA1NDnYMOu3Rgdg0nDsa8jkvf_NCGrow7ncDH5DdNQc-HnIvzv0NEK5V7y1iLBsW"
                 )
           },
       cpwrPassword =
@@ -195,7 +195,7 @@ testObject_CompletePasswordReset_user_9 =
               fromRight
                 undefined
                 ( validate
-                    ("uyqP0_aQl3yI0f7i0fpyL6quXIf6WSJRbPrU6Z0j2gElHzfIXLenrK4ZwQl42i99XCnAjLGA2=sQczG10h7DBcYH4TmbO-li6YDpcduZ3XkbGQ=EalL5L2xZbwUpVFGp5J5e=yea3gDvfUwq0sdTrRFCFbTJBG5cU9K_5zQMB=DTFJoHAh=L_0uTZCRF_bj36cGxLegs42ji4GGO3kG4kcvpSCMpJV20a47V7GbqfEdQ3HV2gdN5CXpWXxRu71Y2XvAMijj8O-ciqslgJCveAgm6JlkZJf8-Cbj3tmBD1xYveBLOBVOW1=vaD23ST6FDLpzbRJslhJzwInpu5AaIxndPmLzeXH3I5mfrMBFyGO6e9Pro51aJPGV5COmIinyjxcM-vEmWYYkLy7owuVyswR89m--SRwgOWL5UtF-QbkS5bpltl6BmnrTEeaZNMQRPrcpPL4RT=0GFy=ka7Oq1Ixi5OR5EDYgIa_Rl3I9jq034w6wCQjW=33Z5wFRWcdX4lfqvA-66Huc--Xk3hAKScqNeL3Xre5eN1pwOrEFsMhncwuGoFZoXaHSMrQZEqVhVJcFA8afI_vpIk0Ft6NMcS3AtYLQgdqrvaBe42_s")
+                    "uyqP0_aQl3yI0f7i0fpyL6quXIf6WSJRbPrU6Z0j2gElHzfIXLenrK4ZwQl42i99XCnAjLGA2=sQczG10h7DBcYH4TmbO-li6YDpcduZ3XkbGQ=EalL5L2xZbwUpVFGp5J5e=yea3gDvfUwq0sdTrRFCFbTJBG5cU9K_5zQMB=DTFJoHAh=L_0uTZCRF_bj36cGxLegs42ji4GGO3kG4kcvpSCMpJV20a47V7GbqfEdQ3HV2gdN5CXpWXxRu71Y2XvAMijj8O-ciqslgJCveAgm6JlkZJf8-Cbj3tmBD1xYveBLOBVOW1=vaD23ST6FDLpzbRJslhJzwInpu5AaIxndPmLzeXH3I5mfrMBFyGO6e9Pro51aJPGV5COmIinyjxcM-vEmWYYkLy7owuVyswR89m--SRwgOWL5UtF-QbkS5bpltl6BmnrTEeaZNMQRPrcpPL4RT=0GFy=ka7Oq1Ixi5OR5EDYgIa_Rl3I9jq034w6wCQjW=33Z5wFRWcdX4lfqvA-66Huc--Xk3hAKScqNeL3Xre5eN1pwOrEFsMhncwuGoFZoXaHSMrQZEqVhVJcFA8afI_vpIk0Ft6NMcS3AtYLQgdqrvaBe42_s"
                 )
           },
       cpwrPassword =
@@ -213,7 +213,7 @@ testObject_CompletePasswordReset_user_10 =
               fromRight
                 undefined
                 ( validate
-                    ("XN46KP0FmYS7lNGLjjqWYNLUWhPsIIWw_uCi7=2ykPbWDB1UMR97y3rlxkhy7rUQPMyoVm5bwoVGATyN1Tps5dGy8ZojWlX5ESixwgzTJ-4JiOGMwZAkzA8ebLHE7w0D2APu77pur3=X2pU3=paqSBe7U6qSgYP0vmogT_XVJEHvEqGP9qI7wCeF4mBu8WyazncZ8wvb_Ag0AW1vfq=U9coksPKZLLqMByf_XXCgtuNWIikeLYx0qhNMy4cLjYyKXQOfnfFUvYFj01x2pOJqVOnz=")
+                    "XN46KP0FmYS7lNGLjjqWYNLUWhPsIIWw_uCi7=2ykPbWDB1UMR97y3rlxkhy7rUQPMyoVm5bwoVGATyN1Tps5dGy8ZojWlX5ESixwgzTJ-4JiOGMwZAkzA8ebLHE7w0D2APu77pur3=X2pU3=paqSBe7U6qSgYP0vmogT_XVJEHvEqGP9qI7wCeF4mBu8WyazncZ8wvb_Ag0AW1vfq=U9coksPKZLLqMByf_XXCgtuNWIikeLYx0qhNMy4cLjYyKXQOfnfFUvYFj01x2pOJqVOnz="
                 )
           },
       cpwrPassword =
@@ -226,14 +226,14 @@ testObject_CompletePasswordReset_user_11 =
   CompletePasswordReset
     { cpwrIdent =
         PasswordResetIdentityKey
-          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate ("DDWmxyZvXA=="))}),
+          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "DDWmxyZvXA==")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("AATe5J7gYuNUJw2BWIgyUJ7ld=oZlXDJ90izhMBkm1YvY5P0veHAIZznC7vIb6Z9kqILaWeeMdo10U9FLaWB78Fm1976InX8VLss4e0MP0zB=6LE7monmdCppp_0U88bw2_=6ouW-DzfjrRws4xG-hqwE8kYTf5poAMn26xQbqSRcfwNdD5xfTer1-OsVP-toLd2DwulQ0cHZh9RaosS4Qug6c-K9Fi64WteCMZqeapifL9KIHggmJGBgwN1SSb2iOOfNHRLkHzoXHte0ULW3cXwHTEnl=5a0n4XO59UeTMrjNeVaEYXakxsuagxAce3bZoLCnMeCMgBjJRwCeBIBQjY4WjQ5Q-igN8u4wAAReQ0NtVZpXhGnKYA5g-HQos4nWGfYhNYw5xH1hbS=zAGCksBP9Fd4lqx_oL_fCtK5rjBmAnEtdZD6wETNupejUgC1gLSLKJxa6cTSGvk21-3f-WgMbYDv0HPCzp-w8ZKyhXsD_ndJhm60sBvOc43HCFM8Ruz2WldUSX3GhoyqHBfKABXDWsRZHrs3ssUrYhsconyesE1E6aDxTXC1N6bG-_MEYvPhKzZbmOxiGWTsMYETe7lb=l2OCD1l=EJUyCX8T2_DLH2LlJ87BNkp156_UAmRyaPAaRSS9icTdM4bsHmFeAqoe=stSY5UDB=C3JbXKXbW-1bZMk-HRl3WtYxDO74CSarkSEesdrJwwgbbTvgXfBj7Mth8zBdSCndU9U5GQYBm5i2nPKY=fel2V=YgAF5_8XLi95A")
+                    "AATe5J7gYuNUJw2BWIgyUJ7ld=oZlXDJ90izhMBkm1YvY5P0veHAIZznC7vIb6Z9kqILaWeeMdo10U9FLaWB78Fm1976InX8VLss4e0MP0zB=6LE7monmdCppp_0U88bw2_=6ouW-DzfjrRws4xG-hqwE8kYTf5poAMn26xQbqSRcfwNdD5xfTer1-OsVP-toLd2DwulQ0cHZh9RaosS4Qug6c-K9Fi64WteCMZqeapifL9KIHggmJGBgwN1SSb2iOOfNHRLkHzoXHte0ULW3cXwHTEnl=5a0n4XO59UeTMrjNeVaEYXakxsuagxAce3bZoLCnMeCMgBjJRwCeBIBQjY4WjQ5Q-igN8u4wAAReQ0NtVZpXhGnKYA5g-HQos4nWGfYhNYw5xH1hbS=zAGCksBP9Fd4lqx_oL_fCtK5rjBmAnEtdZD6wETNupejUgC1gLSLKJxa6cTSGvk21-3f-WgMbYDv0HPCzp-w8ZKyhXsD_ndJhm60sBvOc43HCFM8Ruz2WldUSX3GhoyqHBfKABXDWsRZHrs3ssUrYhsconyesE1E6aDxTXC1N6bG-_MEYvPhKzZbmOxiGWTsMYETe7lb=l2OCD1l=EJUyCX8T2_DLH2LlJ87BNkp156_UAmRyaPAaRSS9icTdM4bsHmFeAqoe=stSY5UDB=C3JbXKXbW-1bZMk-HRl3WtYxDO74CSarkSEesdrJwwgbbTvgXfBj7Mth8zBdSCndU9U5GQYBm5i2nPKY=fel2V=YgAF5_8XLi95A"
                 )
           },
       cpwrPassword =
@@ -253,7 +253,7 @@ testObject_CompletePasswordReset_user_12 =
               fromRight
                 undefined
                 ( validate
-                    ("GkNBvt5WkpZiqOtxpVKuBy8dXcbWuV8x4ejoV3EHdIAU=fZo3d_PjWQ36EzyO9eGbt5F8oQ=7vBzrTr9dpeETyJQWi9Vu38Efi7Dz-zsBvBp9p=AszTX69gzjPQ-xgcPvCw2Kvv6EStPojy")
+                    "GkNBvt5WkpZiqOtxpVKuBy8dXcbWuV8x4ejoV3EHdIAU=fZo3d_PjWQ36EzyO9eGbt5F8oQ=7vBzrTr9dpeETyJQWi9Vu38Efi7Dz-zsBvBp9p=AszTX69gzjPQ-xgcPvCw2Kvv6EStPojy"
                 )
           },
       cpwrPassword =
@@ -266,14 +266,14 @@ testObject_CompletePasswordReset_user_13 =
   CompletePasswordReset
     { cpwrIdent =
         PasswordResetIdentityKey
-          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate ("Pvdg7A=="))}),
+          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "Pvdg7A==")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("hidTvA__HaXG0Xa3Ko28nN8AQpYNQf0bdzzlgcsBJ76LL6AqUqJRE6D4G_OF0GF-Xxpbgz1OdRLxVXST7QbLsMVyMkIDamWXJa2TkKzcdZZb4hhVDZnIaWYjSfIHLMZa-ywj6C=a-nd2=E62_Lde3qlQ8544-iTn9TzY-CAqGOyrlwysJJNeib_F8Q1u-VW_blqtP3Oo0=18FlDa9y5U3ARIUQ4IAb5OG4XpvaspBuW_-PSrC79vNmABk0vuwM0DLFQAJNuwmRCOF2mvoQF6rMrYsSdJUYB=Pt5Mv5pGRbUwsdUYT-L3HXk77Ebd=c=nfxW34JvGdCZaqbE1_KnqZ1SA=WFGJ6SZfkmPEGwWkwDT=AKsDeekP_L-7zvQHesSE1xdHYs1LWXGYDYCRWDFzLpy3PTtNoIdKj0HvGubtuJK-3DfFUhG4IeA8qmTPHK8TbLD1KlH-eIfsgrPkVX=ik5Jww4AdPDBl-Ad=si9bWREe1Mzn42pP__pu8h1XL8ue5-z3JLbkDLiuFowzzZZj60a-gtf2hlluf9AVqcM_-6herg58y9GRr8xU3Y5Yuno1Fc_eGGshq5RNh5mbE4VUU7BfRweH6su=q=mxLyy62CZ68FUArY=CL_5SscZ5=e6zCf1=Al96BiNilAu0trDDqg0VCagXf_r4-bwSc159X=WNAI6NpQASkXyxg73ouQwsoX-enuFdb7oJWlnfDABZR4FE8sEO=VCc3A4iYUL1LsqaZ")
+                    "hidTvA__HaXG0Xa3Ko28nN8AQpYNQf0bdzzlgcsBJ76LL6AqUqJRE6D4G_OF0GF-Xxpbgz1OdRLxVXST7QbLsMVyMkIDamWXJa2TkKzcdZZb4hhVDZnIaWYjSfIHLMZa-ywj6C=a-nd2=E62_Lde3qlQ8544-iTn9TzY-CAqGOyrlwysJJNeib_F8Q1u-VW_blqtP3Oo0=18FlDa9y5U3ARIUQ4IAb5OG4XpvaspBuW_-PSrC79vNmABk0vuwM0DLFQAJNuwmRCOF2mvoQF6rMrYsSdJUYB=Pt5Mv5pGRbUwsdUYT-L3HXk77Ebd=c=nfxW34JvGdCZaqbE1_KnqZ1SA=WFGJ6SZfkmPEGwWkwDT=AKsDeekP_L-7zvQHesSE1xdHYs1LWXGYDYCRWDFzLpy3PTtNoIdKj0HvGubtuJK-3DfFUhG4IeA8qmTPHK8TbLD1KlH-eIfsgrPkVX=ik5Jww4AdPDBl-Ad=si9bWREe1Mzn42pP__pu8h1XL8ue5-z3JLbkDLiuFowzzZZj60a-gtf2hlluf9AVqcM_-6herg58y9GRr8xU3Y5Yuno1Fc_eGGshq5RNh5mbE4VUU7BfRweH6su=q=mxLyy62CZ68FUArY=CL_5SscZ5=e6zCf1=Al96BiNilAu0trDDqg0VCagXf_r4-bwSc159X=WNAI6NpQASkXyxg73ouQwsoX-enuFdb7oJWlnfDABZR4FE8sEO=VCc3A4iYUL1LsqaZ"
                 )
           },
       cpwrPassword =
@@ -293,7 +293,7 @@ testObject_CompletePasswordReset_user_14 =
               fromRight
                 undefined
                 ( validate
-                    ("FSTMhXuS1rYF_f_3aJfy8sn7CaY7BMCg6onJCAqtnt54fEvCkS40ml06ufrX9wvy192yCErw5Xei33_FoSQmC0RAjRN9eLFSBq15MclWbPrIsrwluYCiLmIB72IaR7ig8xGPv3-H8v=J_5xfvvpYRYSFZMZvTwTHKqaRL_uF8r=JULb6AQnLUG6__-nBrCq=91TRJ26VknMDuFrk-0Tfu72OJ73LrGfJqmWCR7gcFeyACyR17n3FI4GQquQ5Bb5qbfl5KZc7W_E3H=5sScZCa9r2Hj9ot5noSq-9nq2NlptoDc4mYTaWklhfbNCT8Wn2=3T8GfAx9nYW__2ZyAPlW9NPmbRSj5FYqqJAprLVa4GrT=PELXTFIba3inReJYtM4thgQ2LAgZYew4L0YGpIMOgr=uFKs3I3u4Bgd_77uNR-wayH3ENL0A97aV7p9DLLC6A2FeVugc2jMn1wViS06PkxJoM5ZtGZkibUTuycstG3VmGtC8ZMR3q2lAVNsfsiugBUZLg=MtzPz2Pqe=QaxCNq5N04ekL")
+                    "FSTMhXuS1rYF_f_3aJfy8sn7CaY7BMCg6onJCAqtnt54fEvCkS40ml06ufrX9wvy192yCErw5Xei33_FoSQmC0RAjRN9eLFSBq15MclWbPrIsrwluYCiLmIB72IaR7ig8xGPv3-H8v=J_5xfvvpYRYSFZMZvTwTHKqaRL_uF8r=JULb6AQnLUG6__-nBrCq=91TRJ26VknMDuFrk-0Tfu72OJ73LrGfJqmWCR7gcFeyACyR17n3FI4GQquQ5Bb5qbfl5KZc7W_E3H=5sScZCa9r2Hj9ot5noSq-9nq2NlptoDc4mYTaWklhfbNCT8Wn2=3T8GfAx9nYW__2ZyAPlW9NPmbRSj5FYqqJAprLVa4GrT=PELXTFIba3inReJYtM4thgQ2LAgZYew4L0YGpIMOgr=uFKs3I3u4Bgd_77uNR-wayH3ENL0A97aV7p9DLLC6A2FeVugc2jMn1wViS06PkxJoM5ZtGZkibUTuycstG3VmGtC8ZMR3q2lAVNsfsiugBUZLg=MtzPz2Pqe=QaxCNq5N04ekL"
                 )
           },
       cpwrPassword =
@@ -313,7 +313,7 @@ testObject_CompletePasswordReset_user_15 =
               fromRight
                 undefined
                 ( validate
-                    ("hmgODqiry_V_t87ih4Ezo7GS8C38DYKENIE2t5nRiJMdagPBW-lTEhID3_8_ApDfxAfSNxAF03y2L8MCLqWWsX_wxkaLYtAI39FLtZZAwxHkSRRazNp7LAc_3QzGXR4O_iFiCqo0f3ZbmODskuoeNVUGBBPJhQ=uw1yVKyMVHojWD16khERjcHww2=hSmqUdh3W-46WPWaZe7IRN0_gk_UaBGwdMb4aDcTHJ6jIaTfQ58djcLVGrKpuO1xO=eQ2BjLJiK6Ik30JgICpvS5ZuumMjgkNFKtHwCu0C-E-oUDUmi3sWKkFQPCxpIy0Ol0SAyN2llCWAADjTR6SW-zRT4qDQNbtDe8nKWpJxZYjFj=IvyBHaK1q6NjPsrXQBEUfajtkh7OwbQwqOOBk5nt8RPP7xwUewzHEtkQUJUjbgGh80nuOdC7sMa2zOSEOy33oC1bjncA23BsaJoisQbFfju_UWiCSyDD-oUXsWkKR1cMGmwyVpf1IpZRnQq_8dwpgMKL4j4ehPxPrVBefQPmzdoK4nncLDB_zDKBBn4M5nbqDsLmO9OqSKeDH6tg=uKTaftrDK2w6Mhfo_fSZOsJAEouS02TJwr6vE_VlJbiOCPysMdVmCdn6Ai2n-p_WlwFoBIHLPkVnx7yYyskHuUMhYQfaq8=CHCwa8CDyOGu=cZVxOd6mTHRD=mXc2_cgkYJ94pdZOL0")
+                    "hmgODqiry_V_t87ih4Ezo7GS8C38DYKENIE2t5nRiJMdagPBW-lTEhID3_8_ApDfxAfSNxAF03y2L8MCLqWWsX_wxkaLYtAI39FLtZZAwxHkSRRazNp7LAc_3QzGXR4O_iFiCqo0f3ZbmODskuoeNVUGBBPJhQ=uw1yVKyMVHojWD16khERjcHww2=hSmqUdh3W-46WPWaZe7IRN0_gk_UaBGwdMb4aDcTHJ6jIaTfQ58djcLVGrKpuO1xO=eQ2BjLJiK6Ik30JgICpvS5ZuumMjgkNFKtHwCu0C-E-oUDUmi3sWKkFQPCxpIy0Ol0SAyN2llCWAADjTR6SW-zRT4qDQNbtDe8nKWpJxZYjFj=IvyBHaK1q6NjPsrXQBEUfajtkh7OwbQwqOOBk5nt8RPP7xwUewzHEtkQUJUjbgGh80nuOdC7sMa2zOSEOy33oC1bjncA23BsaJoisQbFfju_UWiCSyDD-oUXsWkKR1cMGmwyVpf1IpZRnQq_8dwpgMKL4j4ehPxPrVBefQPmzdoK4nncLDB_zDKBBn4M5nbqDsLmO9OqSKeDH6tg=uKTaftrDK2w6Mhfo_fSZOsJAEouS02TJwr6vE_VlJbiOCPysMdVmCdn6Ai2n-p_WlwFoBIHLPkVnx7yYyskHuUMhYQfaq8=CHCwa8CDyOGu=cZVxOd6mTHRD=mXc2_cgkYJ94pdZOL0"
                 )
           },
       cpwrPassword =
@@ -325,14 +325,14 @@ testObject_CompletePasswordReset_user_16 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_16 =
   CompletePasswordReset
     { cpwrIdent =
-        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate (""))}),
+        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("4rP0eWj_NPxojYzkU_pdkW9LqEqBCpwqu_CzQ2HRWUDWNC-B2gKZnICvQwM-6ynjWXae_jlxWt0A9cQPRCddj-GurZImbB7fuiSpIQH_zsc817_M47P0NZDzEvL7jXOf8RdpUH9n_X9UK0uICUvuwY9voyAwvlyxKnfFmWM9g4VhzyK7-Z5c6M4eMksFBdADNZcjJavPD1hFxfMiTK5wzDrTIXIGetf-jHFYdnbru60wCJh3iCiYLRtOTCBltY8MM5LsoZi4jfAh5qDEZ94NZR2b64MXjVa5QY3FEer0hj5s29zMrUd=pN8YNnfpagV1cN=v5Xy2BCGDPt-vurTbZFWan=KC44G28LYu7fPzAvEgaECUX2OrxZb5B8A4gB59weiDl=HHO88JU5Fp3cfDonTTP97AI_JIvBY0KjnMhvs2JupxCpyPbsgrHe6a=0WSXppIRPCqSAYWCWY_Jldr=g3b-hytjaCcL9iMVXo-L8Xj9ET2k9xUNf_aj1aYVpT4LHBlX3rY91JqLI7QRYccS489z0ydALwWRMO7spGOcUBwcfuxcGhtvwyc4IYlEm=hDWQ7=8lswjoFvGLJXE-P33ChzPTUO2gMZwgKydl6d8t-sQ7g7zxd9XFFDk0G4AJtevGCxL1=79X4ob5yW7bV7D=TBfIUc=L_-B1n3b7STRbN1s88--LK3jBg9P36L32EObOa7T9ExK3DZPlRVyN5J=OWu8mzcTaEXRF5x6Z0oHMyEjBSTTC2a3_GF4YBcuaaKNKIU9WkdYnmkDLYpnJDk")
+                    "4rP0eWj_NPxojYzkU_pdkW9LqEqBCpwqu_CzQ2HRWUDWNC-B2gKZnICvQwM-6ynjWXae_jlxWt0A9cQPRCddj-GurZImbB7fuiSpIQH_zsc817_M47P0NZDzEvL7jXOf8RdpUH9n_X9UK0uICUvuwY9voyAwvlyxKnfFmWM9g4VhzyK7-Z5c6M4eMksFBdADNZcjJavPD1hFxfMiTK5wzDrTIXIGetf-jHFYdnbru60wCJh3iCiYLRtOTCBltY8MM5LsoZi4jfAh5qDEZ94NZR2b64MXjVa5QY3FEer0hj5s29zMrUd=pN8YNnfpagV1cN=v5Xy2BCGDPt-vurTbZFWan=KC44G28LYu7fPzAvEgaECUX2OrxZb5B8A4gB59weiDl=HHO88JU5Fp3cfDonTTP97AI_JIvBY0KjnMhvs2JupxCpyPbsgrHe6a=0WSXppIRPCqSAYWCWY_Jldr=g3b-hytjaCcL9iMVXo-L8Xj9ET2k9xUNf_aj1aYVpT4LHBlX3rY91JqLI7QRYccS489z0ydALwWRMO7spGOcUBwcfuxcGhtvwyc4IYlEm=hDWQ7=8lswjoFvGLJXE-P33ChzPTUO2gMZwgKydl6d8t-sQ7g7zxd9XFFDk0G4AJtevGCxL1=79X4ob5yW7bV7D=TBfIUc=L_-B1n3b7STRbN1s88--LK3jBg9P36L32EObOa7T9ExK3DZPlRVyN5J=OWu8mzcTaEXRF5x6Z0oHMyEjBSTTC2a3_GF4YBcuaaKNKIU9WkdYnmkDLYpnJDk"
                 )
           },
       cpwrPassword =
@@ -351,7 +351,7 @@ testObject_CompletePasswordReset_user_17 =
               fromRight
                 undefined
                 ( validate
-                    ("3gq6=cswHZ9ri64_HJPb0GHqnIvQsgakJ=HkufysG_pLk8piT7CmIFMoO0lif83sPks6mv-UWRbQCOyTECbFMlPIR57uJSHFmxolrFw")
+                    "3gq6=cswHZ9ri64_HJPb0GHqnIvQsgakJ=HkufysG_pLk8piT7CmIFMoO0lif83sPks6mv-UWRbQCOyTECbFMlPIR57uJSHFmxolrFw"
                 )
           },
       cpwrPassword =
@@ -364,10 +364,10 @@ testObject_CompletePasswordReset_user_18 =
   CompletePasswordReset
     { cpwrIdent =
         PasswordResetIdentityKey
-          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate ("gKIq1jpiCDg="))}),
+          (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "gKIq1jpiCDg=")}),
       cpwrCode =
         PasswordResetCode
-          { fromPasswordResetCode = fromRight undefined (validate ("gBlCfS7vL5ZlXMN2EWV5eSisvsqKezrNgWoI05VsTNJTtsB"))
+          { fromPasswordResetCode = fromRight undefined (validate "gBlCfS7vL5ZlXMN2EWV5eSisvsqKezrNgWoI05VsTNJTtsB")
           },
       cpwrPassword =
         PlainTextPassword
@@ -378,14 +378,14 @@ testObject_CompletePasswordReset_user_19 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_19 =
   CompletePasswordReset
     { cpwrIdent =
-        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate ("jNA="))}),
+        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "jNA=")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("jiXROuSghHnJYlGM3vQmMTKoAHxSW_pRvQy1uP=aZ3FYAv1Cx_gTn7H2bQpQ1eIVFykU3yTMU5oUoCb-4ZjTXblJXM7vK1YEcZt9j8gp5Oh_lUUvAA2g8Z5zDkvuror_Rkmu2hqb1haFUrbF_fsIpsUWe5yaJyb2v3sIFRRSYtDCxWyUUPi--4mXwUd7kyB8NeOsn8nzdjp5YbgDAil=Iz2zxnry_lhjTYSdGs_MZGg=sekX0llThwNr5P_eD8xOl2vkMSxFyZd0DL_3YkosLLupwjCrngbmvGurqHbJ0-=11LsFDwqdvVesj15wSXW-XaUTkYfBbOBfmHRRp4GSYZ-yU5aL8_pNXU2FG7OMEZFmrok=y6V3L=AzVQpC8RFCpDat3E6uartY31DXFb8NjSxlYmVn4KUj4el1l2cvkv5hdLhsqxX--80fn7KP=_Y7ToGMX4E7i7Jzp5gBI9h2nNFyG76l6dfMvhXGcUyYjm1R74VUsRD5lCeG0mFgvGct2gTmDhd_3Lkb4vFsZTOKP0qE4w4wEuqKJFJrgpQcqCmX_E2WOQLT=bagdpS7tob-Rf1CT3cKNEiVqNno-hiNcHtdYzAe=QnBAQ1OG6O-eJzkdVKmeVeXy6tycFCg_fusv023l4TB53=sBHCXly_pAdWqOGXJkI2RY9ZcI0S6z8=A3APUVDGZzd3jn7-SPsv9q4XrvS-78VnChlw8KRl-l5HjxykqxAu=BW9XtCPVysQCbvD-mNnBUu4FBs")
+                    "jiXROuSghHnJYlGM3vQmMTKoAHxSW_pRvQy1uP=aZ3FYAv1Cx_gTn7H2bQpQ1eIVFykU3yTMU5oUoCb-4ZjTXblJXM7vK1YEcZt9j8gp5Oh_lUUvAA2g8Z5zDkvuror_Rkmu2hqb1haFUrbF_fsIpsUWe5yaJyb2v3sIFRRSYtDCxWyUUPi--4mXwUd7kyB8NeOsn8nzdjp5YbgDAil=Iz2zxnry_lhjTYSdGs_MZGg=sekX0llThwNr5P_eD8xOl2vkMSxFyZd0DL_3YkosLLupwjCrngbmvGurqHbJ0-=11LsFDwqdvVesj15wSXW-XaUTkYfBbOBfmHRRp4GSYZ-yU5aL8_pNXU2FG7OMEZFmrok=y6V3L=AzVQpC8RFCpDat3E6uartY31DXFb8NjSxlYmVn4KUj4el1l2cvkv5hdLhsqxX--80fn7KP=_Y7ToGMX4E7i7Jzp5gBI9h2nNFyG76l6dfMvhXGcUyYjm1R74VUsRD5lCeG0mFgvGct2gTmDhd_3Lkb4vFsZTOKP0qE4w4wEuqKJFJrgpQcqCmX_E2WOQLT=bagdpS7tob-Rf1CT3cKNEiVqNno-hiNcHtdYzAe=QnBAQ1OG6O-eJzkdVKmeVeXy6tycFCg_fusv023l4TB53=sBHCXly_pAdWqOGXJkI2RY9ZcI0S6z8=A3APUVDGZzd3jn7-SPsv9q4XrvS-78VnChlw8KRl-l5HjxykqxAu=BW9XtCPVysQCbvD-mNnBUu4FBs"
                 )
           },
       cpwrPassword =
@@ -397,14 +397,14 @@ testObject_CompletePasswordReset_user_20 :: CompletePasswordReset
 testObject_CompletePasswordReset_user_20 =
   CompletePasswordReset
     { cpwrIdent =
-        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate ("wGwL"))}),
+        PasswordResetIdentityKey (PasswordResetKey {fromPasswordResetKey = fromRight undefined (validate "wGwL")}),
       cpwrCode =
         PasswordResetCode
           { fromPasswordResetCode =
               fromRight
                 undefined
                 ( validate
-                    ("S4EnT8ajkuHyeuozGd_HX3VmHqhmNMJn3LuxAiPku8F9hwk8fWvQlmoZkhreAOGYE1o5dWORSFivpNp1RRCOP2-SvkAxCX5TFlx8Pv=ZD1O5tusMN2jraJpT060KRHe9tpQeEzOItpavn_M=L8JfXdu_KPimxKGMvqedw4QSqpRAtbWSPyn0YIWwnBzGM1=UNzlueBptrYkNbxLN4jmTBvw4dys8pUEUW71uKeHM0HcGHVfkKn4LDGtJnA=4UX6duOsGee_GVLePjlAQP8gzeV68siIbbVJp4BmUIwh0FyZ2tcaN5=nYxs9rg78V8ukl1lH7srQFh1TtvuHTnR6e9bUkF2IP2MbJKPCBL4DnLNfZE7yoW5X")
+                    "S4EnT8ajkuHyeuozGd_HX3VmHqhmNMJn3LuxAiPku8F9hwk8fWvQlmoZkhreAOGYE1o5dWORSFivpNp1RRCOP2-SvkAxCX5TFlx8Pv=ZD1O5tusMN2jraJpT060KRHe9tpQeEzOItpavn_M=L8JfXdu_KPimxKGMvqedw4QSqpRAtbWSPyn0YIWwnBzGM1=UNzlueBptrYkNbxLN4jmTBvw4dys8pUEUW71uKeHM0HcGHVfkKn4LDGtJnA=4UX6duOsGee_GVLePjlAQP8gzeV68siIbbVJp4BmUIwh0FyZ2tcaN5=nYxs9rg78V8ukl1lH7srQFh1TtvuHTnR6e9bUkF2IP2MbJKPCBL4DnLNfZE7yoW5X"
                 )
           },
       cpwrPassword =

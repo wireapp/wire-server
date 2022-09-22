@@ -721,7 +721,7 @@ testNotificationPaging = do
       let start' = ns >>= fmap (view queuedNotificationId) . listToMaybe . reverse
       liftIO $ assertEqual "page size" (Just pageSize) (length <$> ns)
       liftIO $ assertEqual "has more" (Just (count' < total)) more
-      return (count', start')
+      pure (count', start')
 
 -----------------------------------------------------------------------------
 -- Client registration
@@ -934,7 +934,7 @@ registerUser = do
   con <- randomConnId
   void $ connectUser ca uid con
   ensurePresent uid 1
-  return (uid, con)
+  pure (uid, con)
 
 ensurePresent :: HasCallStack => UserId -> Int -> TestM ()
 ensurePresent u n = do
@@ -945,7 +945,7 @@ ensurePresent u n = do
 connectUser :: HasCallStack => CannonR -> UserId -> ConnId -> TestM (TChan ByteString)
 connectUser ca uid con = do
   [(_, [ch])] <- connectUsersAndDevices ca [(uid, [con])]
-  return ch
+  pure ch
 
 connectUsersAndDevices ::
   HasCallStack =>
@@ -1010,7 +1010,7 @@ retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m =
   retrying
     (constantDelay 1000000 <> limitRetries n)
-    (const (return . f))
+    (const (pure . f))
     (const m)
 
 waitForMessage :: TChan ByteString -> IO (Maybe ByteString)
@@ -1029,7 +1029,7 @@ unregisterClient g uid cid =
 registerPushToken :: UserId -> PushToken -> TestM Token
 registerPushToken u t = do
   r <- registerPushTokenRequest u t
-  return $ Token (T.decodeUtf8 $ getHeader' "Location" r)
+  pure $ Token (T.decodeUtf8 $ getHeader' "Location" r)
 
 registerPushTokenRequest :: UserId -> PushToken -> TestM (Response (Maybe BL.ByteString))
 registerPushTokenRequest u t = do
@@ -1069,7 +1069,7 @@ listPushTokens u = do
       )
   maybe
     (error "Failed to decode push tokens")
-    (return . pushTokens)
+    (pure . pushTokens)
     (responseBody rs >>= decode)
 
 listNotifications :: HasCallStack => UserId -> Maybe ClientId -> TestM [QueuedNotification]
@@ -1131,8 +1131,8 @@ apnsToken = TokenSpec APNSSandbox 32 appName
 
 randomToken :: MonadIO m => ClientId -> TokenSpec -> m PushToken
 randomToken c ts = liftIO $ do
-  tok <- Token . T.decodeUtf8 <$> B16.encode <$> randomBytes (tSize ts)
-  return $ pushToken (trans ts) (tName ts) tok c
+  tok <- (Token . T.decodeUtf8) Prelude.. B16.encode Prelude.<$> randomBytes (tSize ts)
+  pure $ pushToken (trans ts) (tName ts) tok c
 
 showUser :: UserId -> ByteString
 showUser = C.pack . show
@@ -1163,13 +1163,13 @@ randomUser = do
             "password" .= ("secret" :: Text)
           ]
   r <- post (runBrigR br . path "/i/users" . json p)
-  return . readNote "unable to parse Location header"
+  pure . readNote "unable to parse Location header"
     . C.unpack
     $ getHeader' "Location" r
   where
     mkEmail loc dom = do
       uid <- nextRandom
-      return $ loc <> "+" <> UUID.toText uid <> "@" <> dom
+      pure $ loc <> "+" <> UUID.toText uid <> "@" <> dom
 
 deleteUser :: HasCallStack => GundeckR -> UserId -> TestM ()
 deleteUser g uid = delete (runGundeckR g . zUser uid . path "/i/user") !!! const 200 === statusCode
@@ -1182,7 +1182,7 @@ randomConnId =
   liftIO $
     ConnId <$> do
       r <- randomIO :: IO Word32
-      return $ C.pack $ show r
+      pure $ C.pack $ show r
 
 randomClientId :: MonadIO m => m ClientId
 randomClientId = liftIO $ newClientId <$> (randomIO :: IO Word64)

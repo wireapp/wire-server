@@ -58,7 +58,7 @@ testObject_TeamMemberDeleteData_team_4 =
     )
 
 testObject_TeamMemberDeleteData_team_5 :: TeamMemberDeleteData
-testObject_TeamMemberDeleteData_team_5 = newTeamMemberDeleteData (Nothing)
+testObject_TeamMemberDeleteData_team_5 = newTeamMemberDeleteData Nothing
 
 testObject_TeamMemberDeleteData_team_6 :: TeamMemberDeleteData
 testObject_TeamMemberDeleteData_team_6 =
@@ -70,10 +70,10 @@ testObject_TeamMemberDeleteData_team_6 =
     )
 
 testObject_TeamMemberDeleteData_team_7 :: TeamMemberDeleteData
-testObject_TeamMemberDeleteData_team_7 = newTeamMemberDeleteData (Nothing)
+testObject_TeamMemberDeleteData_team_7 = newTeamMemberDeleteData Nothing
 
 testObject_TeamMemberDeleteData_team_8 :: TeamMemberDeleteData
-testObject_TeamMemberDeleteData_team_8 = newTeamMemberDeleteData (Nothing)
+testObject_TeamMemberDeleteData_team_8 = newTeamMemberDeleteData Nothing
 
 testObject_TeamMemberDeleteData_team_9 :: TeamMemberDeleteData
 testObject_TeamMemberDeleteData_team_9 =
@@ -121,10 +121,10 @@ testObject_TeamMemberDeleteData_team_13 =
     )
 
 testObject_TeamMemberDeleteData_team_14 :: TeamMemberDeleteData
-testObject_TeamMemberDeleteData_team_14 = newTeamMemberDeleteData (Nothing)
+testObject_TeamMemberDeleteData_team_14 = newTeamMemberDeleteData Nothing
 
 testObject_TeamMemberDeleteData_team_15 :: TeamMemberDeleteData
-testObject_TeamMemberDeleteData_team_15 = newTeamMemberDeleteData (Nothing)
+testObject_TeamMemberDeleteData_team_15 = newTeamMemberDeleteData Nothing
 
 testObject_TeamMemberDeleteData_team_16 :: TeamMemberDeleteData
 testObject_TeamMemberDeleteData_team_16 =

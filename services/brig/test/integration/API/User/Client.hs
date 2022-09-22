@@ -1,4 +1,7 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use head" #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -30,7 +33,7 @@ import Bilge.Assert
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
 import qualified Cassandra as DB
-import Control.Lens (at, preview, (.~), (^.), (^?))
+import Control.Lens (at, preview, (?~), (^.), (^?))
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -228,7 +231,7 @@ testAddGetClient params brig cannon = do
       let eclient = j ^? key "client"
       etype @?= Just "user.client-add"
       fmap fromJSON eclient @?= Just (Success c)
-    return c
+    pure c
   liftIO $ clientMLSPublicKeys c @?= keys
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
@@ -308,9 +311,9 @@ testClientReauthentication brig = do
 testListClients :: Brig -> Http ()
 testListClients brig = do
   uid <- userId <$> randomUser brig
-  let (pk1, lk1) = (somePrekeys !! 0, (someLastPrekeys !! 0))
-  let (pk2, lk2) = (somePrekeys !! 1, (someLastPrekeys !! 1))
-  let (pk3, lk3) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  let (pk1, lk1) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  let (pk2, lk2) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  let (pk3, lk3) = (somePrekeys !! 2, someLastPrekeys !! 2)
   c1 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
   c2 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
   c3 <- responseJsonError =<< addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
@@ -332,8 +335,8 @@ testListClients brig = do
 testMLSClient :: Brig -> Http ()
 testMLSClient brig = do
   uid <- userId <$> randomUser brig
-  let (pk1, lk1) = (somePrekeys !! 0, (someLastPrekeys !! 0))
-  let (pk2, lk2) = (somePrekeys !! 1, (someLastPrekeys !! 1))
+  let (pk1, lk1) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  let (pk2, lk2) = (somePrekeys !! 1, someLastPrekeys !! 1)
   -- An MLS client
   c1 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
   -- Non-MLS client
@@ -351,16 +354,16 @@ testMLSClient brig = do
 testListClientsBulk :: Opt.Opts -> Brig -> Http ()
 testListClientsBulk opts brig = do
   uid1 <- userId <$> randomUser brig
-  let (pk11, lk11) = (somePrekeys !! 0, (someLastPrekeys !! 0))
-  let (pk12, lk12) = (somePrekeys !! 1, (someLastPrekeys !! 1))
-  let (pk13, lk13) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  let (pk13, lk13) = (somePrekeys !! 2, someLastPrekeys !! 2)
   c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
   c12 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
   c13 <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
 
   uid2 <- userId <$> randomUser brig
-  let (pk21, lk21) = (somePrekeys !! 3, (someLastPrekeys !! 3))
-  let (pk22, lk22) = (somePrekeys !! 4, (someLastPrekeys !! 4))
+  let (pk21, lk21) = (somePrekeys !! 3, someLastPrekeys !! 3)
+  let (pk22, lk22) = (somePrekeys !! 4, someLastPrekeys !! 4)
   c21 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk21] lk21)
   c22 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk22] lk22)
 
@@ -391,16 +394,16 @@ testListClientsBulk opts brig = do
 testListClientsBulkV2 :: Opt.Opts -> Brig -> Http ()
 testListClientsBulkV2 opts brig = do
   uid1 <- userId <$> randomUser brig
-  let (pk11, lk11) = (somePrekeys !! 0, (someLastPrekeys !! 0))
-  let (pk12, lk12) = (somePrekeys !! 1, (someLastPrekeys !! 1))
-  let (pk13, lk13) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  let (pk13, lk13) = (somePrekeys !! 2, someLastPrekeys !! 2)
   c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
   c12 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
   c13 <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
 
   uid2 <- userId <$> randomUser brig
-  let (pk21, lk21) = (somePrekeys !! 3, (someLastPrekeys !! 3))
-  let (pk22, lk22) = (somePrekeys !! 4, (someLastPrekeys !! 4))
+  let (pk21, lk21) = (somePrekeys !! 3, someLastPrekeys !! 3)
+  let (pk22, lk22) = (somePrekeys !! 4, someLastPrekeys !! 4)
   c21 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk21] lk21)
   c22 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk22] lk22)
 
@@ -566,7 +569,7 @@ testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
   uid <- userId <$> randomUser brig
   -- We can always change the permanent client limit
-  let newOpts = opts & Opt.optionSettings . Opt.userMaxPermClients .~ Just 1
+  let newOpts = opts & Opt.optionSettings . Opt.userMaxPermClients ?~ 1
   withSettingsOverrides newOpts $ do
     -- There is only one temporary client, adding a new one
     -- replaces the previous one.
@@ -929,14 +932,14 @@ testAddMultipleTemporary brig galley cannon = do
           brig
             . path "clients"
             . zUser u
-      return $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
+      pure $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
     numOfGalleyClients u = do
       r <-
         get $
           galley
             . path "i/test/clients"
             . zUser u
-      return $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
+      pure $ Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
 
 -- @END
 
@@ -947,7 +950,7 @@ testPreKeyRace brig = do
   c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType pks (someLastPrekeys !! 0))
   pks' <- flip mapConcurrently pks $ \_ -> do
     rs <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
-    return $ prekeyId . prekeyData <$> responseJsonMaybe rs
+    pure $ prekeyId . prekeyData <$> responseJsonMaybe rs
   -- We should not hand out regular prekeys more than once (i.e. at most once).
   let actual = catMaybes pks'
   liftIO $ assertEqual "insufficient prekeys" (length pks) (length actual)

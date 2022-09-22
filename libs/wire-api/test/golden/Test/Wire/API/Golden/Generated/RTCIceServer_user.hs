@@ -41,30 +41,28 @@ import Wire.API.Call.Config
 testObject_RTCIceServer_user_1 :: RTCIceServer
 testObject_RTCIceServer_user_1 =
   rtcIceServer
-    ( (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "118.129.179.126"))) (read "2") (Just TransportTCP))
-        :| [ (turnURI (SchemeTurn) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Just TransportTCP)),
-             (turnURI (SchemeTurn) (TurnHostName "host.name") (read "0") (Just TransportTCP)),
-             (turnURI (SchemeTurn) (TurnHostName "host.name") (read "0") (Nothing)),
-             (turnURI (SchemeTurn) (TurnHostName "host.name") (read "2") (Just TransportTCP)),
-             (turnURI (SchemeTurn) (TurnHostName "007.com") (read "1") (Just TransportUDP)),
-             (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "161.156.122.7"))) (read "0") (Just TransportTCP)),
-             (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "125.103.68.5"))) (read "1") (Just TransportTCP))
+    ( turnURI SchemeTurn (TurnHostIp (IpAddr (read "118.129.179.126"))) (read "2") (Just TransportTCP)
+        :| [ turnURI SchemeTurn (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Just TransportTCP),
+             turnURI SchemeTurn (TurnHostName "host.name") (read "0") (Just TransportTCP),
+             turnURI SchemeTurn (TurnHostName "host.name") (read "0") Nothing,
+             turnURI SchemeTurn (TurnHostName "host.name") (read "2") (Just TransportTCP),
+             turnURI SchemeTurn (TurnHostName "007.com") (read "1") (Just TransportUDP),
+             turnURI SchemeTurn (TurnHostIp (IpAddr (read "161.156.122.7"))) (read "0") (Just TransportTCP),
+             turnURI SchemeTurns (TurnHostIp (IpAddr (read "125.103.68.5"))) (read "1") (Just TransportTCP)
            ]
     )
-    ( ( turnUsername (secondsToNominalDiffTime (38.000000000000)) ("6vgzfba") & tuVersion .~ (4) & tuKeyindex .~ (24)
-          & tuT .~ ('\DC1')
-      )
+    ( turnUsername (secondsToNominalDiffTime 38.000000000000) "6vgzfba" & tuVersion .~ 4 & tuKeyindex .~ 24
+        & tuT .~ '\DC1'
     )
-    ((fromRight undefined (validate ("ZtBPgUaUYg=="))))
+    (fromRight undefined (validate "ZtBPgUaUYg=="))
 
 testObject_RTCIceServer_user_2 :: RTCIceServer
 testObject_RTCIceServer_user_2 =
   rtcIceServer
-    ( (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "108.37.81.160"))) (read "0") (Just TransportTCP))
+    ( turnURI SchemeTurn (TurnHostIp (IpAddr (read "108.37.81.160"))) (read "0") (Just TransportTCP)
         :| []
     )
-    ( ( turnUsername (secondsToNominalDiffTime (3.000000000000)) ("a8kdffu4") & tuVersion .~ (5) & tuKeyindex .~ (24)
-          & tuT .~ ('\SOH')
-      )
+    ( turnUsername (secondsToNominalDiffTime 3.000000000000) "a8kdffu4" & tuVersion .~ 5 & tuKeyindex .~ 24
+        & tuT .~ '\SOH'
     )
-    ((fromRight undefined (validate ("d1VUzpxZ3TeM"))))
+    (fromRight undefined (validate "d1VUzpxZ3TeM"))

@@ -39,7 +39,7 @@ testObject_NewBotResponse_provider_1 =
         [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1079194"},
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("+\1035266\ENQ"),
+      rsNewBotLastPrekey = lastPrekey "+\1035266\ENQ",
       rsNewBotName =
         Just
           ( Name
@@ -69,7 +69,7 @@ testObject_NewBotResponse_provider_2 =
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("\158260S\1013700\1033003\997116"),
+      rsNewBotLastPrekey = lastPrekey "\158260S\1013700\1033003\997116",
       rsNewBotName = Just (Name {fromName = "\185552}nqW\t\179361\&7f"}),
       rsNewBotColour = Nothing,
       rsNewBotAssets =
@@ -91,7 +91,7 @@ testObject_NewBotResponse_provider_3 =
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("I"),
+      rsNewBotLastPrekey = lastPrekey "I",
       rsNewBotName =
         Just
           ( Name
@@ -102,7 +102,7 @@ testObject_NewBotResponse_provider_3 =
       rsNewBotColour = Just (ColourId {fromColourId = 0}),
       rsNewBotAssets =
         Just
-          [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+          [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
             ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
             ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)
           ]
@@ -112,7 +112,7 @@ testObject_NewBotResponse_provider_4 :: NewBotResponse
 testObject_NewBotResponse_provider_4 =
   NewBotResponse
     { rsNewBotPrekeys = [],
-      rsNewBotLastPrekey = lastPrekey ("\DC4G)K\1059819\\"),
+      rsNewBotLastPrekey = lastPrekey "\DC4G)K\1059819\\",
       rsNewBotName =
         Just (Name {fromName = "WmX!\1028903 B7\ACK\140127\1012306C\SUB\1037988F\1043143i\DLE\f$\a\1100404\ESC9\DLED"}),
       rsNewBotColour = Just (ColourId {fromColourId = 8}),
@@ -126,7 +126,7 @@ testObject_NewBotResponse_provider_5 =
         [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "U"},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("\fC\NULL\\\EOT"),
+      rsNewBotLastPrekey = lastPrekey "\fC\NULL\\\EOT",
       rsNewBotName = Nothing,
       rsNewBotColour = Just (ColourId {fromColourId = 7}),
       rsNewBotAssets = Just []
@@ -140,7 +140,7 @@ testObject_NewBotResponse_provider_6 =
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\29859"}
         ],
-      rsNewBotLastPrekey = lastPrekey (""),
+      rsNewBotLastPrekey = lastPrekey "",
       rsNewBotName =
         Just
           ( Name
@@ -156,7 +156,7 @@ testObject_NewBotResponse_provider_7 :: NewBotResponse
 testObject_NewBotResponse_provider_7 =
   NewBotResponse
     { rsNewBotPrekeys = [],
-      rsNewBotLastPrekey = lastPrekey (""),
+      rsNewBotLastPrekey = lastPrekey "",
       rsNewBotName =
         Just
           ( Name
@@ -172,7 +172,7 @@ testObject_NewBotResponse_provider_8 :: NewBotResponse
 testObject_NewBotResponse_provider_8 =
   NewBotResponse
     { rsNewBotPrekeys = [],
-      rsNewBotLastPrekey = lastPrekey ("F!i\14754\987148"),
+      rsNewBotLastPrekey = lastPrekey "F!i\14754\987148",
       rsNewBotName =
         Just
           ( Name
@@ -185,7 +185,7 @@ testObject_NewBotResponse_provider_8 =
         Just
           [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
             ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
-            ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+            ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
             ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)
           ]
     }
@@ -198,7 +198,7 @@ testObject_NewBotResponse_provider_9 =
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\NAK"},
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("]4\68421\&8\\"),
+      rsNewBotLastPrekey = lastPrekey "]4\68421\&8\\",
       rsNewBotName =
         Just
           ( Name
@@ -220,10 +220,10 @@ testObject_NewBotResponse_provider_10 =
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("R\165465"),
+      rsNewBotLastPrekey = lastPrekey "R\165465",
       rsNewBotName = Nothing,
       rsNewBotColour = Just (ColourId {fromColourId = -5}),
-      rsNewBotAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)]
+      rsNewBotAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing]
     }
 
 testObject_NewBotResponse_provider_11 :: NewBotResponse
@@ -233,7 +233,7 @@ testObject_NewBotResponse_provider_11 =
         [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "8"}
         ],
-      rsNewBotLastPrekey = lastPrekey ("U\STX\ETB\1112642x"),
+      rsNewBotLastPrekey = lastPrekey "U\STX\ETB\1112642x",
       rsNewBotName = Nothing,
       rsNewBotColour = Nothing,
       rsNewBotAssets = Nothing
@@ -243,7 +243,7 @@ testObject_NewBotResponse_provider_12 :: NewBotResponse
 testObject_NewBotResponse_provider_12 =
   NewBotResponse
     { rsNewBotPrekeys = [],
-      rsNewBotLastPrekey = lastPrekey ("\EM\FS"),
+      rsNewBotLastPrekey = lastPrekey "\EM\FS",
       rsNewBotName = Nothing,
       rsNewBotColour = Nothing,
       rsNewBotAssets = Nothing
@@ -253,7 +253,7 @@ testObject_NewBotResponse_provider_13 :: NewBotResponse
 testObject_NewBotResponse_provider_13 =
   NewBotResponse
     { rsNewBotPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "h\131368I"}],
-      rsNewBotLastPrekey = lastPrekey ("\1000435eP'X"),
+      rsNewBotLastPrekey = lastPrekey "\1000435eP'X",
       rsNewBotName =
         Just
           ( Name
@@ -264,9 +264,9 @@ testObject_NewBotResponse_provider_13 =
       rsNewBotAssets =
         Just
           [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
-            ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+            ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
             ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
-            ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+            ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
             ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
             ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)
           ]
@@ -285,7 +285,7 @@ testObject_NewBotResponse_provider_14 =
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("Q\1012726\39031U"),
+      rsNewBotLastPrekey = lastPrekey "Q\1012726\39031U",
       rsNewBotName =
         Just
           ( Name
@@ -311,7 +311,7 @@ testObject_NewBotResponse_provider_15 =
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("KuA\172666\1084633"),
+      rsNewBotLastPrekey = lastPrekey "KuA\172666\1084633",
       rsNewBotName =
         Just
           ( Name
@@ -333,7 +333,7 @@ testObject_NewBotResponse_provider_16 =
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("e!D*j"),
+      rsNewBotLastPrekey = lastPrekey "e!D*j",
       rsNewBotName = Just (Name {fromName = "\174414\&4?rvqg%\DC2\167142\DC1t\CAN\62298\SI_\92287F"}),
       rsNewBotColour = Just (ColourId {fromColourId = -5}),
       rsNewBotAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)]
@@ -346,7 +346,7 @@ testObject_NewBotResponse_provider_17 =
         [ Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "b"}
         ],
-      rsNewBotLastPrekey = lastPrekey ("\1064414\f\1024452\12105"),
+      rsNewBotLastPrekey = lastPrekey "\1064414\f\1024452\12105",
       rsNewBotName = Just (Name {fromName = "g\49675B{\DC3Cq\CANmbD\DEL5Q\DC4>i\DC4\SI[\1022068|K\44297\57731|\175014"}),
       rsNewBotColour = Just (ColourId {fromColourId = 1}),
       rsNewBotAssets = Just []
@@ -356,7 +356,7 @@ testObject_NewBotResponse_provider_18 :: NewBotResponse
 testObject_NewBotResponse_provider_18 =
   NewBotResponse
     { rsNewBotPrekeys = [],
-      rsNewBotLastPrekey = lastPrekey ("\21089N|.\GS"),
+      rsNewBotLastPrekey = lastPrekey "\21089N|.\GS",
       rsNewBotName = Nothing,
       rsNewBotColour = Just (ColourId {fromColourId = 8}),
       rsNewBotAssets =
@@ -378,7 +378,7 @@ testObject_NewBotResponse_provider_19 =
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("u=\NAK"),
+      rsNewBotLastPrekey = lastPrekey "u=\NAK",
       rsNewBotName = Just (Name {fromName = "FvrT0g\\\169897"}),
       rsNewBotColour = Nothing,
       rsNewBotAssets =
@@ -399,7 +399,7 @@ testObject_NewBotResponse_provider_20 =
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\52025"},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      rsNewBotLastPrekey = lastPrekey ("`|\144284^\US"),
+      rsNewBotLastPrekey = lastPrekey "`|\144284^\US",
       rsNewBotName = Nothing,
       rsNewBotColour = Nothing,
       rsNewBotAssets =

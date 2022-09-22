@@ -171,7 +171,7 @@ testHandleQuery opts brig = do
   -- Query the updated profile
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
-    const (Just (Handle hdl)) === (>>= userHandle) . responseJsonMaybe
+    const (Just (Handle hdl)) === (userHandle <=< responseJsonMaybe)
   -- Query for the handle availability (must be taken)
   Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
     !!! const 200 === statusCode
@@ -196,7 +196,7 @@ testHandleQuery opts brig = do
   -- Usually, you can search outside your team
   assertCanFind brig user3 user4
   -- Usually, you can search outside your team but not if this config option is set
-  let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
+  let newOpts = opts & ((Opt.optionSettings . Opt.searchSameTeamOnly) ?~ True)
   withSettingsOverrides newOpts $
     assertCannotFind brig user3 user4
 
@@ -330,7 +330,7 @@ assertCanFind brig from target = do
   let targetHandle = fromMaybe (error "Impossible") (userHandle target)
   get (brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
     const 200 === statusCode
-    const (userHandle target) === (>>= (listToMaybe >=> profileHandle)) . responseJsonMaybe
+    const (userHandle target) === ((listToMaybe >=> profileHandle) <=< responseJsonMaybe)
   get (brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
     const 200 === statusCode
     const (Just (UserHandleInfo $ userQualifiedId target)) === responseJsonMaybe

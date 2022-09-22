@@ -186,12 +186,12 @@ genUser = do
   password' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
   let emails' = [] -- Gen.list (Range.constant 0 20) genEmail
   let phoneNumbers' = [] -- Gen.list (Range.constant 0 20) genPhone
-  ims' <- pure [] -- Gen.list (Range.constant 0 20) genIM
-  photos' <- pure [] -- Gen.list (Range.constant 0 20) genPhoto
-  addresses' <- pure [] -- Gen.list (Range.constant 0 20) genAddress
-  entitlements' <- pure [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 20) Gen.unicode)
-  roles' <- pure [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 10) Gen.unicode)
-  x509Certificates' <- pure [] -- Gen.list (Range.constant 0 20) genCertificate
+  let ims' = [] -- Gen.list (Range.constant 0 20) genIM
+  let photos' = [] -- Gen.list (Range.constant 0 20) genPhoto
+  let addresses' = [] -- Gen.list (Range.constant 0 20) genAddress
+  let entitlements' = [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 20) Gen.unicode)
+  let roles' = [] -- Gen.list (Range.constant 0 20) (Gen.text (Range.constant 0 10) Gen.unicode)
+  let x509Certificates' = [] -- Gen.list (Range.constant 0 20) genCertificate
   pure $
     User
       { schemas = schemas',
@@ -455,7 +455,7 @@ instance Patchable UserExtraTest where
 -- | A 'User' with extra fields present.
 extendedUser :: UserExtraTest -> User (TestTag Text () () UserExtraTest)
 extendedUser e =
-  (User.empty [User20, CustomSchema "urn:hscim:test"] "sample userName" e)
+  User.empty [User20, CustomSchema "urn:hscim:test"] "sample userName" e
 
 -- | Encoding of @extendedUser UserExtraEmpty@.
 extendedUserEmptyJson :: Value

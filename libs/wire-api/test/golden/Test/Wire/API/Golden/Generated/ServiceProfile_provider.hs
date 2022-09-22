@@ -59,7 +59,7 @@ testObject_ServiceProfile_provider_1 =
           },
       serviceProfileSummary = "\1008770\60807",
       serviceProfileDescr = "/Q",
-      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)],
+      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing],
       serviceProfileTags = fromList [],
       serviceProfileEnabled = True
     }
@@ -146,10 +146,10 @@ testObject_ServiceProfile_provider_6 =
       serviceProfileSummary = "4>#",
       serviceProfileDescr = "D\DEL",
       serviceProfileAssets =
-        [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+        [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
-          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
           ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)
         ],
       serviceProfileTags = fromList [],
@@ -197,7 +197,7 @@ testObject_ServiceProfile_provider_9 =
       serviceProfileName = Name {fromName = "\EM\73877+\DC2\NUL!\USV\f\1025396\1106635_\1106841H#4\STX\1104704\DEL"},
       serviceProfileSummary = "a\1088958",
       serviceProfileDescr = "AU",
-      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)],
+      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing],
       serviceProfileTags = fromList [BusinessTag, FinanceTag, PollTag],
       serviceProfileEnabled = False
     }
@@ -210,7 +210,7 @@ testObject_ServiceProfile_provider_10 =
       serviceProfileName = Name {fromName = ":h[\1059282\1033090\913Y$\ENQ\NAKE\1086801\186280\STX\US\28752"},
       serviceProfileSummary = ",AD",
       serviceProfileDescr = "s&\118974",
-      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)],
+      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing],
       serviceProfileTags = fromList [],
       serviceProfileEnabled = False
     }
@@ -257,7 +257,7 @@ testObject_ServiceProfile_provider_13 =
       serviceProfileName = Name {fromName = ":[\".\152322\USvU\1055877"},
       serviceProfileSummary = "",
       serviceProfileDescr = "A",
-      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)],
+      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing],
       serviceProfileTags = fromList [ProductivityTag],
       serviceProfileEnabled = False
     }
@@ -287,7 +287,7 @@ testObject_ServiceProfile_provider_15 =
           },
       serviceProfileSummary = "*P`",
       serviceProfileDescr = "u`\ENQ",
-      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)],
+      serviceProfileAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing],
       serviceProfileTags = fromList [MusicTag, RatingTag],
       serviceProfileEnabled = False
     }

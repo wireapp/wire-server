@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
+
 usage() { echo "Usage: $0 -f [all, changeset] -m [check, inplace]" 1>&2; exit 1; }
 
 files=''
 check=true
 
-while getopts ':f:m:' opt
+while getopts ':f:m:k' opt
  do
      case $opt in
          f) f=${OPTARG}
@@ -28,6 +29,7 @@ while getopts ':f:m:' opt
               usage
             fi
             ;;
+         k) k=true;;
          *) usage;;
      esac
 done
@@ -35,6 +37,12 @@ done
 if [ -z "${f}" ] || [ -z "${m}" ]; then
     usage
 fi
+
+if [ "${k}" ]; then
+  echo "Will fail on the first error"
+  set -euo pipefail
+fi
+
 
 count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
 

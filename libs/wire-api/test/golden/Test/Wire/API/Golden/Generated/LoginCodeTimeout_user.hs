@@ -27,11 +27,11 @@ testObject_LoginCodeTimeout_user_1 =
 
 testObject_LoginCodeTimeout_user_2 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_2 =
-  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime (20.000000000000))}
+  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime 20.000000000000)}
 
 testObject_LoginCodeTimeout_user_3 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_3 =
-  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime (3.000000000000))}
+  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime 3.000000000000)}
 
 testObject_LoginCodeTimeout_user_4 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_4 =
@@ -51,11 +51,11 @@ testObject_LoginCodeTimeout_user_7 =
 
 testObject_LoginCodeTimeout_user_8 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_8 =
-  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime (12.000000000000))}
+  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime 12.000000000000)}
 
 testObject_LoginCodeTimeout_user_9 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_9 =
-  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime (21.000000000000))}
+  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime 21.000000000000)}
 
 testObject_LoginCodeTimeout_user_10 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_10 =
@@ -79,23 +79,23 @@ testObject_LoginCodeTimeout_user_14 =
 
 testObject_LoginCodeTimeout_user_15 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_15 =
-  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime (6.000000000000))}
+  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime 6.000000000000)}
 
 testObject_LoginCodeTimeout_user_16 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_16 =
-  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime (23.000000000000))}
+  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime 23.000000000000)}
 
 testObject_LoginCodeTimeout_user_17 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_17 =
-  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime (29.000000000000))}
+  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime 29.000000000000)}
 
 testObject_LoginCodeTimeout_user_18 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_18 =
-  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime (22.000000000000))}
+  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime 22.000000000000)}
 
 testObject_LoginCodeTimeout_user_19 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_19 =
-  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime (7.000000000000))}
+  LoginCodeTimeout {fromLoginCodeTimeout = Timeout (secondsToNominalDiffTime 7.000000000000)}
 
 testObject_LoginCodeTimeout_user_20 :: LoginCodeTimeout
 testObject_LoginCodeTimeout_user_20 =

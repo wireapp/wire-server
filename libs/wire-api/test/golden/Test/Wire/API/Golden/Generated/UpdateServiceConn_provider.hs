@@ -94,7 +94,7 @@ testObject_UpdateServiceConn_provider_1 =
                   }
               ]
           ),
-      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate ("QA==")))]),
+      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate "QA=="))]),
       updateServiceConnEnabled = Just True
     }
 
@@ -109,8 +109,8 @@ testObject_UpdateServiceConn_provider_2 =
       updateServiceConnTokens =
         Just
           ( unsafeRange
-              [ ServiceToken (fromRight undefined (validate ("5KalsQ=="))),
-                ServiceToken (fromRight undefined (validate ("el0K2cA=")))
+              [ ServiceToken (fromRight undefined (validate "5KalsQ==")),
+                ServiceToken (fromRight undefined (validate "el0K2cA="))
               ]
           ),
       updateServiceConnEnabled = Just False
@@ -183,7 +183,7 @@ testObject_UpdateServiceConn_provider_4 =
                   }
               ]
           ),
-      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate ("yXM=")))]),
+      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate "yXM="))]),
       updateServiceConnEnabled = Just False
     }
 
@@ -220,8 +220,8 @@ testObject_UpdateServiceConn_provider_5 =
       updateServiceConnTokens =
         Just
           ( unsafeRange
-              [ ServiceToken (fromRight undefined (validate (""))),
-                ServiceToken (fromRight undefined (validate ("25QkmfM=")))
+              [ ServiceToken (fromRight undefined (validate "")),
+                ServiceToken (fromRight undefined (validate "25QkmfM="))
               ]
           ),
       updateServiceConnEnabled = Just True
@@ -365,7 +365,7 @@ testObject_UpdateServiceConn_provider_8 =
                   }
               ]
           ),
-      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate ("IRIB")))]),
+      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate "IRIB"))]),
       updateServiceConnEnabled = Just False
     }
 
@@ -402,8 +402,8 @@ testObject_UpdateServiceConn_provider_9 =
       updateServiceConnTokens =
         Just
           ( unsafeRange
-              [ ServiceToken (fromRight undefined (validate ("UNqTIw=="))),
-                ServiceToken (fromRight undefined (validate ("TcxpLPQ=")))
+              [ ServiceToken (fromRight undefined (validate "UNqTIw==")),
+                ServiceToken (fromRight undefined (validate "TcxpLPQ="))
               ]
           ),
       updateServiceConnEnabled = Just False
@@ -505,8 +505,8 @@ testObject_UpdateServiceConn_provider_12 =
       updateServiceConnTokens =
         Just
           ( unsafeRange
-              [ ServiceToken (fromRight undefined (validate ("_b76"))),
-                ServiceToken (fromRight undefined (validate ("uA==")))
+              [ ServiceToken (fromRight undefined (validate "_b76")),
+                ServiceToken (fromRight undefined (validate "uA=="))
               ]
           ),
       updateServiceConnEnabled = Just False
@@ -537,7 +537,7 @@ testObject_UpdateServiceConn_provider_13 =
                 }
           ),
       updateServiceConnKeys = Nothing,
-      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate ("afay7A==")))]),
+      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate "afay7A=="))]),
       updateServiceConnEnabled = Nothing
     }
 
@@ -582,8 +582,8 @@ testObject_UpdateServiceConn_provider_14 =
       updateServiceConnTokens =
         Just
           ( unsafeRange
-              [ ServiceToken (fromRight undefined (validate ("67zOOg=="))),
-                ServiceToken (fromRight undefined (validate ("dA==")))
+              [ ServiceToken (fromRight undefined (validate "67zOOg==")),
+                ServiceToken (fromRight undefined (validate "dA=="))
               ]
           ),
       updateServiceConnEnabled = Just True
@@ -630,8 +630,8 @@ testObject_UpdateServiceConn_provider_15 =
       updateServiceConnTokens =
         Just
           ( unsafeRange
-              [ ServiceToken (fromRight undefined (validate ("EvaJ"))),
-                ServiceToken (fromRight undefined (validate ("BfDGJsM=")))
+              [ ServiceToken (fromRight undefined (validate "EvaJ")),
+                ServiceToken (fromRight undefined (validate "BfDGJsM="))
               ]
           ),
       updateServiceConnEnabled = Nothing
@@ -684,7 +684,7 @@ testObject_UpdateServiceConn_provider_16 =
                   }
               ]
           ),
-      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate ("pnY=")))]),
+      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate "pnY="))]),
       updateServiceConnEnabled = Just True
     }
 
@@ -721,8 +721,8 @@ testObject_UpdateServiceConn_provider_17 =
       updateServiceConnTokens =
         Just
           ( unsafeRange
-              [ ServiceToken (fromRight undefined (validate ("AjoN"))),
-                ServiceToken (fromRight undefined (validate ("c_WGcw==")))
+              [ ServiceToken (fromRight undefined (validate "AjoN")),
+                ServiceToken (fromRight undefined (validate "c_WGcw=="))
               ]
           ),
       updateServiceConnEnabled = Nothing
@@ -756,8 +756,8 @@ testObject_UpdateServiceConn_provider_18 =
       updateServiceConnTokens =
         Just
           ( unsafeRange
-              [ ServiceToken (fromRight undefined (validate ("FX2Rjg=="))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "FX2Rjg==")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       updateServiceConnEnabled = Just False
@@ -801,7 +801,7 @@ testObject_UpdateServiceConn_provider_19 =
                   }
               ]
           ),
-      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate ("1LoyRg==")))]),
+      updateServiceConnTokens = Just (unsafeRange [ServiceToken (fromRight undefined (validate "1LoyRg=="))]),
       updateServiceConnEnabled = Just False
     }
 
@@ -846,8 +846,8 @@ testObject_UpdateServiceConn_provider_20 =
       updateServiceConnTokens =
         Just
           ( unsafeRange
-              [ ServiceToken (fromRight undefined (validate ("NA=="))),
-                ServiceToken (fromRight undefined (validate ("")))
+              [ ServiceToken (fromRight undefined (validate "NA==")),
+                ServiceToken (fromRight undefined (validate ""))
               ]
           ),
       updateServiceConnEnabled = Nothing

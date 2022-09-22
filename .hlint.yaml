@@ -16,5 +16,5 @@
 - hint: { lhs: (() <$), rhs: void }
 - hint: { lhs: return, rhs: pure }
 ## We want the latter to properly handle signals.
-- error: { name: Use shutdown, lhs: runSettings, rhs: runSettingsWithShutdown }
-- ignore: { name: Use shutdown, within: [Network.Wai.Utilities.Server, Federator.Response] }
+# - error: { name: Use shutdown, lhs: runSettings, rhs: runSettingsWithShutdown }
+# - ignore: { name: Use shutdown, within: [Network.Wai.Utilities.Server, Federator.Response] }
