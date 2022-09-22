@@ -78,7 +78,7 @@ start :: Opts -> IO ()
 start o = do
   e <- newEnv o
   s <- Server.newSettings (server e)
-  Server.runSettingsWithShutdown s (pipeline e) Nothing `finally` pure () -- nothing to clean up?
+  Server.runSettingsWithShutdown s (pipeline e) Nothing
   where
     server e = Server.defaultServer (unpack $ stern o ^. epHost) (stern o ^. epPort) (e ^. applog) (e ^. metrics)
     pipeline e = GZip.gzip GZip.def $ serve e
