@@ -54,6 +54,7 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
+import Wire.API.MLS.GroupInfoBundle
 
 createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
@@ -133,6 +134,17 @@ conversationMeta conv =
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
       pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
 
+getGroupInfoBundle :: ConvId -> Client (Maybe GroupInfoBundle)
+getGroupInfoBundle cid = do
+  fmap join $
+    runIdentity
+      <$$> retry
+        x1
+        ( query1
+            Cql.selectGroupInfoBundle
+            (params LocalQuorum (Identity cid))
+        )
+
 isConvAlive :: ConvId -> Client Bool
 isConvAlive cid = do
   result <- retry x1 (query1 Cql.isConvDeleted (params LocalQuorum (Identity cid)))
@@ -163,6 +175,10 @@ updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer 
 
 updateConvEpoch :: ConvId -> Epoch -> Client ()
 updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
+
+setGroupInfoBundle :: ConvId -> GroupInfoBundle -> Client ()
+setGroupInfoBundle conv gib =
+  write Cql.updateGroupInfoBundle (params LocalQuorum (gib, conv))
 
 getConversation :: ConvId -> Client (Maybe Conversation)
 getConversation conv = do
@@ -302,6 +318,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid
+  GetGroupInfoBundle cid -> embedClient $ getGroupInfoBundle cid
   IsConversationAlive cid -> embedClient $ isConvAlive cid
   SelectConversations uid cids -> embedClient $ localConversationIdsOf uid cids
   GetRemoteConversationStatus uid cids -> embedClient $ remoteConversationStatus uid cids
@@ -313,5 +330,6 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
   DeleteConversation cid -> embedClient $ deleteConversation cid
   SetGroupId gId cid -> embedClient $ mapGroupId gId cid
+  SetGroupInfoBundle cid gib -> embedClient $ setGroupInfoBundle cid gib
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch

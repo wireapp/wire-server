@@ -671,6 +671,7 @@ executable galley-schema
     V72_DropManagedConversations
     V73_MemberClientTable
     V74_ExposeInvitationsToTeamAdmin
+    V75_MLSGroupInfo
 
   hs-source-dirs:     schema/src
   default-extensions:

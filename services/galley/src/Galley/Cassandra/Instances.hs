@@ -25,6 +25,7 @@ where
 
 import Cassandra.CQL
 import Control.Error (note)
+import Data.Binary.Put
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText, mkDomain)
@@ -38,6 +39,7 @@ import Wire.API.Asset (AssetKey, assetKeyToText)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Team
@@ -197,6 +199,14 @@ instance Cql GroupId where
 
   fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
   fromCql _ = Left "group_id: blob expected"
+
+instance Cql GroupInfoBundle where
+  ctype = Tagged BlobColumn
+
+  toCql = CqlBlob . runPut . serialiseMLS
+
+  fromCql (CqlBlob b) = mapLeft T.unpack $ decodeMLS @GroupInfoBundle b
+  fromCql _ = Left "GroupInfoBundle: blob expected"
 
 instance Cql Icon where
   ctype = Tagged TextColumn

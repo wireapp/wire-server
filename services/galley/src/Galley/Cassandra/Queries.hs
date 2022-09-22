@@ -203,6 +203,9 @@ selectConv = "select type, creator, access, access_role, access_roles_v2, name, 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 
+selectGroupInfoBundle :: PrepQuery R (Identity ConvId) (Identity (Maybe GroupInfoBundle))
+selectGroupInfoBundle = "select group_info_bundle from conversation where conv = ?"
+
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
