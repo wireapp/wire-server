@@ -1,0 +1,1 @@
+For wire-server cloud, on kubernetes 1.21+, favour topology-aware routing, which reduces unnecessary inter-availability-zone traffic, reducing latency and AWS costs.
