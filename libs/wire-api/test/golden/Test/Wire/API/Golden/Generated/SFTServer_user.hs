@@ -45,7 +45,7 @@ import Wire.API.Call.Config (SFTServer, sftServer)
 
 testObject_SFTServer_user_1 :: SFTServer
 testObject_SFTServer_user_1 =
-  ( sftServer
+  sftServer
       ( coerce
           URI
             { uriScheme = Scheme {schemeBS = "https"},
@@ -62,4 +62,3 @@ testObject_SFTServer_user_1 =
               uriFragment = Nothing
             }
       )
-  )

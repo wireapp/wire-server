@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLists #-}
+
 
 -- This file is part of the Wire Server implementation.
 --
@@ -30,7 +30,7 @@ import Wire.API.User.Search (Sso (..), TeamContact (..))
 testObject_TeamContact_user_1 :: TeamContact
 testObject_TeamContact_user_1 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001")),
       teamContactName = "",
       teamContactColorId = Nothing,
       teamContactHandle = Nothing,
@@ -48,7 +48,7 @@ testObject_TeamContact_user_1 =
 testObject_TeamContact_user_2 :: TeamContact
 testObject_TeamContact_user_2 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000002"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000002")),
       teamContactName = "\160469\35044",
       teamContactColorId = Just 2,
       teamContactHandle = Just "",
@@ -66,7 +66,7 @@ testObject_TeamContact_user_2 =
 testObject_TeamContact_user_3 :: TeamContact
 testObject_TeamContact_user_3 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000000"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000000000000")),
       teamContactName = "",
       teamContactColorId = Nothing,
       teamContactHandle = Just "",
@@ -84,7 +84,7 @@ testObject_TeamContact_user_3 =
 testObject_TeamContact_user_4 :: TeamContact
 testObject_TeamContact_user_4 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000002"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000002")),
       teamContactName = "",
       teamContactColorId = Nothing,
       teamContactHandle = Just "U6",
@@ -102,7 +102,7 @@ testObject_TeamContact_user_4 =
 testObject_TeamContact_user_5 :: TeamContact
 testObject_TeamContact_user_5 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000")),
       teamContactName = "8",
       teamContactColorId = Just (-3),
       teamContactHandle = Just "\RS",
@@ -120,7 +120,7 @@ testObject_TeamContact_user_5 =
 testObject_TeamContact_user_6 :: TeamContact
 testObject_TeamContact_user_6 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
       teamContactName = "z",
       teamContactColorId = Nothing,
       teamContactHandle = Nothing,
@@ -138,7 +138,7 @@ testObject_TeamContact_user_6 =
 testObject_TeamContact_user_7 :: TeamContact
 testObject_TeamContact_user_7 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000000000000"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000000000000")),
       teamContactName = "7",
       teamContactColorId = Nothing,
       teamContactHandle = Nothing,
@@ -156,7 +156,7 @@ testObject_TeamContact_user_7 =
 testObject_TeamContact_user_8 :: TeamContact
 testObject_TeamContact_user_8 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
       teamContactName = "\1067719Z",
       teamContactColorId = Just (-1),
       teamContactHandle = Just "\bdL",
@@ -174,7 +174,7 @@ testObject_TeamContact_user_8 =
 testObject_TeamContact_user_9 :: TeamContact
 testObject_TeamContact_user_9 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
       teamContactName = "h,",
       teamContactColorId = Just 2,
       teamContactHandle = Nothing,
@@ -192,7 +192,7 @@ testObject_TeamContact_user_9 =
 testObject_TeamContact_user_10 :: TeamContact
 testObject_TeamContact_user_10 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001")),
       teamContactName = "or",
       teamContactColorId = Just 2,
       teamContactHandle = Just "",
@@ -210,7 +210,7 @@ testObject_TeamContact_user_10 =
 testObject_TeamContact_user_11 :: TeamContact
 testObject_TeamContact_user_11 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000002")),
       teamContactName = "\ACK",
       teamContactColorId = Just (-3),
       teamContactHandle = Nothing,
@@ -228,7 +228,7 @@ testObject_TeamContact_user_11 =
 testObject_TeamContact_user_12 :: TeamContact
 testObject_TeamContact_user_12 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000000"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000000")),
       teamContactName = "\10652w",
       teamContactColorId = Nothing,
       teamContactHandle = Just "",
@@ -246,7 +246,7 @@ testObject_TeamContact_user_12 =
 testObject_TeamContact_user_13 :: TeamContact
 testObject_TeamContact_user_13 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000001"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000001")),
       teamContactName = "\SUB\983552P",
       teamContactColorId = Just 0,
       teamContactHandle = Just "S",
@@ -264,7 +264,7 @@ testObject_TeamContact_user_13 =
 testObject_TeamContact_user_14 :: TeamContact
 testObject_TeamContact_user_14 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
       teamContactName = "`+",
       teamContactColorId = Just (-3),
       teamContactHandle = Just "\"\US\DC4",
@@ -282,7 +282,7 @@ testObject_TeamContact_user_14 =
 testObject_TeamContact_user_15 :: TeamContact
 testObject_TeamContact_user_15 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000002"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000002")),
       teamContactName = "\54517}O",
       teamContactColorId = Nothing,
       teamContactHandle = Just "J",
@@ -300,7 +300,7 @@ testObject_TeamContact_user_15 =
 testObject_TeamContact_user_16 :: TeamContact
 testObject_TeamContact_user_16 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002")),
       teamContactName = "\ACK6J",
       teamContactColorId = Just (-1),
       teamContactHandle = Nothing,
@@ -318,7 +318,7 @@ testObject_TeamContact_user_16 =
 testObject_TeamContact_user_17 :: TeamContact
 testObject_TeamContact_user_17 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001")),
       teamContactName = "/MB",
       teamContactColorId = Just (-3),
       teamContactHandle = Nothing,
@@ -336,7 +336,7 @@ testObject_TeamContact_user_17 =
 testObject_TeamContact_user_18 :: TeamContact
 testObject_TeamContact_user_18 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000002"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000002")),
       teamContactName = "[\1078188C",
       teamContactColorId = Just 3,
       teamContactHandle = Nothing,
@@ -354,7 +354,7 @@ testObject_TeamContact_user_18 =
 testObject_TeamContact_user_19 :: TeamContact
 testObject_TeamContact_user_19 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000002"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000200000002")),
       teamContactName = "",
       teamContactColorId = Just (-3),
       teamContactHandle = Nothing,
@@ -372,7 +372,7 @@ testObject_TeamContact_user_19 =
 testObject_TeamContact_user_20 :: TeamContact
 testObject_TeamContact_user_20 =
   TeamContact
-    { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
+    { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
       teamContactName = "",
       teamContactColorId = Just (-3),
       teamContactHandle = Just "0\1085403\1021449",

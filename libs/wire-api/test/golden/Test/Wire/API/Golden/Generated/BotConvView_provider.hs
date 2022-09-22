@@ -34,7 +34,7 @@ domain = Domain "golden.example.com"
 
 testObject_BotConvView_provider_1 :: BotConvView
 testObject_BotConvView_provider_1 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "00000006-0000-0012-0000-001900000009"))))
       (Nothing)
       ( [ OtherMember
@@ -98,11 +98,10 @@ testObject_BotConvView_provider_1 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_2 :: BotConvView
 testObject_BotConvView_provider_2 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "0000001a-0000-0015-0000-00200000000a"))))
       (Nothing)
       ( [ OtherMember
@@ -270,11 +269,10 @@ testObject_BotConvView_provider_2 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_3 :: BotConvView
 testObject_BotConvView_provider_3 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "0000001c-0000-0000-0000-000b00000015"))))
       (Just "n\44648")
       ( [ OtherMember
@@ -310,11 +308,10 @@ testObject_BotConvView_provider_3 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_4 :: BotConvView
 testObject_BotConvView_provider_4 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "00000011-0000-0011-0000-00160000001d"))))
       (Just "\ESC`G1w\FS\6340:")
       ( [ OtherMember
@@ -335,11 +332,10 @@ testObject_BotConvView_provider_4 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_5 :: BotConvView
 testObject_BotConvView_provider_5 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "0000001d-0000-000b-0000-002000000000"))))
       (Just "\1075229\1009724#nzj\173391")
       ( [ OtherMember
@@ -355,11 +351,10 @@ testObject_BotConvView_provider_5 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_6 :: BotConvView
 testObject_BotConvView_provider_6 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "0000001b-0000-0010-0000-001c00000006"))))
       (Nothing)
       ( [ OtherMember
@@ -369,11 +364,10 @@ testObject_BotConvView_provider_6 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_7 :: BotConvView
 testObject_BotConvView_provider_7 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "00000009-0000-0006-0000-001600000013"))))
       (Just "\n\167215&;&S")
       ( [ OtherMember
@@ -426,19 +420,18 @@ testObject_BotConvView_provider_7 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_8 :: BotConvView
 testObject_BotConvView_provider_8 =
-  (botConvView ((Id (fromJust (UUID.fromString "00000013-0000-0005-0000-000800000007")))) (Just "\RS") ([]))
+  botConvView ((Id (fromJust (UUID.fromString "00000013-0000-0005-0000-000800000007")))) (Just "\RS") ([])
 
 testObject_BotConvView_provider_9 :: BotConvView
 testObject_BotConvView_provider_9 =
-  (botConvView ((Id (fromJust (UUID.fromString "0000001c-0000-001d-0000-001a00000006")))) (Just "\1005935\DLE_^w") ([]))
+  botConvView ((Id (fromJust (UUID.fromString "0000001c-0000-001d-0000-001a00000006")))) (Just "\1005935\DLE_^w") ([])
 
 testObject_BotConvView_provider_10 :: BotConvView
 testObject_BotConvView_provider_10 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "00000001-0000-000b-0000-001300000020"))))
       (Just "\1062483#\179740\165276")
       ( [ OtherMember
@@ -448,23 +441,21 @@ testObject_BotConvView_provider_10 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_11 :: BotConvView
 testObject_BotConvView_provider_11 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "00000002-0000-0015-0000-000d0000001f"))))
       (Just "\ENQ\US\62200\1113594\&1N_\1016373Bo")
       ([])
-  )
 
 testObject_BotConvView_provider_12 :: BotConvView
 testObject_BotConvView_provider_12 =
-  (botConvView ((Id (fromJust (UUID.fromString "0000001f-0000-0020-0000-00170000000d")))) (Just "Q") ([]))
+  botConvView ((Id (fromJust (UUID.fromString "0000001f-0000-0020-0000-00170000000d")))) (Just "Q") ([])
 
 testObject_BotConvView_provider_13 :: BotConvView
 testObject_BotConvView_provider_13 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "0000000c-0000-0014-0000-001a00000017"))))
       (Just "O$:")
       ( [ OtherMember
@@ -533,11 +524,10 @@ testObject_BotConvView_provider_13 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_14 :: BotConvView
 testObject_BotConvView_provider_14 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "0000001f-0000-0012-0000-000100000010"))))
       (Just "T")
       ( [ OtherMember
@@ -580,11 +570,10 @@ testObject_BotConvView_provider_14 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_15 :: BotConvView
 testObject_BotConvView_provider_15 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "00000009-0000-000a-0000-00010000000b"))))
       (Just "")
       ( [ OtherMember
@@ -600,11 +589,10 @@ testObject_BotConvView_provider_15 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_16 :: BotConvView
 testObject_BotConvView_provider_16 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "0000001d-0000-0013-0000-00030000001a"))))
       (Just "\6249y\ETX\167710K")
       ( [ OtherMember
@@ -673,11 +661,10 @@ testObject_BotConvView_provider_16 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_17 :: BotConvView
 testObject_BotConvView_provider_17 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "00000016-0000-000a-0000-000c00000004"))))
       (Nothing)
       ( [ OtherMember
@@ -710,11 +697,10 @@ testObject_BotConvView_provider_17 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_18 :: BotConvView
 testObject_BotConvView_provider_18 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "00000003-0000-0004-0000-001900000003"))))
       (Just "e\"")
       ( [ OtherMember
@@ -730,11 +716,10 @@ testObject_BotConvView_provider_18 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_19 :: BotConvView
 testObject_BotConvView_provider_19 =
-  ( botConvView
+  botConvView
       ((Id (fromJust (UUID.fromString "00000000-0000-0009-0000-001500000004"))))
       (Nothing)
       ( [ OtherMember
@@ -750,8 +735,7 @@ testObject_BotConvView_provider_19 =
             }
         ]
       )
-  )
 
 testObject_BotConvView_provider_20 :: BotConvView
 testObject_BotConvView_provider_20 =
-  (botConvView ((Id (fromJust (UUID.fromString "00000013-0000-000c-0000-000b00000013")))) (Just "(\\Fj\991184a") ([]))
+  botConvView ((Id (fromJust (UUID.fromString "00000013-0000-000c-0000-000b00000013")))) (Just "(\\Fj\991184a") ([])

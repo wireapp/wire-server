@@ -10,14 +10,11 @@ while getopts ':f:m:' opt
      case $opt in
          f) f=${OPTARG}
             if [ "$f" = "all" ]; then
-              files=$(find libs/ services/ -not -path "*/test/*" -name "*.hs")
-              echo "WARNING: not linting tests."
+              files=$(find libs/ services/ -name "*.hs")
             elif [ "$f" = "pr" ]; then
               files=$(git diff --name-only origin/develop... | grep \.hs\$)
-              echo "WARNING: linting test files with changes. This may lead to some hard to fix warnings/errors, it is safe to ignore those!"
             elif [ "$f" = "changeset" ]; then
               files=$(git diff --name-only HEAD | grep \.hs\$)
-              echo "WARNING: linting test files with changes. This may lead to some hard to fix warnings/errors, it is safe to ignore those!"
             else
               usage
             fi

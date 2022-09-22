@@ -45,7 +45,7 @@ import Wire.API.Team.Permission
 
 testObject_Event_team_1 :: Event
 testObject_Event_team_1 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "0000103e-0000-62d6-0000-7840000079b9"))))
       (read ("1864-05-15 23:16:24.423381912958 UTC"))
       ( EdTeamCreate
@@ -58,11 +58,10 @@ testObject_Event_team_1 =
               & teamIconKey .~ (Nothing)
           )
       )
-  )
 
 testObject_Event_team_2 :: Event
 testObject_Event_team_2 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "000019fb-0000-03a5-0000-009c00006067"))))
       (read ("1864-05-06 06:03:20.68447167825 UTC"))
       ( EdTeamUpdate
@@ -79,19 +78,17 @@ testObject_Event_team_2 =
               }
           )
       )
-  )
 
 testObject_Event_team_3 :: Event
 testObject_Event_team_3 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00000bfa-0000-53cd-0000-2f8e00004e38"))))
       (read ("1864-04-20 19:30:43.065358805164 UTC"))
       (EdMemberJoin (Id (fromJust (UUID.fromString "000030c1-0000-1c28-0000-71af000036f3"))))
-  )
 
 testObject_Event_team_4 :: Event
 testObject_Event_team_4 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "000060cd-0000-2fae-0000-3620000011d4"))))
       (read ("1864-06-07 17:44:20.841616476784 UTC"))
       ( EdTeamUpdate
@@ -111,35 +108,31 @@ testObject_Event_team_4 =
               }
           )
       )
-  )
 
 testObject_Event_team_5 :: Event
 testObject_Event_team_5 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00004a61-0000-6721-0000-393c0000557b"))))
       (read ("1864-05-09 21:15:29.037488409172 UTC"))
       EdTeamDelete
-  )
 
 testObject_Event_team_6 :: Event
 testObject_Event_team_6 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00001122-0000-75f2-0000-199f000005de"))))
       (read ("1864-05-16 06:23:02.245944146361 UTC"))
       (EdMemberLeave (Id (fromJust (UUID.fromString "00005828-0000-7c47-0000-28ca00002f72"))))
-  )
 
 testObject_Event_team_7 :: Event
 testObject_Event_team_7 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00005ca1-0000-57cd-0000-657100003904"))))
       (read ("1864-05-12 13:33:11.712478663779 UTC"))
       (EdConvDelete (Id (fromJust (UUID.fromString "00006249-0000-4204-0000-559700001694"))))
-  )
 
 testObject_Event_team_8 :: Event
 testObject_Event_team_8 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00003eac-0000-0c8d-0000-4c9400002023"))))
       (read ("1864-04-19 01:15:18.509437360517 UTC"))
       ( EdTeamUpdate
@@ -155,43 +148,38 @@ testObject_Event_team_8 =
               }
           )
       )
-  )
 
 testObject_Event_team_9 :: Event
 testObject_Event_team_9 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "000007e2-0000-025d-0000-4e57000052ad"))))
       (read ("1864-05-05 12:42:00.165920284853 UTC"))
       EdTeamDelete
-  )
 
 testObject_Event_team_10 :: Event
 testObject_Event_team_10 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00000efc-0000-67f3-0000-33bd00000cc1"))))
       (read ("1864-06-08 20:37:32.993020874753 UTC"))
       (EdMemberLeave (Id (fromJust (UUID.fromString "00004649-0000-6535-0000-5d2b00005924"))))
-  )
 
 testObject_Event_team_11 :: Event
 testObject_Event_team_11 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00005156-0000-0690-0000-531500001b8f"))))
       (read ("1864-06-07 21:49:06.242261128063 UTC"))
       (EdConvDelete (Id (fromJust (UUID.fromString "0000572e-0000-2452-0000-2a8300006d6b"))))
-  )
 
 testObject_Event_team_12 :: Event
 testObject_Event_team_12 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00006c75-0000-7a03-0000-2c52000004f3"))))
       (read ("1864-04-11 07:04:35.939055292667 UTC"))
       (EdConvDelete (Id (fromJust (UUID.fromString "000041d3-0000-6993-0000-080100000fa8"))))
-  )
 
 testObject_Event_team_13 :: Event
 testObject_Event_team_13 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "000000a2-0000-56a4-0000-1a9f0000402b"))))
       (read ("1864-04-14 05:25:05.00980826325 UTC"))
       ( EdTeamCreate
@@ -204,43 +192,38 @@ testObject_Event_team_13 =
               & teamIconKey .~ (Just ",7\aS")
           )
       )
-  )
 
 testObject_Event_team_14 :: Event
 testObject_Event_team_14 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00006c11-0000-76d2-0000-09da000047d8"))))
       (read ("1864-05-02 18:02:02.563349061703 UTC"))
       (EdConvDelete (Id (fromJust (UUID.fromString "000071e4-0000-24dd-0000-41dd000013e5"))))
-  )
 
 testObject_Event_team_15 :: Event
 testObject_Event_team_15 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00007fe4-0000-5f5d-0000-140500001c24"))))
       (read ("1864-06-04 00:19:07.663093674023 UTC"))
       (EdConvDelete (Id (fromJust (UUID.fromString "000074e6-0000-1d53-0000-7d6400001363"))))
-  )
 
 testObject_Event_team_16 :: Event
 testObject_Event_team_16 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00000ea7-0000-0ab2-0000-36120000290d"))))
       (read ("1864-04-23 09:55:44.855155072596 UTC"))
       (EdConvDelete (Id (fromJust (UUID.fromString "00007c20-0000-6564-0000-046c00004725"))))
-  )
 
 testObject_Event_team_17 :: Event
 testObject_Event_team_17 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00006611-0000-7382-0000-5ca500006e9f"))))
       (read ("1864-05-26 12:52:34.967254218092 UTC"))
       (EdConvCreate (Id (fromJust (UUID.fromString "0000713e-0000-6f9d-0000-40e2000036e7"))))
-  )
 
 testObject_Event_team_18 :: Event
 testObject_Event_team_18 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00001705-0000-202b-0000-578a000056d0"))))
       (read ("1864-05-05 05:53:46.446463823554 UTC"))
       ( EdMemberUpdate
@@ -280,11 +263,10 @@ testObject_Event_team_18 =
               )
           )
       )
-  )
 
 testObject_Event_team_19 :: Event
 testObject_Event_team_19 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00004e8a-0000-7afa-0000-61ad00000f71"))))
       (read ("1864-05-28 17:18:44.856809552438 UTC"))
       ( EdMemberUpdate
@@ -316,12 +298,10 @@ testObject_Event_team_19 =
               )
           )
       )
-  )
 
 testObject_Event_team_20 :: Event
 testObject_Event_team_20 =
-  ( newEvent
+  newEvent
       ((Id (fromJust (UUID.fromString "00001872-0000-568f-0000-2ad400004faf"))))
       (read ("1864-06-02 05:36:57.222646120353 UTC"))
       EdTeamDelete
-  )

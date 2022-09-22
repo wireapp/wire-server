@@ -62,7 +62,7 @@ import Wire.API.Call.Config
 
 testObject_RTCConfiguration_user_1 :: RTCConfiguration
 testObject_RTCConfiguration_user_1 =
-  ( rtcConfiguration
+  rtcConfiguration
       ( ( rtcIceServer
             ( (turnURI (SchemeTurns) (TurnHostName "a-c") (read "0") (Just TransportTCP))
                 :| [ (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "102.223.53.51"))) (read "1") (Nothing)),
@@ -154,11 +154,10 @@ testObject_RTCConfiguration_user_1 =
       (Nothing)
       (2)
       Nothing
-  )
 
 testObject_RTCConfiguration_user_2 :: RTCConfiguration
 testObject_RTCConfiguration_user_2 =
-  ( rtcConfiguration
+  rtcConfiguration
       ( ( rtcIceServer
             ( (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "225.27.138.155"))) (read "0") (Just TransportUDP))
                 :| [ (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "226.235.88.44"))) (read "0") (Just TransportUDP)),
@@ -337,11 +336,10 @@ testObject_RTCConfiguration_user_2 =
       )
       (4)
       Nothing
-  )
 
 testObject_RTCConfiguration_user_3 :: RTCConfiguration
 testObject_RTCConfiguration_user_3 =
-  ( rtcConfiguration
+  rtcConfiguration
       ( ( rtcIceServer
             ( (turnURI (SchemeTurn) (TurnHostName "a-c") (read "0") (Just TransportTCP))
                 :| [ (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "44.242.178.2"))) (read "1") (Just TransportUDP)),
@@ -484,11 +482,10 @@ testObject_RTCConfiguration_user_3 =
       )
       (9)
       Nothing
-  )
 
 testObject_RTCConfiguration_user_4 :: RTCConfiguration
 testObject_RTCConfiguration_user_4 =
-  ( rtcConfiguration
+  rtcConfiguration
       ( ( rtcIceServer
             ( (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "248.187.155.126"))) (read "1") (Nothing))
                 :| [ (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "166.155.90.230"))) (read "0") (Just TransportTCP)),
@@ -690,11 +687,10 @@ testObject_RTCConfiguration_user_4 =
       )
       (2)
       Nothing
-  )
 
 testObject_RTCConfiguration_user_5 :: RTCConfiguration
 testObject_RTCConfiguration_user_5 =
-  ( rtcConfiguration
+  rtcConfiguration
       ( ( rtcIceServer
             ( (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "248.187.155.126"))) (read "1") (Nothing))
                 :| [ (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "166.155.90.230"))) (read "0") (Just TransportTCP)),
@@ -734,11 +730,10 @@ testObject_RTCConfiguration_user_5 =
       )
       (2)
       Nothing
-  )
 
 testObject_RTCConfiguration_user_6 :: RTCConfiguration
 testObject_RTCConfiguration_user_6 =
-  ( rtcConfiguration
+  rtcConfiguration
       ( ( rtcIceServer
             ( (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "248.187.155.126"))) (read "1") (Nothing))
                 :| [ (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "166.155.90.230"))) (read "0") (Just TransportTCP)),
@@ -757,11 +752,10 @@ testObject_RTCConfiguration_user_6 =
       Nothing
       (2)
       Nothing
-  )
 
 testObject_RTCConfiguration_user_7 :: RTCConfiguration
 testObject_RTCConfiguration_user_7 =
-  ( rtcConfiguration
+  rtcConfiguration
       ( ( rtcIceServer
             ( (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "248.187.155.126"))) (read "1") (Nothing))
                 :| [ (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "166.155.90.230"))) (read "0") (Just TransportTCP)),
@@ -799,4 +793,3 @@ testObject_RTCConfiguration_user_7 =
               )
           ]
       )
-  )

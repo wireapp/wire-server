@@ -51,7 +51,7 @@ import Wire.API.Team.Permission
   )
 
 testObject_TeamMemberList_team_1 :: TeamMemberList
-testObject_TeamMemberList_team_1 = newTeamMemberList ([]) (ListComplete)
+testObject_TeamMemberList_team_1 = newTeamMemberList [] ListComplete
 
 testObject_TeamMemberList_team_2 :: TeamMemberList
 testObject_TeamMemberList_team_2 =
@@ -70,7 +70,7 @@ testObject_TeamMemberList_team_2 =
 
 testObject_TeamMemberList_team_3 :: TeamMemberList
 testObject_TeamMemberList_team_3 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -133,11 +133,10 @@ testObject_TeamMemberList_team_3 =
         ]
       )
       (ListComplete)
-  )
 
 testObject_TeamMemberList_team_4 :: TeamMemberList
 testObject_TeamMemberList_team_4 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
             (Permissions {_self = fromList [GetTeamConversations], _copy = fromList []})
@@ -159,11 +158,10 @@ testObject_TeamMemberList_team_4 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_5 :: TeamMemberList
 testObject_TeamMemberList_team_5 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -203,11 +201,10 @@ testObject_TeamMemberList_team_5 =
         ]
       )
       (ListComplete)
-  )
 
 testObject_TeamMemberList_team_6 :: TeamMemberList
 testObject_TeamMemberList_team_6 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -301,11 +298,10 @@ testObject_TeamMemberList_team_6 =
         ]
       )
       (ListComplete)
-  )
 
 testObject_TeamMemberList_team_7 :: TeamMemberList
 testObject_TeamMemberList_team_7 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -328,11 +324,10 @@ testObject_TeamMemberList_team_7 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_8 :: TeamMemberList
 testObject_TeamMemberList_team_8 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -427,11 +422,10 @@ testObject_TeamMemberList_team_8 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_9 :: TeamMemberList
 testObject_TeamMemberList_team_9 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
             (Permissions {_self = fromList [AddTeamMember], _copy = fromList []})
@@ -453,11 +447,10 @@ testObject_TeamMemberList_team_9 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_10 :: TeamMemberList
 testObject_TeamMemberList_team_10 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -647,11 +640,10 @@ testObject_TeamMemberList_team_10 =
         ]
       )
       (ListComplete)
-  )
 
 testObject_TeamMemberList_team_11 :: TeamMemberList
 testObject_TeamMemberList_team_11 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -756,11 +748,10 @@ testObject_TeamMemberList_team_11 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_12 :: TeamMemberList
 testObject_TeamMemberList_team_12 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -792,11 +783,10 @@ testObject_TeamMemberList_team_12 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_13 :: TeamMemberList
 testObject_TeamMemberList_team_13 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -823,11 +813,10 @@ testObject_TeamMemberList_team_13 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_14 :: TeamMemberList
 testObject_TeamMemberList_team_14 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -946,11 +935,10 @@ testObject_TeamMemberList_team_14 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_15 :: TeamMemberList
 testObject_TeamMemberList_team_15 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -987,14 +975,13 @@ testObject_TeamMemberList_team_15 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_16 :: TeamMemberList
-testObject_TeamMemberList_team_16 = (newTeamMemberList ([]) (ListComplete))
+testObject_TeamMemberList_team_16 = newTeamMemberList ([]) (ListComplete)
 
 testObject_TeamMemberList_team_17 :: TeamMemberList
 testObject_TeamMemberList_team_17 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -1039,11 +1026,10 @@ testObject_TeamMemberList_team_17 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_18 :: TeamMemberList
 testObject_TeamMemberList_team_18 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -1092,11 +1078,10 @@ testObject_TeamMemberList_team_18 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_19 :: TeamMemberList
 testObject_TeamMemberList_team_19 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000000")))
             ( Permissions
@@ -1113,11 +1098,10 @@ testObject_TeamMemberList_team_19 =
         ]
       )
       (ListTruncated)
-  )
 
 testObject_TeamMemberList_team_20 :: TeamMemberList
 testObject_TeamMemberList_team_20 =
-  ( newTeamMemberList
+  newTeamMemberList
       ( [ mkTeamMember
             (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
             (Permissions {_self = fromList [], _copy = fromList []})
@@ -1135,4 +1119,3 @@ testObject_TeamMemberList_team_20 =
         ]
       )
       (ListComplete)
-  )

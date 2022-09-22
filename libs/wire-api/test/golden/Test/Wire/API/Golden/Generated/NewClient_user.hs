@@ -35,7 +35,7 @@ testObject_NewClient_user_1 :: NewClient
 testObject_NewClient_user_1 =
   NewClient
     { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\r"}],
-      newClientLastKey = (lastPrekey ("\EM")),
+      newClientLastKey = lastPrekey ("\EM"),
       newClientType = TemporaryClientType,
       newClientLabel = Just "",
       newClientClass = Nothing,
@@ -55,7 +55,7 @@ testObject_NewClient_user_2 :: NewClient
 testObject_NewClient_user_2 =
   NewClient
     { newClientPrekeys = [],
-      newClientLastKey = (lastPrekey ("\DC1\142248\13922")),
+      newClientLastKey = lastPrekey ("\DC1\142248\13922"),
       newClientType = PermanentClientType,
       newClientLabel = Nothing,
       newClientClass = Nothing,
@@ -75,7 +75,7 @@ testObject_NewClient_user_3 :: NewClient
 testObject_NewClient_user_3 =
   NewClient
     { newClientPrekeys = [],
-      newClientLastKey = (lastPrekey ("v7")),
+      newClientLastKey = lastPrekey ("v7"),
       newClientType = PermanentClientType,
       newClientLabel = Just "\1107729\DLE",
       newClientClass = Just TabletClient,
@@ -98,7 +98,7 @@ testObject_NewClient_user_4 =
         [ Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      newClientLastKey = (lastPrekey ("i")),
+      newClientLastKey = lastPrekey ("i"),
       newClientType = PermanentClientType,
       newClientLabel = Nothing,
       newClientClass = Just LegalHoldClient,
@@ -118,7 +118,7 @@ testObject_NewClient_user_5 :: NewClient
 testObject_NewClient_user_5 =
   NewClient
     { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1093219"}],
-      newClientLastKey = (lastPrekey ("?&#")),
+      newClientLastKey = lastPrekey ("?&#"),
       newClientType = TemporaryClientType,
       newClientLabel = Just "A\170327)",
       newClientClass = Nothing,
@@ -134,7 +134,7 @@ testObject_NewClient_user_6 :: NewClient
 testObject_NewClient_user_6 =
   NewClient
     { newClientPrekeys = [],
-      newClientLastKey = (lastPrekey ("\1103895")),
+      newClientLastKey = lastPrekey ("\1103895"),
       newClientType = TemporaryClientType,
       newClientLabel = Just "{\ETB",
       newClientClass = Nothing,
@@ -150,7 +150,7 @@ testObject_NewClient_user_7 :: NewClient
 testObject_NewClient_user_7 =
   NewClient
     { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "a"}],
-      newClientLastKey = (lastPrekey ("%V[")),
+      newClientLastKey = lastPrekey ("%V["),
       newClientType = TemporaryClientType,
       newClientLabel = Just "",
       newClientClass = Just TabletClient,
@@ -170,7 +170,7 @@ testObject_NewClient_user_8 :: NewClient
 testObject_NewClient_user_8 =
   NewClient
     { newClientPrekeys = [],
-      newClientLastKey = (lastPrekey ("\DC3,\US")),
+      newClientLastKey = lastPrekey ("\DC3,\US"),
       newClientType = LegalHoldClientType,
       newClientLabel = Just "d,",
       newClientClass = Just DesktopClient,
@@ -195,7 +195,7 @@ testObject_NewClient_user_9 =
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}
         ],
-      newClientLastKey = (lastPrekey ("")),
+      newClientLastKey = lastPrekey (""),
       newClientType = LegalHoldClientType,
       newClientLabel = Just "n",
       newClientClass = Nothing,
@@ -211,7 +211,7 @@ testObject_NewClient_user_10 :: NewClient
 testObject_NewClient_user_10 =
   NewClient
     { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}],
-      newClientLastKey = (lastPrekey ("\STX")),
+      newClientLastKey = lastPrekey ("\STX"),
       newClientType = TemporaryClientType,
       newClientLabel = Just ";*",
       newClientClass = Just LegalHoldClient,
@@ -235,7 +235,7 @@ testObject_NewClient_user_11 =
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      newClientLastKey = (lastPrekey ("")),
+      newClientLastKey = lastPrekey (""),
       newClientType = LegalHoldClientType,
       newClientLabel = Just "",
       newClientClass = Just PhoneClient,
@@ -262,7 +262,7 @@ testObject_NewClient_user_12 =
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      newClientLastKey = (lastPrekey ("\ENQ")),
+      newClientLastKey = lastPrekey ("\ENQ"),
       newClientType = PermanentClientType,
       newClientLabel = Just "\ETB",
       newClientClass = Just PhoneClient,
@@ -290,7 +290,7 @@ testObject_NewClient_user_13 =
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      newClientLastKey = (lastPrekey ("\DC1\DC3")),
+      newClientLastKey = lastPrekey ("\DC1\DC3"),
       newClientType = LegalHoldClientType,
       newClientLabel = Just "",
       newClientClass = Nothing,
@@ -310,7 +310,7 @@ testObject_NewClient_user_14 :: NewClient
 testObject_NewClient_user_14 =
   NewClient
     { newClientPrekeys = [],
-      newClientLastKey = (lastPrekey ("\35793\48115")),
+      newClientLastKey = lastPrekey ("\35793\48115"),
       newClientType = LegalHoldClientType,
       newClientLabel = Just "\SO\1054082\985803",
       newClientClass = Just PhoneClient,
@@ -332,7 +332,7 @@ testObject_NewClient_user_15 =
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      newClientLastKey = (lastPrekey ("\100417\113707")),
+      newClientLastKey = lastPrekey ("\100417\113707"),
       newClientType = TemporaryClientType,
       newClientLabel = Just "",
       newClientClass = Just DesktopClient,
@@ -352,7 +352,7 @@ testObject_NewClient_user_16 :: NewClient
 testObject_NewClient_user_16 =
   NewClient
     { newClientPrekeys = [],
-      newClientLastKey = (lastPrekey ("\1078202\37369")),
+      newClientLastKey = lastPrekey ("\1078202\37369"),
       newClientType = LegalHoldClientType,
       newClientLabel = Just "]\FS",
       newClientClass = Just LegalHoldClient,
@@ -373,7 +373,7 @@ testObject_NewClient_user_17 =
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      newClientLastKey = (lastPrekey ("\138278")),
+      newClientLastKey = lastPrekey ("\138278"),
       newClientType = TemporaryClientType,
       newClientLabel = Nothing,
       newClientClass = Just PhoneClient,
@@ -389,7 +389,7 @@ testObject_NewClient_user_18 :: NewClient
 testObject_NewClient_user_18 =
   NewClient
     { newClientPrekeys = [],
-      newClientLastKey = (lastPrekey ("z\178029")),
+      newClientLastKey = lastPrekey ("z\178029"),
       newClientType = TemporaryClientType,
       newClientLabel = Just "Q,",
       newClientClass = Just DesktopClient,
@@ -413,7 +413,7 @@ testObject_NewClient_user_19 =
           Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},
           Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}
         ],
-      newClientLastKey = (lastPrekey ("")),
+      newClientLastKey = lastPrekey (""),
       newClientType = PermanentClientType,
       newClientLabel = Just "",
       newClientClass = Just TabletClient,
@@ -433,7 +433,7 @@ testObject_NewClient_user_20 :: NewClient
 testObject_NewClient_user_20 =
   NewClient
     { newClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}],
-      newClientLastKey = (lastPrekey ("<")),
+      newClientLastKey = lastPrekey ("<"),
       newClientType = LegalHoldClientType,
       newClientLabel = Just "+\FS",
       newClientClass = Nothing,

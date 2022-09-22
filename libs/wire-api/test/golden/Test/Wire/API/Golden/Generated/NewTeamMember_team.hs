@@ -46,7 +46,7 @@ import Wire.API.Team.Permission
 
 testObject_NewTeamMember_team_1 :: NewTeamMember
 testObject_NewTeamMember_team_1 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000002-0000-0007-0000-000200000002")))
       (Permissions {_self = fromList [], _copy = fromList []})
       ( Just
@@ -54,11 +54,10 @@ testObject_NewTeamMember_team_1 =
             (fromJust (readUTCTimeMillis "1864-05-04T12:59:54.182Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_2 :: NewTeamMember
 testObject_NewTeamMember_team_2 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000200000003")))
       ( Permissions
           { _self =
@@ -78,11 +77,10 @@ testObject_NewTeamMember_team_2 =
             (fromJust (readUTCTimeMillis "1864-05-16T00:49:15.576Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_3 :: NewTeamMember
 testObject_NewTeamMember_team_3 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000008-0000-0008-0000-000700000005")))
       ( Permissions
           { _self =
@@ -96,11 +94,10 @@ testObject_NewTeamMember_team_3 =
             (fromJust (readUTCTimeMillis "1864-05-08T07:57:50.660Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_4 :: NewTeamMember
 testObject_NewTeamMember_team_4 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000700000005")))
       ( Permissions
           { _self = fromList [CreateConversation, AddTeamMember, SetTeamData],
@@ -108,11 +105,10 @@ testObject_NewTeamMember_team_4 =
           }
       )
       (Nothing)
-  )
 
 testObject_NewTeamMember_team_5 :: NewTeamMember
 testObject_NewTeamMember_team_5 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")))
       (Permissions {_self = fromList [AddTeamMember, SetBilling, GetTeamConversations], _copy = fromList [AddTeamMember]})
       ( Just
@@ -120,11 +116,10 @@ testObject_NewTeamMember_team_5 =
             (fromJust (readUTCTimeMillis "1864-05-12T23:29:05.832Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_6 :: NewTeamMember
 testObject_NewTeamMember_team_6 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000002-0000-0006-0000-000400000003")))
       ( Permissions
           { _self =
@@ -138,11 +133,10 @@ testObject_NewTeamMember_team_6 =
             (fromJust (readUTCTimeMillis "1864-05-16T01:49:44.477Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_7 :: NewTeamMember
 testObject_NewTeamMember_team_7 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000007-0000-0004-0000-000500000005")))
       ( Permissions
           { _self =
@@ -156,11 +150,10 @@ testObject_NewTeamMember_team_7 =
             (fromJust (readUTCTimeMillis "1864-05-08T14:17:14.531Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_8 :: NewTeamMember
 testObject_NewTeamMember_team_8 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000008-0000-0003-0000-000200000003")))
       ( Permissions
           { _self = fromList [DoNotUseDeprecatedModifyConvName],
@@ -172,11 +165,10 @@ testObject_NewTeamMember_team_8 =
             (fromJust (readUTCTimeMillis "1864-05-16T06:33:31.445Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_9 :: NewTeamMember
 testObject_NewTeamMember_team_9 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000001-0000-0008-0000-000300000004")))
       (Permissions {_self = fromList [SetBilling], _copy = fromList []})
       ( Just
@@ -184,11 +176,10 @@ testObject_NewTeamMember_team_9 =
             (fromJust (readUTCTimeMillis "1864-05-08T10:27:23.240Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_10 :: NewTeamMember
 testObject_NewTeamMember_team_10 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000008-0000-0003-0000-000600000003")))
       (Permissions {_self = fromList [GetBilling], _copy = fromList []})
       ( Just
@@ -196,11 +187,10 @@ testObject_NewTeamMember_team_10 =
             (fromJust (readUTCTimeMillis "1864-05-15T10:49:54.418Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_11 :: NewTeamMember
 testObject_NewTeamMember_team_11 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000000000002")))
       ( Permissions
           { _self = fromList [CreateConversation, DoNotUseDeprecatedModifyConvName, SetTeamData],
@@ -212,19 +202,17 @@ testObject_NewTeamMember_team_11 =
             (fromJust (readUTCTimeMillis "1864-05-14T12:23:51.061Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_12 :: NewTeamMember
 testObject_NewTeamMember_team_12 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000000000007")))
       (Permissions {_self = fromList [SetBilling, SetTeamData, GetTeamConversations], _copy = fromList []})
       (Nothing)
-  )
 
 testObject_NewTeamMember_team_13 :: NewTeamMember
 testObject_NewTeamMember_team_13 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000600000001")))
       ( Permissions
           { _self = fromList [AddTeamMember, DoNotUseDeprecatedAddRemoveConvMember, SetTeamData, GetTeamConversations],
@@ -232,11 +220,10 @@ testObject_NewTeamMember_team_13 =
           }
       )
       (Nothing)
-  )
 
 testObject_NewTeamMember_team_14 :: NewTeamMember
 testObject_NewTeamMember_team_14 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000500000004")))
       ( Permissions
           { _self =
@@ -250,11 +237,10 @@ testObject_NewTeamMember_team_14 =
             (fromJust (readUTCTimeMillis "1864-05-16T00:23:45.641Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_15 :: NewTeamMember
 testObject_NewTeamMember_team_15 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000800000007")))
       ( Permissions
           { _self = fromList [RemoveTeamMember, GetMemberPermissions, DeleteTeam],
@@ -266,11 +252,10 @@ testObject_NewTeamMember_team_15 =
             (fromJust (readUTCTimeMillis "1864-05-02T08:10:15.332Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_16 :: NewTeamMember
 testObject_NewTeamMember_team_16 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000000-0000-0006-0000-000300000005")))
       ( Permissions
           { _self = fromList [CreateConversation, RemoveTeamMember, GetBilling, GetTeamConversations, DeleteTeam],
@@ -278,11 +263,10 @@ testObject_NewTeamMember_team_16 =
           }
       )
       (Nothing)
-  )
 
 testObject_NewTeamMember_team_17 :: NewTeamMember
 testObject_NewTeamMember_team_17 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000400000005")))
       (Permissions {_self = fromList [], _copy = fromList []})
       ( Just
@@ -290,11 +274,10 @@ testObject_NewTeamMember_team_17 =
             (fromJust (readUTCTimeMillis "1864-05-07T21:53:30.897Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_18 :: NewTeamMember
 testObject_NewTeamMember_team_18 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000006-0000-0003-0000-000000000001")))
       (Permissions {_self = fromList [], _copy = fromList []})
       ( Just
@@ -302,11 +285,10 @@ testObject_NewTeamMember_team_18 =
             (fromJust (readUTCTimeMillis "1864-05-11T12:32:01.417Z"))
           )
       )
-  )
 
 testObject_NewTeamMember_team_19 :: NewTeamMember
 testObject_NewTeamMember_team_19 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000004-0000-0005-0000-000100000008")))
       ( Permissions
           { _self = fromList [DoNotUseDeprecatedDeleteConversation, RemoveTeamMember, SetBilling, SetMemberPermissions],
@@ -314,11 +296,10 @@ testObject_NewTeamMember_team_19 =
           }
       )
       (Nothing)
-  )
 
 testObject_NewTeamMember_team_20 :: NewTeamMember
 testObject_NewTeamMember_team_20 =
-  ( mkNewTeamMember
+  mkNewTeamMember
       (Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000000000004")))
       ( Permissions
           { _self =
@@ -338,4 +319,3 @@ testObject_NewTeamMember_team_20 =
             (fromJust (readUTCTimeMillis "1864-05-05T07:36:25.213Z"))
           )
       )
-  )

@@ -26,7 +26,7 @@ testObject_CheckHandles_user_1 :: CheckHandles
 testObject_CheckHandles_user_1 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "",
                 ":\DC4J",
                 "04Z\DLE",
@@ -62,16 +62,15 @@ testObject_CheckHandles_user_1 =
                 "r(\EOT\1037603\FS\"m\1017451~4",
                 "Q9Y+\SYN\ETB\tdE\1050930\ENQl\DLE"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (6))
+            ),
+      checkHandlesNum = unsafeRange (6)
     }
 
 testObject_CheckHandles_user_2 :: CheckHandles
 testObject_CheckHandles_user_2 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "\ETX\US\1011800W`V",
                 "\a\DEL\1074747<\1112708\\\DLEE\1021488\\\r\162701\EM\SOH\1112742",
                 "`\DC3\DEL\1033396(\21713b\65183",
@@ -107,16 +106,15 @@ testObject_CheckHandles_user_2 =
                 "\145390\&52U\FSv#U\71066%1",
                 ";V/"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (7))
+            ),
+      checkHandlesNum = unsafeRange (7)
     }
 
 testObject_CheckHandles_user_3 :: CheckHandles
 testObject_CheckHandles_user_3 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "%",
                 "\ETX\FSq\EM",
                 "-",
@@ -137,16 +135,15 @@ testObject_CheckHandles_user_3 =
                 "2/EqE=EW:g{z\SI-",
                 "\180632\FS;\142071\&2\ETXV\997110\DC2 i\1098662'\10915"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (8))
+            ),
+      checkHandlesNum = unsafeRange (8)
     }
 
 testObject_CheckHandles_user_4 :: CheckHandles
 testObject_CheckHandles_user_4 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "\SOh~\18676Wo\FSY\NULSD\1088688.=",
                 "r\1098367\FS\b\27022\&8\US_\DELu",
                 "\DELLl\DLE",
@@ -177,16 +174,15 @@ testObject_CheckHandles_user_4 =
                 "d\DC1\182475~\v",
                 "\EOT9>\1092209="
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (7))
+            ),
+      checkHandlesNum = unsafeRange (7)
     }
 
 testObject_CheckHandles_user_5 :: CheckHandles
 testObject_CheckHandles_user_5 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "e\994837[\20266KK\131962\47110\&7\SO\997764bN+",
                 "vZ\35982J\1049231K\1028639\aP3",
                 "",
@@ -235,16 +231,15 @@ testObject_CheckHandles_user_5 =
                 "\1066555\CAN}\1863\23598x",
                 "g"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (3))
+            ),
+      checkHandlesNum = unsafeRange (3)
     }
 
 testObject_CheckHandles_user_6 :: CheckHandles
 testObject_CheckHandles_user_6 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "]_\16847U^=/",
                 "\1021820(RJxy;fK7\f\1090959}",
                 "\162024\DC3+P3\US",
@@ -272,16 +267,15 @@ testObject_CheckHandles_user_6 =
                 "Ut\a\1108925\SYNT\STX^",
                 "C,\FS\998146L"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (8))
+            ),
+      checkHandlesNum = unsafeRange (8)
     }
 
 testObject_CheckHandles_user_7 :: CheckHandles
 testObject_CheckHandles_user_7 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "6f\DC2T\42225\145254\CANNw\58424\STX\DEL\DELM\1092526",
                 "\1097402",
                 "$y",
@@ -321,16 +315,15 @@ testObject_CheckHandles_user_7 =
                 "-K\1108878\v\44476F\26460J\99297",
                 "\RS"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (8))
+            ),
+      checkHandlesNum = unsafeRange (8)
     }
 
 testObject_CheckHandles_user_8 :: CheckHandles
 testObject_CheckHandles_user_8 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "\184492\nP\1058201\989220xh\1087263e:\125093\1051984\1015861\DC4\18628",
                 ".\998552\1075248Ck\1008766fj\1006097\&5",
                 "\183617\83353\RS\NAK\DC4<\24407:Fw",
@@ -344,16 +337,15 @@ testObject_CheckHandles_user_8 =
                 "1J]RF",
                 "\3944M4\EOT\ESC(k"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (9))
+            ),
+      checkHandlesNum = unsafeRange (9)
     }
 
 testObject_CheckHandles_user_9 :: CheckHandles
 testObject_CheckHandles_user_9 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ ".\100983$\RS/",
                 "O~P\DEL\DC13hJ\15373r\124984^",
                 "\189260\1065489m\STX\33143\1107245)\1092010\62865oV",
@@ -391,30 +383,29 @@ testObject_CheckHandles_user_9 =
                 "",
                 "\ACKe\DC4Ke\ACKv\1103098\a"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (1))
+            ),
+      checkHandlesNum = unsafeRange (1)
     }
 
 testObject_CheckHandles_user_10 :: CheckHandles
 testObject_CheckHandles_user_10 =
   CheckHandles
-    { checkHandlesList = (unsafeRange (["%\DC4=.\DC1", ")", "\16076\CAN\3777", "\1020499PH\DLEq\NUL", "\19843H\SIP"])),
-      checkHandlesNum = (unsafeRange (6))
+    { checkHandlesList = unsafeRange (["%\DC4=.\DC1", ")", "\16076\CAN\3777", "\1020499PH\DLEq\NUL", "\19843H\SIP"]),
+      checkHandlesNum = unsafeRange (6)
     }
 
 testObject_CheckHandles_user_11 :: CheckHandles
 testObject_CheckHandles_user_11 =
   CheckHandles
-    { checkHandlesList = (unsafeRange (["=v\fS4y\19095C>P\1054077", "j\159181\SOH\NUL\996921\CAN}&R", "a?Z\\@"])),
-      checkHandlesNum = (unsafeRange (7))
+    { checkHandlesList = unsafeRange (["=v\fS4y\19095C>P\1054077", "j\159181\SOH\NUL\996921\CAN}&R", "a?Z\\@"]),
+      checkHandlesNum = unsafeRange (7)
     }
 
 testObject_CheckHandles_user_12 :: CheckHandles
 testObject_CheckHandles_user_12 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "D\DC1}V",
                 "\1054321:\12395m\1022956\170704>\1029176Z\23696b\1070983r(\161939",
                 "\FS",
@@ -462,16 +453,15 @@ testObject_CheckHandles_user_12 =
                 "h/\ETX\1037208",
                 "\188485Z\DEL<\DC2~1\1015943\64787\ACKgL\1111939D\n"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (9))
+            ),
+      checkHandlesNum = unsafeRange (9)
     }
 
 testObject_CheckHandles_user_13 :: CheckHandles
 testObject_CheckHandles_user_13 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "S\15015!\nf",
                 "x\1021573\992181\v\163972",
                 "J\33645\SI5\GSND\f\190160]\SOHX^pu",
@@ -512,16 +502,15 @@ testObject_CheckHandles_user_13 =
                 "KHy\1102097\SYNI\150138gAy\GS",
                 "\993611h3V\"\129493\nv\nj;!4"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (8))
+            ),
+      checkHandlesNum = unsafeRange (8)
     }
 
 testObject_CheckHandles_user_14 :: CheckHandles
 testObject_CheckHandles_user_14 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "\b\7686@L[6y\GS)M.\f\SOHj\159978",
                 "7P\ESCAtMGn\n9n7]",
                 "\EM\29251DE\133717q\180013 \NUL\n\1056285\&8fna",
@@ -539,16 +528,15 @@ testObject_CheckHandles_user_14 =
                 "^Vtz\37742\1098827d",
                 "/9ds8AT\SUB))"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (4))
+            ),
+      checkHandlesNum = unsafeRange (4)
     }
 
 testObject_CheckHandles_user_15 :: CheckHandles
 testObject_CheckHandles_user_15 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "",
                 "[\1002676\&3\179628,\f.\ETBtY@h",
                 "WG\SO{f\t8\f",
@@ -592,16 +580,15 @@ testObject_CheckHandles_user_15 =
                 "K\1097602p\2739R\DELd",
                 "J5\1000493\1105790\993658\&1\172855;\1082575\97739QCv\""
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (1))
+            ),
+      checkHandlesNum = unsafeRange (1)
     }
 
 testObject_CheckHandles_user_16 :: CheckHandles
 testObject_CheckHandles_user_16 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "\1019739\16821\64308\21650\&7\ACK^gW",
                 "\2826F\1045745n",
                 ".",
@@ -613,16 +600,15 @@ testObject_CheckHandles_user_16 =
                 "\24660:,",
                 "}\STX^\1059814*\25958OT\166032"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (7))
+            ),
+      checkHandlesNum = unsafeRange (7)
     }
 
 testObject_CheckHandles_user_17 :: CheckHandles
 testObject_CheckHandles_user_17 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "\1080457W\ESCbTB\1101544:\97757\&7",
                 "$N\180665",
                 "\US\ENQy+c\CAN",
@@ -637,16 +623,15 @@ testObject_CheckHandles_user_17 =
                 "yG15\NAK\DC2",
                 "\CAN_\1105170J^fL\US&-\EOTW\1031840\1037426"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (5))
+            ),
+      checkHandlesNum = unsafeRange (5)
     }
 
 testObject_CheckHandles_user_18 :: CheckHandles
 testObject_CheckHandles_user_18 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "[\1037746\a\NAK",
                 "*",
                 "SF",
@@ -661,16 +646,15 @@ testObject_CheckHandles_user_18 =
                 "",
                 "\EOT*E^\DELlq\1055875aE"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (4))
+            ),
+      checkHandlesNum = unsafeRange (4)
     }
 
 testObject_CheckHandles_user_19 :: CheckHandles
 testObject_CheckHandles_user_19 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "\DEL+N^\1015666\1096081'z%E%\16912M\ETX",
                 "{]",
                 "\t\CAN\n\120008",
@@ -720,16 +704,15 @@ testObject_CheckHandles_user_19 =
                 "\1104894\ETX",
                 "\SUB|}F8\FS`\SO\DEL#\166992"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (7))
+            ),
+      checkHandlesNum = unsafeRange (7)
     }
 
 testObject_CheckHandles_user_20 :: CheckHandles
 testObject_CheckHandles_user_20 =
   CheckHandles
     { checkHandlesList =
-        ( unsafeRange
+        unsafeRange
             ( [ "Ej}",
                 "\1111670t",
                 "\STX\141952j",
@@ -758,7 +741,6 @@ testObject_CheckHandles_user_20 =
                 "*kR",
                 "Q_?\1110688d'L\1106616J\ETB!5\SI"
               ]
-            )
-        ),
-      checkHandlesNum = (unsafeRange (5))
+            ),
+      checkHandlesNum = unsafeRange (5)
     }

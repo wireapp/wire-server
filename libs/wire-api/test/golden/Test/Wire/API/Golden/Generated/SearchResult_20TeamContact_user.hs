@@ -35,7 +35,7 @@ testObject_SearchResult_20TeamContact_user_1 =
       searchTook = 0,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Nothing,
@@ -50,7 +50,7 @@ testObject_SearchResult_20TeamContact_user_1 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -80,7 +80,7 @@ testObject_SearchResult_20TeamContact_user_3 =
       searchTook = -7,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -95,7 +95,7 @@ testObject_SearchResult_20TeamContact_user_3 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -110,7 +110,7 @@ testObject_SearchResult_20TeamContact_user_3 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -136,7 +136,7 @@ testObject_SearchResult_20TeamContact_user_4 =
       searchTook = 2,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Nothing,
@@ -151,7 +151,7 @@ testObject_SearchResult_20TeamContact_user_4 =
               teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -166,7 +166,7 @@ testObject_SearchResult_20TeamContact_user_4 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Nothing,
@@ -181,7 +181,7 @@ testObject_SearchResult_20TeamContact_user_4 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -207,7 +207,7 @@ testObject_SearchResult_20TeamContact_user_5 =
       searchTook = -7,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -233,7 +233,7 @@ testObject_SearchResult_20TeamContact_user_6 =
       searchTook = -4,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -248,7 +248,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -263,7 +263,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -278,7 +278,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -293,7 +293,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -308,7 +308,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -323,7 +323,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -338,7 +338,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Nothing,
@@ -353,7 +353,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -368,7 +368,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -383,7 +383,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -398,7 +398,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -413,7 +413,7 @@ testObject_SearchResult_20TeamContact_user_6 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -439,7 +439,7 @@ testObject_SearchResult_20TeamContact_user_7 =
       searchTook = 5,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -454,7 +454,7 @@ testObject_SearchResult_20TeamContact_user_7 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -469,7 +469,7 @@ testObject_SearchResult_20TeamContact_user_7 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -484,7 +484,7 @@ testObject_SearchResult_20TeamContact_user_7 =
               teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -499,7 +499,7 @@ testObject_SearchResult_20TeamContact_user_7 =
               teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -514,7 +514,7 @@ testObject_SearchResult_20TeamContact_user_7 =
               teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -540,7 +540,7 @@ testObject_SearchResult_20TeamContact_user_8 =
       searchTook = -7,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -555,7 +555,7 @@ testObject_SearchResult_20TeamContact_user_8 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Nothing,
@@ -570,7 +570,7 @@ testObject_SearchResult_20TeamContact_user_8 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -585,7 +585,7 @@ testObject_SearchResult_20TeamContact_user_8 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -611,7 +611,7 @@ testObject_SearchResult_20TeamContact_user_9 =
       searchTook = -3,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -626,7 +626,7 @@ testObject_SearchResult_20TeamContact_user_9 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -641,7 +641,7 @@ testObject_SearchResult_20TeamContact_user_9 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -656,7 +656,7 @@ testObject_SearchResult_20TeamContact_user_9 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -686,7 +686,7 @@ testObject_SearchResult_20TeamContact_user_11 =
       searchTook = 1,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -701,7 +701,7 @@ testObject_SearchResult_20TeamContact_user_11 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Nothing,
@@ -716,7 +716,7 @@ testObject_SearchResult_20TeamContact_user_11 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -731,7 +731,7 @@ testObject_SearchResult_20TeamContact_user_11 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -746,7 +746,7 @@ testObject_SearchResult_20TeamContact_user_11 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -761,7 +761,7 @@ testObject_SearchResult_20TeamContact_user_11 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -776,7 +776,7 @@ testObject_SearchResult_20TeamContact_user_11 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -791,7 +791,7 @@ testObject_SearchResult_20TeamContact_user_11 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -817,7 +817,7 @@ testObject_SearchResult_20TeamContact_user_12 =
       searchTook = 0,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -843,7 +843,7 @@ testObject_SearchResult_20TeamContact_user_13 =
       searchTook = 1,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -858,7 +858,7 @@ testObject_SearchResult_20TeamContact_user_13 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Nothing,
@@ -873,7 +873,7 @@ testObject_SearchResult_20TeamContact_user_13 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -899,7 +899,7 @@ testObject_SearchResult_20TeamContact_user_14 =
       searchTook = -4,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Nothing,
@@ -925,7 +925,7 @@ testObject_SearchResult_20TeamContact_user_15 =
       searchTook = -6,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -951,7 +951,7 @@ testObject_SearchResult_20TeamContact_user_16 =
       searchTook = -5,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -966,7 +966,7 @@ testObject_SearchResult_20TeamContact_user_16 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -981,7 +981,7 @@ testObject_SearchResult_20TeamContact_user_16 =
               teamContactEmailUnvalidated = Nothing
             },
           TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Just 0,
               teamContactHandle = Just "",
@@ -1007,7 +1007,7 @@ testObject_SearchResult_20TeamContact_user_17 =
       searchTook = 4,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",
@@ -1033,7 +1033,7 @@ testObject_SearchResult_20TeamContact_user_18 =
       searchTook = -7,
       searchResults =
         [ TeamContact
-            { teamContactUserId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
+            { teamContactUserId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
               teamContactName = "",
               teamContactColorId = Nothing,
               teamContactHandle = Just "",

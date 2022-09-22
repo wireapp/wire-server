@@ -117,7 +117,7 @@ spec = do
       let Right programmingLanguagePath = PatchOp.parsePath (User.supportedSchemas @PatchTag) "urn:hscim:test:programmingLanguage"
       let operation = Operation Replace (Just programmingLanguagePath) (Just (toJSON @Text "haskell"))
       let patchOp = PatchOp [operation]
-      User.extra <$> (User.applyPatch user patchOp) `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
+      User.extra <$> User.applyPatch user patchOp `shouldBe` Right (KeyMap.singleton "programmingLanguage" "haskell")
   describe "JSON serialization" $ do
     it "handles all fields" $ do
       require prop_roundtrip
@@ -129,7 +129,7 @@ spec = do
     it "treats 'null' and '[]' as absence of fields" $
       eitherDecode (encode minimalUserJsonRedundant) `shouldBe` Right minimalUser
     it "allows casing variations in field names" $ do
-      require $ mk_prop_caseInsensitive (genUser)
+      require $ mk_prop_caseInsensitive genUser
       require $ mk_prop_caseInsensitive (ListResponse.fromList . (: []) <$> genStoredUser)
       eitherDecode (encode minimalUserJsonNonCanonical) `shouldBe` Right minimalUser
     it "doesn't require the 'schemas' field" $
@@ -157,8 +157,7 @@ genStoredUser :: Gen (UserClass.StoredUser (TestTag Text () () NoUserExtra))
 genStoredUser = do
   m <- genMeta
   i <- Gen.element @_ @Text ["wef", "asdf", "@", "#", "1"]
-  u <- genUser
-  pure $ WithMeta m (WithId i u)
+  WithMeta m . WithId i <$> genUser
 
 genMeta :: Gen Meta
 genMeta =
@@ -172,7 +171,7 @@ genMeta =
 -- lists in the first place
 genUser :: Gen (User (TestTag Text () () NoUserExtra))
 genUser = do
-  schemas' <- pure [User20] -- TODO random schemas or?
+  let schemas' = [User20] -- TODO random schemas or?
   userName' <- Gen.text (Range.constant 0 20) Gen.unicode
   externalId' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
   name' <- Gen.maybe genName
@@ -185,8 +184,8 @@ genUser = do
   locale' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
   active' <- Gen.maybe $ (ScimBool <$> Gen.bool)
   password' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
-  emails' <- pure [] -- Gen.list (Range.constant 0 20) genEmail
-  phoneNumbers' <- pure [] -- Gen.list (Range.constant 0 20) genPhone
+  let emails' = [] -- Gen.list (Range.constant 0 20) genEmail
+  let phoneNumbers' = [] -- Gen.list (Range.constant 0 20) genPhone
   ims' <- pure [] -- Gen.list (Range.constant 0 20) genIM
   photos' <- pure [] -- Gen.list (Range.constant 0 20) genPhoto
   addresses' <- pure [] -- Gen.list (Range.constant 0 20) genAddress

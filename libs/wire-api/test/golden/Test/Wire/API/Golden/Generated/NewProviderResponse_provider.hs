@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLists #-}
+
 
 -- This file is part of the Wire Server implementation.
 --
@@ -28,7 +28,7 @@ import Wire.API.Provider (NewProviderResponse (..))
 testObject_NewProviderResponse_provider_1 :: NewProviderResponse
 testObject_NewProviderResponse_provider_1 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "0000001d-0000-0013-0000-00210000002c"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "0000001d-0000-0013-0000-00210000002c")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -39,14 +39,14 @@ testObject_NewProviderResponse_provider_1 =
 testObject_NewProviderResponse_provider_2 :: NewProviderResponse
 testObject_NewProviderResponse_provider_2 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000060-0000-0001-0000-00660000000a"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000060-0000-0001-0000-00660000000a")),
       rsNewProviderPassword = Nothing
     }
 
 testObject_NewProviderResponse_provider_3 :: NewProviderResponse
 testObject_NewProviderResponse_provider_3 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "0000001a-0000-003f-0000-003500000069"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "0000001a-0000-003f-0000-003500000069")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -57,7 +57,7 @@ testObject_NewProviderResponse_provider_3 =
 testObject_NewProviderResponse_provider_4 :: NewProviderResponse
 testObject_NewProviderResponse_provider_4 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000014-0000-001e-0000-004f0000007d"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000014-0000-001e-0000-004f0000007d")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -68,7 +68,7 @@ testObject_NewProviderResponse_provider_4 =
 testObject_NewProviderResponse_provider_5 :: NewProviderResponse
 testObject_NewProviderResponse_provider_5 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000030-0000-007c-0000-003800000004"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000030-0000-007c-0000-003800000004")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -79,7 +79,7 @@ testObject_NewProviderResponse_provider_5 =
 testObject_NewProviderResponse_provider_6 :: NewProviderResponse
 testObject_NewProviderResponse_provider_6 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000080-0000-0040-0000-003400000011"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000080-0000-0040-0000-003400000011")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -90,7 +90,7 @@ testObject_NewProviderResponse_provider_6 =
 testObject_NewProviderResponse_provider_7 :: NewProviderResponse
 testObject_NewProviderResponse_provider_7 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000023-0000-001a-0000-001900000007"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000023-0000-001a-0000-001900000007")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -101,7 +101,7 @@ testObject_NewProviderResponse_provider_7 =
 testObject_NewProviderResponse_provider_8 :: NewProviderResponse
 testObject_NewProviderResponse_provider_8 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "0000005b-0000-002c-0000-006f00000060"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "0000005b-0000-002c-0000-006f00000060")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -112,7 +112,7 @@ testObject_NewProviderResponse_provider_8 =
 testObject_NewProviderResponse_provider_9 :: NewProviderResponse
 testObject_NewProviderResponse_provider_9 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "0000002f-0000-0043-0000-00590000002f"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "0000002f-0000-0043-0000-00590000002f")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -123,7 +123,7 @@ testObject_NewProviderResponse_provider_9 =
 testObject_NewProviderResponse_provider_10 :: NewProviderResponse
 testObject_NewProviderResponse_provider_10 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000071-0000-007c-0000-00680000001d"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000071-0000-007c-0000-00680000001d")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -134,14 +134,14 @@ testObject_NewProviderResponse_provider_10 =
 testObject_NewProviderResponse_provider_11 :: NewProviderResponse
 testObject_NewProviderResponse_provider_11 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000050-0000-004f-0000-004000000075"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000050-0000-004f-0000-004000000075")),
       rsNewProviderPassword = Nothing
     }
 
 testObject_NewProviderResponse_provider_12 :: NewProviderResponse
 testObject_NewProviderResponse_provider_12 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000079-0000-007b-0000-005b0000003f"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000079-0000-007b-0000-005b0000003f")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -152,7 +152,7 @@ testObject_NewProviderResponse_provider_12 =
 testObject_NewProviderResponse_provider_13 :: NewProviderResponse
 testObject_NewProviderResponse_provider_13 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000007-0000-007c-0000-001d00000074"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000007-0000-007c-0000-001d00000074")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -163,7 +163,7 @@ testObject_NewProviderResponse_provider_13 =
 testObject_NewProviderResponse_provider_14 :: NewProviderResponse
 testObject_NewProviderResponse_provider_14 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "0000001a-0000-001a-0000-003000000051"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "0000001a-0000-001a-0000-003000000051")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -174,7 +174,7 @@ testObject_NewProviderResponse_provider_14 =
 testObject_NewProviderResponse_provider_15 :: NewProviderResponse
 testObject_NewProviderResponse_provider_15 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000010-0000-0058-0000-00560000003f"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000010-0000-0058-0000-00560000003f")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -185,7 +185,7 @@ testObject_NewProviderResponse_provider_15 =
 testObject_NewProviderResponse_provider_16 :: NewProviderResponse
 testObject_NewProviderResponse_provider_16 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "0000007f-0000-0076-0000-005500000044"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "0000007f-0000-0076-0000-005500000044")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -196,7 +196,7 @@ testObject_NewProviderResponse_provider_16 =
 testObject_NewProviderResponse_provider_17 :: NewProviderResponse
 testObject_NewProviderResponse_provider_17 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000060-0000-004a-0000-001f00000040"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000060-0000-004a-0000-001f00000040")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -207,7 +207,7 @@ testObject_NewProviderResponse_provider_17 =
 testObject_NewProviderResponse_provider_18 :: NewProviderResponse
 testObject_NewProviderResponse_provider_18 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000025-0000-0042-0000-00710000002e"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000025-0000-0042-0000-00710000002e")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -218,7 +218,7 @@ testObject_NewProviderResponse_provider_18 =
 testObject_NewProviderResponse_provider_19 :: NewProviderResponse
 testObject_NewProviderResponse_provider_19 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000000-0000-0062-0000-005b00000067"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000000-0000-0062-0000-005b00000067")),
       rsNewProviderPassword =
         Just
           ( PlainTextPassword
@@ -229,6 +229,6 @@ testObject_NewProviderResponse_provider_19 =
 testObject_NewProviderResponse_provider_20 :: NewProviderResponse
 testObject_NewProviderResponse_provider_20 =
   NewProviderResponse
-    { rsNewProviderId = (Id (fromJust (UUID.fromString "00000053-0000-0048-0000-001f0000007f"))),
+    { rsNewProviderId = Id (fromJust (UUID.fromString "00000053-0000-0048-0000-001f0000007f")),
       rsNewProviderPassword = Nothing
     }

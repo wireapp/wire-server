@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLists #-}
+
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,7 +29,7 @@ import Wire.API.User.Auth
 
 testObject_Cookie_20_28_29_user_1 :: Cookie ()
 testObject_Cookie_20_28_29_user_1 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 4})
       (SessionCookie)
       (read ("1864-05-13 05:47:44.953325209615 UTC"))
@@ -37,11 +37,10 @@ testObject_Cookie_20_28_29_user_1 =
       (Nothing)
       (Nothing)
       (())
-  )
 
 testObject_Cookie_20_28_29_user_2 :: Cookie ()
 testObject_Cookie_20_28_29_user_2 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 4})
       (SessionCookie)
       (read ("1864-05-11 05:25:35.472438946148 UTC"))
@@ -49,11 +48,10 @@ testObject_Cookie_20_28_29_user_2 =
       (Nothing)
       (Just (CookieId {cookieIdNum = 1}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_3 :: Cookie ()
 testObject_Cookie_20_28_29_user_3 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 0})
       (PersistentCookie)
       (read ("1864-05-09 06:32:09.653354599176 UTC"))
@@ -61,11 +59,10 @@ testObject_Cookie_20_28_29_user_3 =
       (Just (CookieLabel {cookieLabelText = "\"\ETB\ETX"}))
       (Just (CookieId {cookieIdNum = 1}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_4 :: Cookie ()
 testObject_Cookie_20_28_29_user_4 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 3})
       (SessionCookie)
       (read ("1864-05-12 17:39:22.647800906939 UTC"))
@@ -73,11 +70,10 @@ testObject_Cookie_20_28_29_user_4 =
       (Just (CookieLabel {cookieLabelText = "\SOH\STX"}))
       (Just (CookieId {cookieIdNum = 0}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_5 :: Cookie ()
 testObject_Cookie_20_28_29_user_5 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 1})
       (PersistentCookie)
       (read ("1864-05-05 18:31:27.854562456661 UTC"))
@@ -85,11 +81,10 @@ testObject_Cookie_20_28_29_user_5 =
       (Nothing)
       (Just (CookieId {cookieIdNum = 1}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_6 :: Cookie ()
 testObject_Cookie_20_28_29_user_6 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 3})
       (SessionCookie)
       (read ("1864-05-09 21:11:41.006743014266 UTC"))
@@ -97,11 +92,10 @@ testObject_Cookie_20_28_29_user_6 =
       (Just (CookieLabel {cookieLabelText = "x"}))
       (Just (CookieId {cookieIdNum = 0}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_7 :: Cookie ()
 testObject_Cookie_20_28_29_user_7 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 3})
       (SessionCookie)
       (read ("1864-05-10 10:07:45.191235538251 UTC"))
@@ -109,11 +103,10 @@ testObject_Cookie_20_28_29_user_7 =
       (Nothing)
       (Just (CookieId {cookieIdNum = 3}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_8 :: Cookie ()
 testObject_Cookie_20_28_29_user_8 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 2})
       (PersistentCookie)
       (read ("1864-05-13 23:20:18.620984948327 UTC"))
@@ -121,11 +114,10 @@ testObject_Cookie_20_28_29_user_8 =
       (Just (CookieLabel {cookieLabelText = "W\1095116"}))
       (Nothing)
       (())
-  )
 
 testObject_Cookie_20_28_29_user_9 :: Cookie ()
 testObject_Cookie_20_28_29_user_9 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 0})
       (PersistentCookie)
       (read ("1864-05-10 21:07:17.237535753229 UTC"))
@@ -133,11 +125,10 @@ testObject_Cookie_20_28_29_user_9 =
       (Just (CookieLabel {cookieLabelText = "_"}))
       (Just (CookieId {cookieIdNum = 3}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_10 :: Cookie ()
 testObject_Cookie_20_28_29_user_10 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 0})
       (PersistentCookie)
       (read ("1864-05-05 13:10:26.655350748893 UTC"))
@@ -145,11 +136,10 @@ testObject_Cookie_20_28_29_user_10 =
       (Just (CookieLabel {cookieLabelText = "@\129045f"}))
       (Just (CookieId {cookieIdNum = 2}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_11 :: Cookie ()
 testObject_Cookie_20_28_29_user_11 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 1})
       (SessionCookie)
       (read ("1864-05-05 18:46:43.751100514127 UTC"))
@@ -157,11 +147,10 @@ testObject_Cookie_20_28_29_user_11 =
       (Just (CookieLabel {cookieLabelText = ""}))
       (Just (CookieId {cookieIdNum = 2}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_12 :: Cookie ()
 testObject_Cookie_20_28_29_user_12 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 3})
       (PersistentCookie)
       (read ("1864-05-08 10:13:20.99278185582 UTC"))
@@ -169,11 +158,10 @@ testObject_Cookie_20_28_29_user_12 =
       (Just (CookieLabel {cookieLabelText = "0i"}))
       (Just (CookieId {cookieIdNum = 1}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_13 :: Cookie ()
 testObject_Cookie_20_28_29_user_13 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 0})
       (PersistentCookie)
       (read ("1864-05-08 13:32:34.77859094095 UTC"))
@@ -181,11 +169,10 @@ testObject_Cookie_20_28_29_user_13 =
       (Just (CookieLabel {cookieLabelText = "\SI"}))
       (Just (CookieId {cookieIdNum = 2}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_14 :: Cookie ()
 testObject_Cookie_20_28_29_user_14 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 3})
       (SessionCookie)
       (read ("1864-05-13 05:03:36.689760525241 UTC"))
@@ -193,11 +180,10 @@ testObject_Cookie_20_28_29_user_14 =
       (Just (CookieLabel {cookieLabelText = "\a5"}))
       (Just (CookieId {cookieIdNum = 2}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_15 :: Cookie ()
 testObject_Cookie_20_28_29_user_15 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 4})
       (SessionCookie)
       (read ("1864-05-13 15:06:06.162467079651 UTC"))
@@ -205,11 +191,10 @@ testObject_Cookie_20_28_29_user_15 =
       (Nothing)
       (Nothing)
       (())
-  )
 
 testObject_Cookie_20_28_29_user_16 :: Cookie ()
 testObject_Cookie_20_28_29_user_16 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 1})
       (PersistentCookie)
       (read ("1864-05-11 01:41:37.159116274364 UTC"))
@@ -217,11 +202,10 @@ testObject_Cookie_20_28_29_user_16 =
       (Nothing)
       (Nothing)
       (())
-  )
 
 testObject_Cookie_20_28_29_user_17 :: Cookie ()
 testObject_Cookie_20_28_29_user_17 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 3})
       (SessionCookie)
       (read ("1864-05-12 11:59:56.901830591377 UTC"))
@@ -229,11 +213,10 @@ testObject_Cookie_20_28_29_user_17 =
       (Just (CookieLabel {cookieLabelText = "\13875"}))
       (Nothing)
       (())
-  )
 
 testObject_Cookie_20_28_29_user_18 :: Cookie ()
 testObject_Cookie_20_28_29_user_18 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 0})
       (PersistentCookie)
       (read ("1864-05-13 18:38:28.752407147796 UTC"))
@@ -241,11 +224,10 @@ testObject_Cookie_20_28_29_user_18 =
       (Just (CookieLabel {cookieLabelText = "\1070053"}))
       (Just (CookieId {cookieIdNum = 0}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_19 :: Cookie ()
 testObject_Cookie_20_28_29_user_19 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 4})
       (SessionCookie)
       (read ("1864-05-13 07:03:36.619050229877 UTC"))
@@ -253,11 +235,10 @@ testObject_Cookie_20_28_29_user_19 =
       (Nothing)
       (Just (CookieId {cookieIdNum = 3}))
       (())
-  )
 
 testObject_Cookie_20_28_29_user_20 :: Cookie ()
 testObject_Cookie_20_28_29_user_20 =
-  ( Cookie
+  Cookie
       (CookieId {cookieIdNum = 2})
       (PersistentCookie)
       (read ("1864-05-13 12:22:12.980555635796 UTC"))
@@ -265,4 +246,3 @@ testObject_Cookie_20_28_29_user_20 =
       (Just (CookieLabel {cookieLabelText = "\1081398\&0\DC4W"}))
       (Just (CookieId {cookieIdNum = 0}))
       (())
-  )

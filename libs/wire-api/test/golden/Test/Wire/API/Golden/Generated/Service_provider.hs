@@ -90,7 +90,7 @@ import Wire.API.User.Profile (Asset (ImageAsset), AssetSize (AssetComplete, Asse
 testObject_Service_provider_1 :: Service
 testObject_Service_provider_1 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000002"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000002")),
       serviceName =
         Name
           { fromName =
@@ -115,7 +115,7 @@ testObject_Service_provider_1 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("RA=="))),
                   ServiceToken (fromRight undefined (validate (""))),
@@ -124,10 +124,9 @@ testObject_Service_provider_1 =
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -172,8 +171,7 @@ testObject_Service_provider_1 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [BusinessTag, FitnessTag, SportsTag],
       serviceEnabled = False
@@ -182,7 +180,7 @@ testObject_Service_provider_1 =
 testObject_Service_provider_2 :: Service
 testObject_Service_provider_2 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000000"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000000")),
       serviceName =
         Name
           { fromName =
@@ -207,7 +205,7 @@ testObject_Service_provider_2 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate (""))),
@@ -217,10 +215,9 @@ testObject_Service_provider_2 =
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -237,9 +234,8 @@ testObject_Service_provider_2 =
                           }
                     }
                 ]
-            )
-        ),
-      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+            ),
+      serviceAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)],
       serviceTags = fromList [],
       serviceEnabled = True
     }
@@ -247,7 +243,7 @@ testObject_Service_provider_2 =
 testObject_Service_provider_3 :: Service
 testObject_Service_provider_3 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")),
       serviceName =
         Name
           { fromName =
@@ -272,16 +268,15 @@ testObject_Service_provider_3 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("9JE="))),
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -326,8 +321,7 @@ testObject_Service_provider_3 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [],
       serviceEnabled = True
@@ -336,7 +330,7 @@ testObject_Service_provider_3 =
 testObject_Service_provider_4 :: Service
 testObject_Service_provider_4 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002")),
       serviceName =
         Name
           { fromName =
@@ -361,17 +355,16 @@ testObject_Service_provider_4 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("ZGU="))),
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -430,9 +423,8 @@ testObject_Service_provider_4 =
                           }
                     }
                 ]
-            )
-        ),
-      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+            ),
+      serviceAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)],
       serviceTags = fromList [MediaTag],
       serviceEnabled = False
     }
@@ -440,7 +432,7 @@ testObject_Service_provider_4 =
 testObject_Service_provider_5 :: Service
 testObject_Service_provider_5 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000001"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000001")),
       serviceName =
         Name
           { fromName =
@@ -464,9 +456,9 @@ testObject_Service_provider_5 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = (List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("hQ==")))])),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("hQ==")))]),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -497,8 +489,7 @@ testObject_Service_provider_5 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [LifestyleTag, TutorialTag],
       serviceEnabled = False
@@ -507,7 +498,7 @@ testObject_Service_provider_5 =
 testObject_Service_provider_6 :: Service
 testObject_Service_provider_6 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000002"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000002")),
       serviceName = Name {fromName = "\v\4282X\74919B\GS\ACK\165012s)\vq\1050183(\60982\f{\ETB~0\1028236L\131764"},
       serviceSummary = "V",
       serviceDescr = "\1021802",
@@ -528,16 +519,15 @@ testObject_Service_provider_6 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("jK0="))),
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -568,14 +558,13 @@ testObject_Service_provider_6 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets =
-        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))
+        [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)
         ],
       serviceTags = fromList [FinanceTag, FitnessTag, MoviesTag],
       serviceEnabled = True
@@ -584,7 +573,7 @@ testObject_Service_provider_6 =
 testObject_Service_provider_7 :: Service
 testObject_Service_provider_7 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
       serviceName =
         Name
           { fromName =
@@ -609,15 +598,14 @@ testObject_Service_provider_7 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("Csg="))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -676,9 +664,8 @@ testObject_Service_provider_7 =
                           }
                     }
                 ]
-            )
-        ),
-      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+            ),
+      serviceAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)],
       serviceTags = fromList [MoviesTag],
       serviceEnabled = True
     }
@@ -686,7 +673,7 @@ testObject_Service_provider_7 =
 testObject_Service_provider_8 :: Service
 testObject_Service_provider_8 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000002")),
       serviceName =
         Name
           { fromName = "n\984687\&5\SOH\1064780\US36\60630\1078569\SOH\1105307y\53734\SO\ENQ={Hu9\RS/\a\141400\1058385"
@@ -710,16 +697,15 @@ testObject_Service_provider_8 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("ow=="))),
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -806,8 +792,7 @@ testObject_Service_provider_8 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [],
       serviceEnabled = True
@@ -816,7 +801,7 @@ testObject_Service_provider_8 =
 testObject_Service_provider_9 :: Service
 testObject_Service_provider_9 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000001"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000001")),
       serviceName =
         Name
           { fromName =
@@ -840,9 +825,9 @@ testObject_Service_provider_9 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = (List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))])),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -859,8 +844,7 @@ testObject_Service_provider_9 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [LifestyleTag],
       serviceEnabled = False
@@ -869,7 +853,7 @@ testObject_Service_provider_9 =
 testObject_Service_provider_10 :: Service
 testObject_Service_provider_10 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
       serviceName =
         Name
           { fromName =
@@ -893,9 +877,9 @@ testObject_Service_provider_10 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = (List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("ZQ==")))])),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("ZQ==")))]),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -926,8 +910,7 @@ testObject_Service_provider_10 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [MediaTag, PollTag],
       serviceEnabled = True
@@ -936,7 +919,7 @@ testObject_Service_provider_10 =
 testObject_Service_provider_11 :: Service
 testObject_Service_provider_11 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000001"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000001")),
       serviceName =
         Name
           { fromName =
@@ -961,17 +944,16 @@ testObject_Service_provider_11 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("Ros="))),
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1016,9 +998,8 @@ testObject_Service_provider_11 =
                           }
                     }
                 ]
-            )
-        ),
-      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+            ),
+      serviceAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)],
       serviceTags = fromList [],
       serviceEnabled = False
     }
@@ -1026,7 +1007,7 @@ testObject_Service_provider_11 =
 testObject_Service_provider_12 :: Service
 testObject_Service_provider_12 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
       serviceName = Name {fromName = "1\\$r~WnIAG\142833\999062fG%)4m\EOT\SO\133652X\ETB4~"},
       serviceSummary = "\1054517",
       serviceDescr = "+N",
@@ -1046,9 +1027,9 @@ testObject_Service_provider_12 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = (List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))])),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1107,12 +1088,11 @@ testObject_Service_provider_12 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets =
-        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+        [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)
         ],
       serviceTags = fromList [MedicalTag, TravelTag, WeatherTag],
       serviceEnabled = False
@@ -1121,7 +1101,7 @@ testObject_Service_provider_12 =
 testObject_Service_provider_13 :: Service
 testObject_Service_provider_13 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
       serviceName =
         Name
           { fromName =
@@ -1146,13 +1126,12 @@ testObject_Service_provider_13 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ServiceToken (fromRight undefined (validate (""))), ServiceToken (fromRight undefined (validate ("")))]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1183,9 +1162,8 @@ testObject_Service_provider_13 =
                           }
                     }
                 ]
-            )
-        ),
-      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+            ),
+      serviceAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)],
       serviceTags = fromList [EducationTag, MoviesTag, ShoppingTag],
       serviceEnabled = False
     }
@@ -1193,7 +1171,7 @@ testObject_Service_provider_13 =
 testObject_Service_provider_14 :: Service
 testObject_Service_provider_14 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000000"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000000")),
       serviceName =
         Name
           { fromName =
@@ -1218,15 +1196,14 @@ testObject_Service_provider_14 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("Pw=="))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1285,9 +1262,8 @@ testObject_Service_provider_14 =
                           }
                     }
                 ]
-            )
-        ),
-      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+            ),
+      serviceAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)],
       serviceTags = fromList [],
       serviceEnabled = True
     }
@@ -1295,7 +1271,7 @@ testObject_Service_provider_14 =
 testObject_Service_provider_15 :: Service
 testObject_Service_provider_15 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000000"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000000")),
       serviceName =
         Name
           { fromName =
@@ -1319,9 +1295,9 @@ testObject_Service_provider_15 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = (List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("yA==")))])),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("yA==")))]),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1352,16 +1328,15 @@ testObject_Service_provider_15 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets =
-        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+        [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)
         ],
       serviceTags = fromList [DesignTag, LifestyleTag, QuizTag],
       serviceEnabled = True
@@ -1370,7 +1345,7 @@ testObject_Service_provider_15 =
 testObject_Service_provider_16 :: Service
 testObject_Service_provider_16 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
       serviceName =
         Name
           { fromName =
@@ -1394,9 +1369,9 @@ testObject_Service_provider_16 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = (List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))])),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1427,9 +1402,8 @@ testObject_Service_provider_16 =
                           }
                     }
                 ]
-            )
-        ),
-      serviceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+            ),
+      serviceAssets = [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)],
       serviceTags = fromList [PollTag],
       serviceEnabled = False
     }
@@ -1437,7 +1411,7 @@ testObject_Service_provider_16 =
 testObject_Service_provider_17 :: Service
 testObject_Service_provider_17 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000001")),
       serviceName =
         Name
           { fromName =
@@ -1462,15 +1436,14 @@ testObject_Service_provider_17 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("BA=="))),
                   ServiceToken (fromRight undefined (validate ("Fm4=")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1487,8 +1460,7 @@ testObject_Service_provider_17 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [AudioTag, EntertainmentTag, MedicalTag],
       serviceEnabled = True
@@ -1497,7 +1469,7 @@ testObject_Service_provider_17 =
 testObject_Service_provider_18 :: Service
 testObject_Service_provider_18 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002")),
       serviceName =
         Name
           { fromName =
@@ -1522,16 +1494,15 @@ testObject_Service_provider_18 =
               uriFragment = Nothing
             },
       serviceTokens =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceToken (fromRight undefined (validate ("5jM="))),
                   ServiceToken (fromRight undefined (validate (""))),
                   ServiceToken (fromRight undefined (validate ("")))
                 ]
-            )
-        ),
+            ),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1590,8 +1561,7 @@ testObject_Service_provider_18 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [FoodDrinkTag],
       serviceEnabled = False
@@ -1600,7 +1570,7 @@ testObject_Service_provider_18 =
 testObject_Service_provider_19 :: Service
 testObject_Service_provider_19 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
       serviceName = Name {fromName = ";<\46080\1015531"},
       serviceSummary = "",
       serviceDescr = "PSG",
@@ -1620,9 +1590,9 @@ testObject_Service_provider_19 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = (List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))])),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1639,8 +1609,7 @@ testObject_Service_provider_19 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [FitnessTag, FoodDrinkTag, ProductivityTag],
       serviceEnabled = True
@@ -1649,7 +1618,7 @@ testObject_Service_provider_19 =
 testObject_Service_provider_20 :: Service
 testObject_Service_provider_20 =
   Service
-    { serviceId = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000001"))),
+    { serviceId = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000001")),
       serviceName =
         Name
           { fromName =
@@ -1673,9 +1642,9 @@ testObject_Service_provider_20 =
               uriQuery = Query {queryPairs = []},
               uriFragment = Nothing
             },
-      serviceTokens = (List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))])),
+      serviceTokens = List1 (NonEmpty.fromList [ServiceToken (fromRight undefined (validate ("")))]),
       serviceKeys =
-        ( List1
+        List1
             ( NonEmpty.fromList
                 [ ServiceKey
                     { serviceKeyType = RsaServiceKey,
@@ -1692,8 +1661,7 @@ testObject_Service_provider_20 =
                           }
                     }
                 ]
-            )
-        ),
+            ),
       serviceAssets = [],
       serviceTags = fromList [],
       serviceEnabled = True

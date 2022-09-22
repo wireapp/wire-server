@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+
 
 -- This file is part of the Wire Server implementation.
 --
@@ -455,7 +455,7 @@ getUserClients qusr = do
         cid <- hush . decodeMLS' . T.encodeUtf8 . T.pack $ f
         guard (cidQualifiedUser cid == qusr)
         pure cid
-  pure . catMaybes . map toClient $ files
+  pure . mapMaybe toClient $ files
 
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle

@@ -40,7 +40,7 @@ import Wire.API.Call.Config
 
 testObject_RTCIceServer_user_1 :: RTCIceServer
 testObject_RTCIceServer_user_1 =
-  ( rtcIceServer
+  rtcIceServer
       ( (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "118.129.179.126"))) (read "2") (Just TransportTCP))
           :| [ (turnURI (SchemeTurn) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Just TransportTCP)),
                (turnURI (SchemeTurn) (TurnHostName "host.name") (read "0") (Just TransportTCP)),
@@ -56,11 +56,10 @@ testObject_RTCIceServer_user_1 =
         )
       )
       ((fromRight undefined (validate ("ZtBPgUaUYg=="))))
-  )
 
 testObject_RTCIceServer_user_2 :: RTCIceServer
 testObject_RTCIceServer_user_2 =
-  ( rtcIceServer
+  rtcIceServer
       ( (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "108.37.81.160"))) (read "0") (Just TransportTCP))
           :| []
       )
@@ -69,4 +68,3 @@ testObject_RTCIceServer_user_2 =
         )
       )
       ((fromRight undefined (validate ("d1VUzpxZ3TeM"))))
-  )
