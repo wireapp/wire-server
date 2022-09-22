@@ -83,15 +83,15 @@ actError (InvalidActivationEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
 actError (InvalidActivationPhone _) = StdError (errorToWai @'E.InvalidPhone)
 
 pwResetError :: PasswordResetError -> Error
-pwResetError InvalidPasswordResetKey = StdError invalidPwResetKey
-pwResetError InvalidPasswordResetCode = StdError invalidPwResetCode
-pwResetError (PasswordResetInProgress Nothing) = StdError duplicatePwResetCode
+pwResetError InvalidPasswordResetKey = StdError (errorToWai @'E.InvalidPasswordResetKey)
+pwResetError InvalidPasswordResetCode = StdError (errorToWai @'E.InvalidPasswordResetCode)
+pwResetError (PasswordResetInProgress Nothing) = StdError (errorToWai @'E.PasswordResetInProgress)
 pwResetError (PasswordResetInProgress (Just t)) =
   RichError
-    duplicatePwResetCode
+    (errorToWai @'E.PasswordResetInProgress)
     ()
     [("Retry-After", toByteString' t)]
-pwResetError ResetPasswordMustDiffer = StdError resetPasswordMustDiffer
+pwResetError ResetPasswordMustDiffer = StdError (errorToWai @'E.ResetPasswordMustDiffer)
 
 sendLoginCodeError :: SendLoginCodeError -> Error
 sendLoginCodeError (SendLoginInvalidPhone _) = StdError (errorToWai @'E.InvalidPhone)
@@ -235,17 +235,9 @@ clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-c
 noEmail :: Wai.Error
 noEmail = Wai.mkError status403 "no-email" "This operation requires the user to have a verified email address."
 
-invalidPwResetKey :: Wai.Error
-invalidPwResetKey = Wai.mkError status400 "invalid-key" "Invalid email or mobile number for password reset."
-
-resetPasswordMustDiffer :: Wai.Error
-resetPasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For password reset, new and old password must be different."
-
+-- todo(leif): remove later
 invalidPwResetCode :: Wai.Error
 invalidPwResetCode = Wai.mkError status400 "invalid-code" "Invalid password reset code."
-
-duplicatePwResetCode :: Wai.Error
-duplicatePwResetCode = Wai.mkError status409 "code-exists" "A password reset is already in progress."
 
 emailExists :: Wai.Error
 emailExists = Wai.mkError status409 "email-exists" "The given e-mail address is in use."

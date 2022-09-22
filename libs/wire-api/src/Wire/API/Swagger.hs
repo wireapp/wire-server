@@ -118,7 +118,6 @@ models =
     User.Client.Prekey.modelPrekey,
     User.Handle.modelUserHandleInfo,
     User.Handle.modelCheckHandles,
-    User.Password.modelNewPasswordReset,
     User.Password.modelCompletePasswordReset,
     User.Profile.modelAsset,
     User.RichInfo.modelRichInfo,
