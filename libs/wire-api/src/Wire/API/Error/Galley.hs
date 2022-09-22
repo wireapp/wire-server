@@ -82,6 +82,7 @@ data GalleyError
   | MLSGroupConversationMismatch
   | MLSClientSenderUserMismatch
   | MLSWelcomeMismatch
+  | MLSMissingGroupInfoBundle
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -202,6 +203,8 @@ type instance MapError 'MLSGroupConversationMismatch = 'StaticError 400 "mls-gro
 type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 400 "mls-client-sender-user-mismatch" "User ID resolved from Client ID does not match message's sender user ID"
 
 type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-mismatch" "The list of targets of a welcome message does not match the list of new clients in a group"
+
+type instance MapError 'MLSMissingGroupInfoBundle = 'StaticError 404 "mls-missing-group-info-bundle" "The conversation has no GroupInfoBundle"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

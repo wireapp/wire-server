@@ -50,6 +50,7 @@ servantSitemap =
         <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
         <@> mkNamedAPI @"get-conversation" getConversation
         <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
+        <@> mkNamedAPI @"get-group-info" getGroupInfoBundle
         <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
         <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
         <@> mkNamedAPI @"get-conversations" getConversations

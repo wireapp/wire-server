@@ -38,6 +38,7 @@ module Galley.API.Query
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
+    getGroupInfoBundle,
     conversationIdsPageFromUnqualified,
     conversationIdsPageFrom,
     getConversations,
@@ -101,6 +102,7 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.GroupInfoBundle
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -285,6 +287,43 @@ getConversationRoles lusr cnv = do
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
+
+getGroupInfoBundle ::
+  Members
+    '[ ConversationStore,
+       ErrorS 'ConvNotFound,
+       ErrorS 'ConvAccessDenied,
+       ErrorS 'MLSMissingGroupInfoBundle
+     ]
+    r =>
+  Local UserId ->
+  Qualified ConvId ->
+  Sem r GroupInfoBundle
+getGroupInfoBundle lusr qcnvId =
+  foldQualified
+    lusr
+    (getGroupInfoBundleFromLocalConv lusr)
+    getGroupInfoBundleFromRemoteConv
+    qcnvId
+
+getGroupInfoBundleFromLocalConv ::
+  Members
+    '[ ConversationStore,
+       ErrorS 'ConvNotFound,
+       ErrorS 'ConvAccessDenied,
+       ErrorS 'MLSMissingGroupInfoBundle
+     ]
+    r =>
+  Local UserId ->
+  Local ConvId ->
+  Sem r GroupInfoBundle
+getGroupInfoBundleFromLocalConv lusr lcnvId = do
+  void $ getConversationAndCheckMembership (tUnqualified lusr) lcnvId
+  E.getGroupInfoBundle (tUnqualified lcnvId)
+    >>= noteS @'MLSMissingGroupInfoBundle
+
+getGroupInfoBundleFromRemoteConv :: Remote ConvId -> Sem r GroupInfoBundle
+getGroupInfoBundleFromRemoteConv = undefined
 
 conversationIdsPageFromUnqualified ::
   Member (ListItems LegacyPaging ConvId) r =>

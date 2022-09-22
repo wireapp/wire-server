@@ -17,10 +17,14 @@
 
 module Wire.API.MLS.GroupInfoBundle where
 
+import Data.Binary.Put
+import qualified Data.Swagger as S
 import Imports
+import Servant.API.ContentTypes
 import Test.QuickCheck
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Servant
 import Wire.Arbitrary
 
 data GroupInfoEncryption = UnencryptedGroupInfo | JweEncryptedGroupInfo
@@ -51,3 +55,9 @@ instance SerialiseMLS GroupInfoBundle where
     serialiseMLSEnum @Word8 e
     serialiseMLSEnum @Word8 t
     serialiseMLS pgs
+
+instance S.ToSchema GroupInfoBundle where
+  declareNamedSchema _ = pure (mlsSwagger "GroupInfoBundle")
+
+instance MimeRender MLS GroupInfoBundle where
+  mimeRender _ = runPut . serialiseMLS
