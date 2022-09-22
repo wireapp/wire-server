@@ -14,7 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
+
 
 module Galley.API.MLS.Message
   ( postMLSCommitBundle,
@@ -1027,8 +1027,7 @@ executeProposalAction qusr con lconv cm action = do
 
     existingLocalMembers :: Set (Qualified UserId)
     existingLocalMembers =
-      Set.fromList . map (fmap lmId . qUntagged) . sequenceA $
-        fmap convLocalMembers lconv
+      (Set.fromList . map (fmap lmId . qUntagged)) (traverse convLocalMembers lconv)
 
     existingRemoteMembers :: Set (Qualified UserId)
     existingRemoteMembers =
