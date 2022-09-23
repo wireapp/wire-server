@@ -1,1 +1,0 @@
-The `POST /activate` endpoint of the account API is now migrated to servant
