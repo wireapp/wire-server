@@ -1048,6 +1048,10 @@ aFewTimes
       (\_ -> pure . not . good)
       (const action)
 
+-- see also: `aFewTimes`.  we should really clean this up.
+eventually :: (MonadIO m, MonadMask m) => m a -> m a
+eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
+
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
 assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs

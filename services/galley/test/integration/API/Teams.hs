@@ -33,7 +33,6 @@ import qualified Brig.Types.Intra as Brig
 import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
-import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
@@ -75,7 +74,7 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import TestHelpers (test, viewFederationDomain)
+import TestHelpers (eventually, test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently)
 import Wire.API.Conversation
@@ -491,8 +490,6 @@ testCreateOne2OneWithMembers (rolePermissions -> perms) = do
 -- | At the time of writing this test, the only event sent to this queue is 'MemberJoin'.
 testTeamQueue :: TestM ()
 testTeamQueue = do
-  let eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
-
   (owner, tid) <- createBindingTeam
   eventually $ do
     queue <- getTeamQueue owner Nothing Nothing False
