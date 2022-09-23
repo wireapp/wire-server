@@ -95,12 +95,10 @@ import qualified Data.ZAuth.Token as ZAuth
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
-import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Network.Wai.Utilities.ZAuth (zauthUserId)
+import Network.Wai.Utilities.Swagger (mkSwaggerApi)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
@@ -231,6 +229,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"post-password-reset" beginPasswordReset
         :<|> Named @"post-password-reset-complete" completePasswordReset
         :<|> Named @"post-password-reset-key-deprecated" deprecatedCompletePasswordReset
+        :<|> Named @"onboarding" deprecatedOnboarding
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -317,23 +316,6 @@ sitemap ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
-  -- /activate, /password-reset ----------------------------------
-
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
-  -- see test/integration/API/Metrics.hs
-  post "/onboarding/v3" (continue deprecatedOnboardingH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. jsonRequest @Value
-  document "POST" "onboardingV3" $ do
-    Doc.deprecated
-    Doc.summary "Upload contacts and invoke matching."
-    Doc.notes
-      "DEPRECATED: the feature has been turned off, the end-point does \
-      \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
-
   Provider.routesPublic
   Auth.routesPublic
   Team.routesPublic
@@ -966,17 +948,8 @@ sendVerificationCode req = do
 
 -- Deprecated
 
-deprecatedOnboardingH :: JSON ::: UserId ::: JsonRequest Value -> (Handler r) Response
-deprecatedOnboardingH (_ ::: _ ::: _) = pure $ json DeprecatedMatchingResult
-
-data DeprecatedMatchingResult = DeprecatedMatchingResult
-
-instance ToJSON DeprecatedMatchingResult where
-  toJSON DeprecatedMatchingResult =
-    object
-      [ "results" .= ([] :: [()]),
-        "auto-connects" .= ([] :: [()])
-      ]
+deprecatedOnboarding :: UserId -> JsonValue -> (Handler r) DeprecatedMatchingResult
+deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 
 deprecatedCompletePasswordReset ::
   Members '[CodeStore, PasswordResetStore] r =>

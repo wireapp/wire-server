@@ -1,1 +1,0 @@
-The `POST /password-reset` endpoint of the account API is now migrated to servant
