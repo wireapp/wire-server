@@ -36,21 +36,22 @@ The ACME server API.
 sequenceDiagram
     autonumber
     actor User (Resource Owner)
-    User (Resource Owner)->>Client (App): Access Wire client
-    note over Client (App): create random code verifier(v)<br/>$=sha256(v)
-    Client (App)->>Wire backend (Authorization Server): login with credentials and $
-    note over Wire backend (Authorization Server): store $
-    note over Wire backend (Authorization Server): authenticate user
-    Wire backend (Authorization Server)-->>Client (App): issue authorization code α
-    Client (App)->>Wire backend (Authorization Server): request access token
-    note over Client (App),Wire backend (Authorization Server): request includes:<br/>client_id=abc123<br/>authorization_code=α<br/>code_verifier=v<br/>scope=acme<br/>state=foobar
-    Wire backend (Authorization Server)->>Wire backend (Authorization Server): verify request
-    note over Wire backend (Authorization Server): validate:<br/>client_id<br/>sha265(v)=$<br/>α
+    User (Resource Owner)->>Client (App): click login link
+    note over Client (App): generate<br/>code_verifier<br/>code_challenge=sha256(code_verifier)
+    Client (App)->>Wire backend (Authorization Server): GET /authorize
+    note over Wire backend (Authorization Server): store code_challenge
+    Wire backend (Authorization Server)->>User (Resource Owner): redirect to login/authorization prompt
+    User (Resource Owner)-->>Wire backend (Authorization Server): authenticate and consent    
+    Wire backend (Authorization Server)-->>Client (App): issue authorization code
+    note over Client (App),Wire backend (Authorization Server): HTTP/1.1 302 Found<br/>Location: https://YOUR_APP/callback?code=AUTHORIZATION_CODE
+    Client (App)->>Wire backend (Authorization Server): POST /oauth/token
+    Wire backend (Authorization Server)->>Wire backend (Authorization Server): validate request
+    note over Wire backend (Authorization Server): validate:<br/>client_id<br/>sha265(code_verifier)=code_challenge<br/>authorization code
     Wire backend (Authorization Server)-->>Client (App): issue authorization token
-    note over Client (App),Wire backend (Authorization Server): {"access_token":"Phai6Eesheirae3r",<br/>"expires_in":3920,"token_type":"Bearer"}
+    note over Client (App),Wire backend (Authorization Server): {"access_token":"eyJz93a...k4laUWw",<br/>"expires_in":3920,"token_type":"Bearer"}
     note over Client (App),ACME (Resource Server): The client can now access the required<br/>resources (the ACME server API)<br/>with the provided access token.<br/>This includes all the steps necessary<br/>for the ACME certificate enrollment process.<br/>Specifically create ACME account.
     Client (App)->>ACME (Resource Server): resource request
-    note right of Client (App): Authorization: Bearer Phai6Eesheirae3r
+    note right of Client (App): Authorization: Bearer eyJz93a...k4laUWw
     note over Client (App),ACME (Resource Server): and so on...
     note over Client (App),Wire backend: Client fetches DPoP access token
     Client (App)->>Wire backend: HEAD /clients/:cid/nonce
