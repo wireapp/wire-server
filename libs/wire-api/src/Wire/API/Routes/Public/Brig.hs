@@ -96,7 +96,7 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
   toUnion Nothing = Z (I ())
   fromUnion (Z (I ())) = Nothing
   fromUnion (S (Z (I (DeletionCodeTimeout t)))) = Just t
-  fromUnion (S (S x)) = case x of {}
+  fromUnion (S (S x)) = case x of
 
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
@@ -485,7 +485,7 @@ type AccountAPI =
                :> CanThrow 'ResetPasswordMustDiffer
                :> Description "DEPRECATED: Use 'POST /password-reset/complete'."
                :> "password-reset"
-               :> QueryParam' '[Required, Strict, Description "An opaque key for a pending password reset."] "key" PasswordResetKey
+               :> Capture' '[Description "An opaque key for a pending password reset."] "key" PasswordResetKey
                :> ReqBody '[JSON] PasswordReset
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
            )
