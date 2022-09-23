@@ -100,7 +100,6 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthUserId)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -190,7 +189,8 @@ servantSitemap ::
     '[ BlacklistStore,
        BlacklistPhonePrefixStore,
        UserPendingActivationStore p,
-       PasswordResetStore
+       PasswordResetStore,
+       CodeStore
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -229,6 +229,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"post-activate" activateKey
         :<|> Named @"post-activate-send" sendActivationCode
         :<|> Named @"post-password-reset" beginPasswordReset
+        :<|> Named @"post-password-reset-complete" completePasswordReset
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -316,16 +317,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- /activate, /password-reset ----------------------------------
-
-  post "/password-reset/complete" (continue completePasswordResetH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.CompletePasswordReset
-  document "POST" "completePasswordReset" $ do
-    Doc.summary "Complete a password reset."
-    Doc.body (Doc.ref Public.modelCompletePasswordReset) $
-      Doc.description "JSON body"
-    Doc.response 200 "Password reset successful." Doc.end
-    Doc.errorResponse invalidPwResetCode
 
   post "/password-reset/:key" (continue deprecatedCompletePasswordResetH) $
     accept "application" "json"
@@ -772,14 +763,12 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
-completePasswordResetH ::
+completePasswordReset ::
   Members '[CodeStore, PasswordResetStore] r =>
-  JSON ::: JsonRequest Public.CompletePasswordReset ->
-  (Handler r) Response
-completePasswordResetH (_ ::: req) = do
-  Public.CompletePasswordReset {..} <- parseJsonBody req
-  API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
-  pure empty
+  Public.CompletePasswordReset ->
+  (Handler r) ()
+completePasswordReset req = do
+  API.completePasswordReset (Public.cpwrIdent req) (Public.cpwrCode req) (Public.cpwrPassword req) !>> pwResetError
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}

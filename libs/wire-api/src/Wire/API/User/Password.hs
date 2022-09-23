@@ -28,9 +28,6 @@ module Wire.API.User.Password
 
     -- * deprecated
     PasswordReset (..),
-
-    -- * Swagger
-    modelCompletePasswordReset,
   )
 where
 
@@ -42,8 +39,8 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range (Ranged (..))
 import qualified Data.Schema as Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
+import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import Wire.API.User.Identity
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -107,41 +104,52 @@ data CompletePasswordReset = CompletePasswordReset
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CompletePasswordReset)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema CompletePasswordReset
 
-modelCompletePasswordReset :: Doc.Model
-modelCompletePasswordReset = Doc.defineModel "CompletePasswordReset" $ do
-  Doc.description "Data to complete a password reset."
-  Doc.property "key" Doc.string' $ do
-    Doc.description "An opaque key for a pending password reset."
-    Doc.optional
-  Doc.property "email" Doc.string' $ do
-    Doc.description "A known email with a pending password reset."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "A known phone number with a pending password reset."
-    Doc.optional
-  Doc.property "code" Doc.string' $
-    Doc.description "Password reset code"
-  Doc.property "password" Doc.string' $
-    Doc.description "New password (6 - 1024 characters)"
-
-instance ToJSON CompletePasswordReset where
-  toJSON (CompletePasswordReset i c pw) =
-    object
-      [ident i, "code" .= c, "password" .= pw]
+instance Schema.ToSchema CompletePasswordReset where
+  schema =
+    Schema.objectWithDocModifier "CompletePasswordReset" objectDocs $
+      CompletePasswordReset
+        <$> (maybePasswordResetIdentityToTuple . cpwrIdent) Schema..= maybePasswordResetIdentityObjectSchema
+        <*> cpwrCode Schema..= Schema.fieldWithDocModifier "code" codeDocs Schema.schema
+        <*> cpwrPassword Schema..= Schema.fieldWithDocModifier "password" pwDocs Schema.schema
     where
-      ident (PasswordResetIdentityKey k) = "key" .= k
-      ident (PasswordResetEmailIdentity e) = "email" .= e
-      ident (PasswordResetPhoneIdentity p) = "phone" .= p
+      objectDocs :: Schema.NamedSwaggerDoc -> Schema.NamedSwaggerDoc
+      objectDocs = Schema.description ?~ "Data to complete a password reset"
 
-instance FromJSON CompletePasswordReset where
-  parseJSON = withObject "CompletePasswordReset" $ \o ->
-    CompletePasswordReset <$> ident o <*> o .: "code" <*> o .: "password"
-    where
-      ident o =
-        (PasswordResetIdentityKey <$> o .: "key")
-          <|> (PasswordResetEmailIdentity <$> o .: "email")
-          <|> (PasswordResetPhoneIdentity <$> o .: "phone")
+      codeDocs :: Schema.NamedSwaggerDoc -> Schema.NamedSwaggerDoc
+      codeDocs = Schema.description ?~ "Password reset code"
+
+      pwDocs :: Schema.NamedSwaggerDoc -> Schema.NamedSwaggerDoc
+      pwDocs = Schema.description ?~ "New password (6 - 1024 characters)"
+
+      maybePasswordResetIdentityObjectSchema :: Schema.ObjectSchemaP Schema.SwaggerDoc (Maybe PasswordResetKey, Maybe Email, Maybe Phone) PasswordResetIdentity
+      maybePasswordResetIdentityObjectSchema =
+        Schema.withParser passwordResetIdentityTupleObjectSchema maybePasswordResetIdentityTargetFromTuple
+        where
+          passwordResetIdentityTupleObjectSchema :: Schema.ObjectSchema Schema.SwaggerDoc (Maybe PasswordResetKey, Maybe Email, Maybe Phone)
+          passwordResetIdentityTupleObjectSchema =
+            (,,)
+              <$> fst3 Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "key" keyDocs Schema.schema)
+              <*> snd3 Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "email" emailDocs Schema.schema)
+              <*> thd3 Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "phone" phoneDocs Schema.schema)
+            where
+              keyDocs = Schema.description ?~ "An opaque key for a pending password reset."
+              emailDocs = Schema.description ?~ "A known email with a pending password reset."
+              phoneDocs = Schema.description ?~ "A known phone number with a pending password reset."
+
+          maybePasswordResetIdentityTargetFromTuple :: (Maybe PasswordResetKey, Maybe Email, Maybe Phone) -> Parser PasswordResetIdentity
+          maybePasswordResetIdentityTargetFromTuple = \case
+            (Just key, _, _) -> pure $ PasswordResetIdentityKey key
+            (_, Just email, _) -> pure $ PasswordResetEmailIdentity email
+            (_, _, Just phone) -> pure $ PasswordResetPhoneIdentity phone
+            _ -> fail "key, email or phone must be present"
+
+      maybePasswordResetIdentityToTuple :: PasswordResetIdentity -> (Maybe PasswordResetKey, Maybe Email, Maybe Phone)
+      maybePasswordResetIdentityToTuple = \case
+        PasswordResetIdentityKey key -> (Just key, Nothing, Nothing)
+        PasswordResetEmailIdentity email -> (Nothing, Just email, Nothing)
+        PasswordResetPhoneIdentity phone -> (Nothing, Nothing, Just phone)
 
 --------------------------------------------------------------------------------
 -- PasswordResetIdentity
@@ -161,7 +169,7 @@ data PasswordResetIdentity
 newtype PasswordResetKey = PasswordResetKey
   {fromPasswordResetKey :: AsciiBase64Url}
   deriving stock (Eq, Show)
-  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, Arbitrary)
+  deriving newtype (Schema.ToSchema, FromByteString, ToByteString, FromJSON, ToJSON, Arbitrary)
 
 --------------------------------------------------------------------------------
 -- PasswordResetCode
@@ -170,7 +178,7 @@ newtype PasswordResetKey = PasswordResetKey
 newtype PasswordResetCode = PasswordResetCode
   {fromPasswordResetCode :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON)
+  deriving newtype (Schema.ToSchema, FromByteString, ToByteString, FromJSON, ToJSON)
   deriving (Arbitrary) via (Ranged 6 1024 AsciiBase64Url)
 
 --------------------------------------------------------------------------------

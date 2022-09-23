@@ -235,10 +235,6 @@ clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-c
 noEmail :: Wai.Error
 noEmail = Wai.mkError status403 "no-email" "This operation requires the user to have a verified email address."
 
--- todo(leif): remove later
-invalidPwResetCode :: Wai.Error
-invalidPwResetCode = Wai.mkError status400 "invalid-code" "Invalid password reset code."
-
 emailExists :: Wai.Error
 emailExists = Wai.mkError status409 "email-exists" "The given e-mail address is in use."
 

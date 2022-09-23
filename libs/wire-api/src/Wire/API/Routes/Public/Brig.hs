@@ -55,7 +55,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
-import Wire.API.User.Password (NewPasswordReset)
+import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset)
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
@@ -466,6 +466,15 @@ type AccountAPI =
                :> "password-reset"
                :> ReqBody '[JSON] NewPasswordReset
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 201 "Password reset code created and sent by email."] ()
+           )
+    :<|> Named
+           "post-password-reset-complete"
+           ( Summary "Complete a password reset."
+               :> CanThrow 'InvalidPasswordResetCode
+               :> "password-reset"
+               :> "complete"
+               :> ReqBody '[JSON] CompletePasswordReset
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
            )
 
 data ActivationRespWithStatus
