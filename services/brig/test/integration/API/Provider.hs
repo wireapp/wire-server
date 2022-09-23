@@ -733,7 +733,8 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   forM_ [uid1, uid2] $ \uid -> do
     void $ retryWhileN 20 (/= Intra.Deleted) (getStatus brig uid)
     chkStatus brig uid Intra.Deleted
-    getConversation galley uid cid !!! const 404 === statusCode
+    eventually $ do
+      getConversation galley uid cid !!! const 404 === statusCode
   -- Check the bot cannot see the conversation either
   getBotConv galley bid cid !!! const 404 === statusCode
 

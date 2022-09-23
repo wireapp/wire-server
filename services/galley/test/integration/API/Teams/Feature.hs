@@ -51,7 +51,7 @@ import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
-import TestHelpers (test)
+import TestHelpers (eventually, test)
 import TestSetup
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag, ProtocolProteusTag))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
@@ -495,17 +495,17 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   nonMember <- Util.randomUser
 
   let getFlag :: HasCallStack => Public.FeatureStatus -> TestM ()
-      getFlag expected =
+      getFlag expected = eventually $ do
         flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlag @cfg member tid
 
       getFeatureConfig :: HasCallStack => Public.FeatureStatus -> FeatureTTL -> TestM ()
-      getFeatureConfig expectedStatus expectedTtl = do
+      getFeatureConfig expectedStatus expectedTtl = eventually $ do
         actual <- Util.getFeatureConfig @cfg member
         liftIO $ Public.wsStatus actual @?= expectedStatus
         liftIO $ Public.wsTTL actual @?= expectedTtl
 
       getFlagInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
-      getFlagInternal expected =
+      getFlagInternal expected = eventually $ do
         flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlagInternal @cfg tid
 
       setFlagInternal :: Public.FeatureStatus -> FeatureTTL -> TestM ()
