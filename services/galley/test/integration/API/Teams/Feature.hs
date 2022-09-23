@@ -51,7 +51,7 @@ import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
-import TestHelpers (test)
+import TestHelpers (eventually, test)
 import TestSetup
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag, ProtocolProteusTag))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
