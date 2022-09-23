@@ -18,12 +18,6 @@
 module Wire.API.Error.Brig where
 
 import Wire.API.Error
-  ( IsSwaggerError (..),
-    KnownError,
-    MapError,
-    StaticError (StaticError),
-    addStaticErrorToSwagger,
-  )
 
 data BrigError
   = UserNotFound
@@ -199,10 +193,10 @@ type instance
       \that you are attempting to register a user with has been \
       \blocked for creating wire users.  Please contact your IT department."
 
+type instance MapError 'PasswordResetInProgress = 'StaticError 409 "code-exists" "A password reset is already in progress."
+
 type instance MapError 'InvalidPasswordResetKey = 'StaticError 400 "invalid-key" "Invalid email or mobile number for password reset."
 
 type instance MapError 'InvalidPasswordResetCode = 'StaticError 400 "invalid-code" "Invalid password reset code."
 
 type instance MapError 'ResetPasswordMustDiffer = 'StaticError 409 "password-must-differ" "For password reset, new and old password must be different."
-
-type instance MapError 'PasswordResetInProgress = 'StaticError 409 "code-exists" "A password reset is already in progress."
