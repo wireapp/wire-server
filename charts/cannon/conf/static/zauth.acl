@@ -1,13 +1,1 @@
-a (blacklist (path "(/v[0-9]+)?/provider(/.*)?")
-             (path "(/v[0-9]+)?/bot(/.*)?")
-             (path "(/v[0-9]+)?/i/.*"))
-
-b (whitelist (regex "(/v[0-9]+)?/bot(/.*)?"))
-
-p (whitelist (regex "(/v[0-9]+)?/provider(/.*)?"))
-
-# LegalHold Access Tokens
-la (whitelist (regex "(/v[0-9]+)?/notifications")
-              (regex "(/v[0-9]+)?/assets/v3/.*")
-              (regex "(/v[0-9]+)?/users(/.*)?")
-              (regex "(/v[0-9]+)?/legalhold/conversations/[^/]+"))
+a (whitelist (regex "/await"))
