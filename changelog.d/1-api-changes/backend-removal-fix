@@ -1,0 +1,1 @@
+Users being kicked out results in member-leave events originating from the user who caused the change in the conversation

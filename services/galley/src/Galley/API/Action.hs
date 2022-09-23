@@ -340,7 +340,7 @@ performAction tag origUser lconv action = do
       E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
       pure (mempty, action)
     SConversationAccessDataTag -> do
-      (bm, act) <- performConversationAccessData lconv action
+      (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
 
 performConversationJoin ::
@@ -457,14 +457,11 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
           then do
             for_ convUsersLHStatus $ \(mem, status) ->
               when (consentGiven status == ConsentNotGiven) $ do
-                let lvictim = qualifyAs lconv (lmId mem)
-                void . runError @NoChanges $
-                  updateLocalConversation
-                    @'ConversationLeaveTag
-                    (fmap convId lconv)
-                    (qUntagged lvictim)
-                    Nothing
-                    ()
+                kickMember
+                  qusr
+                  lconv
+                  (convBotsAndMembers (tUnqualified lconv))
+                  (qUntagged (qualifyAs lconv (lmId mem)))
           else throwS @'MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote ::
@@ -474,10 +471,11 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
 
 performConversationAccessData ::
   (HasConversationActionEffects 'ConversationAccessDataTag r) =>
+  Qualified UserId ->
   Local Conversation ->
   ConversationAccessData ->
   Sem r (BotsAndMembers, ConversationAccessData)
-performConversationAccessData lconv action = do
+performConversationAccessData qusr lconv action = do
   when (convAccessData conv == action) noChanges
   -- Remove conversation codes if CodeAccess is revoked
   when
@@ -506,16 +504,8 @@ performConversationAccessData lconv action = do
     let bmToNotify = current {bmBots = bmBots desired}
 
     -- Remove users and notify everyone
-    for_ (bmQualifiedMembers lcnv toRemove) $ \userToRemove -> do
-      (extraTargets, action') <- performAction SConversationLeaveTag userToRemove lconv ()
-      notifyConversationAction
-        (sing @'ConversationLeaveTag)
-        userToRemove
-        True
-        Nothing
-        lconv
-        (bmToNotify <> extraTargets)
-        action'
+    for_ (bmQualifiedMembers lcnv toRemove) $
+      kickMember qusr lconv bmToNotify
 
   pure (mempty, action)
   where
@@ -792,3 +782,40 @@ notifyRemoteConversationAction loc rconvUpdate con = do
   let bots = []
 
   pushConversationEvent con event localPresentUsers bots $> event
+
+-- | Kick a user from a conversation and send notifications.
+--
+-- This function removes the given victim from the conversation by making them
+-- leave, but then sends notifications as if the user was removed by someone
+-- else.
+kickMember ::
+  ( Member (Error InternalError) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member ProposalStore r,
+    Member (Input UTCTime) r,
+    Member (Input Env) r,
+    Member MemberStore r,
+    Member TinyLog r
+  ) =>
+  Qualified UserId ->
+  Local Conversation ->
+  BotsAndMembers ->
+  Qualified UserId ->
+  Sem r ()
+kickMember qusr lconv targets victim = void . runError @NoChanges $ do
+  (extraTargets, _) <-
+    performAction
+      SConversationLeaveTag
+      victim
+      lconv
+      ()
+  notifyConversationAction
+    (sing @'ConversationRemoveMembersTag)
+    qusr
+    True
+    Nothing
+    lconv
+    (targets <> extraTargets)
+    (pure victim)
