@@ -62,7 +62,7 @@ run o = do
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
   wCollectAuth <- Async.async (collectAuthMetrics m (Aws._awsEnv (Env._awsEnv e)))
-  runSettingsWithShutdown s (middleware e $ mkApp e) 5 `finally` do
+  runSettingsWithShutdown s (middleware e $ mkApp e) Nothing `finally` do
     Log.info l $ Log.msg (Log.val "Shutting down ...")
     shutdown (e ^. cstate)
     Async.cancel lst
