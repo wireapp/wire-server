@@ -640,7 +640,8 @@ getUserInfoFromHandle brig domain handle = do
   u <- randomId
   responseJsonError
     =<< get
-      ( brig
+      ( apiVersion "v1"
+          . brig
           . paths ["users", "by-handle", toByteString' (domainText domain), toByteString' handle]
           . zUser u
           . expect2xx
@@ -783,7 +784,8 @@ listConvs ::
   m ResponseLBS
 listConvs galley zusr convs = do
   post $
-    galley
+    apiVersion "v1"
+      . galley
       . path "/conversations/list/v2"
       . zUser zusr
       . zConn "conn"
