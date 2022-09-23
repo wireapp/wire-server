@@ -230,6 +230,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"post-activate-send" sendActivationCode
         :<|> Named @"post-password-reset" beginPasswordReset
         :<|> Named @"post-password-reset-complete" completePasswordReset
+        :<|> Named @"post-password-reset-key-deprecated" deprecatedCompletePasswordReset
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -317,15 +318,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- /activate, /password-reset ----------------------------------
-
-  post "/password-reset/:key" (continue deprecatedCompletePasswordResetH) $
-    accept "application" "json"
-      .&. capture "key"
-      .&. jsonRequest @Public.PasswordReset
-  document "POST" "deprecatedCompletePasswordReset" $ do
-    Doc.deprecated
-    Doc.summary "Complete a password reset."
-    Doc.notes "DEPRECATED: Use 'POST /password-reset/complete'."
 
   -- This endpoint is used to test /i/metrics, when this is servantified, please
   -- make sure some other endpoint is used to test that routes defined in this
@@ -986,18 +978,17 @@ instance ToJSON DeprecatedMatchingResult where
         "auto-connects" .= ([] :: [()])
       ]
 
-deprecatedCompletePasswordResetH ::
+deprecatedCompletePasswordReset ::
   Members '[CodeStore, PasswordResetStore] r =>
-  JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset ->
-  (Handler r) Response
-deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
-  pwr <- parseJsonBody req
+  Public.PasswordResetKey ->
+  Public.PasswordReset ->
+  (Handler r) ()
+deprecatedCompletePasswordReset k pwr = do
   API.completePasswordReset
     (Public.PasswordResetIdentityKey k)
     (Public.pwrCode pwr)
     (Public.pwrPassword pwr)
     !>> pwResetError
-  pure empty
 
 -- Utilities
 
