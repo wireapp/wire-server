@@ -38,7 +38,9 @@ module Galley.API.Query
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
+    MLSGroupInfoStaticErrors,
     getGroupInfo,
+    getGroupInfoFromLocalConv,
     conversationIdsPageFromUnqualified,
     conversationIdsPageFrom,
     getConversations,
@@ -61,6 +63,7 @@ import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
+import Data.Json.Util
 import qualified Data.Map as Map
 import Data.Proxy
 import Data.Qualified
@@ -288,54 +291,61 @@ getConversationRoles lusr cnv = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
+type MLSGroupInfoStaticErrors =
+  '[ ErrorS 'ConvAccessDenied,
+     ErrorS 'ConvNotFound,
+     ErrorS 'MLSMissingGroupInfo
+   ]
+
 getGroupInfo ::
   Members
     '[ ConversationStore,
-       ErrorS 'ConvNotFound,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'MLSMissingGroupInfo
+       Error FederationError,
+       FederatorAccess
      ]
     r =>
+  Members MLSGroupInfoStaticErrors r =>
   Local UserId ->
   Qualified ConvId ->
   Sem r OpaquePublicGroupState
 getGroupInfo lusr qcnvId =
   foldQualified
     lusr
-    (getGroupInfoFromLocalConv lusr)
-    getGroupInfoFromRemoteConv
+    (getGroupInfoFromLocalConv . qUntagged $ lusr)
+    (getGroupInfoFromRemoteConv lusr)
     qcnvId
 
 getGroupInfoFromLocalConv ::
-  Members
-    '[ ConversationStore,
-       ErrorS 'ConvNotFound,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'MLSMissingGroupInfo
-     ]
-    r =>
-  Local UserId ->
+  Members '[ConversationStore] r =>
+  Members MLSGroupInfoStaticErrors r =>
+  Qualified UserId ->
   Local ConvId ->
   Sem r OpaquePublicGroupState
-getGroupInfoFromLocalConv lusr lcnvId = do
-  void $ getConversationAndCheckMembership (tUnqualified lusr) lcnvId
+getGroupInfoFromLocalConv qusr lcnvId = do
+  void $ getConversationAndCheckMembership (qUnqualified qusr) lcnvId
   E.getPublicGroupState (tUnqualified lcnvId)
     >>= noteS @'MLSMissingGroupInfo
 
 getGroupInfoFromRemoteConv ::
+  Members '[Error FederationError, FederatorAccess] r =>
+  Members MLSGroupInfoStaticErrors r =>
+  Local UserId ->
   Remote ConvId ->
   Sem r OpaquePublicGroupState
-getGroupInfoFromRemoteConv = undefined
-
--- let getRequest =
---       GetGroupInfoRequest
---         { ggireqSender = tUnqualified lusr,
---           ggireqConv = tUnqualified rcnv
---         }
--- response <- E.runFederated rcnv (fedClient @'Galley @"get-group-info" getRequest)
--- case response of
---   GetGroupInfoResponseError e -> undefined e
---   GetGroupInfoResponseState s -> undefined s
+getGroupInfoFromRemoteConv lusr rcnv = do
+  let getRequest =
+        GetGroupInfoRequest
+          { ggireqSender = tUnqualified lusr,
+            ggireqConv = tUnqualified rcnv
+          }
+  response <- E.runFederated rcnv (fedClient @'Galley @"get-group-info" getRequest)
+  case response of
+    GetGroupInfoResponseError e -> rethrowErrors @MLSGroupInfoStaticErrors e
+    GetGroupInfoResponseState s ->
+      pure . OpaquePublicGroupState
+        . LBS.fromStrict
+        . fromBase64ByteString
+        $ s
 
 conversationIdsPageFromUnqualified ::
   Member (ListItems LegacyPaging ConvId) r =>

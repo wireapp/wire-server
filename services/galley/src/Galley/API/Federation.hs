@@ -21,7 +21,9 @@ module Galley.API.Federation where
 import Control.Error
 import Control.Lens (itraversed, preview, to, (<.>))
 import Data.Bifunctor
+import Data.Binary.Put
 import Data.ByteString.Conversion (toByteString')
+import qualified Data.ByteString.Lazy as LBS
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
 import Data.Id
@@ -45,6 +47,7 @@ import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
 import Galley.API.Push
+import Galley.API.Query (MLSGroupInfoStaticErrors, getGroupInfoFromLocalConv)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -80,7 +83,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley (ClientRemovedRequest, ConversationUpdateResponse)
+import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
 import Wire.API.MLS.CommitBundle
@@ -111,6 +114,7 @@ federationSitemap =
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
     :<|> Named @"send-mls-message" sendMLSMessage
     :<|> Named @"send-mls-commit-bundle" sendMLSCommitBundle
+    :<|> Named @"get-group-info" getGroupInfo
     :<|> Named @"on-client-removed" onClientRemoved
 
 onClientRemoved ::
@@ -771,3 +775,28 @@ onMLSMessageSent domain rmm = do
   runMessagePush loc (Just (qUntagged rcnv)) $
     foldMap mkPush recipients
   pure EmptyResponse
+
+getGroupInfo ::
+  Members
+    '[ ConversationStore,
+       Input (Local ())
+     ]
+    r =>
+  Domain ->
+  F.GetGroupInfoRequest ->
+  Sem r F.GetGroupInfoResponse
+getGroupInfo origDomain req =
+  fmap mkResponse . runError @GalleyError . mapToGalleyError @MLSGroupInfoStaticErrors $
+    do
+      lconvId <- qualifyLocal . ggireqConv $ req
+      let sender = toRemoteUnsafe origDomain . ggireqSender $ req
+      state <- getGroupInfoFromLocalConv (qUntagged sender) lconvId
+      pure
+        . Base64ByteString
+        . LBS.toStrict
+        . runPut
+        . serialiseMLS
+        $ state
+  where
+    mkResponse :: Either GalleyError Base64ByteString -> F.GetGroupInfoResponse
+    mkResponse = either F.GetGroupInfoResponseError F.GetGroupInfoResponseState
