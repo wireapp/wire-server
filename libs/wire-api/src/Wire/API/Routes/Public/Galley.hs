@@ -42,9 +42,9 @@ import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CommitBundle
-import Wire.API.MLS.GroupInfoBundle (GroupInfoBundle)
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.Welcome
@@ -225,12 +225,19 @@ type ConversationAPI =
            ( Summary "Get MLS group information"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'MLSMissingGroupInfoBundle
+               :> CanThrow 'MLSMissingGroupInfo
                :> ZLocalUser
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
                :> "groupinfo"
-               :> MultiVerb1 'GET '[MLS] (Respond 200 "GroupInfoBundle" GroupInfoBundle)
+               :> MultiVerb1
+                    'GET
+                    '[MLS]
+                    ( Respond
+                        200
+                        "The group information"
+                        (RawMLS PublicGroupStateTBS)
+                    )
            )
     :<|> Named
            "list-conversation-ids-unqualified"

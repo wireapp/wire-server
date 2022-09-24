@@ -34,8 +34,9 @@ import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.Serialisation
 import Wire.API.Provider
 import Wire.API.Provider.Service
 import Wire.API.Team
@@ -203,8 +204,8 @@ selectConv = "select type, creator, access, access_role, access_roles_v2, name, 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 
-selectGroupInfoBundle :: PrepQuery R (Identity ConvId) (Identity (Maybe GroupInfoBundle))
-selectGroupInfoBundle = "select group_info_bundle from conversation where conv = ?"
+selectPublicGroupState :: PrepQuery R (Identity ConvId) (Identity (Maybe (RawMLS PublicGroupStateTBS)))
+selectPublicGroupState = "select group_info from conversation where conv = ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
@@ -236,8 +237,8 @@ deleteConv = "delete from conversation using timestamp 32503680000000000 where c
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
 markConvDeleted = "update conversation set deleted = true where conv = ?"
 
-updateGroupInfoBundle :: PrepQuery W (GroupInfoBundle, ConvId) ()
-updateGroupInfoBundle = "update conversation set group_info_bundle = ? where conv = ?"
+updatePublicGroupState :: PrepQuery W (RawMLS PublicGroupStateTBS, ConvId) ()
+updatePublicGroupState = "update conversation set group_info = ? where conv = ?"
 
 -- Conversations accessible by code -----------------------------------------
 

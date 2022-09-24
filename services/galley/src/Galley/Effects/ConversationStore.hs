@@ -30,7 +30,7 @@ module Galley.Effects.ConversationStore
     getConversationIdByGroupId,
     getConversations,
     getConversationMetadata,
-    getGroupInfoBundle,
+    getPublicGroupState,
     isConversationAlive,
     getRemoteConversationStatus,
     selectConversations,
@@ -44,7 +44,7 @@ module Galley.Effects.ConversationStore
     setConversationEpoch,
     acceptConnectConversation,
     setGroupId,
-    setGroupInfoBundle,
+    setPublicGroupState,
 
     -- * Delete conversation
     deleteConversation,
@@ -67,7 +67,8 @@ import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.MLS.Epoch
-import Wire.API.MLS.GroupInfoBundle
+import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.Serialisation
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
@@ -77,7 +78,9 @@ data ConversationStore m a where
   GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
-  GetGroupInfoBundle :: ConvId -> ConversationStore m (Maybe GroupInfoBundle)
+  GetPublicGroupState ::
+    ConvId ->
+    ConversationStore m (Maybe (RawMLS PublicGroupStateTBS))
   IsConversationAlive :: ConvId -> ConversationStore m Bool
   GetRemoteConversationStatus ::
     UserId ->
@@ -91,7 +94,10 @@ data ConversationStore m a where
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
-  SetGroupInfoBundle :: ConvId -> GroupInfoBundle -> ConversationStore m ()
+  SetPublicGroupState ::
+    ConvId ->
+    RawMLS PublicGroupStateTBS ->
+    ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
 

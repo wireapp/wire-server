@@ -38,7 +38,7 @@ module Galley.API.Query
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
-    getGroupInfoBundle,
+    getGroupInfo,
     conversationIdsPageFromUnqualified,
     conversationIdsPageFrom,
     getConversations,
@@ -102,7 +102,8 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.GroupInfoBundle
+import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.Serialisation
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -288,42 +289,44 @@ getConversationRoles lusr cnv = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-getGroupInfoBundle ::
+getGroupInfo ::
   Members
     '[ ConversationStore,
        ErrorS 'ConvNotFound,
        ErrorS 'ConvAccessDenied,
-       ErrorS 'MLSMissingGroupInfoBundle
+       ErrorS 'MLSMissingGroupInfo
      ]
     r =>
   Local UserId ->
   Qualified ConvId ->
-  Sem r GroupInfoBundle
-getGroupInfoBundle lusr qcnvId =
+  Sem r (RawMLS PublicGroupStateTBS)
+getGroupInfo lusr qcnvId =
   foldQualified
     lusr
-    (getGroupInfoBundleFromLocalConv lusr)
-    getGroupInfoBundleFromRemoteConv
+    (getGroupInfoFromLocalConv lusr)
+    getGroupInfoFromRemoteConv
     qcnvId
 
-getGroupInfoBundleFromLocalConv ::
+getGroupInfoFromLocalConv ::
   Members
     '[ ConversationStore,
        ErrorS 'ConvNotFound,
        ErrorS 'ConvAccessDenied,
-       ErrorS 'MLSMissingGroupInfoBundle
+       ErrorS 'MLSMissingGroupInfo
      ]
     r =>
   Local UserId ->
   Local ConvId ->
-  Sem r GroupInfoBundle
-getGroupInfoBundleFromLocalConv lusr lcnvId = do
+  Sem r (RawMLS PublicGroupStateTBS)
+getGroupInfoFromLocalConv lusr lcnvId = do
   void $ getConversationAndCheckMembership (tUnqualified lusr) lcnvId
-  E.getGroupInfoBundle (tUnqualified lcnvId)
-    >>= noteS @'MLSMissingGroupInfoBundle
+  E.getPublicGroupState (tUnqualified lcnvId)
+    >>= noteS @'MLSMissingGroupInfo
 
-getGroupInfoBundleFromRemoteConv :: Remote ConvId -> Sem r GroupInfoBundle
-getGroupInfoBundleFromRemoteConv = undefined
+getGroupInfoFromRemoteConv ::
+  Remote ConvId ->
+  Sem r (RawMLS PublicGroupStateTBS)
+getGroupInfoFromRemoteConv = undefined
 
 conversationIdsPageFromUnqualified ::
   Member (ListItems LegacyPaging ConvId) r =>

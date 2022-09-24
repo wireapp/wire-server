@@ -81,6 +81,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
@@ -703,8 +704,11 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
     postponedKeyPackageRefUpdate
     -- increment epoch number
     setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
-    -- set the group info bundle
-    for_ mGIBundle $ setGroupInfoBundle (Data.convId (tUnqualified lconv))
+    -- set the group info
+    for_ mGIBundle $
+      setPublicGroupState (Data.convId (tUnqualified lconv))
+        . pgTBS
+        . gipGroupState
 
     pure updates
 

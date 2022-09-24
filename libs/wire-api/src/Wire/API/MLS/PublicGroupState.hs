@@ -19,7 +19,10 @@
 module Wire.API.MLS.PublicGroupState where
 
 import Data.Binary.Get (label)
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Swagger as S
 import Imports
+import Servant.API.ContentTypes
 import Test.QuickCheck hiding (label)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
@@ -27,6 +30,7 @@ import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Servant
 import Wire.Arbitrary
 
 data PublicGroupStateTBS = PublicGroupStateTBS
@@ -73,6 +77,12 @@ instance SerialiseMLS PublicGroupStateTBS where
     serialiseMLSBytes @Word32 pgsOtherExtensions
     serialiseMLSBytes @Word16 pgsExternalPub
     serialiseMLS pgsSigner
+
+instance S.ToSchema PublicGroupStateTBS where
+  declareNamedSchema _ = pure (mlsSwagger "PublicGroupStateTBS")
+
+instance MimeRender MLS (RawMLS PublicGroupStateTBS) where
+  mimeRender _ = LBS.fromStrict . rmRaw
 
 data PublicGroupState = PublicGroupState
   { pgTBS :: RawMLS PublicGroupStateTBS,

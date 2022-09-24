@@ -26,9 +26,9 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 75 "Add the MLS group info bundle column to the conversation table" $
+  Migration 75 "Add the MLS group info column to the conversation table" $
     schema'
       [r| ALTER TABLE conversation ADD (
-            group_info_bundle blob
+            group_info blob
           )
         |]
