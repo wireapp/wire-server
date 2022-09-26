@@ -20,7 +20,7 @@ module Wire.API.MLS.PublicGroupState where
 
 import Data.Binary
 import Data.Binary.Get
-import Data.Binary.Put (putLazyByteString)
+import Data.Binary.Put
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Swagger as S
 import Imports
@@ -89,24 +89,24 @@ data PublicGroupState = PublicGroupState
 -- | A type that holds an MLS-encoded 'PublicGroupState' value via
 -- 'serialiseMLS'.
 newtype OpaquePublicGroupState = OpaquePublicGroupState
-  {unOpaquePublicGroupState :: LBS.ByteString}
+  {unOpaquePublicGroupState :: ByteString}
   deriving (Generic, Eq, Show)
   deriving (Arbitrary) via (GenericUniform OpaquePublicGroupState)
 
 instance ParseMLS OpaquePublicGroupState where
-  parseMLS = OpaquePublicGroupState <$> getRemainingLazyByteString
+  parseMLS = OpaquePublicGroupState . LBS.toStrict <$> getRemainingLazyByteString
 
 instance SerialiseMLS OpaquePublicGroupState where
-  serialiseMLS (OpaquePublicGroupState bs) = putLazyByteString bs
+  serialiseMLS (OpaquePublicGroupState bs) = putByteString bs
 
 instance S.ToSchema OpaquePublicGroupState where
   declareNamedSchema _ = pure (mlsSwagger "OpaquePublicGroupState")
 
 instance MimeRender MLS OpaquePublicGroupState where
-  mimeRender _ = unOpaquePublicGroupState
+  mimeRender _ = LBS.fromStrict . unOpaquePublicGroupState
 
 toOpaquePublicGroupState :: RawMLS PublicGroupState -> OpaquePublicGroupState
-toOpaquePublicGroupState = OpaquePublicGroupState . LBS.fromStrict . rmRaw
+toOpaquePublicGroupState = OpaquePublicGroupState . rmRaw
 
 instance Arbitrary PublicGroupState where
   arbitrary =
