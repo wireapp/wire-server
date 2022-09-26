@@ -548,7 +548,7 @@ For each put request, you need to provide the full json object.  All omitted fie
 
 **Deactivate user**
 
-It is possible to temporarily deactivate an user (and reactivate him later) by setting his ``active`` property to ``true/false`` without affecting his device history.
+It is possible to temporarily deactivate an user (and reactivate him later) by setting his ``active`` property to ``true/false`` without affecting his device history.  (`active=false` changes the wire user status to `suspended`.)
 
 **Delete user**
 
