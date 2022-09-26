@@ -42,10 +42,10 @@ import Data.Id
 import Data.Qualified
 import Data.RetryAfter
 import Imports
+import Jwt.Tools (DPoPTokenGenerationError (..))
 import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Federation.Error
 import Wire.API.User
-import Wire.API.User.Client.DPoPAccessToken (DPoPTokenGenerationError)
 
 -------------------------------------------------------------------------------
 -- Successes

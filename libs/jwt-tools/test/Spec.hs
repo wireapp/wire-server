@@ -16,48 +16,36 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import Control.Monad.Trans.Except
-import Data.ByteString.Conversion
 import Imports
 import Jwt.Tools
-import Network.HTTP.Types (StdMethod (..))
 import Test.Hspec
-import Test.QuickCheck (Arbitrary (arbitrary), generate)
-import Wire.API.MLS.Credential (ClientIdentity (..))
-import Wire.API.MLS.Epoch
-import Wire.API.User.Client.DPoPAccessToken
 
 main :: IO ()
 main = hspec $ do
   describe "generateDpopToken FFI" $ do
     it "should return a value" $ do
-      actual <- callFFIWithRandomValues
-      let expected = Right $ DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+      actual <- callFFIWithConstValues
+      let expected = Right $ "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
       actual `shouldBe` expected
 
-callFFIWithRandomValues :: IO (Either DPoPTokenGenerationError DPoPAccessToken)
-callFFIWithRandomValues = do
-  cid <- ClientIdentity <$> generate arbitrary <*> generate arbitrary <*> generate arbitrary
-  now <- generate arbitrary
-  let expires = now & addToEpoch (360 :: Word32)
-  nonce <- generate arbitrary
-  uri <- generate arbitrary
-  runExceptT $
-    generateDpopToken
-      (Proof "xxxx.yyyy.zzzz")
-      cid
-      nonce
-      uri
-      POST
-      16
-      expires
-      now
-      (fromMaybe undefined $ fromByteString pem)
-  where
-    pem :: ByteString
-    pem =
-      "-----BEGIN PRIVATE KEY-----\n"
-        <> "MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n"
-        <> "-----END PRIVATE KEY-----\n"
-        <> "-----BEGIN PUBLIC KEY-----\n"
-        <> "MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=\n"
-        <> "-----END PUBLIC KEY-----\n"
+callFFIWithConstValues :: IO (Either DPoPTokenGenerationError ByteString)
+callFFIWithConstValues = do
+  let proof = Proof "xxxx.yyyy.zzzz"
+  let uid = UserId "8a6e8a6e-8a6e-8a6e-8a6e-8a6e8a6e8a6e"
+  let cid = ClientId 8899
+  let domain = Domain "example.com"
+  let nonce = Nonce "123"
+  let uri = Uri "/foo"
+  let method = POST
+  let maxSkewSecs = MaxSkewSecs 1
+  let now = NowEpoch 5435234232
+  let expires = ExpiryEpoch $ 5435234232 + 360
+  let pem =
+        PemBundle $
+          "-----BEGIN PRIVATE KEY-----\n"
+            <> "MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n"
+            <> "-----END PRIVATE KEY-----\n"
+            <> "-----BEGIN PUBLIC KEY-----\n"
+            <> "MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=\n"
+            <> "-----END PUBLIC KEY-----\n"
+  runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem

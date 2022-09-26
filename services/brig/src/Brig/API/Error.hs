@@ -28,6 +28,7 @@ import Data.Domain (Domain)
 import Data.String.Conversions (cs)
 import qualified Data.ZAuth.Validation as ZAuth
 import Imports
+import Jwt.Tools (DPoPTokenGenerationError (..))
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
@@ -35,7 +36,6 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
 import Wire.API.User
-import Wire.API.User.Client.DPoPAccessToken
 
 data Error where
   StdError :: !Wai.Error -> Error

@@ -3,16 +3,20 @@
 module Brig.Effects.JwtTools where
 
 import Control.Monad.Trans.Except
+import Data.ByteString.Conversion
+import Data.Id (ClientId (client))
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
 import Data.PEMKeys
+import Data.String.Conversions (cs)
 import Imports
-import Jwt.Tools (generateDpopToken)
+import qualified Jwt.Tools as Jwt
 import Network.HTTP.Types (StdMethod (..))
+import Numeric (readHex)
 import Polysemy
-import Wire.API.MLS.Credential (ClientIdentity)
+import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (Epoch (..))
-import Wire.API.User.Client.DPoPAccessToken (DPoPAccessToken (..), DPoPTokenGenerationError, Proof (..))
+import Wire.API.User.Client.DPoPAccessToken (DPoPAccessToken (..), Proof (..))
 
 data JwtTools m a where
   GenerateDPoPAccessToken ::
@@ -36,7 +40,7 @@ data JwtTools m a where
     Epoch ->
     -- | PEM format concatenated private key and public key of the Wire backend
     PEMKeys ->
-    JwtTools m (Either DPoPTokenGenerationError DPoPAccessToken)
+    JwtTools m (Either Jwt.DPoPTokenGenerationError DPoPAccessToken)
 
 makeSem ''JwtTools
 
@@ -45,5 +49,22 @@ interpretJwtToolsStub = interpret $ \GenerateDPoPAccessToken {} -> do
   pure $ Right $ DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 
 interpretJwtTools :: Members '[Embed IO] r => Sem (JwtTools ': r) a -> Sem r a
-interpretJwtTools = interpret $ \(GenerateDPoPAccessToken proof ci n uri m skew ex now pem) -> do
-  runExceptT $ generateDpopToken proof ci n uri m skew ex now pem
+interpretJwtTools = interpret $ \(GenerateDPoPAccessToken pr ci n uri method skew ex now pem) -> do
+  case readHex @Word16 (cs $ client $ ciClient ci) of
+    [(parsedClientId, "")] ->
+      runExceptT
+        ( DPoPAccessToken
+            <$> Jwt.generateDpopToken
+              (Jwt.Proof (toByteString' pr))
+              (Jwt.UserId (toByteString' (ciUser ci)))
+              (Jwt.ClientId parsedClientId)
+              (Jwt.Domain (toByteString' (ciDomain ci)))
+              (Jwt.Nonce (toByteString' n))
+              (Jwt.Uri (toByteString' uri))
+              method
+              (Jwt.MaxSkewSecs skew)
+              (Jwt.ExpiryEpoch (epochNumber ex))
+              (Jwt.NowEpoch (epochNumber now))
+              (Jwt.PemBundle (toByteString' pem))
+        )
+    _ -> pure (Left Jwt.ClientIdSyntaxError)
