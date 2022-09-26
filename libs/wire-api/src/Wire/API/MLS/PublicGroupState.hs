@@ -18,7 +18,8 @@
 
 module Wire.API.MLS.PublicGroupState where
 
-import Data.Binary.Get (label)
+import Data.Binary
+import Data.Binary.Get
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Swagger as S
 import Imports
@@ -78,17 +79,31 @@ instance SerialiseMLS PublicGroupStateTBS where
     serialiseMLSBytes @Word16 pgsExternalPub
     serialiseMLS pgsSigner
 
-instance S.ToSchema PublicGroupStateTBS where
-  declareNamedSchema _ = pure (mlsSwagger "PublicGroupStateTBS")
-
-instance MimeRender MLS (RawMLS PublicGroupStateTBS) where
-  mimeRender _ = LBS.fromStrict . rmRaw
-
 data PublicGroupState = PublicGroupState
   { pgTBS :: RawMLS PublicGroupStateTBS,
     pgSignature :: ByteString
   }
   deriving stock (Eq, Show, Generic)
+
+-- | A type that holds an MLS-encoded 'PublicGroupState' value via
+-- 'serialiseMLS'.
+newtype OpaquePublicGroupState = OpaquePublicGroupState
+  {unOpaquePublicGroupState :: LBS.ByteString}
+
+instance ParseMLS OpaquePublicGroupState where
+  parseMLS = OpaquePublicGroupState <$> getRemainingLazyByteString
+
+instance SerialiseMLS OpaquePublicGroupState where
+  serialiseMLS (OpaquePublicGroupState bs) = put bs
+
+instance S.ToSchema OpaquePublicGroupState where
+  declareNamedSchema _ = pure (mlsSwagger "OpaquePublicGroupState")
+
+instance MimeRender MLS OpaquePublicGroupState where
+  mimeRender _ = unOpaquePublicGroupState
+
+toOpaquePublicGroupState :: RawMLS PublicGroupState -> OpaquePublicGroupState
+toOpaquePublicGroupState = OpaquePublicGroupState . LBS.fromStrict . rmRaw
 
 instance Arbitrary PublicGroupState where
   arbitrary =

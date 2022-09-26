@@ -707,7 +707,7 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
     -- set the group info
     for_ mGIBundle $
       setPublicGroupState (Data.convId (tUnqualified lconv))
-        . pgTBS
+        . toOpaquePublicGroupState
         . gipGroupState
 
     pure updates

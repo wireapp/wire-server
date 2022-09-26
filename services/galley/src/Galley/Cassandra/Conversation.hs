@@ -55,7 +55,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
 import Wire.API.MLS.PublicGroupState
-import Wire.API.MLS.Serialisation
 
 createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
@@ -135,7 +134,7 @@ conversationMeta conv =
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
       pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
 
-getPublicGroupState :: ConvId -> Client (Maybe (RawMLS PublicGroupStateTBS))
+getPublicGroupState :: ConvId -> Client (Maybe OpaquePublicGroupState)
 getPublicGroupState cid = do
   fmap join $
     runIdentity
@@ -177,7 +176,7 @@ updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer 
 updateConvEpoch :: ConvId -> Epoch -> Client ()
 updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
 
-setPublicGroupState :: ConvId -> RawMLS PublicGroupStateTBS -> Client ()
+setPublicGroupState :: ConvId -> OpaquePublicGroupState -> Client ()
 setPublicGroupState conv gib =
   write Cql.updatePublicGroupState (params LocalQuorum (gib, conv))
 

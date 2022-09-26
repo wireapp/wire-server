@@ -199,13 +199,11 @@ instance Cql GroupId where
   fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
   fromCql _ = Left "group_id: blob expected"
 
-instance Cql (RawMLS PublicGroupStateTBS) where
+instance Cql OpaquePublicGroupState where
   ctype = Tagged BlobColumn
 
-  toCql = CqlBlob . LBS.fromStrict . rmRaw
-  fromCql (CqlBlob b) =
-    mapLeft T.unpack $
-      decodeMLS @(RawMLS PublicGroupStateTBS) b
+  toCql = CqlBlob . unOpaquePublicGroupState
+  fromCql (CqlBlob b) = Right $ OpaquePublicGroupState b
   fromCql _ = Left "PublicGroupStateTBS: blob expected"
 
 instance Cql Icon where

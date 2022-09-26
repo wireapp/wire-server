@@ -103,7 +103,6 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.PublicGroupState
-import Wire.API.MLS.Serialisation
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -299,7 +298,7 @@ getGroupInfo ::
     r =>
   Local UserId ->
   Qualified ConvId ->
-  Sem r (RawMLS PublicGroupStateTBS)
+  Sem r OpaquePublicGroupState
 getGroupInfo lusr qcnvId =
   foldQualified
     lusr
@@ -317,7 +316,7 @@ getGroupInfoFromLocalConv ::
     r =>
   Local UserId ->
   Local ConvId ->
-  Sem r (RawMLS PublicGroupStateTBS)
+  Sem r OpaquePublicGroupState
 getGroupInfoFromLocalConv lusr lcnvId = do
   void $ getConversationAndCheckMembership (tUnqualified lusr) lcnvId
   E.getPublicGroupState (tUnqualified lcnvId)
@@ -325,8 +324,18 @@ getGroupInfoFromLocalConv lusr lcnvId = do
 
 getGroupInfoFromRemoteConv ::
   Remote ConvId ->
-  Sem r (RawMLS PublicGroupStateTBS)
+  Sem r OpaquePublicGroupState
 getGroupInfoFromRemoteConv = undefined
+
+-- let getRequest =
+--       GetGroupInfoRequest
+--         { ggireqSender = tUnqualified lusr,
+--           ggireqConv = tUnqualified rcnv
+--         }
+-- response <- E.runFederated rcnv (fedClient @'Galley @"get-group-info" getRequest)
+-- case response of
+--   GetGroupInfoResponseError e -> undefined e
+--   GetGroupInfoResponseState s -> undefined s
 
 conversationIdsPageFromUnqualified ::
   Member (ListItems LegacyPaging ConvId) r =>

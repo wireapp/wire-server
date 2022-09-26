@@ -236,7 +236,7 @@ type ConversationAPI =
                     ( Respond
                         200
                         "The group information"
-                        (RawMLS PublicGroupStateTBS)
+                        OpaquePublicGroupState
                     )
            )
     :<|> Named
