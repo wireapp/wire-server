@@ -316,6 +316,14 @@ testAddUserWithBundle = do
 
     event <- assertOne events
     liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
+
+    -- check the group info matches
+    gs <- assertJust (mpPublicGroupState commit)
+    returnedGS <-
+      fmap responseBody $
+        getGroupInfo (qUnqualified alice) qcnv
+          <!! const 200 === statusCode
+    liftIO $ Just gs @=? LBS.toStrict <$> returnedGS
     pure qcnv
 
   -- check that bob can now see the conversation
@@ -1833,3 +1841,19 @@ testBackendRemoveProposalLocalConvRemoteClient = do
         WS.assertMatch_ (5 # WS.Second) wsA $
           \notification ->
             void $ wsAssertBackendRemoveProposal bob qcnv bob1KP notification
+
+testRemoteGetGroupInfo :: TestM ()
+testRemoteGetGroupInfo = do
+  -- create users
+  let aliceDomain = Domain "faraway.example.com"
+  [alice, bob] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+
+    -- upload key packages
+    void $ uploadNewKeyPackage bob1
+
+    (groupId, qcnv) <- setupFakeMLSGroup alice1
+    mp <- createAddCommit alice1 [bob]
+    traverse_ consumeWelcome (mpWelcome mp)

@@ -890,3 +890,29 @@ receiveNewRemoteConv conv gid = do
       client
       (qDomain conv)
       nrc
+
+getGroupInfo ::
+  ( HasCallStack,
+    MonadIO m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  UserId ->
+  Qualified ConvId ->
+  m ResponseLBS
+getGroupInfo sender qcnv = do
+  galley <- viewGalley
+  get
+    ( galley
+        . paths
+          [ "v2",
+            "conversations",
+            toByteString' (qDomain qcnv),
+            toByteString' (qUnqualified qcnv),
+            "groupinfo"
+          ]
+        . zUser sender
+        . zConn "conn"
+    )
