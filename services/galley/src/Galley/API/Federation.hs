@@ -114,7 +114,7 @@ federationSitemap =
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
     :<|> Named @"send-mls-message" sendMLSMessage
     :<|> Named @"send-mls-commit-bundle" sendMLSCommitBundle
-    :<|> Named @"get-group-info" getGroupInfo
+    :<|> Named @"query-group-info" queryGroupInfo
     :<|> Named @"on-client-removed" onClientRemoved
 
 onClientRemoved ::
@@ -776,7 +776,7 @@ onMLSMessageSent domain rmm = do
     foldMap mkPush recipients
   pure EmptyResponse
 
-getGroupInfo ::
+queryGroupInfo ::
   Members
     '[ ConversationStore,
        Input (Local ())
@@ -785,7 +785,7 @@ getGroupInfo ::
   Domain ->
   F.GetGroupInfoRequest ->
   Sem r F.GetGroupInfoResponse
-getGroupInfo origDomain req =
+queryGroupInfo origDomain req =
   fmap mkResponse . runError @GalleyError . mapToGalleyError @MLSGroupInfoStaticErrors $
     do
       lconvId <- qualifyLocal . ggireqConv $ req
