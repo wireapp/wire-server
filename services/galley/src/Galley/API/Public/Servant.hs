@@ -34,7 +34,8 @@ import Wire.API.Team.Feature
 
 servantSitemap :: API ServantAPI GalleyEffects
 servantSitemap =
-  conversations
+  conversationsV1
+    <@> conversations
     <@> teamConversations
     <@> messaging
     <@> bot
@@ -45,23 +46,29 @@ servantSitemap =
     <@> legalHold
     <@> teamMember
   where
-    conversations =
+    conversationsV1 =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
         <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
-        <@> mkNamedAPI @"get-conversation" getConversation
-        <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
+        <@> mkNamedAPI @"create-group-conversation-v1" createGroupConversation
+        <@> mkNamedAPI @"create-self-conversation-v1" createSelfConversation
+        <@> mkNamedAPI @"create-one-to-one-conversation-v1" createOne2OneConversation
+        <@> mkNamedAPI @"list-conversations-v1" listConversations
         <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
+        <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
+        <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
+        <@> mkNamedAPI @"update-conversation-name-deprecated" updateUnqualifiedConversationName
+        <@> mkNamedAPI @"update-conversation-name-unqualified" updateUnqualifiedConversationName
+        <@> mkNamedAPI @"update-other-member-unqualified" updateOtherMemberUnqualified
+    conversations =
+      mkNamedAPI @"get-conversation" getConversation
+        <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
         <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
         <@> mkNamedAPI @"get-conversations" getConversations
-        <@> mkNamedAPI @"list-conversations-v1" listConversations
         <@> mkNamedAPI @"list-conversations" listConversations
         <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
-        <@> mkNamedAPI @"create-group-conversation-v1" createGroupConversation
         <@> mkNamedAPI @"create-group-conversation" createGroupConversation
         <@> mkNamedAPI @"create-self-conversation" createSelfConversation
         <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
-        <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
-        <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
         <@> mkNamedAPI @"add-members-to-conversation" addMembers
         <@> mkNamedAPI @"join-conversation-by-id-unqualified" (joinConversationById @Cassandra)
         <@> mkNamedAPI @"join-conversation-by-code-unqualified" (joinConversationByReusableCode @Cassandra)
@@ -73,10 +80,7 @@ servantSitemap =
         <@> mkNamedAPI @"member-typing-unqualified" isTypingUnqualified
         <@> mkNamedAPI @"remove-member-unqualified" removeMemberUnqualified
         <@> mkNamedAPI @"remove-member" removeMemberQualified
-        <@> mkNamedAPI @"update-other-member-unqualified" updateOtherMemberUnqualified
         <@> mkNamedAPI @"update-other-member" updateOtherMember
-        <@> mkNamedAPI @"update-conversation-name-deprecated" updateUnqualifiedConversationName
-        <@> mkNamedAPI @"update-conversation-name-unqualified" updateUnqualifiedConversationName
         <@> mkNamedAPI @"update-conversation-name" updateConversationName
         <@> mkNamedAPI @"update-conversation-message-timer-unqualified" updateConversationMessageTimerUnqualified
         <@> mkNamedAPI @"update-conversation-message-timer" updateConversationMessageTimer

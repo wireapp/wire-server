@@ -75,10 +75,10 @@ type ConversationResponse = ResponseForExistedCreated Conversation
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
-type ConversationVerb =
+type ConversationVerb ct =
   MultiVerb
     'POST
-    '[JSON]
+    '[ct]
     '[ WithHeaders
          ConversationHeaders
          Conversation
@@ -165,7 +165,8 @@ instance
       (unI . unZ)
 
 type ServantAPI =
-  ConversationAPI
+  ConversationAPIV1
+    :<|> ConversationAPI
     :<|> TeamConversationAPI
     :<|> MessagingAPI
     :<|> BotAPI
@@ -178,37 +179,15 @@ type ServantAPI =
 
 type ConversationAPI =
   Named
-    "get-unqualified-conversation"
+    "get-conversation"
     ( Summary "Get a conversation by ID"
         :> CanThrow 'ConvNotFound
         :> CanThrow 'ConvAccessDenied
         :> ZLocalUser
         :> "conversations"
-        :> Capture "cnv" ConvId
+        :> QualifiedCapture "cnv" ConvId
         :> Get '[Servant.JSON] Conversation
     )
-    :<|> Named
-           "get-unqualified-conversation-legalhold-alias"
-           -- This alias exists, so that it can be uniquely selected in zauth.acl
-           ( Summary "Get a conversation by ID (Legalhold alias)"
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'ConvAccessDenied
-               :> ZLocalUser
-               :> "legalhold"
-               :> "conversations"
-               :> Capture "cnv" ConvId
-               :> Get '[Servant.JSON] Conversation
-           )
-    :<|> Named
-           "get-conversation"
-           ( Summary "Get a conversation by ID"
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'ConvAccessDenied
-               :> ZLocalUser
-               :> "conversations"
-               :> QualifiedCapture "cnv" ConvId
-               :> Get '[Servant.JSON] Conversation
-           )
     :<|> Named
            "get-conversation-roles"
            ( Summary "Get existing roles available for the given conversation"
@@ -219,29 +198,6 @@ type ConversationAPI =
                :> Capture "cnv" ConvId
                :> "roles"
                :> Get '[Servant.JSON] ConversationRolesList
-           )
-    :<|> Named
-           "list-conversation-ids-unqualified"
-           ( Summary "[deprecated] Get all local conversation IDs."
-               -- FUTUREWORK: add bounds to swagger schema for Range
-               :> ZLocalUser
-               :> "conversations"
-               :> "ids"
-               :> QueryParam'
-                    [ Optional,
-                      Strict,
-                      Description "Conversation ID to start from (exclusive)"
-                    ]
-                    "start"
-                    ConvId
-               :> QueryParam'
-                    [ Optional,
-                      Strict,
-                      Description "Maximum number of IDs to return"
-                    ]
-                    "size"
-                    (Range 1 1000 Int32)
-               :> Get '[Servant.JSON] (ConversationList ConvId)
            )
     :<|> Named
            "list-conversation-ids"
@@ -286,17 +242,6 @@ type ConversationAPI =
                :> Get '[Servant.JSON] (ConversationList Conversation)
            )
     :<|> Named
-           "list-conversations-v1"
-           ( Summary "Get conversation metadata for a list of conversation ids"
-               :> Until 'V2
-               :> ZLocalUser
-               :> "conversations"
-               :> "list"
-               :> "v2"
-               :> ReqBody '[Servant.JSON] ListConversations
-               :> Post '[Servant.JSON] ConversationsResponse
-           )
-    :<|> Named
            "list-conversations"
            ( Summary "Get conversation metadata for a list of conversation ids"
                :> From 'V2
@@ -324,23 +269,6 @@ type ConversationAPI =
                :> Get '[Servant.JSON] ConversationCoverView
            )
     :<|> Named
-           "create-group-conversation-v1"
-           ( Summary "Create a new conversation"
-               :> Until 'V2
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'MLSNonEmptyMemberList
-               :> CanThrow 'NotConnected
-               :> CanThrow 'NotATeamMember
-               :> CanThrow OperationDenied
-               :> CanThrow 'MissingLegalholdConsent
-               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> ReqBody '[Versioned 'V1 Servant.JSON] NewConv
-               :> ConversationVerb
-           )
-    :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
                :> From 'V2
@@ -355,15 +283,16 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb
+               :> ConversationVerb JSON
            )
     :<|> Named
            "create-self-conversation"
            ( Summary "Create a self-conversation"
+               :> From 'V2
                :> ZLocalUser
                :> "conversations"
                :> "self"
-               :> ConversationVerb
+               :> ConversationVerb JSON
            )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
@@ -371,6 +300,7 @@ type ConversationAPI =
     :<|> Named
            "create-one-to-one-conversation"
            ( Summary "Create a 1:1 conversation"
+               :> From 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NoBindingTeamMembers
@@ -385,52 +315,7 @@ type ConversationAPI =
                :> "conversations"
                :> "one2one"
                :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb
-           )
-    -- This endpoint can lead to the following events being sent:
-    -- - MemberJoin event to members
-    :<|> Named
-           "add-members-to-conversation-unqualified"
-           ( Summary "Add members to an existing conversation (deprecated)"
-               :> Until 'V2
-               :> CanThrow ('ActionDenied 'AddConversationMember)
-               :> CanThrow ('ActionDenied 'LeaveConversation)
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'InvalidOperation
-               :> CanThrow 'TooManyMembers
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'NotATeamMember
-               :> CanThrow 'NotConnected
-               :> CanThrow 'MissingLegalholdConsent
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> Capture "cnv" ConvId
-               :> "members"
-               :> ReqBody '[JSON] Invite
-               :> MultiVerb 'POST '[JSON] ConvUpdateResponses (UpdateResult Event)
-           )
-    :<|> Named
-           "add-members-to-conversation-unqualified2"
-           ( Summary "Add qualified members to an existing conversation."
-               :> Until 'V2
-               :> CanThrow ('ActionDenied 'AddConversationMember)
-               :> CanThrow ('ActionDenied 'LeaveConversation)
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'InvalidOperation
-               :> CanThrow 'TooManyMembers
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'NotATeamMember
-               :> CanThrow 'NotConnected
-               :> CanThrow 'MissingLegalholdConsent
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> Capture "cnv" ConvId
-               :> "members"
-               :> "v2"
-               :> ReqBody '[Servant.JSON] InviteQualified
-               :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+               :> ConversationVerb JSON
            )
     :<|> Named
            "add-members-to-conversation"
@@ -618,30 +503,6 @@ type ConversationAPI =
                :> QualifiedCapture' '[Description "Target User ID"] "usr" UserId
                :> RemoveFromConversationVerb
            )
-    -- This endpoint can lead to the following events being sent:
-    -- - MemberStateUpdate event to members
-    :<|> Named
-           "update-other-member-unqualified"
-           ( Summary "Update membership of the specified user (deprecated)"
-               :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
-               :> ZLocalUser
-               :> ZConn
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'ConvMemberNotFound
-               :> CanThrow ('ActionDenied 'ModifyOtherConversationMember)
-               :> CanThrow 'InvalidTarget
-               :> CanThrow 'InvalidOperation
-               :> "conversations"
-               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
-               :> "members"
-               :> Capture' '[Description "Target User ID"] "usr" UserId
-               :> ReqBody '[JSON] OtherMemberUpdate
-               :> MultiVerb
-                    'PUT
-                    '[JSON]
-                    '[RespondEmpty 200 "Membership updated"]
-                    ()
-           )
     :<|> Named
            "update-other-member"
            ( Summary "Update membership of the specified user"
@@ -663,45 +524,6 @@ type ConversationAPI =
                     '[JSON]
                     '[RespondEmpty 200 "Membership updated"]
                     ()
-           )
-    -- This endpoint can lead to the following events being sent:
-    -- - ConvRename event to members
-    :<|> Named
-           "update-conversation-name-deprecated"
-           ( Summary "Update conversation name (deprecated)"
-               :> Description "Use `/conversations/:domain/:conv/name` instead."
-               :> CanThrow ('ActionDenied 'ModifyConversationName)
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'InvalidOperation
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
-               :> ReqBody '[JSON] ConversationRename
-               :> MultiVerb
-                    'PUT
-                    '[JSON]
-                    (UpdateResponses "Name unchanged" "Name updated" Event)
-                    (UpdateResult Event)
-           )
-    :<|> Named
-           "update-conversation-name-unqualified"
-           ( Summary "Update conversation name (deprecated)"
-               :> Description "Use `/conversations/:domain/:conv/name` instead."
-               :> CanThrow ('ActionDenied 'ModifyConversationName)
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'InvalidOperation
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
-               :> "name"
-               :> ReqBody '[JSON] ConversationRename
-               :> MultiVerb
-                    'PUT
-                    '[JSON]
-                    (UpdateResponses "Name unchanged" "Name updated" Event)
-                    (UpdateResult Event)
            )
     :<|> Named
            "update-conversation-name"
@@ -890,6 +712,223 @@ type ConversationAPI =
                     'PUT
                     '[JSON]
                     '[RespondEmpty 200 "Update successful"]
+                    ()
+           )
+
+type ConversationAPIV1 =
+  Named
+    "get-unqualified-conversation"
+    ( Summary "Get a conversation by ID"
+        :> Until 'V2
+        :> CanThrow 'ConvNotFound
+        :> CanThrow 'ConvAccessDenied
+        :> ZLocalUser
+        :> "conversations"
+        :> Capture "cnv" ConvId
+        :> Get '[Servant.JSON] Conversation
+    )
+    :<|> Named
+           "get-unqualified-conversation-legalhold-alias"
+           -- This alias exists, so that it can be uniquely selected in zauth.acl
+           ( Summary "Get a conversation by ID (Legalhold alias)"
+               :> Until 'V2
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> ZLocalUser
+               :> "legalhold"
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> Get '[Servant.JSON] Conversation
+           )
+    :<|> Named
+           "create-group-conversation-v1"
+           ( Summary "Create a new conversation"
+               :> Until 'V2
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
+               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> ReqBody '[Versioned 'V1 Servant.JSON] NewConv
+               :> ConversationVerb (Versioned 'V1 JSON)
+           )
+    :<|> Named
+           "create-self-conversation-v1"
+           ( Summary "Create a self-conversation"
+               :> Until 'V2
+               :> ZLocalUser
+               :> "conversations"
+               :> "self"
+               :> ConversationVerb (Versioned 'V1 JSON)
+           )
+    :<|> Named
+           "create-one-to-one-conversation-v1"
+           ( Summary "Create a 1:1 conversation"
+               :> Until 'V2
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NoBindingTeamMembers
+               :> CanThrow 'NonBindingTeam
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'MissingLegalholdConsent
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> "one2one"
+               :> ReqBody '[Versioned 'V1 JSON] NewConv
+               :> ConversationVerb (Versioned 'V1 JSON)
+           )
+    :<|> Named
+           "list-conversations-v1"
+           ( Summary "Get conversation metadata for a list of conversation ids"
+               :> Until 'V2
+               :> ZLocalUser
+               :> "conversations"
+               :> "list"
+               :> "v2"
+               :> ReqBody '[JSON] ListConversations
+               :> Post '[Versioned 'V1 JSON] ConversationsResponse
+           )
+    :<|> Named
+           "list-conversation-ids-unqualified"
+           ( Summary "[deprecated] Get all local conversation IDs."
+               -- FUTUREWORK: add bounds to swagger schema for Range
+               :> Until 'V2
+               :> ZLocalUser
+               :> "conversations"
+               :> "ids"
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Conversation ID to start from (exclusive)"
+                    ]
+                    "start"
+                    ConvId
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Maximum number of IDs to return"
+                    ]
+                    "size"
+                    (Range 1 1000 Int32)
+               :> Get '[Servant.JSON] (ConversationList ConvId)
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberJoin event to members
+    :<|> Named
+           "add-members-to-conversation-unqualified"
+           ( Summary "Add members to an existing conversation (deprecated)"
+               :> Until 'V2
+               :> CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow 'MissingLegalholdConsent
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "members"
+               :> ReqBody '[JSON] Invite
+               :> MultiVerb 'POST '[JSON] ConvUpdateResponses (UpdateResult Event)
+           )
+    :<|> Named
+           "add-members-to-conversation-unqualified2"
+           ( Summary "Add qualified members to an existing conversation."
+               :> Until 'V2
+               :> CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow 'MissingLegalholdConsent
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> "members"
+               :> "v2"
+               :> ReqBody '[Servant.JSON] InviteQualified
+               :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvRename event to members
+    :<|> Named
+           "update-conversation-name-deprecated"
+           ( Summary "Update conversation name (deprecated)"
+               :> Until 'V2
+               :> Description "Use `/conversations/:domain/:conv/name` instead."
+               :> CanThrow ('ActionDenied 'ModifyConversationName)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> ReqBody '[JSON] ConversationRename
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    (UpdateResponses "Name unchanged" "Name updated" Event)
+                    (UpdateResult Event)
+           )
+    :<|> Named
+           "update-conversation-name-unqualified"
+           ( Summary "Update conversation name (deprecated)"
+               :> Until 'V2
+               :> Description "Use `/conversations/:domain/:conv/name` instead."
+               :> CanThrow ('ActionDenied 'ModifyConversationName)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "name"
+               :> ReqBody '[JSON] ConversationRename
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    (UpdateResponses "Name unchanged" "Name updated" Event)
+                    (UpdateResult Event)
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberStateUpdate event to members
+    :<|> Named
+           "update-other-member-unqualified"
+           ( Summary "Update membership of the specified user (deprecated)"
+               :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
+               :> ZLocalUser
+               :> ZConn
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvMemberNotFound
+               :> CanThrow ('ActionDenied 'ModifyOtherConversationMember)
+               :> CanThrow 'InvalidTarget
+               :> CanThrow 'InvalidOperation
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "members"
+               :> Capture' '[Description "Target User ID"] "usr" UserId
+               :> ReqBody '[JSON] OtherMemberUpdate
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    '[RespondEmpty 200 "Membership updated"]
                     ()
            )
 

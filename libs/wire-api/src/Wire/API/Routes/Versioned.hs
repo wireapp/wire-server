@@ -37,3 +37,7 @@ instance Accept a => Accept (Versioned v a) where
 -- handler.
 instance MimeUnrender ct (Versioned v a) => MimeUnrender (Versioned v ct) a where
   mimeUnrender _ = fmap (unVersioned @_ @v) . mimeUnrender (Proxy @ct)
+
+-- | See corresponding 'MimeUnrender' instance for details.
+instance MimeRender ct (Versioned v a) => MimeRender (Versioned v ct) a where
+  mimeRender _ = mimeRender (Proxy @ct) . Versioned @v

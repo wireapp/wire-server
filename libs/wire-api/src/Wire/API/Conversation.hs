@@ -155,14 +155,11 @@ defConversationMetadata creator =
     }
 
 accessRolesSchema :: ObjectSchema SwaggerDoc (Set AccessRoleV2)
-accessRolesSchema = toOutput .= accessRolesSchemaTuple `withParser` validate
-  where
-    toOutput accessRoles = (Just $ toAccessRoleLegacy accessRoles, Just accessRoles)
-    validate =
-      \case
-        (_, Just v2) -> pure v2
-        (Just legacy, Nothing) -> pure $ fromAccessRoleLegacy legacy
-        (Nothing, Nothing) -> fail "access_role|access_role_v2"
+accessRolesSchema =
+  Just
+    .= withParser
+      accessRolesSchemaOpt
+      (maybe (fail "access_role|access_role_v2") pure)
 
 accessRolesSchemaOpt :: ObjectSchema SwaggerDoc (Maybe (Set AccessRoleV2))
 accessRolesSchemaOpt = toOutput .= accessRolesSchemaTuple `withParser` validate
@@ -176,7 +173,7 @@ accessRolesSchemaOpt = toOutput .= accessRolesSchemaTuple `withParser` validate
 
 accessRolesSchemaTuple :: ObjectSchema SwaggerDoc (Maybe AccessRoleLegacy, Maybe (Set AccessRoleV2))
 accessRolesSchemaTuple =
-  (,) <$> fst .= optFieldWithDocModifier "access_role" (description ?~ "Deprecated, please use access_role_v2") (maybeWithDefault A.Null schema)
+  (,) <$> fst .= optFieldWithDocModifier "access_role" (description ?~ "Deprecated, please use access_role_v2") (maybeWithDefault A.Null (unnamed schema))
     <*> snd .= optFieldWithDocModifier "access_role_v2" (description ?~ desc) (maybeWithDefault A.Null $ set schema)
   where
     desc = "This field is optional. If it is not present, the default will be `[team_member, non_team_member, service]`. Please note that an empty list is not allowed when creating a new conversation."
@@ -260,6 +257,12 @@ instance ToSchema Conversation where
         <*> cnvMetadata .= conversationMetadataObjectSchema
         <*> cnvMembers .= field "members" schema
         <*> cnvProtocol .= protocolSchema
+
+instance FromJSON (Versioned 'V1 Conversation) where
+  parseJSON = fmap Versioned . parseJSON
+
+instance ToJSON (Versioned 'V1 Conversation) where
+  toJSON = toJSON . unVersioned
 
 modelConversation :: Doc.Model
 modelConversation = Doc.defineModel "Conversation" $ do
@@ -418,6 +421,12 @@ instance ToSchema ConversationsResponse where
             <$> crFound .= field "found" (array schema)
             <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
             <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
+
+instance ToJSON (Versioned 'V1 ConversationsResponse) where
+  toJSON = toJSON . unVersioned
+
+instance FromJSON (Versioned 'V1 ConversationsResponse) where
+  parseJSON = fmap Versioned . parseJSON
 
 --------------------------------------------------------------------------------
 -- Conversation properties
