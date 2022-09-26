@@ -243,6 +243,8 @@ testNginzLegalHold b g n = do
 
   get (n . paths ["legalhold", "conversations", toByteString' (qUnqualified qconv)] . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
+  get (n . paths ["conversations", toByteString' (qUnqualified qconv)] . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
+
 -- | Corner case for 'testNginz': when upgrading a wire backend from the old behavior (setting
 -- cookie domain to eg. @*.wire.com@) to the new behavior (leaving cookie domain empty,
 -- effectively setting it to the backend host), clients may start sending two cookies for a
