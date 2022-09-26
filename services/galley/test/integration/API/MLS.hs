@@ -168,7 +168,8 @@ tests s =
       test s "public keys" testPublicKeys,
       testGroup
         "PublicGroupState"
-        [ test s "get group state for remote conversation" testRemoteGetGroupInfo
+        [ test s "get group info for remote conversation" testGetGroupInfoOfRemoteConv,
+          test s "get group info for a remote user" testFederatedGetGroupInfo
         ]
     ]
 
@@ -1822,8 +1823,8 @@ testBackendRemoveProposalLocalConvRemoteClient = do
           \notification ->
             void $ wsAssertBackendRemoveProposal bob qcnv bob1KP notification
 
-testRemoteGetGroupInfo :: TestM ()
-testRemoteGetGroupInfo = do
+testGetGroupInfoOfRemoteConv :: TestM ()
+testGetGroupInfoOfRemoteConv = do
   let aliceDomain = Domain "faraway.example.com"
   [alice, bob, charlie] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing, Nothing]
 
@@ -1840,8 +1841,8 @@ testRemoteGetGroupInfo = do
 
     let fakeGroupState = "\xde\xad\xbe\xef"
     let mock req = case frRPC req of
-          "get-group-info" -> do
-            request <- either (assertFailure . ("Parse failure in get-group-info " <>)) pure (Aeson.eitherDecode (frBody req))
+          "query-group-info" -> do
+            request <- either (assertFailure . ("Parse failure in query-group-info " <>)) pure (Aeson.eitherDecode (frBody req))
             let uid = ggireqSender request
             pure . Aeson.encode $
               if uid == qUnqualified bob
@@ -1863,5 +1864,58 @@ testRemoteGetGroupInfo = do
     -- check requests to mock federator: step 14
     liftIO $ do
       let (req, _req2) = assertTwo reqs
-      frRPC req @?= "get-group-info"
+      frRPC req @?= "query-group-info"
       frTargetDomain req @?= qDomain qcnv
+
+testFederatedGetGroupInfo :: TestM ()
+testFederatedGetGroupInfo = do
+  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Just "faraway.example.com", Just "faraway.example.com"]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+    groupState <- assertJust (mpPublicGroupState commit)
+
+    let mock req = case frRPC req of
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True)
+              $ [ciClient bob1]
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    void . withTempMockFederator' mock $ do
+      void $ sendAndConsumeCommitBundle commit
+
+      fedGalleyClient <- view tsFedGalleyClient
+      do
+        resp <-
+          runFedClient
+            @"query-group-info"
+            fedGalleyClient
+            (ciDomain bob1)
+            (GetGroupInfoRequest (qUnqualified qcnv) (qUnqualified bob))
+
+        liftIO $ case resp of
+          GetGroupInfoResponseError err -> assertFailure ("Unexpected error: " <> show err)
+          GetGroupInfoResponseState gs ->
+            fromBase64ByteString gs @=? groupState
+
+      do
+        resp <-
+          runFedClient
+            @"query-group-info"
+            fedGalleyClient
+            (ciDomain bob1)
+            (GetGroupInfoRequest (qUnqualified qcnv) (qUnqualified charlie))
+
+        liftIO $ case resp of
+          GetGroupInfoResponseError err ->
+            err @?= ConvNotFound
+          GetGroupInfoResponseState _ ->
+            assertFailure "Unexpected success"
