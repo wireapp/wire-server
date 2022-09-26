@@ -43,16 +43,16 @@ COPY --from=rusty-jwt-tools-builder /tmp/rusty-jwt-tools/target/x86_64-unknown-l
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
     apt-get install -y \
-    libsodium23 \
-    libssl1.1 \
-    libgmp10 \
-    libffi7 \
-    libicu66 \
-    geoip-database \
-    ca-certificates \
-    dumb-init \
-    libxml2 \
-    libncurses6 \
-    zlib1g \
-    netbase && \
+            libsodium23 \
+            libssl1.1 \
+            libgmp10 \
+            libffi7 \
+            libicu66 \
+            geoip-database \
+            ca-certificates \
+            dumb-init \
+            libxml2 \
+            libncurses6 \
+            zlib1g \
+            netbase && \
     rm -rf /var/lib/apt/lists/*
