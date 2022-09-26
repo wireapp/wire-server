@@ -165,7 +165,11 @@ tests s =
           test s "remove users bypassing MLS" testRemoveUsersDirectly,
           test s "send proteus message to an MLS conversation" testProteusMessage
         ],
-      test s "public keys" testPublicKeys
+      test s "public keys" testPublicKeys,
+      testGroup
+        "PublicGroupState"
+        [ test s "get group state for remote conversation" testRemoteGetGroupInfo
+        ]
     ]
 
 postMLSConvFail :: TestM ()
@@ -937,30 +941,6 @@ testLocalToRemote = do
       msrConvId bdy @?= qUnqualified qcnv
       msrSender bdy @?= qUnqualified bob
       msrRawMessage bdy @?= Base64ByteString (mpMessage message)
-  where
-    receiveOnConvUpdated conv origUser joiner = do
-      client <- view tsFedGalleyClient
-      now <- liftIO getCurrentTime
-      let cu =
-            ConversationUpdate
-              { cuTime = now,
-                cuOrigUserId = origUser,
-                cuConvId = qUnqualified conv,
-                cuAlreadyPresentUsers = [qUnqualified joiner],
-                cuAction =
-                  SomeConversationAction
-                    SConversationJoinTag
-                    ConversationJoin
-                      { cjUsers = pure joiner,
-                        cjRole = roleNameWireMember
-                      }
-              }
-      void $
-        runFedClient
-          @"on-conversation-updated"
-          client
-          (qDomain conv)
-          cu
 
 testLocalToRemoteNonMember :: TestM ()
 testLocalToRemoteNonMember = do
@@ -1844,16 +1824,44 @@ testBackendRemoveProposalLocalConvRemoteClient = do
 
 testRemoteGetGroupInfo :: TestM ()
 testRemoteGetGroupInfo = do
-  -- create users
   let aliceDomain = Domain "faraway.example.com"
-  [alice, bob] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing]
+  [alice, bob, charlie] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing, Nothing]
 
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
-    -- upload key packages
     void $ uploadNewKeyPackage bob1
-
     (groupId, qcnv) <- setupFakeMLSGroup alice1
     mp <- createAddCommit alice1 [bob]
     traverse_ consumeWelcome (mpWelcome mp)
+
+    receiveNewRemoteConv qcnv groupId
+    receiveOnConvUpdated qcnv alice bob
+
+    let fakeGroupState = "\xde\xad\xbe\xef"
+    let mock req = case frRPC req of
+          "get-group-info" -> do
+            request <- either (assertFailure . ("Parse failure in get-group-info " <>)) pure (Aeson.eitherDecode (frBody req))
+            let uid = ggireqSender request
+            pure . Aeson.encode $
+              if uid == qUnqualified bob
+                then GetGroupInfoResponseState (Base64ByteString fakeGroupState)
+                else GetGroupInfoResponseError ConvNotFound
+          s -> error ("unmocked: " <> T.unpack s)
+
+    (_, reqs) <- withTempMockFederator' mock $ do
+      res <-
+        fmap responseBody $
+          getGroupInfo (qUnqualified bob) qcnv
+            <!! const 200 === statusCode
+
+      getGroupInfo (qUnqualified charlie) qcnv
+        !!! const 404 === statusCode
+
+      liftIO $ res @?= Just (LBS.fromStrict fakeGroupState)
+
+    -- check requests to mock federator: step 14
+    liftIO $ do
+      let (req, _req2) = assertTwo reqs
+      frRPC req @?= "get-group-info"
+      frTargetDomain req @?= qDomain qcnv
