@@ -21,6 +21,7 @@ import Galley.API.Create
 import Galley.API.CustomBackend
 import Galley.API.LegalHold
 import Galley.API.MLS
+import Galley.API.MLS.GroupInfo
 import Galley.API.Query
 import Galley.API.Teams
 import Galley.API.Teams.Features

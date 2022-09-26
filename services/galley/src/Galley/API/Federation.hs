@@ -21,9 +21,7 @@ module Galley.API.Federation where
 import Control.Error
 import Control.Lens (itraversed, preview, to, (<.>))
 import Data.Bifunctor
-import Data.Binary.Put
 import Data.ByteString.Conversion (toByteString')
-import qualified Data.ByteString.Lazy as LBS
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
 import Data.Id
@@ -40,6 +38,7 @@ import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
 import Galley.API.MLS.Removal
@@ -47,7 +46,6 @@ import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
 import Galley.API.Push
-import Galley.API.Query (MLSGroupInfoStaticErrors, getGroupInfoFromLocalConv)
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -89,6 +87,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
@@ -777,26 +776,25 @@ onMLSMessageSent domain rmm = do
   pure EmptyResponse
 
 queryGroupInfo ::
-  Members
-    '[ ConversationStore,
-       Input (Local ())
-     ]
-    r =>
+  ( Members
+      '[ ConversationStore,
+         Input (Local ())
+       ]
+      r,
+    Member MemberStore r
+  ) =>
   Domain ->
   F.GetGroupInfoRequest ->
   Sem r F.GetGroupInfoResponse
 queryGroupInfo origDomain req =
-  fmap mkResponse . runError @GalleyError . mapToGalleyError @MLSGroupInfoStaticErrors $
-    do
+  fmap (either F.GetGroupInfoResponseError F.GetGroupInfoResponseState)
+    . runError @GalleyError
+    . mapToGalleyError @MLSGroupInfoStaticErrors
+    $ do
       lconvId <- qualifyLocal . ggireqConv $ req
       let sender = toRemoteUnsafe origDomain . ggireqSender $ req
       state <- getGroupInfoFromLocalConv (qUntagged sender) lconvId
       pure
         . Base64ByteString
-        . LBS.toStrict
-        . runPut
-        . serialiseMLS
+        . unOpaquePublicGroupState
         $ state
-  where
-    mkResponse :: Either GalleyError Base64ByteString -> F.GetGroupInfoResponse
-    mkResponse = either F.GetGroupInfoResponseError F.GetGroupInfoResponseState

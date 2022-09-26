@@ -202,9 +202,9 @@ instance Cql GroupId where
 instance Cql OpaquePublicGroupState where
   ctype = Tagged BlobColumn
 
-  toCql = CqlBlob . unOpaquePublicGroupState
-  fromCql (CqlBlob b) = Right $ OpaquePublicGroupState b
-  fromCql _ = Left "PublicGroupStateTBS: blob expected"
+  toCql = CqlBlob . LBS.fromStrict . unOpaquePublicGroupState
+  fromCql (CqlBlob b) = Right $ OpaquePublicGroupState (LBS.toStrict b)
+  fromCql _ = Left "OpaquePublicGroupState: blob expected"
 
 instance Cql Icon where
   ctype = Tagged TextColumn

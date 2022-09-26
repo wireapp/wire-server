@@ -41,6 +41,7 @@ import Galley.API.Error
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
+import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (postMLSWelcome)
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
@@ -345,27 +346,6 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
   for updates $ \update -> do
     e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
     pure (LocalConversationUpdate e update)
-
-getLocalConvForUser ::
-  Members
-    '[ ErrorS 'ConvNotFound,
-       ConversationStore,
-       Input (Local ()),
-       MemberStore
-     ]
-    r =>
-  Qualified UserId ->
-  Local ConvId ->
-  Sem r Data.Conversation
-getLocalConvForUser qusr lcnv = do
-  conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-
-  -- check that sender is part of conversation
-  loc <- qualifyLocal ()
-  isMember' <- foldQualified loc (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
-  unless isMember' $ throwS @'ConvNotFound
-
-  pure conv
 
 postMLSMessage ::
   ( HasProposalEffects r,

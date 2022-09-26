@@ -494,8 +494,11 @@ getMember ::
 getMember p u = noteS @e . find ((u ==) . p)
 
 getConversationAndCheckMembership ::
-  Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied] r =>
-  UserId ->
+  forall uid mem r.
+  ( Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied] r,
+    IsConvMemberId uid mem
+  ) =>
+  uid ->
   Local ConvId ->
   Sem r Data.Conversation
 getConversationAndCheckMembership uid lcnv = do

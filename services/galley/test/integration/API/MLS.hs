@@ -168,7 +168,7 @@ tests s =
       test s "public keys" testPublicKeys,
       testGroup
         "PublicGroupState"
-        [ test s "get group info for remote conversation" testGetGroupInfoOfRemoteConv,
+        [ test s "get group info for a remote conversation" testGetGroupInfoOfRemoteConv,
           test s "get group info for a remote user" testFederatedGetGroupInfo
         ]
     ]

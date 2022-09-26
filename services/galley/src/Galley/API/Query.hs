@@ -38,9 +38,6 @@ module Galley.API.Query
     getUnqualifiedConversation,
     getConversation,
     getConversationRoles,
-    MLSGroupInfoStaticErrors,
-    getGroupInfo,
-    getGroupInfoFromLocalConv,
     conversationIdsPageFromUnqualified,
     conversationIdsPageFrom,
     getConversations,
@@ -63,7 +60,6 @@ import Data.Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id as Id
-import Data.Json.Util
 import qualified Data.Map as Map
 import Data.Proxy
 import Data.Qualified
@@ -105,7 +101,6 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.PublicGroupState
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -290,62 +285,6 @@ getConversationRoles lusr cnv = do
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
-
-type MLSGroupInfoStaticErrors =
-  '[ ErrorS 'ConvAccessDenied,
-     ErrorS 'ConvNotFound,
-     ErrorS 'MLSMissingGroupInfo
-   ]
-
-getGroupInfo ::
-  Members
-    '[ ConversationStore,
-       Error FederationError,
-       FederatorAccess
-     ]
-    r =>
-  Members MLSGroupInfoStaticErrors r =>
-  Local UserId ->
-  Qualified ConvId ->
-  Sem r OpaquePublicGroupState
-getGroupInfo lusr qcnvId =
-  foldQualified
-    lusr
-    (getGroupInfoFromLocalConv . qUntagged $ lusr)
-    (getGroupInfoFromRemoteConv lusr)
-    qcnvId
-
-getGroupInfoFromLocalConv ::
-  Members '[ConversationStore] r =>
-  Members MLSGroupInfoStaticErrors r =>
-  Qualified UserId ->
-  Local ConvId ->
-  Sem r OpaquePublicGroupState
-getGroupInfoFromLocalConv qusr lcnvId = do
-  void $ getConversationAndCheckMembership (qUnqualified qusr) lcnvId
-  E.getPublicGroupState (tUnqualified lcnvId)
-    >>= noteS @'MLSMissingGroupInfo
-
-getGroupInfoFromRemoteConv ::
-  Members '[Error FederationError, FederatorAccess] r =>
-  Members MLSGroupInfoStaticErrors r =>
-  Local UserId ->
-  Remote ConvId ->
-  Sem r OpaquePublicGroupState
-getGroupInfoFromRemoteConv lusr rcnv = do
-  let getRequest =
-        GetGroupInfoRequest
-          { ggireqSender = tUnqualified lusr,
-            ggireqConv = tUnqualified rcnv
-          }
-  response <- E.runFederated rcnv (fedClient @'Galley @"query-group-info" getRequest)
-  case response of
-    GetGroupInfoResponseError e -> rethrowErrors @MLSGroupInfoStaticErrors e
-    GetGroupInfoResponseState s ->
-      pure . OpaquePublicGroupState
-        . LBS.fromStrict
-        . fromBase64ByteString
-        $ s
 
 conversationIdsPageFromUnqualified ::
   Member (ListItems LegacyPaging ConvId) r =>
