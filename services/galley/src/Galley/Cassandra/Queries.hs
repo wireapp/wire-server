@@ -236,6 +236,7 @@ deleteConv = "delete from conversation using timestamp 32503680000000000 where c
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
 markConvDeleted = "update conversation set deleted = true where conv = ?"
 
+-- TODO: fix inconsistent naming everywhere
 updatePublicGroupState :: PrepQuery W (OpaquePublicGroupState, ConvId) ()
 updatePublicGroupState = "update conversation set group_info = ? where conv = ?"
 
