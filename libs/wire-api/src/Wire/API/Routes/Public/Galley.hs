@@ -56,6 +56,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team
 import Wire.API.Team.Conversation
@@ -323,8 +324,26 @@ type ConversationAPI =
                :> Get '[Servant.JSON] ConversationCoverView
            )
     :<|> Named
+           "create-group-conversation-v1"
+           ( Summary "Create a new conversation"
+               :> Until 'V2
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
+               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> ReqBody '[Versioned 'V1 Servant.JSON] NewConv
+               :> ConversationVerb
+           )
+    :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
+               :> From 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'NotConnected

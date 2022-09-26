@@ -117,6 +117,8 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
@@ -716,6 +718,9 @@ instance ToSchema NewConv where
           \Optional, defaults to '"
             <> show roleNameWireAdmin
             <> "' if unset."
+
+instance FromJSON (Versioned 'V1 NewConv) where
+  parseJSON = fmap Versioned . parseJSON
 
 newtype ConvTeamInfo = ConvTeamInfo
   { cnvTeamId :: TeamId
