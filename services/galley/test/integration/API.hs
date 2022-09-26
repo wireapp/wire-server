@@ -1483,9 +1483,9 @@ postConvertTeamConv = do
     -- non-team members get kicked out
     liftIO $ do
       WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave qconv qeve (pure qeve)
+        wsAssertMemberLeave qconv qalice (pure qeve)
       WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave qconv qmallory (pure qmallory)
+        wsAssertMemberLeave qconv qalice (pure qmallory)
     -- joining (for mallory) is no longer possible
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
@@ -1537,14 +1537,17 @@ testAccessUpdateGuestRemoved = do
       -- note that removing users happens asynchronously, so this check should
       -- happen while the mock federator is still available
       WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMembersLeave (cnvQualifiedId conv) charlie [charlie]
+        wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie]
       WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMembersLeave (cnvQualifiedId conv) dee [dee]
+        wsAssertMembersLeave (cnvQualifiedId conv) alice [dee]
 
     -- dee's remote receives a notification
+    let compareLists [] ys = [] @?= ys
+        compareLists (x : xs) ys = case break (== x) ys of
+          (ys1, _ : ys2) -> compareLists xs (ys1 <> ys2)
+          _ -> assertFailure $ "Could not find " <> show x <> " in " <> show ys
     liftIO $
-      sortOn
-        (fmap fst)
+      compareLists
         ( map
             ( \fr -> do
                 cu <- eitherDecode (frBody fr)
@@ -1558,20 +1561,18 @@ testAccessUpdateGuestRemoved = do
                 reqs
             )
         )
-        @?= sortOn
-          (fmap fst)
-          [ Right (charlie, SomeConversationAction (sing @'ConversationLeaveTag) ()),
-            Right (dee, SomeConversationAction (sing @'ConversationLeaveTag) ()),
-            Right
-              ( alice,
-                SomeConversationAction
-                  (sing @'ConversationAccessDataTag)
-                  ConversationAccessData
-                    { cupAccess = mempty,
-                      cupAccessRoles = Set.fromList [TeamMemberAccessRole]
-                    }
-              )
-          ]
+        [ Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure charlie)),
+          Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure dee)),
+          Right
+            ( alice,
+              SomeConversationAction
+                (sing @'ConversationAccessDataTag)
+                ConversationAccessData
+                  { cupAccess = mempty,
+                    cupAccessRoles = Set.fromList [TeamMemberAccessRole]
+                  }
+            )
+        ]
 
   -- only alice and bob remain
   conv2 <-
