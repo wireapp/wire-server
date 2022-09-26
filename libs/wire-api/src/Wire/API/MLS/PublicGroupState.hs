@@ -20,6 +20,7 @@ module Wire.API.MLS.PublicGroupState where
 
 import Data.Binary
 import Data.Binary.Get
+import Data.Binary.Put (putLazyByteString)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Swagger as S
 import Imports
@@ -89,12 +90,14 @@ data PublicGroupState = PublicGroupState
 -- 'serialiseMLS'.
 newtype OpaquePublicGroupState = OpaquePublicGroupState
   {unOpaquePublicGroupState :: LBS.ByteString}
+  deriving (Generic, Eq, Show)
+  deriving (Arbitrary) via (GenericUniform OpaquePublicGroupState)
 
 instance ParseMLS OpaquePublicGroupState where
   parseMLS = OpaquePublicGroupState <$> getRemainingLazyByteString
 
 instance SerialiseMLS OpaquePublicGroupState where
-  serialiseMLS (OpaquePublicGroupState bs) = put bs
+  serialiseMLS (OpaquePublicGroupState bs) = putLazyByteString bs
 
 instance S.ToSchema OpaquePublicGroupState where
   declareNamedSchema _ = pure (mlsSwagger "OpaquePublicGroupState")
