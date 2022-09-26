@@ -167,8 +167,9 @@ tests s =
         ],
       test s "public keys" testPublicKeys,
       testGroup
-        "PublicGroupState"
-        [ test s "get group info for a remote conversation" testGetGroupInfoOfRemoteConv,
+        "GroupInfo"
+        [ test s "get group info for a local conversation" testGetGroupInfoOfLocalConv,
+          test s "get group info for a remote conversation" testGetGroupInfoOfRemoteConv,
           test s "get group info for a remote user" testFederatedGetGroupInfo
         ]
     ]
@@ -321,14 +322,6 @@ testAddUserWithBundle = do
 
     event <- assertOne events
     liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
-
-    -- check the group info matches
-    gs <- assertJust (mpPublicGroupState commit)
-    returnedGS <-
-      fmap responseBody $
-        getGroupInfo (qUnqualified alice) qcnv
-          <!! const 200 === statusCode
-    liftIO $ Just gs @=? LBS.toStrict <$> returnedGS
     pure qcnv
 
   -- check that bob can now see the conversation
@@ -1822,6 +1815,26 @@ testBackendRemoveProposalLocalConvRemoteClient = do
         WS.assertMatch_ (5 # WS.Second) wsA $
           \notification ->
             void $ wsAssertBackendRemoveProposal bob qcnv bob1KP notification
+
+testGetGroupInfoOfLocalConv :: TestM ()
+testGetGroupInfoOfLocalConv = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    traverse_ uploadNewKeyPackage [bob1]
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+
+    void $ sendAndConsumeCommitBundle commit
+
+    -- check the group info matches
+    gs <- assertJust (mpPublicGroupState commit)
+    returnedGS <-
+      fmap responseBody $
+        getGroupInfo (qUnqualified alice) qcnv
+          <!! const 200 === statusCode
+    liftIO $ Just gs @=? LBS.toStrict <$> returnedGS
 
 testGetGroupInfoOfRemoteConv :: TestM ()
 testGetGroupInfoOfRemoteConv = do
