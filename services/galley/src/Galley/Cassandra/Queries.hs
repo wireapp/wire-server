@@ -203,9 +203,6 @@ selectConv = "select type, creator, access, access_role, access_roles_v2, name, 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 
-selectPublicGroupState :: PrepQuery R (Identity ConvId) (Identity (Maybe OpaquePublicGroupState))
-selectPublicGroupState = "select group_info from conversation where conv = ?"
-
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
@@ -236,9 +233,11 @@ deleteConv = "delete from conversation using timestamp 32503680000000000 where c
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
 markConvDeleted = "update conversation set deleted = true where conv = ?"
 
--- TODO: fix inconsistent naming everywhere
+selectPublicGroupState :: PrepQuery R (Identity ConvId) (Identity (Maybe OpaquePublicGroupState))
+selectPublicGroupState = "select public_group_state from conversation where conv = ?"
+
 updatePublicGroupState :: PrepQuery W (OpaquePublicGroupState, ConvId) ()
-updatePublicGroupState = "update conversation set group_info = ? where conv = ?"
+updatePublicGroupState = "update conversation set public_group_state = ? where conv = ?"
 
 -- Conversations accessible by code -----------------------------------------
 
