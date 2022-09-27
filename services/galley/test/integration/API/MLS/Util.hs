@@ -45,6 +45,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Data.Time.Clock (getCurrentTime)
 import Galley.Keys
 import Galley.Options
 import Imports
@@ -59,7 +60,9 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
@@ -893,3 +896,58 @@ receiveNewRemoteConv conv gid = do
       client
       (qDomain conv)
       nrc
+
+receiveOnConvUpdated ::
+  (MonadReader TestSetup m, MonadIO m) =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  Qualified UserId ->
+  m ()
+receiveOnConvUpdated conv origUser joiner = do
+  client <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cu =
+        ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = origUser,
+            cuConvId = qUnqualified conv,
+            cuAlreadyPresentUsers = [qUnqualified joiner],
+            cuAction =
+              SomeConversationAction
+                SConversationJoinTag
+                ConversationJoin
+                  { cjUsers = pure joiner,
+                    cjRole = roleNameWireMember
+                  }
+          }
+  void $
+    runFedClient
+      @"on-conversation-updated"
+      client
+      (qDomain conv)
+      cu
+
+getGroupInfo ::
+  ( HasCallStack,
+    MonadIO m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  UserId ->
+  Qualified ConvId ->
+  m ResponseLBS
+getGroupInfo sender qcnv = do
+  galley <- viewGalley
+  get
+    ( galley
+        . paths
+          [ "conversations",
+            toByteString' (qDomain qcnv),
+            toByteString' (qUnqualified qcnv),
+            "groupinfo"
+          ]
+        . zUser sender
+        . zConn "conn"
+    )

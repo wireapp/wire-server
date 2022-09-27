@@ -1,0 +1,1 @@
+MLS: Store and expose group info via `GET /conversations/:domain/:id/groupinfo`

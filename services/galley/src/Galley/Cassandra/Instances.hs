@@ -39,6 +39,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Proposal
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
@@ -197,6 +198,13 @@ instance Cql GroupId where
 
   fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
   fromCql _ = Left "group_id: blob expected"
+
+instance Cql OpaquePublicGroupState where
+  ctype = Tagged BlobColumn
+
+  toCql = CqlBlob . LBS.fromStrict . unOpaquePublicGroupState
+  fromCql (CqlBlob b) = Right $ OpaquePublicGroupState (LBS.toStrict b)
+  fromCql _ = Left "OpaquePublicGroupState: blob expected"
 
 instance Cql Icon where
   ctype = Tagged TextColumn

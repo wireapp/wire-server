@@ -77,6 +77,7 @@ import qualified V71_MemberClientKeypackage
 import qualified V72_DropManagedConversations
 import qualified V73_MemberClientTable
 import qualified V74_ExposeInvitationsToTeamAdmin
+import qualified V75_MLSGroupInfo
 
 main :: IO ()
 main = do
@@ -139,7 +140,8 @@ main = do
       V71_MemberClientKeypackage.migration,
       V72_DropManagedConversations.migration,
       V73_MemberClientTable.migration,
-      V74_ExposeInvitationsToTeamAdmin.migration
+      V74_ExposeInvitationsToTeamAdmin.migration,
+      V75_MLSGroupInfo.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)
