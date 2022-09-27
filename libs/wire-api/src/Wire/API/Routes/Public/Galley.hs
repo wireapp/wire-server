@@ -224,7 +224,6 @@ type ConversationAPI =
            "get-group-info"
            ( Summary "Get MLS group information"
                :> CanThrow 'ConvNotFound
-               :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSMissingGroupInfo
                :> ZLocalUser
                :> "conversations"
