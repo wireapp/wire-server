@@ -193,7 +193,7 @@ replacePresence = do
       notElem localhost8080 . map resource . decodePresence
   where
     pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
-    push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+    push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
 
 removeStalePresence :: TestM ()
 removeStalePresence = do
@@ -213,7 +213,7 @@ removeStalePresence = do
     ensurePresent uid 0
   where
     pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
-    push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+    push u us = newPush u (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
 
 singleUserPush :: TestM ()
 singleUserPush = testSingleUserPush smallMsgPayload
@@ -235,7 +235,7 @@ testSingleUserPush msgPayload = do
       (Just msgPayload)
       (ntfPayload <$> (decode . fromStrict . fromJust) msg)
   where
-    push u us = newPush (Just u) (toRecipients us) msgPayload & pushOriginConnection .~ Just (ConnId "dev")
+    push u us = newPush (Just u) (toRecipients us) msgPayload & pushOriginConnection ?~ ConnId "dev"
 
 singleUserPushLargeMessage :: TestM ()
 singleUserPushLargeMessage = testSingleUserPush largeMsgPayload
@@ -328,7 +328,7 @@ sendSingleUserNoPiggyback = do
     assertBool "Push message received" (isNothing msg)
   where
     pload = List1.singleton $ KeyMap.fromList ["foo" .= (42 :: Int)]
-    push u us d = newPush u (toRecipients us) pload & pushOriginConnection .~ Just d
+    push u us d = newPush u (toRecipients us) pload & pushOriginConnection ?~ d
 
 sendMultipleUsers :: TestM ()
 sendMultipleUsers = do
@@ -378,7 +378,7 @@ sendMultipleUsers = do
     checkNotifications (x : xs) = (x, xs)
     pload = List1.singleton pevent
     pevent = KeyMap.fromList ["foo" .= (42 :: Int)]
-    push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+    push u us = newPush (Just u) (toRecipients us) pload & pushOriginConnection ?~ ConnId "dev"
 
 targetConnectionPush :: TestM ()
 targetConnectionPush = do
