@@ -59,9 +59,13 @@ claimHandle uid oldHandle newHandle =
 -- | Free a 'Handle', making it available to be claimed again.
 freeHandle :: MonadClient m => UserId -> Handle -> m ()
 freeHandle uid h = do
-  retry x5 $ write handleDelete (params LocalQuorum (Identity h))
-  let key = "@" <> fromHandle h
-  deleteClaim uid key (30 # Minute)
+  mbHandleUid <- lookupHandle h
+  case mbHandleUid of
+    Just handleUid | handleUid == uid -> do
+      retry x5 $ write handleDelete (params LocalQuorum (Identity h))
+      let key = "@" <> fromHandle h
+      deleteClaim uid key (30 # Minute)
+    _ -> pure () -- this shouldn't happen, the call side should always check that `h` and `uid` belong to the same account.
 
 -- | Lookup the current owner of a 'Handle'.
 lookupHandle :: MonadClient m => Handle -> m (Maybe UserId)

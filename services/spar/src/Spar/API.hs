@@ -443,8 +443,8 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
         when (mUserTeam == Just team) $ do
           if purge
             then do
-              BrigAccess.delete uid
               SAMLUserStore.delete uid uref
+              void $ BrigAccess.deleteUser uid
             else do
               throwSparSem SparIdPHasBoundUsers
       when (Cas.hasMore page) $
@@ -519,7 +519,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
-  handle <- maybe (IdPConfigStore.newHandle teamid) pure (IdPHandle . fromRange <$> mHandle)
+  handle <- maybe (IdPConfigStore.newHandle teamid) (pure . IdPHandle . fromRange) mHandle
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces handle
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   IdPConfigStore.insertConfig idp

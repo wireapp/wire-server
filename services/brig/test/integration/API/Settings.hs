@@ -125,7 +125,7 @@ testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySettin
           ]
   let newOpts = opts & Opt.optionSettings . Opt.emailVisibility .~ visibilitySetting
   withSettingsOverrides newOpts $ do
-    get (brig . zUser viewerId . path "users" . queryItem "ids" uids) !!! do
+    get (apiVersion "v1" . brig . zUser viewerId . path "users" . queryItem "ids" uids) !!! do
       const 200 === statusCode
       const (Just expected) === result
   where
@@ -155,7 +155,7 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibility
   let newOpts = opts & Opt.optionSettings . Opt.emailVisibility .~ visibilitySetting
   withSettingsOverrides newOpts $ do
     forM_ expectations $ \(uid, expectedEmail) ->
-      get (brig . zUser viewerId . paths ["users", toByteString' uid]) !!! do
+      get (apiVersion "v1" . brig . zUser viewerId . paths ["users", toByteString' uid]) !!! do
         const 200 === statusCode
         const expectedEmail === emailResult
   where

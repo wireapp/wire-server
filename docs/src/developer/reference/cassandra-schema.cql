@@ -1,1 +1,1 @@
-../../../cassandra-schema.cql
+../../../../cassandra-schema.cql

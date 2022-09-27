@@ -56,7 +56,9 @@ import Brig.Federation.Client (getUserClients)
 import qualified Brig.Federation.Client as Federation
 import Brig.IO.Intra (guardLegalhold)
 import qualified Brig.IO.Intra as Intra
+import qualified Brig.InternalEvent.Types as Internal
 import qualified Brig.Options as Opt
+import qualified Brig.Queue as Queue
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
@@ -166,8 +168,9 @@ addClientWithReAuthPolicy policy u con ip new = do
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
-    wrapHttp $ Intra.newClient u (clientId clt)
-    Intra.onClientEvent u con (ClientAdded u clt)
+    wrapHttp $ do
+      Intra.newClient u (clientId clt)
+      Intra.onClientEvent u con (ClientAdded u clt)
     when (clientType clt == LegalHoldClientType) $ wrapHttpClient $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
       for_ (userEmail usr) $
@@ -373,13 +376,12 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 
 -- Utilities
 
--- | Perform an orderly deletion of an existing client.
+-- | Enqueue an orderly deletion of an existing client.
 execDelete :: UserId -> Maybe ConnId -> Client -> (AppT r) ()
 execDelete u con c = do
-  wrapHttp $ Intra.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
-  Intra.onClientEvent u con (ClientRemoved u c)
-  wrapClient $ Data.rmClient u (clientId c)
+  queue <- view internalEvents
+  Queue.enqueue queue (Internal.DeleteClient (clientId c) u con)
 
 -- | Defensive measure when no prekey is found for a
 -- requested client: Ensure that the client does indeed

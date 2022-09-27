@@ -36,11 +36,11 @@ module Wire.API.Team.Conversation
   )
 where
 
-import Control.Lens (At (at), makeLenses, over, (?~))
-import Data.Aeson hiding (fieldLabelModifier)
+import Control.Lens (makeLenses, (?~))
+import qualified Data.Aeson as A
 import Data.Id (ConvId)
-import Data.Proxy
-import Data.Swagger
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -53,17 +53,28 @@ newtype TeamConversation = TeamConversation
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamConversation)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TeamConversation)
+
+managedDesc :: Text
+managedDesc =
+  "This field MUST NOT be used by clients. "
+    <> "It is here only for backwards compatibility of the interface."
 
 instance ToSchema TeamConversation where
-  declareNamedSchema _ = do
-    idSchema <- declareSchemaRef (Proxy @ConvId)
-    pure $
-      NamedSchema (Just "TeamConversation") $
-        mempty
-          & description ?~ "team conversation data"
-          & over
-            properties
-            (at "conversation" ?~ idSchema)
+  schema =
+    objectWithDocModifier
+      "TeamConversation"
+      (description ?~ "Team conversation data")
+      $ TeamConversation
+        <$> _conversationId .= field "conversation" schema
+        <* const ()
+          .= fieldWithDocModifier
+            "managed"
+            (description ?~ managedDesc)
+            (c (False :: Bool))
+    where
+      c :: A.ToJSON a => a -> ValueSchema SwaggerDoc ()
+      c val = mkSchema mempty (const (pure ())) (const (pure (A.toJSON val)))
 
 newTeamConversation :: ConvId -> TeamConversation
 newTeamConversation = TeamConversation
@@ -73,18 +84,8 @@ modelTeamConversation = Doc.defineModel "TeamConversation" $ do
   Doc.description "team conversation data"
   Doc.property "conversation" Doc.bytes' $
     Doc.description "conversation ID"
-
-instance ToJSON TeamConversation where
-  toJSON t =
-    object
-      [ "conversation" .= _conversationId t,
-        -- FUTUREWORK: get rid of the "managed" field in the next version of the API
-        "managed" .= False
-      ]
-
-instance FromJSON TeamConversation where
-  parseJSON = withObject "team conversation" $ \o ->
-    TeamConversation <$> o .: "conversation"
+  Doc.property "managed" Doc.bytes' $
+    Doc.description managedDesc
 
 --------------------------------------------------------------------------------
 -- TeamConversationList
@@ -95,15 +96,15 @@ newtype TeamConversationList = TeamConversationList
   deriving (Generic)
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TeamConversationList)
 
 instance ToSchema TeamConversationList where
-  declareNamedSchema _ = do
-    convs <- declareSchema (Proxy @[TeamConversation])
-    pure $
-      NamedSchema (Just "TeamConversationList") $
-        mempty
-          & description ?~ "team conversation list"
-          & properties . at "conversations" ?~ Inline convs
+  schema =
+    objectWithDocModifier
+      "TeamConversationList"
+      (description ?~ "Team conversation list")
+      $ TeamConversationList
+        <$> _teamConversations .= field "conversations" (array schema)
 
 newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
@@ -113,13 +114,6 @@ modelTeamConversationList = Doc.defineModel "TeamConversationListList" $ do
   Doc.description "list of team conversations"
   Doc.property "conversations" (Doc.unique $ Doc.array (Doc.ref modelTeamConversation)) $
     Doc.description "the array of team conversations"
-
-instance ToJSON TeamConversationList where
-  toJSON t = object ["conversations" .= _teamConversations t]
-
-instance FromJSON TeamConversationList where
-  parseJSON = withObject "team conversation list" $ \o -> do
-    TeamConversationList <$> o .: "conversations"
 
 makeLenses ''TeamConversation
 makeLenses ''TeamConversationList

@@ -29,6 +29,7 @@ module Brig.Data.UserKey
     keyAvailable,
     lookupKey,
     deleteKey,
+    deleteKeyForUser,
     lookupPhoneHashes,
   )
 where
@@ -163,6 +164,21 @@ deleteKey k = do
   hk <- hashKey k
   retry x5 $ write deleteHashed (params LocalQuorum (Identity hk))
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
+
+-- | Delete `UserKey` for `UserId`
+--
+-- This function ensures that keys of other users aren't accidentally deleted.
+-- E.g. the email address or phone number of a partially deleted user could
+-- already belong to a new user. To not interrupt deletion flows (that may be
+-- executed several times due to cassandra not supporting transactions)
+-- `deleteKeyForUser` does not fail for missing keys or keys that belong to
+-- another user: It always returns `()` as result.
+deleteKeyForUser :: (MonadClient m, MonadReader Env m) => UserId -> UserKey -> m ()
+deleteKeyForUser uid k = do
+  mbKeyUid <- lookupKey k
+  case mbKeyUid of
+    Just keyUid | keyUid == uid -> deleteKey k
+    _ -> pure ()
 
 hashKey :: MonadReader Env m => UserKey -> m UserKeyHash
 hashKey uk = do

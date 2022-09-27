@@ -29,4 +29,4 @@ readAuthExpiration env = do
       AWS.Ref _ ref -> do
         readIORef ref
   now <- getCurrentTime
-  pure $ ((`diffUTCTime` now) . AWS.fromTime) <$> (AWS._authExpiration authEnv)
+  pure $ (`diffUTCTime` now) . AWS.fromTime <$> AWS._authExpiration authEnv

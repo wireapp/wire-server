@@ -16,6 +16,8 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 extern crate asexp;
+extern crate lazy_static;
+extern crate regex;
 extern crate rustc_serialize;
 extern crate sodiumoxide;
 
@@ -23,7 +25,7 @@ pub mod acl;
 pub mod error;
 pub mod zauth;
 
-mod tree;
+mod matcher;
 
 pub use acl::Acl;
 pub use error::Error;

@@ -23,6 +23,7 @@ module Galley.API.Error
     InvalidInput (..),
     InternalError (..),
     internalErrorWithDescription,
+    internalErrorDescription,
     legalHoldServiceUnavailable,
 
     -- * Errors thrown by wai-routing handlers
@@ -34,6 +35,7 @@ import Data.Id
 import Data.Text.Lazy as LT (pack)
 import Imports
 import Network.HTTP.Types.Status
+import Network.Wai.Utilities (Error (message))
 import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Error
 
@@ -43,6 +45,9 @@ data InternalError
   | NoPrekeyForUser
   | CannotCreateManagedConv
   | InternalErrorWithDescription LText
+
+internalErrorDescription :: InternalError -> LText
+internalErrorDescription = message . toWai
 
 instance APIError InternalError where
   toWai (BadConvState convId) = badConvState convId

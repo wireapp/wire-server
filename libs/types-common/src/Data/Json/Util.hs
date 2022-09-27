@@ -49,13 +49,12 @@ module Data.Json.Util
 where
 
 import qualified Cassandra as CQL
-import Control.Lens (coerced, (%~), (?~))
+import Control.Lens hiding ((#), (.=))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.Text as Atto
 import qualified Data.Attoparsec.Time as Atto
-import Data.Bifunctor
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Base64.URL as B64U
 import qualified Data.ByteString.Builder as BB
@@ -205,8 +204,11 @@ instance ToHttpApiData Base64ByteString where
 instance S.ToParamSchema Base64ByteString where
   toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
 
+-- base64("example") ~> "ZXhhbXBsZQo="
 base64SchemaN :: ValueSchema NamedSwaggerDoc ByteString
-base64SchemaN = toBase64Text .= parsedText "Base64ByteString" fromBase64Text
+base64SchemaN =
+  (toBase64Text .= parsedText "Base64ByteString" fromBase64Text)
+    & doc %~ fmap (S.schema . S.example ?~ A.String "ZXhhbXBsZQo=")
 
 base64Schema :: ValueSchema SwaggerDoc ByteString
 base64Schema = unnamed base64SchemaN

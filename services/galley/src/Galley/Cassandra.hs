@@ -20,4 +20,4 @@ module Galley.Cassandra (schemaVersion) where
 import Imports
 
 schemaVersion :: Int32
-schemaVersion = 70
+schemaVersion = 75

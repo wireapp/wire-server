@@ -26,7 +26,7 @@ import Brig.Types.Connection
 import Brig.Types.Intra (UserAccount (..))
 import Control.Concurrent.Async
 import Control.Exception (throw)
-import Control.Lens hiding (from, to, (#), (.=))
+import Control.Lens hiding (from, to, uncons, (#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -34,6 +34,7 @@ import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -54,7 +55,7 @@ import qualified Data.Map.Strict as Map
 import Data.Misc
 import qualified Data.ProtoLens as Protolens
 import Data.ProtocolBuffers (encodeMessage)
-import Data.Qualified
+import Data.Qualified hiding (isLocal)
 import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
@@ -79,13 +80,14 @@ import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports
+import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media.MediaType
 import qualified Network.HTTP.Types as HTTP
-import Network.Wai (Application, defaultRequest)
+import Network.Wai (defaultRequest)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Wai
 import Network.Wai.Utilities.MockServer (withMockServer)
-import Servant (Handler, HasServer, Server, ServerT, serve, (:<|>) (..))
+import Servant
 import System.Exit
 import System.Process
 import System.Random
@@ -111,6 +113,9 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
@@ -134,18 +139,33 @@ import Wire.API.User.Client.Prekey
 -------------------------------------------------------------------------------
 -- API Operations
 
+addPrefix :: Request -> Request
+addPrefix r = r {HTTP.path = "v" <> toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}
+  where
+    removeSlash s = case B8.uncons s of
+      Just ('/', s') -> s'
+      _ -> s
+    latestVersion :: Version
+    latestVersion = maxBound
+
 -- | A class for monads with access to a Sem r instance
 class HasGalley m where
   viewGalley :: m GalleyR
   viewGalleyOpts :: m Opts.Opts
 
 instance HasGalley TestM where
-  viewGalley = view tsGalley
+  viewGalley = fmap (addPrefix .) (view tsUnversionedGalley)
   viewGalleyOpts = view tsGConf
 
 instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
   viewGalley = lift viewGalley
   viewGalleyOpts = lift viewGalleyOpts
+
+class HasBrig m where
+  viewBrig :: m BrigR
+
+instance HasBrig TestM where
+  viewBrig = fmap (addPrefix .) (view tsUnversionedBrig)
 
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
@@ -186,7 +206,7 @@ createBindingTeamWithQualifiedMembers num = do
 
 getTeams :: UserId -> [(ByteString, Maybe ByteString)] -> TestM TeamList
 getTeams u queryItems = do
-  g <- view tsGalley
+  g <- viewGalley
   r <-
     get
       ( g
@@ -221,7 +241,7 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
 
     setHandle :: UserId -> TestM ()
     setHandle uid = when withHandles $ do
-      b <- view tsBrig
+      b <- viewBrig
       randomHandle <- mkRandomHandle
       put
         ( b
@@ -233,7 +253,7 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
 
 changeTeamStatus :: HasCallStack => TeamId -> TeamStatus -> TestM ()
 changeTeamStatus tid s = do
-  g <- view tsGalley
+  g <- viewGalley
   put
     ( g . paths ["i", "teams", toByteString' tid, "status"]
         . json (TeamStatusUpdate s Nothing)
@@ -249,7 +269,7 @@ createBindingTeamInternal name owner = do
 
 createBindingTeamInternalNoActivate :: HasCallStack => Text -> UserId -> TestM TeamId
 createBindingTeamInternalNoActivate name owner = do
-  g <- view tsGalley
+  g <- viewGalley
   tid <- randomId
   let nt = BindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon
   _ <-
@@ -260,7 +280,7 @@ createBindingTeamInternalNoActivate name owner = do
 
 createBindingTeamInternalWithCurrency :: HasCallStack => Text -> UserId -> Currency.Alpha -> TestM TeamId
 createBindingTeamInternalWithCurrency name owner cur = do
-  g <- view tsGalley
+  g <- viewGalley
   tid <- createBindingTeamInternalNoActivate name owner
   _ <-
     put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur))
@@ -269,39 +289,39 @@ createBindingTeamInternalWithCurrency name owner cur = do
 
 getTeamInternal :: HasCallStack => TeamId -> TestM TeamData
 getTeamInternal tid = do
-  g <- view tsGalley
+  g <- viewGalley
   r <- get (g . paths ["i/teams", toByteString' tid]) <!! const 200 === statusCode
   responseJsonError r
 
 getTeam :: HasCallStack => UserId -> TeamId -> TestM Team
 getTeam usr tid = do
-  g <- view tsGalley
+  g <- viewGalley
   r <- get (g . paths ["teams", toByteString' tid] . zUser usr) <!! const 200 === statusCode
   responseJsonError r
 
 getTeamMembers :: HasCallStack => UserId -> TeamId -> TestM TeamMemberList
 getTeamMembers usr tid = do
-  g <- view tsGalley
+  g <- viewGalley
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
   responseJsonError r
 
 -- alternative to 'ResponseLBS': [BodyReader](https://hoogle.zinfra.io/file/root/.stack/snapshots/x86_64-linux/82492d944a85db90f4cd7cec6f4d5215ef9ac1ac8aeffeed4a805fbd6b1232c5/8.8.4/doc/http-client-0.7.0/Network-HTTP-Client.html#t:BodyReader)
 getTeamMembersCsv :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getTeamMembersCsv usr tid = do
-  g <- view tsGalley
+  g <- viewGalley
   get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser usr) <!! do
     const 200 === statusCode
     const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
 
 getTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> Int -> TestM TeamMemberList
 getTeamMembersTruncated usr tid n = do
-  g <- view tsGalley
+  g <- viewGalley
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr . queryItem "maxResults" (C.pack $ show n)) <!! const 200 === statusCode
   responseJsonError r
 
 getTeamMembersInternalTruncated :: HasCallStack => TeamId -> Int -> TestM TeamMemberList
 getTeamMembersInternalTruncated tid n = do
-  g <- view tsGalley
+  g <- viewGalley
   r <-
     get
       ( g
@@ -314,7 +334,7 @@ getTeamMembersInternalTruncated tid n = do
 
 bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [UserId] -> TestM TeamMemberList
 bulkGetTeamMembers usr tid uids = do
-  g <- view tsGalley
+  g <- viewGalley
   r <-
     post
       ( g
@@ -328,7 +348,7 @@ bulkGetTeamMembers usr tid uids = do
 
 bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [UserId] -> Int -> TestM ResponseLBS
 bulkGetTeamMembersTruncated usr tid uids trnc = do
-  g <- view tsGalley
+  g <- viewGalley
   post
     ( g
         . paths ["teams", toByteString' tid, "get-members-by-ids-using-post"]
@@ -339,7 +359,7 @@ bulkGetTeamMembersTruncated usr tid uids trnc = do
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
 getTeamMember getter tid gettee = do
-  g <- view tsGalley
+  g <- viewGalley
   getTeamMember' g getter tid gettee
 
 getTeamMember' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> UserId -> m TeamMember
@@ -349,13 +369,13 @@ getTeamMember' g getter tid gettee = do
 
 getTeamMemberInternal :: HasCallStack => TeamId -> UserId -> TestM TeamMember
 getTeamMemberInternal tid mid = do
-  g <- view tsGalley
+  g <- viewGalley
   r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
   responseJsonError r
 
 addTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
 addTeamMember usr tid muid mperms mmbinv = do
-  g <- view tsGalley
+  g <- viewGalley
   let payload = json (mkNewTeamMember muid mperms mmbinv)
   post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" . payload)
     !!! const 200 === statusCode
@@ -367,7 +387,7 @@ addTeamMemberInternal tid muid mperms mmbinv = addTeamMemberInternal' tid muid m
 -- | FUTUREWORK: do not use this, it's broken!!  use 'addUserToTeam' instead!  https://wearezeta.atlassian.net/browse/SQSERVICES-471
 addTeamMemberInternal' :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ResponseLBS
 addTeamMemberInternal' tid muid mperms mmbinv = do
-  g <- view tsGalley
+  g <- viewGalley
   let payload = json (mkNewTeamMember muid mperms mmbinv)
   post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
 
@@ -391,7 +411,7 @@ addUserToTeamWithRole role inviter tid = do
 
 addUserToTeamWithRole' :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM (Invitation, ResponseLBS)
 addUserToTeamWithRole' role inviter tid = do
-  brig <- view tsBrig
+  brig <- viewBrig
   inviteeEmail <- randomEmail
   let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
   invResponse <- postInvitation tid inviter invite
@@ -414,7 +434,7 @@ addUserToTeamWithSSO hasEmail tid = do
 
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
 makeOwner owner mem tid = do
-  galley <- view tsGalley
+  galley <- viewGalley
   let changeMember = mkNewTeamMember (mem ^. Team.userId) fullPermissions (mem ^. Team.invitation)
   put
     ( galley
@@ -438,7 +458,7 @@ acceptInviteBody email code =
 
 postInvitation :: TeamId -> UserId -> InvitationRequest -> TestM ResponseLBS
 postInvitation t u i = do
-  brig <- view tsBrig
+  brig <- viewBrig
   post $
     brig
       . paths ["teams", toByteString' t, "invitations"]
@@ -454,7 +474,7 @@ zAuthAccess u conn =
 
 getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM InvitationCode
 getInvitationCode t ref = do
-  brig <- view tsBrig
+  brig <- viewBrig
 
   let getm :: TestM (Maybe InvitationCode)
       getm = do
@@ -480,7 +500,7 @@ getInvitationCode t ref = do
 -- it clearly shows the API that old(er) clients use.
 createTeamConvLegacy :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> TestM ConvId
 createTeamConvLegacy u tid us name = do
-  g <- view tsGalley
+  g <- viewGalley
   let tinfo = ConvTeamInfo tid
   let convPayload =
         object
@@ -547,7 +567,7 @@ createTeamConvAccessRaw ::
   Maybe RoleName ->
   TestM ResponseLBS
 createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
-  g <- view tsGalley
+  g <- viewGalley
   let tinfo = ConvTeamInfo tid
   let conv =
         NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) ProtocolProteusTag Nothing
@@ -603,7 +623,7 @@ createMLSTeamConv lusr c tid users name access role timer convRole = do
 
 updateTeamConv :: UserId -> ConvId -> ConversationRename -> TestM ResponseLBS
 updateTeamConv zusr convid upd = do
-  g <- view tsGalley
+  g <- viewGalley
   put
     ( g
         . paths ["/conversations", toByteString' convid]
@@ -615,7 +635,7 @@ updateTeamConv zusr convid upd = do
 
 createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM ResponseLBS
 createOne2OneTeamConv u1 u2 n tid = do
-  g <- view tsGalley
+  g <- viewGalley
   let conv =
         NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
@@ -671,7 +691,7 @@ postConvWithRemoteUsers u n =
 
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
-  g <- view tsGalley
+  g <- viewGalley
   let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
@@ -708,25 +728,25 @@ postConvWithRole u members name access arole timer role =
 
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
-  g <- view tsGalley
+  g <- viewGalley
   let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
 postSelfConv u = do
-  g <- view tsGalley
+  g <- viewGalley
   post $ g . path "/conversations/self" . zUser u . zConn "conn" . zType "access"
 
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
-  g <- view tsGalley
+  g <- viewGalley
   let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
 postConnectConv a b name msg email = do
   qb <- Qualified b <$> viewFederationDomain
-  g <- view tsGalley
+  g <- viewGalley
   post $
     g
       . path "/i/conversations/connect"
@@ -737,7 +757,7 @@ postConnectConv a b name msg email = do
 
 putConvAccept :: UserId -> ConvId -> TestM ResponseLBS
 putConvAccept invited cid = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths ["/i/conversations", C.pack $ show cid, "accept", "v2"]
@@ -763,7 +783,7 @@ postOtrMessage' ::
   [(UserId, ClientId, Text)] ->
   TestM ResponseLBS
 postOtrMessage' reportMissing f u d c rec = do
-  g <- view tsGalley
+  g <- viewGalley
   post $
     g
       . f
@@ -903,7 +923,7 @@ postProtoOtrMessage = postProtoOtrMessage' Nothing id
 
 postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage' reportMissing modif u d c rec = do
-  g <- view tsGalley
+  g <- viewGalley
   let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing "ZXhhbXBsZQ==")
    in post $
         g
@@ -926,7 +946,7 @@ mkOtrProtoMessage sender rec reportMissing ad =
 
 getConvs :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
 getConvs u r s = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . path "/conversations"
@@ -935,12 +955,16 @@ getConvs u r s = do
       . zType "access"
       . convRange r s
 
-listConvs :: (MonadIO m, MonadHttp m, HasGalley m) => UserId -> ListConversations -> m ResponseLBS
+listConvs ::
+  (MonadIO m, MonadHttp m, MonadReader TestSetup m) =>
+  UserId ->
+  ListConversations ->
+  m ResponseLBS
 listConvs u req = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   post $
     g
-      . path "/conversations/list/v2"
+      . path "/v1/conversations/list/v2"
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -968,7 +992,7 @@ getConvQualified u (Qualified conv domain) = do
 
 getConvIds :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
 getConvIds u r s = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . path "/conversations/ids"
@@ -979,7 +1003,7 @@ getConvIds u r s = do
 
 listConvIds :: UserId -> GetPaginatedConversationIds -> TestM ResponseLBS
 listConvIds u paginationOpts = do
-  g <- view tsGalley
+  g <- viewGalley
   post $
     g
       . path "/conversations/list-ids"
@@ -994,34 +1018,44 @@ listRemoteConvs remoteDomain uid = do
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers ::
-  (HasGalley m, MonadIO m, MonadHttp m) =>
+  (MonadReader TestSetup m, MonadIO m, MonadHttp m) =>
   UserId ->
   NonEmpty (Qualified UserId) ->
   ConvId ->
   m ResponseLBS
 postQualifiedMembers zusr invitees conv = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   let invite = InviteQualified invitees roleNameWireAdmin
   post $
     g
-      . paths ["conversations", toByteString' conv, "members", "v2"]
+      . paths ["v1", "conversations", toByteString' conv, "members", "v2"]
       . zUser zusr
       . zConn "conn"
       . zType "access"
       . json invite
 
-postMembers :: UserId -> NonEmpty (Qualified UserId) -> Qualified ConvId -> TestM ResponseLBS
+postMembers ::
+  (MonadIO m, MonadHttp m, HasGalley m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  Qualified ConvId ->
+  m ResponseLBS
 postMembers u us c = postMembersWithRole u us c roleNameWireAdmin
 
-postMembersWithRole :: UserId -> NonEmpty (Qualified UserId) -> Qualified ConvId -> RoleName -> TestM ResponseLBS
+postMembersWithRole ::
+  (MonadIO m, MonadHttp m, HasGalley m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  Qualified ConvId ->
+  RoleName ->
+  m ResponseLBS
 postMembersWithRole u us c r = do
-  g <- view tsGalley
+  g <- viewGalley
   let i = InviteQualified us r
   post $
     g
       . paths
-        [ v2,
-          "conversations",
+        [ "conversations",
           toByteString' (qDomain c),
           toByteString' (qUnqualified c),
           "members"
@@ -1030,8 +1064,6 @@ postMembersWithRole u us c r = do
       . zConn "conn"
       . zType "access"
       . json i
-  where
-    v2 = toByteString' (toLower <$> show V2)
 
 deleteMemberQualified ::
   (HasCallStack, MonadIO m, MonadHttp m, HasGalley m) =>
@@ -1057,7 +1089,7 @@ deleteMemberQualified u1 (Qualified u2 u2Domain) (Qualified conv convDomain) = d
 
 getSelfMember :: UserId -> ConvId -> TestM ResponseLBS
 getSelfMember u c = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["conversations", toByteString' c, "self"]
@@ -1067,7 +1099,7 @@ getSelfMember u c = do
 
 putMember :: UserId -> MemberUpdate -> Qualified ConvId -> TestM ResponseLBS
 putMember u m (Qualified c dom) = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths ["conversations", toByteString' dom, toByteString' c, "self"]
@@ -1102,7 +1134,7 @@ putOtherMemberQualified from to m c = do
 
 putOtherMember :: UserId -> UserId -> OtherMemberUpdate -> ConvId -> TestM ResponseLBS
 putOtherMember from to m c = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths ["conversations", toByteString' c, "members", toByteString' to]
@@ -1136,7 +1168,7 @@ putQualifiedConversationName u c n = do
 
 putConversationName :: UserId -> ConvId -> Text -> TestM ResponseLBS
 putConversationName u c n = do
-  g <- view tsGalley
+  g <- viewGalley
   let update = ConversationRename n
   put
     ( g
@@ -1167,7 +1199,7 @@ putQualifiedReceiptMode u (Qualified c dom) r = do
 
 putReceiptMode :: UserId -> ConvId -> ReceiptMode -> TestM ResponseLBS
 putReceiptMode u c r = do
-  g <- view tsGalley
+  g <- viewGalley
   let update = ConversationReceiptModeUpdate r
   put
     ( g
@@ -1180,7 +1212,7 @@ putReceiptMode u c r = do
 
 getJoinCodeConv :: UserId -> Code.Key -> Code.Value -> TestM ResponseLBS
 getJoinCodeConv u k v = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["/conversations", "join"]
@@ -1190,7 +1222,7 @@ getJoinCodeConv u k v = do
 
 postJoinConv :: UserId -> ConvId -> TestM ResponseLBS
 postJoinConv u c = do
-  g <- view tsGalley
+  g <- viewGalley
   post $
     g
       . paths ["/conversations", toByteString' c, "join"]
@@ -1200,7 +1232,7 @@ postJoinConv u c = do
 
 postJoinCodeConv :: UserId -> ConversationCode -> TestM ResponseLBS
 postJoinCodeConv u j = do
-  g <- view tsGalley
+  g <- viewGalley
   post $
     g
       . paths ["/conversations", "join"]
@@ -1211,7 +1243,7 @@ postJoinCodeConv u j = do
 
 putAccessUpdate :: UserId -> ConvId -> ConversationAccessData -> TestM ResponseLBS
 putAccessUpdate u c acc = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths ["/conversations", toByteString' c, "access"]
@@ -1260,7 +1292,7 @@ putMessageTimerUpdateQualified u c acc = do
 putMessageTimerUpdate ::
   UserId -> ConvId -> ConversationMessageTimerUpdate -> TestM ResponseLBS
 putMessageTimerUpdate u c acc = do
-  g <- view tsGalley
+  g <- viewGalley
   put $
     g
       . paths ["/conversations", toByteString' c, "message-timer"]
@@ -1271,7 +1303,7 @@ putMessageTimerUpdate u c acc = do
 
 postConvCode :: UserId -> ConvId -> TestM ResponseLBS
 postConvCode u c = do
-  g <- view tsGalley
+  g <- viewGalley
   post $
     g
       . paths ["/conversations", toByteString' c, "code"]
@@ -1281,7 +1313,7 @@ postConvCode u c = do
 
 postConvCodeCheck :: ConversationCode -> TestM ResponseLBS
 postConvCodeCheck code = do
-  g <- view tsGalley
+  g <- viewGalley
   post $
     g
       . path "/conversations/code-check"
@@ -1289,7 +1321,7 @@ postConvCodeCheck code = do
 
 getConvCode :: UserId -> ConvId -> TestM ResponseLBS
 getConvCode u c = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["/conversations", toByteString' c, "code"]
@@ -1299,7 +1331,7 @@ getConvCode u c = do
 
 deleteConvCode :: UserId -> ConvId -> TestM ResponseLBS
 deleteConvCode u c = do
-  g <- view tsGalley
+  g <- viewGalley
   delete $
     g
       . paths ["/conversations", toByteString' c, "code"]
@@ -1341,7 +1373,7 @@ getTeamQueue zusr msince msize onlyLast =
 
 getTeamQueue' :: HasCallStack => UserId -> Maybe NotificationId -> Maybe Int -> Bool -> TestM ResponseLBS
 getTeamQueue' zusr msince msize onlyLast = do
-  g <- view tsGalley
+  g <- viewGalley
   get
     ( g . path "/teams/notifications"
         . zUser zusr
@@ -1378,7 +1410,7 @@ registerRemoteConv convId originUser name othMembers = do
 
 getFeatureStatusMulti :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
 getFeatureStatusMulti req = do
-  g <- view tsGalley
+  g <- viewGalley
   post
     ( g . paths ["i", "features-multi-teams", featureNameBS @cfg]
         . json req
@@ -1571,6 +1603,18 @@ wsAssertMLSMessage conv u message n = do
   ntfTransient n @?= False
   assertMLSMessageEvent conv u message e
 
+wsAssertClientRemoved ::
+  HasCallStack =>
+  ClientId ->
+  Notification ->
+  IO ()
+wsAssertClientRemoved cid n = do
+  let j = Object $ List1.head (ntfPayload n)
+  let etype = j ^? key "type" . _String
+  let eclient = j ^? key "client" . key "id" . _String
+  etype @?= Just "user.client-remove"
+  fmap ClientId eclient @?= Just cid
+
 assertMLSMessageEvent ::
   HasCallStack =>
   Qualified ConvId ->
@@ -1690,15 +1734,15 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
   cuAction cu @?= SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure victim)
 
-assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
-assertLeaveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
+assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> m ()
+assertLeaveUpdate req qconvId remover alreadyPresentUsers = liftIO $ do
   frRPC req @?= "on-conversation-updated"
   frOriginDomain req @?= qDomain qconvId
   let Just cu = decode (frBody req)
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure victim)
+  cuAction cu @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -1793,13 +1837,13 @@ connectUsersWith ::
 connectUsersWith fn u = mapM connectTo
   where
     connectTo v = do
-      b <- view tsBrig
+      b <- view tsUnversionedBrig
       r1 <-
         post
           ( b
               . zUser u
               . zConn "conn"
-              . path "/connections"
+              . paths ["v1", "connections"]
               . json (ConnectionRequest v (unsafeRange "chat"))
               . fn
           )
@@ -1808,20 +1852,20 @@ connectUsersWith fn u = mapM connectTo
           ( b
               . zUser v
               . zConn "conn"
-              . paths ["connections", toByteString' u]
+              . paths ["v1", "connections", toByteString' u]
               . json (ConnectionUpdate Accepted)
               . fn
           )
       pure (r1, r2)
 
 connectWithRemoteUser ::
-  (MonadReader TestSetup m, MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =>
+  (HasBrig m, MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =>
   UserId ->
   Qualified UserId ->
   m ()
 connectWithRemoteUser self other = do
   let req = CreateConnectionForTest self other
-  b <- view tsBrig
+  b <- viewBrig
   put
     ( b
         . zUser self
@@ -1836,10 +1880,10 @@ connectWithRemoteUser self other = do
 -- | A copy of 'postConnection' from Brig integration tests.
 postConnection :: UserId -> UserId -> TestM ResponseLBS
 postConnection from to = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   post $
     brig
-      . path "/connections"
+      . paths ["v1", "connections"]
       . contentJson
       . body payload
       . zUser from
@@ -1851,10 +1895,10 @@ postConnection from to = do
 
 postConnectionQualified :: UserId -> Qualified UserId -> TestM ResponseLBS
 postConnectionQualified from (Qualified toUser toDomain) = do
-  brig <- view tsBrig
+  brig <- viewBrig
   post $
     brig
-      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . paths ["connections", toByteString' toDomain, toByteString' toUser]
       . contentJson
       . zUser from
       . zConn "conn"
@@ -1862,10 +1906,10 @@ postConnectionQualified from (Qualified toUser toDomain) = do
 -- | A copy of 'putConnection' from Brig integration tests.
 putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS
 putConnection from to r = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   put $
     brig
-      . paths ["/connections", toByteString' to]
+      . paths ["v1", "connections", toByteString' to]
       . contentJson
       . body payload
       . zUser from
@@ -1883,10 +1927,10 @@ putConnectionQualified fromQualified to r = do
       "The qualified user's domain is not local"
       localDomain
       qualifiedDomain
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   put $
     brig
-      . paths ["/connections", toByteString' to]
+      . paths ["v1", "connections", toByteString' to]
       . contentJson
       . body payload
       . zUser from
@@ -1897,7 +1941,7 @@ putConnectionQualified fromQualified to r = do
 -- | A copy of `assertConnections from Brig integration tests.
 assertConnections :: HasCallStack => UserId -> [ConnectionStatus] -> TestM ()
 assertConnections u cstat = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   resp <- listConnections brig u <!! const 200 === statusCode
   let cstat' :: [ConnectionStatus]
       cstat' = fmap status . clConnections . fromMaybe (error "bad response") . responseJsonMaybe $ resp
@@ -1905,7 +1949,7 @@ assertConnections u cstat = do
     error $ "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
   where
     status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
-    listConnections brig usr = get $ brig . path "connections" . zUser usr
+    listConnections brig usr = get $ brig . paths ["v1", "connections"] . zUser usr
 
 randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
@@ -1938,7 +1982,7 @@ randomUser'' isCreator hasPassword hasEmail = selfUser <$> randomUserProfile' is
 
 randomUserProfile' :: HasCallStack => Bool -> Bool -> Bool -> TestM SelfProfile
 randomUserProfile' isCreator hasPassword hasEmail = do
-  b <- view tsBrig
+  b <- viewBrig
   e <- liftIO randomEmail
   let p =
         object $
@@ -1950,7 +1994,7 @@ randomUserProfile' isCreator hasPassword hasEmail = do
 
 ephemeralUser :: HasCallStack => TestM UserId
 ephemeralUser = do
-  b <- view tsBrig
+  b <- viewBrig
   name <- UUID.toText <$> liftIO nextRandom
   let p = object ["name" .= name]
   r <- post (b . path "/register" . json p) <!! const 201 === statusCode
@@ -1962,7 +2006,7 @@ randomClient uid lk = randomClientWithCaps uid lk Nothing
 
 randomClientWithCaps :: HasCallStack => UserId -> LastPrekey -> Maybe (Set Client.ClientCapability) -> TestM ClientId
 randomClientWithCaps uid lk caps = do
-  b <- view tsBrig
+  b <- viewBrig
   resp <-
     post
       ( b
@@ -1989,18 +2033,18 @@ ensureDeletedState check from u = do
 
 getDeletedState :: HasCallStack => UserId -> UserId -> TestM (Maybe Bool)
 getDeletedState from u = do
-  b <- view tsBrig
+  b <- view tsUnversionedBrig
   fmap profileDeleted . responseJsonMaybe
     <$> get
       ( b
-          . paths ["users", toByteString' u]
+          . paths ["v1", "users", toByteString' u]
           . zUser from
           . zConn "conn"
       )
 
 getClients :: UserId -> TestM ResponseLBS
 getClients u = do
-  b <- view tsBrig
+  b <- viewBrig
   get $
     b
       . paths ["clients"]
@@ -2009,7 +2053,7 @@ getClients u = do
 
 getInternalClientsFull :: UserSet -> TestM UserClientsFull
 getInternalClientsFull userSet = do
-  b <- view tsBrig
+  b <- viewBrig
   res <-
     post $
       b
@@ -2027,7 +2071,7 @@ ensureClientCaps uid cid caps = do
 -- TODO: Refactor, as used also in brig
 deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS
 deleteClient u c pw = do
-  b <- view tsBrig
+  b <- viewBrig
   delete $
     b
       . paths ["clients", toByteString' c]
@@ -2045,7 +2089,7 @@ deleteClient u c pw = do
 -- TODO: Refactor, as used also in brig
 isUserDeleted :: HasCallStack => UserId -> TestM Bool
 isUserDeleted u = do
-  b <- view tsBrig
+  b <- viewBrig
   r <-
     get (b . paths ["i", "users", toByteString' u, "status"])
       <!! const 200 === statusCode
@@ -2063,7 +2107,7 @@ isUserDeleted u = do
 
 isMember :: UserId -> ConvId -> TestM Bool
 isMember usr cnv = do
-  g <- view tsGalley
+  g <- viewGalley
   res <-
     get $
       g
@@ -2276,12 +2320,12 @@ mkProteusConv cnvId creator selfRole otherMembers =
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()
 refreshIndex = do
-  brig <- view tsBrig
+  brig <- viewBrig
   post (brig . path "/i/index/refresh") !!! const 200 === statusCode
 
 postSSOUser :: Text -> Bool -> UserSSOId -> TeamId -> TestM ResponseLBS
 postSSOUser name hasEmail ssoid teamid = do
-  brig <- view tsBrig
+  brig <- viewBrig
   email <- randomEmail
   let o =
         object $
@@ -2297,20 +2341,23 @@ postSSOUser name hasEmail ssoid teamid = do
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
 
-withSettingsOverrides :: (Opts.Opts -> Opts.Opts) -> TestM a -> TestM a
-withSettingsOverrides f action = do
-  ts :: TestSetup <- ask
-  let opts = f (ts ^. tsGConf)
-  liftIO . lowerCodensity $ do
-    (galleyApp, _env) <- Run.mkApp opts
-    port' <- withMockServer galleyApp
-    liftIO $
-      runReaderT
-        (runTestM action)
-        ( ts
-            & tsGalley .~ Bilge.host "127.0.0.1" . Bilge.port port'
-            & tsFedGalleyClient .~ FedClient (ts ^. tsManager) (Endpoint "127.0.0.1" port')
-        )
+class HasSettingsOverrides m where
+  withSettingsOverrides :: (Opts.Opts -> Opts.Opts) -> m a -> m a
+
+instance HasSettingsOverrides TestM where
+  withSettingsOverrides f action = do
+    ts :: TestSetup <- ask
+    let opts = f (ts ^. tsGConf)
+    liftIO . lowerCodensity $ do
+      (galleyApp, _env) <- Run.mkApp opts
+      port' <- withMockServer galleyApp
+      liftIO $
+        runReaderT
+          (runTestM action)
+          ( ts
+              & tsUnversionedGalley .~ Bilge.host "127.0.0.1" . Bilge.port port'
+              & tsFedGalleyClient .~ FedClient (ts ^. tsManager) (Endpoint "127.0.0.1" port')
+          )
 
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
@@ -2320,7 +2367,7 @@ waitForMemberDeletion zusr tid uid = do
       assertFailure "Timed out waiting for member deletion"
   where
     loop = do
-      galley <- view tsGalley
+      galley <- viewGalley
       res <- get (galley . paths ["teams", toByteString' tid, "members", toByteString' uid] . zUser zusr)
       case statusCode res of
         404 -> pure ()
@@ -2340,7 +2387,7 @@ deleteTeamMember g tid owner deletee =
 
 deleteTeam :: UserId -> TeamId -> TestM ()
 deleteTeam owner tid = do
-  g <- view tsGalley
+  g <- viewGalley
   delete
     ( g
         . paths ["teams", toByteString' tid]
@@ -2360,7 +2407,7 @@ getUsersByHandle = getUsersBy "handles"
 
 getUsersBy :: forall uidsOrHandles. (ToByteString uidsOrHandles) => ByteString -> [uidsOrHandles] -> TestM [User]
 getUsersBy keyName = chunkify $ \keys -> do
-  brig <- view tsBrig
+  brig <- viewBrig
   let users = BS.intercalate "," $ toByteString' <$> keys
   res <-
     get
@@ -2374,8 +2421,8 @@ getUsersBy keyName = chunkify $ \keys -> do
 
 getUserProfile :: UserId -> UserId -> TestM UserProfile
 getUserProfile zusr uid = do
-  brig <- view tsBrig
-  res <- get (brig . zUser zusr . paths ["users", toByteString' uid])
+  brig <- view tsUnversionedBrig
+  res <- get (brig . zUser zusr . paths ["v1", "users", toByteString' uid])
   responseJsonError res
 
 upgradeClientToLH :: HasCallStack => UserId -> ClientId -> TestM ()
@@ -2384,7 +2431,7 @@ upgradeClientToLH zusr cid =
 
 putCapabilities :: HasCallStack => UserId -> ClientId -> [ClientCapability] -> TestM ()
 putCapabilities zusr cid caps = do
-  brig <- view tsBrig
+  brig <- viewBrig
   void $
     put
       ( brig
@@ -2396,29 +2443,29 @@ putCapabilities zusr cid caps = do
 
 getUsersPrekeysClientUnqualified :: HasCallStack => UserId -> UserId -> ClientId -> TestM ResponseLBS
 getUsersPrekeysClientUnqualified zusr uid cid = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   get
     ( brig
         . zUser zusr
-        . paths ["users", toByteString' uid, "prekeys", toByteString' cid]
+        . paths ["v1", "users", toByteString' uid, "prekeys", toByteString' cid]
     )
 
 getUsersPrekeyBundleUnqualified :: HasCallStack => UserId -> UserId -> TestM ResponseLBS
 getUsersPrekeyBundleUnqualified zusr uid = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   get
     ( brig
         . zUser zusr
-        . paths ["users", toByteString' uid, "prekeys"]
+        . paths ["v1", "users", toByteString' uid, "prekeys"]
     )
 
 getMultiUserPrekeyBundleUnqualified :: HasCallStack => UserId -> UserClients -> TestM ResponseLBS
 getMultiUserPrekeyBundleUnqualified zusr userClients = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   post
     ( brig
         . zUser zusr
-        . paths ["users", "prekeys"]
+        . paths ["v1", "users", "prekeys"]
         . json userClients
     )
 
@@ -2455,9 +2502,10 @@ withTempMockFederator ::
 withTempMockFederator resp = withTempMockFederator' $ pure . encode . resp
 
 withTempMockFederator' ::
+  (MonadIO m, MonadMask m, HasSettingsOverrides m) =>
   (FederatedRequest -> IO LByteString) ->
-  TestM b ->
-  TestM (b, [FederatedRequest])
+  m b ->
+  m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
   Mock.withTempMockFederator
     [("Content-Type", "application/json")]
@@ -2694,7 +2742,7 @@ assertJust Nothing = liftIO $ error "Expected Just, got Nothing"
 
 iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> TestM ResponseLBS
 iUpsertOne2OneConversation req = do
-  galley <- view tsGalley
+  galley <- viewGalley
   post (galley . path "/i/conversations/one2one/upsert" . Bilge.json req)
 
 createOne2OneConvWithRemote :: HasCallStack => Local UserId -> Remote UserId -> TestM ()
@@ -2760,3 +2808,77 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtType e @?= ConvReceiptModeUpdate
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
+
+wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
+wsAssertBackendRemoveProposal fromUser convId kpref n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= convId
+  evtType e @?= MLSMessageAdd
+  evtFrom e @?= fromUser
+  let bs = getMLSMessageData (evtData e)
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' bs
+  let tbs = rmValue . msgTBS $ msg
+  tbsMsgSender tbs @?= PreconfiguredSender 0
+  case tbsMsgPayload tbs of
+    ProposalMessage rp ->
+      case rmValue rp of
+        RemoveProposal kpRefRemove ->
+          kpRefRemove @?= kpref
+        otherProp -> assertFailure $ "Expected RemoveProposal but got " <> show otherProp
+    otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
+  pure bs
+  where
+    getMLSMessageData :: Conv.EventData -> ByteString
+    getMLSMessageData (EdMLSMessage bs) = bs
+    getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
+
+wsAssertAddProposal ::
+  HasCallStack =>
+  Qualified UserId ->
+  Qualified ConvId ->
+  Notification ->
+  IO ByteString
+wsAssertAddProposal fromUser convId n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= convId
+  evtType e @?= MLSMessageAdd
+  evtFrom e @?= fromUser
+  let bs = getMLSMessageData (evtData e)
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' bs
+  let tbs = rmValue . msgTBS $ msg
+  tbsMsgSender tbs @?= NewMemberSender
+  case tbsMsgPayload tbs of
+    ProposalMessage rp ->
+      case rmValue rp of
+        AddProposal _ -> pure ()
+        otherProp ->
+          assertFailure $
+            "Expected AddProposal but got " <> show otherProp
+    otherPayload ->
+      assertFailure $
+        "Expected ProposalMessage but got " <> show otherPayload
+  pure bs
+  where
+    getMLSMessageData :: Conv.EventData -> ByteString
+    getMLSMessageData (EdMLSMessage bs) = bs
+    getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
+
+createAndConnectUsers :: [Maybe Text] -> TestM [Qualified UserId]
+createAndConnectUsers domains = do
+  localDomain <- viewFederationDomain
+  users <- for domains $ maybe randomQualifiedUser (randomQualifiedId . Domain)
+  let userPairs = do
+        t <- tails users
+        (a, others) <- maybeToList (uncons t)
+        b <- others
+        pure (a, b)
+  for_ userPairs $ \(a, b) ->
+    case (qDomain a == localDomain, qDomain b == localDomain) of
+      (True, True) ->
+        connectUsers (qUnqualified a) (pure (qUnqualified b))
+      (True, False) -> connectWithRemoteUser (qUnqualified a) b
+      (False, True) -> connectWithRemoteUser (qUnqualified b) a
+      (False, False) -> pure ()
+  pure users

@@ -10,11 +10,10 @@ metrics:
     enable: false
 resources:
   requests:
-    memory: "256Mi"
+    memory: "300Mi"
     cpu: "100m"
   limits:
-    memory: "512Mi"
-    cpu: "500m"
+    memory: "1Gi"
 config:
   logLevel: Info
   logFormat: StructuredJSON

@@ -46,7 +46,9 @@ idPToMem = evState . evEff
     evEff = reinterpret @_ @(State TypedState) $ \case
       InsertConfig iw ->
         modify' (insertConfig iw)
-      NewHandle _tid -> pure $ IdPHandle "IdP 1" --todo(leif): generate a new handle
+      NewHandle _tid ->
+        -- Same handle for all IdPs is good enough, for now
+        pure $ IdPHandle "IdP 1"
       GetConfig i ->
         gets (getConfig i)
       GetIdPByIssuerV1Maybe issuer ->

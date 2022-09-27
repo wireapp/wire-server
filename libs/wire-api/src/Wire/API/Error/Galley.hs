@@ -81,6 +81,8 @@ data GalleyError
   | MLSSelfRemovalNotAllowed
   | MLSGroupConversationMismatch
   | MLSClientSenderUserMismatch
+  | MLSWelcomeMismatch
+  | MLSMissingGroupInfo
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -192,13 +194,17 @@ type instance MapError 'MLSClientMismatch = 'StaticError 409 "mls-client-mismatc
 
 type instance MapError 'MLSStaleMessage = 'StaticError 409 "mls-stale-message" "The conversation epoch in a message is too old"
 
-type instance MapError 'MLSCommitMissingReferences = 'StaticError 409 "mls-commit-missing-references" "The commit is not refrencing all pending proposals"
+type instance MapError 'MLSCommitMissingReferences = 'StaticError 400 "mls-commit-missing-references" "The commit is not referencing all pending proposals"
 
-type instance MapError 'MLSSelfRemovalNotAllowed = 'StaticError 409 "mls-self-removal-not-allowed" "Self removal from group is not allowed"
+type instance MapError 'MLSSelfRemovalNotAllowed = 'StaticError 400 "mls-self-removal-not-allowed" "Self removal from group is not allowed"
 
-type instance MapError 'MLSGroupConversationMismatch = 'StaticError 409 "mls-group-conversation-mismatch" "Conversation ID resolved from Group ID does not match submitted Conversation ID"
+type instance MapError 'MLSGroupConversationMismatch = 'StaticError 400 "mls-group-conversation-mismatch" "Conversation ID resolved from Group ID does not match submitted Conversation ID"
 
-type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 409 "mls-client-sender-user-mismatch" "User ID resolved from Client ID does not match message's sender user ID"
+type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 400 "mls-client-sender-user-mismatch" "User ID resolved from Client ID does not match message's sender user ID"
+
+type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-mismatch" "The list of targets of a welcome message does not match the list of new clients in a group"
+
+type instance MapError 'MLSMissingGroupInfo = 'StaticError 404 "mls-missing-group-info" "The conversation has no group information"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

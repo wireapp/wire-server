@@ -116,3 +116,6 @@ result-*
 
 # emacs misc
 .dir-locals.el
+
+/integration-ca-key.pem
+/integration-ca.pem

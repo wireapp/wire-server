@@ -38,10 +38,12 @@ module Spar.Scim.User
     toScimStoredUser',
     mkValidExternalId,
     scimFindUserByEmail,
+    deleteScimUser,
   )
 where
 
 import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
+import Brig.Types.User (HavePendingInvitations (..))
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens (view, (^.))
 import Control.Monad.Error.Class (MonadError)
@@ -698,11 +700,20 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     )
     (const id)
     $ do
-      mbBrigUser <- lift (Brig.getBrigUser Brig.WithPendingInvitations uid)
-      case mbBrigUser of
+      -- `getBrigUser` does not include deleted users. This is fine: these
+      -- ("tombstones") would not have the needed values (`userIdentity =
+      -- Nothing`) to delete a user in spar. I.e. `SAML.UserRef` and `Email`
+      -- cannot be figured out when a `User` has status `Deleted`.
+      mbBrigUser <- lift $ Brig.getBrigUser WithPendingInvitations uid
+      deletionStatus <- case mbBrigUser of
         Nothing ->
-          -- double-deletion gets you a 404.
-          throwError $ Scim.notFound "user" (idToText uid)
+          -- Ensure there's no left-over of this user in brig. This is safe
+          -- because the user has either been deleted (tombstone) or does not
+          -- exist. Asserting the correct team id here is not needed (and would
+          -- be hard as the check relies on the data of `mbBrigUser`): The worst
+          -- thing that could happen is that foreign users cleanup particially
+          -- deleted users.
+          lift $ BrigAccess.deleteUser uid
         Just brigUser -> do
           -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
           -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
@@ -712,21 +723,47 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             throwError $
               Scim.notFound "user" (idToText uid)
 
-          mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
-
-          case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
-            Left _ -> pure ()
-            Right veid ->
-              lift $
-                ST.runValidExternalIdBoth
-                  (>>)
-                  (SAMLUserStore.delete uid)
-                  (ScimExternalIdStore.delete stiTeam)
-                  veid
-
-          lift $ ScimUserTimesStore.delete uid
-          lift $ BrigAccess.delete uid
+          -- This deletion needs data from the non-deleted User in brig. So,
+          -- execute it first, then delete the user in brig. Unfortunately, this
+          -- dependency prevents us from cleaning up the spar fragments of users
+          -- that have been deleted in brig.  Deleting scim-managed users in brig
+          -- (via the TM app) is blocked, though, so there is no legal way to enter
+          -- that situation.
+          deleteUserInSpar brigUser
+          lift $ BrigAccess.deleteUser uid
+      case deletionStatus of
+        NoUser ->
+          throwError $
+            Scim.notFound "user" (idToText uid)
+        AccountAlreadyDeleted ->
+          throwError $
+            Scim.notFound "user" (idToText uid)
+        AccountDeleted ->
           pure ()
+  where
+    deleteUserInSpar ::
+      Members
+        '[ IdPConfigStore,
+           SAMLUserStore,
+           ScimExternalIdStore,
+           ScimUserTimesStore
+         ]
+        r =>
+      User ->
+      Scim.ScimHandler (Sem r) ()
+    deleteUserInSpar brigUser = do
+      mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
+
+      case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
+        Left _ -> pure ()
+        Right veid ->
+          lift $
+            ST.runValidExternalIdBoth
+              (>>)
+              (SAMLUserStore.delete uid)
+              (ScimExternalIdStore.delete stiTeam)
+              veid
+      lift $ ScimUserTimesStore.delete uid
 
 ----------------------------------------------------------------------------
 -- Utilities

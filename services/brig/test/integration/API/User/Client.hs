@@ -105,7 +105,7 @@ tests _cl _at opts p db b c g =
       test p "put /clients/:client - 200 (mls keys)" $ testMLSPublicKeyUpdate b,
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "get /clients/:client - 200" $ testMLSClient b,
-      test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
+      test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g c,
       test p "client/prekeys/race" $ testPreKeyRace b,
       test p "get/head nonce/clients" $ testNewNonce b
     ]
@@ -378,7 +378,8 @@ testListClientsBulk opts brig = do
                   ]
             )
   post
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . paths ["users", "list-clients"]
         . zUser uid3
         . contentJson
@@ -418,7 +419,8 @@ testListClientsBulkV2 opts brig = do
                   ]
             )
   post
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . paths ["users", "list-clients", "v2"]
         . zUser uid3
         . contentJson
@@ -456,12 +458,12 @@ generateClients n brig = do
 testGetUserPrekeys :: Brig -> Http ()
 testGetUserPrekeys brig = do
   [(uid, _c, lpk, cpk)] <- generateClients 1 brig
-  get (brig . paths ["users", toByteString' uid, "prekeys"] . zUser uid) !!! do
+  get (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys"] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
   -- prekeys are deleted when retrieved, except the last one
   replicateM_ 2 $
-    get (brig . paths ["users", toByteString' uid, "prekeys"] . zUser uid) !!! do
+    get (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys"] . zUser uid) !!! do
       const 200 === statusCode
       const (Just $ PrekeyBundle uid [lpk]) === responseJsonMaybe
 
@@ -482,7 +484,7 @@ testGetUserPrekeysInvalidDomain brig = do
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
   [(uid, c, _lpk, cpk)] <- generateClients 1 brig
-  get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
+  get (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ cpk) === responseJsonMaybe
 
@@ -512,7 +514,8 @@ testMultiUserGetPrekeys brig = do
   uid <- userId <$> randomUser brig
 
   post
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . paths ["users", "prekeys"]
         . contentJson
         . body (RequestBodyLBS $ encode userClients)
@@ -708,7 +711,7 @@ testUpdateClient opts brig = do
             newClientModel = Just "featurephone"
           }
   c <- responseJsonError =<< addClient brig uid clt
-  get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
+  get (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
   getClient brig uid (clientId c) !!! do
@@ -731,7 +734,7 @@ testUpdateClient opts brig = do
     )
     !!! const 200
     === statusCode
-  get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
+  get (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ ClientPrekey (clientId c) newPrekey) === responseJsonMaybe
 
@@ -741,7 +744,7 @@ testUpdateClient opts brig = do
     const (Just "label") === (clientLabel <=< responseJsonMaybe)
 
   -- via `/users/:uid/clients/:client`, only `id` and `class` are visible:
-  get (brig . paths ["users", toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
+  get (apiVersion "v1" . brig . paths ["users", toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
     const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
     const (Just PhoneClient) === (pubClientClass <=< responseJsonMaybe)
@@ -761,7 +764,8 @@ testUpdateClient opts brig = do
 
   -- empty update should be a no-op
   put
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . paths ["clients", toByteString' (clientId c)]
         . zUser uid
         . contentJson
@@ -780,7 +784,8 @@ testUpdateClient opts brig = do
       checkUpdate capsIn respStatusOk capsOut = do
         let update'' = defUpdateClient {updateClientCapabilities = Set.fromList <$> capsIn}
         put
-          ( brig
+          ( apiVersion "v1"
+              . brig
               . paths ["clients", toByteString' (clientId c)]
               . zUser uid
               . contentJson
@@ -813,7 +818,7 @@ testUpdateClient opts brig = do
         flushClientPrekey = do
           responseJsonMaybe
             <$> ( get
-                    (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid)
+                    (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid)
                     <!! const 200
                     === statusCode
                 )
@@ -892,15 +897,15 @@ testMissingClient brig = do
 -- brig) have registered it.  Add second temporary client, check
 -- again.  (NB: temp clients replace each other, there can always be
 -- at most one per account.)
-testAddMultipleTemporary :: Brig -> Galley -> Http ()
-testAddMultipleTemporary brig galley = do
+testAddMultipleTemporary :: Brig -> Galley -> Cannon -> Http ()
+testAddMultipleTemporary brig galley cannon = do
   uid <- userId <$> randomUser brig
   let clt1 =
         (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
           { newClientClass = Just PhoneClient,
             newClientModel = Just "featurephone1"
           }
-  _ <- addClient brig uid clt1
+  client <- responseJsonError =<< addClient brig uid clt1
   brigClients1 <- numOfBrigClients uid
   galleyClients1 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) brigClients1
@@ -910,7 +915,14 @@ testAddMultipleTemporary brig galley = do
           { newClientClass = Just PhoneClient,
             newClientModel = Just "featurephone2"
           }
-  _ <- addClient brig uid clt2
+  WS.bracketR cannon uid $ \ws -> do
+    _ <- addClient brig uid clt2
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let j = Object $ List1.head (ntfPayload n)
+      let etype = j ^? key "type" . _String
+      let eclient = j ^? key "client" . key "id" . _String
+      etype @?= Just "user.client-remove"
+      fmap ClientId eclient @?= Just (clientId client)
   brigClients2 <- numOfBrigClients uid
   galleyClients2 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) brigClients2

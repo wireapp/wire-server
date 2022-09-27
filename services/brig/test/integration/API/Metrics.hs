@@ -51,29 +51,30 @@ testPrometheusMetrics brig = do
     const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
 
 testMetricsEndpoint :: Brig -> Http ()
-testMetricsEndpoint brig = do
-  let p1 = "/self"
+testMetricsEndpoint brig0 = do
+  let brig = apiVersion "v1" . brig0
+      p1 = "/self"
       p2 uid = "/users/" <> uid <> "/clients"
-      p3 = "/onboarding/v3"
+      p3 = "/login"
   beforeSelf <- getCount "/self" "GET"
   beforeClients <- getCount "/users/:uid/clients" "GET"
-  beforeProperties <- getCount "/onboarding/v3" "POST"
-  uid <- userId <$> randomUser brig
+  beforeProperties <- getCount "/login" "POST"
+  (uid, Just email) <- (\u -> (userId u, userEmail u)) <$> randomUser brig
   uid' <- userId <$> randomUser brig
   _ <- get (brig . path p1 . zAuthAccess uid "conn" . expect2xx)
   _ <- get (brig . path (p2 $ toByteString' uid) . zAuthAccess uid "conn" . expect2xx)
   _ <- get (brig . path (p2 $ toByteString' uid') . zAuthAccess uid "conn" . expect2xx)
-  _ <- post (brig . path p3 . zAuthAccess uid "conn" . json 'x' . expect2xx)
-  _ <- post (brig . path p3 . zAuthAccess uid "conn" . json 'x' . expect2xx)
+  _ <- post (brig . path p3 . contentJson . queryItem "persist" "true" . json (defEmailLogin email) . expect2xx)
+  _ <- post (brig . path p3 . contentJson . queryItem "persist" "true" . json (defEmailLogin email) . expect2xx)
   countSelf <- getCount "/self" "GET"
   liftIO $ assertEqual "/self was called once" (beforeSelf + 1) countSelf
   countClients <- getCount "/users/:uid/clients" "GET"
   liftIO $ assertEqual "/users/:uid/clients was called twice" (beforeClients + 2) countClients
-  countProperties <- getCount "/onboarding/v3" "POST"
-  liftIO $ assertEqual "/onboarding/v3 was called twice" (beforeProperties + 2) countProperties
+  countProperties <- getCount "/login" "POST"
+  liftIO $ assertEqual "/login was called twice" (beforeProperties + 2) countProperties
   where
     getCount endpoint m = do
-      rsp <- responseBody <$> get (brig . path "i/metrics")
+      rsp <- responseBody <$> get (brig0 . path "i/metrics")
       -- is there some responseBodyAsText function used elsewhere?
       let asText = fromMaybe "" (fromByteString' (fromMaybe "" rsp))
       pure $ fromRight 0 (parseOnly (parseCount endpoint m) asText)

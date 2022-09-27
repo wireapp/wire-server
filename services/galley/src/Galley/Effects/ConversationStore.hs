@@ -30,6 +30,7 @@ module Galley.Effects.ConversationStore
     getConversationIdByGroupId,
     getConversations,
     getConversationMetadata,
+    getPublicGroupState,
     isConversationAlive,
     getRemoteConversationStatus,
     selectConversations,
@@ -43,6 +44,7 @@ module Galley.Effects.ConversationStore
     setConversationEpoch,
     acceptConnectConversation,
     setGroupId,
+    setPublicGroupState,
 
     -- * Delete conversation
     deleteConversation,
@@ -65,6 +67,7 @@ import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.MLS.Epoch
+import Wire.API.MLS.PublicGroupState
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
@@ -74,6 +77,9 @@ data ConversationStore m a where
   GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
+  GetPublicGroupState ::
+    ConvId ->
+    ConversationStore m (Maybe OpaquePublicGroupState)
   IsConversationAlive :: ConvId -> ConversationStore m Bool
   GetRemoteConversationStatus ::
     UserId ->
@@ -87,6 +93,10 @@ data ConversationStore m a where
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
+  SetPublicGroupState ::
+    ConvId ->
+    OpaquePublicGroupState ->
+    ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
 

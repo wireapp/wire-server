@@ -67,6 +67,7 @@ module Wire.API.Team.Feature
     DigitalSignaturesConfig (..),
     ConferenceCallingConfig (..),
     GuestLinksConfig (..),
+    ExposeInvitationURLsToTeamAdminConfig (..),
     SndFactorPasswordChallengeConfig (..),
     SearchVisibilityInboundConfig (..),
     ClassifiedDomainsConfig (..),
@@ -579,6 +580,7 @@ allFeatureModels =
     withStatusNoLockModel @SndFactorPasswordChallengeConfig,
     withStatusNoLockModel @SearchVisibilityInboundConfig,
     withStatusNoLockModel @MLSConfig,
+    withStatusNoLockModel @ExposeInvitationURLsToTeamAdminConfig,
     withStatusModel @LegalholdConfig,
     withStatusModel @SSOConfig,
     withStatusModel @SearchVisibilityAvailableConfig,
@@ -592,7 +594,8 @@ allFeatureModels =
     withStatusModel @GuestLinksConfig,
     withStatusModel @SndFactorPasswordChallengeConfig,
     withStatusModel @SearchVisibilityInboundConfig,
-    withStatusModel @MLSConfig
+    withStatusModel @MLSConfig,
+    withStatusModel @ExposeInvitationURLsToTeamAdminConfig
   ]
     <> catMaybes
       [ configModel @LegalholdConfig,
@@ -608,7 +611,8 @@ allFeatureModels =
         configModel @GuestLinksConfig,
         configModel @SndFactorPasswordChallengeConfig,
         configModel @SearchVisibilityInboundConfig,
-        configModel @MLSConfig
+        configModel @MLSConfig,
+        configModel @ExposeInvitationURLsToTeamAdminConfig
       ]
 
 --------------------------------------------------------------------------------
@@ -940,6 +944,24 @@ instance IsFeatureConfig MLSConfig where
       Doc.property "defaultCipherSuite" Doc.int32' $ Doc.description "cipher suite number. See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5"
 
 ----------------------------------------------------------------------
+-- ExposeInvitationURLsToTeamAdminConfig
+
+data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConfig
+  deriving stock (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform ExposeInvitationURLsToTeamAdminConfig)
+
+instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
+  type FeatureSymbol ExposeInvitationURLsToTeamAdminConfig = "exposeInvitationURLsToTeamAdmin"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
+  objectSchema = pure ExposeInvitationURLsToTeamAdminConfig
+
+instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
+  schema = object "ExposeInvitationURLsToTeamAdminConfig" objectSchema
+
+instance FeatureTrivialConfig ExposeInvitationURLsToTeamAdminConfig where
+  trivialConfig = ExposeInvitationURLsToTeamAdminConfig
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -1007,7 +1029,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcSelfDeletingMessages :: WithStatus SelfDeletingMessagesConfig,
     afcGuestLink :: WithStatus GuestLinksConfig,
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
-    afcMLS :: WithStatus MLSConfig
+    afcMLS :: WithStatus MLSConfig,
+    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1030,6 +1053,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcGuestLink .= featureField
         <*> afcSndFactorPasswordChallenge .= featureField
         <*> afcMLS .= featureField
+        <*> afcExposeInvitationURLsToTeamAdmin .= featureField
     where
       featureField ::
         forall cfg.
@@ -1041,6 +1065,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

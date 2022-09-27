@@ -24,12 +24,16 @@ import Wire.API.MLS.Commit
 import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 data Welcome = Welcome
-  { welCipherSuite :: CipherSuite,
+  { welProtocolVersion :: ProtocolVersion,
+    welCipherSuite :: CipherSuite,
     welSecrets :: [GroupSecrets],
     welGroupInfo :: ByteString
   }
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform Welcome)
 
 instance S.ToSchema Welcome where
   declareNamedSchema _ = pure (mlsSwagger "Welcome")
@@ -37,16 +41,29 @@ instance S.ToSchema Welcome where
 instance ParseMLS Welcome where
   parseMLS =
     Welcome
-      -- Note: the extra protocol version at the beginning of the welcome
-      -- message is present in openmls-0.4.0-pre, but is not part of the spec
-      <$> (parseMLS @ProtocolVersion *> parseMLS)
+      <$> parseMLS @ProtocolVersion
+      <*> parseMLS
       <*> parseMLSVector @Word32 parseMLS
       <*> parseMLSBytes @Word32
+
+instance SerialiseMLS Welcome where
+  serialiseMLS (Welcome pv cs ss gi) = do
+    serialiseMLS pv
+    serialiseMLS cs
+    serialiseMLSVector @Word32 serialiseMLS ss
+    serialiseMLSBytes @Word32 gi
 
 data GroupSecrets = GroupSecrets
   { gsNewMember :: KeyPackageRef,
     gsSecrets :: HPKECiphertext
   }
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform GroupSecrets)
 
 instance ParseMLS GroupSecrets where
   parseMLS = GroupSecrets <$> parseMLS <*> parseMLS
+
+instance SerialiseMLS GroupSecrets where
+  serialiseMLS (GroupSecrets kp sec) = do
+    serialiseMLS kp
+    serialiseMLS sec

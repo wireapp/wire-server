@@ -21,7 +21,10 @@ module TestHelpers where
 
 import API.SQS
 import Control.Lens (view)
+import Control.Monad.Catch (MonadMask)
+import Control.Retry
 import Data.Domain (Domain)
+import Data.Qualified
 import qualified Galley.Aws as Aws
 import Galley.Options (optSettings, setFederationDomain)
 import Imports
@@ -54,3 +57,11 @@ test s n h = testCase n runTest
 
 viewFederationDomain :: TestM Domain
 viewFederationDomain = view (tsGConf . optSettings . setFederationDomain)
+
+qualifyLocal :: a -> TestM (Local a)
+qualifyLocal x = do
+  domain <- viewFederationDomain
+  pure $ toLocalUnsafe domain x
+
+eventually :: (MonadIO m, MonadMask m) => m a -> m a
+eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const

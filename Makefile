@@ -117,6 +117,31 @@ cabal-fmt:
 ghcid:
 	ghcid -l=hlint --command "cabal repl $(target)"
 
+.PHONY: hlint-check-all
+hlint-check-all:
+	./tools/hlint.sh -f all -m check
+
+.PHONY: hlint-check-pr
+hlint-check-pr:
+	./tools/hlint.sh -f pr -m check
+
+.PHONY: hlint-inplace-pr
+hlint-inplace-pr:
+	./tools/hlint.sh -f pr -m inplace
+
+
+.PHONY: hlint-inplace-all
+hlint-inplace-all:
+	./tools/hlint.sh -f all -m inplace
+
+.PHONY: hlint-check
+hlint-check:
+	./tools/hlint.sh -f changeset -m check
+
+.PHONY: hlint-inplace
+hlint-inplace:
+	./tools/hlint.sh -f changeset -m inplace
+
 # reset db using cabal
 .PHONY: db-reset-package
 db-reset-package: c

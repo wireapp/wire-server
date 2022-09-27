@@ -41,8 +41,10 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.Welcome
@@ -186,6 +188,18 @@ type ConversationAPI =
         :> Get '[Servant.JSON] Conversation
     )
     :<|> Named
+           "get-unqualified-conversation-legalhold-alias"
+           -- This alias exists, so that it can be uniquely selected in zauth.acl
+           ( Summary "Get a conversation by ID (Legalhold alias)"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> ZLocalUser
+               :> "legalhold"
+               :> "conversations"
+               :> Capture "cnv" ConvId
+               :> Get '[Servant.JSON] Conversation
+           )
+    :<|> Named
            "get-conversation"
            ( Summary "Get a conversation by ID"
                :> CanThrow 'ConvNotFound
@@ -205,6 +219,24 @@ type ConversationAPI =
                :> Capture "cnv" ConvId
                :> "roles"
                :> Get '[Servant.JSON] ConversationRolesList
+           )
+    :<|> Named
+           "get-group-info"
+           ( Summary "Get MLS group information"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'MLSMissingGroupInfo
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "groupinfo"
+               :> MultiVerb1
+                    'GET
+                    '[MLS]
+                    ( Respond
+                        200
+                        "The group information"
+                        OpaquePublicGroupState
+                    )
            )
     :<|> Named
            "list-conversation-ids-unqualified"
@@ -1124,6 +1156,8 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() SndFactorPasswordChallengeConfig
     :<|> FeatureStatusGet MLSConfig
     :<|> FeatureStatusPut '() MLSConfig
+    :<|> FeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
+    :<|> FeatureStatusPut '() ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureStatusGet SearchVisibilityInboundConfig
     :<|> FeatureStatusPut '() SearchVisibilityInboundConfig
     :<|> AllFeatureConfigsUserGet
@@ -1367,6 +1401,33 @@ type MLSMessagingAPI =
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" MLSMessageSendingStatus)
+           )
+    :<|> Named
+           "mls-commit-bundle"
+           ( Summary "Post a MLS CommitBundle"
+               :> From 'V2
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvMemberNotFound
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSCommitMissingReferences
+               :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSProposalNotFound
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSSelfRemovalNotAllowed
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'MLSUnsupportedMessage
+               :> CanThrow 'MLSUnsupportedProposal
+               :> CanThrow 'MLSClientSenderUserMismatch
+               :> CanThrow 'MLSGroupConversationMismatch
+               :> CanThrow 'MLSWelcomeMismatch
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow MLSProposalFailure
+               :> "commit-bundles"
+               :> ZConn
+               :> ReqBody '[MLS] (RawMLS CommitBundle)
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
            )
     :<|> Named
            "mls-public-keys"

@@ -49,7 +49,6 @@ import qualified Galley.Types.Teams.Intra as Team
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Handler.Warp
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Predicate hiding (Error, reason, setStatus)
 import Network.Wai.Routing hiding (trace)
@@ -78,7 +77,7 @@ start :: Opts -> IO ()
 start o = do
   e <- newEnv o
   s <- Server.newSettings (server e)
-  runSettings s (pipeline e)
+  Server.runSettingsWithShutdown s (pipeline e) Nothing
   where
     server e = Server.defaultServer (unpack $ stern o ^. epHost) (stern o ^. epPort) (e ^. applog) (e ^. metrics)
     pipeline e = GZip.gzip GZip.def $ serve e

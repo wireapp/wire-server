@@ -54,6 +54,7 @@ module Brig.API.User
     deleteUsersNoVerify,
     deleteSelfUser,
     verifyDeleteUser,
+    ensureAccountDeleted,
     deleteAccount,
     checkHandles,
     isBlacklistedHandle,
@@ -100,6 +101,7 @@ import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.Client as Data
+import Brig.Data.Connection (countConnections)
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.Properties as Data
 import Brig.Data.User
@@ -110,25 +112,26 @@ import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.CodeStore (CodeStore)
+import qualified Brig.Effects.CodeStore as E
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import qualified Brig.Effects.PasswordResetStore as E
+import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
+import qualified Brig.Effects.UserPendingActivationStore as UserPendingActivationStore
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
-import Brig.Sem.CodeStore (CodeStore)
-import qualified Brig.Sem.CodeStore as E
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import qualified Brig.Sem.PasswordResetStore as E
-import Brig.Sem.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
-import qualified Brig.Sem.UserPendingActivationStore as UserPendingActivationStore
 import qualified Brig.Team.DB as Team
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.User (HavePendingInvitations (..), ManagedByUpdate (..), PasswordResetPair)
 import Brig.Types.User.Event
-import Brig.User.Auth.Cookie (revokeAllCookies)
+import Brig.User.Auth.Cookie (listCookies, revokeAllCookies)
 import Brig.User.Email
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
@@ -147,6 +150,7 @@ import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
+import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
@@ -410,7 +414,7 @@ createUser new = do
     findTeamInvitation (Just e) c =
       lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
         Just ii -> do
-          inv <- lift . wrapClient $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
+          inv <- lift . wrapClient $ Team.lookupInvitation HideInvitationUrl (Team.iiTeam ii) (Team.iiInvId ii)
           case (inv, Team.inInviteeEmail <$> inv) of
             (Just invite, Just em)
               | e == userEmailKey em -> do
@@ -1230,10 +1234,57 @@ verifyDeleteUser d = do
   for_ account $ lift . wrapHttpClient . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
--- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
--- via deleting self.
--- Team owners can be deleted if the team is not orphaned, i.e. there is at least one
--- other owner left.
+-- | Check if `deleteAccount` succeeded and run it again if needed.
+-- Called via @delete /i/user/:uid@.
+ensureAccountDeleted ::
+  ( MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m,
+    MonadReader Env m
+  ) =>
+  UserId ->
+  m DeleteUserResult
+ensureAccountDeleted uid = do
+  mbAcc <- lookupAccount uid
+  case mbAcc of
+    Nothing -> pure NoUser
+    Just acc -> do
+      probs <- Data.lookupPropertyKeysAndValues uid
+
+      let accIsDeleted = accountStatus acc == Deleted
+      clients <- Data.lookupClients uid
+
+      localUid <- qualifyLocal uid
+      conCount <- countConnections localUid [(minBound @Relation) .. maxBound]
+      cookies <- listCookies uid []
+
+      if notNull probs
+        || not accIsDeleted
+        || notNull clients
+        || conCount > 0
+        || notNull cookies
+        then do
+          deleteAccount acc
+          pure AccountDeleted
+        else pure AccountAlreadyDeleted
+
+-- | Internal deletion without validation.
+--
+-- Called via @delete /i/user/:uid@ (through `ensureAccountDeleted`), or
+-- indirectly via deleting self. Team owners can be deleted if the team is not
+-- orphaned, i.e. there is at least one other owner left.
+--
+-- N.B.: As Cassandra doesn't support transactions, the order of database
+-- statements matters! Other functions reason upon some states to imply other
+-- states. Please change this order only with care!
 deleteAccount ::
   ( MonadLogger m,
     MonadIndexIO m,
@@ -1250,8 +1301,8 @@ deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
-  for_ (userEmail user) $ deleteKey . userEmailKey
-  for_ (userPhone user) $ deleteKey . userPhoneKey
+  for_ (userEmail user) $ deleteKeyForUser uid . userEmailKey
+  for_ (userPhone user) $ deleteKeyForUser uid . userPhoneKey
   for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
   Data.clearProperties uid

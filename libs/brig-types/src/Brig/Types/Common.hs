@@ -80,7 +80,7 @@ isValidPhonePrefix = isRight . parseOnly e164Prefix
 -- | get all valid prefixes of a phone number or phone number prefix
 -- e.g. from +123456789 get prefixes ["+1", "+12", "+123", ..., "+123456789" ]
 allPrefixes :: Text -> [PhonePrefix]
-allPrefixes t = catMaybes $ parsePhonePrefix <$> Text.inits t
+allPrefixes t = mapMaybe parsePhonePrefix (Text.inits t)
 
 instance FromJSON PhonePrefix where
   parseJSON = withText "PhonePrefix" $ \s ->

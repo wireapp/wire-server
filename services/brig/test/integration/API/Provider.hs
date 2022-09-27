@@ -733,7 +733,8 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   forM_ [uid1, uid2] $ \uid -> do
     void $ retryWhileN 20 (/= Intra.Deleted) (getStatus brig uid)
     chkStatus brig uid Intra.Deleted
-    getConversation galley uid cid !!! const 404 === statusCode
+    eventually $ do
+      getConversation galley uid cid !!! const 404 === statusCode
   -- Check the bot cannot see the conversation either
   getBotConv galley bid cid !!! const 404 === statusCode
 
@@ -1849,7 +1850,7 @@ svcAssertBotCreated buf bid cid = liftIO $ do
       -- TODO: Verify the conversation name
       -- TODO: Verify the list of members
       pure b
-    _ -> throwM $ HUnitFailure Nothing "Event timeout (TestBotCreated)"
+    _ -> assertFailure "Event timeout (TestBotCreated)"
 
 svcAssertMessage :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified ConvId -> m ()
 svcAssertMessage buf from msg cnv = liftIO $ do

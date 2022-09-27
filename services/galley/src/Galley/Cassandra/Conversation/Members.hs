@@ -32,6 +32,7 @@ import qualified Data.List.Extra as List
 import Data.Monoid
 import Data.Qualified
 import qualified Data.Set as Set
+import Galley.API.MLS.Types
 import Galley.Cassandra.Instances ()
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Services
@@ -46,6 +47,7 @@ import Polysemy.Input
 import qualified UnliftIO
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
+import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
 
 -- | Add members to a local conversation.
@@ -73,7 +75,7 @@ addMembers conv (fmap toUserRole -> UserList lusers rusers) = do
       setConsistency LocalQuorum
       for_ chunk $ \(u, r) -> do
         -- User is local, too, so we add it to both the member and the user table
-        addPrepQuery Cql.insertMember (conv, u, Nothing, Nothing, r, Nothing)
+        addPrepQuery Cql.insertMember (conv, u, Nothing, Nothing, r)
         addPrepQuery Cql.insertUserConv (u, conv)
 
   for_ (List.chunksOf 32 rusers) $ \chunk -> do
@@ -156,18 +158,16 @@ toMember ::
     Maybe Bool,
     Maybe Text,
     -- conversation role name
-    Maybe RoleName,
-    Maybe (Cassandra.Set ClientId)
+    Maybe RoleName
   ) ->
   Maybe LocalMember
-toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn, cs) =
+toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn) =
   Just $
     LocalMember
       { lmId = usr,
         lmService = newServiceRef <$> srv <*> prv,
         lmStatus = toMemberStatus (omus, omur, oar, oarr, hid, hidr),
-        lmConvRoleName = fromMaybe roleNameWireAdmin crn,
-        lmMLSClients = maybe Set.empty (Set.fromList . fromSet) cs
+        lmConvRoleName = fromMaybe roleNameWireAdmin crn
       }
 toMember _ = Nothing
 
@@ -175,30 +175,27 @@ newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
 newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
   RemoteMember
     { rmId = qualifyAs ur u,
-      rmConvRoleName = r,
-      rmMLSClients = mempty
+      rmConvRoleName = r
     }
 
 lookupRemoteMember :: ConvId -> Domain -> UserId -> Client (Maybe RemoteMember)
 lookupRemoteMember conv domain usr = do
   mkMem <$$> retry x1 (query1 Cql.selectRemoteMember (params LocalQuorum (conv, domain, usr)))
   where
-    mkMem (role, clients) =
+    mkMem (Identity role) =
       RemoteMember
         { rmId = toRemoteUnsafe domain usr,
-          rmConvRoleName = role,
-          rmMLSClients = Set.fromList (fromSet clients)
+          rmConvRoleName = role
         }
 
 lookupRemoteMembers :: ConvId -> Client [RemoteMember]
 lookupRemoteMembers conv = do
   fmap (map mkMem) . retry x1 $ query Cql.selectRemoteMembers (params LocalQuorum (Identity conv))
   where
-    mkMem (domain, usr, role, clients) =
+    mkMem (domain, usr, role) =
       RemoteMember
         { rmId = toRemoteUnsafe domain usr,
-          rmConvRoleName = role,
-          rmMLSClients = Set.fromList (fromSet clients)
+          rmConvRoleName = role
         }
 
 member ::
@@ -344,32 +341,26 @@ removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victim
     setConsistency LocalQuorum
     for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
 
-addMLSClients :: Local ConvId -> Qualified UserId -> Set.Set ClientId -> Client ()
-addMLSClients lcnv =
-  foldQualified
-    lcnv
-    (addLocalMLSClients (tUnqualified lcnv))
-    (addRemoteMLSClients (tUnqualified lcnv))
+addMLSClients :: Local ConvId -> Qualified UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
+addMLSClients lcnv (Qualified usr domain) cs = retry x5 . batch $ do
+  setType BatchLogged
+  setConsistency LocalQuorum
+  for_ cs $ \(c, kpr) ->
+    addPrepQuery Cql.addMLSClient (tUnqualified lcnv, domain, usr, c, kpr)
 
-addRemoteMLSClients :: ConvId -> Remote UserId -> Set.Set ClientId -> Client ()
-addRemoteMLSClients cid ruid cs =
-  retry x5 $
-    write
-      Cql.addRemoteMLSClients
-      ( params
-          LocalQuorum
-          (Cassandra.Set (toList cs), cid, tDomain ruid, tUnqualified ruid)
-      )
+removeMLSClients :: Local ConvId -> Qualified UserId -> Set.Set ClientId -> Client ()
+removeMLSClients lcnv (Qualified usr domain) cs = retry x5 . batch $ do
+  setType BatchLogged
+  setConsistency LocalQuorum
+  for_ cs $ \c ->
+    addPrepQuery Cql.removeMLSClient (tUnqualified lcnv, domain, usr, c)
 
-addLocalMLSClients :: ConvId -> Local UserId -> Set.Set ClientId -> Client ()
-addLocalMLSClients cid lusr cs =
-  retry x5 $
-    write
-      Cql.addLocalMLSClients
-      ( params
-          LocalQuorum
-          (Cassandra.Set (toList cs), cid, tUnqualified lusr)
-      )
+lookupMLSClients :: Local ConvId -> Client ClientMap
+lookupMLSClients lcnv =
+  mkClientMap
+    <$> retry
+      x5
+      (query Cql.lookupMLSClients (params LocalQuorum (Identity (tUnqualified lcnv))))
 
 interpretMemberStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
@@ -394,3 +385,5 @@ interpretMemberStoreToCassandra = interpret $ \case
     embedClient $
       removeLocalMembersFromRemoteConv rcnv uids
   AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
+  RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
+  LookupMLSClients lcnv -> embedClient $ lookupMLSClients lcnv

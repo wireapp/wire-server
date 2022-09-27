@@ -95,6 +95,7 @@ module Wire.API.User
     VerifyDeleteUser (..),
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
+    DeleteUserResult (..),
 
     -- * List Users
     ListUsersQuery (..),
@@ -108,7 +109,6 @@ module Wire.API.User
     modelEmailUpdate,
     modelUser,
     modelUserIdList,
-    modelVerifyDelete,
 
     -- * 2nd factor auth
     VerificationAction (..),
@@ -1311,30 +1311,17 @@ data VerifyDeleteUser = VerifyDeleteUser
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform VerifyDeleteUser)
-
-modelVerifyDelete :: Doc.Model
-modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
-  Doc.description "Data for verifying an account deletion."
-  Doc.property "key" Doc.string' $
-    Doc.description "The identifying key of the account (i.e. user ID)."
-  Doc.property "code" Doc.string' $
-    Doc.description "The verification code."
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifyDeleteUser)
 
 mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
 mkVerifyDeleteUser = VerifyDeleteUser
 
-instance ToJSON VerifyDeleteUser where
-  toJSON d =
-    A.object
-      [ "key" A..= verifyDeleteUserKey d,
-        "code" A..= verifyDeleteUserCode d
-      ]
-
-instance FromJSON VerifyDeleteUser where
-  parseJSON = A.withObject "VerifyDeleteUser" $ \o ->
-    VerifyDeleteUser
-      <$> o A..: "key"
-      <*> o A..: "code"
+instance ToSchema VerifyDeleteUser where
+  schema =
+    objectWithDocModifier "VerifyDeleteUser" (description ?~ "Data for verifying an account deletion.") $
+      VerifyDeleteUser
+        <$> verifyDeleteUserKey .= fieldWithDocModifier "key" (description ?~ "The identifying key of the account (i.e. user ID).") schema
+        <*> verifyDeleteUserCode .= fieldWithDocModifier "code" (description ?~ "The verification code.") schema
 
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout
@@ -1355,6 +1342,16 @@ instance ToJSON DeletionCodeTimeout where
 instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
+
+-- | Result of an internal user/account deletion
+data DeleteUserResult
+  = -- | User never existed
+    NoUser
+  | -- | User/account was deleted before
+    AccountAlreadyDeleted
+  | -- | User/account was deleted in this call
+    AccountDeleted
+  deriving (Eq, Show)
 
 data ListUsersQuery
   = ListUsersByIds [Qualified UserId]
