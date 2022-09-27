@@ -1,4 +1,0 @@
-In Gundeck's 'notifications' cassandra table, switch to [TWCS](https://cassandra.apache.org/doc/latest/cassandra/operating/compaction/twcs.html) compaction strategy, which should be more efficient for this workload, and possibly bring performance benefits to latencies.
-It may be beneficial to run a manual compaction before rolling out this
-change (but things should also work without this manual operation).
-In case you have time, run the following from a cassandra machine before deploying this update: `nodetool compact gundeck notifications`.

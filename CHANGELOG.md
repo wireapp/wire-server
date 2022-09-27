@@ -1,3 +1,116 @@
+# [2022-09-27] (Chart Release 4.24.0)
+
+## Release notes
+
+
+* For users of the (currently alpha) coturn Helm chart, **manual action is
+  required** when upgrading to this version. The labels applied to the Kubernetes
+  manifests in this chart have changed, in order to match the conventions used
+  in the wire-server charts. However, this may mean that upgrading with Helm can
+  fail, due to changes to the `StatefulSet` included in this chart -- in this
+  case, the `StatefulSet` must be deleted before the chart is upgraded. (#2677)
+
+* wire-server helm charts: Adjust default CPU/Memory resources: Remove CPU limits to avoid CPU throttling; adjust request CPU and memory based on observed values. Overall this decreases the amount of CPU/memory that the wire-server chart needs to install/schedule pods. (#2675)
+
+* Upgrade team-settings version to 4.12.1-v0.31.5-0-0167ea4 (#2180)
+
+* Upgrade webapp version to 2022-09-20-production.0-v0.31.2-0-7f74074 (#2302)
+
+
+## API changes
+
+
+* Add new endpoint `/mls/commit-bundles` for submitting MLS `CommitBundle`s. A `CommitBundle` is a triple consisting of a commit message, an optional welcome message and a public group state. (#2688)
+
+* MLS: Store and expose group info via `GET /conversations/:domain/:id/groupinfo` (#2721)
+
+* Add /mls/public-keys to nginz chart (#2676)
+
+* Users being kicked out results in member-leave events originating from the user who caused the change in the conversation (#2724)
+
+* Leaving an MLS conversation is now possible using the regular endpoint `DELETE /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}`. When a user leaves, the backend sends external remove proposals for all their clients in the corresponding MLS group. (#2667)
+
+* Validate remotely claimed key packages (#2692)
+
+
+## Features
+
+
+* The coturn chart now has support for exposing its metric endpoint with a
+  ServiceMonitor, which can be ingested by third-party metrics collection tools. (#2677)
+
+* Deleting clients creates MLS remove proposals (#2674)
+
+* External remove proposals are now sent to a group when a user is deleted (#2650)
+
+* Allow non-admins to commit add proposals in MLS conversations (#2691)
+
+* Optionally add invitation urls to the body of `/teams/{tid}/invitations`. This allows further processing; e.g. to send those links with custom emails or distribute them as QR codes. See [docs](https://docs.wire.com/developer/reference/config-options.html#expose-invitation-urls-to-team-admin) for details and privacy implications. (#2684)
+
+
+## Bug fixes and other updates
+
+
+* SCIM user deletion suffered from a couple of race conditions. The user in now first deleted in spar, because this process depends on data from brig. Then, the user is deleted in brig. If any error occurs, the SCIM deletion request can be made again. This change depends on brig being completely deployed before using the SCIM deletion endpoint in brig. In the unlikely event of using SCIM deletion during the deployment, these requests can be retried (in case of error). (#2637)
+
+* The 2nd factor password challenge team feature is disabled for SSO users (#2693)
+
+* Less surprising handling of SIGINT, SIGTERM for proxy, stern. Increase grace period for shutdown from 5s to 30s for all services.  (#2715)
+
+
+## Documentation
+
+
+* Drop Client model (unused) from old swagger.
+  Add a description and example data for mls_public_keys field in new swagger. (#2657)
+
+* Document user deactivation (aka suspension) with SCIM. (#2720)
+
+* Monitoring page showed wrong wrong configuration charts. Updated prometheus-operator to kube-prometheus-stack chart in the documentation.  (#2708)
+
+
+## Internal changes
+
+
+* Make client deletion asynchronous (#2669)
+
+* Allow external add proposals without previously uploading key packages. (#2661)
+
+* Allow legalhold tokens access to `/converations/<uuid>` endpoint (#2682, #2726)
+
+* Move Brig.Sem.* modules to Brig.Effects (consistency) (#2672)
+
+* The labels applied to resources in the coturn chart have been changed to
+  reflect the conventions in the wire-server charts. (#2677)
+
+* Drop the `managed` column from `team_conv` table in Galley (#2127)
+
+* Fix link in PR template (#2673)
+
+* In Gundeck's 'notifications' cassandra table, switch to [TWCS](https://cassandra.apache.org/doc/latest/cassandra/operating/compaction/twcs.html) compaction strategy, which should be more efficient for this workload, and possibly bring performance benefits to latencies.
+  It may be beneficial to run a manual compaction before rolling out this
+  change (but things should also work without this manual operation).
+  In case you have time, run the following from a cassandra machine before deploying this update: `nodetool compact gundeck notifications`. (#2615)
+
+* Add regular expression support to libzauth ACL language (#2714)
+
+* Make test API calls point to the most recent version by default (#2695)
+
+* Clients and key package refs in an MLS conversation are now stored in their own table. (#2667)
+
+* Refactor MLS test framework (#2678)
+
+* Update mls-test-cli to version 0.5 (#2685)
+
+* Added rusty-jwt-tools to docker images (#2686)
+
+* The account API is now migrated to servant. (#2699, #2700, #2701, #2702, #2703, #2704, #2705, #2707)
+
+* Update nginz and cannon ACLs to match api-versioned paths (#2725)
+
+* For wire-server cloud, on kubernetes 1.21+, favour topology-aware routing, which reduces unnecessary inter-availability-zone traffic, reducing latency and cloud provider cross-AZ traffic costs. (#2723)
+
+
 # [2022-09-01] (Chart Release 4.23.0)
 
 ## Release notes
