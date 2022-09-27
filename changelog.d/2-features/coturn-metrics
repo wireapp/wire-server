@@ -1,2 +1,0 @@
-The coturn chart now has support for exposing its metric endpoint with a
-ServiceMonitor, which can be ingested by third-party metrics collection tools.

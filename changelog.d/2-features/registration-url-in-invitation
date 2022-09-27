@@ -1,1 +1,0 @@
-Optionally add invitation urls to the body of `/teams/{tid}/invitations`. This allows further processing; e.g. to send those links with custom emails or distribute them as QR codes. See [docs](https://docs.wire.com/developer/reference/config-options.html#expose-invitation-urls-to-team-admin) for details and privacy implications.

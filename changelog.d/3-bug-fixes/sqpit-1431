@@ -1,1 +1,0 @@
-Less surprising handling of SIGINT, SIGTERM for proxy, stern. Increase grace period for shutdown from 5s to 30s for all services. 
