@@ -1,1 +1,0 @@
-Add new endpoint `/mls/commit-bundles` for submitting MLS `CommitBundle`s. A `CommitBundle` is a triple consisting of a commit message, an optional welcome message and a public group state.

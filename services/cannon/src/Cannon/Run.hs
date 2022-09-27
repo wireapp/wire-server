@@ -91,6 +91,10 @@ run o = do
   void $ installHandler sigTERM (signalHandler (env e) tid) Nothing
   void $ installHandler sigINT (signalHandler (env e) tid) Nothing
   runSettings s app `finally` do
+    -- FUTUREWORK(@akshaymankar, @fisx): we may want to call `runSettingsWithShutdown` here,
+    -- but it's a sensitive change, and it looks like this is closing all the websockets at
+    -- the same time and then calling the drain script. I suspect this might be due to some
+    -- cleanup in wai.  this needs to be tested very carefully when touched.
     Async.cancel refreshMetricsThread
     L.close (applog e)
   where

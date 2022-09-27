@@ -20,9 +20,9 @@ module API.CustomBackend
   )
 where
 
+import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.Aeson.QQ (aesonQQ)
 import Imports
@@ -43,13 +43,13 @@ tests s =
 
 getByDomainNotFound :: TestM ()
 getByDomainNotFound = do
-  galley <- view tsGalley
+  galley <- viewGalley
   get (galley . path "/custom-backend/by-domain/domain.no1") !!! do
     const 404 === statusCode
 
 getByDomainInvalidDomain :: TestM ()
 getByDomainInvalidDomain = do
-  galley <- view tsGalley
+  galley <- viewGalley
   -- contains invalid character '+'
   -- this used to respond with '400 bad request'
   -- but after servantification it returns '404 not found'
@@ -59,7 +59,7 @@ getByDomainInvalidDomain = do
 
 getByDomainFound :: TestM ()
 getByDomainFound = do
-  galley <- view tsGalley
+  galley <- viewGalley
   let jsonBody :: Value
       jsonBody =
         [aesonQQ|{
@@ -74,7 +74,7 @@ getByDomainFound = do
 
 getByDomainDeleted :: TestM ()
 getByDomainDeleted = do
-  galley <- view tsGalley
+  galley <- viewGalley
   let jsonBody :: Value
       jsonBody =
         [aesonQQ|{
@@ -90,7 +90,7 @@ getByDomainDeleted = do
 
 getByDomainIsCaseInsensitive :: TestM ()
 getByDomainIsCaseInsensitive = do
-  galley <- view tsGalley
+  galley <- viewGalley
   let jsonBody :: Value
       jsonBody =
         [aesonQQ|{

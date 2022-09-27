@@ -15,9 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V75_MLSGroupInfo
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 75
+migration :: Migration
+migration =
+  Migration 75 "Add the MLS public group state column to the conversation table" $
+    schema'
+      [r| ALTER TABLE conversation ADD (
+            public_group_state blob
+          )
+        |]

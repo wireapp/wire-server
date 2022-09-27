@@ -95,14 +95,10 @@ import qualified Data.ZAuth.Token as ZAuth
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
-import Network.HTTP.Types.Status
-import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import qualified Network.Wai.Utilities.Swagger as Doc
-import Network.Wai.Utilities.ZAuth (zauthUserId)
+import Network.Wai.Utilities.Swagger (mkSwaggerApi)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
@@ -190,7 +186,9 @@ servantSitemap ::
   Members
     '[ BlacklistStore,
        BlacklistPhonePrefixStore,
-       UserPendingActivationStore p
+       UserPendingActivationStore p,
+       PasswordResetStore,
+       CodeStore
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -228,6 +226,10 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-activate" activate
         :<|> Named @"post-activate" activateKey
         :<|> Named @"post-activate-send" sendActivationCode
+        :<|> Named @"post-password-reset" beginPasswordReset
+        :<|> Named @"post-password-reset-complete" completePasswordReset
+        :<|> Named @"post-password-reset-key-deprecated" deprecatedCompletePasswordReset
+        :<|> Named @"onboarding" deprecatedOnboarding
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -314,53 +316,6 @@ sitemap ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
-  -- /activate, /password-reset ----------------------------------
-
-  post "/password-reset" (continue beginPasswordResetH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.NewPasswordReset
-  document "POST" "beginPasswordReset" $ do
-    Doc.summary "Initiate a password reset."
-    Doc.body (Doc.ref Public.modelNewPasswordReset) $
-      Doc.description "JSON body"
-    Doc.response 201 "Password reset code created and sent by email." Doc.end
-    Doc.errorResponse invalidPwResetKey
-    Doc.errorResponse duplicatePwResetCode
-
-  post "/password-reset/complete" (continue completePasswordResetH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.CompletePasswordReset
-  document "POST" "completePasswordReset" $ do
-    Doc.summary "Complete a password reset."
-    Doc.body (Doc.ref Public.modelCompletePasswordReset) $
-      Doc.description "JSON body"
-    Doc.response 200 "Password reset successful." Doc.end
-    Doc.errorResponse invalidPwResetCode
-
-  post "/password-reset/:key" (continue deprecatedCompletePasswordResetH) $
-    accept "application" "json"
-      .&. capture "key"
-      .&. jsonRequest @Public.PasswordReset
-  document "POST" "deprecatedCompletePasswordReset" $ do
-    Doc.deprecated
-    Doc.summary "Complete a password reset."
-    Doc.notes "DEPRECATED: Use 'POST /password-reset/complete'."
-
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
-  -- see test/integration/API/Metrics.hs
-  post "/onboarding/v3" (continue deprecatedOnboardingH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. jsonRequest @Value
-  document "POST" "onboardingV3" $ do
-    Doc.deprecated
-    Doc.summary "Upload contacts and invoke matching."
-    Doc.notes
-      "DEPRECATED: the feature has been turned off, the end-point does \
-      \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
-
   Provider.routesPublic
   Auth.routesPublic
   Team.routesPublic
@@ -770,13 +725,6 @@ changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
-beginPasswordResetH ::
-  Members '[PasswordResetStore] r =>
-  JSON ::: JsonRequest Public.NewPasswordReset ->
-  (Handler r) Response
-beginPasswordResetH (_ ::: req) =
-  setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
-
 beginPasswordReset ::
   Members '[PasswordResetStore] r =>
   Public.NewPasswordReset ->
@@ -789,14 +737,12 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
-completePasswordResetH ::
+completePasswordReset ::
   Members '[CodeStore, PasswordResetStore] r =>
-  JSON ::: JsonRequest Public.CompletePasswordReset ->
-  (Handler r) Response
-completePasswordResetH (_ ::: req) = do
-  Public.CompletePasswordReset {..} <- parseJsonBody req
-  API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
-  pure empty
+  Public.CompletePasswordReset ->
+  (Handler r) ()
+completePasswordReset req = do
+  API.completePasswordReset (Public.cpwrIdent req) (Public.cpwrCode req) (Public.cpwrPassword req) !>> pwResetError
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
@@ -1002,30 +948,20 @@ sendVerificationCode req = do
 
 -- Deprecated
 
-deprecatedOnboardingH :: JSON ::: UserId ::: JsonRequest Value -> (Handler r) Response
-deprecatedOnboardingH (_ ::: _ ::: _) = pure $ json DeprecatedMatchingResult
+deprecatedOnboarding :: UserId -> JsonValue -> (Handler r) DeprecatedMatchingResult
+deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 
-data DeprecatedMatchingResult = DeprecatedMatchingResult
-
-instance ToJSON DeprecatedMatchingResult where
-  toJSON DeprecatedMatchingResult =
-    object
-      [ "results" .= ([] :: [()]),
-        "auto-connects" .= ([] :: [()])
-      ]
-
-deprecatedCompletePasswordResetH ::
+deprecatedCompletePasswordReset ::
   Members '[CodeStore, PasswordResetStore] r =>
-  JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset ->
-  (Handler r) Response
-deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
-  pwr <- parseJsonBody req
+  Public.PasswordResetKey ->
+  Public.PasswordReset ->
+  (Handler r) ()
+deprecatedCompletePasswordReset k pwr = do
   API.completePasswordReset
     (Public.PasswordResetIdentityKey k)
     (Public.pwrCode pwr)
     (Public.pwrPassword pwr)
     !>> pwResetError
-  pure empty
 
 -- Utilities
 

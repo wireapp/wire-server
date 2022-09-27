@@ -40,7 +40,6 @@ import qualified Wire.API.User.Auth as User.Auth
 import qualified Wire.API.User.Client as User.Client
 import qualified Wire.API.User.Client.Prekey as User.Client.Prekey
 import qualified Wire.API.User.Handle as User.Handle
-import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Search as User.Search
@@ -118,8 +117,6 @@ models =
     User.Client.Prekey.modelPrekey,
     User.Handle.modelUserHandleInfo,
     User.Handle.modelCheckHandles,
-    User.Password.modelNewPasswordReset,
-    User.Password.modelCompletePasswordReset,
     User.Profile.modelAsset,
     User.RichInfo.modelRichInfo,
     User.RichInfo.modelRichField,

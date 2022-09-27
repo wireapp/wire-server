@@ -19,6 +19,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
@@ -30,7 +31,9 @@ import Data.Nonce (Nonce)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
-import Data.Swagger hiding (Contact, Header)
+import Data.Schema as Schema
+import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
+import qualified Data.Swagger as S
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
 import Servant (JSON)
@@ -55,6 +58,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
+import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
@@ -457,6 +461,66 @@ type AccountAPI =
                :> ReqBody '[JSON] SendActivationCode
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Activation code sent."] ()
            )
+    :<|> Named
+           "post-password-reset"
+           ( Summary "Initiate a password reset."
+               :> CanThrow 'PasswordResetInProgress
+               :> CanThrow 'InvalidPasswordResetKey
+               :> "password-reset"
+               :> ReqBody '[JSON] NewPasswordReset
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 201 "Password reset code created and sent by email."] ()
+           )
+    :<|> Named
+           "post-password-reset-complete"
+           ( Summary "Complete a password reset."
+               :> CanThrow 'InvalidPasswordResetCode
+               :> "password-reset"
+               :> "complete"
+               :> ReqBody '[JSON] CompletePasswordReset
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
+           )
+    :<|> Named
+           "post-password-reset-key-deprecated"
+           ( Summary "Complete a password reset."
+               :> CanThrow 'PasswordResetInProgress
+               :> CanThrow 'InvalidPasswordResetKey
+               :> CanThrow 'InvalidPasswordResetCode
+               :> CanThrow 'ResetPasswordMustDiffer
+               :> Description "DEPRECATED: Use 'POST /password-reset/complete'."
+               :> "password-reset"
+               :> Capture' '[Description "An opaque key for a pending password reset."] "key" PasswordResetKey
+               :> ReqBody '[JSON] PasswordReset
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
+           )
+    :<|> Named
+           "onboarding"
+           ( Summary "Upload contacts and invoke matching."
+               :> Description
+                    "DEPRECATED: the feature has been turned off, the end-point does \
+                    \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
+               :> ZUser
+               :> "onboarding"
+               :> "v3"
+               :> ReqBody '[JSON] JsonValue
+               :> Post '[JSON] DeprecatedMatchingResult
+           )
+
+newtype JsonValue = JsonValue {fromJsonValue :: A.Value}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema JsonValue)
+
+instance ToSchema JsonValue where
+  schema = fromJsonValue .= (JsonValue <$> named "Body" jsonValue)
+
+data DeprecatedMatchingResult = DeprecatedMatchingResult
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DeprecatedMatchingResult)
+
+instance ToSchema DeprecatedMatchingResult where
+  schema =
+    object
+      "DeprecatedMatchingResult"
+      $ DeprecatedMatchingResult
+        <$ const [] .= field "results" (array (null_ @SwaggerDoc))
+        <* const [] .= field "auto-connects" (array (null_ @SwaggerDoc))
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse

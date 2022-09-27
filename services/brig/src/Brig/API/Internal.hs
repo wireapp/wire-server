@@ -594,7 +594,7 @@ getPasswordResetCodeH ::
   JSON ::: Either Email Phone ->
   (Handler r) Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
-  maybe (throwStd invalidPwResetKey) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
+  maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
 
 getPasswordResetCode ::
   Members '[CodeStore, PasswordResetStore] r =>

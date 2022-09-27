@@ -619,7 +619,7 @@ testLocalConnectionsPaging b = do
       let count' = count + step
       let range = queryRange (toByteString' <$> start) (Just step)
       r <-
-        get (b . path "/connections" . zUser u . range)
+        get (apiVersion "v1" . b . path "/connections" . zUser u . range)
           <!! const 200 === statusCode
       let (conns, more) = (fmap clConnections &&& fmap clHasMore) $ responseJsonMaybe r
       liftIO $ assertEqual "page size" (Just n) (length <$> conns)

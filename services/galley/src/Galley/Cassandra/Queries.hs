@@ -34,8 +34,8 @@ import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.PublicGroupState
 import Wire.API.Provider
 import Wire.API.Provider.Service
 import Wire.API.Team
@@ -233,8 +233,11 @@ deleteConv = "delete from conversation using timestamp 32503680000000000 where c
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
 markConvDeleted = "update conversation set deleted = true where conv = ?"
 
-updateGroupInfoBundle :: PrepQuery W (GroupInfoBundle, ConvId) ()
-updateGroupInfoBundle = "update conversation set group_info_bundle = ? where conv = ?"
+selectPublicGroupState :: PrepQuery R (Identity ConvId) (Identity (Maybe OpaquePublicGroupState))
+selectPublicGroupState = "select public_group_state from conversation where conv = ?"
+
+updatePublicGroupState :: PrepQuery W (OpaquePublicGroupState, ConvId) ()
+updatePublicGroupState = "update conversation set public_group_state = ? where conv = ?"
 
 -- Conversations accessible by code -----------------------------------------
 

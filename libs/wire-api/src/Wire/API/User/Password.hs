@@ -28,20 +28,23 @@ module Wire.API.User.Password
 
     -- * deprecated
     PasswordReset (..),
-
-    -- * Swagger
-    modelNewPasswordReset,
-    modelCompletePasswordReset,
   )
 where
 
-import Data.Aeson
+import Control.Lens ((?~))
+import qualified Data.Aeson as A
+import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy (Proxy (Proxy))
 import Data.Range (Ranged (..))
-import qualified Data.Swagger.Build.Api as Doc
+import Data.Schema as Schema
+import qualified Data.Swagger as S
+import Data.Swagger.ParamSchema
 import Data.Text.Ascii
+import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
+import Servant (FromHttpApiData (..))
 import Wire.API.User.Identity
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -52,28 +55,46 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 newtype NewPasswordReset = NewPasswordReset (Either Email Phone)
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema NewPasswordReset
 
-modelNewPasswordReset :: Doc.Model
-modelNewPasswordReset = Doc.defineModel "NewPasswordReset" $ do
-  Doc.description "Data to initiate a password reset"
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email"
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "Phone"
-    Doc.optional
+instance ToSchema NewPasswordReset where
+  schema =
+    objectWithDocModifier "NewPasswordReset" objectDesc $
+      NewPasswordReset
+        <$> (toTuple . unNewPasswordReset) Schema..= newPasswordResetObjectSchema
+    where
+      unNewPasswordReset :: NewPasswordReset -> Either Email Phone
+      unNewPasswordReset (NewPasswordReset v) = v
 
-instance ToJSON NewPasswordReset where
-  toJSON (NewPasswordReset ident) =
-    object
-      [either ("email" .=) ("phone" .=) ident]
+      objectDesc :: NamedSwaggerDoc -> NamedSwaggerDoc
+      objectDesc = description ?~ "Data to initiate a password reset"
 
-instance FromJSON NewPasswordReset where
-  parseJSON = withObject "NewPasswordReset" $ \o ->
-    NewPasswordReset
-      <$> ( (Left <$> o .: "email")
-              <|> (Right <$> o .: "phone")
-          )
+      newPasswordResetObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe Email, Maybe Phone) (Either Email Phone)
+      newPasswordResetObjectSchema = withParser newPasswordResetTupleObjectSchema fromTuple
+        where
+          newPasswordResetTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe Email, Maybe Phone)
+          newPasswordResetTupleObjectSchema =
+            (,)
+              <$> fst .= maybe_ (optFieldWithDocModifier "email" phoneDocs schema)
+              <*> snd .= maybe_ (optFieldWithDocModifier "phone" emailDocs schema)
+            where
+              emailDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+              emailDocs = description ?~ "Email"
+
+              phoneDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+              phoneDocs = description ?~ "Phone"
+
+      fromTuple :: (Maybe Email, Maybe Phone) -> Parser (Either Email Phone)
+      fromTuple = \case
+        (Just _, Just _) -> fail "Only one of 'email' or 'phone' allowed."
+        (Just email, Nothing) -> pure $ Left email
+        (Nothing, Just phone) -> pure $ Right phone
+        (Nothing, Nothing) -> fail "One of 'email' or 'phone' required."
+
+      toTuple :: Either Email Phone -> (Maybe Email, Maybe Phone)
+      toTuple = \case
+        Left e -> (Just e, Nothing)
+        Right p -> (Nothing, Just p)
 
 --------------------------------------------------------------------------------
 -- CompletePasswordReset
@@ -86,41 +107,52 @@ data CompletePasswordReset = CompletePasswordReset
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CompletePasswordReset)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema CompletePasswordReset
 
-modelCompletePasswordReset :: Doc.Model
-modelCompletePasswordReset = Doc.defineModel "CompletePasswordReset" $ do
-  Doc.description "Data to complete a password reset."
-  Doc.property "key" Doc.string' $ do
-    Doc.description "An opaque key for a pending password reset."
-    Doc.optional
-  Doc.property "email" Doc.string' $ do
-    Doc.description "A known email with a pending password reset."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "A known phone number with a pending password reset."
-    Doc.optional
-  Doc.property "code" Doc.string' $
-    Doc.description "Password reset code"
-  Doc.property "password" Doc.string' $
-    Doc.description "New password (6 - 1024 characters)"
-
-instance ToJSON CompletePasswordReset where
-  toJSON (CompletePasswordReset i c pw) =
-    object
-      [ident i, "code" .= c, "password" .= pw]
+instance ToSchema CompletePasswordReset where
+  schema =
+    objectWithDocModifier "CompletePasswordReset" objectDocs $
+      CompletePasswordReset
+        <$> (maybePasswordResetIdentityToTuple . cpwrIdent) .= maybePasswordResetIdentityObjectSchema
+        <*> cpwrCode .= fieldWithDocModifier "code" codeDocs schema
+        <*> cpwrPassword .= fieldWithDocModifier "password" pwDocs schema
     where
-      ident (PasswordResetIdentityKey k) = "key" .= k
-      ident (PasswordResetEmailIdentity e) = "email" .= e
-      ident (PasswordResetPhoneIdentity p) = "phone" .= p
+      objectDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      objectDocs = description ?~ "Data to complete a password reset"
 
-instance FromJSON CompletePasswordReset where
-  parseJSON = withObject "CompletePasswordReset" $ \o ->
-    CompletePasswordReset <$> ident o <*> o .: "code" <*> o .: "password"
-    where
-      ident o =
-        (PasswordResetIdentityKey <$> o .: "key")
-          <|> (PasswordResetEmailIdentity <$> o .: "email")
-          <|> (PasswordResetPhoneIdentity <$> o .: "phone")
+      codeDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      codeDocs = description ?~ "Password reset code"
+
+      pwDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      pwDocs = description ?~ "New password (6 - 1024 characters)"
+
+      maybePasswordResetIdentityObjectSchema :: ObjectSchemaP SwaggerDoc (Maybe PasswordResetKey, Maybe Email, Maybe Phone) PasswordResetIdentity
+      maybePasswordResetIdentityObjectSchema =
+        withParser passwordResetIdentityTupleObjectSchema maybePasswordResetIdentityTargetFromTuple
+        where
+          passwordResetIdentityTupleObjectSchema :: ObjectSchema SwaggerDoc (Maybe PasswordResetKey, Maybe Email, Maybe Phone)
+          passwordResetIdentityTupleObjectSchema =
+            (,,)
+              <$> fst3 .= maybe_ (optFieldWithDocModifier "key" keyDocs schema)
+              <*> snd3 .= maybe_ (optFieldWithDocModifier "email" emailDocs schema)
+              <*> thd3 .= maybe_ (optFieldWithDocModifier "phone" phoneDocs schema)
+            where
+              keyDocs = description ?~ "An opaque key for a pending password reset."
+              emailDocs = description ?~ "A known email with a pending password reset."
+              phoneDocs = description ?~ "A known phone number with a pending password reset."
+
+          maybePasswordResetIdentityTargetFromTuple :: (Maybe PasswordResetKey, Maybe Email, Maybe Phone) -> Parser PasswordResetIdentity
+          maybePasswordResetIdentityTargetFromTuple = \case
+            (Just key, _, _) -> pure $ PasswordResetIdentityKey key
+            (_, Just email, _) -> pure $ PasswordResetEmailIdentity email
+            (_, _, Just phone) -> pure $ PasswordResetPhoneIdentity phone
+            _ -> fail "key, email or phone must be present"
+
+      maybePasswordResetIdentityToTuple :: PasswordResetIdentity -> (Maybe PasswordResetKey, Maybe Email, Maybe Phone)
+      maybePasswordResetIdentityToTuple = \case
+        PasswordResetIdentityKey key -> (Just key, Nothing, Nothing)
+        PasswordResetEmailIdentity email -> (Nothing, Just email, Nothing)
+        PasswordResetPhoneIdentity phone -> (Nothing, Nothing, Just phone)
 
 --------------------------------------------------------------------------------
 -- PasswordResetIdentity
@@ -140,7 +172,13 @@ data PasswordResetIdentity
 newtype PasswordResetKey = PasswordResetKey
   {fromPasswordResetKey :: AsciiBase64Url}
   deriving stock (Eq, Show)
-  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, Arbitrary)
+  deriving newtype (ToSchema, FromByteString, ToByteString, A.FromJSON, A.ToJSON, Arbitrary)
+
+instance ToParamSchema PasswordResetKey where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance FromHttpApiData PasswordResetKey where
+  parseQueryParam = fmap PasswordResetKey . parseQueryParam
 
 --------------------------------------------------------------------------------
 -- PasswordResetCode
@@ -149,7 +187,7 @@ newtype PasswordResetKey = PasswordResetKey
 newtype PasswordResetCode = PasswordResetCode
   {fromPasswordResetCode :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON)
+  deriving newtype (ToSchema, FromByteString, ToByteString, A.FromJSON, A.ToJSON)
   deriving (Arbitrary) via (Ranged 6 1024 AsciiBase64Url)
 
 --------------------------------------------------------------------------------
@@ -161,9 +199,20 @@ data PasswordReset = PasswordReset
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordReset)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema PasswordReset
 
-instance FromJSON PasswordReset where
-  parseJSON = withObject "PasswordReset" $ \o ->
-    PasswordReset
-      <$> o .: "code"
-      <*> o .: "password"
+instance ToSchema PasswordReset where
+  schema =
+    objectWithDocModifier "PasswordReset" objectDocs $
+      PasswordReset
+        <$> pwrCode .= fieldWithDocModifier "code" codeDocs schema
+        <*> pwrPassword .= fieldWithDocModifier "password" pwDocs schema
+    where
+      objectDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      objectDocs = description ?~ "Data to complete a password reset"
+
+      codeDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      codeDocs = description ?~ "Password reset code"
+
+      pwDocs :: NamedSwaggerDoc -> NamedSwaggerDoc
+      pwDocs = description ?~ "New password (6 - 1024 characters)"

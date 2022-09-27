@@ -546,6 +546,10 @@ For each put request, you need to provide the full json object.  All omitted fie
      -d "$SCIM_USER" \
      $WIRE_BACKEND/scim/v2/Users/$STORED_USER_ID
 
+**Deactivate user**
+
+It is possible to temporarily deactivate an user (and reactivate him later) by setting his ``active`` property to ``true/false`` without affecting his device history.  (`active=false` changes the wire user status to `suspended`.)
+
 **Delete user**
 
 .. code-block:: bash
