@@ -38,7 +38,6 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
-import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -342,15 +341,6 @@ register' e t c brig =
                 ]
           )
     )
-
-listConnections :: HasCallStack => UserId -> Brig -> (MonadIO m, MonadHttp m, MonadThrow m) => m UserConnectionList
-listConnections u brig = do
-  responseJsonError
-    =<< get
-      ( brig
-          . path "connections"
-          . zUser u
-      )
 
 getInvitation :: Brig -> InvitationCode -> (MonadIO m, MonadHttp m) => m (Maybe Invitation)
 getInvitation brig c = do

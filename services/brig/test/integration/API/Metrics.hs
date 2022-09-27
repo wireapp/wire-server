@@ -51,8 +51,9 @@ testPrometheusMetrics brig = do
     const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
 
 testMetricsEndpoint :: Brig -> Http ()
-testMetricsEndpoint brig = do
-  let p1 = "/self"
+testMetricsEndpoint brig0 = do
+  let brig = apiVersion "v1" . brig0
+      p1 = "/self"
       p2 uid = "/users/" <> uid <> "/clients"
       p3 = "/login"
   beforeSelf <- getCount "/self" "GET"
@@ -73,7 +74,7 @@ testMetricsEndpoint brig = do
   liftIO $ assertEqual "/login was called twice" (beforeProperties + 2) countProperties
   where
     getCount endpoint m = do
-      rsp <- responseBody <$> get (brig . path "i/metrics")
+      rsp <- responseBody <$> get (brig0 . path "i/metrics")
       -- is there some responseBodyAsText function used elsewhere?
       let asText = fromMaybe "" (fromByteString' (fromMaybe "" rsp))
       pure $ fromRight 0 (parseOnly (parseCount endpoint m) asText)

@@ -73,6 +73,10 @@ instance FromHttpApiData Version where
   parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
   parseUrlPiece = parseHeader . Text.encodeUtf8
 
+instance ToHttpApiData Version where
+  toHeader = LBS.toStrict . Aeson.encode
+  toUrlPiece = Text.decodeUtf8 . toHeader
+
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
 

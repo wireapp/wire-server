@@ -110,7 +110,7 @@ postMessage ::
 postMessage sender msg = do
   galley <- viewGalley
   post
-    ( galley . paths ["v2", "mls", "messages"]
+    ( galley . paths ["mls", "messages"]
         . zUser sender
         . zConn "conn"
         . content "message/mls"
@@ -131,7 +131,7 @@ postCommitBundle ::
 postCommitBundle sender bundle = do
   galley <- viewGalley
   post
-    ( galley . paths ["v2", "mls", "commit-bundles"]
+    ( galley . paths ["mls", "commit-bundles"]
         . zUser sender
         . zConn "conn"
         . content "message/mls"
@@ -209,6 +209,9 @@ instance HasGalley MLSTest where
   viewGalley = MLSTest $ lift viewGalley
   viewGalleyOpts = MLSTest $ lift viewGalleyOpts
 
+instance HasBrig MLSTest where
+  viewBrig = MLSTest $ lift viewBrig
+
 instance HasSettingsOverrides MLSTest where
   withSettingsOverrides f (MLSTest action) = MLSTest $
     State.StateT $ \s ->
@@ -273,7 +276,7 @@ createLocalMLSClient (qUntagged -> qusr) = do
 
   -- set public key
   pkey <- mlscli qcid ["public-key"] Nothing
-  brig <- view tsBrig
+  brig <- viewBrig
   let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 pkey}
   put
     ( brig
@@ -305,7 +308,7 @@ uploadNewKeyPackage qcid = do
   (kp, _) <- generateKeyPackage qcid
 
   -- upload key package
-  brig <- view tsBrig
+  brig <- viewBrig
   post
     ( brig
         . paths ["mls", "key-packages", "self", toByteString' . ciClient $ qcid]
@@ -437,7 +440,7 @@ keyPackageFile qcid ref =
 
 claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
 claimLocalKeyPackages qcid lusr = do
-  brig <- view tsBrig
+  brig <- viewBrig
   responseJsonError
     =<< post
       ( brig
@@ -460,7 +463,7 @@ getUserClients qusr = do
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
 claimRemoteKeyPackages (qUntagged -> qusr) = do
-  brig <- view tsBrig
+  brig <- viewBrig
   clients <- getUserClients qusr
   bundle <- fmap (KeyPackageBundle . Set.fromList) $
     for clients $ \cid -> do

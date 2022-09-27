@@ -20,7 +20,7 @@ module API.Util.TeamFeature where
 import API.Util (HasGalley (viewGalley), zUser)
 import qualified API.Util as Util
 import Bilge
-import Control.Lens (view, (.~), (^?))
+import Control.Lens ((.~), (^?))
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON, Result (Success), ToJSON, Value, fromJSON)
 import Data.Aeson.Lens
@@ -129,7 +129,7 @@ getFeatureConfig uid = do
 
 getAllFeatureConfigs :: HasCallStack => UserId -> TestM ResponseLBS
 getAllFeatureConfigs uid = do
-  g <- view tsGalley
+  g <- viewGalley
   getAllFeatureConfigsWithGalley g uid
 
 getAllFeatureConfigsWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
@@ -171,7 +171,7 @@ putTeamFeatureFlagInternalTTL ::
   Public.WithStatusNoLock cfg ->
   TestM ResponseLBS
 putTeamFeatureFlagInternalTTL reqmod tid status = do
-  g <- view tsGalley
+  g <- viewGalley
   putTeamFeatureFlagInternalWithGalleyAndMod @cfg g reqmod tid status
 
 putTeamFeatureFlagInternal ::
@@ -186,7 +186,7 @@ putTeamFeatureFlagInternal ::
   Public.WithStatusNoLock cfg ->
   TestM ResponseLBS
 putTeamFeatureFlagInternal reqmod tid status = do
-  g <- view tsGalley
+  g <- viewGalley
   putTeamFeatureFlagInternalWithGalleyAndMod @cfg g reqmod tid status
 
 putTeamFeatureFlagInternalWithGalleyAndMod ::
@@ -222,7 +222,7 @@ setLockStatusInternal ::
   Public.LockStatus ->
   TestM ResponseLBS
 setLockStatusInternal reqmod tid lockStatus = do
-  galley <- view tsGalley
+  galley <- viewGalley
   put $
     galley
       . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' lockStatus]
@@ -238,7 +238,7 @@ getFeatureStatusInternal ::
   TeamId ->
   TestM ResponseLBS
 getFeatureStatusInternal tid = do
-  galley <- view tsGalley
+  galley <- viewGalley
   get $
     galley
       . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
@@ -255,7 +255,7 @@ patchFeatureStatusInternal ::
   Public.WithStatusPatch cfg ->
   TestM ResponseLBS
 patchFeatureStatusInternal tid reqBody = do
-  galley <- view tsGalley
+  galley <- viewGalley
   patch $
     galley
       . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
@@ -274,7 +274,7 @@ patchFeatureStatusInternalWithMod ::
   Public.WithStatusPatch cfg ->
   TestM ResponseLBS
 patchFeatureStatusInternalWithMod reqmod tid reqBody = do
-  galley <- view tsGalley
+  galley <- viewGalley
   patch $
     galley
       . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
