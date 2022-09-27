@@ -74,8 +74,8 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import TestHelpers (eventually, test, viewFederationDomain)
-import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
+import TestHelpers
+import TestSetup
 import UnliftIO (mapConcurrently)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
@@ -302,7 +302,7 @@ testListTeamMembersCsv numMembers = do
 
     addClient :: UserId -> Int -> TestM ()
     addClient uid i = do
-      brig <- view tsBrig
+      brig <- viewBrig
       post (brig . paths ["i", "clients", toByteString' uid] . contentJson . json (newClient (someLastPrekeys !! i)) . queryItem "skip_reauth" "true") !!! const 201 === statusCode
 
     newClient :: PC.LastPrekey -> C.NewClient
@@ -381,7 +381,7 @@ testEnableSSOPerTeam = do
         liftIO $ assertEqual msg enabledness statusValue
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
-        g <- view tsGalley
+        g <- viewGalley
         Wai.Error status label _ _ <-
           responseJsonUnsafe
             <$> put
@@ -405,27 +405,27 @@ testEnableTeamSearchVisibilityPerTeam = do
   (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
   let check :: String -> Public.FeatureStatus -> TestM ()
       check msg enabledness = do
-        g <- view tsGalley
+        g <- viewGalley
         status :: Public.WithStatusNoLock Public.SearchVisibilityAvailableConfig <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
         let statusValue = Public.wssStatus status
 
         liftIO $ assertEqual msg enabledness statusValue
   let putSearchVisibilityCheckNotAllowed :: TestM ()
       putSearchVisibilityCheckNotAllowed = do
-        g <- view tsGalley
+        g <- viewGalley
         Wai.Error status label _ _ <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "team-search-visibility-not-enabled" label
   let getSearchVisibilityCheck :: TeamSearchVisibility -> TestM ()
       getSearchVisibilityCheck vis = do
-        g <- view tsGalley
+        g <- viewGalley
         getSearchVisibility g owner tid !!! do
           const 200 === statusCode
           const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
 
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
-    g <- view tsGalley
+    g <- viewGalley
     check "Teams should start with Custom Search Visibility enabled" Public.FeatureStatusEnabled
     putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! const 204 === statusCode
     putSearchVisibility g owner tid SearchVisibilityStandard !!! const 204 === statusCode
@@ -433,7 +433,7 @@ testEnableTeamSearchVisibilityPerTeam = do
     check "Teams should start with Custom Search Visibility disabled" Public.FeatureStatusDisabled
     putSearchVisibilityCheckNotAllowed
 
-  g <- view tsGalley
+  g <- viewGalley
   Util.putTeamSearchVisibilityAvailableInternal g tid Public.FeatureStatusEnabled
   -- Nothing was set, default value
   getSearchVisibilityCheck SearchVisibilityStandard
@@ -563,7 +563,7 @@ testAddTeamMemberInternal = do
 testRemoveBindingTeamMember :: Bool -> TestM ()
 testRemoveBindingTeamMember ownerHasPassword = do
   localDomain <- viewFederationDomain
-  g <- view tsGalley
+  g <- viewGalley
   c <- view tsCannon
   -- Owner who creates the team must have an email, This is why we run all tests with a second
   -- owner
@@ -686,7 +686,7 @@ testRemoveBindingTeamOwner = do
   where
     check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> Maybe LText -> TestM ()
     check tid deleter deletee pass maybeError = do
-      g <- view tsGalley
+      g <- viewGalley
       delete
         ( g
             . paths ["teams", toByteString' tid, "members", toByteString' deletee]
@@ -910,7 +910,7 @@ testUpdateTeamConv _ convRole = do
 
 testDeleteBindingTeamSingleMember :: TestM ()
 testDeleteBindingTeamSingleMember = do
-  g <- view tsGalley
+  g <- viewGalley
   c <- view tsCannon
   (owner, tid) <- Util.createBindingTeam
   other <- Util.addUserToTeam owner tid
@@ -971,7 +971,7 @@ testDeleteBindingTeamSingleMember = do
 
 testDeleteBindingTeamNoMembers :: TestM ()
 testDeleteBindingTeamNoMembers = do
-  g <- view tsGalley
+  g <- viewGalley
   (owner, tid) <- Util.createBindingTeam
   deleteUser owner !!! const 200 === statusCode
   ensureQueueEmpty
@@ -982,8 +982,8 @@ testDeleteBindingTeamNoMembers = do
 
 testDeleteBindingTeamMoreThanOneMember :: TestM ()
 testDeleteBindingTeamMoreThanOneMember = do
-  g <- view tsGalley
-  b <- view tsBrig
+  g <- viewGalley
+  b <- viewBrig
   c <- view tsCannon
   (alice, tid, members) <- Util.createBindingTeamWithNMembers 10
   ensureQueueEmpty
@@ -1011,7 +1011,7 @@ testDeleteBindingTeamMoreThanOneMember = do
 
 testDeleteTeamVerificationCodeSuccess :: TestM ()
 testDeleteTeamVerificationCodeSuccess = do
-  g <- view tsGalley
+  g <- viewGalley
   (owner, tid) <- Util.createBindingTeam'
   let Just email = U.userEmail owner
   setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
@@ -1035,7 +1035,7 @@ testDeleteTeamVerificationCodeSuccess = do
 -- Test that team cannot be deleted with missing second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeMissingCode :: TestM ()
 testDeleteTeamVerificationCodeMissingCode = do
-  g <- view tsGalley
+  g <- viewGalley
   (owner, tid) <- Util.createBindingTeam'
   setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
   setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
@@ -1060,7 +1060,7 @@ testDeleteTeamVerificationCodeMissingCode = do
 -- Test that team cannot be deleted with expired second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeExpiredCode :: TestM ()
 testDeleteTeamVerificationCodeExpiredCode = do
-  g <- view tsGalley
+  g <- viewGalley
   (owner, tid) <- Util.createBindingTeam'
   setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
   setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
@@ -1088,7 +1088,7 @@ testDeleteTeamVerificationCodeExpiredCode = do
 -- Test that team cannot be deleted with wrong second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeWrongCode :: TestM ()
 testDeleteTeamVerificationCodeWrongCode = do
-  g <- view tsGalley
+  g <- viewGalley
   (owner, tid) <- Util.createBindingTeam'
   setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
   setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
@@ -1111,24 +1111,24 @@ testDeleteTeamVerificationCodeWrongCode = do
 
 setFeatureLockStatus :: forall cfg. (Public.IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => TeamId -> Public.LockStatus -> TestM ()
 setFeatureLockStatus tid status = do
-  g <- view tsGalley
+  g <- viewGalley
   put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' status]) !!! const 200 === statusCode
 
 generateVerificationCode :: Public.SendVerificationCode -> TestM ()
 generateVerificationCode req = do
-  brig <- view tsBrig
+  brig <- viewBrig
   let js = RequestBodyLBS $ encode req
   post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
 
 setTeamSndFactorPasswordChallenge :: TeamId -> Public.FeatureStatus -> TestM ()
 setTeamSndFactorPasswordChallenge tid status = do
-  g <- view tsGalley
+  g <- viewGalley
   let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig Public.FeatureTTLUnlimited
   put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 getVerificationCode :: UserId -> Public.VerificationAction -> TestM Code.Value
 getVerificationCode uid action = do
-  brig <- view tsBrig
+  brig <- viewBrig
   resp <-
     get (brig . paths ["i", "users", toByteString' uid, "verification-code", toByteString' action])
       <!! const 200 === statusCode
@@ -1136,7 +1136,7 @@ getVerificationCode uid action = do
 
 testDeleteBindingTeam :: Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do
-  g <- view tsGalley
+  g <- viewGalley
   c <- view tsCannon
   (ownerWithPassword, tid) <- Util.createBindingTeam
   ownerMem <-
@@ -1272,7 +1272,7 @@ testDeleteTeamConv = do
 
 testUpdateTeamIconValidation :: TestM ()
 testUpdateTeamIconValidation = do
-  g <- view tsGalley
+  g <- viewGalley
   (tid, owner, _) <- Util.createBindingTeamWithMembers 2
   let update payload expectedStatusCode =
         put
@@ -1297,7 +1297,7 @@ testUpdateTeamIconValidation = do
 
 testUpdateTeam :: TestM ()
 testUpdateTeam = do
-  g <- view tsGalley
+  g <- viewGalley
   c <- view tsCannon
   (tid, owner, [member]) <- Util.createBindingTeamWithMembers 2
 
@@ -1402,7 +1402,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     modifyUserProfileAndExpectEvent :: HasCallStack => Bool -> UserId -> [UserId] -> TestM ()
     modifyUserProfileAndExpectEvent expect target listeners = do
       c <- view tsCannon
-      b <- view tsBrig
+      b <- viewBrig
       WS.bracketRN c listeners $ \wsListeners -> do
         -- Do something
         let u = U.UserUpdate (Just $ U.Name "name") Nothing Nothing Nothing
@@ -1421,7 +1421,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     modifyTeamDataAndExpectEvent :: HasCallStack => Bool -> TeamId -> UserId -> TestM ()
     modifyTeamDataAndExpectEvent expect tid origin = do
       c <- view tsCannon
-      g <- view tsGalley
+      g <- viewGalley
       let u = newTeamUpdateData & nameUpdate .~ (Just $ unsafeRange "bar")
       WS.bracketR c origin $ \wsOrigin -> do
         put
@@ -1450,7 +1450,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     removeTeamMemberAndExpectEvent :: HasCallStack => Bool -> UserId -> TeamId -> UserId -> [UserId] -> TestM ()
     removeTeamMemberAndExpectEvent expect owner tid victim others = do
       c <- view tsCannon
-      g <- view tsGalley
+      g <- viewGalley
       WS.bracketRN c (owner : victim : others) $ \(wsOwner : _wsVictim : wsOthers) -> do
         delete
           ( g
@@ -1470,7 +1470,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     deleteTeam :: HasCallStack => TeamId -> UserId -> [UserId] -> [Qualified ConvId] -> UserId -> TestM ()
     deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
       c <- view tsCannon
-      g <- view tsGalley
+      g <- viewGalley
       void . WS.bracketRN c (owner : extern : otherRealUsersInTeam) $ \(_wsOwner : wsExtern : _wsotherRealUsersInTeam) -> do
         delete
           ( g
@@ -1497,7 +1497,7 @@ testBillingInLargeTeam = do
   (firstOwner, team) <- Util.createBindingTeam
   refreshIndex
   opts <- view tsGConf
-  galley <- view tsGalley
+  galley <- viewGalley
   let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
   allOwnersBeforeFanoutLimit <-
     foldM
@@ -1534,7 +1534,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   (firstOwner, team) <- Util.createBindingTeam
   refreshIndex
   opts <- view tsGConf
-  galley <- view tsGalley
+  galley <- viewGalley
   let withoutIndexedBillingTeamMembers =
         withSettingsOverrides (\o -> o & optSettings . setEnableIndexedBillingTeamMembers ?~ False)
   let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
@@ -1566,7 +1566,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   -- We cannot properly add the new owner with an invite as we don't have a way to
   -- override galley settings while making a call to brig
   withoutIndexedBillingTeamMembers $ do
-    g <- view tsGalley
+    g <- viewGalley
     post (g . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
       !!! const 200 === statusCode
   assertQueue ("add " <> show (fanoutLimit + 2) <> "th billing member: " <> show ownerFanoutPlusTwo) $
@@ -1632,7 +1632,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
 -- Demotion by inferior roles is NOT allowed.
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
-  g <- view tsGalley
+  g <- viewGalley
   c <- view tsCannon
   (owner, tid) <- Util.createBindingTeam
   member <- Util.addUserToTeamWithRole (Just RoleAdmin) owner tid
@@ -1698,7 +1698,7 @@ testUpdateTeamMember = do
 
 testUpdateTeamStatus :: TestM ()
 testUpdateTeamStatus = do
-  g <- view tsGalley
+  g <- viewGalley
   (_, tid) <- Util.createBindingTeam
   -- Check for idempotency
   Util.changeTeamStatus tid TeamsIntra.Active

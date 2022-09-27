@@ -64,9 +64,11 @@ uploadRaw ::
   Lazy.ByteString ->
   TestM (Response (Maybe Lazy.ByteString))
 uploadRaw c usr bs = do
-  cargohold <- viewCargohold
+  cargohold <- viewUnversionedCargohold
   post $
-    c . cargohold
+    apiVersion "v1"
+      . c
+      . cargohold
       . method POST
       . zUser usr
       . zConn "conn"
@@ -90,8 +92,8 @@ zConn = header "Z-Connection"
 
 deleteAssetV3 :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
 deleteAssetV3 u k = do
-  c <- viewCargohold
-  delete $ c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
+  c <- viewUnversionedCargohold
+  delete $ apiVersion "v1" . c . zUser u . paths ["assets", "v3", toByteString' (qUnqualified k)]
 
 deleteAsset :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteString))
 deleteAsset u k = do
@@ -100,7 +102,6 @@ deleteAsset u k = do
     c . zUser u
       . paths
         [ "assets",
-          "v4",
           toByteString' (qDomain k),
           toByteString' (qUnqualified k)
         ]
@@ -109,10 +110,14 @@ class IsAssetLocation key where
   locationPath :: key -> Request -> Request
 
 instance IsAssetLocation AssetKey where
-  locationPath k = paths ["assets", "v3", toByteString' k]
+  locationPath k =
+    apiVersion "v1"
+      . paths ["assets", "v3", toByteString' k]
 
 instance IsAssetLocation (Qualified AssetKey) where
-  locationPath k = paths ["assets", "v4", toByteString' (qDomain k), toByteString' (qUnqualified k)]
+  locationPath k =
+    apiVersion "v2"
+      . paths ["assets", toByteString' (qDomain k), toByteString' (qUnqualified k)]
 
 instance IsAssetLocation ByteString where
   locationPath = path
@@ -137,7 +142,7 @@ downloadAssetWith ::
   tok ->
   TestM (Response (Maybe LByteString))
 downloadAssetWith r uid loc tok = do
-  c <- viewCargohold
+  c <- viewUnversionedCargohold
   get $
     c . r
       . zUser uid
@@ -158,14 +163,14 @@ postToken uid key = do
   c <- viewCargohold
   post $
     c . zUser uid
-      . paths ["assets", "v3", toByteString' key, "token"]
+      . paths ["assets", toByteString' key, "token"]
 
 deleteToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
 deleteToken uid key = do
   c <- viewCargohold
   delete $
     c . zUser uid
-      . paths ["assets", "v3", toByteString' key, "token"]
+      . paths ["assets", toByteString' key, "token"]
 
 viewFederationDomain :: TestM Domain
 viewFederationDomain = view (tsOpts . optSettings . setFederationDomain)
