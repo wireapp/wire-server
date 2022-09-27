@@ -65,6 +65,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.User.Client
 
@@ -93,12 +94,15 @@ tests s =
       testGroup
         "Commit"
         [ test s "add user to a conversation" testAddUser,
+          test s "add user with a commit bundle" testAddUserWithBundle,
+          test s "add user with an incomplete welcome" testAddUserWithBundleIncompleteWelcome,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
+          test s "add remote user with a commit bundle" testAddRemoteUserWithBundle,
           test s "return error when commit is locked" testCommitLock,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
@@ -161,7 +165,13 @@ tests s =
           test s "remove users bypassing MLS" testRemoveUsersDirectly,
           test s "send proteus message to an MLS conversation" testProteusMessage
         ],
-      test s "public keys" testPublicKeys
+      test s "public keys" testPublicKeys,
+      testGroup
+        "GroupInfo"
+        [ test s "get group info for a local conversation" testGetGroupInfoOfLocalConv,
+          test s "get group info for a remote conversation" testGetGroupInfoOfRemoteConv,
+          test s "get group info for a remote user" testFederatedGetGroupInfo
+        ]
     ]
 
 postMLSConvFail :: TestM ()
@@ -291,6 +301,64 @@ testRemoteWelcome = do
     fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
     let req :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
     liftIO $ req @?= (Just . MLSWelcomeRequest . Base64ByteString) welcome
+
+testAddUserWithBundle :: TestM ()
+testAddUserWithBundle = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  qcnv <- runMLSTest $ do
+    (alice1 : bobClients) <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage bobClients
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+    welcome <- assertJust (mpWelcome commit)
+
+    events <- mlsBracket bobClients $ \wss -> do
+      events <- sendAndConsumeCommitBundle commit
+      for_ (zip bobClients wss) $ \(c, ws) ->
+        WS.assertMatch (5 # Second) ws $
+          wsAssertMLSWelcome (cidQualifiedUser c) welcome
+      pure events
+
+    event <- assertOne events
+    liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
+    pure qcnv
+
+  -- check that bob can now see the conversation
+  convs <-
+    responseJsonError =<< getConvs (qUnqualified bob) Nothing Nothing
+      <!! const 200 === statusCode
+  liftIO $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (qcnv `elem` map cnvQualifiedId (convList convs))
+
+testAddUserWithBundleIncompleteWelcome :: TestM ()
+testAddUserWithBundleIncompleteWelcome = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    (alice1 : bobClients) <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage bobClients
+    void $ setupMLSGroup alice1
+
+    -- create commit, but remove first recipient from welcome message
+    commit <- do
+      commit <- createAddCommit alice1 [bob]
+      liftIO $ do
+        welcome <- assertJust (mpWelcome commit)
+        w <- either (assertFailure . T.unpack) pure $ decodeMLS' welcome
+        let w' = w {welSecrets = take 1 (welSecrets w)}
+            welcome' = encodeMLS' w'
+            commit' = commit {mpWelcome = Just welcome'}
+        pure commit'
+
+    bundle <- createBundle commit
+    err <-
+      responseJsonError
+        =<< postCommitBundle (ciUser (mpSender commit)) bundle
+        <!! const 400 === statusCode
+    liftIO $ Wai.label err @?= "mls-welcome-mismatch"
 
 testAddUser :: TestM ()
 testAddUser = do
@@ -422,7 +490,7 @@ testSendAnotherUsersCommit = do
     err <-
       responseJsonError
         =<< postMessage (qUnqualified bob) (mpMessage mp)
-          <!! const 409 === statusCode
+          <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
 
 testAddUsersToProteus :: TestM ()
@@ -564,6 +632,52 @@ testAddRemoteUser = do
     event <- assertOne events
     assertJoinEvent qcnv alice [bob] roleNameWireMember event
 
+testAddRemoteUserWithBundle :: TestM ()
+testAddRemoteUserWithBundle = do
+  users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+  (events, reqs, qcnv) <- runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True . ciClient)
+              $ [bob1]
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    commit <- createAddCommit alice1 [bob]
+    (events, reqs) <-
+      withTempMockFederator' mock $
+        sendAndConsumeCommitBundle commit
+    pure (events, reqs, qcnv)
+
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
+    frTargetDomain req @?= qDomain bob
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
+    cuOrigUserId bdy @?= alice
+    cuConvId bdy @?= qUnqualified qcnv
+    cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
+    cuAction bdy
+      @?= SomeConversationAction
+        SConversationJoinTag
+        ConversationJoin
+          { cjUsers = pure bob,
+            cjRole = roleNameWireMember
+          }
+
+  liftIO $ do
+    event <- assertOne events
+    assertJoinEvent qcnv alice [bob] roleNameWireMember event
+
 testCommitLock :: TestM ()
 testCommitLock = do
   users <- createAndConnectUsers (replicate 4 Nothing)
@@ -666,7 +780,7 @@ testCommitNotReferencingAllProposals = do
     -- send commit and expect and error
     err <-
       responseJsonError =<< postMessage (ciUser alice1) (mpMessage commit)
-        <!! const 409 === statusCode
+        <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
 testAdminRemovesUserFromConv :: TestM ()
@@ -821,30 +935,6 @@ testLocalToRemote = do
       msrConvId bdy @?= qUnqualified qcnv
       msrSender bdy @?= qUnqualified bob
       msrRawMessage bdy @?= Base64ByteString (mpMessage message)
-  where
-    receiveOnConvUpdated conv origUser joiner = do
-      client <- view tsFedGalleyClient
-      now <- liftIO getCurrentTime
-      let cu =
-            ConversationUpdate
-              { cuTime = now,
-                cuOrigUserId = origUser,
-                cuConvId = qUnqualified conv,
-                cuAlreadyPresentUsers = [qUnqualified joiner],
-                cuAction =
-                  SomeConversationAction
-                    SConversationJoinTag
-                    ConversationJoin
-                      { cjUsers = pure joiner,
-                        cjRole = roleNameWireMember
-                      }
-              }
-      void $
-        runFedClient
-          @"on-conversation-updated"
-          client
-          (qDomain conv)
-          cu
 
 testLocalToRemoteNonMember :: TestM ()
 testLocalToRemoteNonMember = do
@@ -1725,3 +1815,120 @@ testBackendRemoveProposalLocalConvRemoteClient = do
         WS.assertMatch_ (5 # WS.Second) wsA $
           \notification ->
             void $ wsAssertBackendRemoveProposal bob qcnv bob1KP notification
+
+testGetGroupInfoOfLocalConv :: TestM ()
+testGetGroupInfoOfLocalConv = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    traverse_ uploadNewKeyPackage [bob1]
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+
+    void $ sendAndConsumeCommitBundle commit
+
+    -- check the group info matches
+    gs <- assertJust (mpPublicGroupState commit)
+    returnedGS <-
+      fmap responseBody $
+        getGroupInfo (qUnqualified alice) qcnv
+          <!! const 200 === statusCode
+    liftIO $ Just gs @=? LBS.toStrict <$> returnedGS
+
+testGetGroupInfoOfRemoteConv :: TestM ()
+testGetGroupInfoOfRemoteConv = do
+  let aliceDomain = Domain "faraway.example.com"
+  [alice, bob, charlie] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing, Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+
+    void $ uploadNewKeyPackage bob1
+    (groupId, qcnv) <- setupFakeMLSGroup alice1
+    mp <- createAddCommit alice1 [bob]
+    traverse_ consumeWelcome (mpWelcome mp)
+
+    receiveNewRemoteConv qcnv groupId
+    receiveOnConvUpdated qcnv alice bob
+
+    let fakeGroupState = "\xde\xad\xbe\xef"
+    let mock req = case frRPC req of
+          "query-group-info" -> do
+            request <- either (assertFailure . ("Parse failure in query-group-info " <>)) pure (Aeson.eitherDecode (frBody req))
+            let uid = ggireqSender request
+            pure . Aeson.encode $
+              if uid == qUnqualified bob
+                then GetGroupInfoResponseState (Base64ByteString fakeGroupState)
+                else GetGroupInfoResponseError ConvNotFound
+          s -> error ("unmocked: " <> T.unpack s)
+
+    (_, reqs) <- withTempMockFederator' mock $ do
+      res <-
+        fmap responseBody $
+          getGroupInfo (qUnqualified bob) qcnv
+            <!! const 200 === statusCode
+
+      getGroupInfo (qUnqualified charlie) qcnv
+        !!! const 404 === statusCode
+
+      liftIO $ res @?= Just (LBS.fromStrict fakeGroupState)
+
+    -- check requests to mock federator: step 14
+    liftIO $ do
+      let (req, _req2) = assertTwo reqs
+      frRPC req @?= "query-group-info"
+      frTargetDomain req @?= qDomain qcnv
+
+testFederatedGetGroupInfo :: TestM ()
+testFederatedGetGroupInfo = do
+  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Just "faraway.example.com", Just "faraway.example.com"]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+    groupState <- assertJust (mpPublicGroupState commit)
+
+    let mock req = case frRPC req of
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True)
+              $ [ciClient bob1]
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    void . withTempMockFederator' mock $ do
+      void $ sendAndConsumeCommitBundle commit
+
+      fedGalleyClient <- view tsFedGalleyClient
+      do
+        resp <-
+          runFedClient
+            @"query-group-info"
+            fedGalleyClient
+            (ciDomain bob1)
+            (GetGroupInfoRequest (qUnqualified qcnv) (qUnqualified bob))
+
+        liftIO $ case resp of
+          GetGroupInfoResponseError err -> assertFailure ("Unexpected error: " <> show err)
+          GetGroupInfoResponseState gs ->
+            fromBase64ByteString gs @=? groupState
+
+      do
+        resp <-
+          runFedClient
+            @"query-group-info"
+            fedGalleyClient
+            (ciDomain bob1)
+            (GetGroupInfoRequest (qUnqualified qcnv) (qUnqualified charlie))
+
+        liftIO $ case resp of
+          GetGroupInfoResponseError err ->
+            err @?= ConvNotFound
+          GetGroupInfoResponseState _ ->
+            assertFailure "Unexpected success"

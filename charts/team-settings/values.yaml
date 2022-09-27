@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/team-settings
-  tag: "4.11.0-v0.31.1-0-9e64150"
+  tag: "4.12.1-v0.31.5-0-0167ea4"
 service:
   https:
     externalPort: 443

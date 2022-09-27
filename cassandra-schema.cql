@@ -461,6 +461,7 @@ CREATE TABLE galley_test.conversation (
     message_timer bigint,
     name text,
     protocol int,
+    public_group_state blob,
     receipt_mode int,
     team uuid,
     type int

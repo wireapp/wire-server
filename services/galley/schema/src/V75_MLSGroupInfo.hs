@@ -15,16 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS
-  ( postMLSWelcomeFromLocalUser,
-    postMLSMessage,
-    postMLSCommitBundleFromLocalUser,
-    postMLSMessageFromLocalUser,
-    postMLSMessageFromLocalUserV1,
-    getMLSPublicKeys,
+module V75_MLSGroupInfo
+  ( migration,
   )
 where
 
-import Galley.API.MLS.Keys
-import Galley.API.MLS.Message
-import Galley.API.MLS.Welcome
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
+
+migration :: Migration
+migration =
+  Migration 75 "Add the MLS public group state column to the conversation table" $
+    schema'
+      [r| ALTER TABLE conversation ADD (
+            public_group_state blob
+          )
+        |]

@@ -33,24 +33,17 @@ import Gundeck.Types
 import Imports
 
 serialise :: HasCallStack => NativePush -> UserId -> Transport -> IO (Either Failure LT.Text)
-serialise m uid transport = do
-  let rs = prepare m uid
-  case rs of
-    Left failure -> pure $! Left $! failure
-    Right (v, prio) -> case renderText transport prio v of
-      Nothing -> pure $ Left PayloadTooLarge
-      Just txt -> pure $ Right txt
-
-prepare :: NativePush -> UserId -> Either Failure (Value, Priority)
-prepare m uid = case m of
-  NativePush nid prio _aps ->
-    let o =
-          object
-            [ "type" .= ("notice" :: Text),
-              "data" .= object ["id" .= nid],
-              "user" .= uid
-            ]
-     in Right (o, prio)
+serialise (NativePush nid prio _aps) uid transport = do
+  case renderText transport prio o of
+    Nothing -> pure $ Left PayloadTooLarge
+    Just txt -> pure $ Right txt
+  where
+    o =
+      object
+        [ "type" .= ("notice" :: Text),
+          "data" .= object ["id" .= nid],
+          "user" .= uid
+        ]
 
 -- | Assemble a final SNS JSON string for transmission.
 renderText :: Transport -> Priority -> Value -> Maybe LT.Text

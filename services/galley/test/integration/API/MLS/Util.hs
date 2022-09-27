@@ -45,6 +45,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Data.Time.Clock (getCurrentTime)
 import Galley.Keys
 import Galley.Options
 import Imports
@@ -59,11 +60,15 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
+import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
@@ -108,11 +113,32 @@ postMessage ::
 postMessage sender msg = do
   galley <- viewGalley
   post
-    ( galley . paths ["v2", "mls", "messages"]
+    ( galley . paths ["mls", "messages"]
         . zUser sender
         . zConn "conn"
         . content "message/mls"
         . bytes msg
+    )
+
+postCommitBundle ::
+  ( HasCallStack,
+    MonadIO m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  UserId ->
+  ByteString ->
+  m ResponseLBS
+postCommitBundle sender bundle = do
+  galley <- viewGalley
+  post
+    ( galley . paths ["mls", "commit-bundles"]
+        . zUser sender
+        . zConn "conn"
+        . content "message/mls"
+        . bytes bundle
     )
 
 postWelcome :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ByteString -> m ResponseLBS
@@ -186,6 +212,9 @@ instance HasGalley MLSTest where
   viewGalley = MLSTest $ lift viewGalley
   viewGalleyOpts = MLSTest $ lift viewGalleyOpts
 
+instance HasBrig MLSTest where
+  viewBrig = MLSTest $ lift viewBrig
+
 instance HasSettingsOverrides MLSTest where
   withSettingsOverrides f (MLSTest action) = MLSTest $
     State.StateT $ \s ->
@@ -212,7 +241,8 @@ runMLSTest (MLSTest m) =
 data MessagePackage = MessagePackage
   { mpSender :: ClientIdentity,
     mpMessage :: ByteString,
-    mpWelcome :: Maybe ByteString
+    mpWelcome :: Maybe ByteString,
+    mpPublicGroupState :: Maybe ByteString
   }
 
 takeLastPrekeyNG :: HasCallStack => MLSTest LastPrekey
@@ -249,7 +279,7 @@ createLocalMLSClient (qUntagged -> qusr) = do
 
   -- set public key
   pkey <- mlscli qcid ["public-key"] Nothing
-  brig <- view tsBrig
+  brig <- viewBrig
   let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 pkey}
   put
     ( brig
@@ -281,7 +311,7 @@ uploadNewKeyPackage qcid = do
   (kp, _) <- generateKeyPackage qcid
 
   -- upload key package
-  brig <- view tsBrig
+  brig <- viewBrig
   post
     ( brig
         . paths ["mls", "key-packages", "self", toByteString' . ciClient $ qcid]
@@ -413,7 +443,7 @@ keyPackageFile qcid ref =
 
 claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
 claimLocalKeyPackages qcid lusr = do
-  brig <- view tsBrig
+  brig <- viewBrig
   responseJsonError
     =<< post
       ( brig
@@ -436,7 +466,7 @@ getUserClients qusr = do
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
 claimRemoteKeyPackages (qUntagged -> qusr) = do
-  brig <- view tsBrig
+  brig <- viewBrig
   clients <- getUserClients qusr
   bundle <- fmap (KeyPackageBundle . Set.fromList) $
     for clients $ \cid -> do
@@ -504,7 +534,8 @@ createApplicationMessage cid messageContent = do
     MessagePackage
       { mpSender = cid,
         mpMessage = message,
-        mpWelcome = Nothing
+        mpWelcome = Nothing,
+        mpPublicGroupState = Nothing
       }
 
 createAddCommitWithKeyPackages ::
@@ -516,6 +547,7 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
   g <- currentGroupFile qcid
   gNew <- nextGroupFile qcid
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
+  pgsFile <- liftIO $ emptyTempFile bd "pgs"
   commit <-
     mlscli
       qcid
@@ -525,6 +557,8 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
           g,
           "--welcome-out",
           welcomeFile,
+          "--group-state-out",
+          pgsFile,
           "--group-out",
           gNew
         ]
@@ -538,11 +572,13 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
       }
 
   welcome <- liftIO $ BS.readFile welcomeFile
+  pgs <- liftIO $ BS.readFile pgsFile
   pure $
     MessagePackage
       { mpSender = qcid,
         mpMessage = commit,
-        mpWelcome = Just welcome
+        mpWelcome = Just welcome,
+        mpPublicGroupState = Just pgs
       }
 
 createAddProposalWithKeyPackage ::
@@ -561,13 +597,15 @@ createAddProposalWithKeyPackage cid (_, kp) = do
     MessagePackage
       { mpSender = cid,
         mpMessage = prop,
-        mpWelcome = Nothing
+        mpWelcome = Nothing,
+        mpPublicGroupState = Nothing
       }
 
 createPendingProposalCommit :: HasCallStack => ClientIdentity -> MLSTest MessagePackage
 createPendingProposalCommit qcid = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
+  pgsFile <- liftIO $ emptyTempFile bd "pgs"
   g <- currentGroupFile qcid
   gNew <- nextGroupFile qcid
   commit <-
@@ -579,16 +617,20 @@ createPendingProposalCommit qcid = do
         "--group-out",
         gNew,
         "--welcome-out",
-        welcomeFile
+        welcomeFile,
+        "--group-state-out",
+        pgsFile
       ]
       Nothing
 
   welcome <- liftIO $ readWelcome welcomeFile
+  pgs <- liftIO $ BS.readFile pgsFile
   pure
     MessagePackage
       { mpSender = qcid,
         mpMessage = commit,
-        mpWelcome = welcome
+        mpWelcome = welcome,
+        mpPublicGroupState = Just pgs
       }
 
 readWelcome :: FilePath -> IO (Maybe ByteString)
@@ -602,6 +644,7 @@ createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLST
 createRemoveCommit cid targets = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
+  pgsFile <- liftIO $ emptyTempFile bd "pgs"
   g <- currentGroupFile cid
   gNew <- nextGroupFile cid
 
@@ -619,17 +662,21 @@ createRemoveCommit cid targets = do
           "--group-out",
           gNew,
           "--welcome-out",
-          welcomeFile
+          welcomeFile,
+          "--group-state-out",
+          pgsFile
         ]
           <> kps
       )
       Nothing
   welcome <- liftIO $ readWelcome welcomeFile
+  pgs <- liftIO $ BS.readFile pgsFile
   pure
     MessagePackage
       { mpSender = cid,
         mpMessage = commit,
-        mpWelcome = welcome
+        mpWelcome = welcome,
+        mpPublicGroupState = Just pgs
       }
 
 createExternalAddProposal :: HasCallStack => ClientIdentity -> MLSTest MessagePackage
@@ -659,7 +706,8 @@ createExternalAddProposal joiner = do
     MessagePackage
       { mpSender = joiner,
         mpMessage = proposal,
-        mpWelcome = Nothing
+        mpWelcome = Nothing,
+        mpPublicGroupState = Nothing
       }
 
 consumeWelcome :: HasCallStack => ByteString -> MLSTest ()
@@ -744,6 +792,47 @@ sendAndConsumeCommit mp = do
 
   pure events
 
+mkBundle :: MessagePackage -> Either Text CommitBundle
+mkBundle mp = do
+  commitB <- decodeMLS' (mpMessage mp)
+  welcomeB <- traverse decodeMLS' (mpWelcome mp)
+  pgs <- note "public group state unavailable" (mpPublicGroupState mp)
+  pgsB <- decodeMLS' pgs
+  pure $
+    CommitBundle commitB welcomeB $
+      GroupInfoBundle UnencryptedGroupInfo TreeFull pgsB
+
+createBundle :: MonadIO m => MessagePackage -> m ByteString
+createBundle mp = do
+  bundle <-
+    either (liftIO . assertFailure . T.unpack) pure $
+      mkBundle mp
+  pure (encodeMLS' bundle)
+
+sendAndConsumeCommitBundle ::
+  HasCallStack =>
+  MessagePackage ->
+  MLSTest [Event]
+sendAndConsumeCommitBundle mp = do
+  bundle <- createBundle mp
+  events <-
+    fmap mmssEvents
+      . responseJsonError
+      =<< postCommitBundle (ciUser (mpSender mp)) bundle
+      <!! const 201 === statusCode
+  consumeMessage mp
+  traverse_ consumeWelcome (mpWelcome mp)
+
+  -- increment epoch and add new clients
+  State.modify $ \mls ->
+    mls
+      { mlsEpoch = mlsEpoch mls + 1,
+        mlsMembers = mlsMembers mls <> mlsNewMembers mls,
+        mlsNewMembers = mempty
+      }
+
+  pure events
+
 mlsBracket ::
   HasCallStack =>
   [ClientIdentity] ->
@@ -807,3 +896,58 @@ receiveNewRemoteConv conv gid = do
       client
       (qDomain conv)
       nrc
+
+receiveOnConvUpdated ::
+  (MonadReader TestSetup m, MonadIO m) =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  Qualified UserId ->
+  m ()
+receiveOnConvUpdated conv origUser joiner = do
+  client <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cu =
+        ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = origUser,
+            cuConvId = qUnqualified conv,
+            cuAlreadyPresentUsers = [qUnqualified joiner],
+            cuAction =
+              SomeConversationAction
+                SConversationJoinTag
+                ConversationJoin
+                  { cjUsers = pure joiner,
+                    cjRole = roleNameWireMember
+                  }
+          }
+  void $
+    runFedClient
+      @"on-conversation-updated"
+      client
+      (qDomain conv)
+      cu
+
+getGroupInfo ::
+  ( HasCallStack,
+    MonadIO m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  UserId ->
+  Qualified ConvId ->
+  m ResponseLBS
+getGroupInfo sender qcnv = do
+  galley <- viewGalley
+  get
+    ( galley
+        . paths
+          [ "conversations",
+            toByteString' (qDomain qcnv),
+            toByteString' (qUnqualified qcnv),
+            "groupinfo"
+          ]
+        . zUser sender
+        . zConn "conn"
+    )

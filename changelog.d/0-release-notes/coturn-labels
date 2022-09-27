@@ -1,6 +1,0 @@
-For users of the (currently alpha) coturn Helm chart, **manual action is
-required** when upgrading to this version. The labels applied to the Kubernetes
-manifests in this chart have changed, in order to match the conventions used
-in the wire-server charts. However, this may mean that upgrading with Helm can
-fail, due to changes to the `StatefulSet` included in this chart -- in this
-case, the `StatefulSet` must be deleted before the chart is upgraded.

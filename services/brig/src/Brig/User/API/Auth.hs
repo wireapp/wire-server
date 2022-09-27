@@ -146,6 +146,10 @@ routesPublic = do
     Doc.errorResponse passwordExists
     Doc.errorResponse' loginCodePending Doc.pendingLoginError
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other wai-route endpoint is used to test that routes defined in
+  -- this function ('Brig.API.Public.sitemap') are recorded and reported correctly in /i/metrics.
+  -- see test/integration/API/Metrics.hs
   post "/login" (continue loginH) $
     jsonRequest @Public.Login
       .&. def False (query "persist")
