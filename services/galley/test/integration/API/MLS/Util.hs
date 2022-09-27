@@ -943,8 +943,7 @@ getGroupInfo sender qcnv = do
   get
     ( galley
         . paths
-          [ "v2",
-            "conversations",
+          [ "conversations",
             toByteString' (qDomain qcnv),
             toByteString' (qUnqualified qcnv),
             "groupinfo"
