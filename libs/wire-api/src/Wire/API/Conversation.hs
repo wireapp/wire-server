@@ -44,6 +44,7 @@ module Wire.API.Conversation
     pattern ConversationPagingState,
     ConversationsResponse (..),
     GroupId (..),
+    mlsSelfConvId,
 
     -- * Conversation properties
     Access (..),
@@ -97,6 +98,7 @@ import Control.Applicative
 import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as LBS
 import Data.Id
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
@@ -110,6 +112,8 @@ import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V5 as UUIDV5
 import Imports
 import System.Random (randomRIO)
 import Wire.API.Conversation.Member
@@ -934,3 +938,14 @@ instance ToSchema ConversationMemberUpdate where
       $ ConversationMemberUpdate
         <$> cmuTarget .= field "target" schema
         <*> cmuUpdate .= field "update" schema
+
+-- | The id of the MLS self conversation for a given user
+mlsSelfConvId :: UserId -> ConvId
+mlsSelfConvId uid =
+  let inputBytes = LBS.unpack . UUID.toByteString . toUUID $ uid
+   in Id (UUIDV5.generateNamed namespaceMLSSelfConv inputBytes)
+
+namespaceMLSSelfConv :: UUID.UUID
+namespaceMLSSelfConv =
+  -- a V5 uuid created with the nil namespace
+  fromJust . UUID.fromString $ "3eac2a2c-3850-510b-bd08-8a98e80dd4d9"
