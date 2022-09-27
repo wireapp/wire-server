@@ -75,9 +75,9 @@ type ConversationResponse = ResponseForExistedCreated Conversation
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
-type ConversationVerb =
+type ConversationVerbWithMethod (m :: StdMethod) =
   MultiVerb
-    'POST
+    m
     '[JSON]
     '[ WithHeaders
          ConversationHeaders
@@ -89,6 +89,10 @@ type ConversationVerb =
          (Respond 201 "Conversation created" Conversation)
      ]
     ConversationResponse
+
+type ConversationVerb = ConversationVerbWithMethod 'POST
+
+type ConversationPutVerb = ConversationVerbWithMethod 'PUT
 
 type CreateConversationCodeVerb =
   MultiVerb
@@ -365,6 +369,15 @@ type ConversationAPI =
                :> "conversations"
                :> "self"
                :> ConversationVerb
+           )
+    :<|> Named
+           "create-mls-self-conversation"
+           ( Summary "Create the user's MLS self-conversation"
+               :> ZLocalUser
+               :> "conversations"
+               :> "mls-self"
+               :> ZClient
+               :> ConversationPutVerb
            )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
