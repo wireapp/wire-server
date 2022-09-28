@@ -982,9 +982,9 @@ testCreateAccessToken :: Brig -> Http ()
 testCreateAccessToken brig = do
   uid <- userId <$> randomUser brig
   cid <- createClientForUser brig uid
-  _ <- Util.headNonce brig uid cid <!! const 200 === statusCode
-  let proof = Proof $ "xxxx.yyyy.zzzz"
-  response <- responseJsonError =<< Util.createAccessToken brig uid cid proof <!! const 200 === statusCode
+  n <- Util.headNonce brig uid cid <!! const 200 === statusCode
+  let proof _nonce = Proof $ "xxxx.yyyy.zzzz"
+  response <- responseJsonError =<< Util.createAccessToken brig uid cid (proof n) <!! const 200 === statusCode
   let expectedToken = DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
   liftIO $ do
     expectedToken @=? datrToken response
