@@ -39,10 +39,10 @@ import Brig.Data.UserKey (UserKey, foldKey)
 import Brig.Types.Intra
 import Data.Code
 import Data.Id
+import Data.Jwt.Tools (DPoPTokenGenerationError (..))
 import Data.Qualified
 import Data.RetryAfter
 import Imports
-import Jwt.Tools (DPoPTokenGenerationError (..))
 import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Federation.Error
 import Wire.API.User

@@ -12,7 +12,7 @@ license-file:  LICENSE
 build-type:    Simple
 
 library
-  exposed-modules:    Jwt.Tools
+  exposed-modules:    Data.Jwt.Tools
   hs-source-dirs:     src
   other-modules:      Paths_jwt_tools
   default-extensions:

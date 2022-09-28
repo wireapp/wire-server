@@ -37,9 +37,9 @@ tests =
   where
     pem :: ByteString
     pem =
-      "-----BEGIN PRIVATE KEY-----\n"
-        <> "MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n"
-        <> "-----END PRIVATE KEY-----\n"
-        <> "-----BEGIN PUBLIC KEY-----\n"
-        <> "MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=\n"
-        <> "-----END PUBLIC KEY-----\n"
+      "-----BEGIN PRIVATE KEY-----\n\
+      \MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n\
+      \-----END PRIVATE KEY-----\n\
+      \-----BEGIN PUBLIC KEY-----\n\
+      \MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=\n\
+      \-----END PUBLIC KEY-----\n"

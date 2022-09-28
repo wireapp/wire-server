@@ -5,12 +5,12 @@ module Brig.Effects.JwtTools where
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
 import Data.Id (ClientId (client))
+import qualified Data.Jwt.Tools as Jwt
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
 import Data.PEMKeys
 import Data.String.Conversions (cs)
 import Imports
-import qualified Jwt.Tools as Jwt
 import Network.HTTP.Types (StdMethod (..))
 import Numeric (readHex)
 import Polysemy
