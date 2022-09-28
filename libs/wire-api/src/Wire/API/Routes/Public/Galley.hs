@@ -191,6 +191,7 @@ type ConversationAPI =
            "get-unqualified-conversation-legalhold-alias"
            -- This alias exists, so that it can be uniquely selected in zauth.acl
            ( Summary "Get a conversation by ID (Legalhold alias)"
+               :> Until 'V2
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> ZLocalUser
