@@ -1,1 +1,0 @@
-Allow legalhold tokens access to `/converations/<uuid>` endpoint (#2682, #2726)

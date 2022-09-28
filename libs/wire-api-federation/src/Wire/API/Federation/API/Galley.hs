@@ -70,6 +70,7 @@ type GalleyApi =
     :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
     :<|> FedEndpoint "send-mls-message" MessageSendRequest MLSMessageResponse
     :<|> FedEndpoint "send-mls-commit-bundle" MessageSendRequest MLSMessageResponse
+    :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
     :<|> FedEndpoint "on-client-removed" ClientRemovedRequest EmptyResponse
 
 data ClientRemovedRequest = ClientRemovedRequest
@@ -312,3 +313,21 @@ data MLSMessageResponse
   | MLSMessageResponseUpdates [ConversationUpdate]
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
+
+data GetGroupInfoRequest = GetGroupInfoRequest
+  { -- | Conversation is assumed to be owned by the target domain, this allows
+    -- us to protect against relay attacks
+    ggireqConv :: ConvId,
+    -- | Sender is assumed to be owned by the origin domain, this allows us to
+    -- protect against spoofing attacks
+    ggireqSender :: UserId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetGroupInfoRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetGroupInfoRequest)
+
+data GetGroupInfoResponse
+  = GetGroupInfoResponseError GalleyError
+  | GetGroupInfoResponseState Base64ByteString
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetGroupInfoResponse)

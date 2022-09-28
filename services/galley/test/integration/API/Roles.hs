@@ -67,7 +67,7 @@ testAllConversationRoles = do
   connectUsers alice (list1 bob [chuck])
   let role = roleNameWireAdmin
   c <- decodeConvId <$> postConvWithRole alice [bob] (Just "gossip") [] Nothing Nothing role
-  g <- view tsGalley
+  g <- viewGalley
   get
     ( g
         . paths ["conversations", toByteString' c, "roles"]

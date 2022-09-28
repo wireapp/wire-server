@@ -363,7 +363,7 @@ testAddKeyPackageRef brig = do
 
 getFeatureConfig :: forall cfg m. (MonadIO m, MonadHttp m, HasCallStack, ApiFt.IsFeatureConfig cfg, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig galley uid = do
-  get $ galley . paths ["feature-configs", featureNameBS @cfg] . zUser uid
+  get $ apiVersion "v1" . galley . paths ["feature-configs", featureNameBS @cfg] . zUser uid
 
 getAllFeatureConfigs :: (MonadIO m, MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
 getAllFeatureConfigs galley uid = do

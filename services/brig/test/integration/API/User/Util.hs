@@ -187,7 +187,8 @@ initiateEmailUpdateLogin brig email loginCreds uid = do
 initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.AccessToken) -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
 initiateEmailUpdateCreds brig email (cky, tok) uid = do
   put $
-    brig
+    unversioned
+      . brig
       . path "/access/self/email"
       . cookie cky
       . header "Authorization" ("Bearer " <> toByteString' tok)
@@ -262,7 +263,8 @@ getClientCapabilities brig u c =
 getUserClientsUnqualified :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getUserClientsUnqualified brig uid =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["users", toByteString' uid, "clients"]
       . zUser uid
 
@@ -287,10 +289,11 @@ deleteClient brig u c pw =
       RequestBodyLBS . encode . object . maybeToList $
         fmap ("password" .=) pw
 
-listConnections :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+listConnections :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 listConnections brig u =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . path "connections"
       . zUser u
 
@@ -435,7 +438,7 @@ sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
 
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()
 assertEmailVisibility brig a b visible =
-  get (brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
+  get (apiVersion "v1" . brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
     const 200 === statusCode
     if visible
       then const (Just (userEmail b)) === fmap userEmail . responseJsonMaybe
@@ -453,7 +456,7 @@ uploadAsset c usr sts dat = do
       mpb = buildMultipartBody sts ct (LB.fromStrict dat)
   post
     ( c
-        . path "/assets/v3"
+        . path "/assets"
         . zUser usr
         . zConn "conn"
         . content "multipart/mixed"
@@ -471,7 +474,7 @@ downloadAsset ::
 downloadAsset c usr ast =
   get
     ( c
-        . paths ["/assets/v4", toByteString' (qDomain ast), toByteString' (qUnqualified ast)]
+        . paths ["/assets", toByteString' (qDomain ast), toByteString' (qUnqualified ast)]
         . zUser usr
         . zConn "conn"
     )
