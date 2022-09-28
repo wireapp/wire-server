@@ -49,7 +49,7 @@ The easiest course of action is to to remove these directories via:
 make full-clean
 ```
 
-##### Cabal can't read index (Did you call checkForUpdates?)
+#### Cabal can't read index (Did you call checkForUpdates?)
 
 Sometimes abording cabal mid-update can corrupt its index. Deleting `~/.cabal/packages/hackage.haskell.org` will usually do the trick.
 
