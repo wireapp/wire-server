@@ -91,7 +91,7 @@ foreign import ccall unsafe "get_error" get_error :: Ptr JwtResponse -> Ptr CUCh
 
 foreign import ccall unsafe "get_token" get_token :: Ptr JwtResponse -> CString
 
-createToken ::
+generateDpopAccessTokenFfi ::
   ProofCStr ->
   UserIdCStr ->
   ClientIdWord16 ->
@@ -104,21 +104,21 @@ createToken ::
   EpochWord64 ->
   BackendBundleCStr ->
   IO (Maybe (Ptr JwtResponse))
-createToken dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys = do
+generateDpopAccessTokenFfi dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys = do
   ptr <- generate_dpop_access_token dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys
   if ptr /= nullPtr
     then pure $ Just ptr
     else pure Nothing
 
-getError :: Ptr JwtResponse -> IO (Maybe Word8)
-getError ptr = do
+getErrorFfi :: Ptr JwtResponse -> IO (Maybe Word8)
+getErrorFfi ptr = do
   let errorPtr = get_error ptr
   if errorPtr /= nullPtr
     then Just . fromIntegral <$> peek errorPtr
     else pure Nothing
 
-getToken :: Ptr JwtResponse -> IO (Maybe String)
-getToken ptr = do
+getTokenFfi :: Ptr JwtResponse -> IO (Maybe String)
+getTokenFfi ptr = do
   let tokenPtr = get_token ptr
   if tokenPtr /= nullPtr
     then Just <$> peekCString tokenPtr
@@ -148,7 +148,7 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
   backendPubkeyBundleCStr <- toCStr backendPubkeyBundle
 
   let before =
-        createToken
+        generateDpopAccessTokenFfi
           dpopProofCStr
           uidCStr
           (_unClientId cid)
@@ -164,7 +164,7 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
   let mkAccessToken response = do
         case response of
           Nothing -> pure $ Left FfiError
-          Just r -> toResult <$> getError r <*> getToken r
+          Just r -> toResult <$> getErrorFfi r <*> getTokenFfi r
 
   let free = maybe (pure ()) free_dpop_access_token
 
@@ -198,7 +198,10 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
     toResult _ _ = Left FfiError
 
     toCStr :: forall a m. (ToByteString a, MonadIO m) => a -> m CString
-    toCStr = liftIO . newCString . cs . toByteString'
+    toCStr = liftIO . newCString . toStr
+      where
+        toStr :: a -> String
+        toStr = cs . toByteString'
 
     methodToBS :: StdMethod -> ByteString
     methodToBS = \case
