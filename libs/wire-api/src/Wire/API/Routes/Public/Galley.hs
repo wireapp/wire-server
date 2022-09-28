@@ -1406,7 +1406,7 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
-               :> From 'V2
+               :> From 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound

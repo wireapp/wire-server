@@ -141,7 +141,7 @@ import Wire.Sem.Now (Now)
 -- User API -----------------------------------------------------------
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI (Just V2) =
+swaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -173,6 +173,7 @@ swaggerDocsAPI (Just V2) =
         . (S.enum_ . _Just %~ nub)
 swaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
 swaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
+swaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
