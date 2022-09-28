@@ -3,9 +3,9 @@
 module Brig.Effects.PublicKeyBundle where
 
 import Control.Exception
+import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.PEMKeys
-import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 
@@ -16,7 +16,5 @@ makeSem ''PublicKeyBundle
 
 interpretPublicKeyBundle :: Members '[Embed IO] r => Sem (PublicKeyBundle ': r) a -> Sem r a
 interpretPublicKeyBundle = interpret $ \(Get fp) -> do
-  contents <- liftIO $ try $ readFile fp
-  pure $ case contents of
-    Left (_ :: IOException) -> Nothing
-    Right pem -> fromByteString $ cs pem
+  contents :: Either IOException ByteString <- liftIO $ try $ BS.readFile fp
+  pure $ either (const Nothing) fromByteString contents
