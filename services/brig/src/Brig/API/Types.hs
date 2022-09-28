@@ -206,8 +206,7 @@ data VerificationCodeThrottledError
   = VerificationCodeThrottled RetryAfter
 
 data CertEnrollmentError
-  = ProofMissing
-  | NonceNotFound
+  = NonceNotFound
   | TokenGenerationError DPoPTokenGenerationError
   | KeyBundleError
   | MisconfiguredRequestUrl

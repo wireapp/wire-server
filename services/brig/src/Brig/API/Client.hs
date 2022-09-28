@@ -460,34 +460,32 @@ createAccessToken ::
   ClientId ->
   StdMethod ->
   Link ->
-  Maybe Proof ->
+  Proof ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken uid cid method link = \case
-  Nothing -> throwE ProofMissing
-  Just proof -> do
-    domain <- Opt.setFederationDomain <$> view settings
-    nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
-    httpsUrl <- do
-      let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
-      maybe (throwE MisconfiguredRequestUrl) pure $ fromByteString $ urlBs
-    maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
-    expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
-    now <- fromUTCTime <$> lift (liftSem Now.get)
-    let expiresAt = now & addToEpoch expiresIn
-    pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
-    pubKeyBundle <- ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
-    token <-
-      withExceptT TokenGenerationError $
-        ExceptT $
-          liftSem $
-            JwtTools.generateDPoPAccessToken
-              proof
-              (ClientIdentity domain uid cid)
-              nonce
-              httpsUrl
-              method
-              maxSkewSeconds
-              expiresAt
-              now
-              pubKeyBundle
-    pure $ (DPoPAccessTokenResponse token DPoP expiresIn, NoStore)
+createAccessToken uid cid method link proof = do
+  domain <- Opt.setFederationDomain <$> view settings
+  nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
+  httpsUrl <- do
+    let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
+    maybe (throwE MisconfiguredRequestUrl) pure $ fromByteString $ urlBs
+  maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
+  expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
+  now <- fromUTCTime <$> lift (liftSem Now.get)
+  let expiresAt = now & addToEpoch expiresIn
+  pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
+  pubKeyBundle <- ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
+  token <-
+    withExceptT TokenGenerationError $
+      ExceptT $
+        liftSem $
+          JwtTools.generateDPoPAccessToken
+            proof
+            (ClientIdentity domain uid cid)
+            nonce
+            httpsUrl
+            method
+            maxSkewSeconds
+            expiresAt
+            now
+            pubKeyBundle
+  pure $ (DPoPAccessTokenResponse token DPoP expiresIn, NoStore)

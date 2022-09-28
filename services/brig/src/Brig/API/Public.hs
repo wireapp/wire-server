@@ -539,11 +539,11 @@ createAccessToken ::
   StdMethod ->
   UserId ->
   ClientId ->
-  Maybe Proof ->
+  Proof ->
   (Handler r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken method uid cid mProof = do
+createAccessToken method uid cid proof = do
   let link = safeLink (Proxy @api) (Proxy @endpoint) cid
-  API.createAccessToken uid cid method link mProof !>> certEnrollmentError
+  API.createAccessToken uid cid method link proof !>> certEnrollmentError
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::

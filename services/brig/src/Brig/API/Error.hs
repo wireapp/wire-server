@@ -189,7 +189,6 @@ certEnrollmentError (TokenGenerationError ExpMismatchError) = StdError $ Wai.mkE
 certEnrollmentError (TokenGenerationError ExpError) = StdError $ Wai.mkError status400 "client-token-exp-too-small" "(exp) claim in DPoP token is sooner than now (with [max_skew_secs] leeway)"
 certEnrollmentError (TokenGenerationError ClientIdSyntaxError) = StdError $ Wai.mkError status400 "client-token-id-parse-error" "The client id could not be parsed"
 certEnrollmentError (TokenGenerationError FfiError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation"
-certEnrollmentError ProofMissing = StdError $ Wai.mkError status400 "client-token-proof-missing" "The DPoP message header is missing"
 certEnrollmentError NonceNotFound = StdError $ Wai.mkError status400 "client-token-bad-nonce" "The client sent an unacceptable anti-replay nonce"
 certEnrollmentError MisconfiguredRequestUrl = StdError $ Wai.mkError status500 "misconfigured-request-url" "The request url cannot be derived from optSettings.setFederationDomain in brig.yaml"
 certEnrollmentError KeyBundleError = StdError $ Wai.mkError status404 "no-server-key-bundle" "The key bundle required for the certificate enrollment process could not be found"

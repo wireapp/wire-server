@@ -999,7 +999,6 @@ testCreateAccessTokenMissingProof brig = do
   Util.createAccessToken brig uid cid mProof
     !!! do
       const 400 === statusCode
-      const (Just "client-token-proof-missing") === fmap Error.label . responseJsonMaybe
 
 testCreateAccessTokenNoNonce :: Brig -> Http ()
 testCreateAccessTokenNoNonce brig = do
