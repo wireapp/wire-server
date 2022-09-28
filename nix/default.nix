@@ -63,4 +63,5 @@ let
       ] ++ docsPkgs;
     };
   mls-test-cli = pkgs.mls-test-cli;
+  rusty-jwt-tools = pkgs.rusty-jwt-tools;
 in {inherit pkgs profileEnv wireServer docs docsEnv mls-test-cli;}

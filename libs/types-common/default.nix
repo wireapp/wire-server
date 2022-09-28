@@ -8,11 +8,11 @@
 , cryptohash-md5, cryptohash-sha1, cryptonite, currency-codes
 , data-default, generic-random, gitignoreSource, hashable
 , http-api-data, imports, iproute, iso3166-country-codes, iso639
-, lens, lens-datetime, lib, mime, optparse-applicative, protobuf
-, QuickCheck, quickcheck-instances, random, schema-profunctor
-, scientific, servant-server, singletons, string-conversions
-, swagger, swagger2, tagged, tasty, tasty-hunit, tasty-quickcheck
-, text, time, time-locale-compat, tinylog, unix
+, lens, lens-datetime, lib, mime, optparse-applicative, pem
+, protobuf, QuickCheck, quickcheck-instances, random
+, schema-profunctor, scientific, servant-server, singletons
+, string-conversions, swagger, swagger2, tagged, tasty, tasty-hunit
+, tasty-quickcheck, text, time, time-locale-compat, tinylog, unix
 , unordered-containers, uri-bytestring, uuid, vector, yaml
 }:
 mkDerivation {
@@ -25,11 +25,11 @@ mkDerivation {
     cassandra-util containers cryptohash-md5 cryptohash-sha1 cryptonite
     currency-codes data-default generic-random hashable http-api-data
     imports iproute iso3166-country-codes iso639 lens lens-datetime
-    mime optparse-applicative protobuf QuickCheck quickcheck-instances
-    random schema-profunctor scientific servant-server singletons
-    string-conversions swagger swagger2 tagged tasty text time
-    time-locale-compat tinylog unix unordered-containers uri-bytestring
-    uuid vector yaml
+    mime optparse-applicative pem protobuf QuickCheck
+    quickcheck-instances random schema-profunctor scientific
+    servant-server singletons string-conversions swagger swagger2
+    tagged tasty text time time-locale-compat tinylog unix
+    unordered-containers uri-bytestring uuid vector yaml
   ];
   testHaskellDepends = [
     aeson base base16-bytestring base64-bytestring bytestring

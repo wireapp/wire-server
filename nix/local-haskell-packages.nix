@@ -12,6 +12,7 @@
   gundeck-types = hself.callPackage ../libs/gundeck-types/default.nix { inherit gitignoreSource; };
   hscim = hself.callPackage ../libs/hscim/default.nix { inherit gitignoreSource; };
   imports = hself.callPackage ../libs/imports/default.nix { inherit gitignoreSource; };
+  jwt-tools = hself.callPackage ../libs/jwt-tools/default.nix { inherit gitignoreSource; };
   metrics-core = hself.callPackage ../libs/metrics-core/default.nix { inherit gitignoreSource; };
   metrics-wai = hself.callPackage ../libs/metrics-wai/default.nix { inherit gitignoreSource; };
   polysemy-wire-zoo = hself.callPackage ../libs/polysemy-wire-zoo/default.nix { inherit gitignoreSource; };
