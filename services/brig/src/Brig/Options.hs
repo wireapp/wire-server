@@ -643,7 +643,7 @@ setDpopMaxSkewSecs :: Settings -> Word16
 setDpopMaxSkewSecs = fromMaybe defaultDpopMaxSkewSecs . setDpopMaxSkewSecsInternal
 
 defaultDpopTokenExpirationTimeSecs :: Word64
-defaultDpopTokenExpirationTimeSecs = 5 * 60 -- 5 minutes
+defaultDpopTokenExpirationTimeSecs = 30
 
 setDpopTokenExpirationTimeSecs :: Settings -> Word64
 setDpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . setDpopTokenExpirationTimeSecsInternal
