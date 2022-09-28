@@ -45,9 +45,22 @@ let lib = pkgs.lib;
       fetchgit = pkgs.fetchgit;
       inherit lib;
     };
-    localPackages = import ./local-haskell-packages.nix {
-      inherit gitignoreSource;
-    };
+
+    overrideAll = fn: overrides: super: self:
+      attrsets.mapAttrs fn (overrides super self);
+    disableOptimizations = overrideAll (_: drv: hlib.disableOptimization drv);
+    disableDocs = overrideAll (_: drv: hlib.dontHaddock drv);
+
+    localPackages = {enableOptimization, enableDocs}:
+      let optimizedPkgs = import ./local-haskell-packages.nix {
+            inherit gitignoreSource;
+          };
+          afterOptimization = if enableOptimization
+                              then optimizedPkgs
+                              else disableOptimizations optimizedPkgs;
+          in if enableDocs
+             then afterOptimization
+             else disableDocs afterOptimization;
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy mls-test-cli;
     });
@@ -60,30 +73,30 @@ let lib = pkgs.lib;
         attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables hsuper."${name}")
       ) executablesMap;
 
-    hPkgs = pkgs.haskell.packages.ghc8107.override{
+    hPkgs = localMods@{enableOptimization, enableDocs}: pkgs.haskell.packages.ghc8107.override{
       overrides = lib.composeManyExtensions [
         pinnedPackages
-        localPackages
+        (localPackages localMods)
         manualOverrides
         executables
         staticExecutables
       ];
     };
 
-    extractExec = hPkgName: execName:
+    extractExec = localMods@{enableOptimization, enableDocs}: hPkgName: execName:
       pkgs.stdenv.mkDerivation {
         name = execName;
-        buildInputs = [hPkgs."${hPkgName}-static"];
+        buildInputs = [(hPkgs localMods)."${hPkgName}-static"];
         phases = "installPhase";
         installPhase = ''
           mkdir -p $out/bin
-          cp "${hPkgs."${hPkgName}-static"}/bin/${execName}" "$out/bin/${execName}"
+          cp "${(hPkgs localMods)."${hPkgName}-static"}/bin/${execName}" "$out/bin/${execName}"
           '';
       };
 
-    staticExecs =
+    staticExecs = localMods@{enableOptimization, enableDocs}:
       let nested = attrsets.mapAttrs (hPkgName: execNames:
-            attrsets.genAttrs execNames (extractExec hPkgName)
+            attrsets.genAttrs execNames (extractExec localMods hPkgName)
           ) executablesMap;
           unnested = lib.lists.foldr (x: y: x // y) {} (attrsets.attrValues nested);
       in unnested;
@@ -92,29 +105,6 @@ let lib = pkgs.lib;
        mkdir -p $out/tmp
        mkdir -p $out/var/tmp
     '';
-
-    images = attrsets.mapAttrs (execName: drv:
-      pkgs.dockerTools.buildLayeredImage {
-        name = "quay.io/wire/${execName}";
-        maxLayers = 10;
-        contents = [
-          pkgs.cacert
-          pkgs.iana-etc
-          pkgs.coreutils
-          pkgs.bashInteractive
-          pkgs.dumb-init
-          drv
-          tmpDir
-        ];
-        fakeRootCommands = ''
-          chmod 1777 tmp
-          chmod 1777 var/tmp
-        '';
-        config = {
-          Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}"];
-        };
-      }
-    ) staticExecs;
 
     brig-templates = pkgs.stdenvNoCC.mkDerivation {
       name = "brig-templates";
@@ -125,46 +115,49 @@ let lib = pkgs.lib;
       '';
     };
 
-    imagesWithPatches = images // {
-      brig = pkgs.dockerTools.buildImage {
-        name = "quay.io/wire/brig";
-        fromImage = images.brig;
-        copyToRoot = pkgs.buildEnv {
-          name = "brig-templates";
-          paths = [brig-templates];
-        };
-        config = {
-          Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${staticExecs.brig}/bin/brig"];
-        };
-      };
-      brig-integration = pkgs.dockerTools.buildImage {
-        name = "quay.io/wire/brig-integration";
-        fromImage = images.brig-integration;
-        copyToRoot = pkgs.buildEnv {
-          name = "mls-test-cli";
-          paths = [
-            brig-templates
-            pkgs.mls-test-cli
-          ];
-        };
-        config = {
-          Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${staticExecs.brig-integration}/bin/brig-integration"];
-        };
-      };
-      galley-integration = pkgs.dockerTools.buildImage {
-        name = "quay.io/wire/galley-integration";
-        fromImage = images.galley-integration;
-        copyToRoot = pkgs.buildEnv {
-          name = "mls-test-cli";
-          paths = [pkgs.mls-test-cli];
-        };
-        config = {
-          Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${staticExecs.galley-integration}/bin/galley-integration"];
-        };
-      };
+    extraContents = {
+      brig = [brig-templates];
+      brig-integration = [brig-templates pkgs.mls-test-cli];
+      galley-integration= [pkgs.mls-test-cli];
     };
-    imagesList = pkgs.writeTextFile { name = "imagesList"; text = "${lib.concatStringsSep "\n" (builtins.attrNames imagesWithPatches)}"; };
-    wireServerPackages = (builtins.attrNames (localPackages {} {}));
+
+    images = localMods@{enableOptimization, enableDocs}:
+      attrsets.mapAttrs (execName: drv:
+        pkgs.dockerTools.buildLayeredImage {
+          name = "quay.io/wire/${execName}";
+          maxLayers = 10;
+          contents = [
+            pkgs.cacert
+            pkgs.iana-etc
+            pkgs.coreutils
+            pkgs.bashInteractive
+            pkgs.dumb-init
+            drv
+            tmpDir
+          ] ++ pkgs.lib.optionals (builtins.hasAttr execName extraContents) (builtins.getAttr execName extraContents);
+          fakeRootCommands = ''
+                           chmod 1777 tmp
+                           chmod 1777 var/tmp
+                           '';
+          config = {
+            Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}"];
+          };
+        }
+      ) (staticExecs localMods);
+
+    localModsEnableAll = {
+      enableOptimization = true;
+      enableDocs = true;
+    };
+    localModsDisableAll = {
+      enableOptimization = false;
+      enableDocs = false;
+    };
+    imagesList = pkgs.writeTextFile {
+      name = "imagesList";
+      text = "${lib.concatStringsSep "\n" (builtins.attrNames (images localModsEnableAll))}";
+    };
+    wireServerPackages = (builtins.attrNames (localPackages localModsEnableAll {} {}));
 
     # Tools common between CI and developers
     commonTools =  [
@@ -197,10 +190,15 @@ let lib = pkgs.lib;
 in {
   inherit ciImage;
 
-  images = imagesWithPatches;
+  images = images localModsEnableAll;
+  imagesUnoptimizedNoDocs = images localModsDisableAll;
+  imagesNoDocs = images {
+    enableOptimzation = true;
+    enableDocs = false;
+  };
   imagesList = imagesList;
 
-  devShell = hPkgs.shellFor {
+  devShell = (hPkgs localModsDisableAll).shellFor {
     packages = p: builtins.map (e: p.${e}) wireServerPackages;
     buildInputs = commonTools ++ [
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
@@ -225,5 +223,6 @@ in {
     ];
   };
   inherit brig-templates;
-  haskellPackages = hPkgs;
+  haskellPackages = hPkgs localModsEnableAll;
+  haskellPackagesUnoptimizedNoDocs = hPkgs localModsDisableAll;
 } // attrsets.genAttrs (wireServerPackages) (e: hPkgs.${e})
