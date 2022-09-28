@@ -142,7 +142,10 @@ let lib = pkgs.lib;
         fromImage = images.brig-integration;
         copyToRoot = pkgs.buildEnv {
           name = "mls-test-cli";
-          paths = [pkgs.mls-test-cli];
+          paths = [
+            brig-templates
+            pkgs.mls-test-cli
+          ];
         };
         config = {
           Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${staticExecs.brig-integration}/bin/brig-integration"];
