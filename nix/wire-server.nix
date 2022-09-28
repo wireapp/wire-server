@@ -88,20 +88,28 @@ let lib = pkgs.lib;
           unnested = lib.lists.foldr (x: y: x // y) {} (attrsets.attrValues nested);
       in unnested;
 
+    tmpDir = pkgs.runCommand "tmp-dir" {} ''
+       mkdir -p $out/tmp
+       mkdir -p $out/var/tmp
+    '';
+
     images = attrsets.mapAttrs (execName: drv:
-      pkgs.dockerTools.buildImage {
+      pkgs.dockerTools.buildLayeredImage {
         name = "quay.io/wire/${execName}";
-        copyToRoot = pkgs.buildEnv {
-          name = "image-root";
-          paths = [
-            pkgs.cacert
-            pkgs.iana-etc
-            pkgs.coreutils
-            pkgs.bashInteractive
-            pkgs.dumb-init
-            drv
-          ];
-        };
+        maxLayers = 10;
+        contents = [
+          pkgs.cacert
+          pkgs.iana-etc
+          pkgs.coreutils
+          pkgs.bashInteractive
+          pkgs.dumb-init
+          drv
+          tmpDir
+        ];
+        fakeRootCommands = ''
+          chmod 1777 tmp
+          chmod 1777 var/tmp
+        '';
         config = {
           Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}"];
         };
