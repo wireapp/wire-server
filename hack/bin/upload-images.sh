@@ -12,7 +12,11 @@
 
 set -euo pipefail
 
+readonly usage="USAGE: $0 <images_attr>"
+
 readonly DOCKER_TAG=${DOCKER_TAG:?"Please set the DOCKER_TAG env variable"}
+# nix attribute under wireServer from "$ROOT_DIR/nix" containing all the images
+readonly IMAGES_ATTR=${1:?$usage}
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
@@ -29,7 +33,7 @@ images_list="$(nix-build "$ROOT_DIR/nix" -A wireServer.imagesList)"
 while IFS="" read -r image_name || [ -n "$image_name" ]
 do
     printf '*** Building image %s\n' "$image_name"
-    image=$(nix-build "$ROOT_DIR/nix" -A "wireServer.images.$image_name")
+    image=$(nix-build "$ROOT_DIR/nix" -A "wireServer.$IMAGES_ATTR.$image_name")
     repo=$(skopeo list-tags "docker-archive://$image" | jq -r '.Tags[0] | split(":") | .[0]')
     echo "Uploading $image to $repo:$DOCKER_TAG"
     # shellcheck disable=SC2086

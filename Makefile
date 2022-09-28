@@ -224,7 +224,11 @@ i-%:
 
 .PHONY: upload-images
 upload-images:
-	./hack/bin/upload-images.sh
+	./hack/bin/upload-images.sh images
+
+.PHONY: upload-images-dev
+upload-images-dev:
+	./hack/bin/upload-images.sh imagesUnoptimizedNoDocs
 
 #################################
 ## cassandra management
