@@ -67,8 +67,13 @@ instance ToSchema Version where
       [ element 0 V0,
         element 1 V1,
         element 2 V2,
-        element 2 V3
+        element 3 V3
       ]
+
+mkVersion :: Integer -> Maybe Version
+mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
+  Aeson.Error _ -> Nothing
+  Aeson.Success v -> pure v
 
 instance FromHttpApiData Version where
   parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
