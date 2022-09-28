@@ -754,8 +754,8 @@ type LegacyConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "conversations"
-               :> ReqBody '[Versioned 'V1 Servant.JSON] NewConv
-               :> ConversationVerb (Versioned 'V1 JSON)
+               :> ReqBody '[Versioned 'V2 Servant.JSON] NewConv
+               :> ConversationVerb (Versioned 'V2 JSON)
            )
     :<|> Named
            "create-self-conversation-v1"
@@ -763,7 +763,7 @@ type LegacyConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> "self"
-               :> ConversationVerb (Versioned 'V1 JSON)
+               :> ConversationVerb (Versioned 'V2 JSON)
            )
     :<|> Named
            "create-one-to-one-conversation-v1"
@@ -781,8 +781,8 @@ type LegacyConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> ReqBody '[Versioned 'V1 JSON] NewConv
-               :> ConversationVerb (Versioned 'V1 JSON)
+               :> ReqBody '[Versioned 'V2 JSON] NewConv
+               :> ConversationVerb (Versioned 'V2 JSON)
            )
     :<|> Named
            "list-conversations-v1"
@@ -793,7 +793,7 @@ type LegacyConversationAPI =
                :> "list"
                :> "v2"
                :> ReqBody '[JSON] ListConversations
-               :> Post '[Versioned 'V1 JSON] ConversationsResponse
+               :> Post '[Versioned 'V2 JSON] ConversationsResponse
            )
     :<|> Named
            "list-conversation-ids-unqualified"

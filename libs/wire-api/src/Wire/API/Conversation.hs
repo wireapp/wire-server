@@ -276,12 +276,12 @@ conversationSchema sch =
 instance ToSchema Conversation where
   schema = conversationSchema accessRolesSchema
 
-instance ToSchema (Versioned 'V1 Conversation) where
+instance ToSchema (Versioned 'V2 Conversation) where
   schema = unVersioned .= fmap Versioned (conversationSchema accessRolesSchemaV1)
 
-deriving via Schema (Versioned 'V1 Conversation) instance FromJSON (Versioned 'V1 Conversation)
+deriving via Schema (Versioned 'V2 Conversation) instance FromJSON (Versioned 'V2 Conversation)
 
-deriving via Schema (Versioned 'V1 Conversation) instance ToJSON (Versioned 'V1 Conversation)
+deriving via Schema (Versioned 'V2 Conversation) instance ToJSON (Versioned 'V2 Conversation)
 
 modelConversation :: Doc.Model
 modelConversation = Doc.defineModel "Conversation" $ do
@@ -446,18 +446,18 @@ conversationsResponseSchema sch =
           <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
           <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
 
-instance ToSchema (Versioned 'V1 ConversationsResponse) where
+instance ToSchema (Versioned 'V2 ConversationsResponse) where
   schema = unVersioned .= fmap Versioned (conversationsResponseSchema accessRolesSchemaV1)
 
 deriving via
-  (Schema (Versioned 'V1 ConversationsResponse))
+  (Schema (Versioned 'V2 ConversationsResponse))
   instance
-    FromJSON (Versioned 'V1 ConversationsResponse)
+    FromJSON (Versioned 'V2 ConversationsResponse)
 
 deriving via
-  (Schema (Versioned 'V1 ConversationsResponse))
+  (Schema (Versioned 'V2 ConversationsResponse))
   instance
-    ToJSON (Versioned 'V1 ConversationsResponse)
+    ToJSON (Versioned 'V2 ConversationsResponse)
 
 --------------------------------------------------------------------------------
 -- Conversation properties
@@ -764,10 +764,10 @@ newConvSchema sch =
           <> show roleNameWireAdmin
           <> "' if unset."
 
-instance ToSchema (Versioned 'V1 NewConv) where
+instance ToSchema (Versioned 'V2 NewConv) where
   schema = unVersioned .= fmap Versioned (newConvSchema accessRolesSchemaOptV1)
 
-deriving via (Schema (Versioned 'V1 NewConv)) instance FromJSON (Versioned 'V1 NewConv)
+deriving via (Schema (Versioned 'V2 NewConv)) instance FromJSON (Versioned 'V2 NewConv)
 
 newtype ConvTeamInfo = ConvTeamInfo
   { cnvTeamId :: TeamId
