@@ -18,6 +18,7 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
   annotations:
+    service.kubernetes.io/topology-aware-hints: auto
     {{- if .Values.service.nginz.externalDNS.enabled }}
     external-dns.alpha.kubernetes.io/ttl: {{ .Values.service.nginz.externalDNS.ttl | quote }}
     external-dns.alpha.kubernetes.io/hostname: {{ required "Please provide .service.nginz.hostname when .service.nginz.enabled and .service.nginz.externalDNS.enabled are True" .Values.service.nginz.hostname | quote }}

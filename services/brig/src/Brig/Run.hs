@@ -102,7 +102,7 @@ run o = do
   authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
   pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
-  runSettingsWithShutdown s app 5 `finally` do
+  runSettingsWithShutdown s app Nothing `finally` do
     mapM_ Async.cancel emailListener
     Async.cancel internalEventListener
     mapM_ Async.cancel sftDiscovery

@@ -81,7 +81,7 @@ run opts = lowerCodensity $ do
     void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
-  lift $ finally (runSettingsWithShutdown settings app 5) (shutdown (env ^. cstate))
+  lift $ finally (runSettingsWithShutdown settings app Nothing) (shutdown (env ^. cstate))
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts =

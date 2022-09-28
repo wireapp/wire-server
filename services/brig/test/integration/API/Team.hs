@@ -24,7 +24,7 @@ where
 
 import qualified API.Search.Util as SearchUtil
 import API.Team.Util
-import API.User.Util as Util hiding (listConnections)
+import API.User.Util as Util
 import Bilge hiding (accept, head, timeout)
 import qualified Bilge
 import Bilge.Assert
@@ -218,9 +218,9 @@ testInvitationEmailLookupNginz brig nginz = do
   -- expect an invitation to be found querying with email after invite
   headInvitationByEmail nginz email 200
 
-headInvitationByEmail :: Brig -> Email -> Int -> Http ()
-headInvitationByEmail brig email expectedCode =
-  Bilge.head (brig . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
+headInvitationByEmail :: (Request -> Request) -> Email -> Int -> Http ()
+headInvitationByEmail service email expectedCode =
+  Bilge.head (service . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
     !!! const expectedCode === statusCode
 
 testInvitationTooManyPending :: Brig -> TeamSizeLimit -> Http ()
@@ -383,7 +383,9 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
   mem <- getTeamMember invitee tid galley
   liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Member.userId)
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Member.invitation)
-  conns <- listConnections invitee brig
+  conns <-
+    responseJsonError =<< listConnections brig invitee
+      <!! const 200 === statusCode
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
   pure (responseJsonMaybe rsp2, invitation)
 

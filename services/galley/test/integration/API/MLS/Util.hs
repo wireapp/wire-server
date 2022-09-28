@@ -45,6 +45,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Data.Time.Clock (getCurrentTime)
 import Galley.Keys
 import Galley.Options
 import Imports hiding (getSymbolicLinkTarget)
@@ -59,7 +60,9 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role (roleNameWireMember)
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
@@ -110,7 +113,7 @@ postMessage ::
 postMessage sender msg = do
   galley <- viewGalley
   post
-    ( galley . paths ["v2", "mls", "messages"]
+    ( galley . paths ["mls", "messages"]
         . zUser sender
         . zConn "conn"
         . content "message/mls"
@@ -131,7 +134,7 @@ postCommitBundle ::
 postCommitBundle sender bundle = do
   galley <- viewGalley
   post
-    ( galley . paths ["v2", "mls", "commit-bundles"]
+    ( galley . paths ["mls", "commit-bundles"]
         . zUser sender
         . zConn "conn"
         . content "message/mls"
@@ -209,6 +212,9 @@ instance HasGalley MLSTest where
   viewGalley = MLSTest $ lift viewGalley
   viewGalleyOpts = MLSTest $ lift viewGalleyOpts
 
+instance HasBrig MLSTest where
+  viewBrig = MLSTest $ lift viewBrig
+
 instance HasSettingsOverrides MLSTest where
   withSettingsOverrides f (MLSTest action) = MLSTest $
     State.StateT $ \s ->
@@ -273,7 +279,7 @@ createLocalMLSClient (qUntagged -> qusr) = do
 
   -- set public key
   pkey <- mlscli qcid ["public-key"] Nothing
-  brig <- view tsBrig
+  brig <- viewBrig
   let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 pkey}
   put
     ( brig
@@ -305,7 +311,7 @@ uploadNewKeyPackage qcid = do
   (kp, _) <- generateKeyPackage qcid
 
   -- upload key package
-  brig <- view tsBrig
+  brig <- viewBrig
   post
     ( brig
         . paths ["mls", "key-packages", "self", toByteString' . ciClient $ qcid]
@@ -437,7 +443,7 @@ keyPackageFile qcid ref =
 
 claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
 claimLocalKeyPackages qcid lusr = do
-  brig <- view tsBrig
+  brig <- viewBrig
   responseJsonError
     =<< post
       ( brig
@@ -460,7 +466,7 @@ getUserClients qusr = do
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
 claimRemoteKeyPackages (qUntagged -> qusr) = do
-  brig <- view tsBrig
+  brig <- viewBrig
   clients <- getUserClients qusr
   bundle <- fmap (KeyPackageBundle . Set.fromList) $
     for clients $ \cid -> do
@@ -890,3 +896,58 @@ receiveNewRemoteConv conv gid = do
       client
       (qDomain conv)
       nrc
+
+receiveOnConvUpdated ::
+  (MonadReader TestSetup m, MonadIO m) =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  Qualified UserId ->
+  m ()
+receiveOnConvUpdated conv origUser joiner = do
+  client <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cu =
+        ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = origUser,
+            cuConvId = qUnqualified conv,
+            cuAlreadyPresentUsers = [qUnqualified joiner],
+            cuAction =
+              SomeConversationAction
+                SConversationJoinTag
+                ConversationJoin
+                  { cjUsers = pure joiner,
+                    cjRole = roleNameWireMember
+                  }
+          }
+  void $
+    runFedClient
+      @"on-conversation-updated"
+      client
+      (qDomain conv)
+      cu
+
+getGroupInfo ::
+  ( HasCallStack,
+    MonadIO m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  UserId ->
+  Qualified ConvId ->
+  m ResponseLBS
+getGroupInfo sender qcnv = do
+  galley <- viewGalley
+  get
+    ( galley
+        . paths
+          [ "conversations",
+            toByteString' (qDomain qcnv),
+            toByteString' (qUnqualified qcnv),
+            "groupinfo"
+          ]
+        . zUser sender
+        . zConn "conn"
+    )

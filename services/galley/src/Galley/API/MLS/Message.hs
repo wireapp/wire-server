@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.MLS.Message
   ( postMLSCommitBundle,
@@ -42,6 +41,7 @@ import Galley.API.Error
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
+import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (postMLSWelcome)
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
@@ -77,10 +77,12 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
+import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
@@ -279,7 +281,18 @@ postMLSCommitBundleToLocalConv qusr conn bundle lcnv = do
                 /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
             )
             $ throwS @'MLSWelcomeMismatch
-        processCommitWithAction qusr senderClient conn lconv cm (msgEpoch msg) groupId action (msgSender msg) commit
+        processCommitWithAction
+          qusr
+          senderClient
+          conn
+          lconv
+          cm
+          (msgEpoch msg)
+          groupId
+          action
+          (msgSender msg)
+          (Just . cbGroupInfoBundle $ bundle)
+          commit
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
@@ -333,27 +346,6 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
   for updates $ \update -> do
     e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
     pure (LocalConversationUpdate e update)
-
-getLocalConvForUser ::
-  Members
-    '[ ErrorS 'ConvNotFound,
-       ConversationStore,
-       Input (Local ()),
-       MemberStore
-     ]
-    r =>
-  Qualified UserId ->
-  Local ConvId ->
-  Sem r Data.Conversation
-getLocalConvForUser qusr lcnv = do
-  conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-
-  -- check that sender is part of conversation
-  loc <- qualifyLocal ()
-  isMember' <- foldQualified loc (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
-  unless isMember' $ throwS @'ConvNotFound
-
-  pure conv
 
 postMLSMessage ::
   ( HasProposalEffects r,
@@ -607,7 +599,7 @@ processCommit ::
   Sem r [LocalConversationUpdate]
 processCommit qusr senderClient con lconv cm epoch sender commit = do
   (groupId, action) <- getCommitData lconv epoch commit
-  processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit
+  processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender Nothing commit
 
 processCommitWithAction ::
   ( HasProposalEffects r,
@@ -633,9 +625,10 @@ processCommitWithAction ::
   GroupId ->
   ProposalAction ->
   Sender 'MLSPlainText ->
+  Maybe GroupInfoBundle ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit = do
+processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender mGIBundle commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
   let ttlSeconds :: Int = 600 -- 10 minutes
@@ -691,6 +684,11 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
     postponedKeyPackageRefUpdate
     -- increment epoch number
     setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
+    -- set the group info
+    for_ mGIBundle $
+      setPublicGroupState (Data.convId (tUnqualified lconv))
+        . toOpaquePublicGroupState
+        . gipGroupState
 
     pure updates
 
@@ -1029,8 +1027,7 @@ executeProposalAction qusr con lconv cm action = do
 
     existingLocalMembers :: Set (Qualified UserId)
     existingLocalMembers =
-      Set.fromList . map (fmap lmId . qUntagged) . sequenceA $
-        fmap convLocalMembers lconv
+      (Set.fromList . map (fmap lmId . qUntagged)) (traverse convLocalMembers lconv)
 
     existingRemoteMembers :: Set (Qualified UserId)
     existingRemoteMembers =

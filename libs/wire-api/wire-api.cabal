@@ -112,6 +112,7 @@ library
     Wire.API.User.Auth
     Wire.API.User.Auth2
     Wire.API.User.Client
+    Wire.API.User.Client.DPoPAccessToken
     Wire.API.User.Client.Prekey
     Wire.API.User.Handle
     Wire.API.User.Identity

@@ -61,8 +61,10 @@ library
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Delay
+    Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
+    Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
     Brig.Effects.UserPendingActivationStore
     Brig.Effects.UserPendingActivationStore.Cassandra
@@ -227,6 +229,7 @@ library
     , insert-ordered-containers
     , iproute                    >=1.5
     , iso639                     >=0.1
+    , jwt-tools
     , lens                       >=3.8
     , lens-aeson                 >=1.0
     , metrics-core               >=0.3
@@ -507,6 +510,7 @@ executable brig-integration
     , attoparsec
     , base
     , base16-bytestring
+    , base64-bytestring
     , bilge
     , bloodhound
     , brig

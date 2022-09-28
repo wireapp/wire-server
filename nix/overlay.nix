@@ -54,6 +54,7 @@ self: super: {
   cryptobox = self.callPackage ./pkgs/cryptobox { };
   zauth = self.callPackage ./pkgs/zauth { };
   mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
+  rusty_jwt_tools = self.callPackage ./pkgs/rusty_jwt_tools { };
 
   nginxModules = super.nginxModules // {
     zauth = {

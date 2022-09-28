@@ -43,7 +43,8 @@ tests =
       testRoundTrip @ExtensionVector,
       testRoundTrip @PublicGroupStateTBS,
       testRoundTrip @PublicGroupState,
-      testRoundTrip @Welcome
+      testRoundTrip @Welcome,
+      testRoundTrip @OpaquePublicGroupState
     ]
 
 testRoundTrip ::

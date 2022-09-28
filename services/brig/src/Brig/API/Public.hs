@@ -47,7 +47,9 @@ import qualified Brig.Data.UserKey as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -95,14 +97,10 @@ import qualified Data.ZAuth.Token as ZAuth
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
-import Network.HTTP.Types.Status
-import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import qualified Network.Wai.Utilities.Swagger as Doc
-import Network.Wai.Utilities.ZAuth (zauthUserId)
+import Network.Wai.Utilities.Swagger (mkSwaggerApi)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
@@ -131,12 +129,14 @@ import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public
 import qualified Wire.API.User.Client as Public
+import Wire.API.User.Client.DPoPAccessToken
 import qualified Wire.API.User.Client.Prekey as Public
 import qualified Wire.API.User.Handle as Public
 import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
+import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
 
@@ -190,7 +190,12 @@ servantSitemap ::
   Members
     '[ BlacklistStore,
        BlacklistPhonePrefixStore,
-       UserPendingActivationStore p
+       UserPendingActivationStore p,
+       PasswordResetStore,
+       CodeStore,
+       JwtTools,
+       PublicKeyBundle,
+       Now
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -226,6 +231,12 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
       Named @"register" createUser
         :<|> Named @"verify-delete" verifyDeleteUser
         :<|> Named @"get-activate" activate
+        :<|> Named @"post-activate" activateKey
+        :<|> Named @"post-activate-send" sendActivationCode
+        :<|> Named @"post-password-reset" beginPasswordReset
+        :<|> Named @"post-password-reset-complete" completePasswordReset
+        :<|> Named @"post-password-reset-key-deprecated" deprecatedCompletePasswordReset
+        :<|> Named @"onboarding" deprecatedOnboarding
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -257,6 +268,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-client-prekeys" getClientPrekeys
         :<|> Named @"head-nonce" newNonce
         :<|> Named @"get-nonce" newNonce
+        :<|> Named @"create-access-token" (createAccessToken @UserClientAPI @CreateAccessToken POST)
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -312,88 +324,6 @@ sitemap ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
-  -- /activate, /password-reset ----------------------------------
-
-  -- docs/reference/user/activation.md {#RefActivationSubmit}
-  --
-  -- This endpoint can lead to the following events being sent:
-  -- - UserActivated event to the user, if account gets activated
-  -- - UserIdentityUpdated event to the user, if email or phone get activated
-  post "/activate" (continue activateKeyH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.Activate
-  document "POST" "activate" $ do
-    Doc.summary "Activate (i.e. confirm) an email address or phone number."
-    Doc.notes
-      "Activation only succeeds once and the number of \
-      \failed attempts for a valid key is limited."
-    Doc.body (Doc.ref Public.modelActivate) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelActivationResponse)
-    Doc.response 200 "Activation successful." Doc.end
-    Doc.response 204 "A recent activation was already successful." Doc.end
-    Doc.errorResponse activationCodeNotFound
-
-  -- docs/reference/user/activation.md {#RefActivationRequest}
-  post "/activate/send" (continue sendActivationCodeH) $
-    jsonRequest @Public.SendActivationCode
-  document "POST" "sendActivationCode" $ do
-    Doc.summary "Send (or resend) an email or phone activation code."
-    Doc.body (Doc.ref Public.modelSendActivationCode) $
-      Doc.description "JSON body"
-    Doc.response 200 "Activation code sent." Doc.end
-    Doc.errorResponse (errorToWai @'E.InvalidEmail)
-    Doc.errorResponse (errorToWai @'E.InvalidPhone)
-    Doc.errorResponse (errorToWai @'E.UserKeyExists)
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse (errorToWai @'E.BlacklistedPhone)
-    Doc.errorResponse (customerExtensionBlockedDomain (either undefined id $ mkDomain "example.com"))
-
-  post "/password-reset" (continue beginPasswordResetH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.NewPasswordReset
-  document "POST" "beginPasswordReset" $ do
-    Doc.summary "Initiate a password reset."
-    Doc.body (Doc.ref Public.modelNewPasswordReset) $
-      Doc.description "JSON body"
-    Doc.response 201 "Password reset code created and sent by email." Doc.end
-    Doc.errorResponse invalidPwResetKey
-    Doc.errorResponse duplicatePwResetCode
-
-  post "/password-reset/complete" (continue completePasswordResetH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.CompletePasswordReset
-  document "POST" "completePasswordReset" $ do
-    Doc.summary "Complete a password reset."
-    Doc.body (Doc.ref Public.modelCompletePasswordReset) $
-      Doc.description "JSON body"
-    Doc.response 200 "Password reset successful." Doc.end
-    Doc.errorResponse invalidPwResetCode
-
-  post "/password-reset/:key" (continue deprecatedCompletePasswordResetH) $
-    accept "application" "json"
-      .&. capture "key"
-      .&. jsonRequest @Public.PasswordReset
-  document "POST" "deprecatedCompletePasswordReset" $ do
-    Doc.deprecated
-    Doc.summary "Complete a password reset."
-    Doc.notes "DEPRECATED: Use 'POST /password-reset/complete'."
-
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
-  -- see test/integration/API/Metrics.hs
-  post "/onboarding/v3" (continue deprecatedOnboardingH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. jsonRequest @Value
-  document "POST" "onboardingV3" $ do
-    Doc.deprecated
-    Doc.summary "Upload contacts and invoke matching."
-    Doc.notes
-      "DEPRECATED: the feature has been turned off, the end-point does \
-      \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
-
   Provider.routesPublic
   Auth.routesPublic
   Team.routesPublic
@@ -590,12 +520,30 @@ getRichInfo self user = do
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
-newNonce :: UserId -> ClientId -> (Handler r) Nonce
+newNonce :: UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
 newNonce uid cid = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
   lift $ wrapClient $ Nonce.insertNonce ttl uid (client cid) nonce
-  pure nonce
+  pure (nonce, NoStore)
+
+createAccessToken ::
+  forall api endpoint r.
+  ( Member JwtTools r,
+    Member Now r,
+    Member PublicKeyBundle r,
+    IsElem endpoint api,
+    HasLink endpoint,
+    MkLink endpoint Link ~ (ClientId -> Link)
+  ) =>
+  StdMethod ->
+  UserId ->
+  ClientId ->
+  Proof ->
+  (Handler r) (DPoPAccessTokenResponse, CacheControl)
+createAccessToken method uid cid proof = do
+  let link = safeLink (Proxy @api) (Proxy @endpoint) cid
+  API.createAccessToken uid cid method link proof !>> certEnrollmentError
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
@@ -803,13 +751,6 @@ changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
-beginPasswordResetH ::
-  Members '[PasswordResetStore] r =>
-  JSON ::: JsonRequest Public.NewPasswordReset ->
-  (Handler r) Response
-beginPasswordResetH (_ ::: req) =
-  setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
-
 beginPasswordReset ::
   Members '[PasswordResetStore] r =>
   Public.NewPasswordReset ->
@@ -822,25 +763,12 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
-completePasswordResetH ::
+completePasswordReset ::
   Members '[CodeStore, PasswordResetStore] r =>
-  JSON ::: JsonRequest Public.CompletePasswordReset ->
-  (Handler r) Response
-completePasswordResetH (_ ::: req) = do
-  Public.CompletePasswordReset {..} <- parseJsonBody req
-  API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
-  pure empty
-
-sendActivationCodeH ::
-  Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore
-     ]
-    r =>
-  JsonRequest Public.SendActivationCode ->
-  (Handler r) Response
-sendActivationCodeH req =
-  empty <$ (sendActivationCode =<< parseJsonBody req)
+  Public.CompletePasswordReset ->
+  (Handler r) ()
+completePasswordReset req = do
+  API.completePasswordReset (Public.cpwrIdent req) (Public.cpwrCode req) (Public.cpwrPassword req) !>> pwResetError
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
@@ -986,26 +914,14 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 
 -- activation
 
-respFromActivationRespWithStatus :: ActivationRespWithStatus -> Response
-respFromActivationRespWithStatus = \case
-  ActivationResp aresp -> json aresp
-  ActivationRespDryRun -> empty
-  ActivationRespPass -> setStatus status204 empty
-  ActivationRespSuccessNoIdent -> empty
-
--- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKeyH :: JSON ::: JsonRequest Public.Activate -> (Handler r) Response
-activateKeyH (_ ::: req) = do
-  activationRequest <- parseJsonBody req
-  respFromActivationRespWithStatus <$> activate' activationRequest
-
 activate :: Public.ActivationKey -> Public.ActivationCode -> (Handler r) ActivationRespWithStatus
 activate k c = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
-  activate' activationRequest
+  activateKey activationRequest
 
-activate' :: Public.Activate -> (Handler r) ActivationRespWithStatus
-activate' (Public.Activate tgt code dryrun)
+-- docs/reference/user/activation.md {#RefActivationSubmit}
+activateKey :: Public.Activate -> (Handler r) ActivationRespWithStatus
+activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
     wrapClientE (API.preverify tgt code) !>> actError
     pure ActivationRespDryRun
@@ -1058,30 +974,20 @@ sendVerificationCode req = do
 
 -- Deprecated
 
-deprecatedOnboardingH :: JSON ::: UserId ::: JsonRequest Value -> (Handler r) Response
-deprecatedOnboardingH (_ ::: _ ::: _) = pure $ json DeprecatedMatchingResult
+deprecatedOnboarding :: UserId -> JsonValue -> (Handler r) DeprecatedMatchingResult
+deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 
-data DeprecatedMatchingResult = DeprecatedMatchingResult
-
-instance ToJSON DeprecatedMatchingResult where
-  toJSON DeprecatedMatchingResult =
-    object
-      [ "results" .= ([] :: [()]),
-        "auto-connects" .= ([] :: [()])
-      ]
-
-deprecatedCompletePasswordResetH ::
+deprecatedCompletePasswordReset ::
   Members '[CodeStore, PasswordResetStore] r =>
-  JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset ->
-  (Handler r) Response
-deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
-  pwr <- parseJsonBody req
+  Public.PasswordResetKey ->
+  Public.PasswordReset ->
+  (Handler r) ()
+deprecatedCompletePasswordReset k pwr = do
   API.completePasswordReset
     (Public.PasswordResetIdentityKey k)
     (Public.pwrCode pwr)
     (Public.pwrPassword pwr)
     !>> pwResetError
-  pure empty
 
 -- Utilities
 

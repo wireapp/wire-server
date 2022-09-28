@@ -33,6 +33,7 @@ module Brig.API.Client
     lookupLocalPubClientsBulk,
     Data.lookupPrekeyIds,
     Data.lookupUsersClientIds,
+    createAccessToken,
 
     -- * Prekeys
     claimLocalMultiPrekeyBundles,
@@ -51,7 +52,12 @@ import Brig.API.Types
 import Brig.API.Util
 import Brig.App
 import qualified Brig.Data.Client as Data
+import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
+import Brig.Effects.JwtTools (JwtTools)
+import qualified Brig.Effects.JwtTools as JwtTools
+import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
+import qualified Brig.Effects.PublicKeyBundle as PublicKeyBundle
 import Brig.Federation.Client (getUserClients)
 import qualified Brig.Federation.Client as Federation
 import Brig.IO.Intra (guardLegalhold)
@@ -80,20 +86,29 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import Imports
+import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
+import Polysemy (Member)
+import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
+import Wire.API.MLS.Credential (ClientIdentity (..))
+import Wire.API.MLS.Epoch (addToEpoch)
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User
 import qualified Wire.API.User as Code
 import Wire.API.User.Client
+import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
+import Wire.Sem.Now as Now
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
@@ -438,3 +453,38 @@ removeLegalHoldClient uid = do
   -- maybe log if this isn't the case
   forM_ legalHoldClients (execDelete uid Nothing)
   wrapHttpClient $ Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
+
+createAccessToken ::
+  (Member JwtTools r, Member Now r, Member PublicKeyBundle r) =>
+  UserId ->
+  ClientId ->
+  StdMethod ->
+  Link ->
+  Proof ->
+  ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
+createAccessToken uid cid method link proof = do
+  domain <- Opt.setFederationDomain <$> view settings
+  nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
+  httpsUrl <- do
+    let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
+    maybe (throwE MisconfiguredRequestUrl) pure $ fromByteString $ urlBs
+  maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
+  expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
+  now <- fromUTCTime <$> lift (liftSem Now.get)
+  let expiresAt = now & addToEpoch expiresIn
+  pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
+  pubKeyBundle <- ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
+  token <-
+    ExceptT $
+      liftSem $
+        JwtTools.generateDPoPAccessToken
+          proof
+          (ClientIdentity domain uid cid)
+          nonce
+          httpsUrl
+          method
+          maxSkewSeconds
+          expiresAt
+          now
+          pubKeyBundle
+  pure $ (DPoPAccessTokenResponse token DPoP expiresIn, NoStore)

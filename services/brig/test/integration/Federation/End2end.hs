@@ -290,7 +290,7 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
 
   let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
   post
-    ( galley1
+    ( apiVersion "v1" . galley1
         . paths ["conversations", (toByteString' . qUnqualified) convId, "members", "v2"]
         . zUser (userId alice)
         . zConn "conn"

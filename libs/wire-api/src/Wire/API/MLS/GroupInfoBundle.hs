@@ -34,10 +34,16 @@ data GroupInfoTreeType = TreeFull | TreeDelta | TreeByRef
 data GroupInfoBundle = GroupInfoBundle
   { gipEncryptionType :: GroupInfoEncryption,
     gipTreeType :: GroupInfoTreeType,
-    gipGroupState :: PublicGroupState
+    gipGroupState :: RawMLS PublicGroupState
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform GroupInfoBundle
+
+instance Arbitrary GroupInfoBundle where
+  arbitrary =
+    GroupInfoBundle
+      <$> arbitrary
+      <*> arbitrary
+      <*> (mkRawMLS <$> arbitrary)
 
 instance ParseMLS GroupInfoBundle where
   parseMLS =

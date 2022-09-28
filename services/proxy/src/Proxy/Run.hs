@@ -25,7 +25,6 @@ import Control.Monad.Catch
 import Data.Metrics.Middleware hiding (path)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Imports hiding (head)
-import Network.Wai.Handler.Warp (runSettings)
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Proxy.API (sitemap)
 import Proxy.Env
@@ -44,4 +43,4 @@ run o = do
         versionMiddleware
           . waiPrometheusMiddleware (sitemap e)
           . catchErrors (e ^. applog) [Right m]
-  runSettings s (middleware app) `finally` destroyEnv e
+  runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e
