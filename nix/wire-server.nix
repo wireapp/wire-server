@@ -108,20 +108,23 @@ let lib = pkgs.lib;
       }
     ) staticExecs;
 
-    brig-templates = pkgs.srcOnly {
+    brig-templates = pkgs.stdenvNoCC.mkDerivation {
       name = "brig-templates";
       src = ../services/brig/deb/opt/brig/templates;
+      installPhase = ''
+         mkdir -p $out/usr/share/wire
+         cp -r $src $out/usr/share/wire/templates
+      '';
     };
 
     imagesWithPatches = images // {
       brig = pkgs.dockerTools.buildImage {
         name = "quay.io/wire/brig";
         fromImage = images.brig;
-        runAsRoot = ''
-          #!${pkgs.runtimeShell}
-          mkdir -p /usr/share/wire/
-          ln -s ${brig-templates} /usr/share/wire/templates
-          '';
+        copyToRoot = pkgs.buildEnv {
+          name = "brig-templates";
+          paths = [brig-templates];
+        };
         config = {
           Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${staticExecs.brig}/bin/brig"];
         };
@@ -179,9 +182,6 @@ let lib = pkgs.lib;
       tag = null;
       bundleNixpkgs = false;
       extraPkgs = commonTools ++ [pkgs.cachix];
-      nixConf = {
-        system-features = "nixos-test benchmark big-parallel kvm";
-      };
     };
 in {
   inherit ciImage;
@@ -213,5 +213,6 @@ in {
       pkgs.telepresence
     ];
   };
+  inherit brig-templates;
   haskellPackages = hPkgs;
 } // attrsets.genAttrs (wireServerPackages) (e: hPkgs.${e})
