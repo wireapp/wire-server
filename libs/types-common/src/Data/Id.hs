@@ -283,7 +283,7 @@ instance FromHttpApiData ConnId where
 newtype ClientId = ClientId
   { client :: Text
   }
-  deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, A.ToJSONKey, Generic)
+  deriving (Eq, Ord, Read, Show, ToByteString, Hashable, NFData, A.ToJSONKey, Generic)
   deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData, Binary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
 

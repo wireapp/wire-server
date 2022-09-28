@@ -56,6 +56,7 @@ packages:
 - tools/api-simulations
 - tools/db/assets
 - tools/db/auto-whitelist
+- tools/db/clients-without-prekeys
 - tools/db/migrate-sso-feature-flag
 - tools/db/service-backfill
 - tools/db/billing-team-member-backfill

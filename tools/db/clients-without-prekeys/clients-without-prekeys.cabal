@@ -1,0 +1,114 @@
+cabal-version: 2.4
+name:          clients-without-prekeys
+version:       1.0.0
+synopsis:      Query metadata for clients without prekeys
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2022 Wire Swiss GmbH
+license:       AGPL-3.0-only
+build-type:    Simple
+
+library
+  hs-source-dirs:     src
+  exposed-modules:
+    ClientsWithoutPrekeys.Cache
+    ClientsWithoutPrekeys.Data
+    ClientsWithoutPrekeys.GrafanaLogs
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields
+
+  build-depends:
+    , aeson
+    , attoparsec
+    , base
+    , brig
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , cassandra-util
+    , cassava
+    , conduit
+    , containers
+    , cql
+    , cql-io
+    , filepath
+    , galley
+    , imports
+    , iproute
+    , lens
+    , megaparsec
+    , optparse-applicative
+    , process
+    , raw-strings-qq
+    , stache
+    , text
+    , time
+    , tinylog
+    , types-common
+    , unliftio
+    , uuid
+    , vector
+    , wire-api
+
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TemplateHaskell
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  default-language:   Haskell2010
+
+executable clients-without-prekeys-from-logs-meta
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , cassandra-util
+    , clients-without-prekeys
+    , lens
+    , optparse-applicative
+
+  hs-source-dirs:   app/from-logs-meta
+  default-language: Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded -with-rtsopts=-N
