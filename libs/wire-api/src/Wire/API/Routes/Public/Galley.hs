@@ -165,7 +165,7 @@ instance
       (unI . unZ)
 
 type ServantAPI =
-  ConversationAPIV1
+  LegacyConversationAPI
     :<|> ConversationAPI
     :<|> TeamConversationAPI
     :<|> MessagingAPI
@@ -715,11 +715,12 @@ type ConversationAPI =
                     ()
            )
 
-type ConversationAPIV1 =
+-- TODO: limit all of these endpoints to V2 as soon as V3 is introduced
+-- These should have been dropped in V2, but we didn't make it in time.
+type LegacyConversationAPI =
   Named
     "get-unqualified-conversation"
     ( Summary "Get a conversation by ID"
-        :> Until 'V2
         :> CanThrow 'ConvNotFound
         :> CanThrow 'ConvAccessDenied
         :> ZLocalUser
@@ -743,7 +744,6 @@ type ConversationAPIV1 =
     :<|> Named
            "create-group-conversation-v1"
            ( Summary "Create a new conversation"
-               :> Until 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'NotConnected
@@ -760,7 +760,6 @@ type ConversationAPIV1 =
     :<|> Named
            "create-self-conversation-v1"
            ( Summary "Create a self-conversation"
-               :> Until 'V2
                :> ZLocalUser
                :> "conversations"
                :> "self"
@@ -769,7 +768,6 @@ type ConversationAPIV1 =
     :<|> Named
            "create-one-to-one-conversation-v1"
            ( Summary "Create a 1:1 conversation"
-               :> Until 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NoBindingTeamMembers
@@ -801,7 +799,6 @@ type ConversationAPIV1 =
            "list-conversation-ids-unqualified"
            ( Summary "[deprecated] Get all local conversation IDs."
                -- FUTUREWORK: add bounds to swagger schema for Range
-               :> Until 'V2
                :> ZLocalUser
                :> "conversations"
                :> "ids"
@@ -871,7 +868,6 @@ type ConversationAPIV1 =
     :<|> Named
            "update-conversation-name-deprecated"
            ( Summary "Update conversation name (deprecated)"
-               :> Until 'V2
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
@@ -890,7 +886,6 @@ type ConversationAPIV1 =
     :<|> Named
            "update-conversation-name-unqualified"
            ( Summary "Update conversation name (deprecated)"
-               :> Until 'V2
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound

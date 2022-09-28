@@ -1,5 +1,2 @@
 Removed the following legacy conversation endpoints from API V1:
-  - GET /conversations/:id
   - GET /legalhold/conversations/:id
-  - GET /conversations/ids
-
