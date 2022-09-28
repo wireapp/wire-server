@@ -80,7 +80,7 @@ protocolValidAction ProtocolProteus _ = True
 protocolValidAction (ProtocolMLS _) ConversationJoinTag = False
 protocolValidAction (ProtocolMLS _) ConversationLeaveTag = True
 protocolValidAction (ProtocolMLS _) ConversationRemoveMembersTag = False
-protocolValidAction (ProtocolMLS _) ConversationDeleteTag = False
+protocolValidAction (ProtocolMLS _) ConversationDeleteTag = True
 protocolValidAction (ProtocolMLS _) _ = True
 
 instance ToSchema ProtocolTag where
