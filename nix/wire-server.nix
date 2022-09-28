@@ -95,6 +95,7 @@ let lib = pkgs.lib;
           name = "image-root";
           paths = [
             pkgs.cacert
+            pkgs.iana-etc
             pkgs.coreutils
             pkgs.bashInteractive
             pkgs.dumb-init
