@@ -15,15 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Network.Wai.Utilities
-  ( module Network.Wai.Utilities.Error,
-    module Network.Wai.Utilities.Request,
-    module Network.Wai.Utilities.Response,
-    module Network.Wai.Utilities.Headers,
-  )
-where
+module Data.PEMKeys where
 
-import Network.Wai.Utilities.Error
-import Network.Wai.Utilities.Headers
-import Network.Wai.Utilities.Request
-import Network.Wai.Utilities.Response
+import Data.ByteString.Conversion
+import Data.PEM
+import Imports
+
+newtype PEMKeys = PEMKeys {unPEMKeys :: [PEM]}
+  deriving (Eq, Show)
+
+instance ToByteString PEMKeys where
+  builder (PEMKeys pems) = builder . mconcat $ map pemWriteBS pems
+
+instance FromByteString PEMKeys where
+  parser = parser >>= either fail (pure . PEMKeys) . pemParseBS

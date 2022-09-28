@@ -45,7 +45,14 @@ import Test.QuickCheck.Instances.UUID ()
 
 newtype Nonce = Nonce {unNonce :: UUID}
   deriving (Eq, Show)
-  deriving newtype (A.FromJSON, A.ToJSON, S.ToSchema, Arbitrary)
+  deriving newtype (Arbitrary)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Nonce)
+
+instance ToSchema Nonce where
+  schema = (cs . toByteString') .= parsedText "Nonce" p
+    where
+      p :: Text -> Either String Nonce
+      p = maybe (Left "Invalid Nonce") Right . fromByteString' . cs
 
 instance ToByteString Nonce where
   builder = builder . Base64.encode . toStrict . UUID.toByteString . unNonce

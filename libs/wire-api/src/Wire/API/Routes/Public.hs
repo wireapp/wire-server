@@ -185,6 +185,10 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) whe
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts :> api) where
   toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts :> api))
 
+instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
+  type MkLink (ZAuthServant _ _ :> endpoint) a = MkLink endpoint a
+  toLink toA _ = toLink toA (Proxy @endpoint)
+
 instance
   {-# OVERLAPPABLE #-}
   HasSwagger api =>

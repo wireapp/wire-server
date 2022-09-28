@@ -15,15 +15,31 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Network.Wai.Utilities
-  ( module Network.Wai.Utilities.Error,
-    module Network.Wai.Utilities.Request,
-    module Network.Wai.Utilities.Response,
-    module Network.Wai.Utilities.Headers,
+module Test.Data.PEMKeys
+  ( tests,
   )
 where
 
-import Network.Wai.Utilities.Error
-import Network.Wai.Utilities.Headers
-import Network.Wai.Utilities.Request
-import Network.Wai.Utilities.Response
+import Data.ByteString.Conversion
+import Data.PEMKeys
+import Data.String.Conversions (cs)
+import Imports
+import Test.Tasty
+import Test.Tasty.HUnit
+
+tests :: TestTree
+tests =
+  testGroup
+    "PEMKeys"
+    [ testCase "ByteString conversion" $ do
+        Just (cs pem) @=? (toByteString <$> fromByteString @PEMKeys pem)
+    ]
+  where
+    pem :: ByteString
+    pem =
+      "-----BEGIN PRIVATE KEY-----\n\
+      \MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n\
+      \-----END PRIVATE KEY-----\n\
+      \-----BEGIN PUBLIC KEY-----\n\
+      \MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=\n\
+      \-----END PUBLIC KEY-----\n"

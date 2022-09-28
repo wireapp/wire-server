@@ -60,6 +60,7 @@ import Wire.API.User
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth
 import Wire.API.User.Client
+import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
@@ -107,7 +108,13 @@ tests _cl _at opts p db b c g =
       test p "get /clients/:client - 200" $ testMLSClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g c,
       test p "client/prekeys/race" $ testPreKeyRace b,
-      test p "get/head nonce/clients" $ testNewNonce b
+      test p "get/head nonce/clients" $ testNewNonce b,
+      testGroup
+        "post /clients/:cid/access-token"
+        [ test p "success" $ testCreateAccessToken b,
+          test p "proof missing" $ testCreateAccessTokenMissingProof b,
+          test p "no nonce" $ testCreateAccessTokenNoNonce b
+        ]
     ]
 
 testAddGetClientVerificationCode :: DB.ClientState -> Brig -> Galley -> Http ()
@@ -975,6 +982,41 @@ testNewNonce brig = do
         assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID nonceBs
         Just "no-store" @=? getHeader "Cache-Control" response
       pure nonceBs
+
+testCreateAccessToken :: Brig -> Http ()
+testCreateAccessToken brig = do
+  uid <- userId <$> randomUser brig
+  cid <- createClientForUser brig uid
+  n <- Util.headNonce brig uid cid <!! const 200 === statusCode
+  let proof _nonce = Just $ Proof "xxxx.yyyy.zzzz"
+  response <- responseJsonError =<< Util.createAccessToken brig uid cid (proof n) <!! const 200 === statusCode
+  let expectedToken = DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+  liftIO $ do
+    expectedToken @=? datrToken response
+    DPoP @=? datrType response
+    300 @=? datrExpiresIn response
+
+testCreateAccessTokenMissingProof :: Brig -> Http ()
+testCreateAccessTokenMissingProof brig = do
+  uid <- userId <$> randomUser brig
+  cid <- createClientForUser brig uid
+  let mProof = Nothing
+  Util.createAccessToken brig uid cid mProof
+    !!! do
+      const 400 === statusCode
+
+testCreateAccessTokenNoNonce :: Brig -> Http ()
+testCreateAccessTokenNoNonce brig = do
+  uid <- userId <$> randomUser brig
+  cid <- createClientForUser brig uid
+  Util.createAccessToken brig uid cid (Just $ Proof "xxxx.yyyy.zzzz")
+    !!! do
+      const 400 === statusCode
+      const (Just "client-token-bad-nonce") === fmap Error.label . responseJsonMaybe
+
+createClientForUser :: Brig -> UserId -> Http ClientId
+createClientForUser brig uid =
+  clientId <$> (responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)))
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do

@@ -36,6 +36,7 @@ import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
+import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
@@ -56,6 +57,7 @@ import Wire.API.Routes.Version
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
 import Wire.API.User.Client
+import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
@@ -689,17 +691,40 @@ type UserClientAPI =
                :> "prekeys"
                :> Get '[JSON] [PrekeyId]
            )
-    :<|> NonceAPI
-
-type NonceAPI =
-  -- be aware that the order matters, if get was first, then head requests would be routed to the get handler
-  NewNonce "head-nonce" 'HEAD 200
+    -- be aware that the order of the head-nonce and get-nonce matters, if get was first, then head requests would be routed to the get handler
+    :<|> NewNonce "head-nonce" 'HEAD 200
     :<|> NewNonce "get-nonce" 'GET 204
+    :<|> CreateAccessToken
+
+type CreateAccessToken =
+  Named
+    "create-access-token"
+    ( Summary "Create a JWT DPoP access token"
+        :> Description
+             ( "[implementation stub, not supported yet!] \
+               \Create an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. \
+               \The access token will be returned as JWT DPoP token in the `DPoP` header."
+             )
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "cid"
+        :> "access-token"
+        :> Header' '[Required, Strict] "DPoP" Proof
+        :> MultiVerb1
+             'POST
+             '[JSON]
+             ( WithHeaders
+                 '[Header "Cache-Control" CacheControl]
+                 (DPoPAccessTokenResponse, CacheControl)
+                 (Respond 200 "Access token created" DPoPAccessTokenResponse)
+             )
+    )
 
 type NewNonce name method statusCode =
   Named
     name
-    ( Summary "Get a new nonce for a client CSR, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
+    ( Summary "Get a new nonce for a client CSR"
+        :> Description "Get a new nonce for a client CSR, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding."
         :> ZUser
         :> "clients"
         :> CaptureClientId "client"
@@ -707,16 +732,20 @@ type NewNonce name method statusCode =
         :> MultiVerb1
              method
              '[JSON]
-             (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty statusCode "No Content"))
+             ( WithHeaders
+                 '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" CacheControl]
+                 (Nonce, CacheControl)
+                 (RespondEmpty statusCode "No Content")
+             )
     )
 
 newtype NonceHeader = NonceHeader Nonce
   deriving (Eq, Show)
   deriving newtype (FromByteString, ToByteString, ToParamSchema, ToHttpApiData, FromHttpApiData)
 
-instance AsHeaders '[NonceHeader, Text] () Nonce where
-  fromHeaders (I (NonceHeader nonce) :* (_ :* Nil), _) = nonce
-  toHeaders nonce = (I (NonceHeader nonce) :* (I "no-store" :* Nil), ())
+instance AsHeaders '[NonceHeader, CacheControl] () (Nonce, CacheControl) where
+  fromHeaders (I (NonceHeader n) :* (I cc :* Nil), ()) = (n, cc)
+  toHeaders (n, cc) = (I (NonceHeader n) :* (I cc :* Nil), ())
 
 type ClientAPI =
   Named
