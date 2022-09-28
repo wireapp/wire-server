@@ -268,55 +268,56 @@ type ConversationAPI =
                :> QueryParam' [Required, Strict] "code" Code.Value
                :> Get '[Servant.JSON] ConversationCoverView
            )
-    :<|> Named
-           "create-group-conversation"
-           ( Summary "Create a new conversation"
-               :> From 'V2
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'MLSNonEmptyMemberList
-               :> CanThrow 'NotConnected
-               :> CanThrow 'NotATeamMember
-               :> CanThrow OperationDenied
-               :> CanThrow 'MissingLegalholdConsent
-               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb JSON
-           )
-    :<|> Named
-           "create-self-conversation"
-           ( Summary "Create a self-conversation"
-               :> From 'V2
-               :> ZLocalUser
-               :> "conversations"
-               :> "self"
-               :> ConversationVerb JSON
-           )
+    -- TODO: restore when V3 is introduced
+    -- :<|> Named
+    --        "create-group-conversation"
+    --        ( Summary "Create a new conversation"
+    --            :> From 'V3
+    --            :> CanThrow 'ConvAccessDenied
+    --            :> CanThrow 'MLSNonEmptyMemberList
+    --            :> CanThrow 'NotConnected
+    --            :> CanThrow 'NotATeamMember
+    --            :> CanThrow OperationDenied
+    --            :> CanThrow 'MissingLegalholdConsent
+    --            :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+    --            :> ZLocalUser
+    --            :> ZConn
+    --            :> "conversations"
+    --            :> ReqBody '[Servant.JSON] NewConv
+    --            :> ConversationVerb JSON
+    --        )
+    -- :<|> Named
+    --        "create-self-conversation"
+    --        ( Summary "Create a self-conversation"
+    --            :> From 'V3
+    --            :> ZLocalUser
+    --            :> "conversations"
+    --            :> "self"
+    --            :> ConversationVerb JSON
+    --        )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     -- TODO: add note: "On 201, the conversation ID is the `Location` header"
-    :<|> Named
-           "create-one-to-one-conversation"
-           ( Summary "Create a 1:1 conversation"
-               :> From 'V2
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'InvalidOperation
-               :> CanThrow 'NoBindingTeamMembers
-               :> CanThrow 'NonBindingTeam
-               :> CanThrow 'NotATeamMember
-               :> CanThrow 'NotConnected
-               :> CanThrow OperationDenied
-               :> CanThrow 'TeamNotFound
-               :> CanThrow 'MissingLegalholdConsent
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> "one2one"
-               :> ReqBody '[Servant.JSON] NewConv
-               :> ConversationVerb JSON
-           )
+    -- :<|> Named
+    --        "create-one-to-one-conversation"
+    --        ( Summary "Create a 1:1 conversation"
+    --            :> From 'V3
+    --            :> CanThrow 'ConvAccessDenied
+    --            :> CanThrow 'InvalidOperation
+    --            :> CanThrow 'NoBindingTeamMembers
+    --            :> CanThrow 'NonBindingTeam
+    --            :> CanThrow 'NotATeamMember
+    --            :> CanThrow 'NotConnected
+    --            :> CanThrow OperationDenied
+    --            :> CanThrow 'TeamNotFound
+    --            :> CanThrow 'MissingLegalholdConsent
+    --            :> ZLocalUser
+    --            :> ZConn
+    --            :> "conversations"
+    --            :> "one2one"
+    --            :> ReqBody '[Servant.JSON] NewConv
+    --            :> ConversationVerb JSON
+    --        )
     :<|> Named
            "add-members-to-conversation"
            ( Summary "Add qualified members to an existing conversation."
@@ -742,7 +743,7 @@ type LegacyConversationAPI =
                :> Get '[Servant.JSON] Conversation
            )
     :<|> Named
-           "create-group-conversation-v1"
+           "create-group-conversation-v2"
            ( Summary "Create a new conversation"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
@@ -758,7 +759,7 @@ type LegacyConversationAPI =
                :> ConversationVerb (Versioned 'V2 JSON)
            )
     :<|> Named
-           "create-self-conversation-v1"
+           "create-self-conversation-v2"
            ( Summary "Create a self-conversation"
                :> ZLocalUser
                :> "conversations"
@@ -766,7 +767,7 @@ type LegacyConversationAPI =
                :> ConversationVerb (Versioned 'V2 JSON)
            )
     :<|> Named
-           "create-one-to-one-conversation-v1"
+           "create-one-to-one-conversation-v2"
            ( Summary "Create a 1:1 conversation"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'InvalidOperation

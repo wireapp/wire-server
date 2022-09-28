@@ -49,9 +49,9 @@ servantSitemap =
     conversationsV1 =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
         <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
-        <@> mkNamedAPI @"create-group-conversation-v1" createGroupConversation
-        <@> mkNamedAPI @"create-self-conversation-v1" createSelfConversation
-        <@> mkNamedAPI @"create-one-to-one-conversation-v1" createOne2OneConversation
+        <@> mkNamedAPI @"create-group-conversation-v2" createGroupConversation
+        <@> mkNamedAPI @"create-self-conversation-v2" createSelfConversation
+        <@> mkNamedAPI @"create-one-to-one-conversation-v2" createOne2OneConversation
         <@> mkNamedAPI @"list-conversations-v1" listConversations
         <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
         <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
@@ -66,9 +66,9 @@ servantSitemap =
         <@> mkNamedAPI @"get-conversations" getConversations
         <@> mkNamedAPI @"list-conversations" listConversations
         <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
-        <@> mkNamedAPI @"create-group-conversation" createGroupConversation
-        <@> mkNamedAPI @"create-self-conversation" createSelfConversation
-        <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
+        -- <@> mkNamedAPI @"create-group-conversation" createGroupConversation
+        -- <@> mkNamedAPI @"create-self-conversation" createSelfConversation
+        -- <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
         <@> mkNamedAPI @"add-members-to-conversation" addMembers
         <@> mkNamedAPI @"join-conversation-by-id-unqualified" (joinConversationById @Cassandra)
         <@> mkNamedAPI @"join-conversation-by-code-unqualified" (joinConversationByReusableCode @Cassandra)
