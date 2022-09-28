@@ -475,17 +475,16 @@ createAccessToken uid cid method link proof = do
   pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
   pubKeyBundle <- ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
   token <-
-    withExceptT TokenGenerationError $
-      ExceptT $
-        liftSem $
-          JwtTools.generateDPoPAccessToken
-            proof
-            (ClientIdentity domain uid cid)
-            nonce
-            httpsUrl
-            method
-            maxSkewSeconds
-            expiresAt
-            now
-            pubKeyBundle
+    ExceptT $
+      liftSem $
+        JwtTools.generateDPoPAccessToken
+          proof
+          (ClientIdentity domain uid cid)
+          nonce
+          httpsUrl
+          method
+          maxSkewSeconds
+          expiresAt
+          now
+          pubKeyBundle
   pure $ (DPoPAccessTokenResponse token DPoP expiresIn, NoStore)

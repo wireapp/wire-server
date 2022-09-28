@@ -30,18 +30,13 @@ main = hspec $ do
       actual `shouldBe` expected
   describe "toResult" $ do
     it "should convert to correct error" $ do
-      -- the only valid case is when the error=0 (meaning no error) and the token is not null
       toResult Nothing (Just token) `shouldBe` Right (cs token)
-
-      -- error=1 corresponds to an unknown error on FFI side
-      toResult (Just 1) Nothing `shouldBe` Left FfiError
-      toResult (Just 1) (Just token) `shouldBe` Left FfiError
-      -- error=2 corresponds to 'FfiError' on FFI side
+      toResult (Just 1) Nothing `shouldBe` Left UnknownError
+      toResult (Just 1) (Just token) `shouldBe` Left UnknownError
       toResult (Just 2) Nothing `shouldBe` Left FfiError
       toResult (Just 2) (Just token) `shouldBe` Left FfiError
-      -- error=3 corresponds to 'ImplementationError' on FFI side
-      toResult (Just 3) Nothing `shouldBe` Left FfiError
-      toResult (Just 3) (Just token) `shouldBe` Left FfiError
+      toResult (Just 3) Nothing `shouldBe` Left ImplementationError
+      toResult (Just 3) (Just token) `shouldBe` Left ImplementationError
       toResult (Just 4) Nothing `shouldBe` Left DpopSyntaxError
       toResult (Just 4) (Just token) `shouldBe` Left DpopSyntaxError
       toResult (Just 5) Nothing `shouldBe` Left DpopTypError
@@ -72,8 +67,7 @@ main = hspec $ do
       toResult (Just 17) (Just token) `shouldBe` Left ExpMismatchError
       toResult (Just 18) Nothing `shouldBe` Left ExpError
       toResult (Just 18) (Just token) `shouldBe` Left ExpError
-      -- this should also not happen, but apparently something went wrong
-      toResult Nothing Nothing `shouldBe` Left FfiError
+      toResult Nothing Nothing `shouldBe` Left UnknownError
 
 token :: String
 token = "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"

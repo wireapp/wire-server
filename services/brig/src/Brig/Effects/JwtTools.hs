@@ -2,8 +2,10 @@
 
 module Brig.Effects.JwtTools where
 
+import Brig.API.Types (CertEnrollmentError (..))
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
+import Data.Either.Extra
 import Data.Id (ClientId (client))
 import qualified Data.Jwt.Tools as Jwt
 import Data.Misc (HttpsUrl)
@@ -40,7 +42,7 @@ data JwtTools m a where
     Epoch ->
     -- | PEM format concatenated private key and public key of the Wire backend
     PEMKeys ->
-    JwtTools m (Either Jwt.DPoPTokenGenerationError DPoPAccessToken)
+    JwtTools m (Either CertEnrollmentError DPoPAccessToken)
 
 makeSem ''JwtTools
 
@@ -48,19 +50,20 @@ interpretJwtTools :: Members '[Embed IO] r => Sem (JwtTools ': r) a -> Sem r a
 interpretJwtTools = interpret $ \(GenerateDPoPAccessToken pr ci n uri method skew ex now pem) -> do
   case readHex @Word16 (cs $ client $ ciClient ci) of
     [(parsedClientId, "")] ->
-      runExceptT
-        ( DPoPAccessToken
-            <$> Jwt.generateDpopToken
-              (Jwt.Proof (toByteString' pr))
-              (Jwt.UserId (toByteString' (ciUser ci)))
-              (Jwt.ClientId parsedClientId)
-              (Jwt.Domain (toByteString' (ciDomain ci)))
-              (Jwt.Nonce (toByteString' n))
-              (Jwt.Uri (toByteString' uri))
-              method
-              (Jwt.MaxSkewSecs skew)
-              (Jwt.ExpiryEpoch (epochNumber ex))
-              (Jwt.NowEpoch (epochNumber now))
-              (Jwt.PemBundle (toByteString' pem))
-        )
-    _ -> pure (Left Jwt.ClientIdSyntaxError)
+      mapLeft RustError
+        <$> runExceptT
+          ( DPoPAccessToken
+              <$> Jwt.generateDpopToken
+                (Jwt.Proof (toByteString' pr))
+                (Jwt.UserId (toByteString' (ciUser ci)))
+                (Jwt.ClientId parsedClientId)
+                (Jwt.Domain (toByteString' (ciDomain ci)))
+                (Jwt.Nonce (toByteString' n))
+                (Jwt.Uri (toByteString' uri))
+                method
+                (Jwt.MaxSkewSecs skew)
+                (Jwt.ExpiryEpoch (epochNumber ex))
+                (Jwt.NowEpoch (epochNumber now))
+                (Jwt.PemBundle (toByteString' pem))
+          )
+    _ -> pure $ Left ClientIdSyntaxError

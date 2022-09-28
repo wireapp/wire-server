@@ -207,9 +207,10 @@ data VerificationCodeThrottledError
 
 data CertEnrollmentError
   = NonceNotFound
-  | TokenGenerationError DPoPTokenGenerationError
+  | RustError DPoPTokenGenerationError
   | KeyBundleError
   | MisconfiguredRequestUrl
+  | ClientIdSyntaxError
 
 -------------------------------------------------------------------------------
 -- Exceptions

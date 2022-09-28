@@ -20,6 +20,7 @@
 
 module Data.Jwt.Tools
   ( generateDpopToken,
+    toResult,
     DPoPTokenGenerationError (..),
     Proof (..),
     UserId (..),
@@ -170,33 +171,6 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
 
   ExceptT $ liftIO $ bracket before free mkAccessToken
   where
-    toResult :: Maybe Word8 -> Maybe String -> Either DPoPTokenGenerationError ByteString
-    -- the only valid case is when the error=0 (meaning no error) and the token is not null
-    toResult Nothing (Just token) = Right $ cs token
-    -- error=1 corresponds to an unknown error on FFI side
-    toResult (Just 1) _ = Left FfiError
-    -- error=2 corresponds to 'FfiError' on FFI side
-    toResult (Just 2) _ = Left FfiError
-    -- error=3 corresponds to 'ImplementationError' on FFI side
-    toResult (Just 3) _ = Left FfiError
-    toResult (Just 4) _ = Left DpopSyntaxError
-    toResult (Just 5) _ = Left DpopTypError
-    toResult (Just 6) _ = Left DpopUnsupportedAlgorithmError
-    toResult (Just 7) _ = Left DpopInvalidSignatureError
-    toResult (Just 8) _ = Left ClientIdMismatchError
-    toResult (Just 9) _ = Left BackendNonceMismatchError
-    toResult (Just 10) _ = Left HtuMismatchError
-    toResult (Just 11) _ = Left HtmMismatchError
-    toResult (Just 12) _ = Left MissingJtiError
-    toResult (Just 13) _ = Left MissingChallengeError
-    toResult (Just 14) _ = Left MissingIatError
-    toResult (Just 15) _ = Left IatError
-    toResult (Just 16) _ = Left MissingExpError
-    toResult (Just 17) _ = Left ExpMismatchError
-    toResult (Just 18) _ = Left ExpError
-    -- this should also not happen, but apparently something went wrong
-    toResult _ _ = Left FfiError
-
     toCStr :: forall a m. (ToByteString a, MonadIO m) => a -> m CString
     toCStr = liftIO . newCString . toStr
       where
@@ -214,6 +188,21 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
       CONNECT -> "CONNECT"
       OPTIONS -> "OPTIONS"
       PATCH -> "PATCH"
+
+toResult :: Maybe Word8 -> Maybe String -> Either DPoPTokenGenerationError ByteString
+-- the only valid case is when the error=0 (meaning no error) and the token is not null
+toResult (Just 0) (Just token) = Right $ cs token
+toResult Nothing (Just token) = Right $ cs token
+-- errors
+toResult (Just errNo) _ = Left $ fromInt (fromIntegral errNo)
+  where
+    fromInt :: Int -> DPoPTokenGenerationError
+    fromInt i =
+      if i >= fromEnum @DPoPTokenGenerationError minBound && i <= fromEnum @DPoPTokenGenerationError maxBound
+        then toEnum (fromIntegral i)
+        else UnknownError
+-- internal errors (unexpected)
+toResult Nothing Nothing = Left UnknownError
 
 newtype Proof = Proof {_unProof :: ByteString}
   deriving (Eq, Show)
@@ -256,38 +245,41 @@ newtype PemBundle = PemBundle {_unPemBundle :: ByteString}
   deriving newtype (ToByteString)
 
 data DPoPTokenGenerationError
-  = -- | DPoP token has an invalid syntax
-    DpopSyntaxError
-  | -- | DPoP header 'typ' is not 'dpop+jwt'
-    DpopTypError
-  | -- | DPoP signature algorithm (alg) in JWT header is not a supported algorithm (ES256, ES384, Ed25519)
-    DpopUnsupportedAlgorithmError
-  | -- | DPoP signature does not correspond to the public key (jwk) in the JWT header
-    DpopInvalidSignatureError
-  | -- | [client_id] does not correspond to the (sub) claim expressed as URI
-    ClientIdMismatchError
-  | -- | [backend_nonce] does not correspond to the (nonce) claim in DPoP token (base64url encoded)
-    BackendNonceMismatchError
-  | -- | [uri] does not correspond to the (htu) claim in DPoP token
-    HtuMismatchError
-  | -- | method does not correspond to the (htm) claim in DPoP token
-    HtmMismatchError
-  | -- | (jti) claim is absent in DPoP token
-    MissingJtiError
-  | -- | (chal) claim is absent in DPoP token
-    MissingChallengeError
-  | -- | (iat) claim is absent in DPoP token
-    MissingIatError
-  | -- | (iat) claim in DPoP token is not earlier of now (with [max_skew_secs] leeway)
-    IatError
-  | -- | (exp) claim is absent in DPoP token
-    MissingExpError
-  | -- | (exp) claim in DPoP token is larger than supplied [max_expiration]
-    ExpMismatchError
-  | -- | (exp) claim in DPoP token is sooner than now (with [max_skew_secs] leeway)
-    ExpError
-  | -- | the client id has an invalid syntax
-    ClientIdSyntaxError
-  | -- | Error at FFI boundary, probably related to raw pointer
+  = NoError
+  | -- |   Unmapped error
+    UnknownError
+  | -- |   Error at FFI boundary, probably related to raw pointer
     FfiError
-  deriving (Eq, Show, Generic)
+  | -- |   We messed up in rusty-jwt-tools
+    ImplementationError
+  | -- |   DPoP token has an invalid syntax
+    DpopSyntaxError
+  | -- |   DPoP header "typ" is not "dpop+jwt"
+    DpopTypError
+  | -- |   DPoP signature algorithm (alg) in JWT header is not a supported algorithm (ES256, ES384, Ed25519)
+    DpopUnsupportedAlgorithmError
+  | -- |   DPoP signature does not correspond to the public key (jwk) in the JWT header
+    DpopInvalidSignatureError
+  | -- |   [client_id] does not correspond to the (sub) claim expressed as URI
+    ClientIdMismatchError
+  | -- |   [backend_nonce] does not correspond to the (nonce) claim in DPoP token (base64url encoded)
+    BackendNonceMismatchError
+  | -- |   [uri] does not correspond to the (htu) claim in DPoP token
+    HtuMismatchError
+  | -- |   method does not correspond to the (htm) claim in DPoP token
+    HtmMismatchError
+  | -- |   (jti) claim is absent in DPoP token
+    MissingJtiError
+  | -- |   (chal) claim is absent in DPoP token
+    MissingChallengeError
+  | -- |   (iat) claim is absent in DPoP token
+    MissingIatError
+  | -- |   (iat) claim in DPoP token is not earlier of now (with [max_skew_secs] leeway)
+    IatError
+  | -- |   (exp) claim is absent in DPoP token
+    MissingExpError
+  | -- |   (exp) claim in DPoP token is larger than supplied [max_expiration]
+    ExpMismatchError
+  | -- |   (exp) claim in DPoP token is sooner than now (with [max_skew_secs] leeway)
+    ExpError
+  deriving (Eq, Show, Generic, Bounded, Enum)
