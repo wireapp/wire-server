@@ -173,14 +173,29 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
     toResult :: Maybe Word8 -> Maybe String -> Either DPoPTokenGenerationError ByteString
     -- the only valid case is when the error=0 (meaning no error) and the token is not null
     toResult Nothing (Just token) = Right $ cs token
-    -- errors
-    toResult (Just ((+ (-1)) -> i)) Nothing =
-      if i >= fromEnum minBound && i <= fromEnum maxBound
-        then Left (fromEnum (i - 1))
-        else Left FfiErrorUnknown
-    -- internal errors (unexpected)
-    toResult (Just _) (Just _) = Left FfiErrorUnknown
-    toResult Nothing Nothing = Left FfiErrorUnknown
+    -- error=1 corresponds to an unknown error on FFI side
+    toResult (Just 1) _ = Left FfiError
+    -- error=2 corresponds to 'FfiError' on FFI side
+    toResult (Just 2) _ = Left FfiError
+    -- error=3 corresponds to 'ImplementationError' on FFI side
+    toResult (Just 3) _ = Left FfiError
+    toResult (Just 4) _ = Left DpopSyntaxError
+    toResult (Just 5) _ = Left DpopTypError
+    toResult (Just 6) _ = Left DpopUnsupportedAlgorithmError
+    toResult (Just 7) _ = Left DpopInvalidSignatureError
+    toResult (Just 8) _ = Left ClientIdMismatchError
+    toResult (Just 9) _ = Left BackendNonceMismatchError
+    toResult (Just 10) _ = Left HtuMismatchError
+    toResult (Just 11) _ = Left HtmMismatchError
+    toResult (Just 12) _ = Left MissingJtiError
+    toResult (Just 13) _ = Left MissingChallengeError
+    toResult (Just 14) _ = Left MissingIatError
+    toResult (Just 15) _ = Left IatError
+    toResult (Just 16) _ = Left MissingExpError
+    toResult (Just 17) _ = Left ExpMismatchError
+    toResult (Just 18) _ = Left ExpError
+    -- this should also not happen, but apparently something went wrong
+    toResult _ _ = Left FfiError
 
     toCStr :: forall a m. (ToByteString a, MonadIO m) => a -> m CString
     toCStr = liftIO . newCString . toStr
@@ -241,13 +256,7 @@ newtype PemBundle = PemBundle {_unPemBundle :: ByteString}
   deriving newtype (ToByteString)
 
 data DPoPTokenGenerationError
-  = -- | Error at FFI boundary, probably related to raw pointer
-    FfiErrorUnknown
-  | -- | Error at FFI boundary, probably related to raw pointer
-    FfiError
-  | -- | Error at FFI boundary, probably related to raw pointer
-    FfiErrorImpl
-  | -- | DPoP token has an invalid syntax
+  = -- | DPoP token has an invalid syntax
     DpopSyntaxError
   | -- | DPoP header 'typ' is not 'dpop+jwt'
     DpopTypError
@@ -279,4 +288,6 @@ data DPoPTokenGenerationError
     ExpError
   | -- | the client id has an invalid syntax
     ClientIdSyntaxError
-  deriving (Eq, Show, Generic, Bounded, Enum)
+  | -- | Error at FFI boundary, probably related to raw pointer
+    FfiError
+  deriving (Eq, Show, Generic)
