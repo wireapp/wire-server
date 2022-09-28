@@ -577,11 +577,11 @@ nonce m brig uid cid =
         . zUser uid
     )
 
-createAccessToken :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> ClientId -> Proof -> m ResponseLBS
-createAccessToken brig uid cid proof =
+createAccessToken :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> ClientId -> Maybe Proof -> m ResponseLBS
+createAccessToken brig uid cid mProof =
   post
     ( brig
         . paths ["clients", toByteString' cid, "access-token"]
         . zUser uid
-        . header "DPoP" (toByteString' proof)
+        . maybe id (header "DPoP" . toByteString') mProof
     )

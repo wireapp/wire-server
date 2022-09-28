@@ -983,7 +983,7 @@ testCreateAccessToken brig = do
   uid <- userId <$> randomUser brig
   cid <- createClientForUser brig uid
   n <- Util.headNonce brig uid cid <!! const 200 === statusCode
-  let proof _nonce = Proof $ "xxxx.yyyy.zzzz"
+  let proof _nonce = Just $ Proof "xxxx.yyyy.zzzz"
   response <- responseJsonError =<< Util.createAccessToken brig uid cid (proof n) <!! const 200 === statusCode
   let expectedToken = DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
   liftIO $ do
@@ -995,7 +995,8 @@ testCreateAccessTokenMissingProof :: Brig -> Http ()
 testCreateAccessTokenMissingProof brig = do
   uid <- userId <$> randomUser brig
   cid <- createClientForUser brig uid
-  post (brig . paths ["clients", toByteString' cid, "access-token"] . zUser uid)
+  let mProof = Nothing
+  Util.createAccessToken brig uid cid mProof
     !!! do
       const 400 === statusCode
       const (Just "client-token-proof-missing") === fmap Error.label . responseJsonMaybe
@@ -1004,7 +1005,7 @@ testCreateAccessTokenNoNonce :: Brig -> Http ()
 testCreateAccessTokenNoNonce brig = do
   uid <- userId <$> randomUser brig
   cid <- createClientForUser brig uid
-  Util.createAccessToken brig uid cid (Proof $ "xxxx.yyyy.zzzz")
+  Util.createAccessToken brig uid cid (Just $ Proof "xxxx.yyyy.zzzz")
     !!! do
       const 400 === statusCode
       const (Just "client-token-bad-nonce") === fmap Error.label . responseJsonMaybe
