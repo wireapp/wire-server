@@ -53,6 +53,8 @@ let lib = pkgs.lib;
             inherit gitignoreSource;
           } hsuper hself;
 
+          # TODO: Remove
+          triggerRebuild = _: hlib.triggerRebuild 1;
           werror = _: hlib.failOnAllWarnings;
           opt = _: drv:
             if enableOptimization
@@ -67,7 +69,7 @@ let lib = pkgs.lib;
 
           overrideAll = fn: overrides:
             attrsets.mapAttrs fn (overrides);
-      in lib.lists.foldr overrideAll defaultPkgs [werror opt docs];
+      in lib.lists.foldr overrideAll defaultPkgs [werror opt docs triggerRebuild];
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy mls-test-cli;
     });
