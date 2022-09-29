@@ -1,10 +1,11 @@
 # We need quasi quotes support.
 - arguments: [ -XQuasiQuotes, --color ]
+
 # Used to enforce ormolu styling. Can be revisited if we change formatters.
 - ignore: { name: Redundant $ }
 - ignore: { name: Redundant do }
 - ignore: { name: Use newtype instead of data  }
-#
+
 # Left for the programmer to decide. See discussion at https://github.com/wireapp/wire-server/pull/2382#discussion_r871194424
 - ignore: { name: Avoid lambda }
 - ignore: { name: Avoid lambda using `infix` }
@@ -15,6 +16,11 @@
 # custom rules:
 - hint: { lhs: (() <$), rhs: void }
 - hint: { lhs: return, rhs: pure }
-## We want the latter to properly handle signals.
-# - error: { name: Use shutdown, lhs: runSettings, rhs: runSettingsWithShutdown }
-# - ignore: { name: Use shutdown, within: [Network.Wai.Utilities.Server, Federator.Response] }
+
+# We want the latter function because it handles signals properly.
+- error: { name: Use shutdown, lhs: runSettings, rhs: runSettingsWithShutdown }
+- ignore: { name: Use shutdown, within: [
+    Network.Wai.Utilities.Server,  # this is the implementation 'runSettingsWithShutdown'
+    Federator.Response,            # this is just a naming conincidence
+    Cannon.Run                     # we do something similar, but not identical here by hand
+  ] }
