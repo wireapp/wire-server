@@ -243,7 +243,7 @@ testNginzLegalHold b g n = do
   -- ensure legal hold tokens can fetch notifications
   get (n . path "/notifications" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
-  get (n . paths ["legalhold", "conversations", toByteString' (qUnqualified qconv)] . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
+  get (apiVersion "v1" . n . paths ["legalhold", "conversations", toByteString' (qUnqualified qconv)] . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
   get (n . paths ["conversations", toByteString' (qUnqualified qconv)] . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
