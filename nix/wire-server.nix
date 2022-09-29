@@ -48,7 +48,9 @@ let lib = pkgs.lib;
 
     overrideAll = fn: overrides: super: self:
       attrsets.mapAttrs fn (overrides super self);
-    disableOptimizations = overrideAll (_: drv: hlib.disableOptimization drv);
+    # We need to explicitly add `-O0` because all the cabal files explicitly
+    # have `-O2` in them
+    disableOptimizations = overrideAll (_: drv: hlib.appendConfigureFlag (hlib.disableOptimization drv) "--ghc-option=-O0");
     disableDocs = overrideAll (_: drv: hlib.dontHaddock drv);
 
     localPackages = {enableOptimization, enableDocs}:
