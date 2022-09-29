@@ -46,23 +46,28 @@ let lib = pkgs.lib;
       inherit lib;
     };
 
-    overrideAll = fn: overrides: super: self:
-      attrsets.mapAttrs fn (overrides super self);
-    # We need to explicitly add `-O0` because all the cabal files explicitly
-    # have `-O2` in them
-    disableOptimizations = overrideAll (_: drv: hlib.appendConfigureFlag (hlib.disableOptimization drv) "--ghc-option=-O0");
-    disableDocs = overrideAll (_: drv: hlib.dontHaddock drv);
-
-    localPackages = {enableOptimization, enableDocs}:
-      let optimizedPkgs = import ./local-haskell-packages.nix {
+    localPackages = {enableOptimization, enableDocs}: hsuper: hself:
+      # The default packages are expected to have optimizations and docs turned
+      # on.
+      let defaultPkgs = import ./local-haskell-packages.nix {
             inherit gitignoreSource;
-          };
-          afterOptimization = if enableOptimization
-                              then optimizedPkgs
-                              else disableOptimizations optimizedPkgs;
-          in if enableDocs
-             then afterOptimization
-             else disableDocs afterOptimization;
+          } hsuper hself;
+
+          werror = _: hlib.failOnAllWarnings;
+          opt = _: drv:
+            if enableOptimization
+            then drv
+            else
+              # We need to explicitly add `-O0` because all the cabal files
+              # explicitly have `-O2` in them
+              hlib.appendConfigureFlag (hlib.disableOptimization drv) "--ghc-option=-O0";
+          docs = _: drv: if enableDocs
+                         then drv
+                         else hlib.dontHaddock drv;
+
+          overrideAll = fn: overrides:
+            attrsets.mapAttrs fn (overrides);
+      in lib.lists.foldr overrideAll defaultPkgs [werror opt docs];
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy mls-test-cli;
     });
