@@ -54,7 +54,7 @@ let lib = pkgs.lib;
           } hsuper hself;
 
           # TODO: Remove
-          triggerRebuild = _: drv: hlib.triggerRebuild drv 1;
+          # triggerRebuild = _: drv: hlib.triggerRebuild drv 1;
           werror = _: hlib.failOnAllWarnings;
           opt = _: drv:
             if enableOptimization
@@ -69,7 +69,12 @@ let lib = pkgs.lib;
 
           overrideAll = fn: overrides:
             attrsets.mapAttrs fn (overrides);
-      in lib.lists.foldr overrideAll defaultPkgs [werror opt docs triggerRebuild];
+      in lib.lists.foldr overrideAll defaultPkgs [
+        werror
+        opt
+        docs
+        # triggerRebuild
+      ];
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy mls-test-cli;
     });
