@@ -106,7 +106,7 @@ tests _cl _at opts p db b c g =
       test p "put /clients/:client - 200 (mls keys)" $ testMLSPublicKeyUpdate b,
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "get /clients/:client - 200" $ testMLSClient b,
-      test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g c,
+      test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b,
       test p "get/head nonce/clients" $ testNewNonce b,
       testGroup
@@ -904,15 +904,15 @@ testMissingClient brig = do
 -- brig) have registered it.  Add second temporary client, check
 -- again.  (NB: temp clients replace each other, there can always be
 -- at most one per account.)
-testAddMultipleTemporary :: Brig -> Galley -> Cannon -> Http ()
-testAddMultipleTemporary brig galley cannon = do
+testAddMultipleTemporary :: Brig -> Galley -> Http ()
+testAddMultipleTemporary brig galley = do
   uid <- userId <$> randomUser brig
   let clt1 =
         (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
           { newClientClass = Just PhoneClient,
             newClientModel = Just "featurephone1"
           }
-  client <- responseJsonError =<< addClient brig uid clt1
+  _ <- addClient brig uid clt1
   brigClients1 <- numOfBrigClients uid
   galleyClients1 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) brigClients1
@@ -922,14 +922,7 @@ testAddMultipleTemporary brig galley cannon = do
           { newClientClass = Just PhoneClient,
             newClientModel = Just "featurephone2"
           }
-  WS.bracketR cannon uid $ \ws -> do
-    _ <- addClient brig uid clt2
-    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
-      let j = Object $ List1.head (ntfPayload n)
-      let etype = j ^? key "type" . _String
-      let eclient = j ^? key "client" . key "id" . _String
-      etype @?= Just "user.client-remove"
-      fmap ClientId eclient @?= Just (clientId client)
+  _ <- addClient brig uid clt2
   brigClients2 <- numOfBrigClients uid
   galleyClients2 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) brigClients2

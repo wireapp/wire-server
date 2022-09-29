@@ -62,7 +62,6 @@ onEvent n = handleTimeout $ case n of
     mc <- Data.lookupClient uid cid
     for_ mc $ \c -> do
       rmClient uid cid
-      Data.rmClient uid cid
       Intra.onClientEvent uid mcon (ClientRemoved uid c)
   DeleteUser uid -> do
     Log.info $
