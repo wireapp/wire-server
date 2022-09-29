@@ -54,7 +54,7 @@ let lib = pkgs.lib;
           } hsuper hself;
 
           # TODO: Remove
-          triggerRebuild = _: hlib.triggerRebuild 1;
+          triggerRebuild = _: drv: hlib.triggerRebuild drv 1;
           werror = _: hlib.failOnAllWarnings;
           opt = _: drv:
             if enableOptimization
