@@ -30,9 +30,12 @@ fi
 
 images_list="$(nix-build "$ROOT_DIR/nix" -A wireServer.imagesList)"
 
+# Build everything first so we can benefit the most from having many cores.
+nix-build "$ROOT_DIR/nix" -A "wireServer.$IMAGES_ATTR"
+
 while IFS="" read -r image_name || [ -n "$image_name" ]
 do
-    printf '*** Building image %s\n' "$image_name"
+    printf '*** Uploading image %s\n' "$image_name"
     image=$(nix-build "$ROOT_DIR/nix" -A "wireServer.$IMAGES_ATTR.$image_name")
     repo=$(skopeo list-tags "docker-archive://$image" | jq -r '.Tags[0] | split(":") | .[0]')
     echo "Uploading $image to $repo:$DOCKER_TAG"
