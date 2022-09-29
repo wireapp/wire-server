@@ -24,7 +24,6 @@ import Bilge.IO (MonadHttp)
 import Bilge.RPC (HasRequestId)
 import qualified Brig.API.User as API
 import Brig.App
-import qualified Brig.Data.Client as Data
 import Brig.IO.Intra (rmClient)
 import qualified Brig.IO.Intra as Intra
 import Brig.InternalEvent.Types
@@ -40,6 +39,7 @@ import Imports
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (timeout)
+import Wire.API.User.Client (clientId)
 
 -- | Handle an internal event.
 --
@@ -58,11 +58,9 @@ onEvent ::
   InternalNotification ->
   m ()
 onEvent n = handleTimeout $ case n of
-  DeleteClient cid uid mcon -> do
-    mc <- Data.lookupClient uid cid
-    for_ mc $ \c -> do
-      rmClient uid cid
-      Intra.onClientEvent uid mcon (ClientRemoved uid c)
+  DeleteClient c uid mcon -> do
+    rmClient uid (clientId c)
+    Intra.onClientEvent uid mcon (ClientRemoved uid c)
   DeleteUser uid -> do
     Log.info $
       msg (val "Processing user delete event")

@@ -23,9 +23,10 @@ where
 import BasePrelude
 import Data.Aeson
 import Data.Id
+import Wire.API.User.Client (Client)
 
 data InternalNotification
-  = DeleteClient !ClientId !UserId !(Maybe ConnId)
+  = DeleteClient !Client !UserId !(Maybe ConnId)
   | DeleteUser !UserId
   | DeleteService !ProviderId !ServiceId
   deriving (Eq, Show)
@@ -57,9 +58,9 @@ instance FromJSON InternalNotification where
       ServiceDeletion -> DeleteService <$> o .: "provider" <*> o .: "service"
 
 instance ToJSON InternalNotification where
-  toJSON (DeleteClient cid uid con) =
+  toJSON (DeleteClient c uid con) =
     object
-      [ "client" .= cid,
+      [ "client" .= c,
         "user" .= uid,
         "connection" .= con,
         "type" .= ClientDeletion
