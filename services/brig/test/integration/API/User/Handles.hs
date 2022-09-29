@@ -335,7 +335,7 @@ assertCanFind brig from target = do
   let targetHandle = fromMaybe (error "Impossible") (userHandle target)
   get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
     const 200 === statusCode
-    const (userHandle target) === ((listToMaybe >=> profileHandle) <=< responseJsonMaybe)
+    const (userHandle target) === (responseJsonMaybe >=> listToMaybe >=> profileHandle)
 
   get (apiVersion "v1" . brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
     const 200 === statusCode
