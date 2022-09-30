@@ -907,7 +907,7 @@ testMissingClient brig = do
 -- brig) have registered it.  Add second temporary client, check
 -- again.  (NB: temp clients replace each other, there can always be
 -- at most one per account.)
-testAddMultipleTemporary :: Brig -> Galley -> Cannon -> Http ()
+testAddMultipleTemporary :: HasCallStack => Brig -> Galley -> Cannon -> Http ()
 testAddMultipleTemporary brig galley cannon = do
   uid <- userId <$> randomUser brig
   let clt1 =
@@ -915,7 +915,9 @@ testAddMultipleTemporary brig galley cannon = do
           { newClientClass = Just PhoneClient,
             newClientModel = Just "featurephone1"
           }
+
   client <- responseJsonError =<< addClient brig uid clt1
+
   brigClients1 <- numOfBrigClients uid
   galleyClients1 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) brigClients1
@@ -925,6 +927,10 @@ testAddMultipleTemporary brig galley cannon = do
           { newClientClass = Just PhoneClient,
             newClientModel = Just "featurephone2"
           }
+
+  brigClients2 <- numOfBrigClients uid
+  liftIO $ assertEqual "Too many clients found" (Just 1) brigClients2
+
   WS.bracketR cannon uid $ \ws -> do
     _ <- addClient brig uid clt2
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
@@ -933,9 +939,8 @@ testAddMultipleTemporary brig galley cannon = do
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"
       fmap ClientId eclient @?= Just (clientId client)
-  brigClients2 <- numOfBrigClients uid
+
   galleyClients2 <- numOfGalleyClients uid
-  liftIO $ assertEqual "Too many clients found" (Just 1) brigClients2
   liftIO $ assertEqual "Too many clients found" (Just 1) galleyClients2
   where
     numOfBrigClients u = do

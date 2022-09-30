@@ -60,7 +60,7 @@ import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Time.Clock as Time
 import Data.Timeout
-import Galley.Cassandra.Client
+import Galley.Cassandra.Client (lookupClients)
 import Galley.Cassandra.LegalHold
 import qualified Galley.Cassandra.LegalHold as LegalHoldData
 import qualified Galley.Env as Galley
