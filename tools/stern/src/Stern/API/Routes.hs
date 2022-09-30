@@ -25,6 +25,7 @@ where
 
 import Brig.Types.Intra (UserAccount)
 import Control.Lens
+import Data.Handle
 import Data.Id
 import qualified Data.Swagger as S
 import Imports hiding (head)
@@ -35,7 +36,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
-import Wire.API.User (Email)
+import Wire.API.User
 
 type SternAPIInternal =
   Named
@@ -67,6 +68,27 @@ type SternAPI =
            ( Summary "Displays user's info given an email address"
                :> "users"
                :> QueryParam' [Required, Strict, Description "Email address"] "email" Email
+               :> Get '[JSON] [UserAccount]
+           )
+    :<|> Named
+           "get-users-by-phone"
+           ( Summary "Displays user's info given a phone number"
+               :> "users"
+               :> QueryParam' [Required, Strict, Description "Phone number"] "phone" Phone
+               :> Get '[JSON] [UserAccount]
+           )
+    :<|> Named
+           "get-users-by-ids"
+           ( Summary "Displays active users info given a list of ids"
+               :> "users"
+               :> QueryParam' [Required, Strict, Description "List of IDs of the users, separated by comma"] "ids" [UserId]
+               :> Get '[JSON] [UserAccount]
+           )
+    :<|> Named
+           "get-users-by-handles"
+           ( Summary "Displays active users info given a list of handles"
+               :> "users"
+               :> QueryParam' [Required, Strict, Description "List of Handles of the users, without '@', separated by comma"] "ids" [Handle]
                :> Get '[JSON] [UserAccount]
            )
 

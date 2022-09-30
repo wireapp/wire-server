@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -141,6 +142,9 @@ servantSitemap' =
   Named @"suspend-user" suspendUser
     :<|> Named @"unsuspend-user" unsuspendUser
     :<|> Named @"get-users-by-email" usersByEmail
+    :<|> Named @"get-users-by-phone" usersByPhone
+    :<|> Named @"get-users-by-ids" usersByIds
+    :<|> Named @"get-users-by-handles" usersByHandles
 
 servantSitemapInternal :: Servant.Server SternAPIInternal
 servantSitemapInternal = Named @"status" (pure Servant.NoContent)
@@ -184,7 +188,7 @@ routes = do
 
   get
     "/users"
-    (continue usersByPhone)
+    (continue usersByPhone')
     phoneParam
   document "GET" "users" $ do
     Doc.summary "Displays user's info given a phone number"
@@ -192,7 +196,7 @@ routes = do
       Doc.description "Phone number"
     Doc.response 200 "List of users" Doc.end
 
-  get "/users" (continue usersByIds) $
+  get "/users" (continue usersByIds') $
     param "ids"
   document "GET" "users" $ do
     Doc.summary "Displays active users info given a list of ids"
@@ -200,7 +204,7 @@ routes = do
       Doc.description "ID of the user"
     Doc.response 200 "List of users" Doc.end
 
-  get "/users" (continue usersByHandles) $
+  get "/users" (continue usersByHandles') $
     param "handles"
   document "GET" "users" $ do
     Doc.summary "Displays active users info given a list of handles"
@@ -588,14 +592,23 @@ usersByEmail' = fmap json . usersByEmail
 usersByEmail :: Email -> Handler [UserAccount]
 usersByEmail = Intra.getUserProfilesByIdentity . Left
 
-usersByPhone :: Phone -> Handler Response
-usersByPhone = fmap json . Intra.getUserProfilesByIdentity . Right
+usersByPhone' :: Phone -> Handler Response
+usersByPhone' = fmap json . usersByPhone
 
-usersByIds :: List UserId -> Handler Response
-usersByIds = fmap json . Intra.getUserProfiles . Left . fromList
+usersByPhone :: Phone -> Handler [UserAccount]
+usersByPhone = Intra.getUserProfilesByIdentity . Right
 
-usersByHandles :: List Handle -> Handler Response
-usersByHandles = fmap json . Intra.getUserProfiles . Right . fromList
+usersByIds' :: List UserId -> Handler Response
+usersByIds' = fmap json . usersByIds . fromList
+
+usersByIds :: [UserId] -> Handler [UserAccount]
+usersByIds = Intra.getUserProfiles . Left
+
+usersByHandles' :: List Handle -> Handler Response
+usersByHandles' = fmap json . usersByHandles . fromList
+
+usersByHandles :: [Handle] -> Handler [UserAccount]
+usersByHandles = Intra.getUserProfiles . Right
 
 ejpdInfoByHandles :: (List Handle ::: Bool) -> Handler Response
 ejpdInfoByHandles (handles ::: includeContacts) = json <$> Intra.getEjpdInfo (fromList handles) includeContacts
@@ -800,6 +813,9 @@ getUserData uid = do
     noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
 
 -- Utilities
+
+instance FromByteString a => Servant.FromHttpApiData [a] where
+  parseUrlPiece = maybe (Left "not a list of a's") (Right . fromList) . fromByteString' . cs
 
 groupByStatus :: [UserConnection] -> Value
 groupByStatus conns =

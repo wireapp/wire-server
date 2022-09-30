@@ -256,6 +256,9 @@ newtype Phone = Phone {fromPhone :: Text}
   deriving stock (Eq, Ord, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Phone)
 
+instance ToParamSchema Phone where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
 instance ToSchema Phone where
   schema =
     over doc (S.description ?~ "E.164 phone number") $
@@ -266,6 +269,12 @@ instance ToByteString Phone where
 
 instance FromByteString Phone where
   parser = parser >>= maybe (fail "Invalid phone") pure . parsePhone
+
+instance S.FromHttpApiData Phone where
+  parseUrlPiece = maybe (Left "Invalid phone") Right . fromByteString . cs
+
+instance S.ToHttpApiData Phone where
+  toUrlPiece = cs . toByteString'
 
 instance Arbitrary Phone where
   arbitrary =
