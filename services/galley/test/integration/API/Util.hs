@@ -23,7 +23,6 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
 import Brig.Types.Connection
-import Brig.Types.Intra (UserAccount (..))
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens hiding (from, to, uncons, (#), (.=))

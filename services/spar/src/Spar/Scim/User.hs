@@ -42,7 +42,6 @@ module Spar.Scim.User
   )
 where
 
-import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens (view, (^.))

@@ -24,7 +24,6 @@ module Brig.Data.Instances
 where
 
 import Brig.Types.Common
-import Brig.Types.Intra
 import Brig.Types.Search
 import Cassandra.CQL
 import Control.Error (note)

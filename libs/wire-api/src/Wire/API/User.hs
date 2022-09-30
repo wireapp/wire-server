@@ -114,6 +114,12 @@ module Wire.API.User
     -- * 2nd factor auth
     VerificationAction (..),
     SendVerificationCode (..),
+
+    -- * account
+    AccountStatus (..),
+    AccountStatusUpdate (..),
+    AccountStatusResp (..),
+    UserAccount (..),
   )
 where
 
@@ -140,6 +146,7 @@ import Data.Qualified
 import Data.Range
 import Data.SOP
 import Data.Schema
+import qualified Data.Schema as Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
@@ -155,6 +162,7 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
+import Test.QuickCheck (Arbitrary)
 import qualified Test.QuickCheck as QC
 import URI.ByteString (serializeURIRef)
 import qualified Web.Cookie as Web
@@ -1452,3 +1460,71 @@ instance ToSchema SendVerificationCode where
       SendVerificationCode
         <$> svcAction .= field "action" schema
         <*> svcEmail .= field "email" schema
+
+-------------------------------------------------------------------------------
+-- AccountStatus
+
+data AccountStatus
+  = Active
+  | Suspended
+  | Deleted
+  | Ephemeral
+  | -- | for most intents & purposes, this is another form of inactive.  it is used for
+    -- allowing scim to find users that have not accepted their invitation yet after
+    -- creating via scim.
+    PendingInvitation
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AccountStatus)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema AccountStatus
+
+instance Schema.ToSchema AccountStatus where
+  schema =
+    Schema.enum @Text "AccountStatus" $
+      mconcat
+        [ Schema.element "active" Active,
+          Schema.element "suspended" Suspended,
+          Schema.element "deleted" Deleted,
+          Schema.element "ephemeral" Ephemeral,
+          Schema.element "pending-invitation" PendingInvitation
+        ]
+
+data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}
+
+instance ToJSON AccountStatusResp where
+  toJSON (AccountStatusResp s) = A.object ["status" A..= s]
+
+instance FromJSON AccountStatusResp where
+  parseJSON = A.withObject "account-status" $ \o ->
+    AccountStatusResp <$> o A..: "status"
+
+newtype AccountStatusUpdate = AccountStatusUpdate
+  {suStatus :: AccountStatus}
+  deriving (Generic)
+
+instance FromJSON AccountStatusUpdate where
+  parseJSON = A.withObject "account-status-update" $ \o ->
+    AccountStatusUpdate <$> o A..: "status"
+
+instance ToJSON AccountStatusUpdate where
+  toJSON s = A.object ["status" A..= suStatus s]
+
+-------------------------------------------------------------------------------
+-- UserAccount
+
+-- | A UserAccount is targeted to be used by our \"backoffice\" and represents
+-- all the data related to a user in our system, regardless of whether they
+-- are active or not, their status, etc.
+data UserAccount = UserAccount
+  { accountUser :: !User,
+    accountStatus :: !AccountStatus
+  }
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserAccount)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
+
+instance Schema.ToSchema UserAccount where
+  schema =
+    Schema.object "UserAccount" $
+      UserAccount
+        <$> accountUser Schema..= userObjectSchema
+        <*> accountStatus Schema..= Schema.field "status" Schema.schema

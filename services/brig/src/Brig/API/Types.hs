@@ -36,7 +36,6 @@ import Brig.Data.Client (ClientDataError (..))
 import Brig.Data.Properties (PropertiesDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Data.UserKey (UserKey, foldKey)
-import Brig.Types.Intra
 import Data.Code
 import Data.Id
 import Data.Jwt.Tools (DPoPTokenGenerationError (..))

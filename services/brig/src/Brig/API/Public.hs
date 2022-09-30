@@ -57,7 +57,6 @@ import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
-import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Handle as Handle
@@ -124,7 +123,7 @@ import qualified Wire.API.Swagger as Public.Swagger (models)
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.User (RegisterError (RegisterErrorWhitelistError))
+import Wire.API.User (AccountStatus (Ephemeral), RegisterError (RegisterErrorWhitelistError), UserAccount (UserAccount, accountUser))
 import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public

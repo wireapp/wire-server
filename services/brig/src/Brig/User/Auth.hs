@@ -52,7 +52,6 @@ import Brig.Email
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Phone
-import Brig.Types.Intra
 import Brig.Types.User.Auth
 import Brig.User.Auth.Cookie
 import Brig.User.Handle

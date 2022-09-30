@@ -33,7 +33,6 @@ import Brig.AWS.Types
 import qualified Brig.Options as Opt
 import Brig.Types.Activation
 import Brig.Types.Common
-import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))

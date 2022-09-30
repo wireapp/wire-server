@@ -31,11 +31,11 @@
 -- * Request and response types for SCIM-related endpoints.
 module Spar.Scim.Types where
 
-import Brig.Types.Intra (AccountStatus (..))
 import Control.Lens (view)
 import Imports
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.User (AccountStatus (..))
 import Wire.API.User.RichInfo (RichInfo (..), normalizeRichInfoAssocList)
 import Wire.API.User.Scim (ScimUserExtra (..), SparTag, sueRichInfo)
 

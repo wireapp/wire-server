@@ -32,7 +32,6 @@ import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
-import Brig.Types.Intra
 import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Concurrent.Async

@@ -65,7 +65,6 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import qualified Brig.Options as Opt
 import qualified Brig.Queue as Queue
-import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
 import qualified Brig.User.Auth as UserAuth

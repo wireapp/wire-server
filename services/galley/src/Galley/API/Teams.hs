@@ -58,7 +58,6 @@ module Galley.API.Teams
   )
 where
 
-import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Data.ByteString.Builder (lazyByteString)
@@ -144,7 +143,7 @@ import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, 
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import qualified Wire.API.Team.SearchVisibility as Public
-import Wire.API.User (ScimUserInfo (..), User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
+import Wire.API.User (ScimUserInfo (..), User, UserIdList, UserSSOId (UserScimExternalId), accountUser, userSCIMExternalId, userSSOId)
 import qualified Wire.API.User as U
 import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
