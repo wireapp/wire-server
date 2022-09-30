@@ -72,6 +72,7 @@ import qualified Wire.API.User as Public
 import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Client
+import Wire.API.User.Client.DPoPAccessToken (Proof)
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password
@@ -584,4 +585,13 @@ nonce m brig uid cid =
     ( brig
         . paths ["clients", toByteString' cid, "nonce"]
         . zUser uid
+    )
+
+createAccessToken :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> ClientId -> Maybe Proof -> m ResponseLBS
+createAccessToken brig uid cid mProof =
+  post
+    ( brig
+        . paths ["clients", toByteString' cid, "access-token"]
+        . zUser uid
+        . maybe id (header "DPoP" . toByteString') mProof
     )

@@ -396,10 +396,6 @@ instance S.ToParamSchema (AssetLocation r) where
       & S.type_ ?~ S.SwaggerString
       & S.format ?~ "url"
 
-instance AsHeaders '[AssetLocation r] Asset (Asset, AssetLocation r) where
-  toHeaders (asset, loc) = (I loc :* Nil, asset)
-  fromHeaders (I loc :* Nil, asset) = (asset, loc)
-
 -- | An asset as returned by the download API: if the asset is local, only a
 -- URL is returned, and if it is remote the content of the asset is streamed.
 data LocalOrRemoteAsset

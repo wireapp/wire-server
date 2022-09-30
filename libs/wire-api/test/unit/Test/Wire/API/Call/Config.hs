@@ -54,17 +54,13 @@ fairnessProp predicate (ZeroToTen len, uris) = do
   let total = length (filter predicate uris)
       returned = length (filter predicate (limitServers uris len))
       expected_min = len `div` 3 -- 3 possible predicates
-  if total >= expected_min
-    then returned >= expected_min
-    else True
+  total < expected_min || returned >= expected_min
 
 udpPriority :: [TurnURI] -> Bool
 udpPriority uris = do
   let totalUdp = length (filter isUdp uris)
       returnedUdp = length (filter isUdp (limitServers uris 4))
-  if totalUdp >= 2
-    then returnedUdp >= 2
-    else True
+  totalUdp < 2 || returnedUdp >= 2
 
 sftServersAreNeverNull :: RTCConfiguration -> Bool
 sftServersAreNeverNull cfg = case toJSON cfg of

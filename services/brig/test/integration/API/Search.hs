@@ -2,7 +2,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -27,7 +26,6 @@ module API.Search
 where
 
 import API.Search.Util
-import API.Search.Util (executeTeamUserSearch, refreshIndex)
 import API.Team.Util
 import API.User.Util
 import Bilge
@@ -39,7 +37,6 @@ import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode)
 import qualified Data.Aeson as Aeson
-import Data.ByteString.Conversion
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
@@ -76,7 +73,7 @@ import qualified Wire.API.User.Search as Search
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
   testSetupOutboundOnly <- runHttpT mgr prepareUsersForSearchVisibilityNoNameOutsideTeamTests
-  return $
+  pure $
     testGroup "search" $
       [ testWithBothIndices opts mgr "by-name" $ testSearchByName brig,
         testWithBothIndices opts mgr "by-handle" $ testSearchByHandle brig,
@@ -140,13 +137,13 @@ tests opts mgr galley brig = do
     -- FUTUREWORK: this should probably be used for all tests in this module, not just some.
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests = do
-      (tidA, ownerA, (memberA : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+      (tidA, ownerA, memberA : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
       setTeamTeamSearchVisibilityAvailable galley tidA FeatureStatusEnabled
       setTeamSearchVisibility galley tidA SearchVisibilityNoNameOutsideTeam
-      (tidB, ownerB, (memberB : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+      (tidB, ownerB, memberB : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
       regularUser <- randomUserWithHandle brig
       refreshIndex brig
-      return ((tidA, ownerA, memberA), (tidB, ownerB, memberB), regularUser)
+      pure ((tidA, ownerA, memberA), (tidB, ownerB, memberB), regularUser)
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 
@@ -494,7 +491,7 @@ testSearchSameTeamOnly brig opts = do
   nonTeamMember <- setRandomHandle brig nonTeamMember'
   (_, _, [teamMember]) <- createPopulatedBindingTeam brig 1
   refreshIndex brig
-  let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
+  let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly ?~ True
   withSettingsOverrides newOpts $ do
     assertCan'tFind brig (userId teamMember) (userQualifiedId nonTeamMember) (fromName (userDisplayName nonTeamMember))
     let nonTeamMemberHandle = fromMaybe (error "nonTeamMember must have a handle") (userHandle nonTeamMember)
@@ -624,7 +621,7 @@ testMigrationToNewIndex mgr opts brig = do
 
     -- Run Migrations
     let newIndexName = ES.IndexName $ opts ^. Opt.elasticsearchL . Opt.indexL
-    taskNodeId <- assertRight =<< (runBH opts $ ES.reindexAsync $ ES.mkReindexRequest (ES.IndexName oldESIndex) newIndexName)
+    taskNodeId <- assertRight =<< runBH opts (ES.reindexAsync $ ES.mkReindexRequest (ES.IndexName oldESIndex) newIndexName)
     runBH opts $ waitForTaskToComplete @ES.ReindexResponse taskNodeId
 
     -- Phase 3: Using old index for search, writing to both indices, migrations have run

@@ -25,6 +25,7 @@ import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
+import Data.Jwt.Tools (DPoPTokenGenerationError (..))
 import Data.String.Conversions (cs)
 import qualified Data.ZAuth.Validation as ZAuth
 import Imports
@@ -169,6 +170,31 @@ clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCanno
 clientError ClientMissingLegalholdConsent = StdError (errorToWai @'E.MissingLegalholdConsent)
 clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
 clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
+
+certEnrollmentError :: CertEnrollmentError -> Error
+certEnrollmentError (RustError NoError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation. Unexpected NoError."
+certEnrollmentError (RustError UnknownError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation. Unknown error."
+certEnrollmentError (RustError FfiError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation"
+certEnrollmentError (RustError ImplementationError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation. Unexpected ImplementationError."
+certEnrollmentError (RustError DpopSyntaxError) = StdError $ Wai.mkError status400 "client-token-parse-error" "The client JWT DPoP could not be parsed"
+certEnrollmentError (RustError DpopTypError) = StdError $ Wai.mkError status400 "client-token-type-error" "The client JWT DPoP 'typ' must be 'dpop+jwt'"
+certEnrollmentError (RustError DpopUnsupportedAlgorithmError) = StdError $ Wai.mkError status400 "client-token-unsupported-alg" "DPoP signature algorithm (alg) in JWT header is not a supported algorithm (ES256, ES384, Ed25519)"
+certEnrollmentError (RustError DpopInvalidSignatureError) = StdError $ Wai.mkError status400 "client-token-bad-signature" "DPoP signature does not correspond to the public key (jwk) in the JWT header"
+certEnrollmentError (RustError ClientIdMismatchError) = StdError $ Wai.mkError status400 "client-token-bad-client-id" "The client id does not correspond to the (sub) claim expressed as URI"
+certEnrollmentError (RustError BackendNonceMismatchError) = StdError $ Wai.mkError status400 "client-token-bad-nonce" "The backend nonce does not correspond to the (nonce) claim in DPoP token (base64url encoded)"
+certEnrollmentError (RustError HtuMismatchError) = StdError $ Wai.mkError status400 "client-token-bad-uri" "The request uri does not correspond to the (htu) claim in DPoP token"
+certEnrollmentError (RustError HtmMismatchError) = StdError $ Wai.mkError status400 "client-token-bad-method" "The request method does not correspond to the (htm) claim in DPoP token"
+certEnrollmentError (RustError MissingJtiError) = StdError $ Wai.mkError status400 "client-token-jti-missing" "(jti) claim is absent in DPoP token"
+certEnrollmentError (RustError MissingChallengeError) = StdError $ Wai.mkError status400 "client-token-chal-missing" "(chal) claim is absent in DPoP token"
+certEnrollmentError (RustError MissingIatError) = StdError $ Wai.mkError status400 "client-token-iat-missing" "(iat) claim is absent in DPoP token"
+certEnrollmentError (RustError IatError) = StdError $ Wai.mkError status400 "client-token-bad-iat" "(iat) claim in DPoP token is not earlier of now (with max_skew_secs leeway)"
+certEnrollmentError (RustError MissingExpError) = StdError $ Wai.mkError status400 "client-token-exp-missing" "(exp) claim is absent in DPoP token"
+certEnrollmentError (RustError ExpMismatchError) = StdError $ Wai.mkError status400 "client-token-exp-too-large" "(exp) claim in DPoP token is larger than supplied [max_expiration]"
+certEnrollmentError (RustError ExpError) = StdError $ Wai.mkError status400 "client-token-exp-too-small" "(exp) claim in DPoP token is sooner than now (with [max_skew_secs] leeway)"
+certEnrollmentError NonceNotFound = StdError $ Wai.mkError status400 "client-token-bad-nonce" "The client sent an unacceptable anti-replay nonce"
+certEnrollmentError MisconfiguredRequestUrl = StdError $ Wai.mkError status500 "misconfigured-request-url" "The request url cannot be derived from optSettings.setFederationDomain in brig.yaml"
+certEnrollmentError KeyBundleError = StdError $ Wai.mkError status404 "no-server-key-bundle" "The key bundle required for the certificate enrollment process could not be found"
+certEnrollmentError ClientIdSyntaxError = StdError $ Wai.mkError status400 "client-token-id-parse-error" "The client id could not be parsed"
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai

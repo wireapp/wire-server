@@ -41,10 +41,12 @@ import Brig.Effects.GalleyAccess (GalleyAccess)
 import Brig.Effects.GalleyAccess.Http
 import Brig.Effects.GundeckAccess (GundeckAccess)
 import Brig.Effects.GundeckAccess.Http (gundeckAccessToHttp)
+import Brig.Effects.JwtTools
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
 import Brig.Effects.PasswordResetSupply (PasswordResetSupply)
 import Brig.Effects.PasswordResetSupply.IO
+import Brig.Effects.PublicKeyBundle
 import Brig.Effects.Twilio (Twilio)
 import Brig.Effects.Twilio.IO
 import Brig.Effects.UniqueClaimsStore (UniqueClaimsStore)
@@ -84,7 +86,9 @@ import Wire.Sem.Now.IO
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ BlacklistPhonePrefixStore,
+  '[ PublicKeyBundle,
+     JwtTools,
+     BlacklistPhonePrefixStore,
      BlacklistStore,
      VerificationCodeStore,
      UserKeyStore,
@@ -146,6 +150,8 @@ runBrigToIO e (AppT ma) =
     . verificationCodeStoreToCassandra @Cas.Client
     . interpretBlacklistStoreToCassandra @Cas.Client
     . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
+    . interpretJwtTools
+    . interpretPublicKeyBundle
     $ runReaderT ma e
 
 interpretHttpToIO ::

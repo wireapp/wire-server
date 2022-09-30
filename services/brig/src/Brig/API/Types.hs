@@ -39,6 +39,7 @@ import Brig.Types.Common
 import Brig.Types.Intra
 import Data.Code
 import Data.Id
+import Data.Jwt.Tools (DPoPTokenGenerationError (..))
 import Data.Qualified
 import Data.RetryAfter
 import Imports
@@ -203,6 +204,13 @@ data AccountStatusError
 
 data VerificationCodeThrottledError
   = VerificationCodeThrottled RetryAfter
+
+data CertEnrollmentError
+  = NonceNotFound
+  | RustError DPoPTokenGenerationError
+  | KeyBundleError
+  | MisconfiguredRequestUrl
+  | ClientIdSyntaxError
 
 -------------------------------------------------------------------------------
 -- Exceptions

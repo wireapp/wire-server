@@ -305,6 +305,11 @@ instance AsHeaders '[a] () a where
   toHeaders a = (I a :* Nil, ())
   fromHeaders = unI . hd . fst
 
+-- single-header non-empty response, return value is a tuple of the response and the header
+instance AsHeaders '[h] a (a, h) where
+  toHeaders (t, cc) = (I cc :* Nil, t)
+  fromHeaders (I cc :* Nil, t) = (t, cc)
+
 data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
 
 class ServantHeaders hs xs | hs -> xs where
@@ -858,3 +863,7 @@ instance
 
 instance RoutesToPaths (MultiVerb method cs as r) where
   getRoutes = []
+
+instance HasLink (MultiVerb method cs as r) where
+  type MkLink (MultiVerb method cs as r) a = a
+  toLink toA _ = toA

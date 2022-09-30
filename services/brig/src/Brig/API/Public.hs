@@ -33,6 +33,7 @@ import Brig.API.Error hiding (Error)
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
 import qualified Brig.API.Properties as API
+import Brig.API.Public.Swagger
 import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.API.Util
@@ -52,8 +53,10 @@ import Brig.Effects.BudgetStore
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess (GundeckAccess)
+import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetSupply (PasswordResetSupply)
+import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.Twilio
 import Brig.Effects.UniqueClaimsStore
 import Brig.Effects.UserHandleStore
@@ -82,7 +85,6 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
-import qualified Data.Aeson as Aeson
 import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
@@ -146,19 +148,19 @@ import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public
 import qualified Wire.API.User.Client as Public
+import Wire.API.User.Client.DPoPAccessToken
 import qualified Wire.API.User.Client.Prekey as Public
 import qualified Wire.API.User.Handle as Public
 import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
+import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
 
-type SwaggerDocsAPI = "api" :> Header VersionHeader Version :> SwaggerSchemaUI "swagger-ui" "swagger.json"
-
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI (Just V2) =
+swaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -188,16 +190,9 @@ swaggerDocsAPI (Just V2) =
       (S.properties . traverse . S._Inline %~ sanitise)
         . (S.required %~ nubOrd)
         . (S.enum_ . _Just %~ nub)
-swaggerDocsAPI (Just V0) =
-  swaggerSchemaUIServer
-    . fromMaybe Aeson.Null
-    . Aeson.decode
-    $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v0.json")
-swaggerDocsAPI (Just V1) =
-  swaggerSchemaUIServer
-    . fromMaybe Aeson.Null
-    . Aeson.decode
-    $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v1.json")
+swaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
+swaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
+swaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
@@ -209,14 +204,18 @@ servantSitemap ::
        BlacklistPhonePrefixStore,
        BlacklistStore,
        CodeStore,
+       CodeStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
+       JwtTools,
+       Now,
        PasswordResetStore,
        PasswordResetSupply,
        P.Error ReAuthError,
        P.Error Twilio.ErrorResponse,
        P.TinyLog,
+       PublicKeyBundle,
        Race,
        Resource,
        Twilio,
@@ -309,6 +308,7 @@ servantSitemap =
         :<|> Named @"get-client-prekeys" getClientPrekeys
         :<|> Named @"head-nonce" newNonce
         :<|> Named @"get-nonce" newNonce
+        :<|> Named @"create-access-token" (createAccessToken @UserClientAPI @CreateAccessToken POST)
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -636,12 +636,30 @@ getRichInfo self user = do
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
-newNonce :: UserId -> ClientId -> (Handler r) Nonce
+newNonce :: UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
 newNonce uid cid = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
   lift $ wrapClient $ Nonce.insertNonce ttl uid (client cid) nonce
-  pure nonce
+  pure (nonce, NoStore)
+
+createAccessToken ::
+  forall api endpoint r.
+  ( Member JwtTools r,
+    Member Now r,
+    Member PublicKeyBundle r,
+    IsElem endpoint api,
+    HasLink endpoint,
+    MkLink endpoint Link ~ (ClientId -> Link)
+  ) =>
+  StdMethod ->
+  UserId ->
+  ClientId ->
+  Proof ->
+  (Handler r) (DPoPAccessTokenResponse, CacheControl)
+createAccessToken method uid cid proof = do
+  let link = safeLink (Proxy @api) (Proxy @endpoint) cid
+  API.createAccessToken uid cid method link proof !>> certEnrollmentError
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::

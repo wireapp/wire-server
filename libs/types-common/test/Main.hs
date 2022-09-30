@@ -21,6 +21,7 @@ module Main
 where
 
 import Imports
+import qualified Test.Data.PEMKeys as PEMKeys
 import qualified Test.Domain as Domain
 import qualified Test.Handle as Handle
 import qualified Test.Properties as Properties
@@ -37,5 +38,6 @@ main =
         SizedHashMap.tests,
         Domain.tests,
         Handle.tests,
-        Qualified.tests
+        Qualified.tests,
+        PEMKeys.tests
       ]

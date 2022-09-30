@@ -30,6 +30,7 @@ library
     Brig.API.MLS.KeyPackages.Validation
     Brig.API.Properties
     Brig.API.Public
+    Brig.API.Public.Swagger
     Brig.API.Types
     Brig.API.User
     Brig.API.Util
@@ -71,10 +72,12 @@ library
     Brig.Effects.GalleyAccess.Http
     Brig.Effects.GundeckAccess
     Brig.Effects.GundeckAccess.Http
+    Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
     Brig.Effects.PasswordResetSupply
     Brig.Effects.PasswordResetSupply.IO
+    Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
     Brig.Effects.Twilio
     Brig.Effects.Twilio.IO
@@ -253,6 +256,7 @@ library
     , iproute                    >=1.5
     , iso3166-country-codes
     , iso639                     >=0.1
+    , jwt-tools
     , lens                       >=3.8
     , lens-aeson                 >=1.0
     , metrics-core               >=0.3
@@ -301,6 +305,7 @@ library
     , swagger2
     , tagged
     , template                   >=0.2
+    , template-haskell
     , text                       >=0.11
     , text-icu-translit          >=0.1
     , time                       >=1.1
@@ -535,6 +540,7 @@ executable brig-integration
     , attoparsec
     , base
     , base16-bytestring
+    , base64-bytestring
     , bilge
     , bloodhound
     , brig
