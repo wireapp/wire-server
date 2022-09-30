@@ -120,7 +120,7 @@ sitemap = do
 -- currently not yet in use, replace wai-route api with this, when fully servantified
 -- primarily used for type checking
 _servantSitemap :: ServerT SternAPI Handler
-_servantSitemap = Named @"get-users-by-email" usersByEmail'
+_servantSitemap = Named @"get-users-by-email" usersByEmail
 
 -------------------------------------------------------------------------------
 -- wai-routes API
@@ -156,7 +156,7 @@ routes = do
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
     Doc.response 404 "Account not found" (Doc.model Doc.errorModel)
 
-  get "/users" (continue usersByEmail) $
+  get "/users" (continue usersByEmail') $
     param "email"
   document "GET" "users" $ do
     Doc.summary "Displays user's info given an email address"
@@ -560,11 +560,11 @@ suspendUser uid = do
 unsuspendUser :: UserId -> Handler Response
 unsuspendUser uid = Intra.putUserStatus Active uid >> pure empty
 
-usersByEmail :: Email -> Handler Response
-usersByEmail = fmap json . usersByEmail'
+usersByEmail' :: Email -> Handler Response
+usersByEmail' = fmap json . usersByEmail
 
-usersByEmail' :: Email -> Handler [UserAccount]
-usersByEmail' = Intra.getUserProfilesByIdentity . Left
+usersByEmail :: Email -> Handler [UserAccount]
+usersByEmail = Intra.getUserProfilesByIdentity . Left
 
 usersByPhone :: Phone -> Handler Response
 usersByPhone = fmap json . Intra.getUserProfilesByIdentity . Right
