@@ -15,11 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Stern.API.Routes where
+module Stern.API.Routes
+  ( SternAPI,
+    SwaggerDocsAPI,
+    swaggerDocsAPI,
+  )
+where
 
 import Brig.Types.Intra (UserAccount)
 import Control.Lens
-import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
 import Imports hiding (head)
 import Servant (JSON)
