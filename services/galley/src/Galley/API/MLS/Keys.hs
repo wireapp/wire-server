@@ -18,15 +18,15 @@
 module Galley.API.MLS.Keys where
 
 import Control.Lens (view)
+import Crypto.PubKey.Ed25519 (PublicKey, SecretKey)
 import Data.Id
 import Data.Qualified
 import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Input
+import Wire.API.MLS.Credential (SignaturePurpose (RemovalPurpose))
 import Wire.API.MLS.Keys
-import Wire.API.MLS.Credential (SignaturePurpose(RemovalPurpose))
-import Crypto.PubKey.Ed25519 (SecretKey, PublicKey)
 
 getMLSPublicKeys ::
   Member (Input Env) r =>
@@ -36,5 +36,5 @@ getMLSPublicKeys _ = do
   keys <- inputs (view mlsKeys)
   pure $ mlsKeysToPublic keys
 
-getMLSRemovalKey :: Member (Input Env) r => Sem r (Maybe (SecretKey, PublicKey)) 
+getMLSRemovalKey :: Member (Input Env) r => Sem r (Maybe (SecretKey, PublicKey))
 getMLSRemovalKey = mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
