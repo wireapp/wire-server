@@ -57,7 +57,7 @@ import Network.Wai.Routing hiding (trace)
 import Network.Wai.Utilities
 import qualified Network.Wai.Utilities.Server as Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Servant (ServerT, (:<|>) (..), (:>))
+import Servant (NoContent (NoContent), ServerT, (:<|>) (..), (:>))
 import qualified Servant
 import qualified Servant.Server
 import Stern.API.Predicates
@@ -137,7 +137,10 @@ servantSitemap env = Servant.Server.hoistServer (Proxy @SternAPI) nt servantSite
     renderError (Error code label message _) = Servant.Server.ServerError (statusCode code) (cs label) (cs message) []
 
 servantSitemap' :: ServerT SternAPI Handler
-servantSitemap' = Named @"get-users-by-email" usersByEmail
+servantSitemap' =
+  Named @"suspend-user" suspendUser
+    :<|> Named @"unsuspend-user" unsuspendUser
+    :<|> Named @"get-users-by-email" usersByEmail
 
 servantSitemapInternal :: Servant.Server SternAPIInternal
 servantSitemapInternal = Named @"status" (pure Servant.NoContent)
@@ -151,7 +154,7 @@ routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
   -- End Internal
 
-  post "/users/:uid/suspend" (continue suspendUser) $
+  post "/users/:uid/suspend" (continue suspendUser') $
     capture "uid"
   document "POST" "users/:uid/suspend" $ do
     Doc.summary "Suspends user with this ID"
@@ -161,7 +164,7 @@ routes = do
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
     Doc.response 404 "Account not found" (Doc.model Doc.errorModel)
 
-  post "/users/:uid/unsuspend" (continue unsuspendUser) $
+  post "/users/:uid/unsuspend" (continue unsuspendUser') $
     capture "uid"
   document "POST" "users/:uid/unsuspend" $ do
     Doc.summary "Unsuspends user with this ID"
@@ -567,13 +570,17 @@ apiDocs = do
 
 type JSON = Media "application" "json"
 
-suspendUser :: UserId -> Handler Response
-suspendUser uid = do
-  Intra.putUserStatus Suspended uid
-  pure empty
+suspendUser' :: UserId -> Handler Response
+suspendUser' uid = empty <$ suspendUser uid
 
-unsuspendUser :: UserId -> Handler Response
-unsuspendUser uid = Intra.putUserStatus Active uid >> pure empty
+suspendUser :: UserId -> Handler NoContent
+suspendUser uid = NoContent <$ Intra.putUserStatus Suspended uid
+
+unsuspendUser' :: UserId -> Handler Response
+unsuspendUser' uid = empty <$ unsuspendUser uid
+
+unsuspendUser :: UserId -> Handler NoContent
+unsuspendUser uid = NoContent <$ Intra.putUserStatus Active uid
 
 usersByEmail' :: Email -> Handler Response
 usersByEmail' = fmap json . usersByEmail

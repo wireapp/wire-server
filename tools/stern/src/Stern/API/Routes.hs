@@ -25,6 +25,7 @@ where
 
 import Brig.Types.Intra (UserAccount)
 import Control.Lens
+import Data.Id
 import qualified Data.Swagger as S
 import Imports hiding (head)
 import Servant (JSON)
@@ -46,12 +47,28 @@ type SternAPIInternal =
 
 type SternAPI =
   Named
-    "get-users-by-email"
-    ( Summary "Displays user's info given an email address"
+    "suspend-user"
+    ( Summary "Suspends user with this ID"
         :> "users"
-        :> QueryParam' [Required, Strict, Description "Email address"] "email" Email
-        :> Get '[JSON] [UserAccount]
+        :> Capture "uid" UserId
+        :> "suspend"
+        :> Post '[JSON] NoContent
     )
+    :<|> Named
+           "unsuspend-user"
+           ( Summary "Unsuspends user with this ID"
+               :> "users"
+               :> Capture "uid" UserId
+               :> "unsuspend"
+               :> Post '[JSON] NoContent
+           )
+    :<|> Named
+           "get-users-by-email"
+           ( Summary "Displays user's info given an email address"
+               :> "users"
+               :> QueryParam' [Required, Strict, Description "Email address"] "email" Email
+               :> Get '[JSON] [UserAccount]
+           )
 
 -------------------------------------------------------------------------------
 -- Swagger
