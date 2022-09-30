@@ -84,6 +84,7 @@ library
     , deriving-swagger2      >=0.1.0
     , imports
     , QuickCheck             >=2.9
+    , schema-profunctor
     , servant-server         >=0.18.2
     , servant-swagger        >=1.1.10
     , string-conversions
