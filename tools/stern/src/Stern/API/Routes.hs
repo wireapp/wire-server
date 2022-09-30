@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,32 +14,22 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}
 
 module Stern.API.Routes where
 
-import Brig.Types.Intra (UserAccount (UserAccount))
+import Brig.Types.Intra (UserAccount)
 import Control.Lens
-import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
 import Data.Containers.ListUtils (nubOrd)
-import Data.Id as Id
-import Data.Schema as Schema
 import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
 import Imports hiding (head)
-import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
-import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Routes.Public
-import Wire.API.Routes.Public.Util
-import Wire.API.Routes.QualifiedCapture
-import Wire.API.Routes.Version
-import Wire.API.User (Email (Email))
+import Wire.API.User (Email)
 
 type SternAPI =
   Named

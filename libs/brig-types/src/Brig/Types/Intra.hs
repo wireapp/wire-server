@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -33,8 +29,6 @@ module Brig.Types.Intra
 where
 
 import Data.Aeson as A
-import qualified Data.Aeson.KeyMap as KeyMap
-import Data.Aeson.Types as A
 import Data.Code as Code
 import Data.Id (TeamId)
 import Data.Misc (PlainTextPassword (..))
@@ -107,21 +101,11 @@ data UserAccount = UserAccount
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
 
 instance Schema.ToSchema UserAccount where
-  schema = Schema.mkSchema doc toUserAccount fromUserAccount
-    where
-      doc :: Schema.NamedSwaggerDoc
-      doc = Schema.swaggerDoc @()
-      toUserAccount :: A.Value -> A.Parser UserAccount
-      toUserAccount j@(Object o) = do
-        u <- parseJSON j
-        s <- o .: "status"
-        pure $ UserAccount u s
-      toUserAccount _ = mzero
-      fromUserAccount :: UserAccount -> Maybe A.Value
-      fromUserAccount (UserAccount u s) =
-        case toJSON u of
-          Object o -> Just $ Object $ KeyMap.insert "status" (toJSON s) o
-          _ -> Nothing
+  schema =
+    Schema.object "UserAccount" $
+      UserAccount
+        <$> accountUser Schema..= userObjectSchema
+        <*> accountStatus Schema..= Schema.field "status" Schema.schema
 
 -------------------------------------------------------------------------------
 -- NewUserScimInvitation

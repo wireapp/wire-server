@@ -40,6 +40,7 @@ module Wire.API.User
     ssoIssuerAndNameId,
     connectedProfile,
     publicProfile,
+    userObjectSchema,
 
     -- * NewUser
     NewUserPublic (..),
@@ -364,23 +365,25 @@ data User = User
 -- -- FUTUREWORK:
 -- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
 instance ToSchema User where
-  schema =
-    object "User" $
-      User
-        <$> userId .= field "id" schema
-        <*> userQualifiedId .= field "qualified_id" schema
-        <*> userIdentity .= maybeUserIdentityObjectSchema
-        <*> userDisplayName .= field "name" schema
-        <*> userPict .= (fromMaybe noPict <$> optField "picture" schema)
-        <*> userAssets .= (fromMaybe [] <$> optField "assets" (array schema))
-        <*> userAccentId .= field "accent_id" schema
-        <*> (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
-        <*> userLocale .= field "locale" schema
-        <*> userService .= maybe_ (optField "service" schema)
-        <*> userHandle .= maybe_ (optField "handle" schema)
-        <*> userExpire .= maybe_ (optField "expires_at" schema)
-        <*> userTeam .= maybe_ (optField "team" schema)
-        <*> userManagedBy .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
+  schema = object "User" userObjectSchema
+
+userObjectSchema :: ObjectSchema SwaggerDoc User
+userObjectSchema =
+  User
+    <$> userId .= field "id" schema
+    <*> userQualifiedId .= field "qualified_id" schema
+    <*> userIdentity .= maybeUserIdentityObjectSchema
+    <*> userDisplayName .= field "name" schema
+    <*> userPict .= (fromMaybe noPict <$> optField "picture" schema)
+    <*> userAssets .= (fromMaybe [] <$> optField "assets" (array schema))
+    <*> userAccentId .= field "accent_id" schema
+    <*> (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
+    <*> userLocale .= field "locale" schema
+    <*> userService .= maybe_ (optField "service" schema)
+    <*> userHandle .= maybe_ (optField "handle" schema)
+    <*> userExpire .= maybe_ (optField "expires_at" schema)
+    <*> userTeam .= maybe_ (optField "team" schema)
+    <*> userManagedBy .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
