@@ -102,11 +102,9 @@ start o = do
     -- to make sure it type checks
     servantApp :: Env -> Application
     servantApp e =
-      Servant.serveWithContext
+      Servant.serve
         (Proxy @(SwaggerDocsAPI :<|> Servant.Raw))
-        Servant.EmptyContext
-        ( swaggerDocsAPI :<|> Servant.Tagged (pipeline e)
-        )
+        (swaggerDocsAPI :<|> Servant.Tagged (pipeline e))
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
