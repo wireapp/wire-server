@@ -166,6 +166,7 @@ test-suite brig-types-tests
     , QuickCheck             >=2.9
     , swagger2               >=2.5
     , tasty
+    , tasty-hunit
     , tasty-quickcheck
     , text                   >=0.11
     , time                   >=1.1
