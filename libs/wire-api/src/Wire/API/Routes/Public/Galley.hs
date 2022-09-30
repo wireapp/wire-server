@@ -20,18 +20,27 @@
 
 module Wire.API.Routes.Public.Galley where
 
+import Servant.Server.Internal.ErrorFormatter
+import Servant.API.Modifiers
+import Servant.API.ContentTypes
+import Servant.Server.Internal.DelayedIO
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id (ConvId, TeamId, UserId)
+import Data.Metrics.Servant
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import qualified Data.Swagger as Swagger
+import Debug.Trace
 import GHC.TypeLits (AppendSymbol)
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
 import Servant hiding (WithStatus)
+import Servant.Server
+import Servant.Server.Internal.Delayed
+import Servant.Server.Internal.Router
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
@@ -355,7 +364,8 @@ type ConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "conversations"
-               :> ReqBody '[Servant.JSON] NewConv
+               -- :> ReqBody '[Servant.JSON] NewConv
+               :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     :<|> Named
@@ -1874,3 +1884,23 @@ type PostOtrDescription =
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)
+
+data VersionedReqBody' (v :: Version) (mods :: [*]) (ct :: [*]) (a :: *)
+
+type VersionedReqBody v = VersionedReqBody' v '[Required, Strict]
+
+instance HasSwagger (ReqBody' '[Required, Strict] cts a :> api) => HasSwagger (VersionedReqBody v cts a :> api) where
+  toSwagger Proxy = toSwagger (Proxy @(ReqBody cts a :> api))
+
+instance RoutesToPaths rest => RoutesToPaths (VersionedReqBody' v mods ct a :> rest) where
+  getRoutes = getRoutes @rest
+
+instance (AllCTUnrender cts a, HasServer api context, HasContextEntry (MkContextWithErrorFormatter context) ErrorFormatters)
+    => HasServer (VersionedReqBody' v mods cts a :> api) context 
+    where
+  type ServerT (VersionedReqBody' v mods cts a :> api) m = Version -> a -> ServerT api m
+
+  hoistServerWithContext _p pc nt s = hoistServerWithContext (Proxy :: Proxy (ReqBody cts a :> api)) pc nt . s 
+
+  route _p ctx d = route (Proxy :: Proxy (ReqBody cts a :> api)) ctx $ d `addParameterCheck` withRequest (const . pure $ V2)
+

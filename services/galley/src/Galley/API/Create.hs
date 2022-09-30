@@ -73,6 +73,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
+import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
@@ -107,9 +108,10 @@ createGroupConversation ::
     r =>
   Local UserId ->
   ConnId ->
+  Version ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversation lusr conn newConv = do
+createGroupConversation lusr conn _v newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
   checkCreateConvPermissions lusr newConv tinfo allUsers
