@@ -44,14 +44,11 @@ type SternAPI =
 -------------------------------------------------------------------------------
 -- Swagger
 
-sternSwagger :: Swagger
-sternSwagger = toSwagger (Proxy @SternAPI)
-
 type SwaggerDocsAPI = "backoffice" :> "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
-    sternSwagger
+    (toSwagger (Proxy @SternAPI))
       & S.info . S.title .~ "Stern API"
       & cleanupSwagger
