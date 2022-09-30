@@ -624,7 +624,7 @@ testLocalConnectionsPaging b = do
       let (conns, more) = (fmap clConnections &&& fmap clHasMore) $ responseJsonMaybe r
       liftIO $ assertEqual "page size" (Just n) (length <$> conns)
       liftIO $ assertEqual "has more" (Just (count' < total)) more
-      pure . (count',) $ (conns >>= fmap (qUnqualified . ucTo) . listToMaybe . reverse)
+      pure (count', conns >>= fmap (qUnqualified . ucTo) . listToMaybe . reverse)
 
 testAllConnectionsPaging :: Brig -> DB.ClientState -> Http ()
 testAllConnectionsPaging b db = do
@@ -986,7 +986,7 @@ testInternalGetConnStatusesAll brig opts fedBrigClient = do
       <!! const 200 === statusCode
 
   liftIO $ do
-    let ordFn = (\x -> (csv2From x, csv2To x))
+    let ordFn x = (csv2From x, csv2To x)
     sortOn ordFn acceptedRemoteDomain1Only @?= sortOn ordFn (map (\u -> ConnectionStatusV2 u remoteDomain1User1 Accepted) uids)
 
 getConnStatusInternal :: (MonadIO m, MonadHttp m) => (Request -> Request) -> ConnectionsStatusRequestV2 -> m (Response (Maybe LByteString))

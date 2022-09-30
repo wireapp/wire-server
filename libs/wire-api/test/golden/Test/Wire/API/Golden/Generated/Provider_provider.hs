@@ -50,7 +50,7 @@ import Wire.API.User.Profile (Name (Name, fromName))
 testObject_Provider_provider_1 :: Provider
 testObject_Provider_provider_1 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000700000002"))),
+    { providerId = Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000700000002")),
       providerName =
         Name
           { fromName =
@@ -79,7 +79,7 @@ testObject_Provider_provider_1 =
 testObject_Provider_provider_2 :: Provider
 testObject_Provider_provider_2 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000004-0000-0008-0000-000300000006"))),
+    { providerId = Id (fromJust (UUID.fromString "00000004-0000-0008-0000-000300000006")),
       providerName =
         Name
           { fromName =
@@ -108,7 +108,7 @@ testObject_Provider_provider_2 =
 testObject_Provider_provider_3 :: Provider
 testObject_Provider_provider_3 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000800000006"))),
+    { providerId = Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000800000006")),
       providerName = Name {fromName = "\US\SO\157167r/y$SCws_g\STX5\fq\1076378&\SO2\1069444Tqu\1001074Z>\1018458G"},
       providerEmail = Email {emailLocal = "\DLEe\54822\1080650", emailDomain = "%#*"},
       providerUrl =
@@ -133,7 +133,7 @@ testObject_Provider_provider_3 =
 testObject_Provider_provider_4 :: Provider
 testObject_Provider_provider_4 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000000-0000-0006-0000-000300000003"))),
+    { providerId = Id (fromJust (UUID.fromString "00000000-0000-0006-0000-000300000003")),
       providerName = Name {fromName = "p\1048508q\EOTJO\996837\992614[=\CAN\ETB\998955D\v|{\158703n"},
       providerEmail = Email {emailLocal = "\990265", emailDomain = "'x\1111120#.U"},
       providerUrl =
@@ -158,7 +158,7 @@ testObject_Provider_provider_4 =
 testObject_Provider_provider_5 :: Provider
 testObject_Provider_provider_5 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000007-0000-0003-0000-000800000005"))),
+    { providerId = Id (fromJust (UUID.fromString "00000007-0000-0003-0000-000800000005")),
       providerName =
         Name
           { fromName =
@@ -187,7 +187,7 @@ testObject_Provider_provider_5 =
 testObject_Provider_provider_6 :: Provider
 testObject_Provider_provider_6 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000300000006"))),
+    { providerId = Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000300000006")),
       providerName =
         Name
           { fromName =
@@ -216,7 +216,7 @@ testObject_Provider_provider_6 =
 testObject_Provider_provider_7 :: Provider
 testObject_Provider_provider_7 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000800000001"))),
+    { providerId = Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000800000001")),
       providerName =
         Name
           { fromName =
@@ -245,7 +245,7 @@ testObject_Provider_provider_7 =
 testObject_Provider_provider_8 :: Provider
 testObject_Provider_provider_8 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000008-0000-0007-0000-000100000004"))),
+    { providerId = Id (fromJust (UUID.fromString "00000008-0000-0007-0000-000100000004")),
       providerName =
         Name
           { fromName =
@@ -274,7 +274,7 @@ testObject_Provider_provider_8 =
 testObject_Provider_provider_9 :: Provider
 testObject_Provider_provider_9 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000002-0000-0005-0000-000600000006"))),
+    { providerId = Id (fromJust (UUID.fromString "00000002-0000-0005-0000-000600000006")),
       providerName =
         Name
           { fromName =
@@ -303,7 +303,7 @@ testObject_Provider_provider_9 =
 testObject_Provider_provider_10 :: Provider
 testObject_Provider_provider_10 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000001-0000-0008-0000-000400000007"))),
+    { providerId = Id (fromJust (UUID.fromString "00000001-0000-0008-0000-000400000007")),
       providerName =
         Name
           { fromName =
@@ -332,7 +332,7 @@ testObject_Provider_provider_10 =
 testObject_Provider_provider_11 :: Provider
 testObject_Provider_provider_11 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000006-0000-0007-0000-000100000003"))),
+    { providerId = Id (fromJust (UUID.fromString "00000006-0000-0007-0000-000100000003")),
       providerName =
         Name
           { fromName =
@@ -361,7 +361,7 @@ testObject_Provider_provider_11 =
 testObject_Provider_provider_12 :: Provider
 testObject_Provider_provider_12 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000006-0000-0007-0000-000300000006"))),
+    { providerId = Id (fromJust (UUID.fromString "00000006-0000-0007-0000-000300000006")),
       providerName =
         Name
           { fromName =
@@ -390,7 +390,7 @@ testObject_Provider_provider_12 =
 testObject_Provider_provider_13 :: Provider
 testObject_Provider_provider_13 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000400000008"))),
+    { providerId = Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000400000008")),
       providerName =
         Name
           { fromName =
@@ -419,7 +419,7 @@ testObject_Provider_provider_13 =
 testObject_Provider_provider_14 :: Provider
 testObject_Provider_provider_14 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000006-0000-0002-0000-000400000007"))),
+    { providerId = Id (fromJust (UUID.fromString "00000006-0000-0002-0000-000400000007")),
       providerName =
         Name
           { fromName =
@@ -448,7 +448,7 @@ testObject_Provider_provider_14 =
 testObject_Provider_provider_15 :: Provider
 testObject_Provider_provider_15 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000300000008"))),
+    { providerId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000300000008")),
       providerName =
         Name
           { fromName =
@@ -477,7 +477,7 @@ testObject_Provider_provider_15 =
 testObject_Provider_provider_16 :: Provider
 testObject_Provider_provider_16 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000004-0000-0005-0000-000700000007"))),
+    { providerId = Id (fromJust (UUID.fromString "00000004-0000-0005-0000-000700000007")),
       providerName =
         Name
           { fromName =
@@ -506,7 +506,7 @@ testObject_Provider_provider_16 =
 testObject_Provider_provider_17 :: Provider
 testObject_Provider_provider_17 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000005-0000-0005-0000-000500000001"))),
+    { providerId = Id (fromJust (UUID.fromString "00000005-0000-0005-0000-000500000001")),
       providerName =
         Name
           { fromName =
@@ -535,7 +535,7 @@ testObject_Provider_provider_17 =
 testObject_Provider_provider_18 :: Provider
 testObject_Provider_provider_18 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000600000007"))),
+    { providerId = Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000600000007")),
       providerName =
         Name
           { fromName =
@@ -564,7 +564,7 @@ testObject_Provider_provider_18 =
 testObject_Provider_provider_19 :: Provider
 testObject_Provider_provider_19 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000003-0000-0005-0000-000800000007"))),
+    { providerId = Id (fromJust (UUID.fromString "00000003-0000-0005-0000-000800000007")),
       providerName =
         Name
           { fromName =
@@ -593,7 +593,7 @@ testObject_Provider_provider_19 =
 testObject_Provider_provider_20 :: Provider
 testObject_Provider_provider_20 =
   Provider
-    { providerId = (Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000000000005"))),
+    { providerId = Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000000000005")),
       providerName =
         Name
           { fromName =

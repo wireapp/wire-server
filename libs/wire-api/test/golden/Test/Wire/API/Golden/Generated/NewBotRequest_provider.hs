@@ -98,11 +98,11 @@ domain = Domain "golden.example.com"
 testObject_NewBotRequest_provider_1 :: NewBotRequest
 testObject_NewBotRequest_provider_1 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000004-0000-0003-0000-000000000000"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0003-0000-000000000000")),
       newBotClient = ClientId {client = "c"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
             botUserViewName =
               Name
                 { fromName =
@@ -113,43 +113,40 @@ testObject_NewBotRequest_provider_1 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
           },
       newBotConv =
-        ( botConvView
-            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))))
-            (Just "")
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      (fromJust (parseRoleName "nnu9fdovdb35gac26w1tou0uax_3b9l8y5sgh795f4d7yr1gzuewqfj8hx4"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
-                    omService = Nothing,
-                    omConvRoleName = (fromJust (parseRoleName "3m_oredfy0jqp1jvrociab2vq4z1rzklzs6_bpd04ht0"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
-                    omService = Nothing,
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "0ns0gbsu3sk2cj6qsbs8bkmmculfhcbp_wntqaciff2f3j0zwf24p2ga7lxkzd13c626ruj7evj1lyqn0u7m2q5su"
-                          )
-                      )
-                  }
-              ]
-            )
-        ),
+        botConvView
+          (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
+          (Just "")
+          [ OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust (parseRoleName "nnu9fdovdb35gac26w1tou0uax_3b9l8y5sgh795f4d7yr1gzuewqfj8hx4")
+              },
+            OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
+                omService = Nothing,
+                omConvRoleName = fromJust (parseRoleName "3m_oredfy0jqp1jvrociab2vq4z1rzklzs6_bpd04ht0")
+              },
+            OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                omService = Nothing,
+                omConvRoleName =
+                  fromJust
+                    ( parseRoleName
+                        "0ns0gbsu3sk2cj6qsbs8bkmmculfhcbp_wntqaciff2f3j0zwf24p2ga7lxkzd13c626ruj7evj1lyqn0u7m2q5su"
+                    )
+              }
+          ],
       newBotToken = "&",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.TA, lCountry = Just (Country {fromCountry = CV})}
     }
@@ -157,18 +154,18 @@ testObject_NewBotRequest_provider_1 =
 testObject_NewBotRequest_provider_2 :: NewBotRequest
 testObject_NewBotRequest_provider_2 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000000-0000-0003-0000-000100000003"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0003-0000-000100000003")),
       newBotClient = ClientId {client = "4"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
             botUserViewName = Name {fromName = "}\DLE&:\bp\ETB.+H\59688 \RS\SYNq\1068740\37311"},
             botUserViewColour = ColourId {fromColourId = 1},
             botUserViewHandle = Just (Handle {fromHandle = "mwt6"}),
             botUserViewTeam = Nothing
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))) (Nothing) ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) Nothing [],
       newBotToken = "f\ACK",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.SI, lCountry = Just (Country {fromCountry = JM})}
     }
@@ -176,11 +173,11 @@ testObject_NewBotRequest_provider_2 =
 testObject_NewBotRequest_provider_3 :: NewBotRequest
 testObject_NewBotRequest_provider_3 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000003-0000-0004-0000-000000000001"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0004-0000-000000000001")),
       newBotClient = ClientId {client = "7"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
             botUserViewName =
               Name
                 { fromName =
@@ -197,30 +194,27 @@ testObject_NewBotRequest_provider_3 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
           },
       newBotConv =
-        ( botConvView
-            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))))
-            (Nothing)
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "xawj0wsxkoiigr6hjuhzkt2qdrnx2hc3auf74uyekse8rrmrtv05sysqlhs9c2bq87h_pz5di6rjr8_bapds"
-                          )
-                      )
-                  }
-              ]
-            )
-        ),
+        botConvView
+          (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
+          Nothing
+          [ OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust
+                    ( parseRoleName
+                        "xawj0wsxkoiigr6hjuhzkt2qdrnx2hc3auf74uyekse8rrmrtv05sysqlhs9c2bq87h_pz5di6rjr8_bapds"
+                    )
+              }
+          ],
       newBotToken = "0~",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.AB, lCountry = Just (Country {fromCountry = IO})}
     }
@@ -228,11 +222,11 @@ testObject_NewBotRequest_provider_3 =
 testObject_NewBotRequest_provider_4 :: NewBotRequest
 testObject_NewBotRequest_provider_4 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000000-0000-0004-0000-000300000000"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0004-0000-000300000000")),
       newBotClient = ClientId {client = "f"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
             botUserViewName =
               Name
                 { fromName =
@@ -243,7 +237,7 @@ testObject_NewBotRequest_provider_4 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")))) (Just "") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Just "") [],
       newBotToken = "R",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.DZ, lCountry = Just (Country {fromCountry = MD})}
     }
@@ -251,11 +245,11 @@ testObject_NewBotRequest_provider_4 =
 testObject_NewBotRequest_provider_5 :: NewBotRequest
 testObject_NewBotRequest_provider_5 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000001-0000-0002-0000-000300000003"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000001-0000-0002-0000-000300000003")),
       newBotClient = ClientId {client = "4"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
             botUserViewName =
               Name
                 { fromName =
@@ -267,7 +261,7 @@ testObject_NewBotRequest_provider_5 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))) (Just "}") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Just "}") [],
       newBotToken = "\ESC\GS\SI",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.NG, lCountry = Nothing}
     }
@@ -275,11 +269,11 @@ testObject_NewBotRequest_provider_5 =
 testObject_NewBotRequest_provider_6 :: NewBotRequest
 testObject_NewBotRequest_provider_6 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000003"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0004-0000-000400000003")),
       newBotClient = ClientId {client = "2"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
             botUserViewName =
               Name
                 { fromName =
@@ -290,62 +284,58 @@ testObject_NewBotRequest_provider_6 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
           },
       newBotConv =
-        ( botConvView
-            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))))
-            (Nothing)
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      (fromJust (parseRoleName "zv9nb4emt5hh_59ezmb7gy7vex5csr4hizv2bzuj67mjuwx2wc4zf_8valch1hkjc"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "pnj4jsurytr8p6wkxo1_1c8frkgjemx0y48aribcevovmbpeh2us5exkz_fkyfciz88zqw4z4f56orrphp2d5owojj7vxuus0db0eud_bci52125vmt"
-                          )
-                      )
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "3cwtdmxs2zcpv4k55pxg6354ab_2oqoz_jtetp3_u8rjfzac7jiq14oq24axxupapg08njxccrvix5b9q2r3ezmdsni5yx0oq55am8jeqv57815l5td3groa6vjm408"
-                          )
-                      )
-                  }
-              ]
-            )
-        ),
+        botConvView
+          (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
+          Nothing
+          [ OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust (parseRoleName "zv9nb4emt5hh_59ezmb7gy7vex5csr4hizv2bzuj67mjuwx2wc4zf_8valch1hkjc")
+              },
+            OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust
+                    ( parseRoleName
+                        "pnj4jsurytr8p6wkxo1_1c8frkgjemx0y48aribcevovmbpeh2us5exkz_fkyfciz88zqw4z4f56orrphp2d5owojj7vxuus0db0eud_bci52125vmt"
+                    )
+              },
+            OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust
+                    ( parseRoleName
+                        "3cwtdmxs2zcpv4k55pxg6354ab_2oqoz_jtetp3_u8rjfzac7jiq14oq24axxupapg08njxccrvix5b9q2r3ezmdsni5yx0oq55am8jeqv57815l5td3groa6vjm408"
+                    )
+              }
+          ],
       newBotToken = "\US",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.SK, lCountry = Just (Country {fromCountry = ML})}
     }
@@ -353,18 +343,18 @@ testObject_NewBotRequest_provider_6 =
 testObject_NewBotRequest_provider_7 :: NewBotRequest
 testObject_NewBotRequest_provider_7 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000000"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000002-0000-0002-0000-000200000000")),
       newBotClient = ClientId {client = "9"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
             botUserViewName = Name {fromName = "]\98090\DEL\SO\GSq{9\143048j\135048"},
             botUserViewColour = ColourId {fromColourId = 1},
             botUserViewHandle = Just (Handle {fromHandle = "kfgs"}),
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))) (Just "\24918") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) (Just "\24918") [],
       newBotToken = "\DC4Y&;",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.LN, lCountry = Just (Country {fromCountry = GR})}
     }
@@ -372,18 +362,18 @@ testObject_NewBotRequest_provider_7 =
 testObject_NewBotRequest_provider_8 :: NewBotRequest
 testObject_NewBotRequest_provider_8 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000004-0000-0004-0000-000100000003"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0004-0000-000100000003")),
       newBotClient = ClientId {client = "3"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")),
             botUserViewName = Name {fromName = "0H\164007\1094020\CAN\1063257\v1\1064417\1068260(r"},
             botUserViewColour = ColourId {fromColourId = 1},
             botUserViewHandle = Just (Handle {fromHandle = ".x1v4"}),
             botUserViewTeam = Nothing
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))) (Just "\DEL") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) (Just "\DEL") [],
       newBotToken = "",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.TE, lCountry = Just (Country {fromCountry = AR})}
     }
@@ -391,11 +381,11 @@ testObject_NewBotRequest_provider_8 =
 testObject_NewBotRequest_provider_9 :: NewBotRequest
 testObject_NewBotRequest_provider_9 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000004-0000-0002-0000-000200000003"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0002-0000-000200000003")),
       newBotClient = ClientId {client = "2"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")),
             botUserViewName =
               Name
                 { fromName =
@@ -406,46 +396,42 @@ testObject_NewBotRequest_provider_9 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
           },
       newBotConv =
-        ( botConvView
-            ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))))
-            (Nothing)
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "18dmoaegl2lj3k9vvtivedw5umrfl3frcwsiv2f9wyhe66qgaeuzbxh_q5ja4sebpu9ofj826ufgeozzz5_0mt2kbnrl9fqxl9nfmgtbklecosycpw6fupemw7vj"
-                          )
-                      )
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          (parseRoleName "9vzqc64t8n6lfdea9ryucq_xu4x_v8mgjkv0jf8d5r34wxgac7yhqtnqnxivdzyhgotkpum07frl")
-                      )
-                  }
-              ]
-            )
-        ),
+        botConvView
+          (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
+          Nothing
+          [ OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust
+                    ( parseRoleName
+                        "18dmoaegl2lj3k9vvtivedw5umrfl3frcwsiv2f9wyhe66qgaeuzbxh_q5ja4sebpu9ofj826ufgeozzz5_0mt2kbnrl9fqxl9nfmgtbklecosycpw6fupemw7vj"
+                    )
+              },
+            OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust
+                    (parseRoleName "9vzqc64t8n6lfdea9ryucq_xu4x_v8mgjkv0jf8d5r34wxgac7yhqtnqnxivdzyhgotkpum07frl")
+              }
+          ],
       newBotToken = "\1020342X",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.HA, lCountry = Just (Country {fromCountry = MW})}
     }
@@ -453,11 +439,11 @@ testObject_NewBotRequest_provider_9 =
 testObject_NewBotRequest_provider_10 :: NewBotRequest
 testObject_NewBotRequest_provider_10 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000001-0000-0004-0000-000000000004"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000001-0000-0004-0000-000000000004")),
       newBotClient = ClientId {client = "c"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
             botUserViewName =
               Name
                 { fromName =
@@ -468,7 +454,7 @@ testObject_NewBotRequest_provider_10 =
             botUserViewTeam = Nothing
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))) (Just "\ENQ") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))) (Just "\ENQ") [],
       newBotToken = "\18582h",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.RW, lCountry = Nothing}
     }
@@ -476,11 +462,11 @@ testObject_NewBotRequest_provider_10 =
 testObject_NewBotRequest_provider_11 :: NewBotRequest
 testObject_NewBotRequest_provider_11 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000003-0000-0003-0000-000100000000"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0003-0000-000100000000")),
       newBotClient = ClientId {client = "8"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
             botUserViewName =
               Name
                 { fromName =
@@ -491,7 +477,7 @@ testObject_NewBotRequest_provider_11 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")))) (Just "") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))) (Just "") [],
       newBotToken = "a",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.CV, lCountry = Nothing}
     }
@@ -499,11 +485,11 @@ testObject_NewBotRequest_provider_11 =
 testObject_NewBotRequest_provider_12 :: NewBotRequest
 testObject_NewBotRequest_provider_12 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000004-0000-0003-0000-000100000003"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0003-0000-000100000003")),
       newBotClient = ClientId {client = "c"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000001")),
             botUserViewName =
               Name
                 { fromName = "F\1099815ar-'(K\30712\USOEED\DLE2(\ESC[\ETB\EOT2]&W\v\53091\995482\&8\1003203Hxl\184821\f"
@@ -519,7 +505,7 @@ testObject_NewBotRequest_provider_12 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))) (Just "") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) (Just "") [],
       newBotToken = "\49690\RS~\SOH'",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.SM, lCountry = Just (Country {fromCountry = MO})}
     }
@@ -527,11 +513,11 @@ testObject_NewBotRequest_provider_12 =
 testObject_NewBotRequest_provider_13 :: NewBotRequest
 testObject_NewBotRequest_provider_13 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000004-0000-0003-0000-000400000001"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000004-0000-0003-0000-000400000001")),
       newBotClient = ClientId {client = "e"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")),
             botUserViewName = Name {fromName = "6`k)?\189080V"},
             botUserViewColour = ColourId {fromColourId = 0},
             botUserViewHandle =
@@ -544,30 +530,27 @@ testObject_NewBotRequest_provider_13 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000001")))
           },
       newBotConv =
-        ( botConvView
-            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))))
-            (Just "")
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          ( parseRoleName
-                              "f5kideyd0z_wa8k_u0o3wcgbx1iea5yqmkrz3vv86ehs77akep4ttw6eznzo7tefijy5zqxnzq8u4mghhp3m2pg9kqtxnaxukzw1cn"
-                          )
-                      )
-                  }
-              ]
-            )
-        ),
+        botConvView
+          (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
+          (Just "")
+          [ OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust
+                    ( parseRoleName
+                        "f5kideyd0z_wa8k_u0o3wcgbx1iea5yqmkrz3vv86ehs77akep4ttw6eznzo7tefijy5zqxnzq8u4mghhp3m2pg9kqtxnaxukzw1cn"
+                    )
+              }
+          ],
       newBotToken = "",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.MI, lCountry = Just (Country {fromCountry = FI})}
     }
@@ -575,11 +558,11 @@ testObject_NewBotRequest_provider_13 =
 testObject_NewBotRequest_provider_14 :: NewBotRequest
 testObject_NewBotRequest_provider_14 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000003-0000-0001-0000-000300000004"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0001-0000-000300000004")),
       newBotClient = ClientId {client = "a"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000")),
             botUserViewName =
               Name
                 { fromName =
@@ -590,7 +573,7 @@ testObject_NewBotRequest_provider_14 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))) (Just "\175323") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Just "\175323") [],
       newBotToken = "uC\SUBY",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.NR, lCountry = Just (Country {fromCountry = AT})}
     }
@@ -598,11 +581,11 @@ testObject_NewBotRequest_provider_14 =
 testObject_NewBotRequest_provider_15 :: NewBotRequest
 testObject_NewBotRequest_provider_15 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000003-0000-0002-0000-000000000004"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0002-0000-000000000004")),
       newBotClient = ClientId {client = "7"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
             botUserViewName =
               Name
                 { fromName =
@@ -613,7 +596,7 @@ testObject_NewBotRequest_provider_15 =
             botUserViewTeam = Nothing
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")))) (Just "\1046069") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) (Just "\1046069") [],
       newBotToken = "",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.CO, lCountry = Just (Country {fromCountry = KH})}
     }
@@ -621,11 +604,11 @@ testObject_NewBotRequest_provider_15 =
 testObject_NewBotRequest_provider_16 :: NewBotRequest
 testObject_NewBotRequest_provider_16 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000003-0000-0004-0000-000200000003"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0004-0000-000200000003")),
       newBotClient = ClientId {client = "9"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
             botUserViewName =
               Name
                 { fromName =
@@ -636,7 +619,7 @@ testObject_NewBotRequest_provider_16 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001")))) (Just "") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) (Just "") [],
       newBotToken = "=\131697\163501e\83335",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.HI, lCountry = Just (Country {fromCountry = TD})}
     }
@@ -644,50 +627,48 @@ testObject_NewBotRequest_provider_16 =
 testObject_NewBotRequest_provider_17 :: NewBotRequest
 testObject_NewBotRequest_provider_17 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000000"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000000")),
       newBotClient = ClientId {client = "1"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
             botUserViewName = Name {fromName = "j>\FSO\40436\1008903(.R\1098591\1057916O"},
             botUserViewColour = ColourId {fromColourId = 0},
             botUserViewHandle = Nothing,
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
           },
       newBotConv =
-        ( botConvView
-            ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))))
-            (Just "")
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
-                            }
-                        ),
-                    omConvRoleName = (fromJust (parseRoleName "zi6nsx7hjs04d_1nxiaasqcb"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
-                            }
-                        ),
-                    omConvRoleName =
-                      (fromJust (parseRoleName "c67nu5cxj9cru8018oquz_74mazgewq5fa6mwgwzktvep_7ftdtitzlwewqe"))
-                  }
-              ]
-            )
-        ),
+        botConvView
+          (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))
+          (Just "")
+          [ OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))
+                        }
+                    ),
+                omConvRoleName = fromJust (parseRoleName "zi6nsx7hjs04d_1nxiaasqcb")
+              },
+            OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust (parseRoleName "c67nu5cxj9cru8018oquz_74mazgewq5fa6mwgwzktvep_7ftdtitzlwewqe")
+              }
+          ],
       newBotToken = "&))",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.NY, lCountry = Just (Country {fromCountry = NP})}
     }
@@ -695,11 +676,11 @@ testObject_NewBotRequest_provider_17 =
 testObject_NewBotRequest_provider_18 :: NewBotRequest
 testObject_NewBotRequest_provider_18 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000001"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000001")),
       newBotClient = ClientId {client = "4"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")),
             botUserViewName =
               Name
                 { fromName =
@@ -710,41 +691,38 @@ testObject_NewBotRequest_provider_18 =
             botUserViewTeam = Nothing
           },
       newBotConv =
-        ( botConvView
-            ((Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))))
-            (Just "\DC2")
-            ( [ OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName = (fromJust (parseRoleName "a8r6vcnbte4ouwljafu5fid9r_"))
-                  },
-                OtherMember
-                  { omQualifiedId =
-                      Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) domain,
-                    omService =
-                      Just
-                        ( ServiceRef
-                            { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
-                              _serviceRefProvider =
-                                (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
-                            }
-                        ),
-                    omConvRoleName =
-                      ( fromJust
-                          (parseRoleName "05bh82wu2bogl1wfzvdrt6l37s_1awtp4rbb5qyk9f2fezt8gq0u_f2eoa7qjloopp4yh0dg5h0ad")
-                      )
-                  }
-              ]
-            )
-        ),
+        botConvView
+          (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")))
+          (Just "\DC2")
+          [ OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))
+                        }
+                    ),
+                omConvRoleName = fromJust (parseRoleName "a8r6vcnbte4ouwljafu5fid9r_")
+              },
+            OtherMember
+              { omQualifiedId =
+                  Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))) domain,
+                omService =
+                  Just
+                    ( ServiceRef
+                        { _serviceRefId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
+                          _serviceRefProvider =
+                            Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))
+                        }
+                    ),
+                omConvRoleName =
+                  fromJust
+                    (parseRoleName "05bh82wu2bogl1wfzvdrt6l37s_1awtp4rbb5qyk9f2fezt8gq0u_f2eoa7qjloopp4yh0dg5h0ad")
+              }
+          ],
       newBotToken = "\175470\1078918Nr\1056432",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.GU, lCountry = Just (Country {fromCountry = SY})}
     }
@@ -752,11 +730,11 @@ testObject_NewBotRequest_provider_18 =
 testObject_NewBotRequest_provider_19 :: NewBotRequest
 testObject_NewBotRequest_provider_19 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")),
       newBotClient = ClientId {client = "6"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")),
             botUserViewName =
               Name
                 { fromName =
@@ -767,7 +745,7 @@ testObject_NewBotRequest_provider_19 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")))) (Just "w") ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) (Just "w") [],
       newBotToken = "",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.ZU, lCountry = Just (Country {fromCountry = AO})}
     }
@@ -775,11 +753,11 @@ testObject_NewBotRequest_provider_19 =
 testObject_NewBotRequest_provider_20 :: NewBotRequest
 testObject_NewBotRequest_provider_20 =
   NewBotRequest
-    { newBotId = ((BotId . Id) (fromJust (UUID.fromString "00000003-0000-0001-0000-000000000002"))),
+    { newBotId = (BotId . Id) (fromJust (UUID.fromString "00000003-0000-0001-0000-000000000002")),
       newBotClient = ClientId {client = "5"},
       newBotOrigin =
         BotUserView
-          { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
+          { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
             botUserViewName =
               Name
                 { fromName =
@@ -796,7 +774,7 @@ testObject_NewBotRequest_provider_20 =
             botUserViewTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000001")))
           },
       newBotConv =
-        (botConvView ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000")))) (Nothing) ([])),
+        botConvView (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) Nothing [],
       newBotToken = "\\`\ACK,<",
       newBotLocale = Locale {lLanguage = Language Data.LanguageCodes.NY, lCountry = Just (Country {fromCountry = KN})}
     }
