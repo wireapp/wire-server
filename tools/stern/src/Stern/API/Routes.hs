@@ -17,6 +17,7 @@
 
 module Stern.API.Routes
   ( SternAPI,
+    SternAPIInternal,
     SwaggerDocsAPI,
     swaggerDocsAPI,
   )
@@ -34,6 +35,14 @@ import Servant.Swagger.UI
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.User (Email)
+
+type SternAPIInternal =
+  Named
+    "status"
+    ( "i"
+        :> "status"
+        :> Get '[JSON] NoContent
+    )
 
 type SternAPI =
   Named

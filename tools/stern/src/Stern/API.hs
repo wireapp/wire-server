@@ -103,8 +103,8 @@ start o = do
     servantApp :: Env -> Application
     servantApp e =
       Servant.serve
-        (Proxy @(SwaggerDocsAPI :<|> Servant.Raw))
-        (swaggerDocsAPI :<|> Servant.Tagged (pipeline e))
+        (Proxy @(SwaggerDocsAPI :<|> SternAPIInternal :<|> Servant.Raw))
+        (swaggerDocsAPI :<|> servantSitemapInternal :<|> Servant.Tagged (pipeline e))
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
@@ -120,6 +120,9 @@ sitemap = do
 _servantSitemap :: ServerT SternAPI Handler
 _servantSitemap = Named @"get-users-by-email" usersByEmail
 
+servantSitemapInternal :: Servant.Server SternAPIInternal
+servantSitemapInternal = Named @"status" (pure Servant.NoContent)
+
 -------------------------------------------------------------------------------
 -- wai-routes API
 
@@ -127,11 +130,6 @@ data SupportsTtl = TtlEnabled | TtlDisabled
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
-  -- Begin Internal
-
-  get "/i/status" (continue $ const $ pure empty) true
-  head "/i/status" (continue $ const $ pure empty) true
-
   -- End Internal
 
   post "/users/:uid/suspend" (continue suspendUser) $
