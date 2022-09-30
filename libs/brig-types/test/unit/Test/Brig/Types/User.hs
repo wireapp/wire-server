@@ -48,7 +48,7 @@ roundtripTests =
     testRoundTripWithSwagger @EJPDResponseBody,
     testRoundTrip @UpdateConnectionsInternal,
     testRoundTrip @SearchVisibilityInbound,
-    testRoundTrip @UserAccount
+    testRoundTripWithSwagger @UserAccount
   ]
 
 instance Arbitrary ManagedByUpdate where
