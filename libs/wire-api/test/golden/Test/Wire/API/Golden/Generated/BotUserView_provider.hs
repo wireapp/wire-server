@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -29,7 +27,7 @@ import Wire.API.User.Profile (ColourId (ColourId, fromColourId), Name (Name, fro
 testObject_BotUserView_provider_1 :: BotUserView
 testObject_BotUserView_provider_1 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000002"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000002")),
       botUserViewName =
         Name
           { fromName =
@@ -43,7 +41,7 @@ testObject_BotUserView_provider_1 =
 testObject_BotUserView_provider_2 :: BotUserView
 testObject_BotUserView_provider_2 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000002-0000-0003-0000-000500000001"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000002-0000-0003-0000-000500000001")),
       botUserViewName =
         Name
           { fromName =
@@ -57,7 +55,7 @@ testObject_BotUserView_provider_2 =
 testObject_BotUserView_provider_3 :: BotUserView
 testObject_BotUserView_provider_3 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000004-0000-0006-0000-000100000002"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000004-0000-0006-0000-000100000002")),
       botUserViewName = Name {fromName = "\EOT\a.\ACK\1104026\ETB"},
       botUserViewColour = ColourId {fromColourId = 7},
       botUserViewHandle = Nothing,
@@ -67,7 +65,7 @@ testObject_BotUserView_provider_3 =
 testObject_BotUserView_provider_4 :: BotUserView
 testObject_BotUserView_provider_4 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000008-0000-0004-0000-000300000007"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000008-0000-0004-0000-000300000007")),
       botUserViewName = Name {fromName = "\SUB\STX)gKj\FS\1076685\v6cg\f]N!t\\\1017810\&8\70320\&7I\ETXCS\DC4e\FS\FS"},
       botUserViewColour = ColourId {fromColourId = -2},
       botUserViewHandle = Just (Handle {fromHandle = "7.w"}),
@@ -77,7 +75,7 @@ testObject_BotUserView_provider_4 =
 testObject_BotUserView_provider_5 :: BotUserView
 testObject_BotUserView_provider_5 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000500000008"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000500000008")),
       botUserViewName = Name {fromName = "w"},
       botUserViewColour = ColourId {fromColourId = -1},
       botUserViewHandle = Just (Handle {fromHandle = "tidlyhr"}),
@@ -87,7 +85,7 @@ testObject_BotUserView_provider_5 =
 testObject_BotUserView_provider_6 :: BotUserView
 testObject_BotUserView_provider_6 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000004-0000-0007-0000-000000000002"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000004-0000-0007-0000-000000000002")),
       botUserViewName =
         Name
           { fromName =
@@ -102,7 +100,7 @@ testObject_BotUserView_provider_6 =
 testObject_BotUserView_provider_7 :: BotUserView
 testObject_BotUserView_provider_7 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000006-0000-0003-0000-000800000002"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000006-0000-0003-0000-000800000002")),
       botUserViewName =
         Name
           { fromName =
@@ -116,7 +114,7 @@ testObject_BotUserView_provider_7 =
 testObject_BotUserView_provider_8 :: BotUserView
 testObject_BotUserView_provider_8 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000008-0000-0008-0000-000500000003"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000008-0000-0008-0000-000500000003")),
       botUserViewName = Name {fromName = "s\1060675\46766`4Ps\990821z\SOHef"},
       botUserViewColour = ColourId {fromColourId = -2},
       botUserViewHandle =
@@ -132,7 +130,7 @@ testObject_BotUserView_provider_8 =
 testObject_BotUserView_provider_9 :: BotUserView
 testObject_BotUserView_provider_9 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000007-0000-0005-0000-000100000001"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000007-0000-0005-0000-000100000001")),
       botUserViewName =
         Name
           { fromName =
@@ -152,7 +150,7 @@ testObject_BotUserView_provider_9 =
 testObject_BotUserView_provider_10 :: BotUserView
 testObject_BotUserView_provider_10 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000200000007"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000200000007")),
       botUserViewName =
         Name {fromName = "]\1060113<]\47337\1007468\152444\10283r\128813XH\57454\&8icz\164234|\b#\ETBW@T"},
       botUserViewColour = ColourId {fromColourId = -6},
@@ -163,7 +161,7 @@ testObject_BotUserView_provider_10 =
 testObject_BotUserView_provider_11 :: BotUserView
 testObject_BotUserView_provider_11 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0006-0000-000400000008"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0006-0000-000400000008")),
       botUserViewName =
         Name
           { fromName =
@@ -177,7 +175,7 @@ testObject_BotUserView_provider_11 =
 testObject_BotUserView_provider_12 :: BotUserView
 testObject_BotUserView_provider_12 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000600000008"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000600000008")),
       botUserViewName =
         Name
           { fromName =
@@ -191,7 +189,7 @@ testObject_BotUserView_provider_12 =
 testObject_BotUserView_provider_13 :: BotUserView
 testObject_BotUserView_provider_13 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000300000005"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000300000005")),
       botUserViewName = Name {fromName = "q"},
       botUserViewColour = ColourId {fromColourId = -2},
       botUserViewHandle = Just (Handle {fromHandle = "3b"}),
@@ -201,7 +199,7 @@ testObject_BotUserView_provider_13 =
 testObject_BotUserView_provider_14 :: BotUserView
 testObject_BotUserView_provider_14 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000008-0000-0002-0000-000500000000"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000008-0000-0002-0000-000500000000")),
       botUserViewName =
         Name
           { fromName =
@@ -221,7 +219,7 @@ testObject_BotUserView_provider_14 =
 testObject_BotUserView_provider_15 :: BotUserView
 testObject_BotUserView_provider_15 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000100000007"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000100000007")),
       botUserViewName =
         Name
           { fromName =
@@ -235,7 +233,7 @@ testObject_BotUserView_provider_15 =
 testObject_BotUserView_provider_16 :: BotUserView
 testObject_BotUserView_provider_16 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000006-0000-0007-0000-000800000005"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000006-0000-0007-0000-000800000005")),
       botUserViewName =
         Name
           { fromName =
@@ -249,7 +247,7 @@ testObject_BotUserView_provider_16 =
 testObject_BotUserView_provider_17 :: BotUserView
 testObject_BotUserView_provider_17 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000400000000"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000400000000")),
       botUserViewName =
         Name
           { fromName =
@@ -263,7 +261,7 @@ testObject_BotUserView_provider_17 =
 testObject_BotUserView_provider_18 :: BotUserView
 testObject_BotUserView_provider_18 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000700000000"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000700000000")),
       botUserViewName =
         Name
           { fromName =
@@ -277,7 +275,7 @@ testObject_BotUserView_provider_18 =
 testObject_BotUserView_provider_19 :: BotUserView
 testObject_BotUserView_provider_19 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000005-0000-0007-0000-000200000005"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000005-0000-0007-0000-000200000005")),
       botUserViewName = Name {fromName = "\CAN0\STX\STX\SOH='\b\ETX\119524Y8\1048503 \EMa\72317\134511,q\SOH'"},
       botUserViewColour = ColourId {fromColourId = -1},
       botUserViewHandle =
@@ -293,7 +291,7 @@ testObject_BotUserView_provider_19 =
 testObject_BotUserView_provider_20 :: BotUserView
 testObject_BotUserView_provider_20 =
   BotUserView
-    { botUserViewId = (Id (fromJust (UUID.fromString "00000000-0000-0005-0000-000500000003"))),
+    { botUserViewId = Id (fromJust (UUID.fromString "00000000-0000-0005-0000-000500000003")),
       botUserViewName =
         Name
           { fromName =

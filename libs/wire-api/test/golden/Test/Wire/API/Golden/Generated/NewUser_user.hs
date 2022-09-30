@@ -110,8 +110,8 @@ testObject_NewUser_user_2 = emptyNewUser (Name {fromName = "\NUL`)\a|>}\EM5z\701
 testObject_NewUser_user_3 :: NewUser
 testObject_NewUser_user_3 = testObject_NewUser_user_2 {newUserExpiresIn = Just (unsafeRange 378975)}
 
-inv_code :: InvitationCode
-inv_code =
+invCode :: InvitationCode
+invCode =
   InvitationCode
     { fromInvitationCode =
         fromRight
@@ -124,7 +124,7 @@ testObject_NewUser_user_4 =
   ( emptyNewUser
       (Name {fromName = "test name"})
   )
-    { newUserOrigin = Just (NewUserOriginInvitationCode inv_code)
+    { newUserOrigin = Just (NewUserOriginInvitationCode invCode)
     }
 
 testObject_NewUser_user_5 :: NewUser
@@ -132,7 +132,7 @@ testObject_NewUser_user_5 =
   ( emptyNewUser
       (Name {fromName = "test name"})
   )
-    { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMember inv_code)),
+    { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMember invCode)),
       newUserPassword = Just (PlainTextPassword "123456")
     }
 
@@ -182,7 +182,7 @@ testObject_NewUser_user_8 =
   ( emptyNewUser
       (Name {fromName = "test name"})
   )
-    { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMember inv_code)),
+    { newUserOrigin = Just (NewUserOriginTeamUser (NewTeamMember invCode)),
       newUserIdentity = Just (PhoneIdentity (Phone "+12345678")),
       newUserPassword = Just (PlainTextPassword "123456")
     }

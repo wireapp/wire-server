@@ -1,7 +1,4 @@
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -48,7 +45,7 @@ spec = do
   describe "MetaSchema" $ do
     -- the extra 'decode' in the golden tests is to make attribute order not count for Eq.
     it "`Supported ()` golden test" $ do
-      decode @Value (encode (Supported (ScimBool True) ())) `shouldBe` decode @Value ("{\"supported\":true}")
+      decode @Value (encode (Supported (ScimBool True) ())) `shouldBe` decode @Value "{\"supported\":true}"
     it "`Supported a` golden test" $ do
       decode @Value (encode (Supported (ScimBool True) (FilterConfig 3))) `shouldBe` decode @Value "{\"supported\":true,\"maxResults\":3}"
     it "`Supported ()` roundtrips" $ do

@@ -30,6 +30,7 @@ library
     Brig.API.MLS.KeyPackages.Validation
     Brig.API.Properties
     Brig.API.Public
+    Brig.API.Public.Swagger
     Brig.API.Types
     Brig.API.User
     Brig.API.Util
@@ -276,6 +277,7 @@ library
     , swagger2
     , tagged
     , template                   >=0.2
+    , template-haskell
     , text                       >=0.11
     , text-icu-translit          >=0.1
     , time                       >=1.1
