@@ -71,6 +71,7 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, trace, (.=))
 import Util.Options
 import Wire.API.Connection
+import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature hiding (setStatus)
 import qualified Wire.API.Team.Feature as Public
@@ -145,6 +146,8 @@ servantSitemap' =
     :<|> Named @"get-users-by-phone" usersByPhone
     :<|> Named @"get-users-by-ids" usersByIds
     :<|> Named @"get-users-by-handles" usersByHandles
+    :<|> Named @"get-user-connections" userConnections
+    :<|> Named @"get-users-connections" usersConnections
 
 servantSitemapInternal :: Servant.Server SternAPIInternal
 servantSitemapInternal = Named @"status" (pure Servant.NoContent)
@@ -212,7 +215,7 @@ routes = do
       Doc.description "Handle of the user"
     Doc.response 200 "List of users" Doc.end
 
-  get "/users/:uid/connections" (continue userConnections) $
+  get "/users/:uid/connections" (continue userConnections') $
     capture "uid"
   document "GET" "users/:uid/connections" $ do
     Doc.summary "Displays user's connections"
@@ -220,7 +223,7 @@ routes = do
       description "User ID"
     Doc.response 200 "List of user's connections" Doc.end
 
-  get "/users/connections" (continue usersConnections) $
+  get "/users/connections" (continue usersConnections') $
     param "ids"
   document "GET" "users/connections" $ do
     Doc.summary "Displays users connections given a list of ids"
@@ -613,13 +616,17 @@ usersByHandles = Intra.getUserProfiles . Right
 ejpdInfoByHandles :: (List Handle ::: Bool) -> Handler Response
 ejpdInfoByHandles (handles ::: includeContacts) = json <$> Intra.getEjpdInfo (fromList handles) includeContacts
 
-userConnections :: UserId -> Handler Response
-userConnections uid = do
-  conns <- Intra.getUserConnections uid
-  pure . json $ groupByStatus conns
+userConnections' :: UserId -> Handler Response
+userConnections' = fmap json . userConnections
 
-usersConnections :: List UserId -> Handler Response
-usersConnections = fmap json . Intra.getUsersConnections
+userConnections :: UserId -> Handler UserConnectionGroups
+userConnections = fmap groupByStatus . Intra.getUserConnections
+
+usersConnections' :: List UserId -> Handler Response
+usersConnections' = fmap json . usersConnections . fromList
+
+usersConnections :: [UserId] -> Handler [ConnectionStatus]
+usersConnections = Intra.getUsersConnections . List
 
 searchOnBehalf :: UserId ::: T.Text ::: Range 1 100 Int32 -> Handler Response
 searchOnBehalf (uid ::: q ::: s) =
@@ -817,7 +824,7 @@ getUserData uid = do
 instance FromByteString a => Servant.FromHttpApiData [a] where
   parseUrlPiece = maybe (Left "not a list of a's") (Right . fromList) . fromByteString' . cs
 
-groupByStatus :: [UserConnection] -> Value
+groupByStatus :: [UserConnection] -> UserConnectionGroups
 groupByStatus conns =
   object
     [ "accepted" .= byStatus Accepted conns,

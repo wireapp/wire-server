@@ -25,6 +25,7 @@ where
 
 import Brig.Types.Intra (UserAccount)
 import Control.Lens
+import qualified Data.Aeson as A
 import Data.Handle
 import Data.Id
 import qualified Data.Swagger as S
@@ -34,6 +35,8 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
+import Wire.API.Connection
+import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.User
@@ -91,6 +94,24 @@ type SternAPI =
                :> QueryParam' [Required, Strict, Description "List of Handles of the users, without '@', separated by comma"] "ids" [Handle]
                :> Get '[JSON] [UserAccount]
            )
+    :<|> Named
+           "get-user-connections"
+           ( Summary "Displays user's connections"
+               :> "users"
+               :> Capture "uid" UserId
+               :> "connections"
+               :> Get '[JSON] UserConnectionGroups
+           )
+    :<|> Named
+           "get-users-connections"
+           ( Summary "Displays connections of many users given a list of ids"
+               :> "users"
+               :> "connections"
+               :> QueryParam' [Required, Strict, Description "List of IDs of the users, separated by comma"] "ids" [UserId]
+               :> Get '[JSON] [ConnectionStatus]
+           )
+
+type UserConnectionGroups = A.Value -- FUTUREWORK: try a little harder
 
 -------------------------------------------------------------------------------
 -- Swagger
