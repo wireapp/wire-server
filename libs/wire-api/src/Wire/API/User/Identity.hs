@@ -75,6 +75,7 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import qualified SAML2.WebSSO.Types as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import qualified SAML2.WebSSO.XML as SAML
+import qualified Servant.API as S
 import System.FilePath ((</>))
 import qualified Test.QuickCheck as QC
 import qualified Text.Email.Validate as Email.V
@@ -186,6 +187,12 @@ instance ToByteString Email where
 
 instance FromByteString Email where
   parser = parser >>= maybe (fail "Invalid email") pure . parseEmail
+
+instance S.FromHttpApiData Email where
+  parseUrlPiece = maybe (Left "Invalid email") Right . fromByteString . cs
+
+instance S.ToHttpApiData Email where
+  toUrlPiece = cs . toByteString'
 
 instance Arbitrary Email where
   arbitrary = do

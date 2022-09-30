@@ -40,6 +40,7 @@ import Data.Predicate
 import Data.Proxy (Proxy (..))
 import Data.Range
 import qualified Data.Schema as S
+import Data.String.Conversions (cs)
 import Data.Swagger.Build.Api hiding (Response, def, min, response)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text (unpack)
@@ -56,8 +57,9 @@ import Network.Wai.Routing hiding (trace)
 import Network.Wai.Utilities
 import qualified Network.Wai.Utilities.Server as Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Servant (ServerT, (:<|>) (..))
+import Servant (ServerT, (:<|>) (..), (:>))
 import qualified Servant
+import qualified Servant.Server
 import Stern.API.Predicates
 import Stern.API.Routes
 import Stern.App
@@ -103,8 +105,18 @@ start o = do
     servantApp :: Env -> Application
     servantApp e =
       Servant.serve
-        (Proxy @(SwaggerDocsAPI :<|> SternAPIInternal :<|> Servant.Raw))
-        (swaggerDocsAPI :<|> servantSitemapInternal :<|> Servant.Tagged (pipeline e))
+        ( Proxy
+            @( SwaggerDocsAPI
+                 :<|> SternAPIInternal
+                 :<|> Servant.Raw
+                 :<|> "servant-inactive" :> SternAPI
+             )
+        )
+        ( swaggerDocsAPI
+            :<|> servantSitemapInternal
+            :<|> Servant.Tagged (pipeline e)
+            :<|> servantSitemap e
+        )
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
@@ -114,11 +126,18 @@ sitemap = do
 -------------------------------------------------------------------------------
 -- servant API
 
--- | The stern API implemented with servant
--- currently not yet in use, replace wai-route api with this, when fully servantified
--- primarily used for type checking
-_servantSitemap :: ServerT SternAPI Handler
-_servantSitemap = Named @"get-users-by-email" usersByEmail
+servantSitemap :: Stern.App.Env -> Servant.Server SternAPI
+servantSitemap env = Servant.Server.hoistServer (Proxy @SternAPI) nt servantSitemap'
+  where
+    nt :: forall x. Stern.App.Handler x -> Servant.Server.Handler x
+    nt m = Servant.Server.Handler . ExceptT $ do
+      fmapL renderError <$> Stern.App.runAppT env (runExceptT m)
+
+    renderError :: Error -> Servant.Server.ServerError
+    renderError (Error code label message _) = Servant.Server.ServerError (statusCode code) (cs label) (cs message) []
+
+servantSitemap' :: ServerT SternAPI Handler
+servantSitemap' = Named @"get-users-by-email" usersByEmail
 
 servantSitemapInternal :: Servant.Server SternAPIInternal
 servantSitemapInternal = Named @"status" (pure Servant.NoContent)
