@@ -154,33 +154,6 @@ defConversationMetadata creator =
       cnvmReceiptMode = Nothing
     }
 
-accessRolesSchema :: ObjectSchema SwaggerDoc (Set AccessRoleV2)
-accessRolesSchema = toOutput .= accessRolesSchemaTuple `withParser` validate
-  where
-    toOutput accessRoles = (Just $ toAccessRoleLegacy accessRoles, Just accessRoles)
-    validate =
-      \case
-        (_, Just v2) -> pure v2
-        (Just legacy, Nothing) -> pure $ fromAccessRoleLegacy legacy
-        (Nothing, Nothing) -> fail "access_role|access_role_v2"
-
-accessRolesSchemaOpt :: ObjectSchema SwaggerDoc (Maybe (Set AccessRoleV2))
-accessRolesSchemaOpt = toOutput .= accessRolesSchemaTuple `withParser` validate
-  where
-    toOutput accessRoles = (toAccessRoleLegacy <$> accessRoles, accessRoles)
-    validate =
-      \case
-        (_, Just v2) -> pure $ Just v2
-        (Just legacy, Nothing) -> pure $ Just (fromAccessRoleLegacy legacy)
-        (Nothing, Nothing) -> pure Nothing
-
-accessRolesSchemaTuple :: ObjectSchema SwaggerDoc (Maybe AccessRoleLegacy, Maybe (Set AccessRoleV2))
-accessRolesSchemaTuple =
-  (,) <$> fst .= optFieldWithDocModifier "access_role" (description ?~ "Deprecated, please use access_role_v2") (maybeWithDefault A.Null schema)
-    <*> snd .= optFieldWithDocModifier "access_role_v2" (description ?~ desc) (maybeWithDefault A.Null $ set schema)
-  where
-    desc = "This field is optional. If it is not present, the default will be `[team_member, non_team_member, service]`. Please note that an empty list is not allowed when creating a new conversation."
-
 conversationMetadataObjectSchema :: ObjectSchema SwaggerDoc ConversationMetadata
 conversationMetadataObjectSchema =
   ConversationMetadata
@@ -658,74 +631,123 @@ data NewConv = NewConv
   deriving (Arbitrary) via (GenericUniform NewConv)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewConv)
 
-data Versioned v a
+newtype Versioned v a = Versioned {unVersioned :: a}
 
-instance S.ToSchema (Versioned 'V2 'NewConv) where
+instance Functor (Versioned v) where
+  fmap f (Versioned a) = Versioned (f a)
+
+instance S.ToSchema (Versioned 'V2 NewConv) where
   declareNamedSchema = schemaToSwagger
 
-instance ToSchema (Versioned 'V2 'NewConv) where
-  schema = undefined -- schema @NewConv
+instance ToSchema (Versioned 'V2 NewConv) where
+  schema = unVersioned .= fmap Versioned (newConvSchema accessRolesSchemaOptV1)
+
+instance ToSchema (Versioned 'V1 NewConv) where
+  schema = unVersioned .= fmap Versioned (newConvSchema accessRolesSchemaOptV2)
 
 instance ToSchema NewConv where
-  schema =
-    objectWithDocModifier
-      "NewConv"
-      (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
-      $ NewConv
-        <$> newConvUsers
-          .= ( fieldWithDocModifier
-                 "users"
-                 (description ?~ usersDesc)
-                 (array schema)
-                 <|> pure []
-             )
-        <*> newConvQualifiedUsers
-          .= ( fieldWithDocModifier
-                 "qualified_users"
-                 (description ?~ qualifiedUsersDesc)
-                 (array schema)
-                 <|> pure []
-             )
-        <*> newConvName .= maybe_ (optField "name" schema)
-        <*> (Set.toList . newConvAccess)
-          .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
-        <*> newConvAccessRoles .= accessRolesSchemaOpt
-        <*> newConvTeam
-          .= maybe_
-            ( optFieldWithDocModifier
-                "team"
-                (description ?~ "Team information of this conversation")
-                schema
-            )
-        <*> newConvMessageTimer
-          .= maybe_
-            ( optFieldWithDocModifier
-                "message_timer"
-                (description ?~ "Per-conversation message timer")
-                schema
-            )
-        <*> newConvReceiptMode .= maybe_ (optField "receipt_mode" schema)
-        <*> newConvUsersRole
-          .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
-                 <|> pure roleNameWireAdmin
-             )
-        <*> newConvProtocol .= protocolTagSchema
-        <*> newConvCreatorClient .= maybe_ (optField "creator_client" schema)
-    where
-      usersDesc =
-        "List of user IDs (excluding the requestor) to be \
-        \part of this conversation (deprecated)"
-      qualifiedUsersDesc =
-        "List of qualified user IDs (excluding the requestor) \
-        \to be part of this conversation"
-      usersRoleDesc :: Text
-      usersRoleDesc =
-        cs $
-          "The conversation permissions the users \
-          \added in this request should have. \
-          \Optional, defaults to '"
-            <> show roleNameWireAdmin
-            <> "' if unset."
+  schema = newConvSchema accessRolesSchemaOpt
+
+accessRolesSchemaF ::
+  FieldFunctor SwaggerDoc f =>
+  ObjectSchemaP SwaggerDoc (Set AccessRoleV2) (f (Set AccessRoleV2))
+accessRolesSchemaF = fieldF "access_role" (set schema)
+
+accessRolesSchema :: ObjectSchema SwaggerDoc (Set AccessRoleV2)
+accessRolesSchema = fmap runIdentity accessRolesSchemaF
+
+accessRolesSchemaOpt ::
+  ObjectSchema
+    SwaggerDoc
+    (Maybe (Set AccessRoleV2))
+accessRolesSchemaOpt = maybe_ accessRolesSchemaF
+
+accessRolesSchemaOptV2 :: ObjectSchema SwaggerDoc (Maybe (Set AccessRoleV2))
+accessRolesSchemaOptV2 =
+  id
+    .= optFieldWithDocModifier "access_role" (description ?~ desc) (maybeWithDefault A.Null $ set schema)
+  where
+    desc = "This field is optional. If it is not present, the default will be `[team_member, non_team_member, service]`. Please note that an empty list is not allowed when creating a new conversation."
+
+accessRolesSchemaOptV1 :: ObjectSchema SwaggerDoc (Maybe (Set AccessRoleV2))
+accessRolesSchemaOptV1 = toOutput .= accessRolesSchemaTuple `withParser` validate
+  where
+    toOutput accessRoles = (toAccessRoleLegacy <$> accessRoles, accessRoles)
+    validate =
+      \case
+        (_, Just v2) -> pure $ Just v2
+        (Just legacy, Nothing) -> pure $ Just (fromAccessRoleLegacy legacy)
+        (Nothing, Nothing) -> pure Nothing
+
+accessRolesSchemaTuple :: ObjectSchema SwaggerDoc (Maybe AccessRoleLegacy, Maybe (Set AccessRoleV2))
+accessRolesSchemaTuple =
+  (,) <$> fst .= optFieldWithDocModifier "access_role" (description ?~ "Deprecated, please use access_role_v2") (maybeWithDefault A.Null (unnamed schema))
+    <*> snd .= optFieldWithDocModifier "access_role_v2" (description ?~ desc) (maybeWithDefault A.Null $ set schema)
+  where
+    desc = "This field is optional. If it is not present, the default will be `[team_member, non_team_member, service]`. Please note that an empty list is not allowed when creating a new conversation."
+
+newConvSchema ::
+  ObjectSchema SwaggerDoc (Maybe (Set AccessRoleV2)) ->
+  ValueSchema NamedSwaggerDoc NewConv
+newConvSchema sch =
+  objectWithDocModifier
+    "NewConv"
+    (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
+    $ NewConv
+      <$> newConvUsers
+        .= ( fieldWithDocModifier
+               "users"
+               (description ?~ usersDesc)
+               (array schema)
+               <|> pure []
+           )
+      <*> newConvQualifiedUsers
+        .= ( fieldWithDocModifier
+               "qualified_users"
+               (description ?~ qualifiedUsersDesc)
+               (array schema)
+               <|> pure []
+           )
+      <*> newConvName .= maybe_ (optField "name" schema)
+      <*> (Set.toList . newConvAccess)
+        .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
+      <*> newConvAccessRoles .= sch
+      <*> newConvTeam
+        .= maybe_
+          ( optFieldWithDocModifier
+              "team"
+              (description ?~ "Team information of this conversation")
+              schema
+          )
+      <*> newConvMessageTimer
+        .= maybe_
+          ( optFieldWithDocModifier
+              "message_timer"
+              (description ?~ "Per-conversation message timer")
+              schema
+          )
+      <*> newConvReceiptMode .= maybe_ (optField "receipt_mode" schema)
+      <*> newConvUsersRole
+        .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
+               <|> pure roleNameWireAdmin
+           )
+      <*> newConvProtocol .= protocolTagSchema
+      <*> newConvCreatorClient .= maybe_ (optField "creator_client" schema)
+  where
+    usersDesc =
+      "List of user IDs (excluding the requestor) to be \
+      \part of this conversation (deprecated)"
+    qualifiedUsersDesc =
+      "List of qualified user IDs (excluding the requestor) \
+      \to be part of this conversation"
+    usersRoleDesc :: Text
+    usersRoleDesc =
+      cs $
+        "The conversation permissions the users \
+        \added in this request should have. \
+        \Optional, defaults to '"
+          <> show roleNameWireAdmin
+          <> "' if unset."
 
 newtype ConvTeamInfo = ConvTeamInfo
   { cnvTeamId :: TeamId

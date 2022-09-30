@@ -1903,5 +1903,5 @@ instance
   route _p ctx d = route (Proxy :: Proxy (ReqBody cts a :> api)) ctx $ d `addParameterCheck` withRequest (const . pure $ V2)
 
 instance (HasSwagger (ReqBody' '[Required, Strict] cts NewConv :> api), HasSwagger api, AllAccept cts) => HasSwagger (VersionedReqBody 'V2 cts NewConv :> api) where
-  toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned 'V2 'NewConv) :> api))
+  toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned 'V2 NewConv) :> api))
 
