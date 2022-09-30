@@ -69,7 +69,7 @@ import Brig.User.Phone
 import qualified Cassandra as C
 import qualified Cassandra as Data
 import Control.Error hiding (bool)
-import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import qualified Data.Aeson as Aeson
@@ -77,7 +77,6 @@ import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
-import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
@@ -122,6 +121,7 @@ import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
 import qualified Wire.API.Swagger as Public.Swagger (models)
+import Wire.API.SwaggerHelper (cleanupSwagger)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (RegisterError (RegisterErrorWhitelistError))
@@ -154,25 +154,7 @@ swaggerDocsAPI (Just V2) =
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & S.security %~ nub
-      -- sanitise definitions
-      & S.definitions . traverse %~ sanitise
-      -- sanitise general responses
-      & S.responses . traverse . S.schema . _Just . S._Inline %~ sanitise
-      -- sanitise all responses of all paths
-      & S.allOperations . S.responses . S.responses
-        . traverse
-        . S._Inline
-        . S.schema
-        . _Just
-        . S._Inline
-        %~ sanitise
-  where
-    sanitise :: S.Schema -> S.Schema
-    sanitise =
-      (S.properties . traverse . S._Inline %~ sanitise)
-        . (S.required %~ nubOrd)
-        . (S.enum_ . _Just %~ nub)
+      & cleanupSwagger
 swaggerDocsAPI (Just V0) =
   swaggerSchemaUIServer
     . fromMaybe Aeson.Null
