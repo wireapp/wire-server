@@ -78,6 +78,7 @@ import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility
 import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User
+import Wire.API.User.Search
 import qualified Wire.Swagger as Doc
 
 default (ByteString)
@@ -148,6 +149,63 @@ servantSitemap' =
     :<|> Named @"get-users-by-handles" usersByHandles
     :<|> Named @"get-user-connections" userConnections
     :<|> Named @"get-users-connections" usersConnections
+    :<|> Named @"search-users" searchOnBehalf
+    :<|> Named @"revoke-identity" revokeIdentity
+
+-- :<|> Named @"put-email" changeEmail
+-- :<|> Named @"put-phone" changePhone
+-- :<|> Named @"delete-user" deleteUser
+-- :<|> Named @"suspend-team" (setTeamStatus Team.Suspended)
+-- :<|> Named @"unsuspend-team" (setTeamStatus Team.Active)
+-- :<|> Named @"delete-team" deleteTeam
+-- :<|> Named @"ejpd-info" ejpdInfoByHandles
+-- :<|> Named @"head-user-blacklist" isUserKeyBlacklisted
+-- :<|> Named @"post-user-blacklist" addBlacklist
+-- :<|> Named @"delete-user-blacklist" deleteFromBlacklist
+-- :<|> Named @"get-team-info-by-member-email" getTeamInfoByMemberEmail
+-- :<|> Named @"get-team-info" getTeamInfo
+-- :<|> Named @"get-team-admin-info" getTeamAdminInfo
+
+{-
+
+  mkFeatureGetRoute @LegalholdConfig
+  mkFeaturePutRouteTrivialConfig @LegalholdConfig
+
+  mkFeatureGetRoute @SSOConfig
+  mkFeaturePutRouteTrivialConfig @SSOConfig
+
+  mkFeatureGetRoute @SearchVisibilityAvailableConfig
+  mkFeaturePutRouteTrivialConfig @SearchVisibilityAvailableConfig
+
+  mkFeatureGetRoute @ValidateSAMLEmailsConfig
+  mkFeaturePutRouteTrivialConfig @ValidateSAMLEmailsConfig
+
+  mkFeatureGetRoute @DigitalSignaturesConfig
+  mkFeaturePutRouteTrivialConfig @DigitalSignaturesConfig
+
+  mkFeatureGetRoute @FileSharingConfig
+  mkFeaturePutRouteTrivialConfig @FileSharingConfig
+
+  mkFeatureGetRoute @ClassifiedDomainsConfig
+
+  mkFeatureGetRoute @ConferenceCallingConfig
+  mkFeaturePutRouteTrivialConfig' @ConferenceCallingConfig TtlEnabled
+
+  mkFeatureGetRoute @AppLockConfig
+  mkFeaturePutRoute @AppLockConfig
+
+  mkFeatureGetRoute @MLSConfig
+  mkFeaturePutRoute @MLSConfig
+
+:<|> Named @"get-team-search-visibility" Intra.getSearchVisibility
+:<|> Named @"get-team-invoice" getTeamInvoice
+:<|> Named @"get-team-billing-info" getTeamBillingInfo
+:<|> Named @"put-team-billing-info" updateTeamBillingInfo
+:<|> Named @"post-team-billing-info" setTeamBillingInfo
+:<|> Named @"get-consent-log" getConsentLog
+:<|> Named @"get-user-metainfo" getUserData
+
+-}
 
 servantSitemapInternal :: Servant.Server SternAPIInternal
 servantSitemapInternal = Named @"status" (pure Servant.NoContent)
@@ -231,7 +289,7 @@ routes = do
       Doc.description "IDs of the users"
     Doc.response 200 "List of users connections" Doc.end
 
-  get "/users/:uid/search" (continue searchOnBehalf) $
+  get "/users/:uid/search" (continue searchOnBehalf') $
     capture "uid"
       .&. def "" (query "q")
       .&. def (unsafeRange 10) (query "size")
@@ -247,7 +305,7 @@ routes = do
       optional
     Doc.response 200 "List of users" Doc.end
 
-  post "/users/revoke-identity" (continue revokeIdentity) $
+  post "/users/revoke-identity" (continue revokeIdentity') $
     param "email" ||| phoneParam
   document "POST" "revokeIdentity" $ do
     Doc.summary "Revoke a verified user identity."
@@ -628,12 +686,27 @@ usersConnections' = fmap json . usersConnections . fromList
 usersConnections :: [UserId] -> Handler [ConnectionStatus]
 usersConnections = Intra.getUsersConnections . List
 
-searchOnBehalf :: UserId ::: T.Text ::: Range 1 100 Int32 -> Handler Response
-searchOnBehalf (uid ::: q ::: s) =
+searchOnBehalf' :: UserId ::: T.Text ::: Range 1 100 Int32 -> Handler Response
+searchOnBehalf' (uid ::: q ::: s) =
   json <$> Intra.getContacts uid q (fromRange s)
 
-revokeIdentity :: Either Email Phone -> Handler Response
-revokeIdentity emailOrPhone = Intra.revokeIdentity emailOrPhone >> pure empty
+searchOnBehalf :: UserId -> Maybe T.Text -> Maybe Int32 -> Handler (SearchResult Contact)
+searchOnBehalf
+  uid
+  (fromMaybe "" -> q)
+  (fromMaybe (unsafeRange 10) . checked @Int32 @1 @100 . fromMaybe 10 -> s) =
+    Intra.getContacts uid q (fromRange s)
+
+revokeIdentity' :: Either Email Phone -> Handler Response
+revokeIdentity' emailOrPhone = Intra.revokeIdentity emailOrPhone >> pure empty
+
+revokeIdentity :: Maybe Email -> Maybe Phone -> Handler NoContent
+revokeIdentity mbe mbp = NoContent <$ (Intra.revokeIdentity =<< doubleMaybeToEither mbe mbp)
+
+doubleMaybeToEither :: Maybe a -> Maybe b -> Handler (Either a b)
+doubleMaybeToEither (Just a) Nothing = pure $ Left a
+doubleMaybeToEither Nothing (Just b) = pure $ Right b
+doubleMaybeToEither _ _ = error "specify exactly one of the two query params"
 
 changeEmail :: JSON ::: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
 changeEmail (_ ::: uid ::: validate ::: req) = do
@@ -826,15 +899,15 @@ instance FromByteString a => Servant.FromHttpApiData [a] where
 
 groupByStatus :: [UserConnection] -> UserConnectionGroups
 groupByStatus conns =
-  object
-    [ "accepted" .= byStatus Accepted conns,
-      "sent" .= byStatus Sent conns,
-      "pending" .= byStatus Pending conns,
-      "blocked" .= byStatus Blocked conns,
-      "ignored" .= byStatus Ignored conns,
-      "missing-legalhold-consent" .= byStatus MissingLegalholdConsent conns,
-      "total" .= length conns
-    ]
+  UserConnectionGroups
+    { ucgAccepted = byStatus Accepted conns,
+      ucgSent = byStatus Sent conns,
+      ucgPending = byStatus Pending conns,
+      ucgBlocked = byStatus Blocked conns,
+      ucgIgnored = byStatus Ignored conns,
+      ucgMissingLegalholdConsent = byStatus MissingLegalholdConsent conns,
+      ucgTotal = length conns
+    }
   where
     byStatus :: Relation -> [UserConnection] -> Int
     byStatus s = length . filter ((==) s . ucStatus)

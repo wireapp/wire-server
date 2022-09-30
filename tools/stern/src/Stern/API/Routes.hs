@@ -20,6 +20,7 @@ module Stern.API.Routes
     SternAPIInternal,
     SwaggerDocsAPI,
     swaggerDocsAPI,
+    UserConnectionGroups (..),
   )
 where
 
@@ -28,6 +29,7 @@ import Control.Lens
 import qualified Data.Aeson as A
 import Data.Handle
 import Data.Id
+import qualified Data.Schema as Schema
 import qualified Data.Swagger as S
 import Imports hiding (head)
 import Servant (JSON)
@@ -35,11 +37,14 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
-import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.User
+import Wire.API.User.Search
+
+----------------------------------------------------------------------
+-- routing tables
 
 type SternAPIInternal =
   Named
@@ -110,8 +115,32 @@ type SternAPI =
                :> QueryParam' [Required, Strict, Description "List of IDs of the users, separated by comma"] "ids" [UserId]
                :> Get '[JSON] [ConnectionStatus]
            )
+    :<|> Named
+           "search-users"
+           ( Summary "Search for users on behalf of"
+               :> "users"
+               :> Capture "uid" UserId
+               :> "search"
+               :> QueryParam' [Optional, Strict, Description "Search query"] "q (default \"\")" Text
+               :> QueryParam' [Optional, Strict, Description "Number of results to return"] "size (min 1, max 100, default 10)" Int32
+               :> Get '[JSON] (SearchResult Contact)
+           )
+    :<|> Named
+           "revoke-identity"
+           ( Summary "Revoke a verified user identity.  Specify exactly one of phone, email."
+               :> Description
+                    "Forcefully revokes a verified user identity. \
+                    \WARNING: If the given identity is the only verified \
+                    \user identity of an account, the account will be \
+                    \deactivated (\"wireless\") and might thus become inaccessible. \
+                    \If the given identity is not taken / verified, this is a no-op."
+               :> "users"
+               :> "revoke-identity"
+               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> Post '[JSON] NoContent
+           )
 
-type UserConnectionGroups = A.Value -- FUTUREWORK: try a little harder
 
 -------------------------------------------------------------------------------
 -- Swagger
@@ -121,6 +150,33 @@ type SwaggerDocsAPI = "backoffice" :> "api" :> SwaggerSchemaUI "swagger-ui" "swa
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =
   swaggerSchemaUIServer $
-    (toSwagger (Proxy @SternAPI))
+    toSwagger (Proxy @SternAPI)
       & S.info . S.title .~ "Stern API"
       & cleanupSwagger
+
+----------------------------------------------------------------------
+-- helpers
+
+data UserConnectionGroups = UserConnectionGroups
+  { ucgAccepted :: Int,
+    ucgSent :: Int,
+    ucgPending :: Int,
+    ucgBlocked :: Int,
+    ucgIgnored :: Int,
+    ucgMissingLegalholdConsent :: Int,
+    ucgTotal :: Int
+  }
+  deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema.Schema UserConnectionGroups
+
+instance Schema.ToSchema UserConnectionGroups where
+  schema =
+    Schema.object "UserConnectionGroups" $
+      UserConnectionGroups
+        <$> ucgAccepted Schema..= Schema.field "ucgAccepted" Schema.schema
+        <*> ucgSent Schema..= Schema.field "ucgSent" Schema.schema
+        <*> ucgPending Schema..= Schema.field "ucgPending" Schema.schema
+        <*> ucgBlocked Schema..= Schema.field "ucgBlocked" Schema.schema
+        <*> ucgIgnored Schema..= Schema.field "ucgIgnored" Schema.schema
+        <*> ucgMissingLegalholdConsent Schema..= Schema.field "ucgMissingLegalholdConsent" Schema.schema
+        <*> ucgTotal Schema..= Schema.field "ucgTotal" Schema.schema
