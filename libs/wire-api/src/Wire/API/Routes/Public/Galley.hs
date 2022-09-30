@@ -20,10 +20,7 @@
 
 module Wire.API.Routes.Public.Galley where
 
-import Servant.Server.Internal.ErrorFormatter
-import Servant.API.Modifiers
-import Servant.API.ContentTypes
-import Servant.Server.Internal.DelayedIO
+import GHC.Generics
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
@@ -33,14 +30,14 @@ import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import qualified Data.Swagger as Swagger
-import Debug.Trace
 import GHC.TypeLits (AppendSymbol)
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
 import Servant hiding (WithStatus)
-import Servant.Server
+import Servant.API.ContentTypes
 import Servant.Server.Internal.Delayed
-import Servant.Server.Internal.Router
+import Servant.Server.Internal.DelayedIO
+import Servant.Server.Internal.ErrorFormatter
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
@@ -1889,18 +1886,22 @@ data VersionedReqBody' (v :: Version) (mods :: [*]) (ct :: [*]) (a :: *)
 
 type VersionedReqBody v = VersionedReqBody' v '[Required, Strict]
 
-instance HasSwagger (ReqBody' '[Required, Strict] cts a :> api) => HasSwagger (VersionedReqBody v cts a :> api) where
-  toSwagger Proxy = toSwagger (Proxy @(ReqBody cts a :> api))
-
 instance RoutesToPaths rest => RoutesToPaths (VersionedReqBody' v mods ct a :> rest) where
   getRoutes = getRoutes @rest
 
-instance (AllCTUnrender cts a, HasServer api context, HasContextEntry (MkContextWithErrorFormatter context) ErrorFormatters)
-    => HasServer (VersionedReqBody' v mods cts a :> api) context 
-    where
+instance
+  ( AllCTUnrender cts a,
+    HasServer api context,
+    HasContextEntry (MkContextWithErrorFormatter context) ErrorFormatters
+  ) =>
+  HasServer (VersionedReqBody' v mods cts a :> api) context
+  where
   type ServerT (VersionedReqBody' v mods cts a :> api) m = Version -> a -> ServerT api m
 
-  hoistServerWithContext _p pc nt s = hoistServerWithContext (Proxy :: Proxy (ReqBody cts a :> api)) pc nt . s 
+  hoistServerWithContext _p pc nt s = hoistServerWithContext (Proxy :: Proxy (ReqBody cts a :> api)) pc nt . s
 
   route _p ctx d = route (Proxy :: Proxy (ReqBody cts a :> api)) ctx $ d `addParameterCheck` withRequest (const . pure $ V2)
+
+instance (HasSwagger (ReqBody' '[Required, Strict] cts NewConv :> api), HasSwagger api, AllAccept cts) => HasSwagger (VersionedReqBody 'V2 cts NewConv :> api) where
+  toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned 'V2 'NewConv) :> api))
 
