@@ -20,6 +20,7 @@
 
 module Brig.User.Search.Index.Types where
 
+import Brig.Types.Intra (AccountStatus)
 import Brig.Types.Search
 import Control.Lens (makeLenses)
 import Control.Monad.Catch

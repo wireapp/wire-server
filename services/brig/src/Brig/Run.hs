@@ -41,6 +41,7 @@ import qualified Brig.Effects.UserPendingActivationStore as UsersPendingActivati
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
+import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
@@ -76,7 +77,6 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
-import Wire.API.User (AccountStatus (PendingInvitation))
 import qualified Wire.Sem.Paging as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it

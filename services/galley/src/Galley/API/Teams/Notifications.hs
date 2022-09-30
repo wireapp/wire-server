@@ -39,6 +39,7 @@ module Galley.API.Teams.Notifications
   )
 where
 
+import Brig.Types.Intra (accountUser)
 import Data.Id
 import Data.Json.Util (toJSONObject)
 import qualified Data.List1 as List1

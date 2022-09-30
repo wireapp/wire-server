@@ -27,6 +27,7 @@ import Bilge
 import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import qualified Brig.Options as Opt
+import Brig.Types.Intra
 import qualified Cassandra as Cass
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))

@@ -17,6 +17,7 @@
 
 module Galley.API.LegalHold.Conflicts where
 
+import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id

@@ -195,7 +195,7 @@ chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
     chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
-getUsers :: [UserId] -> App [UserAccount]
+getUsers :: [UserId] -> App [Brig.UserAccount]
 getUsers = chunkify $ \uids -> do
   resp <-
     call Brig $

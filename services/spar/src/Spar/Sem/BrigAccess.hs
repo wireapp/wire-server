@@ -43,6 +43,7 @@ module Spar.Sem.BrigAccess
   )
 where
 
+import Brig.Types.Intra
 import Brig.Types.User
 import Data.Code as Code
 import Data.Handle (Handle)
@@ -52,7 +53,7 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
-import Wire.API.User (AccountStatus, DeleteUserResult, UserAccount, VerificationAction)
+import Wire.API.User (DeleteUserResult, VerificationAction)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo as RichInfo

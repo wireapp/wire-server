@@ -26,6 +26,7 @@ import API.Team.Util (getTeams)
 import Bilge hiding (query)
 import Bilge.Assert ((<!!), (===))
 import Brig.Options (Opts (..), setTeamInvitationTimeout)
+import Brig.Types.Intra (AccountStatus (Deleted))
 import Cassandra
 import Control.Exception (assert)
 import Control.Lens ((^.), (^?))

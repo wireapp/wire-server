@@ -40,7 +40,7 @@ import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
-import Brig.Types.Intra (NewUserScimInvitation (..))
+import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAccount (..))
 import Brig.Types.Team (TeamSize)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Lens (view, (^.))

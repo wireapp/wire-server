@@ -48,6 +48,7 @@ import Brig.Provider.Email
 import qualified Brig.Provider.RPC as RPC
 import qualified Brig.Queue as Queue
 import Brig.Team.Util
+import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
 import Brig.Types.User
 import qualified Brig.ZAuth as ZAuth
 import Cassandra (MonadClient)

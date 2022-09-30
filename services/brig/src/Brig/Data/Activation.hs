@@ -37,6 +37,7 @@ import Brig.Data.UserKey
 import qualified Brig.Effects.CodeStore as E
 import Brig.Effects.CodeStore.Cassandra
 import Brig.Options
+import Brig.Types.Intra
 import Cassandra
 import Control.Error
 import Data.Id

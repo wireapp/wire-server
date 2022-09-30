@@ -58,6 +58,7 @@ import Bilge.Response (responseJsonThrow)
 import Bilge.Retry (rpcHandlers)
 import Brig.Data.Instances ()
 import Brig.Index.Types (CreateIndexSettings (..))
+import Brig.Types.Intra
 import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
 import Brig.User.Search.Index.Types as Types
 import qualified Cassandra as C
