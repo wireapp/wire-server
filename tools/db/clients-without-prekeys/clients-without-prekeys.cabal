@@ -13,6 +13,7 @@ library
   hs-source-dirs:     src
   exposed-modules:
     ClientsWithoutPrekeys.Cache
+    ClientsWithoutPrekeys.Clients
     ClientsWithoutPrekeys.Data
     ClientsWithoutPrekeys.GrafanaLogs
 
