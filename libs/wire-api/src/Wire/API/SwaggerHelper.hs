@@ -23,16 +23,6 @@ import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
 import Imports hiding (head)
 
-{-
-import Servant (JSON)
-import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Swagger (HasSwagger (toSwagger))
-import Servant.Swagger.Internal.Orphans ()
-import Servant.Swagger.UI
-import Wire.API.Routes.Named
-import Wire.API.User (Email)
--}
-
 cleanupSwagger :: Swagger -> Swagger
 cleanupSwagger =
   (S.security %~ nub)
