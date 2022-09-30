@@ -19,7 +19,6 @@ module Stern.API.Routes where
 
 import Brig.Types.Intra (UserAccount)
 import Control.Lens
-import Data.Containers.ListUtils (nubOrd)
 import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
 import Imports hiding (head)
