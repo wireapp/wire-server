@@ -444,7 +444,7 @@
   removed.
 
   Instead, all services that expose metrics will now create `ServiceMonitor`
-  resources, if their helm chart is applied with `metrics.serviceMonitor.enable`
+  resources, if their helm chart is applied with `metrics.serviceMonitor.enabled`
   set to true.
 
   This prevents scraping agents from querying services that don't expose metrics
