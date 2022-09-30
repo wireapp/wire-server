@@ -26,8 +26,6 @@ library
     , aeson
     , attoparsec
     , base
-    , brig
-    , brig-types
     , bytestring
     , bytestring-conversion
     , cassandra-util
@@ -37,7 +35,6 @@ library
     , cql
     , cql-io
     , filepath
-    , galley
     , imports
     , iproute
     , lens
@@ -99,7 +96,7 @@ library
   default-language:   Haskell2010
 
 executable clients-without-prekeys-from-logs-meta
-  main-is:          Main.hs
+  main-is:          clients-without-prekeys-from-cache.hs
   build-depends:
     , base
     , cassandra-util
@@ -107,7 +104,20 @@ executable clients-without-prekeys-from-logs-meta
     , lens
     , optparse-applicative
 
-  hs-source-dirs:   app/from-logs-meta
+  hs-source-dirs:   app
+  default-language: Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields -threaded -with-rtsopts=-N
+
+executable clients-without-prekeys
+  main-is:          clients-without-prekeys.hs
+  build-depends:
+    , base
+    , clients-without-prekeys
+
+  hs-source-dirs:   app
   default-language: Haskell2010
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
