@@ -142,10 +142,9 @@ servantSitemap' =
     :<|> Named @"head-user-blacklist" isUserKeyBlacklisted
     :<|> Named @"post-user-blacklist" addBlacklist
     :<|> Named @"delete-user-blacklist" deleteFromBlacklist
-
--- :<|> Named @"get-team-info-by-member-email" getTeamInfoByMemberEmail
--- :<|> Named @"get-team-info" getTeamInfo
--- :<|> Named @"get-team-admin-info" getTeamAdminInfo
+    :<|> Named @"get-team-info-by-member-email" getTeamInfoByMemberEmail
+    :<|> Named @"get-team-info" getTeamInfo
+    :<|> Named @"get-team-admin-info" getTeamAdminInfo
 
 {-
 
@@ -309,13 +308,22 @@ deleteFromBlacklist mbemail mbphone = do
   emailOrPhone <- doubleMaybeToEither "email, phone" mbemail mbphone
   NoContent <$ Intra.setBlacklistStatus False emailOrPhone
 
+getTeamInfoByMemberEmail :: Email -> Handler TeamInfo
+getTeamInfoByMemberEmail e = do
+  acc <- Intra.getUserProfilesByIdentity (Left e) >>= handleUser . listToMaybe
+  tid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleTeam
+  Intra.getTeamInfo tid
+  where
+    handleUser = ifNothing (mkError status404 "no-user" "No such user with that email")
+    handleTeam = ifNothing (mkError status404 "no-binding-team" "No such binding team")
+
+getTeamInfo :: TeamId -> Handler TeamInfo
+getTeamInfo = Intra.getTeamInfo
+
+getTeamAdminInfo :: TeamId -> Handler TeamAdminInfo
+getTeamAdminInfo = fmap toAdminInfo . Intra.getTeamInfo
+
 {-
-getTeamInfo :: TeamId -> Handler Response
-getTeamInfo = fmap json . Intra.getTeamInfo
-
-getTeamAdminInfo :: TeamId -> Handler Response
-getTeamAdminInfo = fmap (json . toAdminInfo) . Intra.getTeamInfo
-
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do
   status :: TeamSearchVisibility <- parseBody req !>> mkError status400 "client-error"
@@ -358,15 +366,6 @@ setTeamBillingInfo (_ ::: tid ::: req) = do
     throwE (mkError status403 "existing-team" "Cannot set info on existing team, use update instead")
   Intra.setTeamBillingInfo tid billingInfo
   getTeamBillingInfo tid
-
-getTeamInfoByMemberEmail :: Email -> Handler Response
-getTeamInfoByMemberEmail e = do
-  acc <- Intra.getUserProfilesByIdentity (Left e) >>= handleUser . listToMaybe
-  tid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleTeam
-  json <$> Intra.getTeamInfo tid
-  where
-    handleUser = ifNothing (mkError status404 "no-user" "No such user with that email")
-    handleTeam = ifNothing (mkError status404 "no-binding-team" "No such binding team")
 
 getTeamInvoice :: TeamId ::: InvoiceId ::: JSON -> Handler Response
 getTeamInvoice (tid ::: iid ::: _) = do

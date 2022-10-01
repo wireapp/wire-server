@@ -40,6 +40,7 @@ import Servant hiding (Handler, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
+import Stern.Types
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Named
@@ -252,6 +253,28 @@ type SternAPI =
                :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
                :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
                :> Delete '[JSON] NoContent
+           )
+    :<|> Named
+           "get-team-info-by-member-email"
+           ( Summary "Fetch a team information given a member's email"
+               :> "teams"
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> Get '[JSON] TeamInfo
+           )
+    :<|> Named
+           "get-team-info"
+           ( Summary "Gets information about a team"
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> Get '[JSON] TeamInfo
+           )
+    :<|> Named
+           "get-team-admin-info"
+           ( Summary "Gets information about a team's members, owners, and admins"
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "admins"
+               :> Get '[JSON] TeamAdminInfo
            )
 
 
