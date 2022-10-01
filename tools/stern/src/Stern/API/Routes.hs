@@ -36,8 +36,7 @@ import qualified Data.Swagger as S
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities
-import Servant (JSON)
-import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant hiding (Handler, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
@@ -226,6 +225,33 @@ type SternAPI =
                :> QueryParam' [Optional, Strict, Description "If 'true', this gives you more more exhaustive information about this user (including social network)"] "include_contacts" Bool
                :> QueryParam' [Required, Strict, Description "Handles of the users, separated by commas (NB: all chars need to be lower case!)"] "handles" [Handle]
                :> Delete '[JSON] EJPD.EJPDResponseBody
+           )
+    :<|> Named
+           "head-user-blacklist"
+           ( Summary "Fetch blacklist information on a email/phone (200: blacklisted; 404: not blacklisted)"
+               :> "users"
+               :> "blacklist"
+               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> Verb 'HEAD 200 '[JSON] NoContent
+           )
+    :<|> Named
+           "post-user-blacklist"
+           ( Summary "Add the email/phone to our blacklist"
+               :> "users"
+               :> "blacklist"
+               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> Post '[JSON] NoContent
+           )
+    :<|> Named
+           "delete-user-blacklist"
+           ( Summary "Remove the email/phone from our blacklist"
+               :> "users"
+               :> "blacklist"
+               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> Delete '[JSON] NoContent
            )
 
 

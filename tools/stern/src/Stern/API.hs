@@ -139,10 +139,10 @@ servantSitemap' =
     :<|> Named @"unsuspend-team" (setTeamStatusH Team.Active)
     :<|> Named @"delete-team" deleteTeam
     :<|> Named @"ejpd-info" ejpdInfoByHandles
+    :<|> Named @"head-user-blacklist" isUserKeyBlacklisted
+    :<|> Named @"post-user-blacklist" addBlacklist
+    :<|> Named @"delete-user-blacklist" deleteFromBlacklist
 
--- :<|> Named @"head-user-blacklist" isUserKeyBlacklisted
--- :<|> Named @"post-user-blacklist" addBlacklist
--- :<|> Named @"delete-user-blacklist" deleteFromBlacklist
 -- :<|> Named @"get-team-info-by-member-email" getTeamInfoByMemberEmail
 -- :<|> Named @"get-team-info" getTeamInfo
 -- :<|> Named @"get-team-admin-info" getTeamAdminInfo
@@ -291,30 +291,25 @@ deleteTeam tid (fromMaybe False -> True) _ = do
 deleteTeam _ _ _ =
   throwE $ mkError status400 "Bad Request" "either email or 'force=true' parameter is required"
 
-{-
-isUserKeyBlacklisted :: Either Email Phone -> Handler Response
-isUserKeyBlacklisted emailOrPhone = do
+isUserKeyBlacklisted :: Maybe Email -> Maybe Phone -> Handler NoContent
+isUserKeyBlacklisted mbemail mbphone = do
+  emailOrPhone <- doubleMaybeToEither "email, phone" mbemail mbphone
   bl <- Intra.isBlacklisted emailOrPhone
   if bl
-    then response status200 "The given user key IS blacklisted"
-    else response status404 "The given user key is NOT blacklisted"
-  where
-    response st reason =
-      pure
-        . setStatus st
-        . json
-        $ object ["status" .= (reason :: Text)]
+    then throwE $ mkError status200 "blacklisted" "The given user key IS blacklisted"
+    else throwE $ mkError status404 "not-blacklisted" "The given user key is NOT blacklisted"
 
-addBlacklist :: Either Email Phone -> Handler Response
-addBlacklist emailOrPhone = do
-  Intra.setBlacklistStatus True emailOrPhone
-  pure empty
+addBlacklist :: Maybe Email -> Maybe Phone -> Handler NoContent
+addBlacklist mbemail mbphone = do
+  emailOrPhone <- doubleMaybeToEither "email, phone" mbemail mbphone
+  NoContent <$ Intra.setBlacklistStatus True emailOrPhone
 
-deleteFromBlacklist :: Either Email Phone -> Handler Response
-deleteFromBlacklist emailOrPhone = do
-  Intra.setBlacklistStatus False emailOrPhone
-  pure empty
+deleteFromBlacklist :: Maybe Email -> Maybe Phone -> Handler NoContent
+deleteFromBlacklist mbemail mbphone = do
+  emailOrPhone <- doubleMaybeToEither "email, phone" mbemail mbphone
+  NoContent <$ Intra.setBlacklistStatus False emailOrPhone
 
+{-
 getTeamInfo :: TeamId -> Handler Response
 getTeamInfo = fmap json . Intra.getTeamInfo
 
