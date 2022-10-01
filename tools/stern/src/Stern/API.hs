@@ -151,9 +151,9 @@ servantSitemap' =
     :<|> Named @"get-users-connections" usersConnections
     :<|> Named @"search-users" searchOnBehalf
     :<|> Named @"revoke-identity" revokeIdentity
+    :<|> Named @"put-email" changeEmail
+    :<|> Named @"put-phone" changePhone
 
--- :<|> Named @"put-email" changeEmail
--- :<|> Named @"put-phone" changePhone
 -- :<|> Named @"delete-user" deleteUser
 -- :<|> Named @"suspend-team" (setTeamStatus Team.Suspended)
 -- :<|> Named @"unsuspend-team" (setTeamStatus Team.Active)
@@ -324,7 +324,7 @@ routes = do
     Doc.response 200 "Identity revoked or not verified / taken." Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
 
-  put "/users/:uid/email" (continue changeEmail) $
+  put "/users/:uid/email" (continue changeEmail') $
     contentType "application" "json"
       .&. capture "uid"
       .&. def False (query "validate")
@@ -344,7 +344,7 @@ routes = do
     Doc.response 200 "Change of email address initiated." Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
 
-  put "/users/:uid/phone" (continue changePhone) $
+  put "/users/:uid/phone" (continue changePhone') $
     contentType "application" "json"
       .&. capture "uid"
       .&. jsonRequest @PhoneUpdate
@@ -708,17 +708,23 @@ doubleMaybeToEither (Just a) Nothing = pure $ Left a
 doubleMaybeToEither Nothing (Just b) = pure $ Right b
 doubleMaybeToEither _ _ = error "specify exactly one of the two query params"
 
-changeEmail :: JSON ::: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
-changeEmail (_ ::: uid ::: validate ::: req) = do
+changeEmail' :: JSON ::: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
+changeEmail' (_ ::: uid ::: validate ::: req) = do
   upd <- parseBody req !>> mkError status400 "client-error"
   Intra.changeEmail uid upd validate
   pure empty
 
-changePhone :: JSON ::: UserId ::: JsonRequest PhoneUpdate -> Handler Response
-changePhone (_ ::: uid ::: req) = do
+changeEmail :: UserId -> Maybe Bool -> EmailUpdate -> Handler NoContent
+changeEmail = undefined --  uid validate upd = NoContent <$ Intra.changeEmail uid (fromMaybe False upd) validate
+
+changePhone' :: JSON ::: UserId ::: JsonRequest PhoneUpdate -> Handler Response
+changePhone' (_ ::: uid ::: req) = do
   upd <- parseBody req !>> mkError status400 "client-error"
   Intra.changePhone uid upd
   pure empty
+
+changePhone :: UserId -> PhoneUpdate -> Handler NoContent
+changePhone uid upd = NoContent <$ Intra.changePhone uid upd
 
 deleteUser :: UserId ::: Either Email Phone -> Handler Response
 deleteUser (uid ::: emailOrPhone) = do

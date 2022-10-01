@@ -140,6 +140,29 @@ type SternAPI =
                :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
                :> Post '[JSON] NoContent
            )
+    :<|> Named
+           "put-email"
+           ( Summary "Change a user's email address."
+               :> Description
+                    "The new e-mail address must be verified before the change takes effect."
+               :> "users"
+               :> Capture "uid" UserId
+               :> "email"
+               :> QueryParam' [Optional, Strict, Description "If set to true, a validation email will be sent to the new email address"] "validate" Bool
+               :> Servant.ReqBody '[JSON] EmailUpdate
+               :> Put '[JSON] NoContent
+           )
+    :<|> Named
+           "put-phone"
+           ( Summary "Change a user's phone number."
+               :> Description
+                    "The new phone number must be verified before the change takes effect."
+               :> "users"
+               :> Capture "uid" UserId
+               :> "phone"
+               :> Servant.ReqBody '[JSON] PhoneUpdate
+               :> Put '[JSON] NoContent
+           )
 
 
 -------------------------------------------------------------------------------
