@@ -72,6 +72,7 @@ import System.Logger.Class hiding (Error, name, trace, (.=))
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
+import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature hiding (setStatus)
 import qualified Wire.API.Team.Feature as Public
@@ -153,12 +154,12 @@ servantSitemap' =
     :<|> Named @"revoke-identity" revokeIdentity
     :<|> Named @"put-email" changeEmail
     :<|> Named @"put-phone" changePhone
+    :<|> Named @"delete-user" deleteUser
+    :<|> Named @"suspend-team" (setTeamStatusH Team.Suspended)
+    :<|> Named @"unsuspend-team" (setTeamStatusH Team.Active)
+    :<|> Named @"delete-team" deleteTeam
+    :<|> Named @"ejpd-info" ejpdInfoByHandles
 
--- :<|> Named @"delete-user" deleteUser
--- :<|> Named @"suspend-team" (setTeamStatus Team.Suspended)
--- :<|> Named @"unsuspend-team" (setTeamStatus Team.Active)
--- :<|> Named @"delete-team" deleteTeam
--- :<|> Named @"ejpd-info" ejpdInfoByHandles
 -- :<|> Named @"head-user-blacklist" isUserKeyBlacklisted
 -- :<|> Named @"post-user-blacklist" addBlacklist
 -- :<|> Named @"delete-user-blacklist" deleteFromBlacklist
@@ -360,7 +361,7 @@ routes = do
     Doc.response 200 "Change of phone number initiated." Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
 
-  delete "/users/:uid" (continue deleteUser) $
+  delete "/users/:uid" (continue deleteUser') $
     capture "uid"
       .&. (query "email" ||| phoneParam)
   document "DELETE" "deleteUser" $ do
@@ -377,7 +378,7 @@ routes = do
     Doc.response 200 "Account deleted" Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
 
-  put "/teams/:tid/suspend" (continue (setTeamStatusH Team.Suspended)) $
+  put "/teams/:tid/suspend" (continue (setTeamStatusH' Team.Suspended)) $
     capture "tid"
   document "PUT" "setTeamStatusH:suspended" $ do
     summary "Suspend a team."
@@ -385,7 +386,7 @@ routes = do
       description "Team ID"
     Doc.response 200 mempty Doc.end
 
-  put "/teams/:tid/unsuspend" (continue (setTeamStatusH Team.Active)) $
+  put "/teams/:tid/unsuspend" (continue (setTeamStatusH' Team.Active)) $
     capture "tid"
   document "PUT" "setTeamStatusH:active" $ do
     summary "Set a team status to 'Active', independently on previous status.  (Cannot be used to un-delete teams, though.)"
@@ -393,7 +394,7 @@ routes = do
       description "Team ID"
     Doc.response 200 mempty Doc.end
 
-  delete "/teams/:tid" (continue deleteTeam) $
+  delete "/teams/:tid" (continue deleteTeam') $
     capture "tid"
       .&. def False (query "force")
       .&. opt (query "email")
@@ -416,7 +417,7 @@ routes = do
     Doc.response 403 "Only teams with 1 user can be deleted" (Doc.model Doc.errorModel)
     Doc.response 404 "Binding team mismatch" (Doc.model Doc.errorModel)
 
-  get "/ejpd-info" (continue ejpdInfoByHandles) $
+  get "/ejpd-info" (continue ejpdInfoByHandles') $
     param "handles"
       .&. def False (query "include_contacts")
   document "GET" "ejpd-info" $ do
@@ -671,8 +672,11 @@ usersByHandles' = fmap json . usersByHandles . fromList
 usersByHandles :: [Handle] -> Handler [UserAccount]
 usersByHandles = Intra.getUserProfiles . Right
 
-ejpdInfoByHandles :: (List Handle ::: Bool) -> Handler Response
-ejpdInfoByHandles (handles ::: includeContacts) = json <$> Intra.getEjpdInfo (fromList handles) includeContacts
+ejpdInfoByHandles' :: (List Handle ::: Bool) -> Handler Response
+ejpdInfoByHandles' (handles ::: includeContacts) = json <$> ejpdInfoByHandles (Just includeContacts) (fromList handles)
+
+ejpdInfoByHandles :: Maybe Bool -> [Handle] -> Handler EJPD.EJPDResponseBody
+ejpdInfoByHandles (fromMaybe False -> includeContacts) handles = Intra.getEjpdInfo handles includeContacts
 
 userConnections' :: UserId -> Handler Response
 userConnections' = fmap json . userConnections
@@ -701,12 +705,7 @@ revokeIdentity' :: Either Email Phone -> Handler Response
 revokeIdentity' emailOrPhone = Intra.revokeIdentity emailOrPhone >> pure empty
 
 revokeIdentity :: Maybe Email -> Maybe Phone -> Handler NoContent
-revokeIdentity mbe mbp = NoContent <$ (Intra.revokeIdentity =<< doubleMaybeToEither mbe mbp)
-
-doubleMaybeToEither :: Maybe a -> Maybe b -> Handler (Either a b)
-doubleMaybeToEither (Just a) Nothing = pure $ Left a
-doubleMaybeToEither Nothing (Just b) = pure $ Right b
-doubleMaybeToEither _ _ = error "specify exactly one of the two query params"
+revokeIdentity mbe mbp = NoContent <$ (Intra.revokeIdentity =<< doubleMaybeToEither "email, phone" mbe mbp)
 
 changeEmail' :: JSON ::: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
 changeEmail' (_ ::: uid ::: validate ::: req) = do
@@ -726,28 +725,36 @@ changePhone' (_ ::: uid ::: req) = do
 changePhone :: UserId -> PhoneUpdate -> Handler NoContent
 changePhone uid upd = NoContent <$ Intra.changePhone uid upd
 
-deleteUser :: UserId ::: Either Email Phone -> Handler Response
-deleteUser (uid ::: emailOrPhone) = do
+deleteUser' :: UserId ::: Either Email Phone -> Handler Response
+deleteUser' (uid ::: emailOrPhone) = do
+  empty <$ either (\e -> deleteUser uid (Just e) Nothing) (\p -> deleteUser uid Nothing (Just p)) emailOrPhone
+
+deleteUser :: UserId -> Maybe Email -> Maybe Phone -> Handler NoContent
+deleteUser uid mbEmail mbPhone = do
+  emailOrPhone <- doubleMaybeToEither "email, phone" mbEmail mbPhone
   usrs <- Intra.getUserProfilesByIdentity emailOrPhone
   case usrs of
-    ((accountUser -> u) : _) ->
-      if checkUUID u
+    [accountUser -> u] ->
+      if userId u == uid
         then do
           info $ userMsg uid . msg (val "Deleting account")
           void $ Intra.deleteAccount uid
-          pure empty
+          pure NoContent
         else throwE $ mkError status400 "match-error" "email or phone did not match UserId"
-    _ -> pure $ setStatus status404 empty
-  where
-    checkUUID u = userId u == uid
+    (_ : _ : _) -> error "impossible"
+    _ -> throwE $ mkError status404 "not-found" "not found"
 
-setTeamStatusH :: Team.TeamStatus -> TeamId -> Handler Response
-setTeamStatusH status tid = empty <$ Intra.setStatusBindingTeam tid status
+setTeamStatusH' :: Team.TeamStatus -> TeamId -> Handler Response
+setTeamStatusH' status tid = empty <$ Intra.setStatusBindingTeam tid status
 
-deleteTeam :: TeamId ::: Bool ::: Maybe Email -> Handler Response
-deleteTeam (_ ::: False ::: Nothing) =
-  throwE $ mkError status400 "Bad Request" "either email or 'force=true' parameter is required"
-deleteTeam (givenTid ::: False ::: Just email) = do
+setTeamStatusH :: Team.TeamStatus -> TeamId -> Handler NoContent
+setTeamStatusH status tid = NoContent <$ Intra.setStatusBindingTeam tid status
+
+deleteTeam' :: TeamId ::: Bool ::: Maybe Email -> Handler Response
+deleteTeam' = undefined
+
+deleteTeam :: TeamId -> Maybe Bool -> Maybe Email -> Handler NoContent
+deleteTeam givenTid (fromMaybe False -> False) (Just email) = do
   acc <- Intra.getUserProfilesByIdentity (Left email) >>= handleNoUser . listToMaybe
   userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
   when (givenTid /= userTid) $
@@ -755,17 +762,17 @@ deleteTeam (givenTid ::: False ::: Just email) = do
   tInfo <- Intra.getTeamInfo givenTid
   unless (length (tiMembers tInfo) == 1) $
     throwE wrongMemberCount
-  void $ Intra.deleteBindingTeam givenTid
-  pure $ setStatus status202 empty
+  NoContent <$ Intra.deleteBindingTeam givenTid
   where
     handleNoUser = ifNothing (mkError status404 "no-user" "No such user with that email")
     handleNoTeam = ifNothing (mkError status404 "no-binding-team" "No such binding team")
     wrongMemberCount = mkError status403 "wrong-member-count" "Only teams with 1 user can be deleted"
     bindingTeamMismatch = mkError status404 "binding-team-mismatch" "Binding team mismatch"
-deleteTeam (tid ::: True ::: _) = do
+deleteTeam tid (fromMaybe False -> True) _ = do
   void $ Intra.getTeamData tid -- throws 404 if team does not exist
-  void $ Intra.deleteBindingTeamForce tid
-  pure $ setStatus status202 empty
+  NoContent <$ Intra.deleteBindingTeamForce tid
+deleteTeam _ _ _ =
+  throwE $ mkError status400 "Bad Request" "either email or 'force=true' parameter is required"
 
 isUserKeyBlacklisted :: Either Email Phone -> Handler Response
 isUserKeyBlacklisted emailOrPhone = do

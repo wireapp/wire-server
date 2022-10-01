@@ -21,23 +21,28 @@ module Stern.API.Routes
     SwaggerDocsAPI,
     swaggerDocsAPI,
     UserConnectionGroups (..),
+    doubleMaybeToEither,
   )
 where
 
 import Brig.Types.Intra (UserAccount)
 import Control.Lens
+import Control.Monad.Trans.Except
 import qualified Data.Aeson as A
 import Data.Handle
 import Data.Id
 import qualified Data.Schema as Schema
 import qualified Data.Swagger as S
 import Imports hiding (head)
+import Network.HTTP.Types.Status
+import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
+import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.User
@@ -96,7 +101,7 @@ type SternAPI =
            "get-users-by-handles"
            ( Summary "Displays active users info given a list of handles"
                :> "users"
-               :> QueryParam' [Required, Strict, Description "List of Handles of the users, without '@', separated by comma"] "ids" [Handle]
+               :> QueryParam' [Required, Strict, Description "List of Handles of the users, without '@', separated by comma"] "handles" [Handle]
                :> Get '[JSON] [UserAccount]
            )
     :<|> Named
@@ -163,6 +168,55 @@ type SternAPI =
                :> Servant.ReqBody '[JSON] PhoneUpdate
                :> Put '[JSON] NoContent
            )
+    :<|> Named
+           "delete-user"
+           ( Summary "Delete a user (irrevocable!)"
+               :> Description
+                    "Email or Phone must match UserId's (to prevent copy/paste mistakes).  Use exactly one of the two query params."
+               :> "users"
+               :> Capture "uid" UserId
+               :> QueryParam' [Optional, Strict, Description "A verified email address"] "email" Email
+               :> QueryParam' [Optional, Strict, Description "A verified phone number (E.164 format)."] "phone" Phone
+               :> Delete '[JSON] NoContent
+           )
+    :<|> Named
+           "suspend-team"
+           ( Summary "Suspend a team."
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "suspend"
+               :> Put '[JSON] NoContent
+           )
+    :<|> Named
+           "unsuspend-team"
+           ( Summary "Set a team status to 'Active', independently on previous status.  (Cannot be used to un-delete teams, though.)"
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "unsuspend"
+               :> Put '[JSON] NoContent
+           )
+    :<|> Named
+           "delete-team"
+           ( Summary "Delete a team (irrevocable!). You can only delete teams with 1 user unless you use the 'force' query flag"
+               :> Description
+                    "The email address of the user must be provided to prevent copy/paste mistakes.\n\
+                    \The force query flag can be used to delete teams with more than one user. \
+                    \CAUTION: FORCE DELETE WILL PERMANENTLY DELETE ALL TEAM MEMBERS! \
+                    \CHECK TEAM MEMBER LIST (SEE ABOVE OR BELOW) IF YOU ARE UNCERTAIN THAT'S WHAT YOU WANT."
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> QueryParam' [Optional, Strict, Description "THIS WILL PERMANENTLY DELETE ALL TEAM MEMBERS! CHECK TEAM MEMBER LIST (SEE ABOVE OR BELOW) IF YOU ARE UNCERTAIN THAT'S WHAT YOU WANT."] "force" Bool
+               :> QueryParam' [Optional, Strict, Description "Matching verified remaining user address"] "email" Email
+               :> Delete '[JSON] NoContent
+           )
+    :<|> Named
+           "ejpd-info"
+           ( Summary "internal wire.com process: https://wearezeta.atlassian.net/wiki/spaces/~463749889/pages/256738296/EJPD+official+requests+process"
+               :> "ejpd-info"
+               :> QueryParam' [Optional, Strict, Description "If 'true', this gives you more more exhaustive information about this user (including social network)"] "include_contacts" Bool
+               :> QueryParam' [Required, Strict, Description "Handles of the users, separated by commas (NB: all chars need to be lower case!)"] "handles" [Handle]
+               :> Delete '[JSON] EJPD.EJPDResponseBody
+           )
 
 
 -------------------------------------------------------------------------------
@@ -203,3 +257,8 @@ instance Schema.ToSchema UserConnectionGroups where
         <*> ucgIgnored Schema..= Schema.field "ucgIgnored" Schema.schema
         <*> ucgMissingLegalholdConsent Schema..= Schema.field "ucgMissingLegalholdConsent" Schema.schema
         <*> ucgTotal Schema..= Schema.field "ucgTotal" Schema.schema
+
+doubleMaybeToEither :: Monad m => LText -> Maybe a -> Maybe b -> ExceptT Error m (Either a b)
+doubleMaybeToEither _ (Just a) Nothing = pure $ Left a
+doubleMaybeToEither _ Nothing (Just b) = pure $ Right b
+doubleMaybeToEither msg _ _ = throwE $ mkError status400 "either-params" ("Must use exactly one of two query params: " <> msg)
