@@ -62,7 +62,7 @@ import qualified Servant
 import qualified Servant.Server
 import Stern.API.Predicates
 import Stern.API.Routes
-import Stern.API.RoutesLegacy
+import qualified Stern.API.RoutesLegacy as RoutesLegacy
 import Stern.App
 import qualified Stern.Intra as Intra
 import Stern.Options
@@ -93,13 +93,6 @@ start o = do
     server :: Env -> Server.Server
     server e = Server.defaultServer (unpack $ stern o ^. epHost) (stern o ^. epPort) (e ^. applog) (e ^. metrics)
 
-    -- WIP: the servant app wraps the old wai-routes api
-    -- todo: remove wai-route api and replace with servant api when fully servantified
-    -- currently the servant app only contains the swagger docs
-    -- and is served with stern: http://localhost:8091/backoffice/api/swagger-ui/
-    -- swagger ui is functional and can execute requests against stern
-    -- however there is a servant value that implements the servant api and uses the same handlers as the wai-route api
-    -- to make sure it type checks
     servantApp :: Env -> Application
     servantApp e =
       Servant.serve
@@ -196,7 +189,22 @@ servantSitemap' =
 -}
 
 servantSitemapInternal :: Servant.Server SternAPIInternal
-servantSitemapInternal = Named @"status" (pure Servant.NoContent)
+servantSitemapInternal =
+  Named @"status" (pure Servant.NoContent)
+    :<|> Named @"legacy-api-docs" serveLegacySwagger
+
+-- | FUTUREWORK: remove this handler, the servant route, and module Stern.API.RoutesLegacy,
+-- once we don't depend on swagger1.2 for stern any more.
+serveLegacySwagger :: Text -> Servant.Server.Handler NoContent
+serveLegacySwagger url =
+  Servant.Server.Handler $
+    throwE
+      ( Servant.ServerError
+          200
+          mempty
+          (encode $ RoutesLegacy.apiDocs (cs url))
+          [("Content-Type", "application/json")]
+      )
 
 -----------------------------------------------------------------------------
 -- Handlers

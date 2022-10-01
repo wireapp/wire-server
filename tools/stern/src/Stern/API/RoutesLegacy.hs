@@ -17,6 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- | FUTUREWORK: remove this module once we don't depend on swagger1.2 for stern any more
 module Stern.API.RoutesLegacy (apiDocs) where
 
 import Brig.Types.Intra
@@ -74,16 +75,8 @@ import Wire.API.User
 import Wire.API.User.Search
 import qualified Wire.Swagger as Doc
 
-apiDocs :: Routes a Handler ()
-apiDocs = do
-  get
-    "/stern/api-docs"
-    ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) Doc.sternModels routes
-         in k $ json doc
-    )
-    $ accept "application" "json"
-      .&. query "base_url"
+apiDocs :: ByteString -> Value
+apiDocs url = toJSON $ mkSwaggerApi (decodeLatin1 url) Doc.sternModels routes
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
