@@ -48,10 +48,7 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
-import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
-import Brig.Effects.PasswordResetStore (PasswordResetStore)
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))

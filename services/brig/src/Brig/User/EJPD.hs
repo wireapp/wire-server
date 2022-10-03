@@ -26,8 +26,8 @@ import Brig.App (AppT, liftSem, wrapClient, wrapHttp)
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
