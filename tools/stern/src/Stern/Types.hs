@@ -26,11 +26,12 @@
 module Stern.Types where
 
 import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Json.Util
 import Data.Range
+import qualified Data.Schema as S
+import qualified Data.Swagger as Swagger
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra (TeamData)
 import Imports
@@ -39,22 +40,30 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 
 newtype TeamMemberInfo = TeamMemberInfo {tm :: TeamMember}
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamMemberInfo
 
-instance ToJSON TeamMemberInfo where
-  toJSON (TeamMemberInfo m) =
-    case teamMemberJson (const True) m of
-      Object o ->
-        Object $
-          KeyMap.insert "can_update_billing" (Bool (hasPermission m SetBilling)) $
-            KeyMap.insert "can_view_billing" (Bool (hasPermission m GetBilling)) $
-              o
-      other ->
-        error $ "toJSON TeamMemberInfo: not an object: " <> show (encode other)
+instance S.ToSchema TeamMemberInfo where
+  schema =
+    S.object "TeamMemberInfo" $
+      TeamMemberInfo
+        <$> tm S..= teamMemberObjectSchema
+        <* ((`hasPermission` SetBilling) . tm) S..= S.field "can_update_billing" S.schema
+        <* ((`hasPermission` GetBilling) . tm) S..= S.field "can_view_billing" S.schema
 
 data TeamInfo = TeamInfo
   { tiData :: TeamData,
     tiMembers :: [TeamMemberInfo]
   }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamInfo
+
+instance S.ToSchema TeamInfo where
+  schema =
+    S.object "TeamInfo" $
+      TeamInfo
+        <$> tiData S..= S.field "info" S.schema
+        <*> tiMembers S..= S.field "members" (S.array S.schema)
 
 data TeamAdminInfo = TeamAdminInfo
   { taData :: TeamData,
@@ -62,6 +71,17 @@ data TeamAdminInfo = TeamAdminInfo
     taAdmins :: [TeamMemberInfo],
     taMembers :: Int
   }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamAdminInfo
+
+instance S.ToSchema TeamAdminInfo where
+  schema =
+    S.object "TeamAdminInfo" $
+      TeamAdminInfo
+        <$> taData S..= S.field "data" S.schema
+        <*> taOwners S..= S.field "owners" (S.array S.schema)
+        <*> taAdmins S..= S.field "admins" (S.array S.schema)
+        <*> taMembers S..= S.field "total_members" S.schema
 
 toAdminInfo :: TeamInfo -> TeamAdminInfo
 toAdminInfo (TeamInfo d members) =
@@ -78,22 +98,6 @@ isOwner m = hasPermission m SetBilling
 
 isAdmin :: TeamMember -> Bool
 isAdmin m = hasPermission m AddTeamMember && not (hasPermission m SetBilling)
-
-instance ToJSON TeamInfo where
-  toJSON (TeamInfo d m) =
-    object
-      [ "info" .= d,
-        "members" .= m
-      ]
-
-instance ToJSON TeamAdminInfo where
-  toJSON (TeamAdminInfo d o a m) =
-    object
-      [ "info" .= d,
-        "owners" .= o,
-        "admins" .= a,
-        "total_members" .= m
-      ]
 
 newtype UserProperties = UserProperties
   { unUserProperties :: Map PropertyKey Value
