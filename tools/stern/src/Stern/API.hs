@@ -147,28 +147,21 @@ servantSitemap' =
     :<|> Named @"get-team-admin-info" getTeamAdminInfo
     :<|> Named @"get-route-legalhold-config" (mkFeatureGetRoute @LegalholdConfig)
     :<|> Named @"put-route-legalhold-config" (mkFeaturePutRouteTrivialConfigNoTTL @LegalholdConfig)
+    :<|> Named @"get-route-sso-config" (mkFeatureGetRoute @SSOConfig)
+    :<|> Named @"put-route-sso-config" (mkFeaturePutRouteTrivialConfigNoTTL @SSOConfig)
+    :<|> Named @"get-route-search-visibility-available-config" (mkFeatureGetRoute @SearchVisibilityAvailableConfig)
+    :<|> Named @"put-route-search-visibility-available-config" (mkFeaturePutRouteTrivialConfigNoTTL @SearchVisibilityAvailableConfig)
+    :<|> Named @"get-route-validate-saml-emails-config" (mkFeatureGetRoute @ValidateSAMLEmailsConfig)
+    :<|> Named @"put-route-validate-saml-emails-config" (mkFeaturePutRouteTrivialConfigNoTTL @ValidateSAMLEmailsConfig)
+    :<|> Named @"get-route-digital-signatures-config" (mkFeatureGetRoute @DigitalSignaturesConfig)
+    :<|> Named @"put-route-digital-signatures-config" (mkFeaturePutRouteTrivialConfigNoTTL @DigitalSignaturesConfig)
+    :<|> Named @"get-route-file-sharing-config" (mkFeatureGetRoute @FileSharingConfig)
+    :<|> Named @"put-route-file-sharing-config" (mkFeaturePutRouteTrivialConfigNoTTL @FileSharingConfig)
+    :<|> Named @"get-route-classified-domains-config" (mkFeatureGetRoute @ClassifiedDomainsConfig)
+    :<|> Named @"get-route-conference-calling-config" (mkFeatureGetRoute @ConferenceCallingConfig)
+    :<|> Named @"put-route-conference-calling-config" (mkFeaturePutRouteTrivialConfigWithTTL @ConferenceCallingConfig)
 
 {-
-
-  mkFeatureGetRoute @SSOConfig
-  mkFeaturePutRouteTrivialConfig @SSOConfig
-
-  mkFeatureGetRoute @SearchVisibilityAvailableConfig
-  mkFeaturePutRouteTrivialConfig @SearchVisibilityAvailableConfig
-
-  mkFeatureGetRoute @ValidateSAMLEmailsConfig
-  mkFeaturePutRouteTrivialConfig @ValidateSAMLEmailsConfig
-
-  mkFeatureGetRoute @DigitalSignaturesConfig
-  mkFeaturePutRouteTrivialConfig @DigitalSignaturesConfig
-
-  mkFeatureGetRoute @FileSharingConfig
-  mkFeaturePutRouteTrivialConfig @FileSharingConfig
-
-  mkFeatureGetRoute @ClassifiedDomainsConfig
-
-  mkFeatureGetRoute @ConferenceCallingConfig
-  mkFeaturePutRouteTrivialConfig' @ConferenceCallingConfig TtlEnabled
 
   mkFeatureGetRoute @AppLockConfig
   mkFeaturePutRoute @AppLockConfig
@@ -349,9 +342,9 @@ mkFeaturePutRouteTrivialConfigNoTTL ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Handler NoContent
 mkFeaturePutRouteTrivialConfigNoTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status Nothing
 
-_mkFeaturePutRouteTrivialConfigWithTTL ::
+mkFeaturePutRouteTrivialConfigWithTTL ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> FeatureTTLDays -> Handler NoContent
-_mkFeaturePutRouteTrivialConfigWithTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status . Just
+mkFeaturePutRouteTrivialConfigWithTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status . Just
 
 mkFeaturePutRouteTrivialConfig ::
   forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Maybe FeatureTTLDays -> Handler NoContent

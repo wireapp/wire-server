@@ -279,6 +279,19 @@ type SternAPI =
            )
     :<|> Named "get-route-legalhold-config" (MkFeatureGetRoute LegalholdConfig)
     :<|> Named "put-route-legalhold-config" (MkFeaturePutRouteTrivialConfigNoTTL LegalholdConfig)
+    :<|> Named "get-route-sso-config" (MkFeatureGetRoute SSOConfig)
+    :<|> Named "put-route-sso-config" (MkFeaturePutRouteTrivialConfigNoTTL SSOConfig)
+    :<|> Named "get-route-search-visibility-available-config" (MkFeatureGetRoute SearchVisibilityAvailableConfig)
+    :<|> Named "put-route-search-visibility-available-config" (MkFeaturePutRouteTrivialConfigNoTTL SearchVisibilityAvailableConfig)
+    :<|> Named "get-route-validate-saml-emails-config" (MkFeatureGetRoute ValidateSAMLEmailsConfig)
+    :<|> Named "put-route-validate-saml-emails-config" (MkFeaturePutRouteTrivialConfigNoTTL ValidateSAMLEmailsConfig)
+    :<|> Named "get-route-digital-signatures-config" (MkFeatureGetRoute DigitalSignaturesConfig)
+    :<|> Named "put-route-digital-signatures-config" (MkFeaturePutRouteTrivialConfigNoTTL DigitalSignaturesConfig)
+    :<|> Named "get-route-file-sharing-config" (MkFeatureGetRoute FileSharingConfig)
+    :<|> Named "put-route-file-sharing-config" (MkFeaturePutRouteTrivialConfigNoTTL FileSharingConfig)
+    :<|> Named "get-route-classified-domains-config" (MkFeatureGetRoute ClassifiedDomainsConfig)
+    :<|> Named "get-route-conference-calling-config" (MkFeatureGetRoute ConferenceCallingConfig)
+    :<|> Named "put-route-conference-calling-config" (MkFeaturePutRouteTrivialConfigWithTTL ConferenceCallingConfig)
 
 
 -------------------------------------------------------------------------------
@@ -342,7 +355,6 @@ type MkFeaturePutRouteTrivialConfigNoTTL feature =
     :> QueryParam' [Required, Strict] "status" FeatureStatus
     :> Put '[JSON] NoContent
 
-{-
 type MkFeaturePutRouteTrivialConfigWithTTL feature =
   Summary "Disable / enable status for a given feature / team"
     :> Description "team feature time to live, given in days, or 'unlimited' (default).  only available on *some* features!"
@@ -353,4 +365,3 @@ type MkFeaturePutRouteTrivialConfigWithTTL feature =
     :> QueryParam' [Required, Strict] "status" FeatureStatus
     :> QueryParam' [Required, Strict, Description "team feature time to live, given in days, or 'unlimited' (default)."] "ttl" FeatureTTLDays
     :> Put '[JSON] NoContent
--}
