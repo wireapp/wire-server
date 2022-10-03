@@ -21,11 +21,11 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Id
 import Imports
 import Servant.API
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Asset
 import Wire.API.Federation.Endpoint
 import Wire.API.Routes.AssetBody
 import Wire.API.Util.Aeson
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 data GetAsset = GetAsset
   { -- | User requesting the asset. Implictly qualified with the source domain.

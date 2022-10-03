@@ -69,10 +69,10 @@ import Wire.API.User
 testObject_User_user_1 :: User
 testObject_User_user_1 =
   User
-    { userId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
+    { userId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
       userQualifiedId =
         Qualified
-          { qUnqualified = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000002"))),
+          { qUnqualified = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000002")),
             qDomain = Domain {_domainText = "s-f4.s"}
           },
       userIdentity = Nothing,
@@ -92,10 +92,10 @@ testObject_User_user_1 =
 testObject_User_user_2 :: User
 testObject_User_user_2 =
   User
-    { userId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
+    { userId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001")),
       userQualifiedId =
         Qualified
-          { qUnqualified = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001"))),
+          { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000001")),
             qDomain = Domain {_domainText = "k.vbg.p"}
           },
       userIdentity = Just (PhoneIdentity (Phone {fromPhone = "+837934954"})),
@@ -106,9 +106,9 @@ testObject_User_user_2 =
           },
       userPict = Pict {fromPict = []},
       userAssets =
-        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+        [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
+          ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)
         ],
       userAccentId = ColourId {fromColourId = -2},
       userDeleted = True,
@@ -116,8 +116,8 @@ testObject_User_user_2 =
       userService =
         Just
           ( ServiceRef
-              { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001"))),
-                _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
+              { _serviceRefId = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")),
+                _serviceRefProvider = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))
               }
           ),
       userHandle = Nothing,
@@ -129,10 +129,10 @@ testObject_User_user_2 =
 testObject_User_user_3 :: User
 testObject_User_user_3 =
   User
-    { userId = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000000"))),
+    { userId = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000000")),
       userQualifiedId =
         Qualified
-          { qUnqualified = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000002"))),
+          { qUnqualified = Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000002")),
             qDomain = Domain {_domainText = "dt.n"}
           },
       userIdentity = Just (EmailIdentity (Email {emailLocal = "f", emailDomain = "\83115"})),
@@ -146,8 +146,8 @@ testObject_User_user_3 =
       userService =
         Just
           ( ServiceRef
-              { _serviceRefId = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))),
-                _serviceRefProvider = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000")))
+              { _serviceRefId = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000")),
+                _serviceRefProvider = Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000000"))
               }
           ),
       userHandle = Just (Handle {fromHandle = "1c"}),
@@ -159,10 +159,10 @@ testObject_User_user_3 =
 testObject_User_user_4 :: User
 testObject_User_user_4 =
   User
-    { userId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002"))),
+    { userId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
       userQualifiedId =
         Qualified
-          { qUnqualified = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002"))),
+          { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002")),
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
@@ -180,8 +180,8 @@ testObject_User_user_4 =
       userService =
         Just
           ( ServiceRef
-              { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
-                _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
+              { _serviceRefId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
+                _serviceRefProvider = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))
               }
           ),
       userHandle =
@@ -199,10 +199,10 @@ testObject_User_user_4 =
 testObject_User_user_5 :: User
 testObject_User_user_5 =
   User
-    { userId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002"))),
+    { userId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000100000002")),
       userQualifiedId =
         Qualified
-          { qUnqualified = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002"))),
+          { qUnqualified = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000002")),
             qDomain = Domain {_domainText = "28b.cqb"}
           },
       userIdentity =
@@ -220,8 +220,8 @@ testObject_User_user_5 =
       userService =
         Just
           ( ServiceRef
-              { _serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))),
-                _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
+              { _serviceRefId = Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")),
+                _serviceRefProvider = Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000"))
               }
           ),
       userHandle =

@@ -61,7 +61,7 @@ testObject_ProviderProfile_provider_1 :: ProviderProfile
 testObject_ProviderProfile_provider_1 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000700000006"))),
+        { providerId = Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000700000006")),
           providerName = Name {fromName = "\46338\DC4"},
           providerEmail = Email {emailLocal = "OR\32966c", emailDomain = "\RS\ENQr"},
           providerUrl =
@@ -88,7 +88,7 @@ testObject_ProviderProfile_provider_2 :: ProviderProfile
 testObject_ProviderProfile_provider_2 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000000000004"))),
+        { providerId = Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000000000004")),
           providerName =
             Name
               { fromName =
@@ -119,7 +119,7 @@ testObject_ProviderProfile_provider_3 :: ProviderProfile
 testObject_ProviderProfile_provider_3 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000004-0000-0001-0000-000800000000"))),
+        { providerId = Id (fromJust (UUID.fromString "00000004-0000-0001-0000-000800000000")),
           providerName =
             Name
               { fromName =
@@ -150,7 +150,7 @@ testObject_ProviderProfile_provider_4 :: ProviderProfile
 testObject_ProviderProfile_provider_4 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000400000004"))),
+        { providerId = Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000400000004")),
           providerName =
             Name
               { fromName =
@@ -181,7 +181,7 @@ testObject_ProviderProfile_provider_5 :: ProviderProfile
 testObject_ProviderProfile_provider_5 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000003-0000-0007-0000-000700000003"))),
+        { providerId = Id (fromJust (UUID.fromString "00000003-0000-0007-0000-000700000003")),
           providerName = Name {fromName = "\6923gr\n\35429-\37180f\fJ9\RSl)\f\20518_H^Xh\bA;O|"},
           providerEmail = Email {emailLocal = "%>", emailDomain = "\1075658\17096q"},
           providerUrl =
@@ -208,7 +208,7 @@ testObject_ProviderProfile_provider_6 :: ProviderProfile
 testObject_ProviderProfile_provider_6 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000600000008"))),
+        { providerId = Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000600000008")),
           providerName =
             Name
               { fromName =
@@ -239,7 +239,7 @@ testObject_ProviderProfile_provider_7 :: ProviderProfile
 testObject_ProviderProfile_provider_7 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000003-0000-0006-0000-000800000001"))),
+        { providerId = Id (fromJust (UUID.fromString "00000003-0000-0006-0000-000800000001")),
           providerName =
             Name
               { fromName =
@@ -270,7 +270,7 @@ testObject_ProviderProfile_provider_8 :: ProviderProfile
 testObject_ProviderProfile_provider_8 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000005-0000-0004-0000-000700000008"))),
+        { providerId = Id (fromJust (UUID.fromString "00000005-0000-0004-0000-000700000008")),
           providerName =
             Name
               { fromName =
@@ -301,7 +301,7 @@ testObject_ProviderProfile_provider_9 :: ProviderProfile
 testObject_ProviderProfile_provider_9 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000004-0000-0006-0000-000100000002"))),
+        { providerId = Id (fromJust (UUID.fromString "00000004-0000-0006-0000-000100000002")),
           providerName =
             Name
               { fromName =
@@ -332,7 +332,7 @@ testObject_ProviderProfile_provider_10 :: ProviderProfile
 testObject_ProviderProfile_provider_10 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000004-0000-0008-0000-000500000008"))),
+        { providerId = Id (fromJust (UUID.fromString "00000004-0000-0008-0000-000500000008")),
           providerName =
             Name
               { fromName =
@@ -363,7 +363,7 @@ testObject_ProviderProfile_provider_11 :: ProviderProfile
 testObject_ProviderProfile_provider_11 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000700000004"))),
+        { providerId = Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000700000004")),
           providerName =
             Name
               { fromName =
@@ -394,7 +394,7 @@ testObject_ProviderProfile_provider_12 :: ProviderProfile
 testObject_ProviderProfile_provider_12 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000007-0000-0004-0000-000100000000"))),
+        { providerId = Id (fromJust (UUID.fromString "00000007-0000-0004-0000-000100000000")),
           providerName =
             Name
               { fromName =
@@ -425,7 +425,7 @@ testObject_ProviderProfile_provider_13 :: ProviderProfile
 testObject_ProviderProfile_provider_13 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000800000004"))),
+        { providerId = Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000800000004")),
           providerName =
             Name
               { fromName =
@@ -456,7 +456,7 @@ testObject_ProviderProfile_provider_14 :: ProviderProfile
 testObject_ProviderProfile_provider_14 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000007-0000-0006-0000-000700000007"))),
+        { providerId = Id (fromJust (UUID.fromString "00000007-0000-0006-0000-000700000007")),
           providerName = Name {fromName = "\SOH4\ENQ\ACK>\rx~J$k!~\t\DC14\985222\DLE\ETB\r\ETBy!9"},
           providerEmail = Email {emailLocal = "<", emailDomain = "M\SI"},
           providerUrl =
@@ -483,7 +483,7 @@ testObject_ProviderProfile_provider_15 :: ProviderProfile
 testObject_ProviderProfile_provider_15 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000001-0000-0006-0000-000300000005"))),
+        { providerId = Id (fromJust (UUID.fromString "00000001-0000-0006-0000-000300000005")),
           providerName =
             Name
               { fromName =
@@ -514,7 +514,7 @@ testObject_ProviderProfile_provider_16 :: ProviderProfile
 testObject_ProviderProfile_provider_16 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000008-0000-0001-0000-000300000001"))),
+        { providerId = Id (fromJust (UUID.fromString "00000008-0000-0001-0000-000300000001")),
           providerName =
             Name
               { fromName =
@@ -545,7 +545,7 @@ testObject_ProviderProfile_provider_17 :: ProviderProfile
 testObject_ProviderProfile_provider_17 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000400000006"))),
+        { providerId = Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000400000006")),
           providerName = Name {fromName = "\37146|_;\1090300\48254\STX4/\13124yqDttZ\SUB\1065843y\17715\177370"},
           providerEmail = Email {emailLocal = "X\1050408J1\SYN", emailDomain = "\1024482%"},
           providerUrl =
@@ -572,7 +572,7 @@ testObject_ProviderProfile_provider_18 :: ProviderProfile
 testObject_ProviderProfile_provider_18 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000007-0000-0006-0000-000600000008"))),
+        { providerId = Id (fromJust (UUID.fromString "00000007-0000-0006-0000-000600000008")),
           providerName =
             Name
               { fromName =
@@ -603,7 +603,7 @@ testObject_ProviderProfile_provider_19 :: ProviderProfile
 testObject_ProviderProfile_provider_19 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000200000008"))),
+        { providerId = Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000200000008")),
           providerName =
             Name
               { fromName =
@@ -634,7 +634,7 @@ testObject_ProviderProfile_provider_20 :: ProviderProfile
 testObject_ProviderProfile_provider_20 =
   ProviderProfile
     ( Provider
-        { providerId = (Id (fromJust (UUID.fromString "00000002-0000-0005-0000-000400000004"))),
+        { providerId = Id (fromJust (UUID.fromString "00000002-0000-0005-0000-000400000004")),
           providerName = Name {fromName = "q\1073609\138472T,$"},
           providerEmail = Email {emailLocal = "%)Z'", emailDomain = "\1023312f"},
           providerUrl =

@@ -19,6 +19,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
@@ -30,8 +31,12 @@ import Data.Nonce (Nonce)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
-import Data.Swagger hiding (Contact, Header)
+import Data.Schema as Schema
+import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
+import qualified Data.Swagger as S
+import qualified Generics.SOP as GSOP
 import Imports hiding (head)
+import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
@@ -50,9 +55,12 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.User hiding (NoIdentity)
+import Wire.API.User.Activation
 import Wire.API.User.Client
+import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
+import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
@@ -384,6 +392,154 @@ type AccountAPI =
         :> ReqBody '[JSON] NewUserPublic
         :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
     )
+    -- This endpoint can lead to the following events being sent:
+    -- UserDeleted event to contacts of deleted user
+    -- MemberLeave event to members for all conversations the user was in (via galley)
+    :<|> Named
+           "verify-delete"
+           ( Summary "Verify account deletion with a code."
+               :> CanThrow 'InvalidCode
+               :> "delete"
+               :> ReqBody '[JSON] VerifyDeleteUser
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Deletion is initiated."] ()
+           )
+    -- This endpoint can lead to the following events being sent:
+    -- - UserActivated event to the user, if account gets activated
+    -- - UserIdentityUpdated event to the user, if email or phone get activated
+    :<|> Named
+           "get-activate"
+           ( Summary "Activate (i.e. confirm) an email address or phone number."
+               :> Description "See also 'POST /activate' which has a larger feature set."
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'InvalidActivationCodeWrongUser
+               :> CanThrow 'InvalidActivationCodeWrongCode
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'InvalidPhone
+               :> "activate"
+               :> QueryParam' '[Required, Strict, Description "Activation key"] "key" ActivationKey
+               :> QueryParam' '[Required, Strict, Description "Activation code"] "code" ActivationCode
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    GetActivateResponse
+                    ActivationRespWithStatus
+           )
+    -- docs/reference/user/activation.md {#RefActivationSubmit}
+    --
+    -- This endpoint can lead to the following events being sent:
+    -- - UserActivated event to the user, if account gets activated
+    -- - UserIdentityUpdated event to the user, if email or phone get activated
+    :<|> Named
+           "post-activate"
+           ( Summary "Activate (i.e. confirm) an email address or phone number."
+               :> Description
+                    "Activation only succeeds once and the number of \
+                    \failed attempts for a valid key is limited."
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'InvalidActivationCodeWrongUser
+               :> CanThrow 'InvalidActivationCodeWrongCode
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'InvalidPhone
+               :> "activate"
+               :> ReqBody '[JSON] Activate
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    GetActivateResponse
+                    ActivationRespWithStatus
+           )
+    -- docs/reference/user/activation.md {#RefActivationRequest}
+    :<|> Named
+           "post-activate-send"
+           ( Summary "Send (or resend) an email or phone activation code."
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'InvalidPhone
+               :> CanThrow 'BlacklistedEmail
+               :> CanThrow 'BlacklistedPhone
+               :> CanThrow 'CustomerExtensionBlockedDomain
+               :> "activate"
+               :> "send"
+               :> ReqBody '[JSON] SendActivationCode
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Activation code sent."] ()
+           )
+    :<|> Named
+           "post-password-reset"
+           ( Summary "Initiate a password reset."
+               :> CanThrow 'PasswordResetInProgress
+               :> CanThrow 'InvalidPasswordResetKey
+               :> "password-reset"
+               :> ReqBody '[JSON] NewPasswordReset
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 201 "Password reset code created and sent by email."] ()
+           )
+    :<|> Named
+           "post-password-reset-complete"
+           ( Summary "Complete a password reset."
+               :> CanThrow 'InvalidPasswordResetCode
+               :> "password-reset"
+               :> "complete"
+               :> ReqBody '[JSON] CompletePasswordReset
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
+           )
+    :<|> Named
+           "post-password-reset-key-deprecated"
+           ( Summary "Complete a password reset."
+               :> CanThrow 'PasswordResetInProgress
+               :> CanThrow 'InvalidPasswordResetKey
+               :> CanThrow 'InvalidPasswordResetCode
+               :> CanThrow 'ResetPasswordMustDiffer
+               :> Description "DEPRECATED: Use 'POST /password-reset/complete'."
+               :> "password-reset"
+               :> Capture' '[Description "An opaque key for a pending password reset."] "key" PasswordResetKey
+               :> ReqBody '[JSON] PasswordReset
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Password reset successful."] ()
+           )
+    :<|> Named
+           "onboarding"
+           ( Summary "Upload contacts and invoke matching."
+               :> Description
+                    "DEPRECATED: the feature has been turned off, the end-point does \
+                    \nothing and always returns '{\"results\":[],\"auto-connects\":[]}'."
+               :> ZUser
+               :> "onboarding"
+               :> "v3"
+               :> ReqBody '[JSON] JsonValue
+               :> Post '[JSON] DeprecatedMatchingResult
+           )
+
+newtype JsonValue = JsonValue {fromJsonValue :: A.Value}
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema JsonValue)
+
+instance ToSchema JsonValue where
+  schema = fromJsonValue .= (JsonValue <$> named "Body" jsonValue)
+
+data DeprecatedMatchingResult = DeprecatedMatchingResult
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DeprecatedMatchingResult)
+
+instance ToSchema DeprecatedMatchingResult where
+  schema =
+    object
+      "DeprecatedMatchingResult"
+      $ DeprecatedMatchingResult
+        <$ const [] .= field "results" (array (null_ @SwaggerDoc))
+        <* const [] .= field "auto-connects" (array (null_ @SwaggerDoc))
+
+data ActivationRespWithStatus
+  = ActivationResp ActivationResponse
+  | ActivationRespDryRun
+  | ActivationRespPass
+  | ActivationRespSuccessNoIdent
+  deriving (Generic)
+  deriving (AsUnion GetActivateResponse) via GenericAsUnion GetActivateResponse ActivationRespWithStatus
+
+instance GSOP.Generic ActivationRespWithStatus
+
+type GetActivateResponse =
+  '[ Respond 200 "Activation successful." ActivationResponse,
+     RespondEmpty 200 "Activation successful. (Dry run)",
+     RespondEmpty 204 "A recent activation was already successful.",
+     RespondEmpty 200 "Activation successful."
+   ]
 
 type PrekeyAPI =
   Named
@@ -535,33 +691,61 @@ type UserClientAPI =
                :> "prekeys"
                :> Get '[JSON] [PrekeyId]
            )
-    :<|> NonceAPI
-
-type NonceAPI =
-  -- be aware that the order matters, if get was first, then head requests would be routed to the get handler
-  NewNonce "head-nonce" 'HEAD 200
+    -- be aware that the order of the head-nonce and get-nonce matters, if get was first, then head requests would be routed to the get handler
+    :<|> NewNonce "head-nonce" 'HEAD 200
     :<|> NewNonce "get-nonce" 'GET 204
+    :<|> CreateAccessToken
+
+type CreateAccessToken =
+  Named
+    "create-access-token"
+    ( Summary "Create a JWT DPoP access token"
+        :> Description
+             ( "[implementation stub, not supported yet!] \
+               \Create an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. \
+               \The access token will be returned as JWT DPoP token in the `DPoP` header."
+             )
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "cid"
+        :> "access-token"
+        :> Header' '[Required, Strict] "DPoP" Proof
+        :> MultiVerb1
+             'POST
+             '[JSON]
+             ( WithHeaders
+                 '[Header "Cache-Control" CacheControl]
+                 (DPoPAccessTokenResponse, CacheControl)
+                 (Respond 200 "Access token created" DPoPAccessTokenResponse)
+             )
+    )
 
 type NewNonce name method statusCode =
   Named
     name
-    ( Summary "Get a new nonce for a client CSR, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
+    ( Summary "Get a new nonce for a client CSR"
+        :> Description "Get a new nonce for a client CSR, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding."
         :> ZUser
-        :> "nonce"
         :> "clients"
+        :> CaptureClientId "client"
+        :> "nonce"
         :> MultiVerb1
              method
              '[JSON]
-             (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty statusCode "No Content"))
+             ( WithHeaders
+                 '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" CacheControl]
+                 (Nonce, CacheControl)
+                 (RespondEmpty statusCode "No Content")
+             )
     )
 
 newtype NonceHeader = NonceHeader Nonce
   deriving (Eq, Show)
   deriving newtype (FromByteString, ToByteString, ToParamSchema, ToHttpApiData, FromHttpApiData)
 
-instance AsHeaders '[NonceHeader, Text] () Nonce where
-  fromHeaders (I (NonceHeader nonce) :* (_ :* Nil), _) = nonce
-  toHeaders nonce = (I (NonceHeader nonce) :* (I "no-store" :* Nil), ())
+instance AsHeaders '[NonceHeader, CacheControl] () (Nonce, CacheControl) where
+  fromHeaders (I (NonceHeader n) :* (I cc :* Nil), ()) = (n, cc)
+  toHeaders (n, cc) = (I (NonceHeader n) :* (I cc :* Nil), ())
 
 type ClientAPI =
   Named

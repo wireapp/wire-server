@@ -40,6 +40,7 @@ import Control.Exception (throw)
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import qualified Control.Monad.Catch as Catch
+import qualified Control.Monad.State as State
 import Control.Monad.State.Class (MonadState)
 import qualified Control.Monad.State.Class as MonadState
 import Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
@@ -50,7 +51,7 @@ import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
-import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
@@ -59,7 +60,7 @@ import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
-import Data.Qualified
+import Data.Qualified hiding (isLocal)
 import Data.Range
 import qualified Data.Sequence as Seq
 import Data.String.Conversions (cs)
@@ -134,6 +135,38 @@ type Nginz = Request -> Request
 type Spar = Request -> Request
 
 data FedClient (comp :: Component) = FedClient HTTP.Manager Endpoint
+
+-- | Note: Apply this function last when composing (Request -> Request) functions
+apiVersion :: ByteString -> Request -> Request
+apiVersion newVersion r = r {HTTP.path = setVersion newVersion (HTTP.path r)}
+  where
+    setVersion :: ByteString -> ByteString -> ByteString
+    setVersion v p =
+      let p' = removeSlash' p
+       in v <> "/" <> fromMaybe p' (removeVersionPrefix p')
+
+removeSlash' :: ByteString -> ByteString
+removeSlash' s = case B8.uncons s of
+  Just ('/', s') -> s'
+  _ -> s
+
+removeVersionPrefix :: ByteString -> Maybe ByteString
+removeVersionPrefix bs = do
+  let (x, s) = B8.splitAt 1 bs
+  guard (x == B8.pack "v")
+  (_, s') <- B8.readInteger s
+  pure (B8.tail s')
+
+-- | Note: Apply this function last when composing (Request -> Request) functions
+unversioned :: Request -> Request
+unversioned r =
+  r
+    { HTTP.path =
+        maybe
+          (HTTP.path r)
+          (B8.pack "/" <>)
+          (removeVersionPrefix . removeSlash' $ HTTP.path r)
+    }
 
 runFedClient ::
   forall (name :: Symbol) comp api.
@@ -317,7 +350,7 @@ getPhoneLoginCode brig p = do
   let lbs = fromMaybe "" $ responseBody r
   pure (LoginCode <$> (lbs ^? key "code" . _String))
 
-assertUpdateNotification :: WS.WebSocket -> UserId -> UserUpdate -> IO Notification
+assertUpdateNotification :: WS.WebSocket -> UserId -> UserUpdate -> IO ()
 assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
   let j = Object $ List1.head (ntfPayload n)
   j ^? key "type" . _String @?= Just "user.update"
@@ -333,7 +366,8 @@ assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
 getConnection :: Brig -> UserId -> UserId -> Http ResponseLBS
 getConnection brig from to =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["/connections", toByteString' to]
       . zUser from
       . zConn "conn"
@@ -439,7 +473,8 @@ getSelfProfile brig usr = do
 getUser :: Brig -> UserId -> UserId -> Http ResponseLBS
 getUser brig zusr usr =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["users", toByteString' usr]
       . zUser zusr
 
@@ -450,7 +485,8 @@ login :: Brig -> Login -> CookieType -> (MonadIO m, MonadHttp m) => m ResponseLB
 login b l t =
   let js = RequestBodyLBS (encode l)
    in post $
-        b
+        unversioned
+          . b
           . path "/login"
           . contentJson
           . (if t == PersistentCookie then queryItem "persist" "true" else id)
@@ -510,7 +546,8 @@ sendLoginCode b p typ force =
 postConnection :: Brig -> UserId -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 postConnection brig from to =
   post $
-    brig
+    apiVersion "v1"
+      . brig
       . path "/connections"
       . contentJson
       . body payload
@@ -533,7 +570,8 @@ postConnectionQualified brig from (Qualified toUser toDomain) =
 putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
 putConnection brig from to r =
   put $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["/connections", toByteString' to]
       . contentJson
       . body payload
@@ -602,7 +640,8 @@ getUserInfoFromHandle brig domain handle = do
   u <- randomId
   responseJsonError
     =<< get
-      ( brig
+      ( apiVersion "v1"
+          . brig
           . paths ["users", "by-handle", toByteString' (domainText domain), toByteString' handle]
           . zUser u
           . expect2xx
@@ -649,7 +688,8 @@ defNewClientWithVerificationCode mbCode ty pks lpk =
 getPreKey :: Brig -> UserId -> UserId -> ClientId -> Http ResponseLBS
 getPreKey brig zusr u c =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["users", toByteString' u, "prekeys", toByteString' c]
       . zUser zusr
 
@@ -744,7 +784,8 @@ listConvs ::
   m ResponseLBS
 listConvs galley zusr convs = do
   post $
-    galley
+    apiVersion "v1"
+      . galley
       . path "/conversations/list/v2"
       . zUser zusr
       . zConn "conn"
@@ -803,7 +844,7 @@ zAuthAccess :: UserId -> ByteString -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
 
 zUser :: UserId -> Request -> Request
-zUser = header "Z-User" . C8.pack . show
+zUser = header "Z-User" . B8.pack . show
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
@@ -893,7 +934,7 @@ somePrekeys =
     Prekey (PrekeyId 23) "pQABARcCoQBYIASE94LjK6Raipk/lN/YewouqO+kcQGpxIqP+iW2hyHiA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY=",
     Prekey (PrekeyId 24) "pQABARgYAqEAWCBZ222LpS6/99Btlw+83PihrA655skwsNevt//8oz5axQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2",
     Prekey (PrekeyId 25) "pQABARgZAqEAWCDGEwo61w4O8T8lyw0HdoOjGWBKQUNqo6+jSfrPR9alrAOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2",
-    Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plC80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
+    Prekey (PrekeyId 26) "pQABARgaAqEAWCBMSQoQ6B35plB80i1O3AWlJSftCEbCbju97Iykg5+NWQOhAKEAWCCy39UyMEgetquvTo7P19bcyfnWBzQMOEG1v+0wub0magT2"
   ]
 
 -- | The client ID of the first of 'someLastPrekeys'
@@ -1047,6 +1088,10 @@ aFewTimes
       (exponentialBackoff 1000 <> limitRetries retries)
       (\_ -> pure . not . good)
       (const action)
+
+-- see also: `aFewTimes`.  we should really clean this up.
+eventually :: (MonadIO m, MonadMask m) => m a -> m a
+eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
 
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
@@ -1234,7 +1279,7 @@ fromServantRequest domain r =
                 <> headers
                 <> [(originDomainHeaderName, T.encodeUtf8 (domainText domain))],
             Wai.isSecure = True,
-            Wai.pathInfo = filter (not . T.null) (map Data.String.Conversions.cs (C8.split '/' pathBS)),
+            Wai.pathInfo = filter (not . T.null) (map Data.String.Conversions.cs (B8.split '/' pathBS)),
             Wai.queryString = toList (Servant.requestQueryString r)
           }
    in WaiTest.SRequest req (cs bodyBS)

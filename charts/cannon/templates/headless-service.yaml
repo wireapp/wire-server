@@ -2,7 +2,7 @@
 # We use it this way so we can handle routing requests to specific cannons directly rather than distributing requests
 # between pods.
 #
-# Read more about this technique in the StatefulSet guide: 
+# Read more about this technique in the StatefulSet guide:
 # https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/
 apiVersion: v1
 kind: Service
@@ -13,6 +13,8 @@ metadata:
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
+  annotations:
+    service.kubernetes.io/topology-aware-hints: auto
 spec:
   type: ClusterIP
   # This is what makes it a Headless Service

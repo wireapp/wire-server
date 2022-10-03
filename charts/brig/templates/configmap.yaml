@@ -287,5 +287,14 @@ data:
       {{- if .setNonceTtlSecs }}
       setNonceTtlSecs: {{ .setNonceTtlSecs }}
       {{- end }}
+      {{- if .setDpopMaxSkewSecs }}
+      setDpopMaxSkewSecs: {{ .setDpopMaxSkewSecs }}
+      {{- end }}
+      {{- if .setDpopTokenExpirationTimeSecs }}
+      setDpopTokenExpirationTimeSecs: {{ .setDpopTokenExpirationTimeSecs }}
+      {{- end }}
+      {{- if $.Values.secrets.dpopSigKeyBundle }}
+      setPublicKeyBundle: /etc/wire/brig/secrets/dpop_sig_key_bundle.pem
+      {{- end }}
     {{- end }}
   {{- end }}

@@ -30,12 +30,12 @@ import Data.String.Conversions (cs)
 import Data.Vector (fromList)
 import Imports
 import Test.QuickCheck (Arbitrary)
-import Wire.API.Arbitrary (GenericUniform (GenericUniform))
 import Wire.API.Team.Role (Role)
 import Wire.API.User (Name)
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (ManagedBy)
 import Wire.API.User.RichInfo (RichInfo)
+import Wire.Arbitrary (GenericUniform (GenericUniform))
 
 data TeamExportUser = TeamExportUser
   { tExportDisplayName :: Name,

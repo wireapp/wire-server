@@ -59,7 +59,7 @@ instance ToSchema MLSPublicKeys where
 
 mlsKeysToPublic1 :: MLSKeys -> Map SignatureSchemeTag ByteString
 mlsKeysToPublic1 (MLSKeys mEd25519key) =
-  fold $ Map.singleton Ed25519 . convert . snd <$> mEd25519key
+  foldMap (Map.singleton Ed25519 . convert . snd) mEd25519key
 
 mlsKeysToPublic :: (SignaturePurpose -> MLSKeys) -> MLSPublicKeys
 mlsKeysToPublic f = flip foldMap [minBound .. maxBound] $ \purpose ->

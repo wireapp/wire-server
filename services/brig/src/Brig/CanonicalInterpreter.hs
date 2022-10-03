@@ -6,18 +6,26 @@ import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhone
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.RPC (ParseException)
-import Brig.Sem.CodeStore (CodeStore)
-import Brig.Sem.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import Brig.Sem.GalleyProvider.RPC (interpretGalleyProviderToRPC)
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import Brig.Sem.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
-import Brig.Sem.RPC (RPC)
-import Brig.Sem.RPC.IO (interpretRpcToIO)
-import Brig.Sem.ServiceRPC (Service (Galley), ServiceRPC)
-import Brig.Sem.ServiceRPC.IO (interpretServiceRpcToRpc)
-import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Sem.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import Brig.Effects.GalleyProvider.RPC (interpretGalleyProviderToRPC)
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
+import Brig.Effects.RPC (RPC)
+import Brig.Effects.RPC.IO (interpretRpcToIO)
+import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
+import Brig.Effects.ServiceRPC.IO (interpretServiceRpcToRpc)
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
+import Brig.Effects.JwtTools
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
+import Brig.Effects.PublicKeyBundle
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import qualified Cassandra as Cas
 import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
@@ -31,7 +39,9 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ BlacklistPhonePrefixStore,
+  '[ PublicKeyBundle,
+     JwtTools,
+     BlacklistPhonePrefixStore,
      BlacklistStore,
      PasswordResetStore,
      UserPendingActivationStore InternalPaging,
@@ -66,4 +76,6 @@ runBrigToIO e (AppT ma) = do
     . passwordResetStoreToCodeStore
     . interpretBlacklistStoreToCassandra @Cas.Client
     . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
+    . interpretJwtTools
+    . interpretPublicKeyBundle
     $ runReaderT ma e

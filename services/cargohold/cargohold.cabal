@@ -290,6 +290,7 @@ executable cargohold-integration
     , extended
     , federator
     , HsOpenSSL              >=0.11
+    , http-api-data
     , http-client            >=0.4
     , http-client-tls        >=0.2
     , http-media

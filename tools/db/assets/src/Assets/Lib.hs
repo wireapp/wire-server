@@ -175,12 +175,12 @@ instance Show Result where
       <> "\nnum_invalid_assets: "
       <> show (length i)
       <> "\ninvalid_assets:\n"
-      <> concat (showRow <$> i)
+      <> concatMap showRow i
     where
       showRow (uid, Nothing) = "  - user_id: " <> show uid <> "\n"
       showRow (uid, Just as) = "  - user_id: " <> show uid <> "\n" <> showAssets as
       showAsset a = "    key: " <> show (txtAssetKey a) <> "\n"
-      showAssets assets = concat $ showAsset <$> assets
+      showAssets assets = concatMap showAsset assets
 
 instance Semigroup Result where
   (<>) (Result n1 v1 i1) (Result n2 v2 i2) =

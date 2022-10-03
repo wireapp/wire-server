@@ -37,21 +37,29 @@ module Brig.Team.DB
   )
 where
 
+import Brig.App as App
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Options
+import Brig.Team.Template
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
+import Brig.Template (renderTextWithBranding)
 import Cassandra as C
+import Control.Lens (view)
 import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range
-import Data.Text.Ascii (encodeBase64Url)
+import Data.Text.Ascii (encodeBase64Url, toText)
+import Data.Text.Encoding
+import Data.Text.Lazy (toStrict)
 import Data.Time.Clock
 import Data.UUID.V4
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified System.Logger.Class as Log
+import URI.ByteString
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Team.Invitation
 import Wire.API.Team.Role
@@ -76,7 +84,11 @@ data InvitationByEmail
   | InvitationByEmailMoreThanOne
 
 insertInvitation ::
-  MonadClient m =>
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadClient m
+  ) =>
+  ShowOrHideInvitationUrl ->
   InvitationId ->
   TeamId ->
   Role ->
@@ -88,9 +100,10 @@ insertInvitation ::
   -- | The timeout for the invitation code.
   Timeout ->
   m (Invitation, InvitationCode)
-insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout = do
+insertInvitation showUrl iid t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout = do
   code <- liftIO mkInvitationCode
-  let inv = Invitation t role iid now minviter email inviteeName phone
+  url <- mkInviteUrl showUrl t code
+  let inv = Invitation t role iid now minviter email inviteeName phone url
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
@@ -107,18 +120,33 @@ insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName 
     cqlInvitationByEmail :: PrepQuery W (Email, TeamId, InvitationId, InvitationCode, Int32) ()
     cqlInvitationByEmail = "INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
 
-lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
-lookupInvitation t r =
-  fmap toInvitation
-    <$> retry x1 (query1 cqlInvitation (params LocalQuorum (t, r)))
+lookupInvitation ::
+  ( MonadClient m,
+    MonadReader Env m,
+    Log.MonadLogger m
+  ) =>
+  ShowOrHideInvitationUrl ->
+  TeamId ->
+  InvitationId ->
+  m (Maybe Invitation)
+lookupInvitation showUrl t r = do
+  inv <- retry x1 (query1 cqlInvitation (params LocalQuorum (t, r)))
+  traverse (toInvitation showUrl) inv
   where
-    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone)
-    cqlInvitation = "SELECT team, role, id, created_at, created_by, email, name, phone FROM team_invitation WHERE team = ? AND id = ?"
+    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone, InvitationCode)
+    cqlInvitation = "SELECT team, role, id, created_at, created_by, email, name, phone, code FROM team_invitation WHERE team = ? AND id = ?"
 
-lookupInvitationByCode :: MonadClient m => InvitationCode -> m (Maybe Invitation)
-lookupInvitationByCode i =
+lookupInvitationByCode ::
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadClient m
+  ) =>
+  ShowOrHideInvitationUrl ->
+  InvitationCode ->
+  m (Maybe Invitation)
+lookupInvitationByCode showUrl i =
   lookupInvitationInfo i >>= \case
-    Just InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
+    Just InvitationInfo {..} -> lookupInvitation showUrl iiTeam iiInvId
     _ -> pure Nothing
 
 lookupInvitationCode :: MonadClient m => TeamId -> InvitationId -> m (Maybe InvitationCode)
@@ -135,12 +163,21 @@ lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params 
     cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, Email)
     cqlInvitationCodeEmail = "SELECT code, email FROM team_invitation WHERE team = ? AND id = ?"
 
-lookupInvitations :: MonadClient m => TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> m (ResultPage Invitation)
-lookupInvitations team start (fromRange -> size) = do
+lookupInvitations ::
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadClient m
+  ) =>
+  ShowOrHideInvitationUrl ->
+  TeamId ->
+  Maybe InvitationId ->
+  Range 1 500 Int32 ->
+  m (ResultPage Invitation)
+lookupInvitations showUrl team start (fromRange -> size) = do
   page <- case start of
     Just ref -> retry x1 $ paginate cqlSelectFrom (paramsP LocalQuorum (team, ref) (size + 1))
     Nothing -> retry x1 $ paginate cqlSelect (paramsP LocalQuorum (Identity team) (size + 1))
-  pure $ toResult (hasMore page) $ map toInvitation (trim page)
+  toResult (hasMore page) <$> traverse (toInvitation showUrl) (trim page)
   where
     trim p = take (fromIntegral size) (result p)
     toResult more invs =
@@ -149,10 +186,10 @@ lookupInvitations team start (fromRange -> size) = do
           { result = invs,
             hasMore = more
           }
-    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone)
-    cqlSelect = "SELECT team, role, id, created_at, created_by, email, name, phone FROM team_invitation WHERE team = ? ORDER BY id ASC"
-    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone)
-    cqlSelectFrom = "SELECT team, role, id, created_at, created_by, email, name, phone FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
+    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone, InvitationCode)
+    cqlSelect = "SELECT team, role, id, created_at, created_by, email, name, phone, code FROM team_invitation WHERE team = ? ORDER BY id ASC"
+    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone, InvitationCode)
+    cqlSelectFrom = "SELECT team, role, id, created_at, created_by, email, name, phone, code FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
 deleteInvitation :: MonadClient m => TeamId -> InvitationId -> m ()
 deleteInvitation t i = do
@@ -195,10 +232,17 @@ lookupInvitationInfo ic@(InvitationCode c)
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
     cqlInvitationInfo = "SELECT team, id FROM team_invitation_info WHERE code = ?"
 
-lookupInvitationByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m (Maybe Invitation)
-lookupInvitationByEmail e =
+lookupInvitationByEmail ::
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadClient m
+  ) =>
+  ShowOrHideInvitationUrl ->
+  Email ->
+  m (Maybe Invitation)
+lookupInvitationByEmail showUrl e =
   lookupInvitationInfoByEmail e >>= \case
-    InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
+    InvitationByEmail InvitationInfo {..} -> lookupInvitation showUrl iiTeam iiInvId
     _ -> pure Nothing
 
 lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail
@@ -230,6 +274,10 @@ countInvitations t =
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
 toInvitation ::
+  ( MonadReader Env m,
+    Log.MonadLogger m
+  ) =>
+  ShowOrHideInvitationUrl ->
   ( TeamId,
     Maybe Role,
     InvitationId,
@@ -237,8 +285,42 @@ toInvitation ::
     Maybe UserId,
     Email,
     Maybe Name,
-    Maybe Phone
+    Maybe Phone,
+    InvitationCode
   ) ->
-  Invitation
-toInvitation (t, r, i, tm, minviter, e, inviteeName, p) =
-  Invitation t (fromMaybe defaultRole r) i tm minviter e inviteeName p
+  m Invitation
+toInvitation showUrl (t, r, i, tm, minviter, e, inviteeName, p, code) = do
+  url <- mkInviteUrl showUrl t code
+  pure $ Invitation t (fromMaybe defaultRole r) i tm minviter e inviteeName p url
+
+mkInviteUrl ::
+  ( MonadReader Env m,
+    Log.MonadLogger m
+  ) =>
+  ShowOrHideInvitationUrl ->
+  TeamId ->
+  InvitationCode ->
+  m (Maybe (URIRef Absolute))
+mkInviteUrl HideInvitationUrl _ _ = pure Nothing
+mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
+  template <- invitationEmailUrl . invitationEmail . snd <$> teamTemplates Nothing
+  branding <- view App.templateBranding
+  let url = toStrict $ renderTextWithBranding template replace branding
+  parseHttpsUrl url
+  where
+    replace "team" = idToText team
+    replace "code" = toText c
+    replace x = x
+
+    parseHttpsUrl :: Log.MonadLogger m => Text -> m (Maybe (URIRef Absolute))
+    parseHttpsUrl url =
+      either (\e -> logError url e >> pure Nothing) (pure . Just) $
+        parseURI laxURIParserOptions (encodeUtf8 url)
+
+    logError :: (Log.MonadLogger m, Show e) => Text -> e -> m ()
+    logError url e =
+      Log.err $
+        Log.msg
+          (Log.val "Unable to create invitation url. Please check configuration.")
+          . Log.field "url" url
+          . Log.field "error" (show e)

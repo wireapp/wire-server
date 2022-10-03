@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Brig.Effects.BlacklistStore.Cassandra
   ( interpretBlacklistStoreToCassandra,
   )

@@ -415,7 +415,11 @@ newTeamMember' lh tid (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatu
     mk Nothing Nothing = pure $ mkTeamMember uid perms Nothing lhStatus
     mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
-teamConversationsForPagination :: TeamId -> Maybe ConvId -> Range 1 HardTruncationLimit Int32 -> Client (Page TeamConversation)
+teamConversationsForPagination ::
+  TeamId ->
+  Maybe ConvId ->
+  Range 1 HardTruncationLimit Int32 ->
+  Client (Page TeamConversation)
 teamConversationsForPagination tid start (fromRange -> max) =
   fmap (newTeamConversation . runIdentity) <$> case start of
     Just c -> paginate Cql.selectTeamConvsFrom (paramsP LocalQuorum (tid, c) max)

@@ -20,11 +20,25 @@ RUN cd /tmp && \
 
 RUN cd /tmp/mls-test-cli && RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-gnu
 
+FROM rust:1.63 as rusty-jwt-tools-builder
+
+# compile rusty-jwt-tools
+RUN cd /tmp && \
+    git clone https://github.com/wireapp/rusty-jwt-tools && \
+    cd rusty-jwt-tools && \
+    git checkout 6370cd556f03f6834d0b8043615ffaf0044ef1fa && \
+    git rev-parse HEAD
+
+RUN cd /tmp/rusty-jwt-tools && cargo build --features haskell --release --target x86_64-unknown-linux-gnu
+
+
 # Minimal dependencies for ubuntu-compiled, dynamically linked wire-server Haskell services
 FROM ubuntu:20.04
 
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
 COPY --from=mls-test-cli-builder /tmp/mls-test-cli/target/x86_64-unknown-linux-gnu/release/mls-test-cli /usr/bin/mls-test-cli
+COPY --from=rusty-jwt-tools-builder /tmp/rusty-jwt-tools/target/x86_64-unknown-linux-gnu/release/librusty_jwt_tools.so /usr/lib
+COPY --from=rusty-jwt-tools-builder /tmp/rusty-jwt-tools/target/x86_64-unknown-linux-gnu/release/librusty_jwt_tools_ffi.so /usr/lib
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \

@@ -36,8 +36,8 @@ import Data.Id
 import Data.Json.Util ((#))
 import Data.Swagger
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Client.Prekey
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- initiate

@@ -22,8 +22,8 @@ module Wire.API.MLS.Epoch where
 import Data.Binary
 import Data.Schema
 import Imports
-import Wire.API.Arbitrary
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 newtype Epoch = Epoch {epochNumber :: Word64}
   deriving stock (Eq, Show)
@@ -34,3 +34,6 @@ instance ParseMLS Epoch where
 
 instance SerialiseMLS Epoch where
   serialiseMLS (Epoch n) = put n
+
+addToEpoch :: Integral a => a -> Epoch -> Epoch
+addToEpoch n (Epoch e) = Epoch (e + fromIntegral n)

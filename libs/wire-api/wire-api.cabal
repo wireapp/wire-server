@@ -13,7 +13,6 @@ build-type:    Simple
 library
   -- cabal-fmt: expand src
   exposed-modules:
-    Wire.API.Arbitrary
     Wire.API.Asset
     Wire.API.Call.Config
     Wire.API.Connection
@@ -42,15 +41,18 @@ library
     Wire.API.Message.Proto
     Wire.API.MLS.CipherSuite
     Wire.API.MLS.Commit
+    Wire.API.MLS.CommitBundle
     Wire.API.MLS.Context
     Wire.API.MLS.Credential
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
     Wire.API.MLS.Group
+    Wire.API.MLS.GroupInfoBundle
     Wire.API.MLS.KeyPackage
     Wire.API.MLS.Keys
     Wire.API.MLS.Message
     Wire.API.MLS.Proposal
+    Wire.API.MLS.PublicGroupState
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
     Wire.API.MLS.Welcome
@@ -93,6 +95,7 @@ library
     Wire.API.Routes.WebSocket
     Wire.API.ServantProto
     Wire.API.Swagger
+    Wire.API.SwaggerHelper
     Wire.API.Team
     Wire.API.Team.Conversation
     Wire.API.Team.Export
@@ -110,6 +113,7 @@ library
     Wire.API.User.Auth
     Wire.API.User.Auth2
     Wire.API.User.Client
+    Wire.API.User.Client.DPoPAccessToken
     Wire.API.User.Client.Prekey
     Wire.API.User.Handle
     Wire.API.User.Identity
@@ -567,6 +571,7 @@ test-suite wire-api-golden-tests
     , containers               >=0.5
     , currency-codes
     , directory
+    , either
     , filepath
     , hscim
     , imports

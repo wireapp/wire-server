@@ -117,6 +117,9 @@ optSettings:
   setEmailVisibility: visible_to_self
   setFederationDomain: example.com
   setNonceTtlSecs: 300 # 5 minutes
+  setDpopMaxSkewSecs: 1
+  setDpopTokenExpirationTimeSecs: 300 # 5 minutes
+  setPublicKeyBundle: conf/jwt/ed25519_bundle.pem
 
 logLevel: Debug
 logNetStrings: false

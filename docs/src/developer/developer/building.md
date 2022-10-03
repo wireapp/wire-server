@@ -49,6 +49,13 @@ The easiest course of action is to to remove these directories via:
 make full-clean
 ```
 
+### Cabal can't read index (Did you call checkForUpdates?)
+
+Sometimes abording cabal mid-update can corrupt its index. Deleting `~/.cabal/packages/hackage.haskell.org` will usually do the trick.
+
+As a side-note: `make c` doesn't run `cabal update`, but `make` does, so keep that in mind.
+
+
 ## How to run integration tests
 
 Integration tests require all of the haskell services (brig, galley, cannon, gundeck, proxy, cargohold, spar) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. The test for brig also starts nginz, so make sure it has been built before.

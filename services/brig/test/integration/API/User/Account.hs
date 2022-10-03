@@ -24,7 +24,7 @@ module API.User.Account
 where
 
 import qualified API.Search.Util as Search
-import API.Team.Util hiding (listConnections)
+import API.Team.Util
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
@@ -46,6 +46,7 @@ import qualified Data.ByteString as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Domain
+import Data.Handle
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
@@ -72,6 +73,7 @@ import qualified Network.HTTP.Types as Http
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import qualified Test.Tasty.Cannon as WS
@@ -87,6 +89,7 @@ import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.Internal.Notification
+import Wire.API.Team.Feature (ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL' (..), LockStatus (LockStatusLocked), withStatus)
 import Wire.API.Team.Invitation (Invitation (inInvitation))
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
@@ -148,7 +151,6 @@ tests _ at opts p b c ch g aws =
       test' aws p "delete/with-legalhold" $ testDeleteUserWithLegalHold b c aws,
       test' aws p "delete/by-code" $ testDeleteUserByCode b,
       test' aws p "delete/anonymous" $ testDeleteAnonUser b,
-      test' aws p "delete /i/users/:uid - 202" $ testDeleteInternal b c aws,
       test' aws p "delete with profile pic" $ testDeleteWithProfilePic b ch,
       test' aws p "delete with connected remote users" $ testDeleteWithRemotes opts b,
       test' aws p "delete with connected remote users and failed remote notifcations" $ testDeleteWithRemotesAndFailedNotifications opts b c,
@@ -160,6 +162,13 @@ tests _ at opts p b c ch g aws =
       testGroup
         "update user email by team owner"
         [ test' aws p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner b
+        ],
+      testGroup
+        "delete /i/users/:uid"
+        [ test' aws p "does nothing for completely deleted user" $ testDeleteUserWithCompletelyDeletedUser b c aws,
+          test' aws p "does nothing when the user doesn't exist" $ testDeleteUserWithNoUser b,
+          test' aws p "deletes a not deleted user" $ testDeleteUserWithNotDeletedUser b c aws,
+          test' aws p "delete again because of dangling property" $ testDeleteUserWithDanglingProperty b c aws
         ]
     ]
 
@@ -580,11 +589,11 @@ testNonExistingUserUnqualified :: Brig -> Http ()
 testNonExistingUserUnqualified brig = do
   findingOne <- liftIO $ Id <$> UUID.nextRandom
   foundOne <- liftIO $ Id <$> UUID.nextRandom
-  get (brig . paths ["users", pack $ show foundOne] . zUser findingOne)
+  get (apiVersion "v1" . brig . paths ["users", pack $ show foundOne] . zUser findingOne)
     !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
-  get (brig . paths ["users", pack $ show foundOne] . zUser foundOne)
+  get (apiVersion "v1" . brig . paths ["users", pack $ show foundOne] . zUser foundOne)
     !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
@@ -596,11 +605,11 @@ testNonExistingUser brig = do
   uid2 <- liftIO $ Id <$> UUID.nextRandom
   let uid = qUnqualified qself
       domain = qDomain qself
-  get (brig . paths ["users", toByteString' domain, toByteString' uid1] . zUser uid)
+  get (apiVersion "v1" . brig . paths ["users", toByteString' domain, toByteString' uid1] . zUser uid)
     !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
-  get (brig . paths ["users", toByteString' domain, toByteString' uid2] . zUser uid)
+  get (apiVersion "v1" . brig . paths ["users", toByteString' domain, toByteString' uid2] . zUser uid)
     !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
@@ -620,7 +629,7 @@ testUserInvalidDomain brig = do
 testExistingUserUnqualified :: Brig -> Http ()
 testExistingUserUnqualified brig = do
   uid <- userId <$> randomUser brig
-  get (brig . paths ["users", pack $ show uid] . zUser uid) !!! do
+  get (apiVersion "v1" . brig . paths ["users", pack $ show uid] . zUser uid) !!! do
     const 200 === statusCode
     const (Just uid)
       === ( \r -> do
@@ -634,7 +643,8 @@ testExistingUser brig = do
   let uid = qUnqualified quser
       domain = qDomain quser
   get
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . zUser uid
         . paths
           [ "users",
@@ -655,7 +665,8 @@ testUserExistsUnqualified brig = do
   qself <- userQualifiedId <$> randomUser brig
   quser <- userQualifiedId <$> randomUser brig
   head
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . paths ["users", toByteString' (qUnqualified quser)]
         . zUser (qUnqualified qself)
     )
@@ -717,7 +728,8 @@ testMultipleUsersUnqualified brig = do
             (Just $ userDisplayName u3, Nothing)
           ]
   get
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . zUser (userId u1)
         . contentJson
         . path "users"
@@ -785,7 +797,7 @@ testCreateUserAnonExpiry b = do
   liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
   where
     getProfile :: UserId -> UserId -> Http ResponseLBS
-    getProfile zusr uid = get (b . zUser zusr . paths ["users", toByteString' uid]) <!! const 200 === statusCode
+    getProfile zusr uid = get (apiVersion "v1" . b . zUser zusr . paths ["users", toByteString' uid]) <!! const 200 === statusCode
     awaitExpiry :: Int -> UserId -> UserId -> Http ()
     awaitExpiry n zusr uid = do
       -- after expiration, a profile lookup should trigger garbage collection of ephemeral users
@@ -809,7 +821,7 @@ testCreateUserAnonExpiry b = do
     field :: FromJSON a => Text -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
-testUserUpdate :: Brig -> Cannon -> AWS.Env -> Http ()
+testUserUpdate :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
 testUserUpdate brig cannon aws = do
   aliceUser <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user create alice" aws (userActivateJournaled aliceUser)
@@ -1336,13 +1348,6 @@ testDeleteAnonUser brig = do
   deleteUser uid Nothing brig
     !!! const 200 === statusCode
 
-testDeleteInternal :: Brig -> Cannon -> AWS.Env -> Http ()
-testDeleteInternal brig cannon aws = do
-  u <- randomUser brig
-  liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
-  setHandleAndDeleteUser brig cannon u [] aws $
-    \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
-
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
   uid <- userId <$> createAnonUser "anon" brig
@@ -1609,17 +1614,26 @@ testTooManyMembersForLegalhold opts brig = do
     responseJsonError =<< postInvitation brig tid owner invite
       <!! statusCode === const 201
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-  let mockGalley (ReceivedRequest mth pth _body) =
-        if mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"]
-          then
-            pure . Wai.responseLBS HTTP.status403 mempty $
-              encode
-                ( Wai.mkError
-                    HTTP.status403
-                    "too-many-members-for-legalhold"
-                    "cannot add more members to team when legalhold service is enabled."
-                )
-          else pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
+  let mockGalley (ReceivedRequest mth pth _body)
+        | mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"] =
+          pure . Wai.responseLBS HTTP.status403 mempty $
+            encode
+              ( Wai.mkError
+                  HTTP.status403
+                  "too-many-members-for-legalhold"
+                  "cannot add more members to team when legalhold service is enabled."
+              )
+        | mth == "GET"
+            && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
+          pure . Wai.responseLBS HTTP.status200 mempty $
+            encode
+              ( withStatus
+                  FeatureStatusDisabled
+                  LockStatusLocked
+                  ExposeInvitationURLsToTeamAdminConfig
+                  FeatureTTLUnlimited
+              )
+        | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
 
   void . withMockedGalley opts mockGalley $ do
     post
@@ -1632,18 +1646,91 @@ testTooManyMembersForLegalhold opts brig = do
         const 403 === statusCode
         const (Right "too-many-members-for-legalhold") === fmap Wai.label . responseJsonEither
 
--- helpers
+testDeleteUserWithCompletelyDeletedUser :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserWithCompletelyDeletedUser brig cannon aws = do
+  u <- randomUser brig
+  liftIO $ Util.assertUserJournalQueue "user activate testDeleteUserWithCompletelyDeletedUser" aws (userActivateJournaled u)
+  setHandleAndDeleteUser brig cannon u [] aws $
+    \uid -> deleteUserInternal uid brig !!! const 202 === statusCode
+  do
+    let uid = userId u
+    deleteUserInternal uid brig
+      !!! do
+        const 200 === statusCode
 
-setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
-setHandleAndDeleteUser brig cannon u others aws execDelete = do
+testDeleteUserWithNoUser :: Brig -> Http ()
+testDeleteUserWithNoUser brig = do
+  nonExistingUid :: UserId <- liftIO $ generate arbitrary
+  deleteUserInternal nonExistingUid brig
+    !!! do
+      const 404 === statusCode
+
+testDeleteUserWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserWithNotDeletedUser brig cannon aws = do
+  u <- randomUser brig
+  liftIO $ Util.assertUserJournalQueue "user activate testDeleteUserWithNotDeletedUser" aws (userActivateJournaled u)
+  do
+    setHandleAndDeleteUser brig cannon u [] aws $
+      ( \uid' ->
+          deleteUserInternal uid' brig
+            !!! do
+              const 202 === statusCode
+      )
+
+testDeleteUserWithDanglingProperty :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserWithDanglingProperty brig cannon aws = do
+  u <- randomUser brig
+  liftIO $ Util.assertUserJournalQueue "user activate testDeleteUserWithDanglingProperty" aws (userActivateJournaled u)
+
   let uid = userId u
-      quid = userQualifiedId u
-      email = fromMaybe (error "Must have an email set") (userEmail u)
   -- First set a unique handle (to verify freeing of the handle)
   hdl <- randomHandle
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
     !!! const 200 === statusCode
+
+  deleteUserInternal uid brig !!! const 202 === statusCode
+  liftIO $ Util.assertUserJournalQueue "user deletion testDeleteUserWithDanglingProperty" aws (userDeleteJournaled uid)
+
+  setProperty brig (userId u) "foo" objectProp
+    !!! const 200 === statusCode
+  getProperty brig (userId u) "foo" !!! do
+    const 200 === statusCode
+    const (Just objectProp) === responseJsonMaybe
+
+  execAndAssertUserDeletion brig cannon u (Handle hdl) [] aws $ \uid' -> do
+    deleteUserInternal uid' brig
+      !!! do
+        const 202 === statusCode
+
+  getProperty brig (userId u) "foo" !!! do
+    const 404 === statusCode
+  where
+    objectProp =
+      object
+        [ "key.1" .= ("val1" :: Text),
+          "key.2" .= ("val2" :: Text)
+        ]
+
+-- helpers
+
+setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
+setHandleAndDeleteUser brig cannon u others aws execDelete = do
+  let uid = userId u
+  -- First set a unique handle (to verify freeing of the handle)
+  hdl <- randomHandle
+  let update = RequestBodyLBS . encode $ HandleUpdate hdl
+  put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
+    !!! const 200 === statusCode
+
+  execAndAssertUserDeletion brig cannon u (Handle hdl) others aws execDelete
+
+execAndAssertUserDeletion :: Brig -> Cannon -> User -> Handle -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
+execAndAssertUserDeletion brig cannon u hdl others aws execDelete = do
+  let uid = userId u
+      quid = userQualifiedId u
+      email = fromMaybe (error "Must have an email set") (userEmail u)
+
   -- Delete the user
   WS.bracketRN cannon (uid : others) $ \wss -> do
     execDelete uid
@@ -1665,9 +1752,9 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
   Search.refreshIndex brig
   -- Does not appear in search; public profile shows the user as deleted
   forM_ others $ \usr -> do
-    get (brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
+    get (apiVersion "v1" . brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
     Search.assertCan'tFind brig usr quid (fromName (userDisplayName u))
-    Search.assertCan'tFind brig usr quid hdl
+    Search.assertCan'tFind brig usr quid (fromHandle hdl)
   -- Email address is available again
   let Object o =
         object
@@ -1677,7 +1764,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
           ]
   -- This will generate a new event, we need to consume it here
   usr <- postUserInternal o brig
-  liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal: " aws (userActivateJournaled usr)
+  liftIO $ Util.assertUserJournalQueue "user activate execAndAssertUserDeletion" aws (userActivateJournaled usr)
   -- Handle is available again
   Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode

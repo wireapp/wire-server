@@ -79,12 +79,12 @@ import Data.Time
 import Imports
 import qualified Test.QuickCheck as QC
 import URI.ByteString ()
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..))
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..))
 import Wire.API.User (QualifiedUserIdList (..))
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Event
@@ -400,11 +400,10 @@ eventObjectSchema =
     mk (_, d) cid uid tm = Event cid uid tm d
 
 instance ToJSONObject Event where
-  toJSONObject e =
+  toJSONObject =
     KeyMap.fromList
       . fromMaybe []
       . schemaOut eventObjectSchema
-      $ e
 
 instance FromJSON Event where
   parseJSON = schemaParseJSON

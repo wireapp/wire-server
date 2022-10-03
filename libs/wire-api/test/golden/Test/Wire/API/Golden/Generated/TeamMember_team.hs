@@ -61,8 +61,8 @@ testObject_TeamMember_team_1 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000300000004"))),
-          (fromJust (readUTCTimeMillis "1864-05-12T22:05:34.634Z"))
+        ( Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000300000004")),
+          fromJust (readUTCTimeMillis "1864-05-12T22:05:34.634Z")
         )
     )
     UserLegalHoldPending
@@ -73,11 +73,11 @@ testObject_TeamMember_team_2 =
     (Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000500000005")))
     (Permissions {_self = fromList [DoNotUseDeprecatedModifyConvName, SetMemberPermissions], _copy = fromList []})
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000004"))),
-          (fromJust (readUTCTimeMillis "1864-05-03T14:56:52.508Z"))
+        ( Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000004")),
+          fromJust (readUTCTimeMillis "1864-05-03T14:56:52.508Z")
         )
     )
-    (UserLegalHoldDisabled)
+    UserLegalHoldDisabled
 
 testObject_TeamMember_team_3 :: TeamMember
 testObject_TeamMember_team_3 =
@@ -91,11 +91,11 @@ testObject_TeamMember_team_3 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000000-0000-0005-0000-000200000007"))),
-          (fromJust (readUTCTimeMillis "1864-05-06T14:02:04.371Z"))
+        ( Id (fromJust (UUID.fromString "00000000-0000-0005-0000-000200000007")),
+          fromJust (readUTCTimeMillis "1864-05-06T14:02:04.371Z")
         )
     )
-    (UserLegalHoldPending)
+    UserLegalHoldPending
 
 testObject_TeamMember_team_4 :: TeamMember
 testObject_TeamMember_team_4 =
@@ -107,11 +107,11 @@ testObject_TeamMember_team_4 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000006-0000-0002-0000-000500000001"))),
-          (fromJust (readUTCTimeMillis "1864-05-12T15:36:56.285Z"))
+        ( Id (fromJust (UUID.fromString "00000006-0000-0002-0000-000500000001")),
+          fromJust (readUTCTimeMillis "1864-05-12T15:36:56.285Z")
         )
     )
-    (UserLegalHoldEnabled)
+    UserLegalHoldEnabled
 
 testObject_TeamMember_team_5 :: TeamMember
 testObject_TeamMember_team_5 =
@@ -123,11 +123,11 @@ testObject_TeamMember_team_5 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000300000007"))),
-          (fromJust (readUTCTimeMillis "1864-05-07T21:02:57.104Z"))
+        ( Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000300000007")),
+          fromJust (readUTCTimeMillis "1864-05-07T21:02:57.104Z")
         )
     )
-    (UserLegalHoldPending)
+    UserLegalHoldPending
 
 testObject_TeamMember_team_6 :: TeamMember
 testObject_TeamMember_team_6 =
@@ -141,11 +141,11 @@ testObject_TeamMember_team_6 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000005-0000-0007-0000-000800000000"))),
-          (fromJust (readUTCTimeMillis "1864-05-09T03:11:26.909Z"))
+        ( Id (fromJust (UUID.fromString "00000005-0000-0007-0000-000800000000")),
+          fromJust (readUTCTimeMillis "1864-05-09T03:11:26.909Z")
         )
     )
-    (UserLegalHoldEnabled)
+    UserLegalHoldEnabled
 
 testObject_TeamMember_team_7 :: TeamMember
 testObject_TeamMember_team_7 =
@@ -163,8 +163,8 @@ testObject_TeamMember_team_7 =
           _copy = fromList []
         }
     )
-    (Nothing)
-    (UserLegalHoldPending)
+    Nothing
+    UserLegalHoldPending
 
 testObject_TeamMember_team_8 :: TeamMember
 testObject_TeamMember_team_8 =
@@ -183,11 +183,11 @@ testObject_TeamMember_team_8 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000007-0000-0003-0000-000400000003"))),
-          (fromJust (readUTCTimeMillis "1864-05-05T18:40:11.956Z"))
+        ( Id (fromJust (UUID.fromString "00000007-0000-0003-0000-000400000003")),
+          fromJust (readUTCTimeMillis "1864-05-05T18:40:11.956Z")
         )
     )
-    (UserLegalHoldDisabled)
+    UserLegalHoldDisabled
 
 testObject_TeamMember_team_9 :: TeamMember
 testObject_TeamMember_team_9 =
@@ -198,8 +198,8 @@ testObject_TeamMember_team_9 =
           _copy = fromList [DoNotUseDeprecatedModifyConvName]
         }
     )
-    (Nothing)
-    (UserLegalHoldPending)
+    Nothing
+    UserLegalHoldPending
 
 testObject_TeamMember_team_10 :: TeamMember
 testObject_TeamMember_team_10 =
@@ -207,11 +207,11 @@ testObject_TeamMember_team_10 =
     (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000006")))
     (Permissions {_self = fromList [DoNotUseDeprecatedDeleteConversation, AddTeamMember], _copy = fromList []})
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000000000002"))),
-          (fromJust (readUTCTimeMillis "1864-05-03T19:02:13.669Z"))
+        ( Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000000000002")),
+          fromJust (readUTCTimeMillis "1864-05-03T19:02:13.669Z")
         )
     )
-    (UserLegalHoldDisabled)
+    UserLegalHoldDisabled
 
 testObject_TeamMember_team_11 :: TeamMember
 testObject_TeamMember_team_11 =
@@ -224,11 +224,11 @@ testObject_TeamMember_team_11 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000100000005"))),
-          (fromJust (readUTCTimeMillis "1864-05-04T18:20:29.420Z"))
+        ( Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000100000005")),
+          fromJust (readUTCTimeMillis "1864-05-04T18:20:29.420Z")
         )
     )
-    (UserLegalHoldEnabled)
+    UserLegalHoldEnabled
 
 testObject_TeamMember_team_12 :: TeamMember
 testObject_TeamMember_team_12 =
@@ -236,11 +236,11 @@ testObject_TeamMember_team_12 =
     (Id (fromJust (UUID.fromString "00000002-0000-0006-0000-000200000005")))
     (Permissions {_self = fromList [GetTeamConversations], _copy = fromList []})
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000005-0000-0001-0000-000300000003"))),
-          (fromJust (readUTCTimeMillis "1864-05-10T22:34:18.259Z"))
+        ( Id (fromJust (UUID.fromString "00000005-0000-0001-0000-000300000003")),
+          fromJust (readUTCTimeMillis "1864-05-10T22:34:18.259Z")
         )
     )
-    (UserLegalHoldPending)
+    UserLegalHoldPending
 
 testObject_TeamMember_team_13 :: TeamMember
 testObject_TeamMember_team_13 =
@@ -248,11 +248,11 @@ testObject_TeamMember_team_13 =
     (Id (fromJust (UUID.fromString "00000006-0000-0001-0000-000800000006")))
     (Permissions {_self = fromList [CreateConversation, GetMemberPermissions], _copy = fromList [CreateConversation]})
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000400000007"))),
-          (fromJust (readUTCTimeMillis "1864-05-06T08:18:27.514Z"))
+        ( Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000400000007")),
+          fromJust (readUTCTimeMillis "1864-05-06T08:18:27.514Z")
         )
     )
-    (UserLegalHoldDisabled)
+    UserLegalHoldDisabled
 
 testObject_TeamMember_team_14 :: TeamMember
 testObject_TeamMember_team_14 =
@@ -264,11 +264,11 @@ testObject_TeamMember_team_14 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000200000002"))),
-          (fromJust (readUTCTimeMillis "1864-05-12T15:53:41.144Z"))
+        ( Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000200000002")),
+          fromJust (readUTCTimeMillis "1864-05-12T15:53:41.144Z")
         )
     )
-    (UserLegalHoldDisabled)
+    UserLegalHoldDisabled
 
 testObject_TeamMember_team_15 :: TeamMember
 testObject_TeamMember_team_15 =
@@ -276,11 +276,11 @@ testObject_TeamMember_team_15 =
     (Id (fromJust (UUID.fromString "00000005-0000-0006-0000-000800000006")))
     (Permissions {_self = fromList [DeleteTeam], _copy = fromList [DeleteTeam]})
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000500000003"))),
-          (fromJust (readUTCTimeMillis "1864-05-04T06:15:13.870Z"))
+        ( Id (fromJust (UUID.fromString "00000008-0000-0000-0000-000500000003")),
+          fromJust (readUTCTimeMillis "1864-05-04T06:15:13.870Z")
         )
     )
-    (UserLegalHoldEnabled)
+    UserLegalHoldEnabled
 
 testObject_TeamMember_team_16 :: TeamMember
 testObject_TeamMember_team_16 =
@@ -288,11 +288,11 @@ testObject_TeamMember_team_16 =
     (Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000200000008")))
     (Permissions {_self = fromList [DoNotUseDeprecatedDeleteConversation, GetTeamConversations], _copy = fromList []})
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000006-0000-0000-0000-000400000002"))),
-          (fromJust (readUTCTimeMillis "1864-05-10T04:27:37.101Z"))
+        ( Id (fromJust (UUID.fromString "00000006-0000-0000-0000-000400000002")),
+          fromJust (readUTCTimeMillis "1864-05-10T04:27:37.101Z")
         )
     )
-    (UserLegalHoldPending)
+    UserLegalHoldPending
 
 testObject_TeamMember_team_17 :: TeamMember
 testObject_TeamMember_team_17 =
@@ -311,11 +311,11 @@ testObject_TeamMember_team_17 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000006-0000-0003-0000-000700000004"))),
-          (fromJust (readUTCTimeMillis "1864-05-07T23:22:37.991Z"))
+        ( Id (fromJust (UUID.fromString "00000006-0000-0003-0000-000700000004")),
+          fromJust (readUTCTimeMillis "1864-05-07T23:22:37.991Z")
         )
     )
-    (UserLegalHoldDisabled)
+    UserLegalHoldDisabled
 
 testObject_TeamMember_team_18 :: TeamMember
 testObject_TeamMember_team_18 =
@@ -328,11 +328,11 @@ testObject_TeamMember_team_18 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000007-0000-0008-0000-000500000006"))),
-          (fromJust (readUTCTimeMillis "1864-05-15T14:48:55.847Z"))
+        ( Id (fromJust (UUID.fromString "00000007-0000-0008-0000-000500000006")),
+          fromJust (readUTCTimeMillis "1864-05-15T14:48:55.847Z")
         )
     )
-    (UserLegalHoldPending)
+    UserLegalHoldPending
 
 testObject_TeamMember_team_19 :: TeamMember
 testObject_TeamMember_team_19 =
@@ -345,11 +345,11 @@ testObject_TeamMember_team_19 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000006-0000-0001-0000-000200000008"))),
-          (fromJust (readUTCTimeMillis "1864-05-12T01:37:35.003Z"))
+        ( Id (fromJust (UUID.fromString "00000006-0000-0001-0000-000200000008")),
+          fromJust (readUTCTimeMillis "1864-05-12T01:37:35.003Z")
         )
     )
-    (UserLegalHoldPending)
+    UserLegalHoldPending
 
 testObject_TeamMember_team_20 :: TeamMember
 testObject_TeamMember_team_20 =
@@ -361,8 +361,8 @@ testObject_TeamMember_team_20 =
         }
     )
     ( Just
-        ( (Id (fromJust (UUID.fromString "00000005-0000-0001-0000-000800000007"))),
-          (fromJust (readUTCTimeMillis "1864-05-04T22:12:50.096Z"))
+        ( Id (fromJust (UUID.fromString "00000005-0000-0001-0000-000800000007")),
+          fromJust (readUTCTimeMillis "1864-05-04T22:12:50.096Z")
         )
     )
-    (UserLegalHoldEnabled)
+    UserLegalHoldEnabled

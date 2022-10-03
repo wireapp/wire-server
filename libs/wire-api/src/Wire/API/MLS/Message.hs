@@ -38,12 +38,11 @@ module Wire.API.MLS.Message
     MLSMessageSendingStatus (..),
     KnownFormatTag (..),
     verifyMessageSignature,
-    mkRemoveProposalMessage,
+    mkSignedMessage,
   )
 where
 
 import Control.Lens ((?~))
-import Crypto.Error
 import Crypto.PubKey.Ed25519
 import qualified Data.Aeson as A
 import Data.Binary
@@ -57,7 +56,6 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Imports
 import Test.QuickCheck hiding (label)
-import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
@@ -66,6 +64,7 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary (GenericUniform (..))
 
 data WireFormatTag = MLSPlainText | MLSCipherText
   deriving (Bounded, Enum, Eq, Show)
@@ -341,14 +340,14 @@ verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString 
 verifyMessageSignature cs msg pubkey =
   csVerifySignature cs pubkey (rmRaw (msgTBS msg)) (msgSignature (msgExtraFields msg))
 
-mkRemoveProposalMessage ::
+mkSignedMessage ::
   SecretKey ->
   PublicKey ->
   GroupId ->
   Epoch ->
-  KeyPackageRef ->
-  Maybe (Message 'MLSPlainText)
-mkRemoveProposalMessage priv pub gid epoch ref = maybeCryptoError $ do
+  MessagePayload 'MLSPlainText ->
+  Message 'MLSPlainText
+mkSignedMessage priv pub gid epoch payload =
   let tbs =
         mkRawMLS $
           MessageTBS
@@ -357,7 +356,7 @@ mkRemoveProposalMessage priv pub gid epoch ref = maybeCryptoError $ do
               tbsMsgEpoch = epoch,
               tbsMsgAuthData = mempty,
               tbsMsgSender = PreconfiguredSender 0,
-              tbsMsgPayload = ProposalMessage (mkRemoveProposal ref)
+              tbsMsgPayload = payload
             }
-  let sig = BA.convert $ sign priv pub (rmRaw tbs)
-  pure (Message tbs (MessageExtraFields sig Nothing Nothing))
+      sig = BA.convert $ sign priv pub (rmRaw tbs)
+   in Message tbs (MessageExtraFields sig Nothing Nothing)

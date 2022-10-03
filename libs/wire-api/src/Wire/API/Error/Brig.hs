@@ -64,6 +64,13 @@ data BrigError
   | PasswordAuthenticationFailed
   | TooManyTeamInvitations
   | InsufficientTeamPermissions
+  | KeyPackageDecodingError
+  | InvalidKeyPackageRef
+  | CustomerExtensionBlockedDomain
+  | PasswordResetInProgress
+  | InvalidPasswordResetKey
+  | InvalidPasswordResetCode
+  | ResetPasswordMustDiffer
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -172,3 +179,24 @@ type instance MapError 'PasswordAuthenticationFailed = 'StaticError 403 "passwor
 type instance MapError 'TooManyTeamInvitations = 'StaticError 403 "too-many-team-invitations" "Too many team invitations for this team"
 
 type instance MapError 'InsufficientTeamPermissions = 'StaticError 403 "insufficient-permissions" "Insufficient team permissions"
+
+type instance MapError 'KeyPackageDecodingError = 'StaticError 409 "decoding-error" "Key package could not be TLS-decoded"
+
+type instance MapError 'InvalidKeyPackageRef = 'StaticError 409 "invalid-reference" "Key package's reference does not match its data"
+
+type instance
+  MapError 'CustomerExtensionBlockedDomain =
+    'StaticError
+      451
+      "domain-blocked-for-registration"
+      "[Customer extension] the email domain example.com \
+      \that you are attempting to register a user with has been \
+      \blocked for creating wire users.  Please contact your IT department."
+
+type instance MapError 'PasswordResetInProgress = 'StaticError 409 "code-exists" "A password reset is already in progress."
+
+type instance MapError 'InvalidPasswordResetKey = 'StaticError 400 "invalid-key" "Invalid email or mobile number for password reset."
+
+type instance MapError 'InvalidPasswordResetCode = 'StaticError 400 "invalid-code" "Invalid password reset code."
+
+type instance MapError 'ResetPasswordMustDiffer = 'StaticError 409 "password-must-differ" "For password reset, new and old password must be different."

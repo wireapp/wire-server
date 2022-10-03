@@ -38,8 +38,10 @@ import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
+import Galley.API.MLS.Removal
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
@@ -49,6 +51,7 @@ import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
+import Galley.Effects.ConversationStore (getConversation)
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
@@ -62,6 +65,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal.Kind (Append)
 import Polysemy.Resource
+import Polysemy.TinyLog
 import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API
@@ -77,11 +81,13 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
+import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
+import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
@@ -106,6 +112,37 @@ federationSitemap =
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
     :<|> Named @"send-mls-message" sendMLSMessage
+    :<|> Named @"send-mls-commit-bundle" sendMLSCommitBundle
+    :<|> Named @"query-group-info" queryGroupInfo
+    :<|> Named @"on-client-removed" onClientRemoved
+
+onClientRemoved ::
+  ( Members
+      '[ ConversationStore,
+         Error InternalError,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input (Local ()),
+         Input UTCTime,
+         MemberStore,
+         ProposalStore,
+         TinyLog
+       ]
+      r
+  ) =>
+  Domain ->
+  ClientRemovedRequest ->
+  Sem r EmptyResponse
+onClientRemoved domain req = do
+  let qusr = Qualified (F.crrUser req) domain
+  for_ (F.crrConvs req) $ \convId -> do
+    mConv <- getConversation convId
+    for mConv $ \conv -> do
+      lconv <- qualifyLocal conv
+      removeClient lconv qusr (F.crrClient req)
+  pure EmptyResponse
 
 onConversationCreated ::
   Members
@@ -226,8 +263,8 @@ onConversationUpdated requestingDomain cu = do
           [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
           (u : us) -> pure (Just (SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (u :| us) role)), addedLocalUsers)
       SConversationLeaveTag -> do
-        let localUsers = getLocalUsers (tDomain loc) action
-        E.deleteMembersInRemoteConversation rconvId localUsers
+        let users = foldQualified loc (pure . tUnqualified) (const []) (F.cuOrigUserId cu)
+        E.deleteMembersInRemoteConversation rconvId users
         pure (Just sca, [])
       SConversationRemoveMembersTag -> do
         let localUsers = getLocalUsers (tDomain loc) action
@@ -290,13 +327,17 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 leaveConversation ::
   Members
     '[ ConversationStore,
+       Error InternalError,
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input (Local ()),
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       ProposalStore,
+       TinyLog
      ]
     r =>
   Domain ->
@@ -321,24 +362,23 @@ leaveConversation requestingDomain lc = do
               lcnv
               (qUntagged leaver)
               Nothing
-              (pure (qUntagged leaver))
+              ()
         pure (update, conv)
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
     Right (_update, conv) -> do
-      let action = pure (qUntagged leaver)
-
       let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       _ <-
         notifyConversationAction
           SConversationLeaveTag
           (qUntagged leaver)
+          False
           Nothing
           (qualifyAs lcnv conv)
           botsAndMembers
-          action
+          ()
 
       pure $ F.LeaveConversationResponse (Right ())
 
@@ -422,9 +462,13 @@ onUserDeleted ::
        FireAndForget,
        ExternalAccess,
        GundeckAccess,
+       Error InternalError,
        Input (Local ()),
        Input UTCTime,
-       MemberStore
+       Input Env,
+       MemberStore,
+       ProposalStore,
+       TinyLog
      ]
     r =>
   Domain ->
@@ -452,16 +496,17 @@ onUserDeleted origDomain udcn = do
             -- The self conv cannot be on a remote backend.
             Public.SelfConv -> pure ()
             Public.RegularConv -> do
-              let action = pure untaggedDeletedUser
-                  botsAndMembers = convBotsAndMembers conv
+              let botsAndMembers = convBotsAndMembers conv
+              removeUser (qualifyAs lc conv) (qUntagged deletedUser)
               void $
                 notifyConversationAction
                   (sing @'ConversationLeaveTag)
                   untaggedDeletedUser
+                  False
                   Nothing
                   (qualifyAs lc conv)
                   botsAndMembers
-                  action
+                  ()
   pure EmptyResponse
 
 updateConversation ::
@@ -477,11 +522,14 @@ updateConversation ::
          FederatorAccess,
          Error InternalError,
          GundeckAccess,
+         Input Env,
          Input Opts,
          Input UTCTime,
          LegalHoldStore,
          MemberStore,
+         ProposalStore,
          TeamStore,
+         TinyLog,
          ConversationStore,
          Input (Local ())
        ]
@@ -547,6 +595,49 @@ updateConversation origDomain updateRequest = do
     toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
     toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
 
+sendMLSCommitBundle ::
+  ( Members
+      [ BrigAccess,
+        ConversationStore,
+        ExternalAccess,
+        Error FederationError,
+        Error InternalError,
+        FederatorAccess,
+        GundeckAccess,
+        Input (Local ()),
+        Input Env,
+        Input Opts,
+        Input UTCTime,
+        LegalHoldStore,
+        MemberStore,
+        Resource,
+        TeamStore,
+        P.TinyLog,
+        ProposalStore
+      ]
+      r
+  ) =>
+  Domain ->
+  F.MessageSendRequest ->
+  Sem r F.MLSMessageResponse
+sendMLSCommitBundle remoteDomain msr =
+  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
+    . runError @MLSProtocolError
+    . fmap (either F.MLSMessageResponseError id)
+    . runError
+    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
+    . runError
+    $ do
+      loc <- qualifyLocal ()
+      let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
+      bundle <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
+      mapToGalleyError @MLSBundleStaticErrors $ do
+        let msg = rmValue (cbCommitMsg (rmValue bundle))
+        qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+        when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
+        F.MLSMessageResponseUpdates . map lcuUpdate
+          <$> postMLSCommitBundle loc (qUntagged sender) qcnv Nothing bundle
+
 sendMLSMessage ::
   ( Members
       [ BrigAccess,
@@ -557,6 +648,7 @@ sendMLSMessage ::
         FederatorAccess,
         GundeckAccess,
         Input (Local ()),
+        Input Env,
         Input Opts,
         Input UTCTime,
         LegalHoldStore,
@@ -682,3 +774,27 @@ onMLSMessageSent domain rmm = do
   runMessagePush loc (Just (qUntagged rcnv)) $
     foldMap mkPush recipients
   pure EmptyResponse
+
+queryGroupInfo ::
+  ( Members
+      '[ ConversationStore,
+         Input (Local ())
+       ]
+      r,
+    Member MemberStore r
+  ) =>
+  Domain ->
+  F.GetGroupInfoRequest ->
+  Sem r F.GetGroupInfoResponse
+queryGroupInfo origDomain req =
+  fmap (either F.GetGroupInfoResponseError F.GetGroupInfoResponseState)
+    . runError @GalleyError
+    . mapToGalleyError @MLSGroupInfoStaticErrors
+    $ do
+      lconvId <- qualifyLocal . ggireqConv $ req
+      let sender = toRemoteUnsafe origDomain . ggireqSender $ req
+      state <- getGroupInfoFromLocalConv (qUntagged sender) lconvId
+      pure
+        . Base64ByteString
+        . unOpaquePublicGroupState
+        $ state

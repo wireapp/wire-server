@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -180,7 +181,7 @@ options =
           <> metavar "STRING"
           <> help "token data"
     toMode =
-      readerAsk >>= \s -> case s of
+      readerAsk >>= \case
         "create-user" -> pure CreateUser
         "create-session" -> pure CreateSession
         "create-access" -> pure CreateAccess

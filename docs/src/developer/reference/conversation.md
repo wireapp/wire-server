@@ -82,7 +82,6 @@ export WIRE_CONV='{
   "users": [],
   "name": "'${WIRE_CONV_NAME}'",
   "team": {
-    "managed": false,
     "teamid": "'${WIRE_TEAMID}'"
   },
   "receipt_mode": 0,

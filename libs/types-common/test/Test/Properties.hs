@@ -214,7 +214,8 @@ tests =
       testGroup
         "Nonce"
         [ testProperty "decode . encode = id" $
-            \(x :: Nonce) -> bsRoundtrip x
+            \(x :: Nonce) -> bsRoundtrip x,
+          jsonRoundtrip @Nonce
         ]
     ]
 

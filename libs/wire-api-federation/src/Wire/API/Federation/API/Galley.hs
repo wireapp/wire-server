@@ -27,7 +27,6 @@ import Data.Time.Clock (UTCTime)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
@@ -38,6 +37,7 @@ import Wire.API.Federation.Endpoint
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley
 import Wire.API.Util.Aeson (CustomEncoded (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
@@ -69,6 +69,18 @@ type GalleyApi =
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest EmptyResponse
     :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
     :<|> FedEndpoint "send-mls-message" MessageSendRequest MLSMessageResponse
+    :<|> FedEndpoint "send-mls-commit-bundle" MessageSendRequest MLSMessageResponse
+    :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
+    :<|> FedEndpoint "on-client-removed" ClientRemovedRequest EmptyResponse
+
+data ClientRemovedRequest = ClientRemovedRequest
+  { crrUser :: UserId,
+    crrClient :: ClientId,
+    crrConvs :: [ConvId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientRemovedRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded ClientRemovedRequest)
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -301,3 +313,21 @@ data MLSMessageResponse
   | MLSMessageResponseUpdates [ConversationUpdate]
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
+
+data GetGroupInfoRequest = GetGroupInfoRequest
+  { -- | Conversation is assumed to be owned by the target domain, this allows
+    -- us to protect against relay attacks
+    ggireqConv :: ConvId,
+    -- | Sender is assumed to be owned by the origin domain, this allows us to
+    -- protect against spoofing attacks
+    ggireqSender :: UserId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetGroupInfoRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetGroupInfoRequest)
+
+data GetGroupInfoResponse
+  = GetGroupInfoResponseError GalleyError
+  | GetGroupInfoResponseState Base64ByteString
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetGroupInfoResponse)

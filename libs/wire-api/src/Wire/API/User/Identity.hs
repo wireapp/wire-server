@@ -64,6 +64,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Proxy (Proxy (..))
 import Data.Schema
 import Data.String.Conversions (cs)
+import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
@@ -79,8 +80,8 @@ import qualified Test.QuickCheck as QC
 import qualified Text.Email.Validate as Email.V
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Profile (fromName, mkName)
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserIdentity
@@ -162,6 +163,9 @@ data Email = Email
   }
   deriving stock (Eq, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Email
+
+instance ToParamSchema Email where
+  toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance ToSchema Email where
   schema =

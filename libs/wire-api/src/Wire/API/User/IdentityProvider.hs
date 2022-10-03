@@ -39,8 +39,8 @@ import SAML2.WebSSO (IdPConfig)
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 import Wire.API.User.Orphans (samlSchemaOptions)
+import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig WireIdP
@@ -190,7 +190,7 @@ instance ToSchema IdPMetadataInfo where
           & properties .~ properties_
           & minProperties ?~ 1
           & maxProperties ?~ 1
-          & type_ .~ Just SwaggerObject
+          & type_ ?~ SwaggerObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =

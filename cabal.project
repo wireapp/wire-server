@@ -16,6 +16,7 @@ packages:
   , libs/gundeck-types/
   , libs/hscim/
   , libs/imports/
+  , libs/jwt-tools/
   , libs/metrics-core/
   , libs/metrics-wai/
   , libs/polysemy-wire-zoo/
@@ -157,6 +158,12 @@ source-repository-package
     location: https://gitlab.com/twittner/wai-routing
     tag: 7e996a93fec5901767f845a50316b3c18e51a61d
 
+source-repository-package
+    type: git
+    location: https://github.com/wireapp/tasty.git
+    tag: 394943c7672e5ad269e5587528b7678caf3b0720
+    subdir: hunit
+
 allow-older: *
 allow-newer: *
 
@@ -212,6 +219,8 @@ package gundeck-types
 package hscim
     ghc-options: -Werror
 package imports
+    ghc-options: -Werror
+package jwt-tools
     ghc-options: -Werror
 package metrics-core
     ghc-options: -Werror

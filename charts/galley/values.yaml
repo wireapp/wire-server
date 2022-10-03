@@ -11,11 +11,10 @@ metrics:
     enable: false
 resources:
   requests:
-    memory: "256Mi"
+    memory: "100Mi"
     cpu: "100m"
   limits:
-    memory: "512Mi"
-    cpu: "500m"
+    memory: "200Mi"
 config:
   logLevel: Info
   logFormat: StructuredJSON
@@ -27,6 +26,7 @@ config:
   settings:
     httpPoolSize: 128
     maxTeamSize: 10000
+    exposeInvitationURLsTeamAllowlist: []
     maxConvSize: 500
     # Before making indexedBillingTeamMember true while upgrading, please
     # refer to notes here: https://github.com/wireapp/wire-server-deploy/releases/tag/v2020-05-15
@@ -80,7 +80,7 @@ config:
       validateSAMLemails:
         defaults:
           status: enabled
- 
+
   aws:
     region: "eu-west-1"
   proxy: {}

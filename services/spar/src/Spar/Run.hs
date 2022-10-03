@@ -66,8 +66,8 @@ initCassandra opts lgr = do
   connectString <-
     maybe
       (Cas.initialContactsPlain (cassOpts ^. casEndpoint . epHost))
-      (Cas.initialContactsDisco "cassandra_spar")
-      (cs <$> Types.discoUrl opts)
+      (Cas.initialContactsDisco "cassandra_spar" . cs)
+      (Types.discoUrl opts)
   cas <-
     Cas.init $
       Cas.defSettings
@@ -98,7 +98,7 @@ runServer sparCtxOpts = do
   (wrappedApp, ctxOpts) <- mkApp sparCtxOpts
   let logger = sparCtxLogger ctxOpts
   Log.info logger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
-  WU.runSettingsWithShutdown settings wrappedApp 5
+  WU.runSettingsWithShutdown settings wrappedApp Nothing
 
 mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do

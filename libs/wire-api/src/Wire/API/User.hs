@@ -40,6 +40,7 @@ module Wire.API.User
     ssoIssuerAndNameId,
     connectedProfile,
     publicProfile,
+    userObjectSchema,
 
     -- * NewUser
     NewUserPublic (..),
@@ -95,6 +96,7 @@ module Wire.API.User
     VerifyDeleteUser (..),
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
+    DeleteUserResult (..),
 
     -- * List Users
     ListUsersQuery (..),
@@ -108,7 +110,6 @@ module Wire.API.User
     modelEmailUpdate,
     modelUser,
     modelUserIdList,
-    modelVerifyDelete,
 
     -- * 2nd factor auth
     VerificationAction (..),
@@ -157,7 +158,6 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import qualified Test.QuickCheck as QC
 import URI.ByteString (serializeURIRef)
 import qualified Web.Cookie as Web
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Error
 import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
@@ -169,6 +169,7 @@ import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -364,23 +365,25 @@ data User = User
 -- -- FUTUREWORK:
 -- -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
 instance ToSchema User where
-  schema =
-    object "User" $
-      User
-        <$> userId .= field "id" schema
-        <*> userQualifiedId .= field "qualified_id" schema
-        <*> userIdentity .= maybeUserIdentityObjectSchema
-        <*> userDisplayName .= field "name" schema
-        <*> userPict .= (fromMaybe noPict <$> optField "picture" schema)
-        <*> userAssets .= (fromMaybe [] <$> optField "assets" (array schema))
-        <*> userAccentId .= field "accent_id" schema
-        <*> (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
-        <*> userLocale .= field "locale" schema
-        <*> userService .= maybe_ (optField "service" schema)
-        <*> userHandle .= maybe_ (optField "handle" schema)
-        <*> userExpire .= maybe_ (optField "expires_at" schema)
-        <*> userTeam .= maybe_ (optField "team" schema)
-        <*> userManagedBy .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
+  schema = object "User" userObjectSchema
+
+userObjectSchema :: ObjectSchema SwaggerDoc User
+userObjectSchema =
+  User
+    <$> userId .= field "id" schema
+    <*> userQualifiedId .= field "qualified_id" schema
+    <*> userIdentity .= maybeUserIdentityObjectSchema
+    <*> userDisplayName .= field "name" schema
+    <*> userPict .= (fromMaybe noPict <$> optField "picture" schema)
+    <*> userAssets .= (fromMaybe [] <$> optField "assets" (array schema))
+    <*> userAccentId .= field "accent_id" schema
+    <*> (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
+    <*> userLocale .= field "locale" schema
+    <*> userService .= maybe_ (optField "service" schema)
+    <*> userHandle .= maybe_ (optField "handle" schema)
+    <*> userExpire .= maybe_ (optField "expires_at" schema)
+    <*> userTeam .= maybe_ (optField "team" schema)
+    <*> userManagedBy .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
@@ -1311,30 +1314,17 @@ data VerifyDeleteUser = VerifyDeleteUser
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform VerifyDeleteUser)
-
-modelVerifyDelete :: Doc.Model
-modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
-  Doc.description "Data for verifying an account deletion."
-  Doc.property "key" Doc.string' $
-    Doc.description "The identifying key of the account (i.e. user ID)."
-  Doc.property "code" Doc.string' $
-    Doc.description "The verification code."
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifyDeleteUser)
 
 mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
 mkVerifyDeleteUser = VerifyDeleteUser
 
-instance ToJSON VerifyDeleteUser where
-  toJSON d =
-    A.object
-      [ "key" A..= verifyDeleteUserKey d,
-        "code" A..= verifyDeleteUserCode d
-      ]
-
-instance FromJSON VerifyDeleteUser where
-  parseJSON = A.withObject "VerifyDeleteUser" $ \o ->
-    VerifyDeleteUser
-      <$> o A..: "key"
-      <*> o A..: "code"
+instance ToSchema VerifyDeleteUser where
+  schema =
+    objectWithDocModifier "VerifyDeleteUser" (description ?~ "Data for verifying an account deletion.") $
+      VerifyDeleteUser
+        <$> verifyDeleteUserKey .= fieldWithDocModifier "key" (description ?~ "The identifying key of the account (i.e. user ID).") schema
+        <*> verifyDeleteUserCode .= fieldWithDocModifier "code" (description ?~ "The verification code.") schema
 
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout
@@ -1355,6 +1345,16 @@ instance ToJSON DeletionCodeTimeout where
 instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
+
+-- | Result of an internal user/account deletion
+data DeleteUserResult
+  = -- | User never existed
+    NoUser
+  | -- | User/account was deleted before
+    AccountAlreadyDeleted
+  | -- | User/account was deleted in this call
+    AccountDeleted
+  deriving (Eq, Show)
 
 data ListUsersQuery
   = ListUsersByIds [Qualified UserId]

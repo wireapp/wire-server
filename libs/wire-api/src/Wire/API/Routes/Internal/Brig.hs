@@ -30,6 +30,8 @@ module Wire.API.Routes.Internal.Brig
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     NewKeyPackageRef (..),
+    NewKeyPackage (..),
+    NewKeyPackageResult (..),
   )
 where
 
@@ -59,6 +61,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Team.Feature
 import Wire.API.User
+import Wire.API.User.Client
 
 type EJPDRequest =
   Summary
@@ -154,6 +157,7 @@ type AccountAPI =
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
 
+-- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef
   { nkprUserId :: Qualified UserId,
     nkprClientId :: ClientId,
@@ -169,6 +173,34 @@ instance ToSchema NewKeyPackageRef where
         <$> nkprUserId .= field "user_id" schema
           <*> nkprClientId .= field "client_id" schema
           <*> nkprConversation .= field "conversation" schema
+
+data NewKeyPackage = NewKeyPackage
+  { nkpConversation :: Qualified ConvId,
+    nkpKeyPackage :: KeyPackageData
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackage)
+
+instance ToSchema NewKeyPackage where
+  schema =
+    object "NewKeyPackage" $
+      NewKeyPackage
+        <$> nkpConversation .= field "conversation" schema
+          <*> nkpKeyPackage .= field "key_package" schema
+
+data NewKeyPackageResult = NewKeyPackageResult
+  { nkpresClientIdentity :: ClientIdentity,
+    nkpresKeyPackageRef :: KeyPackageRef
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackageResult)
+
+instance ToSchema NewKeyPackageResult where
+  schema =
+    object "NewKeyPackageResult" $
+      NewKeyPackageResult
+        <$> nkpresClientIdentity .= field "client_identity" schema
+          <*> nkpresKeyPackageRef .= field "key_package_ref" schema
 
 type MLSAPI =
   "mls"
@@ -213,6 +245,15 @@ type MLSAPI =
          )
            :<|> GetMLSClients
            :<|> MapKeyPackageRefs
+           :<|> Named
+                  "put-key-package-add"
+                  ( "key-package-add"
+                      :> ReqBody '[Servant.JSON] NewKeyPackage
+                      :> MultiVerb1
+                           'PUT
+                           '[Servant.JSON]
+                           (Respond 200 "Key package ref mapping updated" NewKeyPackageResult)
+                  )
        )
 
 type PutConversationByKeyPackageRef =
@@ -244,7 +285,7 @@ type GetConversationByKeyPackageRef =
     )
 
 type GetMLSClients =
-  Summary "Return all MLS-enabled clients of a user"
+  Summary "Return all clients and all MLS-capable clients of a user"
     :> "clients"
     :> CanThrow 'UserNotFound
     :> Capture "user" UserId
@@ -252,7 +293,7 @@ type GetMLSClients =
     :> MultiVerb1
          'GET
          '[Servant.JSON]
-         (Respond 200 "MLS clients" (Set ClientId))
+         (Respond 200 "MLS clients" (Set ClientInfo))
 
 type MapKeyPackageRefs =
   Summary "Insert bundle into the KeyPackage ref mapping. Only for tests."

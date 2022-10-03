@@ -22,9 +22,9 @@ module API.User.Util where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
+import Brig.Effects.CodeStore
+import Brig.Effects.CodeStore.Cassandra
 import Brig.Options (Opts)
-import Brig.Sem.CodeStore
-import Brig.Sem.CodeStore.Cassandra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.ZAuth
 import qualified Cassandra as DB
@@ -69,6 +69,7 @@ import qualified Wire.API.User as Public
 import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Client
+import Wire.API.User.Client.DPoPAccessToken (Proof)
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password
@@ -186,7 +187,8 @@ initiateEmailUpdateLogin brig email loginCreds uid = do
 initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.AccessToken) -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
 initiateEmailUpdateCreds brig email (cky, tok) uid = do
   put $
-    brig
+    unversioned
+      . brig
       . path "/access/self/email"
       . cookie cky
       . header "Authorization" ("Bearer " <> toByteString' tok)
@@ -261,7 +263,8 @@ getClientCapabilities brig u c =
 getUserClientsUnqualified :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getUserClientsUnqualified brig uid =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . paths ["users", toByteString' uid, "clients"]
       . zUser uid
 
@@ -286,10 +289,11 @@ deleteClient brig u c pw =
       RequestBodyLBS . encode . object . maybeToList $
         fmap ("password" .=) pw
 
-listConnections :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+listConnections :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 listConnections brig u =
   get $
-    brig
+    apiVersion "v1"
+      . brig
       . path "connections"
       . zUser u
 
@@ -434,7 +438,7 @@ sendConnectionUpdateAction brig opts uid1 quid2 reaction expectedRel = do
 
 assertEmailVisibility :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> Bool -> m ()
 assertEmailVisibility brig a b visible =
-  get (brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
+  get (apiVersion "v1" . brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
     const 200 === statusCode
     if visible
       then const (Just (userEmail b)) === fmap userEmail . responseJsonMaybe
@@ -452,7 +456,7 @@ uploadAsset c usr sts dat = do
       mpb = buildMultipartBody sts ct (LB.fromStrict dat)
   post
     ( c
-        . path "/assets/v3"
+        . path "/assets"
         . zUser usr
         . zConn "conn"
         . content "multipart/mixed"
@@ -470,7 +474,7 @@ downloadAsset ::
 downloadAsset c usr ast =
   get
     ( c
-        . paths ["/assets/v4", toByteString' (qDomain ast), toByteString' (qUnqualified ast)]
+        . paths ["/assets", toByteString' (qDomain ast), toByteString' (qUnqualified ast)]
         . zUser usr
         . zConn "conn"
     )
@@ -556,6 +560,7 @@ getNonce ::
   (MonadIO m, MonadHttp m) =>
   Brig ->
   UserId ->
+  ClientId ->
   m ResponseLBS
 getNonce = nonce get
 
@@ -563,13 +568,23 @@ headNonce ::
   (MonadIO m, MonadHttp m) =>
   Brig ->
   UserId ->
+  ClientId ->
   m ResponseLBS
 headNonce = nonce Bilge.head
 
-nonce :: ((Request -> c) -> t) -> (Request -> c) -> UserId -> t
-nonce m brig uid =
+nonce :: ((Request -> c) -> t) -> (Request -> c) -> UserId -> ClientId -> t
+nonce m brig uid cid =
   m
     ( brig
-        . paths ["nonce", "clients"]
+        . paths ["clients", toByteString' cid, "nonce"]
         . zUser uid
+    )
+
+createAccessToken :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> ClientId -> Maybe Proof -> m ResponseLBS
+createAccessToken brig uid cid mProof =
+  post
+    ( brig
+        . paths ["clients", toByteString' cid, "access-token"]
+        . zUser uid
+        . maybe id (header "DPoP" . toByteString') mProof
     )

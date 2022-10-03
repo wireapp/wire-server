@@ -84,11 +84,11 @@ import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
 import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml ()
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------------
 -- Schemas
@@ -462,7 +462,7 @@ instance ToSchema ScimTokenInfo where
     pure $
       NamedSchema (Just "ScimTokenInfo") $
         mempty
-          & type_ .~ Just SwaggerObject
+          & type_ ?~ SwaggerObject
           & properties
             .~ [ ("team", teamSchema),
                  ("id", idSchema),
@@ -478,7 +478,7 @@ instance ToSchema CreateScimToken where
     pure $
       NamedSchema (Just "CreateScimToken") $
         mempty
-          & type_ .~ Just SwaggerObject
+          & type_ ?~ SwaggerObject
           & properties
             .~ [ ("description", textSchema),
                  ("password", textSchema),
@@ -493,7 +493,7 @@ instance ToSchema CreateScimTokenResponse where
     pure $
       NamedSchema (Just "CreateScimTokenResponse") $
         mempty
-          & type_ .~ Just SwaggerObject
+          & type_ ?~ SwaggerObject
           & properties
             .~ [ ("token", tokenSchema),
                  ("info", infoSchema)
@@ -506,7 +506,7 @@ instance ToSchema ScimTokenList where
     pure $
       NamedSchema (Just "ScimTokenList") $
         mempty
-          & type_ .~ Just SwaggerObject
+          & type_ ?~ SwaggerObject
           & properties
             .~ [ ("tokens", infoListSchema)
                ]

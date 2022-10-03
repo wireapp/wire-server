@@ -37,11 +37,11 @@ import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
 import Imports
-import Wire.API.Arbitrary
 import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.Arbitrary
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)
@@ -78,9 +78,9 @@ protocolTag (ProtocolMLS _) = ProtocolMLSTag
 protocolValidAction :: Protocol -> ConversationActionTag -> Bool
 protocolValidAction ProtocolProteus _ = True
 protocolValidAction (ProtocolMLS _) ConversationJoinTag = False
-protocolValidAction (ProtocolMLS _) ConversationLeaveTag = False
+protocolValidAction (ProtocolMLS _) ConversationLeaveTag = True
 protocolValidAction (ProtocolMLS _) ConversationRemoveMembersTag = False
-protocolValidAction (ProtocolMLS _) ConversationDeleteTag = False
+protocolValidAction (ProtocolMLS _) ConversationDeleteTag = True
 protocolValidAction (ProtocolMLS _) _ = True
 
 instance ToSchema ProtocolTag where

@@ -13,11 +13,10 @@ service:
   externalPort: 8080
 resources:
   requests:
-    memory: 128Mi
-    cpu: 125m
+    memory: 20Mi
+    cpu: 30m
   limits:
-    memory: 512Mi
-    cpu: 500m
+    memory: 50Mi
 config:
   logLevel: Info
   galebHost: galeb.integrations

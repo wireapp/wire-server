@@ -34,9 +34,9 @@ where
 import Brig.App (Env)
 import Brig.Data.User
 import Brig.Data.UserKey
+import qualified Brig.Effects.CodeStore as E
+import Brig.Effects.CodeStore.Cassandra
 import Brig.Options
-import qualified Brig.Sem.CodeStore as E
-import Brig.Sem.CodeStore.Cassandra
 import Brig.Types.Intra
 import Cassandra
 import Control.Error

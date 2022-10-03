@@ -444,9 +444,7 @@ updateConnectionInternal = \case
               handleConns (resultList page)
               case resultList page of
                 (conn : rest) ->
-                  if resultHasMore page
-                    then go (Just (maximum (qUnqualified . ucTo <$> (conn : rest))))
-                    else pure ()
+                  when (resultHasMore page) $ go (Just (maximum (qUnqualified . ucTo <$> (conn : rest))))
                 [] -> pure ()
 
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) ()

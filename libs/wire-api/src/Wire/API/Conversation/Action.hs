@@ -43,17 +43,17 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Data.Time.Clock
 import Imports
-import Wire.API.Arbitrary (Arbitrary (..))
 import Wire.API.Conversation
 import Wire.API.Conversation.Action.Tag
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.Arbitrary (Arbitrary (..))
 
 -- | We use this type family instead of a sum type to be able to define
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
 type family ConversationAction (tag :: ConversationActionTag) :: * where
   ConversationAction 'ConversationJoinTag = ConversationJoin
-  ConversationAction 'ConversationLeaveTag = NonEmptyList.NonEmpty (Qualified UserId)
+  ConversationAction 'ConversationLeaveTag = ()
   ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
   ConversationAction 'ConversationDeleteTag = ()
   ConversationAction 'ConversationRenameTag = ConversationRename
@@ -87,7 +87,7 @@ conversationActionSchema SConversationLeaveTag =
   objectWithDocModifier
     "ConversationLeave"
     (S.description ?~ "The action of some users leaving a conversation on their own")
-    $ field "users" (nonEmptyArray schema)
+    $ pure ()
 conversationActionSchema SConversationRemoveMembersTag =
   objectWithDocModifier
     "ConversationRemoveMembers"
@@ -151,7 +151,7 @@ conversationActionToEvent tag now quid qcnv action =
           let ConversationJoin newMembers role = action
            in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
         SConversationLeaveTag ->
-          EdMembersLeave (QualifiedUserIdList (toList action))
+          EdMembersLeave (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->
           EdMembersLeave (QualifiedUserIdList (toList action))
         SConversationMemberUpdateTag ->

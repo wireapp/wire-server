@@ -71,8 +71,8 @@ createEnv m o = do
   c <-
     maybe
       (C.initialContactsPlain (o ^. optCassandra . casEndpoint . epHost))
-      (C.initialContactsDisco "cassandra_gundeck")
-      (unpack <$> o ^. optDiscoUrl)
+      (C.initialContactsDisco "cassandra_gundeck" . unpack)
+      (o ^. optDiscoUrl)
   n <-
     newManager
       tlsManagerSettings

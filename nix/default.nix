@@ -11,6 +11,7 @@ let
   };
 
   c-lib-out-deps = [
+    pkgs.rusty_jwt_tools
     pkgs.cryptobox
     pkgs.icu.out
     pkgs.libsodium.out
@@ -39,6 +40,7 @@ let
       pkgs.haskell.compiler.ghc8107
       pkgs.protobuf
 
+      pkgs.rusty_jwt_tools
       pkgs.cryptobox
       pkgs.icu.dev
       pkgs.libsodium.dev
@@ -84,7 +86,8 @@ let
     pkgs.gnused
     pkgs.helm
     pkgs.helmfile
-    pkgs.hlint
+    pkgs.haskellPackages.hlint_3_4_1
+    pkgs.haskellPackages.apply-refact
     pkgs.jq
     pkgs.kind
     pkgs.kubectl

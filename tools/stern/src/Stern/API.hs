@@ -37,6 +37,7 @@ import Data.ByteString.Lazy (fromStrict)
 import Data.Handle (Handle)
 import Data.Id
 import Data.Predicate
+import Data.Proxy (Proxy (..))
 import Data.Range
 import qualified Data.Schema as S
 import Data.Swagger.Build.Api hiding (Response, def, min, response)
@@ -49,14 +50,16 @@ import qualified Galley.Types.Teams.Intra as Team
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Handler.Warp
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Predicate hiding (Error, reason, setStatus)
 import Network.Wai.Routing hiding (trace)
 import Network.Wai.Utilities
 import qualified Network.Wai.Utilities.Server as Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
+import Servant (ServerT, (:<|>) (..))
+import qualified Servant
 import Stern.API.Predicates
+import Stern.API.Routes
 import Stern.App
 import qualified Stern.Intra as Intra
 import Stern.Options
@@ -65,6 +68,7 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, trace, (.=))
 import Util.Options
 import Wire.API.Connection
+import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature hiding (setStatus)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility
@@ -78,16 +82,46 @@ start :: Opts -> IO ()
 start o = do
   e <- newEnv o
   s <- Server.newSettings (server e)
-  runSettings s (pipeline e)
+  Server.runSettingsWithShutdown s (servantApp e) Nothing
   where
+    server :: Env -> Server.Server
     server e = Server.defaultServer (unpack $ stern o ^. epHost) (stern o ^. epPort) (e ^. applog) (e ^. metrics)
+
+    pipeline :: Env -> Application
     pipeline e = GZip.gzip GZip.def $ serve e
+
+    serve :: Env -> Request -> Continue IO -> IO ResponseReceived
     serve e r k = runHandler e r (Server.route (Server.compile sitemap) r k) k
+
+    -- WIP: the servant app wraps the old wai-routes api
+    -- todo: remove wai-route api and replace with servant api when fully servantified
+    -- currently the servant app only contains the swagger docs
+    -- and is served with stern: http://localhost:8091/backoffice/api/swagger-ui/
+    -- swagger ui is functional and can execute requests against stern
+    -- however there is a servant value that implements the servant api and uses the same handlers as the wai-route api
+    -- to make sure it type checks
+    servantApp :: Env -> Application
+    servantApp e =
+      Servant.serve
+        (Proxy @(SwaggerDocsAPI :<|> Servant.Raw))
+        (swaggerDocsAPI :<|> Servant.Tagged (pipeline e))
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
   routes
   apiDocs
+
+-------------------------------------------------------------------------------
+-- servant API
+
+-- | The stern API implemented with servant
+-- currently not yet in use, replace wai-route api with this, when fully servantified
+-- primarily used for type checking
+_servantSitemap :: ServerT SternAPI Handler
+_servantSitemap = Named @"get-users-by-email" usersByEmail
+
+-------------------------------------------------------------------------------
+-- wai-routes API
 
 data SupportsTtl = TtlEnabled | TtlDisabled
 
@@ -120,7 +154,7 @@ routes = do
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
     Doc.response 404 "Account not found" (Doc.model Doc.errorModel)
 
-  get "/users" (continue usersByEmail) $
+  get "/users" (continue usersByEmail') $
     param "email"
   document "GET" "users" $ do
     Doc.summary "Displays user's info given an email address"
@@ -524,8 +558,11 @@ suspendUser uid = do
 unsuspendUser :: UserId -> Handler Response
 unsuspendUser uid = Intra.putUserStatus Active uid >> pure empty
 
-usersByEmail :: Email -> Handler Response
-usersByEmail = fmap json . Intra.getUserProfilesByIdentity . Left
+usersByEmail' :: Email -> Handler Response
+usersByEmail' = fmap json . usersByEmail
+
+usersByEmail :: Email -> Handler [UserAccount]
+usersByEmail = Intra.getUserProfilesByIdentity . Left
 
 usersByPhone :: Phone -> Handler Response
 usersByPhone = fmap json . Intra.getUserProfilesByIdentity . Right

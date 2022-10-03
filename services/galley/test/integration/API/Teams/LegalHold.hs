@@ -36,7 +36,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (asyncExceptionFromException)
-import Control.Lens
+import Control.Lens hiding ((#))
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
 import qualified Data.Aeson as Aeson
@@ -59,7 +59,8 @@ import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Time.Clock as Time
-import Galley.Cassandra.Client
+import Data.Timeout
+import Galley.Cassandra.Client (lookupClients)
 import Galley.Cassandra.LegalHold
 import qualified Galley.Cassandra.LegalHold as LegalHoldData
 import qualified Galley.Env as Galley
@@ -149,10 +150,13 @@ testsPublic s =
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
-              testGroup "no-consent" $
-                flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
-                  \args@(a, b, c, d) ->
-                    test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
+              testGroup "no-consent" $ do
+                connectFirst <- ("connectFirst",) <$> [False, True]
+                teamPeer <- ("teamPeer",) <$> [False, True]
+                approveLH <- ("approveLH",) <$> [False, True]
+                testPendingConnection <- ("testPendingConnection",) <$> [False, True]
+                let name = intercalate ", " $ map (\(n, b) -> n <> "=" <> show b) [connectFirst, teamPeer, approveLH, testPendingConnection]
+                pure . test s name $ testNoConsentBlockOne2OneConv (snd connectFirst) (snd teamPeer) (snd approveLH) (snd testPendingConnection),
               testGroup
                 "Legalhold is activated for user A in a group conversation"
                 [ test s "All admins are consenting: all non-consenters get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv LegalholderIsAdmin)),
@@ -617,7 +621,7 @@ testCannotCreateLegalHoldDeviceOldAPI = do
   where
     tryout :: UserId -> TestM ()
     tryout uid = do
-      brg <- view tsBrig
+      brg <- viewBrig
       let newClientBody =
             (newClient LegalHoldClientType (head someLastPrekeys))
               { newClientPassword = Just defPassword
@@ -667,7 +671,7 @@ testGetTeamMembersIncludesLHStatus = do
 
 testInWhitelist :: TestM ()
 testInWhitelist = do
-  g <- view tsGalley
+  g <- viewGalley
   (owner, tid) <- createBindingTeam
   member <- randomUser
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
@@ -822,7 +826,7 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
   regularClient <- randomClient legalholder (head someLastPrekeys)
 
   peer :: UserId <- if teamPeer then fst <$> createBindingTeam else randomUser
-  galley <- view tsGalley
+  galley <- viewGalley
 
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
@@ -908,6 +912,12 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
 
         do
           doDisableLH
+
+          when approveLH $ do
+            legalholderLHDevice <- assertJust mbLegalholderLHDevice
+            WS.assertMatch_ (5 # Second) legalholderWs $
+              wsAssertClientRemoved legalholderLHDevice
+
           assertConnections
             legalholder
             [ ConnectionStatus legalholder peer $
@@ -956,7 +966,7 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
   qLegalHolder <- Qualified legalholder <$> viewFederationDomain
   (peer :: UserId, teamPeer) <- createBindingTeam
   qPeer <- Qualified peer <$> viewFederationDomain
-  galley <- view tsGalley
+  galley <- viewGalley
 
   let enableLHForLegalholder :: HasCallStack => TestM ()
       enableLHForLegalholder = do
@@ -1048,7 +1058,7 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
 
     -- activate legalhold for legalholder
     do
-      galley <- view tsGalley
+      galley <- viewGalley
       requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
       approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
@@ -1098,7 +1108,7 @@ testNoConsentCannotBeInvited = do
 
     -- activate legalhold for legalholder
     do
-      galley <- view tsGalley
+      galley <- viewGalley
       requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
       approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
@@ -1137,7 +1147,7 @@ testCannotCreateGroupWithUsersInConflict = do
 
     -- activate legalhold for legalholder
     do
-      galley <- view tsGalley
+      galley <- viewGalley
       requestLegalHoldDevice legalholder legalholder tid !!! testResponse 201 Nothing
       approveLegalHoldDevice (Just defPassword) legalholder legalholder tid !!! testResponse 200 Nothing
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
@@ -1257,7 +1267,7 @@ testBenchHack' :: HasCallStack => Int -> TestM (Int, Time.NominalDiffTime)
 testBenchHack' numPeers = do
   (legalholder :: UserId, tid) <- createBindingTeam
   peers :: [UserId] <- replicateM numPeers randomUser
-  galley <- view tsGalley
+  galley <- viewGalley
 
   let doEnableLH :: HasCallStack => TestM ()
       doEnableLH = do
@@ -1295,14 +1305,14 @@ testBenchHack' numPeers = do
 
 getEnabled :: HasCallStack => TeamId -> TestM ResponseLBS
 getEnabled tid = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
 
 renewToken :: HasCallStack => Text -> TestM ()
 renewToken tok = do
-  b <- view tsBrig
+  b <- viewBrig
   void . post $
     b
       . paths ["access"]
@@ -1311,7 +1321,7 @@ renewToken tok = do
 
 _putEnabled :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
 _putEnabled tid enabled = do
-  g <- view tsGalley
+  g <- viewGalley
   putEnabledM g tid enabled
 
 putEnabledM :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> Public.FeatureStatus -> m ()
@@ -1319,7 +1329,7 @@ putEnabledM g tid enabled = void $ putEnabledM' g expect2xx tid enabled
 
 putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> TestM ResponseLBS
 putEnabled' extra tid enabled = do
-  g <- view tsGalley
+  g <- viewGalley
   putEnabledM' g extra tid enabled
 
 putEnabledM' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> m ResponseLBS
@@ -1335,7 +1345,7 @@ postSettings uid tid new =
   -- Retry calls to this endpoint, on k8s it sometimes takes a while to establish a working
   -- connection.
   retrying policy only412 $ \_ -> do
-    g <- view tsGalley
+    g <- viewGalley
     post $
       g
         . paths ["teams", toByteString' tid, "legalhold", "settings"]
@@ -1354,7 +1364,7 @@ getSettingsTyped uid tid = responseJsonUnsafe <$> (getSettings uid tid <!! testR
 
 getSettings :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getSettings uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   get $
     g
       . paths ["teams", toByteString' tid, "legalhold", "settings"]
@@ -1364,7 +1374,7 @@ getSettings uid tid = do
 
 deleteSettings :: HasCallStack => Maybe PlainTextPassword -> UserId -> TeamId -> TestM ResponseLBS
 deleteSettings mPassword uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   delete $
     g
       . paths ["teams", toByteString' tid, "legalhold", "settings"]
@@ -1375,7 +1385,7 @@ deleteSettings mPassword uid tid = do
 
 getUserStatusTyped :: HasCallStack => UserId -> TeamId -> TestM UserLegalHoldStatusResponse
 getUserStatusTyped uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   getUserStatusTyped' g uid tid
 
 getUserStatusTyped' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> m UserLegalHoldStatusResponse
@@ -1394,7 +1404,7 @@ getUserStatus' g uid tid = do
 
 approveLegalHoldDevice :: HasCallStack => Maybe PlainTextPassword -> UserId -> UserId -> TeamId -> TestM ResponseLBS
 approveLegalHoldDevice mPassword zusr uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   approveLegalHoldDevice' g mPassword zusr uid tid
 
 approveLegalHoldDevice' ::
@@ -1422,7 +1432,7 @@ disableLegalHoldForUser ::
   UserId ->
   TestM ResponseLBS
 disableLegalHoldForUser mPassword tid zusr uid = do
-  g <- view tsGalley
+  g <- viewGalley
   disableLegalHoldForUser' g mPassword tid zusr uid
 
 disableLegalHoldForUser' ::
@@ -1466,7 +1476,7 @@ assertZeroLegalHoldDevices uid = do
 
 requestLegalHoldDevice :: HasCallStack => UserId -> UserId -> TeamId -> TestM ResponseLBS
 requestLegalHoldDevice zusr uid tid = do
-  g <- view tsGalley
+  g <- viewGalley
   requestLegalHoldDevice' g zusr uid tid
 
 requestLegalHoldDevice' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> UserId -> TeamId -> m ResponseLBS
@@ -1804,7 +1814,7 @@ assertMatchChan c match = go []
 
 getLHWhitelistedTeam :: HasCallStack => TeamId -> TestM ResponseLBS
 getLHWhitelistedTeam tid = do
-  galley <- view tsGalley
+  galley <- viewGalley
   getLHWhitelistedTeam' galley tid
 
 getLHWhitelistedTeam' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS
@@ -1816,7 +1826,7 @@ getLHWhitelistedTeam' g tid = do
 
 putLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
 putLHWhitelistTeam tid = do
-  galley <- view tsGalley
+  galley <- viewGalley
   putLHWhitelistTeam' galley tid
 
 putLHWhitelistTeam' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS
@@ -1828,7 +1838,7 @@ putLHWhitelistTeam' g tid = do
 
 _deleteLHWhitelistTeam :: HasCallStack => TeamId -> TestM ResponseLBS
 _deleteLHWhitelistTeam tid = do
-  galley <- view tsGalley
+  galley <- viewGalley
   deleteLHWhitelistTeam' galley tid
 
 deleteLHWhitelistTeam' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> m ResponseLBS

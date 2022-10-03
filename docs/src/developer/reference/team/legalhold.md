@@ -137,23 +137,27 @@ blocked from using wire by their team admin (if they are a team user),
 but they cannot be assigned a LH device, and they cannot enter
 conversations with LH devices present.
 
-For now, there is on way in the UI for the user to grant consent.
-Instead, "implict consent" can be given by the site operator for any
-team in the server configuration file `galley.yaml`:
+For now, there isn't any UI for the user to grant their initial consent.
+Instead, an "implict consent" can be given by the site operator by setting
 
 ```yaml
   featureFlags:
     # [...]
     legalhold: whitelist-teams-and-implicit-consent
-  legalHoldTeamsWhitelist:
-  - 14172c08-b3c8-11eb-a763-6fe8c2ea993d
-  - 162d7894-b3c8-11eb-b137-074ff453399d
 ```
+
+in galley's config and then using non-exposed, internal endpoints on the galley
+pod to update the set of teams whose users are considered to have given their
+initial consent:
+
+- `put /i/legalhold/whitelisted-teams/:team-id` - Add team
+- `delete /i/legalhold/whitelisted-teams/:team-id` - Remove team
+- `get /i/legalhold/whitelisted-teams` - List all teams
 
 Since consent is required for LH to work, users in teams that are not
 whitelisted cannot be assigned LH devices (pull request #1502), and
 they are blocked or removed from conversations that are exposed to LH
-devices (TODO: name the PRs where this happens).
+devices (#1507, #1595).
 
 ### Implementation status and future work
 

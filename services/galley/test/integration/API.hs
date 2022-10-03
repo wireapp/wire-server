@@ -247,7 +247,7 @@ tests s =
 
 status :: TestM ()
 status = do
-  g <- view tsGalley
+  g <- viewGalley
   get (g . path "/i/status")
     !!! const 200 === statusCode
   Bilge.head (g . path "/i/status")
@@ -255,7 +255,7 @@ status = do
 
 metrics :: TestM ()
 metrics = do
-  g <- view tsGalley
+  g <- viewGalley
   get (g . path "/i/metrics") !!! do
     const 200 === statusCode
     -- Should contain the request duration metric in its output
@@ -388,6 +388,9 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
   -- Deleted eve
   WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
     deleteClient eve ec (Just defPassword) !!! const 200 === statusCode
+    liftIO $
+      WS.assertMatch_ (5 # WS.Second) wsE $
+        wsAssertClientRemoved ec
     let m4 = [(bob, bc, toBase64Text "ciphertext4"), (eve, ec, toBase64Text "ciphertext4")]
     postOtrMessage id alice ac conv m4 !!! do
       const 201 === statusCode
@@ -438,7 +441,6 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
 -- This test verifies basic mismatch behavior of the the JSON endpoint.
 postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson :: TestM ()
 postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
-  b <- view tsBrig
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -452,8 +454,9 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
       assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   let x = responseJsonUnsafeWithMsg "ClientMismatch" r1
   -- Fetch all missing clients prekeys
+  b <- view tsUnversionedBrig
   r2 <-
-    post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
+    post (b . zUser alice . path "v1/users/prekeys" . json (missingClients x))
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do
@@ -466,7 +469,6 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
 -- This test verifies basic mismatch behaviour of the protobuf endpoint.
 postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto :: TestM ()
 postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
-  b <- view tsBrig
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -482,8 +484,9 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   pure r1
     !!! assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   -- Fetch all missing clients prekeys
+  b <- view tsUnversionedBrig
   r2 <-
-    post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
+    post (b . zUser alice . path "v1/users/prekeys" . json (missingClients x))
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do
@@ -1213,7 +1216,7 @@ testJoinCodeConv = do
 
 testGetCodeRejectedIfGuestLinksDisabled :: TestM ()
 testGetCodeRejectedIfGuestLinksDisabled = do
-  galley <- view tsGalley
+  galley <- viewGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, GuestAccessRole] []
   let createConvWithGuestLink = do
@@ -1234,7 +1237,7 @@ testGetCodeRejectedIfGuestLinksDisabled = do
 
 testPostCodeRejectedIfGuestLinksDisabled :: TestM ()
 testPostCodeRejectedIfGuestLinksDisabled = do
-  galley <- view tsGalley
+  galley <- viewGalley
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   Right noGuestsAccess <- liftIO $ genAccessRolesV2 [NonTeamMemberAccessRole] [GuestAccessRole]
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just noGuestsAccess) Nothing
@@ -1253,7 +1256,7 @@ testPostCodeRejectedIfGuestLinksDisabled = do
 -- Check if guests cannot join anymore if guest invite feature was disabled on team level
 testJoinTeamConvGuestLinksDisabled :: TestM ()
 testJoinTeamConvGuestLinksDisabled = do
-  galley <- view tsGalley
+  galley <- viewGalley
   let convName = "testConversation"
   (owner, teamId, [alice]) <- Util.createBindingTeamWithNMembers 1
   eve <- ephemeralUser
@@ -1312,7 +1315,7 @@ testJoinTeamConvGuestLinksDisabled = do
 
 testJoinNonTeamConvGuestLinksDisabled :: TestM ()
 testJoinNonTeamConvGuestLinksDisabled = do
-  galley <- view tsGalley
+  galley <- viewGalley
   let convName = "testConversation"
   (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
   userNotInTeam <- randomUser
@@ -1449,7 +1452,7 @@ postConvertTeamConv = do
   dave <- view Teams.userId <$> addUserToTeam alice tid
   assertQueue "team member (dave) join" $ tUpdate 3 [alice]
   refreshIndex
-  eve <- randomUser
+  (eve, qeve) <- randomUserTuple
   connectUsers alice (singleton eve)
   let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
   -- creating a team-only conversation containing eve should fail
@@ -1478,9 +1481,11 @@ postConvertTeamConv = do
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
         wsAssertConvAccessUpdate qconv qalice teamAccess
     -- non-team members get kicked out
-    void . liftIO $
-      WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave qconv qalice $ (`Qualified` localDomain) <$> [eve, mallory]
+    liftIO $ do
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
+        wsAssertMemberLeave qconv qalice (pure qeve)
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
+        wsAssertMemberLeave qconv qalice (pure qmallory)
     -- joining (for mallory) is no longer possible
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
@@ -1532,16 +1537,42 @@ testAccessUpdateGuestRemoved = do
       -- note that removing users happens asynchronously, so this check should
       -- happen while the mock federator is still available
       WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie, dee]
+        wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie]
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMembersLeave (cnvQualifiedId conv) alice [dee]
 
     -- dee's remote receives a notification
-    liftIO . assertBool "remote users are not notified" . isJust . flip find reqs $ \freq ->
-      (frComponent freq == Galley)
-        && ( frRPC freq == "on-conversation-updated"
-           )
-        && ( fmap F.cuAction (eitherDecode (frBody freq))
-               == Right (SomeConversationAction (sing @'ConversationLeaveTag) (charlie :| [dee]))
-           )
+    let compareLists [] ys = [] @?= ys
+        compareLists (x : xs) ys = case break (== x) ys of
+          (ys1, _ : ys2) -> compareLists xs (ys1 <> ys2)
+          _ -> assertFailure $ "Could not find " <> show x <> " in " <> show ys
+    liftIO $
+      compareLists
+        ( map
+            ( \fr -> do
+                cu <- eitherDecode (frBody fr)
+                pure (F.cuOrigUserId cu, F.cuAction cu)
+            )
+            ( filter
+                ( \fr ->
+                    frComponent fr == Galley
+                      && frRPC fr == "on-conversation-updated"
+                )
+                reqs
+            )
+        )
+        [ Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure charlie)),
+          Right (alice, SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure dee)),
+          Right
+            ( alice,
+              SomeConversationAction
+                (sing @'ConversationAccessDataTag)
+                ConversationAccessData
+                  { cupAccess = mempty,
+                    cupAccessRoles = Set.fromList [TeamMemberAccessRole]
+                  }
+            )
+        ]
 
   -- only alice and bob remain
   conv2 <-
@@ -1575,7 +1606,7 @@ testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
 getGuestLinksStatusFromForeignTeamConv :: TestM ()
 getGuestLinksStatusFromForeignTeamConv = do
   localDomain <- viewFederationDomain
-  galley <- view tsGalley
+  galley <- viewGalley
   let setTeamStatus u tid tfStatus =
         TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley u tid (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig Public.FeatureTTLUnlimited) !!! do
           const 200 === statusCode
@@ -2033,7 +2064,7 @@ postConvQualifiedFederationNotEnabled = do
   connectWithRemoteUser alice bob
   let federatorNotConfigured = optFederator .~ Nothing
   withSettingsOverrides federatorNotConfigured $ do
-    g <- view tsGalley
+    g <- viewGalley
     postConvHelper g alice [bob] !!! do
       const 400 === statusCode
       const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
@@ -2069,7 +2100,7 @@ postO2OConvOk = do
 
 postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
@@ -2190,7 +2221,7 @@ postRepeatConnectConvCancel = do
     privateAccess @=? cnvAccess cnv4
   where
     cancel u c = do
-      g <- view tsGalley
+      g <- viewGalley
       let cnvId = qUnqualified . cnvQualifiedId
       put (g . paths ["/i/conversations", toByteString' (cnvId c), "block"] . zUser u)
         !!! const 200 === statusCode
@@ -2198,7 +2229,7 @@ postRepeatConnectConvCancel = do
 
 putBlockConvOk :: TestM ()
 putBlockConvOk = do
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   bob <- randomUser
   conv <- responseJsonUnsafeWithMsg "conversation" <$> postConnectConv alice bob "Alice" "connect with me!" (Just "me@me.com")
@@ -2258,7 +2289,7 @@ getConvQualifiedOk = do
 
 accessConvMeta :: TestM ()
 accessConvMeta = do
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   bob <- randomUser
   chuck <- randomUser
@@ -2409,7 +2440,7 @@ testGetQualifiedRemoteConv = do
       remoteConvId = Qualified convId remoteDomain
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       aliceAsLocal =
-        LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin Set.empty
+        LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
       aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
       aliceAsSelfMember = localMemberToSelf loc aliceAsLocal
 
@@ -3083,7 +3114,7 @@ putQualifiedConvRenameWithRemotesOk = do
 putConvDeprecatedRenameOk :: TestM ()
 putConvDeprecatedRenameOk = do
   c <- view tsCannon
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   qbob <- randomQualifiedUser
   let bob = qUnqualified qbob
@@ -3372,7 +3403,6 @@ putRemoteConvMemberOk update = do
           defMemberStatus
           Nothing
           roleNameWireAdmin
-          Set.empty
   let mockConversation =
         mkProteusConv
           (qUnqualified qconv)
@@ -3570,7 +3600,7 @@ putReceiptModeWithRemotesOk = do
 
 postTypingIndicators :: TestM ()
 postTypingIndicators = do
-  g <- view tsGalley
+  g <- viewGalley
   alice <- randomUser
   bob <- randomUser
   connectUsers alice (singleton bob)
@@ -3740,25 +3770,29 @@ removeUser = do
       bConvUpdates <- mapM (assertRight . eitherDecode . frBody) bConvUpdateRPCs
 
       bConvUpdatesA2 <- assertOne $ filter (\cu -> cuConvId cu == convA2) bConvUpdates
-      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId bConvUpdatesA2 @?= alexDel
+      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers bConvUpdatesA2 @?= [qUnqualified berta]
 
       bConvUpdatesA4 <- assertOne $ filter (\cu -> cuConvId cu == convA4) bConvUpdates
-      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId bConvUpdatesA4 @?= alexDel
+      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers bConvUpdatesA4 @?= [qUnqualified bart]
 
     liftIO $ do
       cConvUpdateRPC <- assertOne $ filter (matchFedRequest cDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ cConvUpdateRPC
       cuConvId convUpdate @?= convA4
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId convUpdate @?= alexDel
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
 
     liftIO $ do
       dConvUpdateRPC <- assertOne $ filter (matchFedRequest dDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ dConvUpdateRPC
       cuConvId convUpdate @?= convA2
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId convUpdate @?= alexDel
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified dwight]
 
   -- Check memberships

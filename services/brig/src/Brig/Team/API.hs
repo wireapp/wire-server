@@ -31,14 +31,16 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Email as Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAccount (..))
 import Brig.Types.Team (TeamSize)
@@ -401,6 +403,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   let locale = irLocale body
   let inviteeName = irInviteeName body
+  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
 
   lift $ do
     iid <- liftIO DB.mkInvitationId
@@ -409,6 +412,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
     (newInv, code) <-
       wrapClient $
         DB.insertInvitation
+          showInvitationUrl
           iid
           tid
           inviteeRole
@@ -436,7 +440,8 @@ listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
 listInvitations :: Members '[GalleyProvider] r => UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
 listInvitations uid tid start size = do
   ensurePermissions uid tid [AddTeamMember]
-  rs <- lift $ wrapClient $ DB.lookupInvitations tid start size
+  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
+  rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start size
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitationH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
@@ -449,7 +454,8 @@ getInvitationH (_ ::: uid ::: tid ::: iid) = do
 getInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  lift $ wrapClient $ DB.lookupInvitation tid iid
+  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
+  lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
 
 getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
 getInvitationByCodeH (_ ::: c) = do
@@ -457,7 +463,7 @@ getInvitationByCodeH (_ ::: c) = do
 
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
-  inv <- lift . wrapClient $ DB.lookupInvitationByCode c
+  inv <- lift . wrapClient $ DB.lookupInvitationByCode HideInvitationUrl c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
 
 headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
@@ -477,7 +483,7 @@ getInvitationByEmailH (_ ::: email) =
 
 getInvitationByEmail :: Email -> (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail email
+  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
 suspendTeamH :: Members '[GalleyProvider] r => JSON ::: TeamId -> (Handler r) Response

@@ -1,0 +1,144 @@
+cabal-version: 1.12
+name:          jwt-tools
+version:       0.1.0
+synopsis:      FFI to rusty-jwt-tools
+description:   FFI to rusty-jwt-tools
+category:      Cryptography
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
+
+library
+  exposed-modules:    Data.Jwt.Tools
+  hs-source-dirs:     src
+  other-modules:      Paths_jwt_tools
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
+  build-depends:
+      base
+    , base64-bytestring
+    , bytestring
+    , bytestring-conversion
+    , http-types
+    , imports
+    , QuickCheck
+    , string-conversions
+    , transformers
+    , unliftio
+
+  default-language:   Haskell2010
+  other-extensions:   ForeignFunctionInterface
+  extra-libraries:
+    rusty_jwt_tools_ffi
+    pthread
+
+test-suite jwt-tools-tests
+  main-is:            Spec.hs
+  type:               exitcode-stdio-1.0
+  build-depends:
+      base
+    , base64-bytestring
+    , bytestring
+    , bytestring-conversion
+    , either
+    , extra
+    , hspec
+    , http-types
+    , imports
+    , jwt-tools
+    , QuickCheck
+    , string-conversions
+    , text
+    , transformers
+    , uuid
+
+  hs-source-dirs:     test
+  default-language:   Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns

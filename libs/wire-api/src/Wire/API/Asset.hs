@@ -88,9 +88,9 @@ import qualified Data.UUID as UUID
 import Imports
 import Servant
 import URI.ByteString
-import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.Error
 import Wire.API.Routes.MultiVerb
+import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Asset
@@ -395,10 +395,6 @@ instance S.ToParamSchema (AssetLocation r) where
     mempty
       & S.type_ ?~ S.SwaggerString
       & S.format ?~ "url"
-
-instance AsHeaders '[AssetLocation r] Asset (Asset, AssetLocation r) where
-  toHeaders (asset, loc) = (I loc :* Nil, asset)
-  fromHeaders (I loc :* Nil, asset) = (asset, loc)
 
 -- | An asset as returned by the download API: if the asset is local, only a
 -- URL is returned, and if it is remote the content of the asset is streamed.

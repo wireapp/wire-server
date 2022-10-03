@@ -38,6 +38,7 @@ import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.Misc (HttpsUrl)
+import Data.Nonce
 import Data.Range
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
@@ -51,10 +52,10 @@ import Imports
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Wire.API.Arbitrary (Arbitrary, arbitrary)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy)
+import Wire.Arbitrary (Arbitrary, arbitrary)
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -592,7 +593,16 @@ data Settings = Settings
     set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
     -- | The time-to-live of a nonce in seconds.
     -- use `setNonceTtlSecs` as the getter function which always provides a default value
-    setNonceTtlSecsInternal :: !(Maybe Word64)
+    setNonceTtlSecsInternal :: !(Maybe NonceTtlSecs),
+    -- | The maximum number of seconds of clock skew the implementation of generate_dpop_access_token in jwt-tools will allow
+    -- use `setDpopMaxSkewSecs` as the getter function which always provides a default value
+    setDpopMaxSkewSecsInternal :: !(Maybe Word16),
+    -- | The expiration time of a JWT DPoP token in seconds.
+    -- use `setDpopTokenExpirationTimeSecs` as the getter function which always provides a default value
+    setDpopTokenExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- | Path to a .pem file containing the server's public key and private key
+    -- e.g. to sign JWT tokens
+    setPublicKeyBundle :: !(Maybe FilePath)
   }
   deriving (Show, Generic)
 
@@ -620,11 +630,23 @@ def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
 set2FACodeGenerationDelaySecs :: Settings -> Int
 set2FACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . set2FACodeGenerationDelaySecsInternal
 
-defaultNonceTtlSecs :: Word64
-defaultNonceTtlSecs = 5 * 60 -- 5 minutes
+defaultNonceTtlSecs :: NonceTtlSecs
+defaultNonceTtlSecs = NonceTtlSecs $ 5 * 60 -- 5 minutes
 
-setNonceTtlSecs :: Settings -> Word64
+setNonceTtlSecs :: Settings -> NonceTtlSecs
 setNonceTtlSecs = fromMaybe defaultNonceTtlSecs . setNonceTtlSecsInternal
+
+defaultDpopMaxSkewSecs :: Word16
+defaultDpopMaxSkewSecs = 1
+
+setDpopMaxSkewSecs :: Settings -> Word16
+setDpopMaxSkewSecs = fromMaybe defaultDpopMaxSkewSecs . setDpopMaxSkewSecsInternal
+
+defaultDpopTokenExpirationTimeSecs :: Word64
+defaultDpopTokenExpirationTimeSecs = 30
+
+setDpopTokenExpirationTimeSecs :: Settings -> Word64
+setDpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . setDpopTokenExpirationTimeSecsInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -807,6 +829,8 @@ instance FromJSON Settings where
               "setVerificationCodeTimeoutInternal" -> "setVerificationTimeout"
               "set2FACodeGenerationDelaySecsInternal" -> "set2FACodeGenerationDelaySecs"
               "setNonceTtlSecsInternal" -> "setNonceTtlSecs"
+              "setDpopMaxSkewSecsInternal" -> "setDpopMaxSkewSecs"
+              "setDpopTokenExpirationTimeSecsInternal" -> "setDpopTokenExpirationTimeSecs"
               other -> other
           }
 

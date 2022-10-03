@@ -313,3 +313,7 @@ instance FeatureStatusCassandra MLSConfig where
       insert =
         "insert into team_features (team_id, mls_status, mls_default_protocol, \
         \mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite) values (?, ?, ?, ?, ?, ?)"
+
+instance FeatureStatusCassandra ExposeInvitationURLsToTeamAdminConfig where
+  getFeatureConfig _ = getTrivialConfigC "expose_invitation_urls_to_team_admin"
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid (wssStatus statusNoLock)

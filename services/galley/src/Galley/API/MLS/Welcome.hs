@@ -17,6 +17,7 @@
 
 module Galley.API.MLS.Welcome
   ( postMLSWelcome,
+    postMLSWelcomeFromLocalUser,
     sendLocalWelcomes,
   )
 where
@@ -60,16 +61,32 @@ postMLSWelcome ::
        P.TinyLog
      ]
     r =>
-  Local UserId ->
+  Local x ->
+  Maybe ConnId ->
+  RawMLS Welcome ->
+  Sem r ()
+postMLSWelcome loc con wel = do
+  now <- input
+  rcpts <- welcomeRecipients (rmValue wel)
+  let (locals, remotes) = partitionQualified loc rcpts
+  sendLocalWelcomes con now (rmRaw wel) (qualifyAs loc locals)
+  sendRemoteWelcomes (rmRaw wel) remotes
+
+postMLSWelcomeFromLocalUser ::
+  Members
+    '[ BrigAccess,
+       FederatorAccess,
+       GundeckAccess,
+       ErrorS 'MLSKeyPackageRefNotFound,
+       Input UTCTime,
+       P.TinyLog
+     ]
+    r =>
+  Local x ->
   ConnId ->
   RawMLS Welcome ->
   Sem r ()
-postMLSWelcome lusr con wel = do
-  now <- input
-  rcpts <- welcomeRecipients (rmValue wel)
-  let (locals, remotes) = partitionQualified lusr rcpts
-  sendLocalWelcomes (Just con) now (rmRaw wel) (qualifyAs lusr locals)
-  sendRemoteWelcomes (rmRaw wel) remotes
+postMLSWelcomeFromLocalUser loc con wel = postMLSWelcome loc (Just con) wel
 
 welcomeRecipients ::
   Members

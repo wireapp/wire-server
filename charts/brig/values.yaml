@@ -7,11 +7,10 @@ service:
   internalPort: 8080
 resources:
   requests:
-    memory: "256Mi"
+    memory: "200Mi"
     cpu: "100m"
   limits:
     memory: "512Mi"
-    cpu: "500m"
 metrics:
   serviceMonitor:
     enable: false
@@ -86,6 +85,8 @@ config:
     #   - example.com
     set2FACodeGenerationDelaySecs: 300 # 5 minutes
     setNonceTtlSecs: 300 # 5 minutes
+    setDpopMaxSkewSecs: 1
+    setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

@@ -4,8 +4,7 @@ resources:
     memory: "256Mi"
     cpu: "100m"
   limits:
-    memory: "1024Mi"
-    cpu: "2"
+    memory: "800Mi"
 metrics:
   serviceMonitor:
     enabled: false
@@ -398,6 +397,9 @@ nginx_conf:
       envs:
       - all
       doc: true
+    - path: /legalhold/conversations/(.*)
+      envs:
+      - all
     - path: /teams$
       envs:
       - all
@@ -476,7 +478,10 @@ nginx_conf:
     - path: /mls/messages
       envs:
       - all
-    - path: /nonce/clients
+    - path: /mls/commit-bundles
+      envs:
+      - all
+    - path: /mls/public-keys
       envs:
       - all
     gundeck:

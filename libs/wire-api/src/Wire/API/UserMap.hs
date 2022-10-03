@@ -31,8 +31,8 @@ import qualified Data.Text as Text
 import Data.Typeable (typeRep)
 import Imports
 import Test.QuickCheck (Arbitrary (..))
-import Wire.API.Arbitrary (generateExample, mapOf')
 import Wire.API.Wrapped (Wrapped)
+import Wire.Arbitrary (generateExample, mapOf')
 
 newtype UserMap a = UserMap {userMap :: Map UserId a}
   deriving stock (Eq, Show)

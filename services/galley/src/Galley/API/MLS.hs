@@ -16,8 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.MLS
-  ( postMLSWelcome,
+  ( postMLSWelcomeFromLocalUser,
     postMLSMessage,
+    postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
     postMLSMessageFromLocalUserV1,
     getMLSPublicKeys,

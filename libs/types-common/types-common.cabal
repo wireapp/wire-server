@@ -24,6 +24,7 @@ library
     Data.List1
     Data.Misc
     Data.Nonce
+    Data.PEMKeys
     Data.Qualified
     Data.Range
     Data.RetryAfter
@@ -35,6 +36,7 @@ library
     Util.Options
     Util.Options.Common
     Util.Test
+    Wire.Arbitrary
     Wire.Swagger
 
   other-modules:      Paths_types_common
@@ -88,7 +90,7 @@ library
       aeson                  >=2.0.1.0
     , attoparsec             >=0.11
     , attoparsec-iso8601
-    , base                   >=4        && <5
+    , base                   >=4            && <5
     , base16-bytestring      >=0.1
     , base64-bytestring      >=1.0
     , binary
@@ -99,14 +101,20 @@ library
     , cryptohash-md5         >=0.11.7.2
     , cryptohash-sha1        >=0.11.7.2
     , cryptonite             >=0.26
+    , currency-codes         >=3.0.0.1
     , data-default           >=0.5
+    , generic-random         >=1.4.0.0
     , hashable               >=1.2
     , http-api-data
     , imports
     , iproute                >=1.5
+    , iso3166-country-codes  >=0.20140203.8
+    , iso639                 >=0.1.0.3
     , lens                   >=4.10
     , lens-datetime          >=0.3
+    , mime                   >=0.4.0.2
     , optparse-applicative   >=0.10
+    , pem
     , protobuf               >=0.2
     , QuickCheck             >=2.9
     , quickcheck-instances   >=0.3.16
@@ -141,6 +149,7 @@ test-suite tests
   main-is:            Main.hs
   other-modules:
     Paths_types_common
+    Test.Data.PEMKeys
     Test.Domain
     Test.Handle
     Test.Properties

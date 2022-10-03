@@ -171,12 +171,12 @@ testHandleQuery opts brig = do
   -- Query the updated profile
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
-    const (Just (Handle hdl)) === (>>= userHandle) . responseJsonMaybe
+    const (Just (Handle hdl)) === (userHandle <=< responseJsonMaybe)
   -- Query for the handle availability (must be taken)
   Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
     !!! const 200 === statusCode
   -- Query user profiles by handles
-  get (brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do
+  get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do
     const 200 === statusCode
     const (Just (Handle hdl)) === (profileHandle <=< listToMaybe <=< responseJsonMaybe)
   -- Bulk availability check
@@ -196,7 +196,7 @@ testHandleQuery opts brig = do
   -- Usually, you can search outside your team
   assertCanFind brig user3 user4
   -- Usually, you can search outside your team but not if this config option is set
-  let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
+  let newOpts = opts & ((Opt.optionSettings . Opt.searchSameTeamOnly) ?~ True)
   withSettingsOverrides newOpts $
     assertCannotFind brig user3 user4
 
@@ -241,7 +241,8 @@ testGetUserByUnqualifiedHandle brig = do
   _ <- putHandle brig (userId user) handle
   requestingUser <- randomId
   get
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . paths ["users", "handles", toByteString' handle]
         . zUser requestingUser
     )
@@ -254,7 +255,8 @@ testGetUserByUnqualifiedHandleFailure brig = do
   handle <- randomHandle
   requestingUser <- randomId
   get
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . paths ["users", "handles", toByteString' handle]
         . zUser requestingUser
     )
@@ -272,7 +274,8 @@ testGetUserByQualifiedHandle brig = do
   profileForUnconnectedUser <-
     responseJsonError
       =<< get
-        ( brig
+        ( apiVersion "v1"
+            . brig
             . paths ["users", "by-handle", toByteString' domain, toByteString' handle]
             . zUser (userId unconnectedUser)
             . expect2xx
@@ -296,7 +299,8 @@ testGetUserByQualifiedHandleFailure brig = do
   handle <- randomHandle
   qself <- userQualifiedId <$> randomUser brig
   get
-    ( brig
+    ( apiVersion "v1"
+        . brig
         . paths
           [ "users",
             "by-handle",
@@ -315,7 +319,8 @@ testGetUserByQualifiedHandleNoFederation opt brig = do
   someUser <- randomUser brig
   withSettingsOverrides newOpts $
     get
-      ( brig
+      ( apiVersion "v1"
+          . brig
           . paths ["users", "by-handle", "non-existant.example.com", "oh-a-handle"]
           . zUser (userId someUser)
       )
@@ -328,10 +333,11 @@ assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =
 assertCanFind brig from target = do
   liftIO $ assertBool "assertCanFind: Target must have a handle set" (isJust $ userHandle target)
   let targetHandle = fromMaybe (error "Impossible") (userHandle target)
-  get (brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
+  get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
     const 200 === statusCode
-    const (userHandle target) === (>>= (listToMaybe >=> profileHandle)) . responseJsonMaybe
-  get (brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
+    const (userHandle target) === (responseJsonMaybe >=> listToMaybe >=> profileHandle)
+
+  get (apiVersion "v1" . brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
     const 200 === statusCode
     const (Just (UserHandleInfo $ userQualifiedId target)) === responseJsonMaybe
 
@@ -339,7 +345,7 @@ assertCannotFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack
 assertCannotFind brig from target = do
   liftIO $ assertBool "assertCannotFind: Target must have a handle set" (isJust $ userHandle target)
   let targetHandle = fromMaybe (error "Impossible") (userHandle target)
-  get (brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
+  get (apiVersion "v1" . brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
     const 404 === statusCode
-  get (brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
+  get (apiVersion "v1" . brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
     const 404 === statusCode

@@ -31,9 +31,14 @@ library
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
+    Galley.API.MLS.GroupInfo
     Galley.API.MLS.KeyPackage
     Galley.API.MLS.Keys
     Galley.API.MLS.Message
+    Galley.API.MLS.Propagate
+    Galley.API.MLS.Removal
+    Galley.API.MLS.Types
+    Galley.API.MLS.Util
     Galley.API.MLS.Welcome
     Galley.API.One2One
     Galley.API.Public
@@ -203,6 +208,7 @@ library
     , extra                      >=1.3
     , galley-types               >=0.65.0
     , gundeck-types              >=1.35.2
+    , hex
     , HsOpenSSL                  >=0.11
     , HsOpenSSL-x509-system      >=0.1
     , http-client                >=0.4
@@ -442,6 +448,7 @@ executable galley-integration
     , currency-codes
     , data-default
     , data-timeout
+    , directory
     , errors
     , exceptions
     , extended
@@ -451,6 +458,7 @@ executable galley-integration
     , galley
     , galley-types
     , gundeck-types
+    , hex
     , HsOpenSSL
     , HsOpenSSL-x509-system
     , hspec
@@ -500,6 +508,7 @@ executable galley-integration
     , transformers
     , types-common
     , types-common-journal
+    , unix
     , unliftio
     , unordered-containers
     , uri-bytestring
@@ -660,6 +669,11 @@ executable galley-schema
     V68_MLSCommitLock
     V69_MLSProposal
     V70_MLSCipherSuite
+    V71_MemberClientKeypackage
+    V72_DropManagedConversations
+    V73_MemberClientTable
+    V74_ExposeInvitationsToTeamAdmin
+    V75_MLSGroupInfo
 
   hs-source-dirs:     schema/src
   default-extensions:

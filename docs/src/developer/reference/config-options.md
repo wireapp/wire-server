@@ -99,6 +99,53 @@ IMPORTANT: If you switch this back to `disabled-permanently` from
 that have created them while it was allowed.  This may change in the
 future.
 
+### Expose invitation URLs to team admin
+
+For further processing (e.g. sending custom emails or rendering the URLs as QR
+codes), team invitation URLs can be made part of the result of
+`GET /teams/{tid}/invitations`.
+
+```json
+{
+    "has_more": false,
+    "invitations": [
+        {
+            "created_at": "2022-09-15T15:47:28.577Z",
+            "created_by": "375f56fe-7f12-4c0c-aed8-d48c0326d1fb",
+            "email": "foo@example.com",
+            "id": "4decf7f8-bdd4-43b3-aaf2-e912e2c0c46f",
+            "name": null,
+            "phone": null,
+            "role": "member",
+            "team": "51612209-3b61-49b0-8c55-d21ae65efc1a",
+            "url": "http://127.0.0.1:8080/register?team=51612209-3b61-49b0-8c55-d21ae65efc1a&team_code=RpxGkK_yjw8ZBegJuFQO0hha-2Tneajp"
+        }
+    ]
+}
+```
+
+This can be a privacy issue as it allows the team admin to impersonate as
+another team member. The feature is disabled by default.
+
+To activate this feature two steps are needed. First, the team id (tid) has to
+be added to the list of teams for which this feature *can* be enabled
+(`exposeInvitationURLsTeamAllowlist`). This is done in `galley`'s `values.yaml`:
+
+```yaml
+settings:
+  exposeInvitationURLsTeamAllowlist: ["51612209-3b61-49b0-8c55-d21ae65efc1a", ...]
+```
+
+Then, the feature can be set for the team by enabling the
+`exposeInvitationURLsToTeamAdmin` flag. This is done by making a `PUT` request
+to `/teams/{tid}/features/exposeInvitationURLsToTeamAdmin` with the body:
+
+```json
+{
+    "status": "enabled"
+}
+```
+
 ### Team searchVisibility
 
 The team flag `searchVisibility` affects the outbound search of user

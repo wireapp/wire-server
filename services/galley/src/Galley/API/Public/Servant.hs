@@ -21,6 +21,7 @@ import Galley.API.Create
 import Galley.API.CustomBackend
 import Galley.API.LegalHold
 import Galley.API.MLS
+import Galley.API.MLS.GroupInfo
 import Galley.API.Query
 import Galley.API.Teams
 import Galley.API.Teams.Features
@@ -47,8 +48,10 @@ servantSitemap =
   where
     conversations =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
+        <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
         <@> mkNamedAPI @"get-conversation" getConversation
         <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
+        <@> mkNamedAPI @"get-group-info" getGroupInfo
         <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
         <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
         <@> mkNamedAPI @"get-conversations" getConversations
@@ -110,6 +113,7 @@ servantSitemap =
         <@> mkNamedAPI @"get-team" getTeamH
         <@> mkNamedAPI @"delete-team" deleteTeam
 
+    features :: API FeatureAPI GalleyEffects
     features =
       mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
@@ -138,6 +142,8 @@ servantSitemap =
         <@> mkNamedAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("get", MLSConfig) (getFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("put", MLSConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("get", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("get", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
@@ -158,9 +164,10 @@ servantSitemap =
 
     mls :: API MLSAPI GalleyEffects
     mls =
-      mkNamedAPI @"mls-welcome-message" postMLSWelcome
+      mkNamedAPI @"mls-welcome-message" postMLSWelcomeFromLocalUser
         <@> mkNamedAPI @"mls-message-v1" postMLSMessageFromLocalUserV1
         <@> mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
+        <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
         <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeys
 
     customBackend :: API CustomBackendAPI GalleyEffects

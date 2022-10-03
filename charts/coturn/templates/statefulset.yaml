@@ -1,9 +1,12 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "coturn.fullname" . }}
+  name: coturn
   labels:
-    {{- include "coturn.labels" . | nindent 4 }}
+    app: coturn
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 
 spec:
   replicas: {{ .Values.replicaCount }}
@@ -12,10 +15,10 @@ spec:
   # affect upgrades.
   podManagementPolicy: Parallel
 
-  serviceName: {{ include "coturn.fullname" . }}
+  serviceName: coturn
   selector:
     matchLabels:
-      {{- include "coturn.selectorLabels" . | nindent 6 }}
+      app: coturn
   template:
     metadata:
     {{- with .Values.podAnnotations }}
@@ -24,7 +27,8 @@ spec:
     {{- end }}
 
       labels:
-        {{- include "coturn.selectorLabels" . | nindent 8 }}
+        app: coturn
+        release: {{ .Release.Name }}
     spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
@@ -33,7 +37,7 @@ spec:
       shareProcessNamespace: true
       {{- end }}
       hostNetwork: true
-      serviceAccountName: {{ include "coturn.fullname" . }}
+      serviceAccountName: coturn
       volumes:
         - name: external-ip
           emptyDir: {}
@@ -41,7 +45,7 @@ spec:
           emptyDir: {}
         - name: coturn-config-template
           configMap:
-            name: {{ include "coturn.fullname" . }}
+            name: coturn
         - name: secrets
           secret:
             secretName: coturn

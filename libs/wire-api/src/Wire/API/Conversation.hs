@@ -112,12 +112,12 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import System.Random (randomRIO)
-import Wire.API.Arbitrary
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
+import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
 -- Conversation
@@ -722,7 +722,12 @@ newtype ConvTeamInfo = ConvTeamInfo
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConvTeamInfo)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvTeamInfo
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ConvTeamInfo)
+
+managedDesc :: Text
+managedDesc =
+  "This field MUST NOT be used by clients. "
+    <> "It is here only for backwards compatibility of the interface."
 
 instance ToSchema ConvTeamInfo where
   schema =
@@ -734,7 +739,7 @@ instance ToSchema ConvTeamInfo where
         <* const ()
           .= fieldWithDocModifier
             "managed"
-            (description ?~ "(Not parsed any more) Whether this is a managed team conversation")
+            (description ?~ managedDesc)
             (c (False :: Bool))
     where
       c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
@@ -746,7 +751,7 @@ modelTeamInfo = Doc.defineModel "TeamInfo" $ do
   Doc.property "teamid" Doc.bytes' $
     Doc.description "Team ID"
   Doc.property "managed" Doc.bool' $
-    Doc.description "Is this a managed team conversation?"
+    Doc.description managedDesc
 
 --------------------------------------------------------------------------------
 -- invite
