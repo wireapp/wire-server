@@ -36,6 +36,8 @@ import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Email (mkEmailKey)
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options (Settings (..))
@@ -46,8 +48,6 @@ import qualified Brig.Provider.DB as DB
 import Brig.Provider.Email
 import qualified Brig.Provider.RPC as RPC
 import qualified Brig.Queue as Queue
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Team.Util
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
 import Brig.Types.User

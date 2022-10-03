@@ -5,8 +5,8 @@ module Brig.Effects.RPC.IO where
 import Bilge (HttpT, MonadHttp, RequestId)
 import Bilge.IO (Manager, runHttpT)
 import Bilge.RPC
-import qualified Brig.RPC as RPC
 import Brig.Effects.RPC
+import qualified Brig.RPC as RPC
 import Control.Monad.Catch
 import Imports
 import Polysemy

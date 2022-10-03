@@ -25,9 +25,9 @@ import Brig.API.User (lookupHandle)
 import Brig.App (AppT, liftSem, wrapClient, wrapHttp)
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
-import qualified Brig.IO.Intra as Intra
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import qualified Brig.IO.Intra as Intra
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))

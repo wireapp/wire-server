@@ -114,6 +114,8 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
 import Brig.Effects.CodeStore (CodeStore)
 import qualified Brig.Effects.CodeStore as E
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Effects.PasswordResetStore as E
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
@@ -124,8 +126,6 @@ import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import qualified Brig.Team.DB as Team
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)

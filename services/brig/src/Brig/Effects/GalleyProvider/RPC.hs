@@ -5,10 +5,11 @@ module Brig.Effects.GalleyProvider.RPC where
 import Bilge hiding (head, options, requestId)
 import Brig.API.Types
 import Brig.App
-import Brig.RPC
 import Brig.Effects.GalleyProvider (GalleyProvider (..))
 import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
 import qualified Brig.Effects.ServiceRPC as ServiceRPC
+import Brig.RPC
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Control.Error (hush)
 import Control.Lens ((^.))
 import Data.Aeson hiding (json)
@@ -37,7 +38,6 @@ import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.Sem.Logger
-import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 
 interpretGalleyProviderToRPC ::
   Members

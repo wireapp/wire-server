@@ -48,11 +48,11 @@ import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Email
 import qualified Brig.Options as Opt
 import Brig.Phone
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Types.Intra
 import Brig.Types.User.Auth
 import Brig.User.Auth.Cookie

@@ -3,6 +3,7 @@
 module Brig.Effects.GalleyProvider where
 
 import Brig.API.Types
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
@@ -17,7 +18,6 @@ import Wire.API.Team.Feature
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
-import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 
 data GalleyProvider m a where
   CreateSelfConv ::
@@ -88,6 +88,6 @@ data GalleyProvider m a where
     GalleyProvider m Bool
   GetExposeInvitationURLsToTeamAdmin ::
     TeamId ->
-      GalleyProvider m ShowOrHideInvitationUrl
+    GalleyProvider m ShowOrHideInvitationUrl
 
 makeSem ''GalleyProvider

@@ -31,12 +31,12 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Email as Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
@@ -315,7 +315,7 @@ createInvitationPublic uid tid body = do
 createInvitationViaScimH ::
   Members
     '[ BlacklistStore,
-    GalleyProvider,
+       GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>
@@ -328,7 +328,7 @@ createInvitationViaScimH (_ ::: req) = do
 createInvitationViaScim ::
   Members
     '[ BlacklistStore,
-    GalleyProvider,
+       GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>
@@ -371,13 +371,18 @@ logInvitationRequest context action =
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
-createInvitation'
-  :: Members '[
-      BlacklistStore ,
-      GalleyProvider
-              ] r
-  => TeamId
-  -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler r (Public.Invitation, Public.InvitationCode)
+createInvitation' ::
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  TeamId ->
+  Public.Role ->
+  Maybe UserId ->
+  Email ->
+  Public.InvitationRequest ->
+  Handler r (Public.Invitation, Public.InvitationCode)
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place

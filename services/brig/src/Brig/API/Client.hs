@@ -54,6 +54,8 @@ import Brig.App
 import qualified Brig.Data.Client as Data
 import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import qualified Brig.Effects.JwtTools as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -64,8 +66,6 @@ import Brig.IO.Intra (guardLegalhold)
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import qualified Brig.Options as Opt
-import Brig.Effects.GalleyProvider (GalleyProvider)
-import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import qualified Brig.Queue as Queue
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -92,8 +92,7 @@ import Data.String.Conversions (cs)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
-import Polysemy (Members)
-import Polysemy (Member)
+import Polysemy (Member, Members)
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
