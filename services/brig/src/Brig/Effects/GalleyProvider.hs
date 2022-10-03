@@ -17,6 +17,7 @@ import Wire.API.Team.Feature
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 
 data GalleyProvider m a where
   CreateSelfConv ::
@@ -85,5 +86,8 @@ data GalleyProvider m a where
   GetVerificationCodeEnabled ::
     TeamId ->
     GalleyProvider m Bool
+  GetExposeInvitationURLsToTeamAdmin ::
+    TeamId ->
+      GalleyProvider m ShowOrHideInvitationUrl
 
 makeSem ''GalleyProvider

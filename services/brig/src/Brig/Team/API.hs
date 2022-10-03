@@ -37,7 +37,6 @@ import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import qualified Brig.Effects.GalleyProvider as GalleyProvider
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
@@ -64,7 +63,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
-import Polysemy (Member, Members)
+import Polysemy (Members)
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
@@ -316,6 +315,7 @@ createInvitationPublic uid tid body = do
 createInvitationViaScimH ::
   Members
     '[ BlacklistStore,
+    GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>
@@ -328,6 +328,7 @@ createInvitationViaScimH (_ ::: req) = do
 createInvitationViaScim ::
   Members
     '[ BlacklistStore,
+    GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>
@@ -370,7 +371,13 @@ logInvitationRequest context action =
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
-createInvitation' :: Member BlacklistStore r => TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler r (Public.Invitation, Public.InvitationCode)
+createInvitation'
+  :: Members '[
+      BlacklistStore ,
+      GalleyProvider
+              ] r
+  => TeamId
+  -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler r (Public.Invitation, Public.InvitationCode)
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
@@ -403,7 +410,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   let locale = irLocale body
   let inviteeName = irInviteeName body
-  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
 
   lift $ do
     iid <- liftIO DB.mkInvitationId
@@ -440,7 +447,7 @@ listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
 listInvitations :: Members '[GalleyProvider] r => UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
 listInvitations uid tid start size = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
   rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start size
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
@@ -454,7 +461,7 @@ getInvitationH (_ ::: uid ::: tid ::: iid) = do
 getInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
   lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
 
 getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response

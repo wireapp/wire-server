@@ -190,7 +190,7 @@ addClientWithReAuthPolicy policy u con ip new = do
   lift $ do
     for_ old $ execDelete u con
     liftSem $ GalleyProvider.newClient u (clientId clt)
-    Intra.onClientEvent u con (ClientAdded u clt)
+    wrapHttp $ Intra.onClientEvent u con (ClientAdded u clt)
     when (clientType clt == LegalHoldClientType) $ wrapHttpClient $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
       for_ (userEmail usr) $

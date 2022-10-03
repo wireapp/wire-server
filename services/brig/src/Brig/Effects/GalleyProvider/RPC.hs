@@ -37,6 +37,7 @@ import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import Wire.Sem.Logger
+import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 
 interpretGalleyProviderToRPC ::
   Members
@@ -66,6 +67,7 @@ interpretGalleyProviderToRPC = interpret $ \case
   MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
   GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
   GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
+  GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
 
 runIt :: HttpClientIO a -> Sem r a
 runIt = undefined
@@ -471,3 +473,24 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
+
+getTeamExposeInvitationURLsToTeamAdmin ::
+  Members
+    '[ ServiceRPC 'Galley,
+       Error ParseException,
+       Logger (Msg -> Msg)
+     ]
+    r =>
+  TeamId ->
+  Sem r ShowOrHideInvitationUrl
+getTeamExposeInvitationURLsToTeamAdmin tid = do
+  debug $ remote "galley" . msg (val "Get expose invitation URLs to team admin settings")
+  response <- ServiceRPC.request @'Galley GET req
+  status <- wsStatus <$> decodeBodyOrThrow @(WithStatus ExposeInvitationURLsToTeamAdminConfig) "galley" response
+  case status of
+    FeatureStatusEnabled -> pure ShowInvitationUrl
+    FeatureStatusDisabled -> pure HideInvitationUrl
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "features", featureNameBS @ExposeInvitationURLsToTeamAdminConfig]
+        . expect2xx

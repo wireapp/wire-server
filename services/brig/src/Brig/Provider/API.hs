@@ -46,8 +46,8 @@ import qualified Brig.Provider.DB as DB
 import Brig.Provider.Email
 import qualified Brig.Provider.RPC as RPC
 import qualified Brig.Queue as Queue
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Team.Util
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
 import Brig.Types.User

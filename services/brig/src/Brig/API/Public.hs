@@ -54,14 +54,8 @@ import Brig.Effects.GalleyProvider (GalleyProvider)
 import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.JwtTools (JwtTools)
-import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import qualified Brig.IO.Intra as Intra
-import Brig.Options hiding (internalEvents, sesQueue)
-import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
@@ -975,13 +969,23 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 
 -- activation
 
-activate :: Public.ActivationKey -> Public.ActivationCode -> (Handler r) ActivationRespWithStatus
+activate
+    :: Members '[
+    GalleyProvider
+                ] r
+    =>
+    Public.ActivationKey -> Public.ActivationCode -> (Handler r) ActivationRespWithStatus
 activate k c = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
   activateKey activationRequest
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKey :: Public.Activate -> (Handler r) ActivationRespWithStatus
+activateKey
+    :: Members '[
+    GalleyProvider
+                ] r
+    =>
+      Public.Activate -> (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
     wrapClientE (API.preverify tgt code) !>> actError
