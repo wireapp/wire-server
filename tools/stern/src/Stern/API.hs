@@ -145,11 +145,10 @@ servantSitemap' =
     :<|> Named @"get-team-info-by-member-email" getTeamInfoByMemberEmail
     :<|> Named @"get-team-info" getTeamInfo
     :<|> Named @"get-team-admin-info" getTeamAdminInfo
+    :<|> Named @"get-route-legalhold-config" (mkFeatureGetRoute @LegalholdConfig)
+    :<|> Named @"put-route-legalhold-config" (mkFeaturePutRouteTrivialConfigNoTTL @LegalholdConfig)
 
 {-
-
-  mkFeatureGetRoute @LegalholdConfig
-  mkFeaturePutRouteTrivialConfig @LegalholdConfig
 
   mkFeatureGetRoute @SSOConfig
   mkFeaturePutRouteTrivialConfig @SSOConfig
@@ -322,6 +321,43 @@ getTeamInfo = Intra.getTeamInfo
 
 getTeamAdminInfo :: TeamId -> Handler TeamAdminInfo
 getTeamAdminInfo = fmap toAdminInfo . Intra.getTeamInfo
+
+mkFeatureGetRoute ::
+  forall cfg.
+  ( IsFeatureConfig cfg,
+    S.ToSchema cfg,
+    KnownSymbol (FeatureSymbol cfg),
+    FromJSON (WithStatusNoLock cfg),
+    ToJSON (WithStatusNoLock cfg),
+    Typeable cfg
+  ) =>
+  TeamId ->
+  Handler (WithStatus cfg)
+mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
+
+type MkFeaturePutConstraints cfg =
+  ( IsFeatureConfig cfg,
+    FeatureTrivialConfig cfg,
+    KnownSymbol (FeatureSymbol cfg),
+    S.ToSchema cfg,
+    FromJSON (WithStatusNoLock cfg),
+    ToJSON (WithStatusNoLock cfg),
+    Typeable cfg
+  )
+
+mkFeaturePutRouteTrivialConfigNoTTL ::
+  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Handler NoContent
+mkFeaturePutRouteTrivialConfigNoTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status Nothing
+
+_mkFeaturePutRouteTrivialConfigWithTTL ::
+  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> FeatureTTLDays -> Handler NoContent
+_mkFeaturePutRouteTrivialConfigWithTTL tid status = mkFeaturePutRouteTrivialConfig @cfg tid status . Just
+
+mkFeaturePutRouteTrivialConfig ::
+  forall cfg. (MkFeaturePutConstraints cfg) => TeamId -> FeatureStatus -> Maybe FeatureTTLDays -> Handler NoContent
+mkFeaturePutRouteTrivialConfig tid status (maybe FeatureTTLUnlimited convertFeatureTTLDaysToSeconds -> ttl) = do
+  let fullStatus = WithStatusNoLock status trivialConfig ttl
+  NoContent <$ Intra.setTeamFeatureFlag @cfg tid fullStatus
 
 {-
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest TeamSearchVisibility -> Handler Response

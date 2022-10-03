@@ -36,7 +36,7 @@ import qualified Data.Swagger as S
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities
-import Servant hiding (Handler, addHeader, respond)
+import Servant hiding (Handler, WithStatus (..), addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
@@ -45,6 +45,7 @@ import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
+import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Search
 
@@ -276,6 +277,8 @@ type SternAPI =
                :> "admins"
                :> Get '[JSON] TeamAdminInfo
            )
+    :<|> Named "get-route-legalhold-config" (MkFeatureGetRoute LegalholdConfig)
+    :<|> Named "put-route-legalhold-config" (MkFeaturePutRouteTrivialConfigNoTTL LegalholdConfig)
 
 
 -------------------------------------------------------------------------------
@@ -321,3 +324,33 @@ doubleMaybeToEither :: Monad m => LText -> Maybe a -> Maybe b -> ExceptT Error m
 doubleMaybeToEither _ (Just a) Nothing = pure $ Left a
 doubleMaybeToEither _ Nothing (Just b) = pure $ Right b
 doubleMaybeToEither msg _ _ = throwE $ mkError status400 "either-params" ("Must use exactly one of two query params: " <> msg)
+
+type MkFeatureGetRoute feature =
+  Summary "Shows whether a feature flag is enabled or not for a given team."
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> FeatureSymbol feature
+    :> Get '[JSON] (WithStatus feature)
+
+type MkFeaturePutRouteTrivialConfigNoTTL feature =
+  Summary "Disable / enable status for a given feature / team"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> FeatureSymbol feature
+    :> QueryParam' [Required, Strict] "status" FeatureStatus
+    :> Put '[JSON] NoContent
+
+{-
+type MkFeaturePutRouteTrivialConfigWithTTL feature =
+  Summary "Disable / enable status for a given feature / team"
+    :> Description "team feature time to live, given in days, or 'unlimited' (default).  only available on *some* features!"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> FeatureSymbol feature
+    :> QueryParam' [Required, Strict] "status" FeatureStatus
+    :> QueryParam' [Required, Strict, Description "team feature time to live, given in days, or 'unlimited' (default)."] "ttl" FeatureTTLDays
+    :> Put '[JSON] NoContent
+-}
