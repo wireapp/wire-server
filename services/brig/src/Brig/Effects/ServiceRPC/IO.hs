@@ -1,8 +1,8 @@
-module Brig.Sem.ServiceRPC.IO where
+module Brig.Effects.ServiceRPC.IO where
 
 import Bilge (Request)
-import Brig.Sem.RPC
-import Brig.Sem.ServiceRPC
+import Brig.Effects.RPC
+import Brig.Effects.ServiceRPC
 import qualified Data.Text.Lazy as LT
 import Imports
 import Polysemy

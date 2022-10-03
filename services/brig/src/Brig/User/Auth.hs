@@ -51,8 +51,8 @@ import qualified Brig.Data.UserKey as Data
 import Brig.Email
 import qualified Brig.Options as Opt
 import Brig.Phone
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Types.Intra
 import Brig.Types.User.Auth
 import Brig.User.Auth.Cookie
@@ -182,7 +182,7 @@ verifyCode mbCode action uid = do
   featureEnabled <- lift $ do
     mbFeatureEnabled <- liftSem $ GalleyProvider.getVerificationCodeEnabled `traverse` mbTeamId
     pure $ fromMaybe (Public.wsStatus (Public.defFeatureStatus @Public.SndFactorPasswordChallengeConfig) == Public.FeatureStatusEnabled) mbFeatureEnabled
-  isSsoUser <- Data.isSamlUser uid
+  isSsoUser <- wrapHttpClientE $ Data.isSamlUser uid
   when (featureEnabled && not isSsoUser) $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do

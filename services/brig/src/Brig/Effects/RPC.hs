@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Sem.RPC where
+module Brig.Effects.RPC where
 
 import Bilge
 import qualified Data.ByteString.Lazy as BL

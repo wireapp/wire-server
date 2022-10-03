@@ -1,12 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Brig.Sem.RPC.IO where
+module Brig.Effects.RPC.IO where
 
 import Bilge (HttpT, MonadHttp, RequestId)
 import Bilge.IO (Manager, runHttpT)
 import Bilge.RPC
 import qualified Brig.RPC as RPC
-import Brig.Sem.RPC
+import Brig.Effects.RPC
 import Control.Monad.Catch
 import Imports
 import Polysemy

@@ -31,7 +31,7 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
-import Brig.Sem.GalleyProvider (GalleyProvider)
+import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Types.User.Event
 import Brig.User.API.Handle
 import qualified Brig.User.Search.SearchIndex as Q

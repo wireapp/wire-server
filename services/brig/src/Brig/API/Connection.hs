@@ -40,8 +40,8 @@ import qualified Brig.Data.Connection as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Types.Connection
 import Brig.Types.User.Event
 import Control.Error

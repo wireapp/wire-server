@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Sem.GalleyProvider where
+module Brig.Effects.GalleyProvider where
 
 import Brig.API.Types
 import qualified Data.Currency as Currency

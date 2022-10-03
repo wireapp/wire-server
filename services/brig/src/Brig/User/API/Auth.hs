@@ -28,7 +28,7 @@ import qualified Brig.API.User as User
 import Brig.App
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Phone
-import Brig.Sem.GalleyProvider (GalleyProvider)
+import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth

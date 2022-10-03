@@ -124,17 +124,8 @@ import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
-<<<<<<< HEAD
-import Brig.Sem.CodeStore (CodeStore)
-import qualified Brig.Sem.CodeStore as E
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import qualified Brig.Sem.PasswordResetStore as E
-import Brig.Sem.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
-import qualified Brig.Sem.UserPendingActivationStore as UserPendingActivationStore
-=======
->>>>>>> develop
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import qualified Brig.Team.DB as Team
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.Activation (ActivationPair)

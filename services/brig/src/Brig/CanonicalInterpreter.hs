@@ -5,28 +5,21 @@ import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhonePrefixStoreToCassandra)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
-import Brig.RPC (ParseException)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider.RPC (interpretGalleyProviderToRPC)
+import Brig.Effects.JwtTools
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
+import Brig.Effects.PublicKeyBundle
 import Brig.Effects.RPC (RPC)
 import Brig.Effects.RPC.IO (interpretRpcToIO)
 import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
 import Brig.Effects.ServiceRPC.IO (interpretServiceRpcToRpc)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
-import Brig.Effects.CodeStore (CodeStore)
-import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
-import Brig.Effects.JwtTools
-import Brig.Effects.PasswordResetStore (PasswordResetStore)
-import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
-import Brig.Effects.PublicKeyBundle
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
-import qualified Cassandra as Cas
+import Brig.RPC (ParseException)
 import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
 import Imports
@@ -37,6 +30,7 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import qualified Cassandra as Cas
 
 type BrigCanonicalEffects =
   '[ PublicKeyBundle,

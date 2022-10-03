@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Sem.ServiceRPC where
+module Brig.Effects.ServiceRPC where
 
 import Bilge
 import qualified Data.ByteString.Lazy as BL

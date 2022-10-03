@@ -59,7 +59,6 @@ import qualified Brig.Data.Connection as Data
 import Brig.Federation.Client (notifyUserDeleted)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
-import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Types.User.Event
 import Brig.User.Search.Index (MonadIndexIO)
 import qualified Brig.User.Search.Index as Search

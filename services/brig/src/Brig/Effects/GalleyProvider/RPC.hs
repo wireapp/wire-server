@@ -1,14 +1,14 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 
-module Brig.Sem.GalleyProvider.RPC where
+module Brig.Effects.GalleyProvider.RPC where
 
 import Bilge hiding (head, options, requestId)
 import Brig.API.Types
 import Brig.App
 import Brig.RPC
-import Brig.Sem.GalleyProvider (GalleyProvider (..))
-import Brig.Sem.ServiceRPC (Service (Galley), ServiceRPC)
-import qualified Brig.Sem.ServiceRPC as ServiceRPC
+import Brig.Effects.GalleyProvider (GalleyProvider (..))
+import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
+import qualified Brig.Effects.ServiceRPC as ServiceRPC
 import Control.Error (hush)
 import Control.Lens ((^.))
 import Data.Aeson hiding (json)

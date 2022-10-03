@@ -62,17 +62,17 @@ library
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Delay
-    Brig.Effects.JwtTools
     Brig.Effects.GalleyProvider
     Brig.Effects.GalleyProvider.RPC
+    Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
     Brig.Effects.PublicKeyBundle
     Brig.Effects.RPC
     Brig.Effects.RPC.IO
-    Brig.Effects.SFT
     Brig.Effects.ServiceRPC
     Brig.Effects.ServiceRPC.IO
+    Brig.Effects.SFT
     Brig.Effects.UserPendingActivationStore
     Brig.Effects.UserPendingActivationStore.Cassandra
     Brig.Email
