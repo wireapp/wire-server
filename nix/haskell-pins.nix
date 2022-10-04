@@ -96,8 +96,8 @@ let
     hspec-wai = {
       src = fetchgit {
         url = "https://github.com/wireapp/hspec-wai";
-        rev = "0a5142cd3ba48116ff059c041348b817fb7bdb25";
-        sha256 = "1yqkla7467fgb23yw689xh15zjn38rkc7ckf18cfalpc2ff5wfq1";
+        rev = "6984a06b0c6294677c49d59382d48f975a8733d4";
+        sha256 = "sha256-6FLTMMqvL0xFa5zsMnjVAmdpghmdeBl813bWcOyQo5E=";
       };
     };
     http-client = {
