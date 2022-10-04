@@ -83,10 +83,12 @@ fetchClients l cassandra h =
       ( (\x -> hPut h x >> hFlush h)
           . encodeWith (defaultEncodeOptions {encQuoting = QuoteAll})
           . foldMap
-            ( \(a1, a2, a3, a4, a5, a6, a7, a8, a9) ->
+            ( \(a1, t1, t2, a2, a3, a4, a5, a6, a7, a8, a9) ->
                 encodeRecord
                   ( V.fromList
                       ( [ toField a1,
+                          toField t1,
+                          toField t2,
                           toField a2,
                           toField a3,
                           toField a4,
@@ -137,6 +139,8 @@ type ClientsRow =
 
 type ClientsRowPlusCount =
   ( Int64,
+    Maybe Int64,
+    Maybe Int64,
     Maybe UserId,
     Maybe ClientId,
     Maybe ClientClass,
@@ -147,8 +151,8 @@ type ClientsRowPlusCount =
     Maybe ClientType
   )
 
-addCount :: Int64 -> ClientsRow -> ClientsRowPlusCount
-addCount cnt (a1, a2, a3, a4, a5, a6, a7, a8) = (cnt, a1, a2, a3, a4, a5, a6, a7, a8)
+addCount :: (Int64, Maybe Int64, Maybe Int64) -> ClientsRow -> ClientsRowPlusCount
+addCount (cnt, minTime, maxTime) (a1, a2, a3, a4, a5, a6, a7, a8) = (cnt, minTime, maxTime, a1, a2, a3, a4, a5, a6, a7, a8)
 
 getClients :: ConduitM () [ClientsRow] Client ()
 getClients = paginateC cql (paramsP LocalQuorum () pageSize) x5
@@ -156,13 +160,13 @@ getClients = paginateC cql (paramsP LocalQuorum () pageSize) x5
     cql :: PrepQuery R () ClientsRow
     cql = "SELECT user, client, class, cookie, label, model, tstamp, type FROM clients"
 
-countPrekeys :: MonadClient m => Maybe UserId -> Maybe ClientId -> m Int64
+countPrekeys :: MonadClient m => Maybe UserId -> Maybe ClientId -> m (Int64, Maybe Int64, Maybe Int64)
 countPrekeys (Just u) (Just c) =
-  runIdentity . fromJust <$> retry x5 (query1 countPrekeysQ (params LocalQuorum (u, c)))
+  fromJust <$> retry x5 (query1 countPrekeysQ (params LocalQuorum (u, c)))
   where
-    countPrekeysQ :: PrepQuery R (UserId, ClientId) (Identity Int64)
-    countPrekeysQ = "SELECT COUNT(*) FROM prekeys WHERE user = ? and client = ?"
-countPrekeys _ _ = pure 0
+    countPrekeysQ :: PrepQuery R (UserId, ClientId) (Int64, Maybe Int64, Maybe Int64)
+    countPrekeysQ = "SELECT COUNT(*), MIN(writetime(data)), MAX(writetime(data)) FROM prekeys WHERE user = ? and client = ?"
+countPrekeys _ _ = pure (0, Nothing, Nothing)
 
 data Opts = Opts
   { cHost :: String,
