@@ -56,7 +56,6 @@ let
       packages = {
         amazonka = "lib/amazonka";
         amazonka-core = "lib/amazonka-core";
-        amazonka-test = "lib/amazonka-test";
         amazonka-cloudfront = "lib/services/amazonka-cloudfront";
         amazonka-dynamodb = "lib/services/amazonka-dynamodb";
         amazonka-s3 = "lib/services/amazonka-s3";
