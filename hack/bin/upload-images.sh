@@ -28,17 +28,19 @@ if [[ "${DOCKER_USER+x}" != "" ]]; then
     credsArgs="--dest-creds=$DOCKER_USER:$DOCKER_PASSWORD"
 fi
 
-images_list="$(nix -v --show-trace -L build -f "$ROOT_DIR/nix" wireServer.imagesList)"
+image_list_file=$(mktemp)
+nix -v --show-trace -L build -f "$ROOT_DIR/nix" wireServer.imagesList -o "$image_list_file"
 
 # Build everything first so we can benefit the most from having many cores.
-nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR"
+nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR" --no-link
 
 while IFS="" read -r image_name || [ -n "$image_name" ]
 do
     printf '*** Uploading image %s\n' "$image_name"
-    image=$(nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR.$image_name")
-    repo=$(skopeo list-tags "docker-archive://$image" | jq -r '.Tags[0] | split(":") | .[0]')
-    echo "Uploading $image to $repo:$DOCKER_TAG"
+    image_file=$(mktemp)
+    nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR.$image_name" -o "$image_file"
+    repo=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
+    echo "Uploading $image_file to $repo:$DOCKER_TAG"
     # shellcheck disable=SC2086
-    skopeo --insecure-policy copy $credsArgs "docker-archive://$image" "docker://$repo:$DOCKER_TAG"
-done < "$images_list"
+    skopeo --insecure-policy copy $credsArgs "docker-archive://$image_file" "docker://$repo:$DOCKER_TAG"
+done < "$image_list_file"
