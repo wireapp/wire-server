@@ -4,6 +4,9 @@ import Imports
 import Polysemy
 import Wire.Sem.Concurrency
 
+------------------------------------------------------------------------------
+
+-- | Safely perform "concurrency" by doing it sequentially.
 sequentiallyPerformConcurrency :: Sem (Concurrency safe ': r) a -> Sem r a
 sequentiallyPerformConcurrency = interpretH $ \case
   UnsafePooledMapConcurrentlyN _ f t -> do

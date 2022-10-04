@@ -6,12 +6,20 @@ import Polysemy.Final
 import UnliftIO (pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
 import Wire.Sem.Concurrency (Concurrency (..), ConcurrencySafety (Safe))
 
+------------------------------------------------------------------------------
+
+-- | Safely perform concurrency that wraps only IO effects.
 performConcurrency ::
   Member (Final IO) r =>
   Sem (Concurrency 'Safe ': r) a ->
   Sem r a
 performConcurrency = unsafelyPerformConcurrency
 
+------------------------------------------------------------------------------
+
+-- | VERY UNSAFELY perform concurrency in Polysemy. This is likely to lead to
+-- obscure bugs. See the notes on 'Concurrency' to get a better understanding
+-- of what can go wrong here.
 unsafelyPerformConcurrency ::
   Member (Final IO) r =>
   Sem (Concurrency safe ': r) a ->
