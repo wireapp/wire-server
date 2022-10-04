@@ -31,7 +31,7 @@ fi
 images_list="$(nix --show-trace -L build -f "$ROOT_DIR/nix" wireServer.imagesList)"
 
 # Build everything first so we can benefit the most from having many cores.
-nix --show-trace -L build "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR"
+nix --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR"
 
 while IFS="" read -r image_name || [ -n "$image_name" ]
 do
