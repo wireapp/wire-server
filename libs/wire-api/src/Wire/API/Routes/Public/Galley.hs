@@ -25,7 +25,6 @@ import qualified Data.Code as Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
 import Data.Id (ConvId, TeamId, UserId)
-import Data.Metrics.Servant
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
@@ -34,10 +33,6 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
 import Servant hiding (WithStatus)
-import Servant.API.ContentTypes
-import Servant.Server.Internal.Delayed
-import Servant.Server.Internal.DelayedIO
-import Servant.Server.Internal.ErrorFormatter
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
@@ -63,6 +58,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team
 import Wire.API.Team.Conversation
@@ -1881,27 +1877,4 @@ type PostOtrDescription =
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)
-
-data VersionedReqBody' (v :: Version) (mods :: [*]) (ct :: [*]) (a :: *)
-
-type VersionedReqBody v = VersionedReqBody' v '[Required, Strict]
-
-instance RoutesToPaths rest => RoutesToPaths (VersionedReqBody' v mods ct a :> rest) where
-  getRoutes = getRoutes @rest
-
-instance
-  ( AllCTUnrender cts a,
-    HasServer api context,
-    HasContextEntry (MkContextWithErrorFormatter context) ErrorFormatters
-  ) =>
-  HasServer (VersionedReqBody' v mods cts a :> api) context
-  where
-  type ServerT (VersionedReqBody' v mods cts a :> api) m = Version -> a -> ServerT api m
-
-  hoistServerWithContext _p pc nt s = hoistServerWithContext (Proxy :: Proxy (ReqBody cts a :> api)) pc nt . s
-
-  route _p ctx d = route (Proxy :: Proxy (ReqBody cts a :> api)) ctx $ d `addParameterCheck` withRequest (const . pure $ V1)
-
-instance (HasSwagger (ReqBody' '[Required, Strict] cts NewConv :> api), HasSwagger api, AllAccept cts) => HasSwagger (VersionedReqBody 'V1 cts NewConv :> api) where
-  toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned 'V1 NewConv) :> api))
 

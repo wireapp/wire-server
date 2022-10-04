@@ -44,7 +44,6 @@ module Wire.API.Conversation
     pattern ConversationPagingState,
     ConversationsResponse (..),
     GroupId (..),
-    Versioned,
 
     -- * Conversation properties
     Access (..),
@@ -119,6 +118,7 @@ import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
@@ -631,19 +631,11 @@ data NewConv = NewConv
   deriving (Arbitrary) via (GenericUniform NewConv)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewConv)
 
-newtype Versioned v a = Versioned {unVersioned :: a}
-
-instance Functor (Versioned v) where
-  fmap f (Versioned a) = Versioned (f a)
-
 instance ToSchema (Versioned 'V1 NewConv) where
   schema = unVersioned .= fmap Versioned (newConvSchema accessRolesSchemaOptV1)
 
 instance ToSchema NewConv where
   schema = newConvSchema accessRolesSchemaOpt
-
-instance S.ToSchema (Versioned 'V1 NewConv) where
-  declareNamedSchema = schemaToSwagger
 
 accessRolesSchemaF ::
   FieldFunctor SwaggerDoc f =>
