@@ -24,8 +24,6 @@ hself: hsuper: {
   hashtables = hsuper.hashtables_1_3;
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
   quickcheck-arbitrary-template = hlib.markUnbroken (hsuper.quickcheck-arbitrary-template);
-  amazonka-core = hlib.doJailbreak hsuper.amazonka-core;
-  amazonka = hlib.doJailbreak hsuper.amazonka;
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
 
   # Some test seems to be broken
@@ -36,6 +34,18 @@ hself: hsuper: {
 
   # Needs network access to running ES
   bloodhound = hlib.dontCheck hsuper.bloodhound;
+
+  # Amazonka tests require newer version on hspec-wai, which doesn't work with some of the wire-server packages.
+  amazonka = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka);
+  amazonka-core = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka-core);
+  amazonka-cloudfront = hlib.dontCheck hsuper.amazonka-cloudfront;
+  amazonka-dynamodb = hlib.dontCheck hsuper.amazonka-dynamodb;
+  amazonka-s3 = hlib.dontCheck hsuper.amazonka-s3;
+  amazonka-ses = hlib.dontCheck hsuper.amazonka-ses;
+  amazonka-sns = hlib.dontCheck hsuper.amazonka-sns;
+  amazonka-sqs = hlib.dontCheck hsuper.amazonka-sqs;
+  amazonka-sso = hlib.dontCheck hsuper.amazonka-sso;
+  amazonka-sts = hlib.dontCheck hsuper.amazonka-sts;
 
   # Avoid infinite recursion
   snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = snappy; };
