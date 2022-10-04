@@ -138,8 +138,8 @@ type SternAPI =
                :> "users"
                :> Capture "uid" UserId
                :> "search"
-               :> QueryParam' [Optional, Strict, Description "Search query"] "q (default \"\")" Text
-               :> QueryParam' [Optional, Strict, Description "Number of results to return"] "size (min 1, max 100, default 10)" Int32
+               :> QueryParam' [Optional, Strict, Description "Search query (default \"\")"] "q" Text
+               :> QueryParam' [Optional, Strict, Description "Number of results to return (min 1, max 100, default 10)"] "size" Int32
                :> Get '[JSON] (SearchResult Contact)
            )
     :<|> Named
