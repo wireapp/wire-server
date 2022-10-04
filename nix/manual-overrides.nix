@@ -28,6 +28,9 @@ hself: hsuper: {
   amazonka = hlib.doJailbreak hsuper.amazonka;
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
 
+  # Some test seems to be broken
+  hsaml2 = hlib.dontCheck hsuper.hsaml2;
+
   # Avoid infinite recursion
   snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = snappy; };
 
