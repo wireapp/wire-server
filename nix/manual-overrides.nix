@@ -34,6 +34,9 @@ hself: hsuper: {
   # Needs network access to a running cassandra
   cql-io = hlib.dontCheck hsuper.cql-io;
 
+  # Needs network access to running ES
+  bloodhound = hlib.dontCheck hsuper.bloodhound;
+
   # Avoid infinite recursion
   snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = snappy; };
 
