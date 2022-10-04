@@ -35,7 +35,7 @@ hself: hsuper: {
   # Needs network access to running ES
   bloodhound = hlib.dontCheck hsuper.bloodhound;
 
-  # Amazonka tests require newer version on hspec-wai, which doesn't work with some of the wire-server packages.
+  # These tests require newer version on hspec-wai, which doesn't work with some of the wire-server packages.
   amazonka = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka);
   amazonka-core = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka-core);
   amazonka-cloudfront = hlib.dontCheck hsuper.amazonka-cloudfront;
@@ -46,6 +46,8 @@ hself: hsuper: {
   amazonka-sqs = hlib.dontCheck hsuper.amazonka-sqs;
   amazonka-sso = hlib.dontCheck hsuper.amazonka-sso;
   amazonka-sts = hlib.dontCheck hsuper.amazonka-sts;
+  servant-server = hlib.dontCheck hsuper.servant-server;
+
 
   # Avoid infinite recursion
   snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = snappy; };
