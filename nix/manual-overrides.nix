@@ -23,6 +23,7 @@ hself: hsuper: {
   servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
   hashtables = hsuper.hashtables_1_3;
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
+  quickcheck-arbitrary-template = hlib.markUnbroken (hsuper.quickcheck-arbitrary-template);
   amazonka-core = hlib.doJailbreak hsuper.amazonka-core;
   amazonka = hlib.doJailbreak hsuper.amazonka;
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
