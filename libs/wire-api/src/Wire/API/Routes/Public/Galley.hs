@@ -362,7 +362,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                -- :> ReqBody '[Servant.JSON] NewConv
-               :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
+               :> VersionedReqBody 'V1 '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     :<|> Named
@@ -1900,8 +1900,8 @@ instance
 
   hoistServerWithContext _p pc nt s = hoistServerWithContext (Proxy :: Proxy (ReqBody cts a :> api)) pc nt . s
 
-  route _p ctx d = route (Proxy :: Proxy (ReqBody cts a :> api)) ctx $ d `addParameterCheck` withRequest (const . pure $ V2)
+  route _p ctx d = route (Proxy :: Proxy (ReqBody cts a :> api)) ctx $ d `addParameterCheck` withRequest (const . pure $ V1)
 
-instance (HasSwagger (ReqBody' '[Required, Strict] cts NewConv :> api), HasSwagger api, AllAccept cts) => HasSwagger (VersionedReqBody 'V2 cts NewConv :> api) where
-  toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned 'V2 NewConv) :> api))
+instance (HasSwagger (ReqBody' '[Required, Strict] cts NewConv :> api), HasSwagger api, AllAccept cts) => HasSwagger (VersionedReqBody 'V1 cts NewConv :> api) where
+  toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned 'V1 NewConv) :> api))
 
