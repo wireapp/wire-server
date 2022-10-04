@@ -28,7 +28,7 @@ if [[ "${DOCKER_USER+x}" != "" ]]; then
     credsArgs="--dest-creds=$DOCKER_USER:$DOCKER_PASSWORD"
 fi
 
-images_list="$(nix --show-trace -L build -f "$ROOT_DIR/nix" wireServer.imagesList)"
+images_list="$(nix -v --show-trace -L build -f "$ROOT_DIR/nix" wireServer.imagesList)"
 
 # Build everything first so we can benefit the most from having many cores.
 nix --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR"
