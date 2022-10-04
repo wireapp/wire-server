@@ -1,10 +1,10 @@
-module Wire.Sem.UnsafeConcurrency.Sequential where
+module Wire.Sem.Concurrency.Sequential where
 
 import Imports
 import Polysemy
 import Wire.Sem.UnsafeConcurrency
 
-sequentiallyPerformConcurrency :: Sem (UnsafeConcurrency ': r) a -> Sem r a
+sequentiallyPerformConcurrency :: Sem (Concurrency safe ': r) a -> Sem r a
 sequentiallyPerformConcurrency = interpretH $ \case
   UnsafePooledMapConcurrentlyN _ f t -> do
     st <- getInitialStateT
