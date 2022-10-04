@@ -46,6 +46,7 @@ import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Named
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.Team.Feature
+import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Search
 
@@ -294,7 +295,91 @@ type SternAPI =
     :<|> Named "put-route-applock-config" (MkFeaturePutRoute AppLockConfig)
     :<|> Named "get-route-mls-config" (MkFeatureGetRoute MLSConfig)
     :<|> Named "put-route-mls-config" (MkFeaturePutRoute MLSConfig)
-
+    :<|> Named
+           "get-search-visibility"
+           ( Summary "Shows the current TeamSearchVisibility value for the given team"
+               :> Description
+                    "These endpoints should be part of team settings. Until that happens, \
+                    \we access them from here for authorized personnel to enable/disable \
+                    \this on the team's behalf"
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "search-visibility"
+               :> Get '[JSON] TeamSearchVisibilityView
+           )
+    :<|> Named
+           "put-search-visibility"
+           ( Summary "Shows the current TeamSearchVisibility value for the given team"
+               :> Description
+                    "These endpoints should be part of team settings. Until that happens, \
+                    \we access them from here for authorized personnel to enable/disable \
+                    \this on the team's behalf"
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "search-visibility"
+               :> ReqBody '[JSON] TeamSearchVisibility
+               :> Get '[JSON] NoContent
+           )
+    :<|> Named
+           "get-team-invoice"
+           ( Summary "Get a specific invoice by Number"
+               :> Description "Relevant only internally at Wire"
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invoice"
+               :> Capture "inr" InvoiceId
+               :> Get '[JSON] Text
+           )
+    :<|> Named
+           "get-team-billing-info"
+           ( Summary "Gets billing information about a team"
+               :> Description "Relevant only internally at Wire"
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "billing"
+               :> Get '[JSON] TeamBillingInfo
+           )
+    :<|> Named
+           "put-team-billing-info"
+           ( Summary "Updates billing information about a team. Non specified fields will NOT be updated"
+               :> Description "Relevant only internally at Wire"
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "billing"
+               :> ReqBody '[JSON] TeamBillingInfoUpdate
+               :> Put '[JSON] TeamBillingInfo
+           )
+    :<|> Named
+           "post-team-billing-info"
+           ( Summary
+               "Sets billing information about a team. Can only be used on teams that do NOT have any \
+               \billing information set. To update team billing info, use the update endpoint"
+               :> Description "Relevant only internally at Wire"
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "billing"
+               :> ReqBody '[JSON] TeamBillingInfo
+               :> Post '[JSON] TeamBillingInfo
+           )
+    :<|> Named
+           "get-consent-log"
+           ( Summary "Fetch the consent log given an email address of a non-user"
+               :> Description "Relevant only internally at Wire"
+               :> "i"
+               :> "consent"
+               :> QueryParam' [Required, Strict, Description "A verified email address"] "email" Email
+               :> Get '[JSON] ConsentLogAndMarketo
+           )
+    :<|> Named
+           "get-user-meta-info"
+           ( Summary "Fetch a user's meta info given a user id: TEMPORARY!"
+               :> Description "Relevant only internally at Wire"
+               :> "i"
+               :> "user"
+               :> "meta-info"
+               :> QueryParam' [Required, Strict, Description "A valid UserId"] "id" UserId
+               :> Post '[JSON] UserMetaInfo
+           )
 
 -------------------------------------------------------------------------------
 -- Swagger

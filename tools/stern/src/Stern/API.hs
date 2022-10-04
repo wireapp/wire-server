@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
@@ -164,18 +165,14 @@ servantSitemap' =
     :<|> Named @"put-route-applock-config" (mkFeaturePutRoute @AppLockConfig)
     :<|> Named @"get-route-mls-config" (mkFeatureGetRoute @MLSConfig)
     :<|> Named @"put-route-mls-config" (mkFeaturePutRoute @MLSConfig)
-
-{-
-
-:<|> Named @"get-team-search-visibility" Intra.getSearchVisibility
-:<|> Named @"get-team-invoice" getTeamInvoice
-:<|> Named @"get-team-billing-info" getTeamBillingInfo
-:<|> Named @"put-team-billing-info" updateTeamBillingInfo
-:<|> Named @"post-team-billing-info" setTeamBillingInfo
-:<|> Named @"get-consent-log" getConsentLog
-:<|> Named @"get-user-metainfo" getUserData
-
--}
+    :<|> Named @"get-search-visibility" getSearchVisibility
+    :<|> Named @"put-search-visibility" setSearchVisibility
+    :<|> Named @"get-team-invoice" getTeamInvoice
+    :<|> Named @"get-team-billing-info" getTeamBillingInfo
+    :<|> Named @"put-team-billing-info" updateTeamBillingInfo
+    :<|> Named @"post-team-billing-info" setTeamBillingInfo
+    :<|> Named @"get-consent-log" getConsentLog
+    :<|> Named @"get-user-meta-info" getUserData
 
 servantSitemapInternal :: Servant.Server SternAPIInternal
 servantSitemapInternal =
@@ -364,26 +361,26 @@ mkFeaturePutRouteTrivialConfig tid status (maybe FeatureTTLUnlimited convertFeat
   let fullStatus = WithStatusNoLock status trivialConfig ttl
   NoContent <$ Intra.setTeamFeatureFlag @cfg tid fullStatus
 
-{-
-setSearchVisibility :: JSON ::: TeamId ::: JsonRequest TeamSearchVisibility -> Handler Response
-setSearchVisibility (_ ::: tid ::: req) = do
-  status :: TeamSearchVisibility <- parseBody req !>> mkError status400 "client-error"
-  json <$> Intra.setSearchVisibility tid status
+getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
+getSearchVisibility = Intra.getSearchVisibility
 
-getTeamBillingInfo :: TeamId -> Handler Response
+setSearchVisibility :: TeamId -> TeamSearchVisibility -> Handler NoContent
+setSearchVisibility tid status = NoContent <$ Intra.setSearchVisibility tid status
+
+getTeamInvoice :: TeamId -> InvoiceId -> Handler Text
+getTeamInvoice tid iid = cs <$> Intra.getInvoiceUrl tid iid
+
+getTeamBillingInfo :: TeamId -> Handler TeamBillingInfo
 getTeamBillingInfo tid = do
-  ti <- Intra.getTeamBillingInfo tid
-  case ti of
-    Just t -> pure $ json t
-    Nothing -> throwE (mkError status404 "no-team" "No team or no billing info for team")
+  let notfound = throwE (mkError status404 "no-team" "No team or no billing info for team")
+  Intra.getTeamBillingInfo tid >>= maybe notfound pure
 
-updateTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfoUpdate -> Handler Response
-updateTeamBillingInfo (_ ::: tid ::: req) = do
-  update <- parseBody req !>> mkError status400 "client-error"
+updateTeamBillingInfo :: TeamId -> TeamBillingInfoUpdate -> Handler TeamBillingInfo
+updateTeamBillingInfo tid update = do
   current <- Intra.getTeamBillingInfo tid >>= handleNoTeam
   let changes = parse update current
   Intra.setTeamBillingInfo tid changes
-  json <$> Intra.getTeamBillingInfo tid
+  Intra.getTeamBillingInfo tid >>= handleNoTeam
   where
     handleNoTeam = ifNothing (mkError status404 "no-team" "No team or no billing info for team")
     parse :: TeamBillingInfoUpdate -> TeamBillingInfo -> TeamBillingInfo
@@ -399,38 +396,26 @@ updateTeamBillingInfo (_ ::: tid ::: req) = do
           tbiState = fromRange <$> tbiuState <|> tbiState tbi
         }
 
-setTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfo -> Handler Response
-setTeamBillingInfo (_ ::: tid ::: req) = do
-  billingInfo <- parseBody req !>> mkError status400 "client-error"
+setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler TeamBillingInfo
+setTeamBillingInfo tid billingInfo = do
   current <- Intra.getTeamBillingInfo tid
   when (isJust current) $
     throwE (mkError status403 "existing-team" "Cannot set info on existing team, use update instead")
   Intra.setTeamBillingInfo tid billingInfo
   getTeamBillingInfo tid
 
-getTeamInvoice :: TeamId ::: InvoiceId ::: JSON -> Handler Response
-getTeamInvoice (tid ::: iid ::: _) = do
-  url <- Intra.getInvoiceUrl tid iid
-  pure $ plain (fromStrict url)
-
-getConsentLog :: Email -> Handler Response
+getConsentLog :: Email -> Handler ConsentLogAndMarketo
 getConsentLog e = do
   acc <- listToMaybe <$> Intra.getUserProfilesByIdentity (Left e)
   when (isJust acc) $
     throwE $
       mkError status403 "user-exists" "Trying to access consent log of existing user!"
-  consentLog <- Intra.getEmailConsentLog e
-  marketo <- Intra.getMarketoResult e
-  pure . json $
-    object
-      [ "consent_log" .= consentLog,
-        "marketo" .= marketo
-      ]
+  ConsentLogAndMarketo
+    <$> Intra.getEmailConsentLog e
+    <*> Intra.getMarketoResult e
 
--}
-
-_getUserData :: UserId -> Handler Response
-_getUserData uid = do
+getUserData :: UserId -> Handler UserMetaInfo
+getUserData uid = do
   account <- Intra.getUserProfiles (Left [uid]) >>= noSuchUser . listToMaybe
   conns <- Intra.getUserConnections uid
   convs <- Intra.getUserConversations uid
@@ -442,22 +427,21 @@ _getUserData uid = do
   properties <- Intra.getUserProperties uid
   -- Get all info from Marketo too
   let em = userEmail $ accountUser account
-  marketo <- maybe (pure noEmail) Intra.getMarketoResult em
-  pure . json $
-    object
-      [ "account" .= account,
-        "cookies" .= cookies,
-        "connections" .= conns,
-        "conversations" .= convs,
-        "clients" .= clts,
-        "notifications" .= notfs,
-        "consent" .= consent,
-        "consent_log" .= consentLog,
-        "marketo" .= marketo,
-        "properties" .= properties
-      ]
-  where
-    noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
+  marketo <- do
+    let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
+    maybe (pure noEmail) Intra.getMarketoResult em
+  pure . UserMetaInfo . KeyMap.fromList $
+    [ "account" .= account,
+      "cookies" .= cookies,
+      "connections" .= conns,
+      "conversations" .= convs,
+      "clients" .= clts,
+      "notifications" .= notfs,
+      "consent" .= consent,
+      "consent_log" .= consentLog,
+      "marketo" .= marketo,
+      "properties" .= properties
+    ]
 
 -- Utilities
 
