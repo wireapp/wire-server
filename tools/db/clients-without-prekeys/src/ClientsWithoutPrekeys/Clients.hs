@@ -71,7 +71,7 @@ fetchClients l cassandra h =
     .| C.mapM
       ( runClient cassandra
           . pooledMapConcurrentlyN -- TODO change
-            3
+            20
             ( \row@(u, c, _, _, _, _, _, _) ->
                 countPrekeys u c
                   >>= \count -> pure (count, row)
