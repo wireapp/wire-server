@@ -186,8 +186,7 @@ let
     let subpathArg = if subpath == null
                      then ""
                      else "--subpath='${subpath}'";
-    # TODO: Check things and do haddocks
-    in hself.callCabal2nixWithOptions name src "--no-check --no-haddock ${subpathArg}" {};
+    in hself.callCabal2nixWithOptions name src "${subpathArg}" {};
   # [[AtrrSet]]
   gitPackages = lib.attrsets.mapAttrsToList (name: pin:
     let packages = if pin?packages
