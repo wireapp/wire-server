@@ -625,8 +625,7 @@ getTeamFeatureFlagH ::
   ) =>
   TeamId ->
   Handler Response
-getTeamFeatureFlagH tid =
-  json <$> Intra.getTeamFeatureFlag @cfg tid
+getTeamFeatureFlagH = undefined
 
 setTeamFeatureFlagH ::
   forall cfg.
@@ -638,9 +637,7 @@ setTeamFeatureFlagH ::
   ) =>
   TeamId ::: JsonRequest (WithStatusNoLock cfg) ::: JSON ->
   Handler Response
-setTeamFeatureFlagH (tid ::: req ::: _) = do
-  status :: WithStatusNoLock cfg <- parseBody req !>> mkError status400 "client-error"
-  empty <$ Intra.setTeamFeatureFlag @cfg tid status
+setTeamFeatureFlagH = undefined
 
 mkFeaturePutRouteTrivialConfig ::
   forall cfg.
@@ -653,7 +650,7 @@ mkFeaturePutRouteTrivialConfig ::
     Typeable cfg
   ) =>
   Routes Doc.ApiBuilder Handler ()
-mkFeaturePutRouteTrivialConfig = mkFeaturePutRouteTrivialConfig' @cfg TtlDisabled
+mkFeaturePutRouteTrivialConfig = undefined
 
 mkFeaturePutRouteTrivialConfig' ::
   forall cfg.
@@ -704,9 +701,7 @@ setTeamFeatureFlagTrivialConfigHNoTtl ::
   ) =>
   TeamId ::: FeatureStatus ->
   Handler Response
-setTeamFeatureFlagTrivialConfigHNoTtl (tid ::: featureStatus) = do
-  let status = WithStatusNoLock featureStatus trivialConfig FeatureTTLUnlimited
-  empty <$ Intra.setTeamFeatureFlag @cfg tid status
+setTeamFeatureFlagTrivialConfigHNoTtl = undefined
 
 setTeamFeatureFlagTrivialConfigH ::
   forall cfg.
@@ -720,6 +715,4 @@ setTeamFeatureFlagTrivialConfigH ::
   ) =>
   TeamId ::: FeatureStatus ::: FeatureTTL' 'FeatureTTLUnitDays ->
   Handler Response
-setTeamFeatureFlagTrivialConfigH (tid ::: featureStatus ::: ttl) = do
-  let status = WithStatusNoLock featureStatus trivialConfig (convertFeatureTTLDaysToSeconds ttl)
-  empty <$ Intra.setTeamFeatureFlag @cfg tid status
+setTeamFeatureFlagTrivialConfigH = undefined
