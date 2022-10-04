@@ -200,6 +200,9 @@ let lib = pkgs.lib;
       tag = null;
       bundleNixpkgs = false;
       extraPkgs = commonTools ++ [pkgs.cachix];
+      nixConf = {
+        experimental-features = "nix-command flakes";
+      };
     };
 in {
   inherit ciImage;
