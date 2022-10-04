@@ -1,3 +1,46 @@
+# [2022-10-04] (Chart Release 4.25.0)
+
+## Release notes
+
+
+* Upgrade webapp version to 2022-10-04-production.0-v0.31.2-0-a438b30 (#2302)
+
+
+## API changes
+
+
+* Remove /legalhold/conversation alias from v2 (#2734)
+
+* Make v2 a supported version and start v3 (#2734)
+
+
+## Features
+
+
+* Allow deletion of MLS team conversations (#2733)
+
+
+## Bug fixes and other updates
+
+
+* Revert synchronous semantics of client deletion endpoint (#2737)
+
+
+## Documentation
+
+
+* JCT-146 - update outdated info
+  SER-211 - update new info regarding nodetool use (#2736)
+
+
+## Internal changes
+
+
+* Skeleton implementation of new endpoint for JWT DPoP access token generation (#2652, #2686)
+
+* Add swagger2-ui to stern (#2742 ...)
+
+
 # [2022-09-27] (Chart Release 4.24.0)
 
 ## Release notes
