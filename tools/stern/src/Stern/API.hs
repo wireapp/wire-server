@@ -160,14 +160,12 @@ servantSitemap' =
     :<|> Named @"get-route-classified-domains-config" (mkFeatureGetRoute @ClassifiedDomainsConfig)
     :<|> Named @"get-route-conference-calling-config" (mkFeatureGetRoute @ConferenceCallingConfig)
     :<|> Named @"put-route-conference-calling-config" (mkFeaturePutRouteTrivialConfigWithTTL @ConferenceCallingConfig)
+    :<|> Named @"get-route-applock-config" (mkFeatureGetRoute @AppLockConfig)
+    :<|> Named @"put-route-applock-config" (mkFeaturePutRoute @AppLockConfig)
+    :<|> Named @"get-route-mls-config" (mkFeatureGetRoute @MLSConfig)
+    :<|> Named @"put-route-mls-config" (mkFeaturePutRoute @MLSConfig)
 
 {-
-
-  mkFeatureGetRoute @AppLockConfig
-  mkFeaturePutRoute @AppLockConfig
-
-  mkFeatureGetRoute @MLSConfig
-  mkFeaturePutRoute @MLSConfig
 
 :<|> Named @"get-team-search-visibility" Intra.getSearchVisibility
 :<|> Named @"get-team-invoice" getTeamInvoice
@@ -327,6 +325,20 @@ mkFeatureGetRoute ::
   TeamId ->
   Handler (WithStatus cfg)
 mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
+
+mkFeaturePutRoute ::
+  forall cfg.
+  ( IsFeatureConfig cfg,
+    S.ToSchema cfg,
+    KnownSymbol (FeatureSymbol cfg),
+    FromJSON (WithStatusNoLock cfg),
+    ToJSON (WithStatusNoLock cfg),
+    Typeable cfg
+  ) =>
+  TeamId ->
+  WithStatusNoLock cfg ->
+  Handler NoContent
+mkFeaturePutRoute tid payload = NoContent <$ Intra.setTeamFeatureFlag @cfg tid payload
 
 type MkFeaturePutConstraints cfg =
   ( IsFeatureConfig cfg,

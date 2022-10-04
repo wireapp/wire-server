@@ -159,8 +159,7 @@ type SternAPI =
     :<|> Named
            "put-email"
            ( Summary "Change a user's email address."
-               :> Description
-                    "The new e-mail address must be verified before the change takes effect."
+               :> Description "The new e-mail address must be verified before the change takes effect."
                :> "users"
                :> Capture "uid" UserId
                :> "email"
@@ -171,8 +170,7 @@ type SternAPI =
     :<|> Named
            "put-phone"
            ( Summary "Change a user's phone number."
-               :> Description
-                    "The new phone number must be verified before the change takes effect."
+               :> Description "The new phone number must be verified before the change takes effect."
                :> "users"
                :> Capture "uid" UserId
                :> "phone"
@@ -292,6 +290,10 @@ type SternAPI =
     :<|> Named "get-route-classified-domains-config" (MkFeatureGetRoute ClassifiedDomainsConfig)
     :<|> Named "get-route-conference-calling-config" (MkFeatureGetRoute ConferenceCallingConfig)
     :<|> Named "put-route-conference-calling-config" (MkFeaturePutRouteTrivialConfigWithTTL ConferenceCallingConfig)
+    :<|> Named "get-route-applock-config" (MkFeatureGetRoute AppLockConfig)
+    :<|> Named "put-route-applock-config" (MkFeaturePutRoute AppLockConfig)
+    :<|> Named "get-route-mls-config" (MkFeatureGetRoute MLSConfig)
+    :<|> Named "put-route-mls-config" (MkFeaturePutRoute MLSConfig)
 
 
 -------------------------------------------------------------------------------
@@ -338,7 +340,7 @@ doubleMaybeToEither _ (Just a) Nothing = pure $ Left a
 doubleMaybeToEither _ Nothing (Just b) = pure $ Right b
 doubleMaybeToEither msg _ _ = throwE $ mkError status400 "either-params" ("Must use exactly one of two query params: " <> msg)
 
-type MkFeatureGetRoute feature =
+type MkFeatureGetRoute (feature :: *) =
   Summary "Shows whether a feature flag is enabled or not for a given team."
     :> "teams"
     :> Capture "tid" TeamId
@@ -346,7 +348,7 @@ type MkFeatureGetRoute feature =
     :> FeatureSymbol feature
     :> Get '[JSON] (WithStatus feature)
 
-type MkFeaturePutRouteTrivialConfigNoTTL feature =
+type MkFeaturePutRouteTrivialConfigNoTTL (feature :: *) =
   Summary "Disable / enable status for a given feature / team"
     :> "teams"
     :> Capture "tid" TeamId
@@ -355,7 +357,7 @@ type MkFeaturePutRouteTrivialConfigNoTTL feature =
     :> QueryParam' [Required, Strict] "status" FeatureStatus
     :> Put '[JSON] NoContent
 
-type MkFeaturePutRouteTrivialConfigWithTTL feature =
+type MkFeaturePutRouteTrivialConfigWithTTL (feature :: *) =
   Summary "Disable / enable status for a given feature / team"
     :> Description "team feature time to live, given in days, or 'unlimited' (default).  only available on *some* features!"
     :> "teams"
@@ -364,4 +366,13 @@ type MkFeaturePutRouteTrivialConfigWithTTL feature =
     :> FeatureSymbol feature
     :> QueryParam' [Required, Strict] "status" FeatureStatus
     :> QueryParam' [Required, Strict, Description "team feature time to live, given in days, or 'unlimited' (default)."] "ttl" FeatureTTLDays
+    :> Put '[JSON] NoContent
+
+type MkFeaturePutRoute (feature :: *) =
+  Summary "Disable / enable feature flag for a given team"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> FeatureSymbol feature
+    :> ReqBody '[JSON] (WithStatusNoLock feature)
     :> Put '[JSON] NoContent
