@@ -99,6 +99,10 @@ cabal-fmt:
 ghcid:
 	ghcid -l=hlint --command "cabal repl $(target)"
 
+# Used by CI
+.PHONY: lint-all
+lint-all: formatc hlint-check-all shellcheck
+
 .PHONY: hlint-check-all
 hlint-check-all:
 	./tools/hlint.sh -f all -m check
