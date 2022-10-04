@@ -64,6 +64,8 @@ library
     Brig.Effects.BlacklistStore.Cassandra
     Brig.Effects.BudgetStore
     Brig.Effects.BudgetStore.Cassandra
+    Brig.Effects.ClientStore
+    Brig.Effects.ClientStore.Cassandra
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Common

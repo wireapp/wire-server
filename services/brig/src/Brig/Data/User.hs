@@ -82,6 +82,7 @@ import Brig.Effects.UserQuery
     UserQuery,
     activateUser,
     deleteEmailUnvalidated,
+    deleteServiceUser,
     getAuthentication,
     getId,
     getLocale,
@@ -94,6 +95,7 @@ import Brig.Effects.UserQuery
     updateEmail,
     updateHandle,
     updatePhone,
+    updateStatus,
   )
 import Brig.Options
 import Brig.Password
@@ -306,30 +308,6 @@ deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u
 deletePhone :: MonadClient m => UserId -> m ()
 deletePhone u = retry x5 $ write userPhoneDelete (params LocalQuorum (Identity u))
 
-deleteServiceUser :: MonadClient m => ProviderId -> ServiceId -> BotId -> m ()
-deleteServiceUser pid sid bid = do
-  lookupServiceUser pid sid bid >>= \case
-    Nothing -> pure ()
-    Just (_, mbTid) -> retry x5 . batch $ do
-      setType BatchLogged
-      setConsistency LocalQuorum
-      addPrepQuery cql (pid, sid, bid)
-      for_ mbTid $ \tid ->
-        addPrepQuery cqlTeam (pid, sid, tid, bid)
-  where
-    cql :: PrepQuery W (ProviderId, ServiceId, BotId) ()
-    cql =
-      "DELETE FROM service_user \
-      \WHERE provider = ? AND service = ? AND user = ?"
-    cqlTeam :: PrepQuery W (ProviderId, ServiceId, TeamId, BotId) ()
-    cqlTeam =
-      "DELETE FROM service_team \
-      \WHERE provider = ? AND service = ? AND team = ? AND user = ?"
-
-updateStatus :: MonadClient m => UserId -> AccountStatus -> m ()
-updateStatus u s =
-  retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
-
 userExists :: Member UserQuery r => UserId -> Sem r Bool
 userExists uid = isJust <$> getId uid
 
@@ -411,14 +389,6 @@ lookupUsers ::
   Sem r [User]
 lookupUsers loc locale hpi usrs =
   toUsers (tDomain loc) locale hpi <$> getUsers usrs
-
-lookupServiceUser :: MonadClient m => ProviderId -> ServiceId -> BotId -> m (Maybe (ConvId, Maybe TeamId))
-lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
-  where
-    cql :: PrepQuery R (ProviderId, ServiceId, BotId) (ConvId, Maybe TeamId)
-    cql =
-      "SELECT conv, team FROM service_user \
-      \WHERE provider = ? AND service = ? AND user = ?"
 
 -- | NB: might return a lot of users, and therefore we do streaming here (page-by-page).
 lookupServiceUsers ::
@@ -533,9 +503,6 @@ userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
 
 userPasswordUpdate :: PrepQuery W (Password, UserId) ()
 userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
-
-userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
-userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
 
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"

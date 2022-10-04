@@ -1013,7 +1013,8 @@ changeAccountStatus ::
   forall r.
   Members
     '[ GalleyAccess,
-       GundeckAccess
+       GundeckAccess,
+       UserQuery
      ]
     r =>
   NonEmpty UserId ->
@@ -1031,7 +1032,7 @@ changeAccountStatus usrs status = do
       UserId ->
       AppT r ()
     update ev u = do
-      wrapClient $ Data.updateStatus u status
+      liftSem $ Data.updateStatus u status
       Intra.onUserEvent u Nothing (ev u)
 
 changeSingleAccountStatus ::
@@ -1047,7 +1048,7 @@ changeSingleAccountStatus ::
 changeSingleAccountStatus uid status = do
   unlessM (lift . liftSem $ Data.userExists uid) $ throwE AccountNotFound
   ev <- wrapClientE $ mkUserEvent [uid] status
-  wrapClientE $ Data.updateStatus uid status
+  lift . liftSem $ Data.updateStatus uid status
   lift $ Intra.onUserEvent uid Nothing (ev uid)
 
 mkUserEvent ::

@@ -26,7 +26,9 @@ import Brig.Effects.GalleyAccess
 import Brig.RPC
 import qualified Brig.RPC.Decode as RPC
 import Control.Monad.Catch
+import Data.Aeson (encode)
 import Data.ByteString.Conversion.To
+import Galley.Types.Bot
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -95,3 +97,22 @@ galleyAccessToHttp g =
                 ]
                 . expect2xx
         makeReq "galley" g GET req >>= decodeBody "galley"
+    RemoveBotMember zusr conn conv bot -> do
+      debug $
+        remote "galley"
+          . field "user" (toByteString zusr)
+          . field "conv" (toByteString conv)
+          . field "bot" (toByteString bot)
+          . msg (val "Removing bot member")
+      embed @m $ do
+        let req =
+              path "/i/bots"
+                . header "Z-User" (toByteString' zusr)
+                . maybe id (header "Z-Connection" . toByteString') conn
+                . contentJson
+                . lbytes (encode (removeBot conv bot))
+                . expect [status200, status404] -- 404 is allowed: a given conversation may no longer exist
+        response <- makeReq "galley" g DELETE req
+        if isJust (RPC.responseBody response) && RPC.statusCode response == 200
+          then Just <$> decodeBody "galley" response
+          else pure Nothing

@@ -56,8 +56,10 @@ userQueryToCassandra =
       UpdateEmail uid email -> updateEmailQuery uid email
       UpdateHandle uid handle -> updateHandleQuery uid handle
       UpdatePhone uid phone -> updatePhoneQuery uid phone
+      UpdateStatus uid s -> updateStatusQuery uid s
       ActivateUser uid ui -> activateUserQuery uid ui
       DeleteEmailUnvalidated uid -> deleteEmailUnvalidatedQuery uid
+      DeleteServiceUser pid sid bid -> deleteServiceUserQuery pid sid bid
 
 --------------------------------------------------------------------------------
 -- Queries
@@ -220,3 +222,42 @@ updateHandleQuery u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h
   where
     userHandleUpdate :: PrepQuery W (Handle, UserId) ()
     userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
+
+deleteServiceUserQuery ::
+  MonadClient m =>
+  ProviderId ->
+  ServiceId ->
+  BotId ->
+  m ()
+deleteServiceUserQuery pid sid bid =
+  lookupServiceUser >>= \case
+    Nothing -> pure ()
+    Just (_, mbTid) -> retry x5 . batch $ do
+      setType BatchLogged
+      setConsistency LocalQuorum
+      addPrepQuery cql (pid, sid, bid)
+      for_ mbTid $ \tid ->
+        addPrepQuery cqlTeam (pid, sid, tid, bid)
+  where
+    lookupServiceUser :: MonadClient m => m (Maybe (ConvId, Maybe TeamId))
+    lookupServiceUser = retry x1 (query1 q (params LocalQuorum (pid, sid, bid)))
+      where
+        q :: PrepQuery R (ProviderId, ServiceId, BotId) (ConvId, Maybe TeamId)
+        q =
+          "SELECT conv, team FROM service_user \
+          \WHERE provider = ? AND service = ? AND user = ?"
+    cql :: PrepQuery W (ProviderId, ServiceId, BotId) ()
+    cql =
+      "DELETE FROM service_user \
+      \WHERE provider = ? AND service = ? AND user = ?"
+    cqlTeam :: PrepQuery W (ProviderId, ServiceId, TeamId, BotId) ()
+    cqlTeam =
+      "DELETE FROM service_team \
+      \WHERE provider = ? AND service = ? AND team = ? AND user = ?"
+
+updateStatusQuery :: MonadClient m => UserId -> AccountStatus -> m ()
+updateStatusQuery u s =
+  retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
+  where
+    userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
+    userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"

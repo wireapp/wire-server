@@ -36,8 +36,9 @@ import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
+import Brig.Effects.ClientStore
+import Brig.Effects.GalleyAccess
 import Brig.Effects.UserQuery (UserQuery)
-import Brig.Effects.UserQuery.Cassandra
 import Brig.Effects.VerificationCodeStore
 import Brig.Email (mkEmailKey)
 import qualified Brig.IO.Intra as RPC
@@ -128,7 +129,9 @@ import qualified Wire.API.User.Identity as Public (Email)
 
 routesPublic ::
   Members
-    '[ Input (Local ()),
+    '[ ClientStore,
+       GalleyAccess,
+       Input (Local ()),
        UserQuery,
        VerificationCodeStore
      ]
@@ -760,19 +763,20 @@ finishDeleteService ::
   ) =>
   ProviderId ->
   ServiceId ->
-  m ()
+  AppT r ()
 finishDeleteService pid sid = do
-  mbSvc <- DB.lookupService pid sid
+  mbSvc <- wrapClient $ DB.lookupService pid sid
+  locale <- setDefaultUserLocale <$> view settings
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    runConduit $
-      User.lookupServiceUsers pid sid
-        .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
-    RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name tags
+    -- runConduit $
+    --   User.lookupServiceUsers pid sid
+    --     .| C.mapM_ (pooledMapConcurrentlyN_ 16 . kick locale)
+    wrapHttp $ RPC.removeServiceConn pid sid
+    wrapClient $ DB.deleteService pid sid name tags
   where
-    kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
+    kick l (bid, cid, _) = deleteBot l (botUserId bid) Nothing bid cid
 
 deleteAccountH ::
   ( MonadReader Env m,
@@ -919,6 +923,7 @@ updateServiceWhitelist uid con tid upd = do
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Add to various tables
   whitelisted <- wrapClientE $ DB.getServiceWhitelistStatus tid pid sid
+  locale <- setDefaultUserLocale <$> view settings
   case (whitelisted, newWhitelisted) of
     (False, False) -> pure UpdateServiceWhitelistRespUnchanged
     (True, True) -> pure UpdateServiceWhitelistRespUnchanged
@@ -928,17 +933,17 @@ updateServiceWhitelist uid con tid upd = do
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
       -- conversations
-      lift $
-        fmap
-          wrapHttpClient
-          runConduit
-          $ User.lookupServiceUsersForTeam pid sid tid
-            .| C.mapM_
-              ( pooledMapConcurrentlyN_
-                  16
-                  ( uncurry (deleteBot uid (Just con))
-                  )
-              )
+      -- lift $
+      -- fmap
+      --   wrapHttpClient
+      -- runConduit $
+      --   User.lookupServiceUsersForTeam pid sid tid
+      --     .| C.mapM_
+      --       ( pooledMapConcurrentlyN_
+      --           16
+      --           ( uncurry (deleteBot locale uid (Just con))
+      --           )
+      --       )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
 
@@ -1039,12 +1044,33 @@ addBot zuid zcon cid add = do
         Public.rsAddBotEvent = ev
       }
 
-removeBotH :: UserId ::: ConnId ::: ConvId ::: BotId -> (Handler r) Response
+removeBotH ::
+  Members
+    '[ ClientStore,
+       GalleyAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  UserId ::: ConnId ::: ConvId ::: BotId ->
+  Handler r Response
 removeBotH (zusr ::: zcon ::: cid ::: bid) = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled (Just zusr)
   maybe (setStatus status204 empty) json <$> removeBot zusr zcon cid bid
 
-removeBot :: UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
+removeBot ::
+  Members
+    '[ ClientStore,
+       GalleyAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  ConvId ->
+  BotId ->
+  Handler r (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
   -- Get the conversation and check preconditions
   cnv <- lift (wrapHttp $ RPC.getConv zusr cid) >>= maybeConvNotFound
@@ -1054,10 +1080,13 @@ removeBot zusr zcon cid bid = do
   -- Find the bot in the member list and delete it
   let busr = botUserId bid
   let bot = List.find ((== busr) . qUnqualified . omQualifiedId) (cmOthers mems)
+  locale <- setDefaultUserLocale <$> view settings
   case bot >>= omService of
     Nothing -> pure Nothing
     Just _ -> do
-      lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
+      lift . liftSem $
+        Public.RemoveBotResponse
+          <$$> deleteBot locale zusr (Just zcon) bid cid
 
 --------------------------------------------------------------------------------
 -- Bot API
@@ -1157,7 +1186,13 @@ botGetUserClients uid =
     pubClient c = Public.PubClient (clientId c) (clientClass c)
 
 botDeleteSelfH ::
-  Member UserQuery r =>
+  Members
+    '[ ClientStore,
+       GalleyAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
   BotId ::: ConvId ->
   (Handler r) Response
 botDeleteSelfH (bid ::: cid) = do
@@ -1165,7 +1200,13 @@ botDeleteSelfH (bid ::: cid) = do
   empty <$ botDeleteSelf bid cid
 
 botDeleteSelf ::
-  Member UserQuery r =>
+  Members
+    '[ ClientStore,
+       GalleyAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
   BotId ->
   ConvId ->
   (Handler r) ()
@@ -1175,7 +1216,7 @@ botDeleteSelf bid cid = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bid))
   bot <- lift . liftSem $ User.lookupUser loc locale NoPendingInvitations (botUserId bid)
   _ <- maybeInvalidBot (userService =<< bot)
-  _ <- lift $ wrapHttpClient $ deleteBot (botUserId bid) Nothing bid cid
+  _ <- lift . liftSem $ deleteBot locale (botUserId bid) Nothing bid cid
   pure ()
 
 --------------------------------------------------------------------------------
@@ -1209,38 +1250,36 @@ activate pid old new = do
   wrapClientE $ DB.insertKey pid (mkEmailKey <$> old) emailKey
 
 deleteBot ::
-  forall m.
-  ( MonadHttp m,
-    MonadReader Env m,
-    MonadMask m,
-    HasRequestId m,
-    MonadLogger m,
-    MonadClient m
-  ) =>
+  forall r.
+  Members
+    '[ ClientStore,
+       GalleyAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  Locale ->
   UserId ->
   Maybe ConnId ->
   BotId ->
   ConvId ->
-  m (Maybe Public.Event)
-deleteBot zusr zcon bid cid = do
+  Sem r (Maybe Public.Event)
+deleteBot locale zusr zcon bid cid = do
   -- Remove the bot from the conversation
-  ev <- RPC.removeBotMember zusr zcon cid bid
+  ev <- removeBotMember zusr zcon cid bid
   -- Delete the bot user and client
   let buid = botUserId bid
-  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
-  locale <- setDefaultUserLocale <$> view settings
+  loc <- input
   mbUser <-
-    runM $
-      userQueryToCassandra @m @'[Embed m] $
-        User.lookupUser loc locale NoPendingInvitations buid
-  User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
+    User.lookupUser loc locale NoPendingInvitations buid
+  lookupClients buid >>= mapM_ (deleteClient buid . clientId)
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider
         sid = sref ^. serviceRefId
     User.deleteServiceUser pid sid bid
   -- TODO: Consider if we can actually delete the bot user entirely,
   -- i.e. not just marking the account as deleted.
-  void $ runExceptT $ User.updateStatus buid Deleted
+  User.updateStatus buid Deleted
   pure ev
 
 validateServiceKey :: MonadIO m => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))

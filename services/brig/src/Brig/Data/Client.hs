@@ -55,6 +55,7 @@ import Bilge.Retry (httpHandlers)
 import Brig.AWS
 import Brig.App
 import Brig.Data.Instances ()
+import Brig.Effects.ClientStore.Cassandra (key, lookupClients, rmClient, toClient)
 -- import Brig.Data.User (AuthError (..), ReAuthError (..))
 -- import qualified Brig.Data.User as User
 -- import Brig.Options (setDefaultUserLocale)
@@ -84,7 +85,6 @@ import Data.Misc
 import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import qualified Data.UUID as UUID
 import Imports
 import Polysemy hiding (run)
 import Polysemy.Error
@@ -229,20 +229,6 @@ lookupPubClientsBulk uids = liftClient $ do
     executeQuery :: MonadClient m => UserId -> m [(ClientId, Maybe ClientClass)]
     executeQuery u = retry x1 (query selectPubClients (params LocalQuorum (Identity u)))
 
-lookupClients :: MonadClient m => UserId -> m [Client]
-lookupClients u = do
-  keys <-
-    (\(cid, ss, Blob b) -> (cid, [(ss, LBS.toStrict b)]))
-      <$$> retry x1 (query selectMLSPublicKeysByUser (params LocalQuorum (Identity u)))
-  let keyMap = Map.fromListWith (<>) keys
-      updateKeys c =
-        c
-          { clientMLSPublicKeys =
-              Map.fromList $ Map.findWithDefault [] (clientId c) keyMap
-          }
-  updateKeys . toClient []
-    <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
-
 lookupClientIds :: MonadClient m => UserId -> m [ClientId]
 lookupClientIds u =
   map runIdentity
@@ -261,19 +247,6 @@ lookupPrekeyIds u c =
 
 hasClient :: MonadClient m => UserId -> ClientId -> m Bool
 hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, d)))
-
-rmClient ::
-  ( MonadClient m,
-    MonadReader Brig.App.Env m,
-    MonadCatch m
-  ) =>
-  UserId ->
-  ClientId ->
-  m ()
-rmClient u c = do
-  retry x5 $ write removeClient (params LocalQuorum (u, c))
-  retry x5 $ write removeClientKeys (params LocalQuorum (u, c))
-  unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
 
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params LocalQuorum (l, u, c))
@@ -395,9 +368,6 @@ updateClientCapabilitiesQuery = "UPDATE clients SET capabilities = ? WHERE user 
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability))
-selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model, capabilities from clients where user = ?"
-
 selectPubClients :: PrepQuery R (Identity UserId) (ClientId, Maybe ClientClass)
 selectPubClients = "SELECT client, class from clients where user = ?"
 
@@ -406,12 +376,6 @@ selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, mod
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
 insertClientKey = "INSERT INTO prekeys (user, client, key, data) VALUES (?, ?, ?, ?)"
-
-removeClient :: PrepQuery W (UserId, ClientId) ()
-removeClient = "DELETE FROM clients where user = ? and client = ?"
-
-removeClientKeys :: PrepQuery W (UserId, ClientId) ()
-removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
 
 userPrekey :: PrepQuery R (UserId, ClientId) (PrekeyId, Text)
 userPrekey = "SELECT key, data FROM prekeys where user = ? and client = ? LIMIT 1"
@@ -434,9 +398,6 @@ selectMLSPublicKey = "SELECT key from mls_public_keys where user = ? and client 
 selectMLSPublicKeys :: PrepQuery R (UserId, ClientId) (SignatureSchemeTag, Blob)
 selectMLSPublicKeys = "SELECT sig_scheme, key from mls_public_keys where user = ? and client = ?"
 
-selectMLSPublicKeysByUser :: PrepQuery R (Identity UserId) (ClientId, SignatureSchemeTag, Blob)
-selectMLSPublicKeysByUser = "SELECT client, sig_scheme, key from mls_public_keys where user = ?"
-
 insertMLSPublicKeys :: PrepQuery W (UserId, ClientId, SignatureSchemeTag, Blob) Row
 insertMLSPublicKeys =
   "INSERT INTO mls_public_keys (user, client, sig_scheme, key) \
@@ -445,64 +406,14 @@ insertMLSPublicKeys =
 -------------------------------------------------------------------------------
 -- Conversions
 
-toClient ::
-  [(SignatureSchemeTag, Blob)] ->
-  ( ClientId,
-    ClientType,
-    UTCTimeMillis,
-    Maybe Text,
-    Maybe ClientClass,
-    Maybe CookieLabel,
-    Maybe Latitude,
-    Maybe Longitude,
-    Maybe Text,
-    Maybe (C.Set ClientCapability)
-  ) ->
-  Client
-toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
-  Client
-    { clientId = cid,
-      clientType = cty,
-      clientTime = tme,
-      clientClass = cls,
-      clientLabel = lbl,
-      clientCookie = cok,
-      clientLocation = location <$> lat <*> lon,
-      clientModel = mdl,
-      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
-      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys)
-    }
-
 toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
 toPubClient = uncurry PubClient
 
 -------------------------------------------------------------------------------
 -- Best-effort optimistic locking for prekeys via DynamoDB
 
-ddbClient :: Text
-ddbClient = "client"
-
 ddbVersion :: Text
 ddbVersion = "version"
-
-ddbKey :: UserId -> ClientId -> AWS.AttributeValue
-ddbKey u c = AWS.S (UUID.toText (toUUID u) <> "." <> client c)
-
-key :: UserId -> ClientId -> HashMap Text AWS.AttributeValue
-key u c = HashMap.singleton ddbClient (ddbKey u c)
-
-deleteOptLock ::
-  ( MonadReader Brig.App.Env m,
-    MonadCatch m,
-    MonadIO m
-  ) =>
-  UserId ->
-  ClientId ->
-  m ()
-deleteOptLock u c = do
-  t <- view (awsEnv . prekeyTable)
-  e <- view (awsEnv . amazonkaEnv)
-  void $ exec e (AWS.newDeleteItem t & AWS.deleteItem_key .~ key u c)
 
 withOptLock ::
   forall a m.

@@ -36,8 +36,10 @@ module Brig.Effects.UserQuery
     updateEmail,
     updateHandle,
     updatePhone,
+    updateStatus,
     activateUser,
     deleteEmailUnvalidated,
+    deleteServiceUser,
 
     -- * effect-derived functions
     lookupAccount,
@@ -299,8 +301,14 @@ data UserQuery m a where
   UpdateEmail :: UserId -> Email -> UserQuery m ()
   UpdateHandle :: UserId -> Handle -> UserQuery m ()
   UpdatePhone :: UserId -> Phone -> UserQuery m ()
+  UpdateStatus :: UserId -> AccountStatus -> UserQuery m ()
   ActivateUser :: UserId -> UserIdentity -> UserQuery m ()
   DeleteEmailUnvalidated :: UserId -> UserQuery m ()
+  DeleteServiceUser ::
+    ProviderId ->
+    ServiceId ->
+    BotId ->
+    UserQuery m ()
 
 makeSem ''UserQuery
 

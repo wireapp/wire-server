@@ -17,29 +17,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Effects.GalleyAccess where
+module Brig.Effects.ClientStore where
 
 import Data.Id
-import Imports
 import Polysemy
-import Wire.API.Event.Conversation
-import Wire.API.Team.Feature
-import Wire.API.Team.Member
+import Wire.API.User.Client
 
-data GalleyAccess m a where
-  GetTeamSndFactorPasswordChallenge :: TeamId -> GalleyAccess m FeatureStatus
-  -- | Only works on 'BindingTeam's! The lisetBindingTeamMembersH'.
-  GetTeamContacts :: UserId -> GalleyAccess m (Maybe TeamMemberList)
-  -- | Calls 'Galley.API.getBindingTeamIdH'.
-  GetTeamId :: UserId -> GalleyAccess m (Maybe TeamId)
-  -- | Calls 'Galley.API.getTeamFeatureStatusH'.
-  GetTeamLegalHoldStatus :: TeamId -> GalleyAccess m (WithStatus LegalholdConfig)
-  -- | Tell Galley to remove a service bot from a conversation.
-  RemoveBotMember ::
-    UserId ->
-    Maybe ConnId ->
-    ConvId ->
-    BotId ->
-    GalleyAccess m (Maybe Event)
+data ClientStore m a where
+  LookupClients :: UserId -> ClientStore m [Client]
+  DeleteClient :: UserId -> ClientId -> ClientStore m ()
 
-makeSem ''GalleyAccess
+makeSem ''ClientStore
