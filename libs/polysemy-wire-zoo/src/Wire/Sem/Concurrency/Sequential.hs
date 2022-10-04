@@ -2,7 +2,7 @@ module Wire.Sem.Concurrency.Sequential where
 
 import Imports
 import Polysemy
-import Wire.Sem.UnsafeConcurrency
+import Wire.Sem.Concurrency
 
 sequentiallyPerformConcurrency :: Sem (Concurrency safe ': r) a -> Sem r a
 sequentiallyPerformConcurrency = interpretH $ \case

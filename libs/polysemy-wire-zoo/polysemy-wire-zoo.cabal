@@ -25,9 +25,9 @@ library
     Wire.Sem.Paging.Cassandra
     Wire.Sem.Random
     Wire.Sem.Random.IO
-    Wire.Sem.UnsafeConcurrency
-    Wire.Sem.UnsafeConcurrency.IO
-    Wire.Sem.UnsafeConcurrency.Sequential
+    Wire.Sem.Concurrency
+    Wire.Sem.Concurrency.IO
+    Wire.Sem.Concurrency.Sequential
 
   other-modules:      Paths_polysemy_wire_zoo
   hs-source-dirs:     src

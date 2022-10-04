@@ -1,8 +1,6 @@
 {-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -ddump-splices #-}
 
-module Wire.Sem.UnsafeConcurrency where
+module Wire.Sem.Concurrency where
 
 import Data.Kind (Type)
 import Imports
@@ -11,9 +9,7 @@ import Polysemy.Internal
 
 data ConcurrencySafety = Safe | Unsafe
 
--- | WARNING: VERY VERY UNSAFE
---
--- Polysemy "effect" for hinting about concurrency. This comes with a host of
+-- | Polysemy "effect" for hinting about concurrency. This comes with a host of
 -- caveats, because concurrency fundamentally is not an effect we can ascribe
 -- any semantics to.
 --
@@ -28,10 +24,19 @@ data ConcurrencySafety = Safe | Unsafe
 -- of the runtime. In general, we have no means of combining the resulting
 -- state changes, so we have no option other than to arbitrarily pick one.
 --
+-- This is confusing behavior --- especially when the call to `Concurrency` is
+-- far away from the observed bug.
+--
 -- Notice that almost everything in Polysemy is "stateful", even things that
 -- don't invoke 'Polysemy.State.State'. The 'Polysemy.Error.Error' effect also
 -- carries itself around as "state", and thus any interpretation composed of
 -- these interpretations is subject to dropping observable state changes.
+--
+-- There is a "safe" usage of 'Concurrency', at least, no more unsafe than 'IO'
+-- when the action you want to perform concurrently requires only @'Final'
+-- 'IO'@. This use case is common in interpreters which can statically
+-- guarantee their scoped effects do not have access to the full polysemy
+-- stack.
 type Concurrency :: ConcurrencySafety -> (Type -> Type) -> Type -> Type
 data Concurrency (safe :: ConcurrencySafety) m a where
   UnsafePooledMapConcurrentlyN ::
@@ -50,6 +55,7 @@ data Concurrency (safe :: ConcurrencySafety) m a where
 unsafePooledMapConcurrentlyN ::
   forall r t a b.
   (Member (Concurrency 'Unsafe) r, Foldable t) =>
+  -- | Max. number of threads. Should not be less than 1.
   Int ->
   (a -> Sem r b) ->
   t a ->
@@ -64,6 +70,7 @@ unsafePooledMapConcurrentlyN n f as =
 unsafePooledMapConcurrentlyN_ ::
   forall r t a b.
   (Member (Concurrency 'Unsafe) r, Foldable t) =>
+  -- | Max. number of threads. Should not be less than 1.
   Int ->
   (a -> Sem r b) ->
   t a ->
@@ -77,6 +84,7 @@ pooledMapConcurrentlyN ::
   forall r' r t a b.
   r' ~ '[Final IO] =>
   (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
+  -- | Max. number of threads. Should not be less than 1.
   Int ->
   (a -> Sem r' b) ->
   t a ->
@@ -92,6 +100,7 @@ pooledMapConcurrentlyN_ ::
   forall r' r t a b.
   r' ~ '[Final IO] =>
   (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
+  -- | Max. number of threads. Should not be less than 1.
   Int ->
   (a -> Sem r' b) ->
   t a ->
