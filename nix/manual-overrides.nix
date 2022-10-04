@@ -28,6 +28,7 @@ hself: hsuper: {
 
   # Some test seems to be broken
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
+  saml2-web-sso = hlib.dontCheck hsuper.saml2-web-sso;
 
   # Needs network access to a running cassandra
   cql-io = hlib.dontCheck hsuper.cql-io;
