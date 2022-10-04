@@ -4,8 +4,7 @@ import Imports
 import Polysemy
 import Polysemy.Final
 import UnliftIO (pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
-import Wire.Sem.UnsafeConcurrency (Concurrency(..), ConcurrencySafety (Safe))
-
+import Wire.Sem.UnsafeConcurrency (Concurrency (..), ConcurrencySafety (Safe))
 
 performConcurrency :: Member (Final IO) r => Sem (Concurrency 'Safe ': r) a -> Sem r a
 performConcurrency = unsafelyPerformConcurrency

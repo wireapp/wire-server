@@ -1,13 +1,13 @@
+{-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -ddump-splices #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
 
 module Wire.Sem.UnsafeConcurrency where
 
-import Polysemy
-import Imports
-import Polysemy.Internal
 import Data.Kind (Type)
+import Imports
+import Polysemy
+import Polysemy.Internal
 
 data ConcurrencySafety = Safe | Unsafe
 
@@ -47,53 +47,58 @@ data Concurrency (safe :: ConcurrencySafety) m a where
     t a ->
     Concurrency safe m ()
 
-
 unsafePooledMapConcurrentlyN ::
   forall r t a b.
   (Member (Concurrency 'Unsafe) r, Foldable t) =>
-  Int
-  -> (a -> Sem r b)
-     -> t a -> Sem r [b]
-unsafePooledMapConcurrentlyN n f as
-  = send
-      (UnsafePooledMapConcurrentlyN n f as ::
-         Concurrency 'Unsafe (Sem r) [b])
-{-# INLINABLE unsafePooledMapConcurrentlyN #-}
+  Int ->
+  (a -> Sem r b) ->
+  t a ->
+  Sem r [b]
+unsafePooledMapConcurrentlyN n f as =
+  send
+    ( UnsafePooledMapConcurrentlyN n f as ::
+        Concurrency 'Unsafe (Sem r) [b]
+    )
+{-# INLINEABLE unsafePooledMapConcurrentlyN #-}
 
 unsafePooledMapConcurrentlyN_ ::
   forall r t a b.
   (Member (Concurrency 'Unsafe) r, Foldable t) =>
-  Int
-  -> (a -> Sem r b) -> t a -> Sem r ()
-unsafePooledMapConcurrentlyN_ n f as
-  = send
-      (UnsafePooledMapConcurrentlyN_ n f as :: Concurrency 'Unsafe (Sem r) ())
-{-# INLINABLE unsafePooledMapConcurrentlyN_ #-}
-
+  Int ->
+  (a -> Sem r b) ->
+  t a ->
+  Sem r ()
+unsafePooledMapConcurrentlyN_ n f as =
+  send
+    (UnsafePooledMapConcurrentlyN_ n f as :: Concurrency 'Unsafe (Sem r) ())
+{-# INLINEABLE unsafePooledMapConcurrentlyN_ #-}
 
 pooledMapConcurrentlyN ::
   forall r' r t a b.
-  r' ~ '[Final IO]
-  => (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
-  Int
-  -> (a -> Sem r' b)
-     -> t a -> Sem r [b]
-pooledMapConcurrentlyN n f as
-  = send
-      (UnsafePooledMapConcurrentlyN n (subsume_ @r' @r . f) as ::
-         Concurrency 'Safe (Sem r) [b])
-{-# INLINABLE pooledMapConcurrentlyN #-}
+  r' ~ '[Final IO] =>
+  (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
+  Int ->
+  (a -> Sem r' b) ->
+  t a ->
+  Sem r [b]
+pooledMapConcurrentlyN n f as =
+  send
+    ( UnsafePooledMapConcurrentlyN n (subsume_ @r' @r . f) as ::
+        Concurrency 'Safe (Sem r) [b]
+    )
+{-# INLINEABLE pooledMapConcurrentlyN #-}
 
 pooledMapConcurrentlyN_ ::
   forall r' r t a b.
-  r' ~ '[Final IO]
-  => (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
-  Int
-  -> (a -> Sem r' b)
-     -> t a -> Sem r ()
-pooledMapConcurrentlyN_ n f as
-  = send
-      (UnsafePooledMapConcurrentlyN_ n (subsume_ @r' @r . f) as ::
-         Concurrency 'Safe (Sem r) ())
-{-# INLINABLE pooledMapConcurrentlyN_ #-}
-
+  r' ~ '[Final IO] =>
+  (Member (Concurrency 'Safe) r, Subsume r' r, Foldable t) =>
+  Int ->
+  (a -> Sem r' b) ->
+  t a ->
+  Sem r ()
+pooledMapConcurrentlyN_ n f as =
+  send
+    ( UnsafePooledMapConcurrentlyN_ n (subsume_ @r' @r . f) as ::
+        Concurrency 'Safe (Sem r) ()
+    )
+{-# INLINEABLE pooledMapConcurrentlyN_ #-}
