@@ -1,11 +1,10 @@
 module Wire.Sem.UnsafeConcurrency.IO where
 
 import Imports
-import Wire.Sem.UnsafeConcurrency
 import Polysemy
 import Polysemy.Final
 import UnliftIO (pooledMapConcurrentlyN, pooledMapConcurrentlyN_)
-
+import Wire.Sem.UnsafeConcurrency
 
 unsafelyPerformConcurrency :: Member (Final IO) r => Sem (UnsafeConcurrency ': r) a -> Sem r a
 unsafelyPerformConcurrency = interpretFinal @IO $ \case
@@ -21,4 +20,3 @@ unsafelyPerformConcurrency = interpretFinal @IO $ \case
     faction <- bindS f
     let action a = faction $ a <$ st
     liftS $ pooledMapConcurrentlyN_ n action $ toList t
-

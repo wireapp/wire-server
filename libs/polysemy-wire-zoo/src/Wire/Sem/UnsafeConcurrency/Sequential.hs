@@ -1,9 +1,8 @@
 module Wire.Sem.UnsafeConcurrency.Sequential where
 
 import Imports
-import Wire.Sem.UnsafeConcurrency
 import Polysemy
-
+import Wire.Sem.UnsafeConcurrency
 
 sequentiallyPerformConcurrency :: Sem (UnsafeConcurrency ': r) a -> Sem r a
 sequentiallyPerformConcurrency = interpretH $ \case
@@ -15,4 +14,3 @@ sequentiallyPerformConcurrency = interpretH $ \case
     st <- getInitialStateT
     ftraverse_ <- bindT $ traverse_ @t f
     raise $ sequentiallyPerformConcurrency $ ftraverse_ $ t <$ st
-
