@@ -18,14 +18,14 @@
 module Wire.API.Routes.Versioned where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Schema 
 import Data.Metrics.Servant
+import Data.Schema
 import qualified Data.Swagger as S
-import Servant.Swagger
-import Servant.Swagger.Internal
 import Imports
 import Servant
 import Servant.API.ContentTypes
+import Servant.Swagger
+import Servant.Swagger.Internal
 import Wire.API.Routes.Version
 
 --------------------------------------
@@ -47,20 +47,23 @@ instance
   type ServerT (VersionedReqBody' v mods cts a :> api) m = a -> ServerT api m
 
   hoistServerWithContext _p pc nt s = hoistServerWithContext p pc nt (s . unVersioned) . Versioned
-        where 
-         p = (Proxy :: Proxy (ReqBody cts (Versioned v a) :> api))
+    where
+      p = Proxy :: Proxy (ReqBody cts (Versioned v a) :> api)
 
   route _p ctx d = route (Proxy :: Proxy (ReqBody cts (Versioned v a) :> api)) ctx (fmap (. unVersioned) d)
 
 instance
-  (HasSwagger (ReqBody' '[Required, Strict] cts a :> api),
-  S.ToSchema (Versioned v a),
-  HasSwagger api, AllAccept cts) =>
+  ( HasSwagger (ReqBody' '[Required, Strict] cts a :> api),
+    S.ToSchema (Versioned v a),
+    HasSwagger api,
+    AllAccept cts
+  ) =>
   HasSwagger (VersionedReqBody v cts a :> api)
   where
   toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned v a) :> api))
 
-newtype Versioned v a = Versioned {unVersioned :: a}
+newtype Versioned (v :: Version) a = Versioned {unVersioned :: a}
+  deriving (Eq, Show)
 
 instance Functor (Versioned v) where
   fmap f (Versioned a) = Versioned (f a)

@@ -235,6 +235,8 @@ import qualified Test.Wire.API.Golden.Generated.WithStatusPatch_team
 import qualified Test.Wire.API.Golden.Generated.WithStatus_team
 import qualified Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
 import Test.Wire.API.Golden.Runner
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 
 tests :: TestTree
 tests =
@@ -384,25 +386,34 @@ tests =
           ],
       testGroup "Golden: Conversation_user" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_1, "testObject_Conversation_user_1.json"),
-            (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_2, "testObject_Conversation_user_2.json")
+          [ (Versioned @'V2 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_1, "testObject_Conversation_user_1.json"),
+            (Versioned @'V2 Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_2, "testObject_Conversation_user_2.json")
           ],
       testGroup "Golden: NewConv_user" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_1, "testObject_NewConv_user_1.json"),
-            (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_3, "testObject_NewConv_user_3.json")
+          [ (Versioned @'V2 Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_1, "testObject_NewConv_user_1.json"),
+            (Versioned @'V2 Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_3, "testObject_NewConv_user_3.json")
           ],
-      testGroup "Golden: ConversationList_20_28Id_20_2a_20C_29_user" $
+      testGroup "Golden: ConversationList_20_28Id_20_2a_20C_29_user_v1" $
         testObjects
-          [ ( Test.Wire.API.Golden.Generated.ConversationList_20_28Id_20_2a_20C_29_user.testObject_ConversationList_20_28Id_20_2a_20C_29_user_1,
+          [ ( Versioned @'V2 Test.Wire.API.Golden.Generated.ConversationList_20_28Id_20_2a_20C_29_user.testObject_ConversationList_20_28Id_20_2a_20C_29_user_1,
               "testObject_ConversationList_20_28Id_20_2a_20C_29_user_1.json"
             ),
-            ( Test.Wire.API.Golden.Generated.ConversationList_20_28Id_20_2a_20C_29_user.testObject_ConversationList_20_28Id_20_2a_20C_29_user_2,
+            ( Versioned @'V2 Test.Wire.API.Golden.Generated.ConversationList_20_28Id_20_2a_20C_29_user.testObject_ConversationList_20_28Id_20_2a_20C_29_user_2,
               "testObject_ConversationList_20_28Id_20_2a_20C_29_user_2.json"
             )
           ],
+      -- testGroup "Golden: ConversationList_20Conversation_user_v1" $
+      --   testObjects
+      --     [ ( Versioned @'V2 Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user.testObject_ConversationList_20Conversation_user_1,
+      --         "testObject_ConversationList_20Conversation_user_1_v1.json"
+      --       ),
+      --       ( Versioned @'V2 Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user.testObject_ConversationList_20Conversation_user_2,
+      --         "testObject_ConversationList_20Conversation_user_2_v1.json"
+      --       )
+      --     ],
       testGroup "Golden: ConversationList_20Conversation_user" $
-        testObjects
+        testObjects 
           [ ( Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user.testObject_ConversationList_20Conversation_user_1,
               "testObject_ConversationList_20Conversation_user_1.json"
             ),
@@ -452,10 +463,10 @@ tests =
           ],
       testGroup "Golden: ConversationAccessData_user" $
         testObjects
-          [ ( Test.Wire.API.Golden.Generated.ConversationAccessData_user.testObject_ConversationAccessData_user_1,
+          [ ( Versioned @'V2 Test.Wire.API.Golden.Generated.ConversationAccessData_user.testObject_ConversationAccessData_user_1,
               "testObject_ConversationAccessData_user_1.json"
             ),
-            ( Test.Wire.API.Golden.Generated.ConversationAccessData_user.testObject_ConversationAccessData_user_2,
+            ( Versioned @'V2 Test.Wire.API.Golden.Generated.ConversationAccessData_user.testObject_ConversationAccessData_user_2,
               "testObject_ConversationAccessData_user_2.json"
             )
           ],

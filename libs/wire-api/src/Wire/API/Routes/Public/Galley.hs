@@ -20,7 +20,6 @@
 
 module Wire.API.Routes.Public.Galley where
 
-import GHC.Generics
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
 import Data.Domain (Domain)
@@ -29,6 +28,7 @@ import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import qualified Data.Swagger as Swagger
+import GHC.Generics
 import GHC.TypeLits (AppendSymbol)
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
@@ -358,7 +358,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                -- :> ReqBody '[Servant.JSON] NewConv
-               :> VersionedReqBody 'V1 '[Servant.JSON] NewConv
+               :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     :<|> Named
@@ -1877,4 +1877,3 @@ type PostOtrDescription =
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)
-

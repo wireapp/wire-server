@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -56,6 +57,8 @@ module Wire.API.Conversation
     toAccessRoleLegacy,
     defRole,
     maybeRole,
+    conversationSchema,
+    accessRolesSchemaV1,
 
     -- * create
     NewConv (..),
@@ -94,7 +97,7 @@ module Wire.API.Conversation
 where
 
 import Control.Applicative
-import Control.Lens (at, (?~))
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Id
@@ -102,7 +105,7 @@ import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
-import Data.Proxy (Proxy (Proxy))
+import Data.Proxy
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.Schema
@@ -215,12 +218,8 @@ conversationSchema sch =
 instance ToSchema Conversation where
   schema = conversationSchema accessRolesSchema
 
-instance ToSchema (Versioned 'V1 Conversation) where
+instance ToSchema (Versioned 'V2 Conversation) where
   schema = unVersioned .= fmap Versioned (conversationSchema accessRolesSchemaV1)
-
-deriving via Schema (Versioned 'V1 Conversation) instance FromJSON (Versioned 'V1 Conversation)
-
-deriving via Schema (Versioned 'V1 Conversation) instance ToJSON (Versioned 'V1 Conversation)
 
 modelConversation :: Doc.Model
 modelConversation = Doc.defineModel "Conversation" $ do
@@ -286,6 +285,39 @@ data ConversationList a = ConversationList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (ConversationList a))
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (ConversationList a)
+
+instance ToSchema (Versioned 'V2 (ConversationList Conversation)) where
+  schema = unVersioned .= fmap Versioned (conversationListSchemaV1 $ conversationSchema accessRolesSchemaV1)
+
+instance ToSchema (Versioned 'V2 (ConversationList ConvId)) where
+  schema = unVersioned .= fmap Versioned (conversationListSchemaV1 $ schema @ConvId)
+
+instance (ToSchema a) => ToSchema (ConversationList a) where
+  schema = conversationListSchema @a
+
+conversationListSchema ::
+  forall a.
+  ToSchema a =>
+  ValueSchema NamedSwaggerDoc (ConversationList a)
+conversationListSchema =
+  object "ConversationList" $
+    ConversationList
+      <$> convList .= field "conversations" (array (schema @a))
+      <*> convHasMore .= field "has_more" schema
+
+conversationListSchemaV1 ::
+  forall a.
+  (ConversationListItem a, ToSchema a) =>
+  ValueSchema NamedSwaggerDoc a ->
+  ValueSchema NamedSwaggerDoc (ConversationList a)
+conversationListSchemaV1 sch =
+  objectWithDocModifier
+    "ConversationList"
+    (description ?~ "Object holding a list of " <> convListItemName (Proxy @a))
+    $ ConversationList
+      <$> convList .= field "conversations" (array sch)
+        <*> convHasMore .= field "has_more" schema
 
 class ConversationListItem a where
   convListItemName :: Proxy a -> Text
@@ -296,35 +328,11 @@ instance ConversationListItem ConvId where
 instance ConversationListItem Conversation where
   convListItemName _ = "conversations"
 
+-- instance ConversationListItem (Versioned 'V2 Conversation) where
+--   convListItemName _ = "conversations (v2)"
+
 instance ConversationListItem (Qualified ConvId) where
   convListItemName _ = "qualified Conversation IDs"
-
-instance (ConversationListItem a, S.ToSchema a) => S.ToSchema (ConversationList a) where
-  declareNamedSchema _ = do
-    listSchema <- S.declareSchemaRef (Proxy @[a])
-    pure $
-      S.NamedSchema (Just "ConversationList") $
-        mempty
-          & description ?~ "Object holding a list of " <> convListItemName (Proxy @a)
-          & S.properties . at "conversations" ?~ listSchema
-          & S.properties . at "has_more"
-            ?~ S.Inline
-              ( S.toSchema (Proxy @Bool)
-                  & description ?~ "Indicator that the server has more conversations than returned"
-              )
-
-instance ToJSON a => ToJSON (ConversationList a) where
-  toJSON (ConversationList l m) =
-    A.object
-      [ "conversations" A..= l,
-        "has_more" A..= m
-      ]
-
-instance FromJSON a => FromJSON (ConversationList a) where
-  parseJSON = A.withObject "conversation-list" $ \o ->
-    ConversationList
-      <$> o A..: "conversations"
-      <*> o A..: "has_more"
 
 type ConversationPagingName = "ConversationIds"
 
@@ -371,6 +379,9 @@ data ConversationsResponse = ConversationsResponse
 instance ToSchema ConversationsResponse where
   schema = conversationsResponseSchema accessRolesSchema
 
+instance ToSchema (Versioned 'V2 ConversationsResponse) where
+  schema = unVersioned .= fmap Versioned (conversationsResponseSchema accessRolesSchemaV1)
+
 conversationsResponseSchema ::
   ObjectSchema SwaggerDoc (Set AccessRoleV2) ->
   ValueSchema NamedSwaggerDoc ConversationsResponse
@@ -384,13 +395,6 @@ conversationsResponseSchema sch =
           <$> crFound .= field "found" (array (conversationSchema sch))
           <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
           <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
-
-instance ToSchema (Versioned 'V1 ConversationsResponse) where
-  schema = unVersioned .= fmap Versioned (conversationsResponseSchema accessRolesSchemaV1)
-
-deriving via (Schema (Versioned 'V1 ConversationsResponse)) instance FromJSON (Versioned 'V1 ConversationsResponse)
-
-deriving via (Schema (Versioned 'V1 ConversationsResponse)) instance ToJSON (Versioned 'V1 ConversationsResponse)
 
 --------------------------------------------------------------------------------
 -- Conversation properties
@@ -631,7 +635,7 @@ data NewConv = NewConv
   deriving (Arbitrary) via (GenericUniform NewConv)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NewConv)
 
-instance ToSchema (Versioned 'V1 NewConv) where
+instance ToSchema (Versioned 'V2 NewConv) where
   schema = unVersioned .= fmap Versioned (newConvSchema accessRolesSchemaOptV1)
 
 instance ToSchema NewConv where
@@ -672,7 +676,7 @@ accessRolesSchemaV1 :: ObjectSchema SwaggerDoc (Set AccessRoleV2)
 accessRolesSchemaV1 =
   Just
     .= withParser
-      accessRolesSchemaOpt
+      accessRolesSchemaOptV1
       (maybe (fail "access_role|access_role_v2") pure)
 
 accessRolesSchemaTuple :: ObjectSchema SwaggerDoc (Maybe AccessRoleLegacy, Maybe (Set AccessRoleV2))
@@ -709,6 +713,11 @@ conversationMetadataObjectSchema sch =
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
+
+instance ToSchema (Versioned 'V2 ConversationMetadata) where
+  schema = unVersioned .= fmap Versioned sc
+    where
+      sc = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchemaV1)
 
 newConvSchema ::
   ObjectSchema SwaggerDoc (Maybe (Set AccessRoleV2)) ->
@@ -893,11 +902,24 @@ data ConversationAccessData = ConversationAccessData
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationAccessData
 
 instance ToSchema ConversationAccessData where
-  schema =
-    object "ConversationAccessData" $
-      ConversationAccessData
-        <$> cupAccess .= field "access" (set schema)
-        <*> cupAccessRoles .= accessRolesSchema
+  schema = conversationAccessDataSchema
+
+instance ToSchema (Versioned 'V2 ConversationAccessData) where
+  schema = unVersioned .= fmap Versioned conversationAccessDataSchemaV1
+
+conversationAccessDataSchema :: ValueSchema NamedSwaggerDoc ConversationAccessData
+conversationAccessDataSchema =
+  object "ConversationAccessData" $
+    ConversationAccessData
+      <$> cupAccess .= field "access" (set schema)
+      <*> cupAccessRoles .= accessRolesSchema
+
+conversationAccessDataSchemaV1 :: ValueSchema NamedSwaggerDoc ConversationAccessData
+conversationAccessDataSchemaV1 =
+  object "ConversationAccessData" $
+    ConversationAccessData
+      <$> cupAccess .= field "access" (set schema)
+      <*> cupAccessRoles .= accessRolesSchemaV1
 
 modelConversationAccessData :: Doc.Model
 modelConversationAccessData = Doc.defineModel "ConversationAccessData" $ do
