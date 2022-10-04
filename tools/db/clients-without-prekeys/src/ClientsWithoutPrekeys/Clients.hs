@@ -154,8 +154,7 @@ getClients :: ConduitM () [ClientsRow] Client ()
 getClients = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
     cql :: PrepQuery R () ClientsRow
-    -- TODO: Remove LIMIT
-    cql = "SELECT user, client, class, cookie, label, model, tstamp, type FROM clients LIMIT 2000"
+    cql = "SELECT user, client, class, cookie, label, model, tstamp, type FROM clients"
 
 countPrekeys :: MonadClient m => Maybe UserId -> Maybe ClientId -> m Int64
 countPrekeys (Just u) (Just c) =
