@@ -96,6 +96,8 @@ import Wire.API.Team.Permission
 import Wire.API.User hiding (EmailUpdate, PasswordChange, mkName)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
+import Wire.API.Routes.Versioned
+import Wire.API.Routes.Version
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
 tests dom conf p db b c g = do
@@ -1328,7 +1330,7 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+    conv = Versioned @'V2 $ NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
 
 postMessage ::
   Galley ->

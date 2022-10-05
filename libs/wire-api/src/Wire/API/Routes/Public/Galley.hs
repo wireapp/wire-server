@@ -387,7 +387,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> ReqBody '[Servant.JSON] NewConv
+               :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     -- This endpoint can lead to the following events being sent:
