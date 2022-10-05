@@ -69,6 +69,7 @@ library
     Wire.API.Routes.API
     Wire.API.Routes.AssetBody
     Wire.API.Routes.ClientAlgebra
+    Wire.API.Routes.Cookies
     Wire.API.Routes.CSV
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
@@ -263,6 +264,7 @@ library
     , websockets
     , wire-message-proto-lens
     , x509
+    , zauth
 
   default-language:   Haskell2010
 

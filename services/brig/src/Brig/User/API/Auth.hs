@@ -76,27 +76,27 @@ routesPublic ::
 routesPublic = do
   -- Note: this endpoint should always remain available at its unversioned
   -- path, since the login cookie hardcodes @/access@ as a path.
-  post "/access" (continue renewH) $
-    accept "application" "json"
-      .&. tokenRequest
-  document "POST" "newAccessToken" $ do
-    Doc.summary "Obtain an access tokens for a cookie."
-    Doc.notes
-      "You can provide only a cookie or a cookie and token. \
-      \Every other combination is invalid. \
-      \Access tokens can be given as query parameter or authorisation \
-      \header, with the latter being preferred."
-    Doc.returns (Doc.ref Public.modelAccessToken)
-    Doc.parameter Doc.Header "cookie" Doc.bytes' $ do
-      Doc.description "The 'zuid' cookie header"
-      Doc.optional
-    Doc.parameter Doc.Header "Authorization" Doc.bytes' $ do
-      Doc.description "The access-token as 'Authorization' header."
-      Doc.optional
-    Doc.parameter Doc.Query "access_token" Doc.bytes' $ do
-      Doc.description "The access-token as query parameter."
-      Doc.optional
-    Doc.errorResponse (errorToWai @'E.BadCredentials)
+  -- post "/access" (continue renewH) $
+  --   accept "application" "json"
+  --     .&. tokenRequest
+  -- document "POST" "newAccessToken" $ do
+  --   Doc.summary "Obtain an access tokens for a cookie."
+  --   Doc.notes
+  --     "You can provide only a cookie or a cookie and token. \
+  --     \Every other combination is invalid. \
+  --     \Access tokens can be given as query parameter or authorisation \
+  --     \header, with the latter being preferred."
+  --   Doc.returns (Doc.ref Public.modelAccessToken)
+  --   Doc.parameter Doc.Header "cookie" Doc.bytes' $ do
+  --     Doc.description "The 'zuid' cookie header"
+  --     Doc.optional
+  --   Doc.parameter Doc.Header "Authorization" Doc.bytes' $ do
+  --     Doc.description "The access-token as 'Authorization' header."
+  --     Doc.optional
+  --   Doc.parameter Doc.Query "access_token" Doc.bytes' $ do
+  --     Doc.description "The access-token as query parameter."
+  --     Doc.optional
+  --   Doc.errorResponse (errorToWai @'E.BadCredentials)
 
   post "/login/send" (continue sendLoginCodeH) $
     jsonRequest @Public.SendLoginCode
@@ -371,8 +371,8 @@ rmCookies :: UserId -> Public.RemoveCookies -> (Handler r) ()
 rmCookies uid (Public.RemoveCookies pw lls ids) =
   wrapClientE (Auth.revokeAccess uid pw ids lls) !>> authError
 
-renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
-renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
+_renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
+_renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
 
 -- | renew access for either:
 -- * a user with user token and optional access token, or

@@ -82,6 +82,7 @@ import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
@@ -89,6 +90,7 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
@@ -177,7 +179,7 @@ servantSitemap ::
      ]
     r =>
   ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI :<|> searchAPI
+servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI :<|> searchAPI :<|> authAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -284,6 +286,13 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
     searchAPI :: ServerT SearchAPI (Handler r)
     searchAPI =
       Named @"browse-team" teamUserSearch
+
+    authAPI :: ServerT AuthAPI (Handler r)
+    authAPI =
+      Named @"access" access
+      where
+        access :: NonEmpty SomeUserToken -> Handler r Text
+        access = pure . T.pack . show
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

@@ -20,6 +20,7 @@
 module Wire.API.Routes.Public.Brig where
 
 import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
+import Data.Bifunctor
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
@@ -34,6 +35,9 @@ import Data.SOP
 import Data.Schema as Schema
 import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.ZAuth.Token as ZAuth
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
@@ -48,6 +52,7 @@ import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.Properties
+import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -1138,6 +1143,32 @@ type SearchAPI =
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 
+data SomeUserToken
+  = UserToken (ZAuth.Token ZAuth.User)
+  | LHUserToken (ZAuth.Token ZAuth.LegalHoldUser)
+  deriving (Show)
+
+instance FromHttpApiData SomeUserToken where
+  parseHeader h =
+    first T.pack $
+      fmap UserToken (runParser parser h)
+        <|> fmap LHUserToken (runParser parser h)
+  parseUrlPiece = parseHeader . T.encodeUtf8
+
+type AuthAPI =
+  Named
+    "access"
+    ( "access"
+        :> Summary "Obtain an access tokens for a cookie"
+        :> Description
+             "You can provide only a cookie or a cookie and token.\
+             \ Every other combination is invalid.\
+             \ Access tokens can be given as query parameter or authorisation\
+             \ header, with the latter being preferred."
+        :> Cookies '["zuid" ::: SomeUserToken]
+        :> MultiVerb1 'POST '[JSON] (Respond 201 "TODO" Text)
+    )
+
 type BrigAPI =
   UserAPI
     :<|> SelfAPI
@@ -1150,6 +1181,7 @@ type BrigAPI =
     :<|> MLSAPI
     :<|> UserHandleAPI
     :<|> SearchAPI
+    :<|> AuthAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
