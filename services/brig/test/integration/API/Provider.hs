@@ -1330,7 +1330,7 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = Versioned @'V2 $ NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+    conv = Versioned @'V3 $ NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
 
 postMessage ::
   Galley ->
