@@ -75,7 +75,7 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
 fetchUserIdentity ::
   Members
     '[ Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -90,7 +90,7 @@ fetchUserIdentity uid =
 lookupSelfProfile ::
   Members
     '[ Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->

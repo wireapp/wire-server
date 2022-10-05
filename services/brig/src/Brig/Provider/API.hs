@@ -38,7 +38,7 @@ import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
 import Brig.Effects.ClientStore
 import Brig.Effects.GalleyAccess
-import Brig.Effects.UserQuery (UserQuery)
+import Brig.Effects.UserQuery (UserQuery, getServiceUsers)
 import Brig.Effects.VerificationCodeStore
 import Brig.Email (mkEmailKey)
 import qualified Brig.IO.Intra as RPC
@@ -126,13 +126,15 @@ import Wire.API.User.Client
 import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
+import Wire.Sem.Concurrency
+import Wire.Sem.Paging
 
 routesPublic ::
   Members
     '[ ClientStore,
        GalleyAccess,
        Input (Local ()),
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -753,14 +755,16 @@ deleteService pid sid del = do
   lift $ Queue.enqueue queue (Internal.DeleteService pid sid)
 
 finishDeleteService ::
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadLogger m,
-    MonadClient m,
-    MonadUnliftIO m
-  ) =>
+  forall p r.
+  Paging p =>
+  Members
+    '[ ClientStore,
+       Concurrency 'Unsafe,
+       GalleyAccess,
+       Input (Local ()),
+       UserQuery p
+     ]
+    r =>
   ProviderId ->
   ServiceId ->
   AppT r ()
@@ -770,9 +774,10 @@ finishDeleteService pid sid = do
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    -- runConduit $
-    --   User.lookupServiceUsers pid sid
-    --     .| C.mapM_ (pooledMapConcurrentlyN_ 16 . kick locale)
+    liftSem $
+      withChunks @p
+        (getServiceUsers pid sid)
+        (unsafePooledMapConcurrentlyN_ 16 (kick locale))
     wrapHttp $ RPC.removeServiceConn pid sid
     wrapClient $ DB.deleteService pid sid name tags
   where
@@ -950,7 +955,7 @@ updateServiceWhitelist uid con tid upd = do
 addBotH ::
   Members
     '[ Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot ->
@@ -962,7 +967,7 @@ addBotH (zuid ::: zcon ::: cid ::: req) = do
 addBot ::
   Members
     '[ Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -1049,7 +1054,7 @@ removeBotH ::
     '[ ClientStore,
        GalleyAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ::: ConnId ::: ConvId ::: BotId ->
@@ -1063,7 +1068,7 @@ removeBot ::
     '[ ClientStore,
        GalleyAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -1092,7 +1097,7 @@ removeBot zusr zcon cid bid = do
 -- Bot API
 
 botGetSelfH ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   BotId ->
   (Handler r) Response
 botGetSelfH bot = do
@@ -1100,7 +1105,7 @@ botGetSelfH bot = do
   json <$> botGetSelf bot
 
 botGetSelf ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   BotId ->
   (Handler r) Public.UserProfile
 botGetSelf bot = do
@@ -1157,7 +1162,7 @@ botClaimUsersPrekeys body = do
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
 botListUserProfilesH ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   List UserId ->
   (Handler r) Response
 botListUserProfilesH uids = do
@@ -1165,7 +1170,7 @@ botListUserProfilesH uids = do
   json <$> botListUserProfiles uids
 
 botListUserProfiles ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   List UserId ->
   (Handler r) [Public.BotUserView]
 botListUserProfiles uids = do
@@ -1190,7 +1195,7 @@ botDeleteSelfH ::
     '[ ClientStore,
        GalleyAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   BotId ::: ConvId ->
@@ -1204,7 +1209,7 @@ botDeleteSelf ::
     '[ ClientStore,
        GalleyAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   BotId ->
@@ -1250,12 +1255,12 @@ activate pid old new = do
   wrapClientE $ DB.insertKey pid (mkEmailKey <$> old) emailKey
 
 deleteBot ::
-  forall r.
+  forall r p.
   Members
     '[ ClientStore,
        GalleyAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   Locale ->

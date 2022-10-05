@@ -229,7 +229,7 @@ verifyUniquenessAndCheckBlacklist ::
   Members
     '[ BlacklistStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserKey ->
@@ -246,7 +246,7 @@ verifyUniquenessAndCheckBlacklist uk = do
         throwE IdentityErrorUserKeyExists
 
 createUserSpar ::
-  forall r.
+  forall r p.
   Members
     '[ Async,
        GalleyAccess,
@@ -255,7 +255,7 @@ createUserSpar ::
        Resource,
        UniqueClaimsStore,
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   NewUserSpar ->
@@ -333,7 +333,7 @@ createUser ::
        Twilio,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery
+       UserQuery p
      ]
     r =>
   NewUser ->
@@ -581,7 +581,7 @@ createUserInviteViaScim ::
     '[ BlacklistStore,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -629,7 +629,7 @@ updateUser ::
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -699,7 +699,7 @@ changeHandle ::
        Resource,
        UniqueClaimsStore,
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -794,7 +794,7 @@ changeSelfEmail ::
        ActivationSupply,
        BlacklistStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -826,7 +826,7 @@ changeEmail ::
        ActivationSupply,
        BlacklistStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -877,7 +877,7 @@ changePhone ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -913,7 +913,7 @@ removeEmail ::
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -939,7 +939,7 @@ removePhone ::
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -964,13 +964,13 @@ removePhone uid conn = do
 -- Forcefully revoke a verified identity
 
 revokeIdentity ::
-  forall r.
+  forall r p.
   Members
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Either Email Phone ->
@@ -1010,11 +1010,11 @@ revokeIdentity key = do
 -- Change Account Status
 
 changeAccountStatus ::
-  forall r.
+  forall r p.
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   NonEmpty UserId ->
@@ -1039,7 +1039,7 @@ changeSingleAccountStatus ::
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -1083,7 +1083,7 @@ activate ::
        PasswordResetStore,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   ActivationTarget ->
@@ -1105,7 +1105,7 @@ activateWithCurrency ::
        PasswordResetStore,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   ActivationTarget ->
@@ -1157,7 +1157,7 @@ onActivated ::
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   ActivationEvent ->
@@ -1186,7 +1186,7 @@ sendActivationCode ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Either Email Phone ->
@@ -1308,7 +1308,7 @@ mkActivationKey (ActivatePhone p) = do
 -- Password Management
 
 changePassword ::
-  Members '[UserQuery] r =>
+  Members '[UserQuery p] r =>
   UserId ->
   PasswordChange ->
   ExceptT ChangePasswordError (AppT r) ()
@@ -1407,7 +1407,7 @@ deleteSelfUser ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -1496,7 +1496,7 @@ verifyDeleteUser ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -1522,7 +1522,7 @@ ensureAccountDeleted ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -1564,14 +1564,14 @@ ensureAccountDeleted uid = do
 -- statements matters! Other functions reason upon some states to imply other
 -- states. Please change this order only with care!
 deleteAccount ::
-  forall r.
+  forall r p.
   Members
     '[ GalleyAccess,
        GundeckAccess,
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserAccount ->
@@ -1685,7 +1685,7 @@ userGC u = case userExpire u of
     pure u
 
 lookupProfile ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   Local UserId ->
   Qualified UserId ->
   ExceptT FederationError (AppT r) (Maybe UserProfile)
@@ -1701,7 +1701,7 @@ lookupProfile self other =
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   -- ( MonadUnliftIO m,
   --   MonadClient m,
   --   MonadReader Env m,
@@ -1728,7 +1728,7 @@ lookupProfiles self others =
       (bucketQualified others)
 
 lookupProfilesFromDomain ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   Local UserId ->
   Qualified [UserId] ->
   ExceptT FederationError (AppT r) [UserProfile]
@@ -1748,8 +1748,8 @@ lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
 -- ids, but it is also very complex. Maybe this can be made easy by extracting a
 -- pure function and writing tests for that.
 lookupLocalProfiles ::
-  forall r.
-  Members '[Input (Local ()), UserQuery] r =>
+  forall r p.
+  Members '[Input (Local ()), UserQuery p] r =>
   -- | This is present only when an authenticated user is requesting access.
   Maybe UserId ->
   -- | The users ('others') for which to obtain the profiles.
@@ -1801,7 +1801,7 @@ lookupLocalProfiles requestingUser others = do
        in baseProfile {profileEmail = profileEmail'}
 
 getLegalHoldStatus ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   UserId ->
   AppT r (Maybe UserLegalHoldStatus)
 getLegalHoldStatus uid = do
@@ -1810,8 +1810,8 @@ getLegalHoldStatus uid = do
     =<< liftSem (lookupAccount locale uid)
 
 getLegalHoldStatus' ::
-  forall r.
-  Members '[Input (Local ()), UserQuery] r =>
+  forall r p.
+  Members '[Input (Local ()), UserQuery p] r =>
   User ->
   AppT r UserLegalHoldStatus
 getLegalHoldStatus' user =
@@ -1846,7 +1846,7 @@ getEmailForProfile _ EmailVisibleToSelf' = Nothing
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
 lookupAccountsByIdentity ::
-  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
+  Members '[Input (Local ()), UserKeyStore, UserQuery p] r =>
   Either Email Phone ->
   Bool ->
   AppT r [UserAccount]

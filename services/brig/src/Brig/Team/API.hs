@@ -96,7 +96,7 @@ routesPublic ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
@@ -218,7 +218,7 @@ routesInternal ::
        Twilio,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Routes a (Handler r) ()
@@ -284,7 +284,7 @@ createInvitationPublicH ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest ->
@@ -311,7 +311,7 @@ createInvitationPublic ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -344,7 +344,7 @@ createInvitationViaScimH ::
        Twilio,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery
+       UserQuery p
      ]
     r =>
   JSON ::: JsonRequest NewUserScimInvitation ->
@@ -360,7 +360,7 @@ createInvitationViaScim ::
        Twilio,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery
+       UserQuery p
      ]
     r =>
   NewUserScimInvitation ->
@@ -533,14 +533,24 @@ getInvitationByEmail email = do
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
 suspendTeamH ::
-  Members '[GalleyAccess, GundeckAccess] r =>
+  Members
+    '[ GalleyAccess,
+       GundeckAccess,
+       UserQuery p
+     ]
+    r =>
   JSON ::: TeamId ->
   Handler r Response
 suspendTeamH (_ ::: tid) = do
   empty <$ suspendTeam tid
 
 suspendTeam ::
-  Members '[GalleyAccess, GundeckAccess] r =>
+  Members
+    '[ GalleyAccess,
+       GundeckAccess,
+       UserQuery p
+     ]
+    r =>
   TeamId ->
   Handler r ()
 suspendTeam tid = do
@@ -549,14 +559,24 @@ suspendTeam tid = do
   lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Suspended Nothing
 
 unsuspendTeamH ::
-  Members '[GalleyAccess, GundeckAccess] r =>
+  Members
+    '[ GalleyAccess,
+       GundeckAccess,
+       UserQuery p
+     ]
+    r =>
   JSON ::: TeamId ->
   Handler r Response
 unsuspendTeamH (_ ::: tid) = do
   empty <$ unsuspendTeam tid
 
 unsuspendTeam ::
-  Members '[GalleyAccess, GundeckAccess] r =>
+  Members
+    '[ GalleyAccess,
+       GundeckAccess,
+       UserQuery p
+     ]
+    r =>
   TeamId ->
   Handler r ()
 unsuspendTeam tid = do
@@ -567,7 +587,12 @@ unsuspendTeam tid = do
 -- Internal
 
 changeTeamAccountStatuses ::
-  Members '[GalleyAccess, GundeckAccess] r =>
+  Members
+    '[ GalleyAccess,
+       GundeckAccess,
+       UserQuery p
+     ]
+    r =>
   TeamId ->
   AccountStatus ->
   Handler r ()

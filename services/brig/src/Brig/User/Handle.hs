@@ -46,14 +46,14 @@ import Polysemy.Resource
 
 -- | Claim a new handle for an existing 'User'.
 claimHandle ::
-  forall r.
+  forall r p.
   Members
     '[ Async,
        Race,
        Resource,
        UniqueClaimsStore,
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->

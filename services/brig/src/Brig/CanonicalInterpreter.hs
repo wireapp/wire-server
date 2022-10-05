@@ -84,6 +84,7 @@ import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import qualified Wire.Sem.Paging.Cassandra as PC
 
 type BrigCanonicalEffects =
   '[ PublicKeyBundle,
@@ -100,7 +101,7 @@ type BrigCanonicalEffects =
      GalleyAccess,
      GundeckAccess,
      Embed HttpClientIO,
-     UserQuery,
+     UserQuery PC.InternalPaging,
      PasswordResetStore,
      UserPendingActivationStore InternalPaging,
      Now,
@@ -137,7 +138,7 @@ runBrigToIO e (AppT ma) =
     . nowToIOAction (e ^. currentTime)
     . userPendingActivationStoreToCassandra
     . passwordResetStoreToCodeStore
-    . userQueryToCassandra @Cas.Client
+    . userQueryToCassandra
     . interpretHttpToIO e
     . gundeckAccessToHttp @HttpClientIO (e ^. gundeck)
     . galleyAccessToHttp @HttpClientIO (e ^. galley)

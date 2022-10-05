@@ -69,7 +69,7 @@ keyTextOriginal (UserPhoneKey k) = fromPhone (phoneKeyOrig k)
 
 -- | Claim a 'UserKey' for a user.
 claimKey ::
-  Members '[UserKeyStore, UserQuery] r =>
+  Members '[UserKeyStore, UserQuery p] r =>
   -- | The SHA256 digest
   Digest ->
   -- | The key to claim.
@@ -86,7 +86,7 @@ claimKey d k u = do
 -- A key is available if it is not already actived for another user or
 -- if the other user and the user looking to claim the key are the same.
 keyAvailable ::
-  Members '[UserKeyStore, UserQuery] r =>
+  Members '[UserKeyStore, UserQuery p] r =>
   -- | The key to check.
   UserKey ->
   -- | The user looking to claim the key, if any.

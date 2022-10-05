@@ -30,17 +30,20 @@ import Imports
 import Polysemy
 import Wire.API.Provider.Service
 import Wire.API.User
+import qualified Wire.Sem.Paging.Cassandra as PC
 
 userQueryToCassandra ::
-  forall m r a.
-  (MonadClient m, Member (Embed m) r) =>
-  Sem (UserQuery ': r) a ->
+  forall r a.
+  (Member (Embed Client) r) =>
+  Sem (UserQuery PC.InternalPaging ': r) a ->
   Sem r a
 userQueryToCassandra =
   interpret $
-    embed @m . \case
+    embed @Client . \case
       GetId uid -> runIdentity <$$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
       GetUsers uids -> retry x1 (query usersSelect (params LocalQuorum (Identity uids)))
+      GetServiceUsers pid sid Nothing -> flip PC.mkInternalPage pure =<< lookupServiceUsers pid sid
+      GetServiceUsers _pid _sid (Just ps) -> PC.ipNext ps
       GetName uid -> runIdentity <$$> retry x1 (query1 nameSelect (params LocalQuorum (Identity uid)))
       GetLocale uid -> retry x1 (query1 localeSelect (params LocalQuorum (Identity uid)))
       GetAuthentication uid -> retry x1 (query1 authSelect (params LocalQuorum (Identity uid)))
@@ -261,3 +264,17 @@ updateStatusQuery u s =
   where
     userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
     userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
+
+-- | NB: might return a lot of users, and therefore we do paging here.
+lookupServiceUsers ::
+  MonadClient m =>
+  ProviderId ->
+  ServiceId ->
+  m (Page (BotId, ConvId, Maybe TeamId))
+lookupServiceUsers pid sid =
+  retry x1 (paginate cql (params LocalQuorum (pid, sid)))
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
+    cql =
+      "SELECT user, conv, team FROM service_user \
+      \WHERE provider = ? AND service = ?"

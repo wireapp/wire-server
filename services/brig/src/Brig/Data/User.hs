@@ -196,7 +196,7 @@ newAccountInviteViaScim uid tid locale name email = do
 authenticate ::
   Members
     '[ Error AuthError,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -221,7 +221,7 @@ reauthenticate ::
   Members
     '[ Error ReAuthError,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   Locale ->
@@ -245,7 +245,7 @@ reauthenticate locale u pw =
           throw (ReAuthError AuthInvalidCredentials)
 
 isSamlUser ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   Locale ->
   UserId ->
   Sem r Bool
@@ -308,7 +308,7 @@ deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u
 deletePhone :: MonadClient m => UserId -> m ()
 deletePhone u = retry x5 $ write userPhoneDelete (params LocalQuorum (Identity u))
 
-userExists :: Member UserQuery r => UserId -> Sem r Bool
+userExists :: Member (UserQuery p) r => UserId -> Sem r Bool
 userExists uid = isJust <$> getId uid
 
 filterActive :: MonadClient m => [UserId] -> m [UserId]
@@ -321,7 +321,7 @@ filterActive us =
     isActiveUser _ = False
 
 lookupUser ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   Local x ->
   Locale ->
   HavePendingInvitations ->
@@ -334,7 +334,7 @@ deactivateUser u =
   retry x5 $ write userDeactivatedUpdate (params LocalQuorum (Identity u))
 
 lookupLocale ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   Locale ->
   UserId ->
   Sem r (Maybe Locale)
@@ -370,7 +370,7 @@ lookupUserTeam u =
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
 
 lookupAuth ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   UserId ->
   Sem r (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> getAuthentication u
@@ -381,7 +381,7 @@ lookupAuth u = fmap f <$> getAuthentication u
 --
 -- Skips nonexistent users. /Does not/ skip users who have been deleted.
 lookupUsers ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   Local x ->
   Locale ->
   HavePendingInvitations ->

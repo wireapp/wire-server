@@ -53,7 +53,6 @@ import Brig.Effects.Twilio (Twilio)
 import Brig.Effects.UserHandleStore
 import Brig.Effects.UserKeyStore (UserKeyStore)
 import Brig.Effects.UserQuery (UserQuery)
-import Brig.Effects.UserQuery.Cassandra
 import Brig.Effects.VerificationCodeStore (VerificationCodeStore)
 import Brig.Email
 import qualified Brig.IO.Intra as Intra
@@ -100,13 +99,13 @@ data Access u = Access
   }
 
 sendLoginCode ::
-  forall r.
+  forall r p.
   Members
     '[ Error Twilio.ErrorResponse,
        P.TinyLog,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Phone ->
@@ -156,7 +155,7 @@ lookupLoginCode phone =
       wrapClient $ Data.lookupLoginCode u
 
 login ::
-  forall r.
+  forall r p.
   Members
     '[ BudgetStore,
        Error Twilio.ErrorResponse,
@@ -167,7 +166,7 @@ login ::
        Twilio,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -213,11 +212,11 @@ login (SmsLogin phone code label) typ = do
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 verifyCode ::
-  forall r.
+  forall r p.
   Members
     '[ GalleyAccess,
        Input (Local ()),
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -314,12 +313,12 @@ logout uts at = do
   lift $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
-  forall u a r.
+  forall u a r p.
   ZAuth.TokenPair u a =>
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   List1 (ZAuth.Token u) ->
@@ -334,7 +333,7 @@ renewAccess uts at = do
   pure $ Access at' ck'
 
 revokeAccess ::
-  Members '[Input (Local ()), TinyLog, UserQuery] r =>
+  Members '[Input (Local ()), TinyLog, UserQuery p] r =>
   UserId ->
   PlainTextPassword ->
   [CookieId] ->
@@ -357,7 +356,7 @@ catchSuspendInactiveUser ::
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -380,12 +379,12 @@ catchSuspendInactiveUser uid errval = do
       Right () -> pure ()
 
 newAccess ::
-  forall u a r.
+  forall u a r p.
   ZAuth.TokenPair u a =>
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -403,9 +402,11 @@ newAccess uid ct cl = do
 
 resolveLoginId ::
   Members
-    '[ P.Error Twilio.ErrorResponse,
+    '[ Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        UserHandleStore,
        UserKeyStore,
+       UserQuery p,
        Twilio
      ]
     r =>
@@ -420,7 +421,7 @@ resolveLoginId li = do
           (liftSem . lookupHandle)
   case usr of
     Nothing -> do
-      pending <- lift . wrapClient $ isPendingActivation li
+      pending <- lift $ isPendingActivation li
       throwE $
         if pending
           then LoginPendingActivation
@@ -444,24 +445,24 @@ validateLoginId (LoginByPhone phone) =
 validateLoginId (LoginByHandle h) =
   pure (Right h)
 
-isPendingActivation :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> m Bool
+isPendingActivation ::
+  forall r p.
+  Members '[Input (Local ()), UserQuery p] r =>
+  LoginId ->
+  AppT r Bool
 isPendingActivation ident = case ident of
   (LoginByHandle _) -> pure False
   (LoginByEmail e) -> checkKey (userEmailKey e)
   (LoginByPhone p) -> checkKey (userPhoneKey p)
   where
     checkKey k = do
-      usr <- (>>= fst) <$> Data.lookupActivationCode k
+      usr <- (>>= fst) <$> wrapClient (Data.lookupActivationCode k)
       locale <- Opt.setDefaultUserLocale <$> view settings
-      locDomain <- qualifyLocal ()
       case usr of
         Nothing -> pure False
         Just u ->
           maybe False (checkAccount k)
-            <$> ( runM . userQueryToCassandra @m @'[Embed m]
-                    . runInputConst locDomain
-                    $ Data.lookupAccount locale u
-                )
+            <$> liftSem (Data.lookupAccount locale u)
     checkAccount k a =
       let i = userIdentity (accountUser a)
           statusAdmitsPending = case accountStatus a of
@@ -526,7 +527,7 @@ ssoLogin ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   SsoLogin ->
@@ -557,7 +558,7 @@ legalHoldLogin ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   LegalHoldLogin ->

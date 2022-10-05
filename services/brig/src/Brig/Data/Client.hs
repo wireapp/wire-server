@@ -125,7 +125,7 @@ reAuthForNewClients :: ReAuthPolicy
 reAuthForNewClients count upsert = count > 0 && not upsert
 
 addClient ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   UserId ->
   ClientId ->
   NewClient ->
@@ -136,8 +136,8 @@ addClient ::
 addClient = addClientWithReAuthPolicy reAuthForNewClients
 
 addClientWithReAuthPolicy ::
-  forall r.
-  Members '[Input (Local ()), UserQuery] r =>
+  forall r p.
+  Members '[Input (Local ()), UserQuery p] r =>
   ReAuthPolicy ->
   UserId ->
   ClientId ->

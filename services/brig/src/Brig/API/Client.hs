@@ -156,7 +156,7 @@ addClient ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -170,12 +170,12 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
-  forall r.
+  forall r p.
   Members
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -250,7 +250,7 @@ rmClient ::
     '[ Error ReAuthError,
        GundeckAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->

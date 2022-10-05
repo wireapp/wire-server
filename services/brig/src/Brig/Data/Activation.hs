@@ -91,14 +91,14 @@ data ActivationEvent
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
-  forall r.
+  forall r p.
   Members
     '[ ActivationKeyStore,
        Input (Local ()),
        E.PasswordResetSupply,
        PasswordResetStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Locale ->

@@ -21,6 +21,7 @@ module Brig.Effects.UserQuery
   ( UserQuery (..),
     getId,
     getUsers,
+    getServiceUsers,
     getName,
     getLocale,
     getAuthentication,
@@ -72,6 +73,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Provider.Service
 import Wire.API.User
+import Wire.Sem.Paging
 
 type Activated = Bool
 
@@ -271,7 +273,9 @@ toIdentity False _ _ _ = Nothing
 
 -------------------------------------------------------------------------------
 
-data UserQuery m a where
+type BotInConv = (BotId, ConvId, Maybe TeamId)
+
+data UserQuery p m a where
   -- FUTUREWORK: The 'InsertAccount' action should perhaps be in an account store effect
   InsertAccount ::
     UserAccount ->
@@ -281,46 +285,51 @@ data UserQuery m a where
     Maybe Password ->
     -- | Whether the user is activated
     Bool ->
-    UserQuery m ()
-  GetId :: UserId -> UserQuery m (Maybe UserId) -- idSelect
-  GetUsers :: [UserId] -> UserQuery m [UserRow] -- usersSelect
-  GetName :: UserId -> UserQuery m (Maybe Name) -- nameSelect
-  GetLocale :: UserId -> UserQuery m (Maybe (Maybe Language, Maybe Country)) -- localeSelect
-  GetAuthentication :: UserId -> UserQuery m (Maybe (Maybe Password, Maybe AccountStatus)) -- authSelect
-  GetPassword :: UserId -> UserQuery m (Maybe Password) -- passwordSelect
-  GetActivated :: UserId -> UserQuery m Bool -- activatedSelect
-  GetAccountStatus :: UserId -> UserQuery m (Maybe AccountStatus) -- statusSelect
-  GetAccountStatuses :: [UserId] -> UserQuery m [(UserId, Bool, Maybe AccountStatus)] -- accountStateSelectAll
-  GetTeam :: UserId -> UserQuery m (Maybe TeamId) -- teamSelect
-  GetAccounts :: [UserId] -> UserQuery m [AccountRow] -- accountsSelect
+    UserQuery p m ()
+  GetId :: UserId -> UserQuery p m (Maybe UserId) -- idSelect
+  GetUsers :: [UserId] -> UserQuery p m [UserRow] -- usersSelect
+  GetServiceUsers :: -- lookupServiceUsers
+    ProviderId ->
+    ServiceId ->
+    Maybe (PagingState p BotInConv) ->
+    UserQuery p m (Page p BotInConv)
+  GetName :: UserId -> UserQuery p m (Maybe Name) -- nameSelect
+  GetLocale :: UserId -> UserQuery p m (Maybe (Maybe Language, Maybe Country)) -- localeSelect
+  GetAuthentication :: UserId -> UserQuery p m (Maybe (Maybe Password, Maybe AccountStatus)) -- authSelect
+  GetPassword :: UserId -> UserQuery p m (Maybe Password) -- passwordSelect
+  GetActivated :: UserId -> UserQuery p m Bool -- activatedSelect
+  GetAccountStatus :: UserId -> UserQuery p m (Maybe AccountStatus) -- statusSelect
+  GetAccountStatuses :: [UserId] -> UserQuery p m [(UserId, Bool, Maybe AccountStatus)] -- accountStateSelectAll
+  GetTeam :: UserId -> UserQuery p m (Maybe TeamId) -- teamSelect
+  GetAccounts :: [UserId] -> UserQuery p m [AccountRow] -- accountsSelect
 
   -- | Whether the account has been activated by verifying an email address or
   -- phone number.
-  IsActivated :: UserId -> UserQuery m Bool
-  UpdateUser :: UserId -> UserUpdate -> UserQuery m ()
-  UpdateEmail :: UserId -> Email -> UserQuery m ()
-  UpdateHandle :: UserId -> Handle -> UserQuery m ()
-  UpdatePhone :: UserId -> Phone -> UserQuery m ()
-  UpdateStatus :: UserId -> AccountStatus -> UserQuery m ()
-  ActivateUser :: UserId -> UserIdentity -> UserQuery m ()
-  DeleteEmailUnvalidated :: UserId -> UserQuery m ()
+  IsActivated :: UserId -> UserQuery p m Bool
+  UpdateUser :: UserId -> UserUpdate -> UserQuery p m ()
+  UpdateEmail :: UserId -> Email -> UserQuery p m ()
+  UpdateHandle :: UserId -> Handle -> UserQuery p m ()
+  UpdatePhone :: UserId -> Phone -> UserQuery p m ()
+  UpdateStatus :: UserId -> AccountStatus -> UserQuery p m ()
+  ActivateUser :: UserId -> UserIdentity -> UserQuery p m ()
+  DeleteEmailUnvalidated :: UserId -> UserQuery p m ()
   DeleteServiceUser ::
     ProviderId ->
     ServiceId ->
     BotId ->
-    UserQuery m ()
+    UserQuery p m ()
 
 makeSem ''UserQuery
 
 lookupAccount ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   Locale ->
   UserId ->
   Sem r (Maybe UserAccount)
 lookupAccount locale u = listToMaybe <$> lookupAccounts locale [u]
 
 lookupAccounts ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   Locale ->
   [UserId] ->
   Sem r [UserAccount]
