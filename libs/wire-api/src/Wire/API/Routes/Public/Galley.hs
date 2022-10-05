@@ -357,7 +357,6 @@ type ConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "conversations"
-               -- :> ReqBody '[Servant.JSON] NewConv
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationVerb
            )

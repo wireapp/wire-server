@@ -403,17 +403,8 @@ tests =
               "testObject_ConversationList_20_28Id_20_2a_20C_29_user_2.json"
             )
           ],
-      -- testGroup "Golden: ConversationList_20Conversation_user_v1" $
-      --   testObjects
-      --     [ ( Versioned @'V2 Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user.testObject_ConversationList_20Conversation_user_1,
-      --         "testObject_ConversationList_20Conversation_user_1_v1.json"
-      --       ),
-      --       ( Versioned @'V2 Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user.testObject_ConversationList_20Conversation_user_2,
-      --         "testObject_ConversationList_20Conversation_user_2_v1.json"
-      --       )
-      --     ],
       testGroup "Golden: ConversationList_20Conversation_user" $
-        testObjects 
+        testObjects
           [ ( Test.Wire.API.Golden.Generated.ConversationList_20Conversation_user.testObject_ConversationList_20Conversation_user_1,
               "testObject_ConversationList_20Conversation_user_1.json"
             ),

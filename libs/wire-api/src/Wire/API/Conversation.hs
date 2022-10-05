@@ -328,9 +328,6 @@ instance ConversationListItem ConvId where
 instance ConversationListItem Conversation where
   convListItemName _ = "conversations"
 
--- instance ConversationListItem (Versioned 'V2 Conversation) where
---   convListItemName _ = "conversations (v2)"
-
 instance ConversationListItem (Qualified ConvId) where
   convListItemName _ = "qualified Conversation IDs"
 
