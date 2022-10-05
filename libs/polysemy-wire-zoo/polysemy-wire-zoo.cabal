@@ -25,6 +25,9 @@ library
     Wire.Sem.Paging.Cassandra
     Wire.Sem.Random
     Wire.Sem.Random.IO
+    Wire.Sem.Concurrency
+    Wire.Sem.Concurrency.IO
+    Wire.Sem.Concurrency.Sequential
 
   other-modules:      Paths_polysemy_wire_zoo
   hs-source-dirs:     src
@@ -86,6 +89,7 @@ library
     , time
     , tinylog
     , types-common
+    , unliftio
     , uuid
     , wire-api
 
