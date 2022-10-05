@@ -48,6 +48,7 @@ import Polysemy.Time.Data.TimeUnit
 -- and is responsible for turning the temporary claim into permanent
 -- ownership, if desired.
 withClaim ::
+  -- TODO(md): Replace the dependency on the Async effect as it is totally broken.
   Members '[Async, Race, Resource, UniqueClaimsStore] r =>
   -- | The 'Id' associated with the claim.
   Id a ->
