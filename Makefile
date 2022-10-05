@@ -234,6 +234,9 @@ upload-images:
 upload-images-dev:
 	./hack/bin/upload-images.sh imagesUnoptimizedNoDocs
 
+upload-hoogle-image:
+	./hack/bin/upload-hoogle-image.sh
+
 #################################
 ## cassandra management
 

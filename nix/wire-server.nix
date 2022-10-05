@@ -167,11 +167,25 @@ let lib = pkgs.lib;
       enableOptimization = false;
       enableDocs = false;
     };
+    localModsOnlyDocs = {
+      enableOptimization = false;
+      enableDocs = true;
+    };
     imagesList = pkgs.writeTextFile {
       name = "imagesList";
       text = "${lib.concatStringsSep "\n" (builtins.attrNames (images localModsEnableAll))}";
     };
     wireServerPackages = (builtins.attrNames (localPackages localModsEnableAll {} {}));
+
+    ghcWithHoogle = (hPkgs localModsOnlyDocs).ghcWithHoogle (p: builtins.map (e: p.${e}) wireServerPackages);
+
+    hoogleImage = pkgs.dockerTools.buildLayeredImage {
+      name = "quay.io/wire/wire-server-hoogle";
+      maxLayers = 10;
+      contents = [
+        ghcWithHoogle
+      ];
+    };
 
     # Tools common between CI and developers
     commonTools =  [
@@ -205,7 +219,7 @@ let lib = pkgs.lib;
       };
     };
 in {
-  inherit ciImage;
+  inherit ciImage hoogleImage;
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsDisableAll;
