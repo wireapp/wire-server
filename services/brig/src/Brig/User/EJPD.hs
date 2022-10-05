@@ -45,8 +45,8 @@ import qualified Wire.API.Team.Member as Team
 import Wire.API.User (Locale, User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
 
 ejpdRequest ::
-  forall r.
-  Members '[UserHandleStore, UserQuery] r =>
+  forall r p.
+  Members '[UserHandleStore, UserQuery p] r =>
   Maybe Bool ->
   EJPDRequestBody ->
   (Handler r) EJPDResponseBody

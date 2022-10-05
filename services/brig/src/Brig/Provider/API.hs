@@ -38,7 +38,7 @@ import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
 import Brig.Effects.ClientStore
 import Brig.Effects.GalleyAccess
-import Brig.Effects.UserQuery (UserQuery, getServiceUsers)
+import Brig.Effects.UserQuery (UserQuery, getServiceUsers, getServiceUsersForTeam)
 import Brig.Effects.VerificationCodeStore
 import Brig.Email (mkEmailKey)
 import qualified Brig.IO.Intra as RPC
@@ -64,8 +64,6 @@ import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy.Char8 as LC8
-import Data.Conduit (runConduit, (.|))
-import qualified Data.Conduit.List as C
 import Data.Hashable (hash)
 import Data.Id
 import Data.LegalHold
@@ -99,7 +97,6 @@ import Polysemy
 import Polysemy.Input
 import qualified Ssl.Util as SSL
 import System.Logger.Class (MonadLogger)
-import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Bot
@@ -130,8 +127,10 @@ import Wire.Sem.Concurrency
 import Wire.Sem.Paging
 
 routesPublic ::
+  Paging p =>
   Members
     '[ ClientStore,
+       Concurrency 'Unsafe,
        GalleyAccess,
        Input (Local ()),
        UserQuery p,
@@ -905,7 +904,18 @@ getServiceTagList () = pure (Public.ServiceTagList allTags)
   where
     allTags = [(minBound :: Public.ServiceTag) ..]
 
-updateServiceWhitelistH :: UserId ::: ConnId ::: TeamId ::: JsonRequest Public.UpdateServiceWhitelist -> (Handler r) Response
+updateServiceWhitelistH ::
+  Paging p =>
+  Members
+    '[ ClientStore,
+       Concurrency 'Unsafe,
+       GalleyAccess,
+       Input (Local ()),
+       UserQuery p
+     ]
+    r =>
+  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.UpdateServiceWhitelist ->
+  Handler r Response
 updateServiceWhitelistH (uid ::: con ::: tid ::: req) = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled (Just uid)
   resp <- updateServiceWhitelist uid con tid =<< parseJsonBody req
@@ -918,7 +928,22 @@ data UpdateServiceWhitelistResp
   = UpdateServiceWhitelistRespChanged
   | UpdateServiceWhitelistRespUnchanged
 
-updateServiceWhitelist :: UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
+updateServiceWhitelist ::
+  forall r p.
+  Paging p =>
+  Members
+    '[ ClientStore,
+       Concurrency 'Unsafe,
+       GalleyAccess,
+       Input (Local ()),
+       UserQuery p
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  TeamId ->
+  Public.UpdateServiceWhitelist ->
+  (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
@@ -938,17 +963,14 @@ updateServiceWhitelist uid con tid upd = do
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
       -- conversations
-      -- lift $
-      -- fmap
-      --   wrapHttpClient
-      -- runConduit $
-      --   User.lookupServiceUsersForTeam pid sid tid
-      --     .| C.mapM_
-      --       ( pooledMapConcurrentlyN_
-      --           16
-      --           ( uncurry (deleteBot locale uid (Just con))
-      --           )
-      --       )
+      lift . liftSem $
+        withChunks @p
+          (getServiceUsersForTeam pid sid tid)
+          ( unsafePooledMapConcurrentlyN_
+              16
+              ( uncurry (deleteBot locale uid (Just con))
+              )
+          )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
 

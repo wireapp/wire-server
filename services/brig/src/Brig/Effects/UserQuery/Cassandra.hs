@@ -44,6 +44,10 @@ userQueryToCassandra =
       GetUsers uids -> retry x1 (query usersSelect (params LocalQuorum (Identity uids)))
       GetServiceUsers pid sid Nothing -> flip PC.mkInternalPage pure =<< lookupServiceUsers pid sid
       GetServiceUsers _pid _sid (Just ps) -> PC.ipNext ps
+      GetServiceUsersForTeam pid sid tid Nothing ->
+        flip PC.mkInternalPage pure
+          =<< lookupServiceUsersForTeam pid sid tid
+      GetServiceUsersForTeam _pid _sid _tid (Just ps) -> PC.ipNext ps
       GetName uid -> runIdentity <$$> retry x1 (query1 nameSelect (params LocalQuorum (Identity uid)))
       GetLocale uid -> retry x1 (query1 localeSelect (params LocalQuorum (Identity uid)))
       GetAuthentication uid -> retry x1 (query1 authSelect (params LocalQuorum (Identity uid)))
@@ -278,3 +282,17 @@ lookupServiceUsers pid sid =
     cql =
       "SELECT user, conv, team FROM service_user \
       \WHERE provider = ? AND service = ?"
+
+lookupServiceUsersForTeam ::
+  MonadClient m =>
+  ProviderId ->
+  ServiceId ->
+  TeamId ->
+  m (Page (BotId, ConvId))
+lookupServiceUsersForTeam pid sid tid =
+  retry x1 (paginate cql (params LocalQuorum (pid, sid, tid)))
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
+    cql =
+      "SELECT user, conv FROM service_team \
+      \WHERE provider = ? AND service = ? AND team = ?"

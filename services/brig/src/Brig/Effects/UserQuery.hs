@@ -22,6 +22,7 @@ module Brig.Effects.UserQuery
     getId,
     getUsers,
     getServiceUsers,
+    getServiceUsersForTeam,
     getName,
     getLocale,
     getAuthentication,
@@ -293,6 +294,12 @@ data UserQuery p m a where
     ServiceId ->
     Maybe (PagingState p BotInConv) ->
     UserQuery p m (Page p BotInConv)
+  GetServiceUsersForTeam :: -- lookupServiceUsersForTeam
+    ProviderId ->
+    ServiceId ->
+    TeamId ->
+    Maybe (PagingState p (BotId, ConvId)) ->
+    UserQuery p m (Page p (BotId, ConvId))
   GetName :: UserId -> UserQuery p m (Maybe Name) -- nameSelect
   GetLocale :: UserId -> UserQuery p m (Maybe (Maybe Language, Maybe Country)) -- localeSelect
   GetAuthentication :: UserId -> UserQuery p m (Maybe (Maybe Password, Maybe AccountStatus)) -- authSelect

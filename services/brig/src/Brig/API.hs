@@ -29,6 +29,7 @@ import Brig.Effects.ActivationSupply
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BudgetStore
+import Brig.Effects.ClientStore
 import Brig.Effects.CodeStore
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess (GundeckAccess)
@@ -52,9 +53,12 @@ import Polysemy.Input
 import Polysemy.Resource
 import qualified Polysemy.TinyLog as P
 import qualified Ropes.Twilio as Twilio
+import Wire.Sem.Concurrency
+import Wire.Sem.Paging
 
 sitemap ::
   forall r p.
+  Paging p =>
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
@@ -62,7 +66,9 @@ sitemap ::
        BlacklistStore,
        BlacklistPhonePrefixStore,
        BudgetStore,
+       ClientStore,
        CodeStore,
+       Concurrency 'Unsafe,
        Error ReAuthError,
        Error Twilio.ErrorResponse,
        GalleyAccess,
@@ -78,7 +84,7 @@ sitemap ::
        UserHandleStore,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>

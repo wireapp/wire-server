@@ -45,8 +45,8 @@ module Brig.Data.User
     lookupRichInfo,
     lookupRichInfoMultiUsers,
     lookupUserTeam,
-    lookupServiceUsers,
-    lookupServiceUsersForTeam,
+    getServiceUsers,
+    getServiceUsersForTeam,
     lookupFeatureConferenceCalling,
     userExists,
 
@@ -87,6 +87,8 @@ import Brig.Effects.UserQuery
     getId,
     getLocale,
     getName,
+    getServiceUsers,
+    getServiceUsersForTeam,
     getUsers,
     insertAccount,
     isActivated,
@@ -105,7 +107,6 @@ import qualified Brig.ZAuth as ZAuth
 import Cassandra
 import Control.Error
 import Control.Lens hiding (from)
-import Data.Conduit (ConduitM)
 import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
@@ -389,34 +390,6 @@ lookupUsers ::
   Sem r [User]
 lookupUsers loc locale hpi usrs =
   toUsers (tDomain loc) locale hpi <$> getUsers usrs
-
--- | NB: might return a lot of users, and therefore we do streaming here (page-by-page).
-lookupServiceUsers ::
-  MonadClient m =>
-  ProviderId ->
-  ServiceId ->
-  ConduitM () [(BotId, ConvId, Maybe TeamId)] m ()
-lookupServiceUsers pid sid =
-  paginateC cql (paramsP LocalQuorum (pid, sid) 100) x1
-  where
-    cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
-    cql =
-      "SELECT user, conv, team FROM service_user \
-      \WHERE provider = ? AND service = ?"
-
-lookupServiceUsersForTeam ::
-  MonadClient m =>
-  ProviderId ->
-  ServiceId ->
-  TeamId ->
-  ConduitM () [(BotId, ConvId)] m ()
-lookupServiceUsersForTeam pid sid tid =
-  paginateC cql (paramsP LocalQuorum (pid, sid, tid) 100) x1
-  where
-    cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
-    cql =
-      "SELECT user, conv FROM service_team \
-      \WHERE provider = ? AND service = ? AND team = ?"
 
 lookupFeatureConferenceCalling :: MonadClient m => UserId -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
 lookupFeatureConferenceCalling uid = do

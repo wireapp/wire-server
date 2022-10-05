@@ -73,7 +73,7 @@ federationSitemap ::
     '[ GundeckAccess,
        Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   ServerT FederationAPI (Handler r)
@@ -92,7 +92,7 @@ federationSitemap =
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
 
 sendConnectionAction ::
-  Members '[GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery p] r =>
   Domain ->
   NewConnectionRequest ->
   Handler r NewConnectionResponse
@@ -111,7 +111,7 @@ getUserByHandle ::
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Domain ->
@@ -136,7 +136,7 @@ getUserByHandle domain handle = do
           listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
 
 getUsersByIds ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   Domain ->
   [UserId] ->
   ExceptT Error (AppT r) [UserProfile]
@@ -165,11 +165,11 @@ fedClaimKeyPackages domain ckpr = do
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
 searchUsers ::
-  forall r.
+  forall r p.
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Domain ->

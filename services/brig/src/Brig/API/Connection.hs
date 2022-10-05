@@ -64,7 +64,7 @@ import qualified Wire.API.Error.Brig as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 ensureIsActivated ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   Local UserId ->
   MaybeT (AppT r) ()
 ensureIsActivated lusr = do
@@ -82,7 +82,7 @@ createConnection ::
   Members
     '[ Input (Local ()),
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Local UserId ->
@@ -104,11 +104,11 @@ createConnection self con target = do
     target
 
 createConnectionToLocalUser ::
-  forall r.
+  forall r p.
   Members
     '[ Input (Local ()),
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Local UserId ->
@@ -199,7 +199,7 @@ createConnectionToLocalUser self conn target = do
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
 checkLegalholdPolicyConflict ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   UserId ->
   UserId ->
   ExceptT ConnectionError (AppT r) ()
@@ -225,7 +225,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
-  Members '[GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery p] r =>
   Local UserId ->
   Qualified UserId ->
   Relation ->
@@ -245,8 +245,8 @@ updateConnection self other newStatus conn =
 -- because a connection between two team members can not exist in the first place.
 -- {#RefConnectionTeam}
 updateConnectionToLocalUser ::
-  forall r.
-  Members '[GundeckAccess, UserQuery] r =>
+  forall r p.
+  Members '[GundeckAccess, UserQuery p] r =>
   -- | From
   Local UserId ->
   -- | To
@@ -407,8 +407,8 @@ mkRelationWithHistory oldRel = \case
       MissingLegalholdConsent -> error "impossible old relation"
 
 updateConnectionInternal ::
-  forall r.
-  Members '[GundeckAccess, UserQuery] r =>
+  forall r p.
+  Members '[GundeckAccess, UserQuery p] r =>
   UpdateConnectionsInternal ->
   ExceptT ConnectionError (AppT r) ()
 updateConnectionInternal = \case

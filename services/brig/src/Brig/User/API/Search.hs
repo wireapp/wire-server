@@ -91,7 +91,7 @@ search ::
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -125,11 +125,11 @@ searchRemotely domain searchTerm = do
       }
 
 searchLocally ::
-  forall r.
+  forall r p.
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->

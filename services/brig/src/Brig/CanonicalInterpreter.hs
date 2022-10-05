@@ -34,6 +34,8 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.Effects.BudgetStore (BudgetStore)
 import Brig.Effects.BudgetStore.Cassandra
+import Brig.Effects.ClientStore (ClientStore)
+import Brig.Effects.ClientStore.Cassandra
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra)
 import Brig.Effects.Common
@@ -79,6 +81,8 @@ import Polysemy.Input
 import Polysemy.Resource (Resource, resourceToIO)
 import qualified Polysemy.TinyLog as P
 import qualified Ropes.Twilio as Twilio
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO
 import Wire.Sem.Error
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
@@ -87,7 +91,8 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 import qualified Wire.Sem.Paging.Cassandra as PC
 
 type BrigCanonicalEffects =
-  '[ PublicKeyBundle,
+  '[ ClientStore,
+     PublicKeyBundle,
      JwtTools,
      BlacklistPhonePrefixStore,
      BlacklistStore,
@@ -116,6 +121,7 @@ type BrigCanonicalEffects =
      Embed Cas.Client,
      P.Error Twilio.ErrorResponse,
      P.Error ReAuthError,
+     Concurrency 'Unsafe,
      Embed IO,
      Final IO
    ]
@@ -124,6 +130,7 @@ runBrigToIO :: Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) =
   runFinal
     . embedToFinal
+    . unsafelyPerformConcurrency
     . interpretWaiErrorToException
     . interpretErrorToException twilioToWai
     . interpretClientToIO (e ^. casClient)
@@ -153,6 +160,7 @@ runBrigToIO e (AppT ma) =
     . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
     . interpretJwtTools
     . interpretPublicKeyBundle
+    . clientStoreToCassandra @HttpClientIO
     $ runReaderT ma e
 
 interpretHttpToIO ::

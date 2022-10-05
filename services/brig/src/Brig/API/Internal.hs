@@ -140,7 +140,7 @@ servantSitemap ::
        UserHandleStore,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -148,7 +148,7 @@ servantSitemap ::
 servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI :<|> userAPI
 
 ejpdAPI ::
-  Members '[UserHandleStore, UserQuery] r =>
+  Members '[UserHandleStore, UserQuery p] r =>
   ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
@@ -191,7 +191,7 @@ accountAPI ::
        UserHandleStore,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery
+       UserQuery p
      ]
     r =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -298,8 +298,8 @@ mapKeyPackageRefsInternal bundle = do
       Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
 getVerificationCode ::
-  forall r.
-  Members '[VerificationCodeStore, UserQuery] r =>
+  forall r p.
+  Members '[VerificationCodeStore, UserQuery p] r =>
   UserId ->
   VerificationAction ->
   Handler r (Maybe Code.Value)
@@ -344,7 +344,7 @@ sitemap ::
        UserHandleStore,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -516,7 +516,7 @@ addClientInternalH ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -531,7 +531,7 @@ addClientInternal ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -594,7 +594,7 @@ createUserNoVerify ::
        Twilio,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery
+       UserQuery p
      ]
     r =>
   NewUser ->
@@ -629,7 +629,7 @@ createUserNoVerifySpar ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   NewUserSpar ->
@@ -656,7 +656,7 @@ deleteUserNoAuthH ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -674,7 +674,7 @@ changeSelfEmailMaybeSendH ::
        ActivationSupply,
        BlacklistStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ::: Bool ::: JsonRequest EmailUpdate ->
@@ -693,7 +693,7 @@ changeSelfEmailMaybeSend ::
        ActivationSupply,
        BlacklistStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -712,7 +712,7 @@ listActivatedAccountsH ::
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   JSON ::: Either (List UserId) (List Handle) ::: Bool ->
@@ -721,11 +721,11 @@ listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
   json <$> lift (listActivatedAccounts qry includePendingInvitations)
 
 listActivatedAccounts ::
-  forall r.
+  forall r p.
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Either (List UserId) (List Handle) ->
@@ -764,7 +764,7 @@ listActivatedAccounts elh includePendingInvitations = do
           (Ephemeral, _, _) -> pure True
 
 listAccountsByIdentityH ::
-  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
+  Members '[Input (Local ()), UserKeyStore, UserQuery p] r =>
   JSON ::: Either Email Phone ::: Bool ->
   Handler r Response
 listAccountsByIdentityH (_ ::: emailOrPhone ::: includePendingInvitations) =
@@ -816,7 +816,7 @@ instance ToJSON GetPasswordResetCodeResp where
   toJSON (GetPasswordResetCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 changeAccountStatusH ::
-  Members '[GalleyAccess, GundeckAccess, UserQuery] r =>
+  Members '[GalleyAccess, GundeckAccess, UserQuery p] r =>
   UserId ::: JsonRequest AccountStatusUpdate ->
   Handler r Response
 changeAccountStatusH (usr ::: req) = do
@@ -861,7 +861,7 @@ revokeIdentityH ::
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Either Email Phone ->
@@ -871,7 +871,7 @@ revokeIdentityH emailOrPhone = do
   pure $ setStatus status200 empty
 
 updateConnectionInternalH ::
-  Members '[GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery p] r =>
   JSON ::: JsonRequest UpdateConnectionsInternal ->
   (Handler r) Response
 updateConnectionInternalH (_ ::: req) = do
@@ -996,7 +996,7 @@ updateHandleH ::
        Resource,
        UniqueClaimsStore,
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ::: JSON ::: JsonRequest HandleUpdate ->
@@ -1012,7 +1012,7 @@ updateHandle ::
        Resource,
        UniqueClaimsStore,
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -1023,13 +1023,13 @@ updateHandle uid (HandleUpdate handleUpd) = do
   API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
 updateUserNameH ::
-  Members '[GalleyAccess, GundeckAccess, UserQuery] r =>
+  Members '[GalleyAccess, GundeckAccess, UserQuery p] r =>
   UserId ::: JSON ::: JsonRequest NameUpdate ->
   (Handler r) Response
 updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJsonBody body)
 
 updateUserName ::
-  Members '[GalleyAccess, GundeckAccess, UserQuery] r =>
+  Members '[GalleyAccess, GundeckAccess, UserQuery p] r =>
   UserId ->
   NameUpdate ->
   (Handler r) ()

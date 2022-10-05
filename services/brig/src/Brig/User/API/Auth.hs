@@ -99,7 +99,7 @@ routesPublic ::
        Twilio,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -241,7 +241,7 @@ routesInternal ::
        Input (Local ()),
        P.TinyLog,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -272,7 +272,7 @@ sendLoginCodeH ::
     '[ Error Twilio.ErrorResponse,
        P.TinyLog,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        Twilio
      ]
     r =>
@@ -286,7 +286,7 @@ sendLoginCode ::
     '[ Error Twilio.ErrorResponse,
        P.TinyLog,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        Twilio
      ]
     r =>
@@ -316,7 +316,7 @@ reAuthUserH ::
     '[ Error ReAuthError,
        GalleyAccess,
        Input (Local ()),
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -331,7 +331,7 @@ reAuthUser ::
     '[ Error ReAuthError,
        GalleyAccess,
        Input (Local ()),
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -361,7 +361,7 @@ loginH ::
        Twilio,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -381,7 +381,7 @@ login ::
        Twilio,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -397,7 +397,7 @@ ssoLoginH ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   JsonRequest SsoLogin ::: Bool ::: JSON ->
@@ -410,7 +410,7 @@ ssoLogin ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   SsoLogin ->
@@ -425,7 +425,7 @@ legalHoldLoginH ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   JsonRequest LegalHoldLogin ::: JSON ->
@@ -438,7 +438,7 @@ legalHoldLogin ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   LegalHoldLogin ->
@@ -469,7 +469,7 @@ changeSelfEmailH ::
        ActivationSupply,
        BlacklistStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   JSON
@@ -510,14 +510,14 @@ listCookies u ll = do
   Public.CookieList <$> wrapClient (Auth.listCookies u (maybe [] fromList ll))
 
 rmCookiesH ::
-  Members '[Input (Local ()), TinyLog, UserQuery] r =>
+  Members '[Input (Local ()), TinyLog, UserQuery p] r =>
   UserId ::: JsonRequest Public.RemoveCookies ->
   Handler r Response
 rmCookiesH (uid ::: req) = do
   empty <$ (rmCookies uid =<< parseJsonBody req)
 
 rmCookies ::
-  Members '[Input (Local ()), TinyLog, UserQuery] r =>
+  Members '[Input (Local ()), TinyLog, UserQuery p] r =>
   UserId ->
   Public.RemoveCookies ->
   Handler r ()
@@ -528,7 +528,7 @@ renewH ::
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
@@ -544,7 +544,7 @@ renew ::
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->

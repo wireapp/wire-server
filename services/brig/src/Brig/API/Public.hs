@@ -50,6 +50,7 @@ import Brig.Effects.ActivationSupply
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BudgetStore
+import Brig.Effects.ClientStore (ClientStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess (GundeckAccess)
@@ -155,7 +156,9 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
+import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
+import Wire.Sem.Paging
 
 -- User API -----------------------------------------------------------
 
@@ -205,7 +208,7 @@ servantSitemap ::
        UserHandleStore,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -337,13 +340,17 @@ servantSitemap =
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
+  forall r p.
+  Paging p =>
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
        BlacklistStore,
        BlacklistPhonePrefixStore,
        BudgetStore,
+       ClientStore,
        CodeStore,
+       Concurrency 'Unsafe,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -355,7 +362,7 @@ sitemap ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -367,14 +374,17 @@ sitemap = do
   Calling.routesPublic
 
 apiDocs ::
-  forall r.
+  forall r p.
+  Paging p =>
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
        BlacklistStore,
        BlacklistPhonePrefixStore,
        BudgetStore,
+       ClientStore,
        CodeStore,
+       Concurrency 'Unsafe,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -386,7 +396,7 @@ apiDocs ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -517,7 +527,7 @@ addClient ::
     '[ GalleyAccess,
        GundeckAccess,
        Input (Local ()),
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -541,7 +551,7 @@ deleteClient ::
     '[ GundeckAccess,
        Input (Local ()),
        P.Error ReAuthError,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -594,7 +604,7 @@ getClientCapabilities uid cid = do
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
 getRichInfo ::
-  Member UserQuery r =>
+  Member (UserQuery p) r =>
   UserId ->
   UserId ->
   Handler r Public.RichInfoAssocList
@@ -658,7 +668,7 @@ createUser ::
        Twilio,
        UserKeyStore,
        UserPendingActivationStore p,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Public.NewUserPublic ->
@@ -732,7 +742,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
         Team.sendMemberWelcomeMail e t n l
 
 getSelf ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   UserId ->
   Handler r Public.SelfProfile
 getSelf self =
@@ -740,7 +750,7 @@ getSelf self =
     >>= ifNothing (errorToWai @'E.UserNotFound)
 
 getUserUnqualifiedH ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   UserId ->
   UserId ->
   Handler r (Maybe Public.UserProfile)
@@ -749,7 +759,7 @@ getUserUnqualifiedH self uid = do
   getUser self (Qualified uid domain)
 
 getUser ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserQuery p] r =>
   UserId ->
   Qualified UserId ->
   Handler r (Maybe Public.UserProfile)
@@ -762,7 +772,7 @@ listUsersByUnqualifiedIdsOrHandles ::
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -785,11 +795,11 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
 listUsersByIdsOrHandles ::
-  forall r.
+  forall r p.
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -826,7 +836,7 @@ updateUser ::
   Members
     '[ GalleyAccess,
        GundeckAccess,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -846,7 +856,7 @@ changePhone ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -866,7 +876,7 @@ removePhone ::
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -881,7 +891,7 @@ removeEmail ::
        GundeckAccess,
        Input (Local ()),
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -894,7 +904,7 @@ checkPasswordExists :: UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . wrapClient . API.lookupPassword
 
 changePassword ::
-  Members '[UserQuery] r =>
+  Members '[UserQuery p] r =>
   UserId ->
   Public.PasswordChange ->
   Handler r (Maybe Public.ChangePasswordError)
@@ -940,7 +950,7 @@ getHandleInfoUnqualifiedH ::
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -960,7 +970,7 @@ changeHandle ::
        Resource,
        UniqueClaimsStore,
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -976,7 +986,7 @@ beginPasswordReset ::
     '[ P.TinyLog,
        PasswordResetStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Public.NewPasswordReset ->
@@ -1014,7 +1024,7 @@ sendActivationCode ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Public.SendActivationCode ->
@@ -1043,7 +1053,7 @@ createConnectionUnqualified ::
   Members
     '[ GundeckAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -1059,7 +1069,7 @@ createConnection ::
   Members
     '[ GundeckAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -1071,7 +1081,7 @@ createConnection self conn target = do
   API.createConnection lself conn target !>> connError
 
 updateLocalConnection ::
-  Members '[GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery p] r =>
   UserId ->
   ConnId ->
   UserId ->
@@ -1082,7 +1092,7 @@ updateLocalConnection self conn other update = do
   updateConnection self conn (qUntagged lother) update
 
 updateConnection ::
-  Members '[GundeckAccess, UserQuery] r =>
+  Members '[GundeckAccess, UserQuery p] r =>
   UserId ->
   ConnId ->
   Qualified UserId ->
@@ -1160,7 +1170,7 @@ deleteSelfUser ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -1178,7 +1188,7 @@ verifyDeleteUser ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>
@@ -1192,7 +1202,7 @@ updateUserEmail ::
        ActivationSupply,
        BlacklistStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -1233,7 +1243,7 @@ activate ::
        PasswordResetStore,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Public.ActivationKey ->
@@ -1256,7 +1266,7 @@ activateKey ::
        PasswordResetStore,
        Twilio,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Public.Activate ->
@@ -1275,11 +1285,11 @@ activateKey (Public.Activate tgt code dryrun)
     respond Nothing _ = ActivationRespSuccessNoIdent
 
 sendVerificationCode ::
-  forall r.
+  forall r p.
   Members
     '[ Input (Local ()),
        UserKeyStore,
-       UserQuery,
+       UserQuery p,
        VerificationCodeStore
      ]
     r =>

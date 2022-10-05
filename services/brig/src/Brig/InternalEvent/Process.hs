@@ -23,6 +23,7 @@ where
 import qualified Brig.API.User as API
 import Brig.App
 import qualified Brig.Data.Client as Data
+import Brig.Effects.ClientStore (ClientStore)
 import Brig.Effects.GalleyAccess (GalleyAccess)
 import Brig.Effects.GundeckAccess (GundeckAccess)
 import Brig.Effects.UniqueClaimsStore
@@ -47,17 +48,20 @@ import Polysemy.Input
 import Polysemy.Time.Data.TimeUnit
 import qualified Polysemy.TinyLog as P
 import System.Logger.Class (field, msg, val, (~~))
-import qualified System.Logger.Class as Log
-import UnliftIO (timeout)
-import Wire.API.User.Client (clientId)
+import Wire.API.User.Client
+import Wire.Sem.Concurrency
+import Wire.Sem.Paging
 
 -- | Handle an internal event.
 --
 -- Has a one-minute timeout that should be enough for anything that it does.
 onEvent ::
-  forall r.
+  forall r p.
+  Paging p =>
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       Concurrency 'Unsafe,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        P.TinyLog,
@@ -65,7 +69,7 @@ onEvent ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   InternalNotification ->
@@ -74,7 +78,8 @@ onEvent n = do
   locale <- setDefaultUserLocale <$> view settings
   delay <- fromMaybe defDeleteThrottleMillis . setDeleteThrottleMillis <$> view settings
   handleTimeout $ case n of
-    DeleteClient cid uid mcon -> do
+    DeleteClient client uid mcon -> do
+      let cid = clientId client
       mc <- wrapClient $ Data.lookupClient uid cid
       for_ mc $ \c -> do
         wrapHttp $ rmClient uid cid
@@ -94,7 +99,7 @@ onEvent n = do
         msg (val "Processing service delete event")
           ~~ field "provider" (toByteString pid)
           ~~ field "service" (toByteString sid)
-      wrapHttpClient $ API.finishDeleteService pid sid
+      API.finishDeleteService pid sid
   where
     handleTimeout :: AppT r a -> AppT r a
     handleTimeout _act = undefined

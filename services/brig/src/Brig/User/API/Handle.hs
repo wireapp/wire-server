@@ -50,7 +50,7 @@ getHandleInfo ::
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   UserId ->
@@ -75,7 +75,7 @@ getLocalHandleInfo ::
   Members
     '[ Input (Local ()),
        UserHandleStore,
-       UserQuery
+       UserQuery p
      ]
     r =>
   Local UserId ->
