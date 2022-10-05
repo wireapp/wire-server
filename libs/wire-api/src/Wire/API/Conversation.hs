@@ -635,6 +635,9 @@ data NewConv = NewConv
 instance ToSchema (Versioned 'V2 NewConv) where
   schema = unVersioned .= fmap Versioned (newConvSchema accessRolesSchemaOptV1)
 
+instance ToSchema (Versioned 'V3 NewConv) where
+  schema = unVersioned .= fmap Versioned (newConvSchema accessRolesSchemaOpt)
+
 instance ToSchema NewConv where
   schema = newConvSchema accessRolesSchemaOpt
 

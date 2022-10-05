@@ -90,14 +90,14 @@ import qualified Wire.API.Provider.Bot as Ext
 import qualified Wire.API.Provider.External as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service.Tag
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Permission
 import Wire.API.User hiding (EmailUpdate, PasswordChange, mkName)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
-import Wire.API.Routes.Versioned
-import Wire.API.Routes.Version
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
 tests dom conf p db b c g = do

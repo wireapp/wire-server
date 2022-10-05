@@ -59,6 +59,7 @@ servantSitemap =
         <@> mkNamedAPI @"list-conversations" listConversations
         <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
         <@> mkNamedAPI @"create-group-conversation" createGroupConversation
+        <@> mkNamedAPI @"create-group-conversation-v1" createGroupConversation
         <@> mkNamedAPI @"create-self-conversation" createSelfConversation
         <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
         <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified

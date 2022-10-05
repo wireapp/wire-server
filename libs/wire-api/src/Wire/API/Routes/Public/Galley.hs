@@ -357,6 +357,22 @@ type ConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "conversations"
+               :> VersionedReqBody 'V3 '[Servant.JSON] NewConv
+               :> ConversationVerb
+           )
+    :<|> Named
+           "create-group-conversation-v1"
+           ( Summary "Create a new conversation"
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
+               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationVerb
            )
