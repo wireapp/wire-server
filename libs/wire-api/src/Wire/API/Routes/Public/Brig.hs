@@ -52,6 +52,7 @@ import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.Properties
+import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -1155,6 +1156,18 @@ instance FromHttpApiData SomeUserToken where
         <|> fmap LHUserToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
+data SomeAccessToken
+  = AccessToken (ZAuth.Token ZAuth.Access)
+  | LHAccessToken (ZAuth.Token ZAuth.LegalHoldAccess)
+  deriving (Show)
+
+instance FromHttpApiData SomeAccessToken where
+  parseHeader h =
+    first T.pack $
+      fmap AccessToken (runParser parser h)
+        <|> fmap LHAccessToken (runParser parser h)
+  parseUrlPiece = parseHeader . T.encodeUtf8
+
 type AuthAPI =
   Named
     "access"
@@ -1166,6 +1179,7 @@ type AuthAPI =
              \ Access tokens can be given as query parameter or authorisation\
              \ header, with the latter being preferred."
         :> Cookies '["zuid" ::: SomeUserToken]
+        :> Bearer SomeAccessToken
         :> MultiVerb1 'POST '[JSON] (Respond 201 "TODO" Text)
     )
 

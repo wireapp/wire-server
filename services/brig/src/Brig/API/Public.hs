@@ -27,6 +27,7 @@ module Brig.API.Public
   )
 where
 
+import Brig.API.Auth
 import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
@@ -82,7 +83,6 @@ import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
-import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
@@ -90,7 +90,6 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
@@ -290,9 +289,6 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
       Named @"access" access
-      where
-        access :: NonEmpty SomeUserToken -> Handler r Text
-        access = pure . T.pack . show
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

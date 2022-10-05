@@ -18,6 +18,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Brig.API
+    Brig.API.Auth
     Brig.API.Client
     Brig.API.Connection
     Brig.API.Connection.Remote

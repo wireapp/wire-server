@@ -38,6 +38,7 @@ type CookieHeader cs = Header' '[Required] "Cookie" (CookieTuple cs)
 
 type CookieType = NonEmpty
 
+-- CookieTypes = map snd
 type family CookieTypes (cs :: [*]) :: [*]
 
 type instance CookieTypes '[] = '[]
@@ -53,15 +54,16 @@ instance HasSwagger api => HasSwagger (Cookies cs :> api) where
   toSwagger _ = toSwagger (Proxy @api)
 
 class CookieArgs (cs :: [*]) where
+  -- example: AddArgs ["foo" :: Foo, "bar" :: Bar] a = Foo -> Bar -> a
   type AddArgs cs a :: *
 
-  addArgs :: AddArgs cs a -> CookieTuple cs -> a
+  uncurryArgs :: AddArgs cs a -> CookieTuple cs -> a
   mapArgs :: (a -> b) -> AddArgs cs a -> AddArgs cs b
   mkTuple :: CookieMap -> Either Text (CookieTuple cs)
 
 instance CookieArgs '[] where
   type AddArgs '[] a = a
-  addArgs a _ = a
+  uncurryArgs a _ = a
   mapArgs h = h
   mkTuple _ = pure (CookieTuple Nil)
 
@@ -73,7 +75,7 @@ instance
   CookieArgs ((lbl ::: (x :: *)) ': cs)
   where
   type AddArgs ((lbl ::: x) ': cs) a = CookieType x -> AddArgs cs a
-  addArgs f (CookieTuple (I x :* xs)) = addArgs @cs (f x) (CookieTuple xs)
+  uncurryArgs f (CookieTuple (I x :* xs)) = uncurryArgs @cs (f x) (CookieTuple xs)
   mapArgs h f = mapArgs @cs h . f
   mkTuple m = do
     let k = T.pack (symbolVal (Proxy @lbl))
@@ -99,7 +101,7 @@ instance
   type ServerT (Cookies cs :> api) m = AddArgs cs (ServerT api m)
 
   route _ ctx action =
-    route (Proxy @(CookieHeader cs :> api)) ctx (fmap addArgs action)
+    route (Proxy @(CookieHeader cs :> api)) ctx (fmap uncurryArgs action)
   hoistServerWithContext _ ctx f = mapArgs @cs (hoistServerWithContext (Proxy @api) ctx f)
 
 instance RoutesToPaths api => RoutesToPaths (Cookies cs :> api) where

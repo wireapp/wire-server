@@ -68,6 +68,7 @@ library
     Wire.API.RawJson
     Wire.API.Routes.API
     Wire.API.Routes.AssetBody
+    Wire.API.Routes.Bearer
     Wire.API.Routes.ClientAlgebra
     Wire.API.Routes.Cookies
     Wire.API.Routes.CSV
