@@ -6,10 +6,11 @@
 , bytestring-conversion, containers, data-default, errors
 , exceptions, extended, galley-types, gitignoreSource
 , gundeck-types, http-client, http-types, imports, lens, lib
-, metrics-wai, mtl, schema-profunctor, split, string-conversions
-, swagger, text, tinylog, transformers, types-common, unliftio
-, unordered-containers, uuid, wai, wai-extra, wai-predicates
-, wai-routing, wai-utilities, warp, wire-api, yaml
+, metrics-wai, mtl, schema-profunctor, servant, servant-server
+, servant-swagger, servant-swagger-ui, split, string-conversions
+, swagger, swagger2, text, tinylog, transformers, types-common
+, unliftio, unordered-containers, uuid, wai, wai-extra
+, wai-predicates, wai-routing, wai-utilities, warp, wire-api, yaml
 }:
 mkDerivation {
   pname = "stern";
@@ -21,10 +22,11 @@ mkDerivation {
     aeson base bilge brig-types bytestring bytestring-conversion
     containers data-default errors exceptions extended galley-types
     gundeck-types http-client http-types imports lens metrics-wai mtl
-    schema-profunctor split string-conversions swagger text tinylog
-    transformers types-common unliftio unordered-containers uuid wai
-    wai-extra wai-predicates wai-routing wai-utilities warp wire-api
-    yaml
+    schema-profunctor servant servant-server servant-swagger
+    servant-swagger-ui split string-conversions swagger swagger2 text
+    tinylog transformers types-common unliftio unordered-containers
+    uuid wai wai-extra wai-predicates wai-routing wai-utilities warp
+    wire-api yaml
   ];
   executableHaskellDepends = [
     base extended imports types-common unliftio

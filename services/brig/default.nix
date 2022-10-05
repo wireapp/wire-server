@@ -28,8 +28,8 @@
 , servant-swagger-ui, sodium-crypto-sign, spar, split, ssl-util
 , statistics, stomp-queue, string-conversions, swagger, swagger2
 , tagged, tasty, tasty-cannon, tasty-hunit, tasty-quickcheck
-, template, temporary, text, text-icu-translit, time, tinylog
-, transformers, types-common, types-common-aws
+, template, template-haskell, temporary, text, text-icu-translit
+, time, tinylog, transformers, types-common, types-common-aws
 , types-common-journal, unliftio, unordered-containers
 , uri-bytestring, uuid, vector, wai, wai-extra
 , wai-middleware-gunzip, wai-predicates, wai-route, wai-routing
@@ -62,11 +62,11 @@ mkDerivation {
     servant-client servant-client-core servant-server servant-swagger
     servant-swagger-ui sodium-crypto-sign split ssl-util statistics
     stomp-queue string-conversions swagger swagger2 tagged template
-    text text-icu-translit time tinylog transformers types-common
-    types-common-aws types-common-journal unliftio unordered-containers
-    uri-bytestring uuid vector wai wai-extra wai-middleware-gunzip
-    wai-predicates wai-routing wai-utilities warp wire-api
-    wire-api-federation yaml zauth
+    template-haskell text text-icu-translit time tinylog transformers
+    types-common types-common-aws types-common-journal unliftio
+    unordered-containers uri-bytestring uuid vector wai wai-extra
+    wai-middleware-gunzip wai-predicates wai-routing wai-utilities warp
+    wire-api wire-api-federation yaml zauth
   ];
   executableHaskellDepends = [
     aeson async attoparsec base base16-bytestring base64-bytestring

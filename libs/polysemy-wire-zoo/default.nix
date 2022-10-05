@@ -4,8 +4,8 @@
 # dependencies are added or removed.
 { mkDerivation, base, cassandra-util, gitignoreSource, HsOpenSSL
 , hspec, imports, lib, polysemy, polysemy-check, polysemy-plugin
-, QuickCheck, saml2-web-sso, time, tinylog, types-common, uuid
-, wire-api
+, QuickCheck, saml2-web-sso, time, tinylog, types-common, unliftio
+, uuid, wire-api
 }:
 mkDerivation {
   pname = "polysemy-wire-zoo";
@@ -14,7 +14,7 @@ mkDerivation {
   libraryHaskellDepends = [
     base cassandra-util HsOpenSSL hspec imports polysemy polysemy-check
     polysemy-plugin QuickCheck saml2-web-sso time tinylog types-common
-    uuid wire-api
+    unliftio uuid wire-api
   ];
   description = "Polysemy interface for various libraries";
   license = lib.licenses.agpl3Only;
