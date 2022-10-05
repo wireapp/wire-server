@@ -192,6 +192,8 @@ let lib = pkgs.lib;
       maxLayers = 10;
       contents = [
         ghcWithHoogle
+        pkgs.coreutils
+        pkgs.bashInteractive
       ];
     };
 
