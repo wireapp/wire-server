@@ -102,7 +102,7 @@ routes = do
 
   get "/users" (continue usersByEmail') $
     param "email"
-  document "GET" "users" $ do
+  document "GET" "users/by-email" $ do
     Doc.summary "Displays user's info given an email address"
     Doc.parameter Doc.Query "email" Doc.string' $
       Doc.description "Email address"
@@ -112,7 +112,7 @@ routes = do
     "/users"
     (continue usersByPhone')
     phoneParam
-  document "GET" "users" $ do
+  document "GET" "users/by-phone" $ do
     Doc.summary "Displays user's info given a phone number"
     Doc.parameter Doc.Query "phone" Doc.string' $
       Doc.description "Phone number"
@@ -120,7 +120,7 @@ routes = do
 
   get "/users" (continue usersByIds') $
     param "ids"
-  document "GET" "users" $ do
+  document "GET" "users/by-ids" $ do
     Doc.summary "Displays active users info given a list of ids"
     Doc.parameter Doc.Query "ids" Doc.string' $
       Doc.description "ID of the user"
@@ -128,7 +128,7 @@ routes = do
 
   get "/users" (continue usersByHandles') $
     param "handles"
-  document "GET" "users" $ do
+  document "GET" "users/by-handles" $ do
     Doc.summary "Displays active users info given a list of handles"
     Doc.parameter Doc.Query "handles" Doc.string' $
       Doc.description "Handle of the user"
