@@ -20,8 +20,8 @@ module Brig.API.Auth where
 import Brig.API.Error (authTokenMismatch, internalServerError, throwStd, zauthError)
 import Brig.API.Handler
 import Brig.App (wrapHttpClientE)
-import Brig.User.Auth (Access)
 import qualified Brig.User.Auth as Auth
+import Brig.ZAuth (UserTokenLike (mkSomeAccess))
 import qualified Brig.ZAuth as ZAuth
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
@@ -31,15 +31,13 @@ import Imports
 import Network.Wai.Utilities ((!>>))
 import Wire.API.Routes.Public.Brig (SomeUserToken)
 import Wire.API.Routes.Public.Brig hiding (SomeUserToken)
+import Wire.API.User.Auth (SomeAccess)
 
-access :: forall r. NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r Text
+access :: forall r. NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
 access ut mat = do
   partitionTokens ut mat >>= either (uncurry renew) (uncurry renew)
   where
-    renew t mt = mkResponse <$> wrapHttpClientE (Auth.renewAccess (List1 t) mt) !>> zauthError
-
-mkResponse :: Access u -> Text
-mkResponse _ = error "TODO"
+    renew t mt = mkSomeAccess <$> wrapHttpClientE (Auth.renewAccess (List1 t) mt) !>> zauthError
 
 partitionTokens ::
   NonEmpty SomeUserToken ->
@@ -54,11 +52,11 @@ partitionTokens tokens mat =
   case (partitionEithers (map toEither (NE.toList tokens)), mat) of
     -- only PlainUserToken
     ((at : ats, []), Nothing) -> pure (Left (at :| ats, Nothing))
-    ((at : ats, []), Just (AccessToken a)) -> pure (Left (at :| ats, Just a))
+    ((at : ats, []), Just (PlainAccessToken a)) -> pure (Left (at :| ats, Just a))
     ((_t : _ts, []), Just (LHAccessToken _)) -> throwStd authTokenMismatch
     -- only LHUserToken tokens
     (([], lt : lts), Nothing) -> pure (Right (lt :| lts, Nothing))
-    (([], _t : _ts), Just (AccessToken _)) -> throwStd authTokenMismatch
+    (([], _t : _ts), Just (PlainAccessToken _)) -> throwStd authTokenMismatch
     (([], lt : lts), Just (LHAccessToken l)) -> pure (Right (lt :| lts, Just l))
     -- impossible
     (([], []), _) -> throwStd internalServerError
@@ -66,5 +64,5 @@ partitionTokens tokens mat =
     ((_ats, _lts), _) -> throwStd authTokenMismatch
   where
     toEither :: SomeUserToken -> Either (ZAuth.Token ZAuth.User) (ZAuth.Token ZAuth.LegalHoldUser)
-    toEither (UserToken ut) = Left ut
+    toEither (PlainUserToken ut) = Left ut
     toEither (LHUserToken lt) = Right lt
