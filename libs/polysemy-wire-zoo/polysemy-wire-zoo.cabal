@@ -13,6 +13,9 @@ build-type:    Simple
 library
   exposed-modules:
     Polysemy.TinyLog
+    Wire.Sem.Concurrency
+    Wire.Sem.Concurrency.IO
+    Wire.Sem.Concurrency.Sequential
     Wire.Sem.Error
     Wire.Sem.FireAndForget
     Wire.Sem.FireAndForget.IO

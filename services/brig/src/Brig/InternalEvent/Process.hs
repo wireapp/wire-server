@@ -47,6 +47,9 @@ import Polysemy.Input
 import Polysemy.Time.Data.TimeUnit
 import qualified Polysemy.TinyLog as P
 import System.Logger.Class (field, msg, val, (~~))
+import qualified System.Logger.Class as Log
+import UnliftIO (timeout)
+import Wire.API.User.Client (clientId)
 
 -- | Handle an internal event.
 --

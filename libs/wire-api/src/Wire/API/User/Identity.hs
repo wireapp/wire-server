@@ -64,6 +64,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Proxy (Proxy (..))
 import Data.Schema
 import Data.String.Conversions (cs)
+import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
@@ -162,6 +163,9 @@ data Email = Email
   }
   deriving stock (Eq, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Email
+
+instance ToParamSchema Email where
+  toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance ToSchema Email where
   schema =
