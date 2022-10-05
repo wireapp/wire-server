@@ -33,6 +33,7 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
 import qualified Brig.API.Properties as API
+import Brig.API.Public.Swagger
 import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.API.Util
@@ -69,15 +70,13 @@ import Brig.User.Phone
 import qualified Cassandra as C
 import qualified Cassandra as Data
 import Control.Error hiding (bool)
-import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
-import qualified Data.Aeson as Aeson
 import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
-import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
@@ -122,6 +121,7 @@ import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
 import qualified Wire.API.Swagger as Public.Swagger (models)
+import Wire.API.SwaggerHelper (cleanupSwagger)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (RegisterError (RegisterErrorWhitelistError))
@@ -140,10 +140,8 @@ import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
 
-type SwaggerDocsAPI = "api" :> Header VersionHeader Version :> SwaggerSchemaUI "swagger-ui" "swagger.json"
-
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI (Just V2) =
+swaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -154,35 +152,10 @@ swaggerDocsAPI (Just V2) =
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & S.security %~ nub
-      -- sanitise definitions
-      & S.definitions . traverse %~ sanitise
-      -- sanitise general responses
-      & S.responses . traverse . S.schema . _Just . S._Inline %~ sanitise
-      -- sanitise all responses of all paths
-      & S.allOperations . S.responses . S.responses
-        . traverse
-        . S._Inline
-        . S.schema
-        . _Just
-        . S._Inline
-        %~ sanitise
-  where
-    sanitise :: S.Schema -> S.Schema
-    sanitise =
-      (S.properties . traverse . S._Inline %~ sanitise)
-        . (S.required %~ nubOrd)
-        . (S.enum_ . _Just %~ nub)
-swaggerDocsAPI (Just V0) =
-  swaggerSchemaUIServer
-    . fromMaybe Aeson.Null
-    . Aeson.decode
-    $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v0.json")
-swaggerDocsAPI (Just V1) =
-  swaggerSchemaUIServer
-    . fromMaybe Aeson.Null
-    . Aeson.decode
-    $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v1.json")
+      & cleanupSwagger
+swaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
+swaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
+swaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap ::

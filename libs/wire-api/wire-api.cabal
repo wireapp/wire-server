@@ -95,6 +95,7 @@ library
     Wire.API.Routes.WebSocket
     Wire.API.ServantProto
     Wire.API.Swagger
+    Wire.API.SwaggerHelper
     Wire.API.Team
     Wire.API.Team.Conversation
     Wire.API.Team.Export

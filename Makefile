@@ -93,6 +93,11 @@ ci: c
 cabal-fmt:
 	./hack/bin/cabal-fmt.sh $(package)
 
+# Get a ghci environment running for the given package.
+.PHONY: repl
+repl: cabal-fmt
+	cabal repl $(WIRE_CABAL_BUILD_OPTIONS) $(package)
+
 # Use ghcid to watch a particular package.
 # pass target=package:name to specify which target is watched.
 .PHONY: ghcid

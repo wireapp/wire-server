@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -30,14 +28,16 @@ module Brig.Types.Intra
   )
 where
 
-import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson as A
 import Data.Code as Code
 import Data.Id (TeamId)
 import Data.Misc (PlainTextPassword (..))
-import qualified Data.Text as Text
+import qualified Data.Schema as Schema
+import qualified Data.Swagger as S
 import Imports
+import Test.QuickCheck (Arbitrary)
 import Wire.API.User
+import Wire.Arbitrary (GenericUniform (..))
 
 -------------------------------------------------------------------------------
 -- AccountStatus
@@ -52,22 +52,19 @@ data AccountStatus
     -- creating via scim.
     PendingInvitation
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AccountStatus)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema AccountStatus
 
-instance FromJSON AccountStatus where
-  parseJSON = withText "account-status" $ \s -> case Text.toLower s of
-    "active" -> pure Active
-    "suspended" -> pure Suspended
-    "deleted" -> pure Deleted
-    "ephemeral" -> pure Ephemeral
-    "pending-invitation" -> pure PendingInvitation
-    _ -> fail $ "Invalid account status: " ++ Text.unpack s
-
-instance ToJSON AccountStatus where
-  toJSON Active = String "active"
-  toJSON Suspended = String "suspended"
-  toJSON Deleted = String "deleted"
-  toJSON Ephemeral = String "ephemeral"
-  toJSON PendingInvitation = String "pending-invitation"
+instance Schema.ToSchema AccountStatus where
+  schema =
+    Schema.enum @Text "AccountStatus" $
+      mconcat
+        [ Schema.element "active" Active,
+          Schema.element "suspended" Suspended,
+          Schema.element "deleted" Deleted,
+          Schema.element "ephemeral" Ephemeral,
+          Schema.element "pending-invitation" PendingInvitation
+        ]
 
 data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}
 
@@ -100,21 +97,15 @@ data UserAccount = UserAccount
     accountStatus :: !AccountStatus
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserAccount)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema.Schema UserAccount
 
-instance FromJSON UserAccount where
-  parseJSON j@(Object o) = do
-    u <- parseJSON j
-    s <- o .: "status"
-    pure $ UserAccount u s
-  parseJSON _ = mzero
-
-instance ToJSON UserAccount where
-  toJSON (UserAccount u s) =
-    case toJSON u of
-      Object o ->
-        Object $ KeyMap.insert "status" (toJSON s) o
-      other ->
-        error $ "toJSON UserAccount: not an object: " <> show (encode other)
+instance Schema.ToSchema UserAccount where
+  schema =
+    Schema.object "UserAccount" $
+      UserAccount
+        <$> accountUser Schema..= userObjectSchema
+        <*> accountStatus Schema..= Schema.field "status" Schema.schema
 
 -------------------------------------------------------------------------------
 -- NewUserScimInvitation

@@ -68,7 +68,7 @@ testObject_ViewLegalHoldService_team_3 :: ViewLegalHoldService
 testObject_ViewLegalHoldService_team_3 =
   ViewLegalHoldService
     ( ViewLegalHoldServiceInfo
-        { viewLegalHoldServiceTeam = (Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000000000004"))),
+        { viewLegalHoldServiceTeam = Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000000000004")),
           viewLegalHoldServiceUrl =
             coerce
               URI
@@ -90,7 +90,7 @@ testObject_ViewLegalHoldService_team_3 =
               { fingerprintBytes =
                   "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
               },
-          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate (""))),
+          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate "")),
           viewLegalHoldServiceKey =
             ServiceKeyPEM
               { unServiceKeyPEM =
@@ -120,7 +120,7 @@ testObject_ViewLegalHoldService_team_8 :: ViewLegalHoldService
 testObject_ViewLegalHoldService_team_8 =
   ViewLegalHoldService
     ( ViewLegalHoldServiceInfo
-        { viewLegalHoldServiceTeam = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000300000000"))),
+        { viewLegalHoldServiceTeam = Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000300000000")),
           viewLegalHoldServiceUrl =
             coerce
               URI
@@ -142,7 +142,7 @@ testObject_ViewLegalHoldService_team_8 =
               { fingerprintBytes =
                   "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
               },
-          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate ("aLE="))),
+          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate "aLE=")),
           viewLegalHoldServiceKey =
             ServiceKeyPEM
               { unServiceKeyPEM =
@@ -169,7 +169,7 @@ testObject_ViewLegalHoldService_team_12 :: ViewLegalHoldService
 testObject_ViewLegalHoldService_team_12 =
   ViewLegalHoldService
     ( ViewLegalHoldServiceInfo
-        { viewLegalHoldServiceTeam = (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000200000001"))),
+        { viewLegalHoldServiceTeam = Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000200000001")),
           viewLegalHoldServiceUrl =
             coerce
               URI
@@ -191,7 +191,7 @@ testObject_ViewLegalHoldService_team_12 =
               { fingerprintBytes =
                   "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
               },
-          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate ("L5xw"))),
+          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate "L5xw")),
           viewLegalHoldServiceKey =
             ServiceKeyPEM
               { unServiceKeyPEM =
@@ -209,7 +209,7 @@ testObject_ViewLegalHoldService_team_13 :: ViewLegalHoldService
 testObject_ViewLegalHoldService_team_13 =
   ViewLegalHoldService
     ( ViewLegalHoldServiceInfo
-        { viewLegalHoldServiceTeam = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000001"))),
+        { viewLegalHoldServiceTeam = Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000100000001")),
           viewLegalHoldServiceUrl =
             coerce
               URI
@@ -231,7 +231,7 @@ testObject_ViewLegalHoldService_team_13 =
               { fingerprintBytes =
                   "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
               },
-          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate ("B-k="))),
+          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate "B-k=")),
           viewLegalHoldServiceKey =
             ServiceKeyPEM
               { unServiceKeyPEM =
@@ -249,7 +249,7 @@ testObject_ViewLegalHoldService_team_14 :: ViewLegalHoldService
 testObject_ViewLegalHoldService_team_14 =
   ViewLegalHoldService
     ( ViewLegalHoldServiceInfo
-        { viewLegalHoldServiceTeam = (Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000000000000"))),
+        { viewLegalHoldServiceTeam = Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000000000000")),
           viewLegalHoldServiceUrl =
             coerce
               URI
@@ -271,7 +271,7 @@ testObject_ViewLegalHoldService_team_14 =
               { fingerprintBytes =
                   "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
               },
-          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate ("SjY8Ng=="))),
+          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate "SjY8Ng==")),
           viewLegalHoldServiceKey =
             ServiceKeyPEM
               { unServiceKeyPEM =
@@ -292,7 +292,7 @@ testObject_ViewLegalHoldService_team_16 :: ViewLegalHoldService
 testObject_ViewLegalHoldService_team_16 =
   ViewLegalHoldService
     ( ViewLegalHoldServiceInfo
-        { viewLegalHoldServiceTeam = (Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000100000003"))),
+        { viewLegalHoldServiceTeam = Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000100000003")),
           viewLegalHoldServiceUrl =
             coerce
               URI
@@ -314,7 +314,7 @@ testObject_ViewLegalHoldService_team_16 =
               { fingerprintBytes =
                   "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
               },
-          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate ("8A=="))),
+          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate "8A==")),
           viewLegalHoldServiceKey =
             ServiceKeyPEM
               { unServiceKeyPEM =
@@ -332,7 +332,7 @@ testObject_ViewLegalHoldService_team_17 :: ViewLegalHoldService
 testObject_ViewLegalHoldService_team_17 =
   ViewLegalHoldService
     ( ViewLegalHoldServiceInfo
-        { viewLegalHoldServiceTeam = (Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000200000004"))),
+        { viewLegalHoldServiceTeam = Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000200000004")),
           viewLegalHoldServiceUrl =
             coerce
               URI
@@ -354,7 +354,7 @@ testObject_ViewLegalHoldService_team_17 =
               { fingerprintBytes =
                   "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
               },
-          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate ("MdCZQA=="))),
+          viewLegalHoldServiceAuthToken = ServiceToken (fromRight undefined (validate "MdCZQA==")),
           viewLegalHoldServiceKey =
             ServiceKeyPEM
               { unServiceKeyPEM =

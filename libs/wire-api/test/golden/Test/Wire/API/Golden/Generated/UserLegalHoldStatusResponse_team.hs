@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -35,7 +33,7 @@ testObject_UserLegalHoldStatusResponse_team_1 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_1 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
-      ulhsrLastPrekey = Just (lastPrekey ("\39669\&9\ENQ\1016886\11258\\3\62960x\25215")),
+      ulhsrLastPrekey = Just (lastPrekey "\39669\&9\ENQ\1016886\11258\\3\62960x\25215"),
       ulhsrClientId = Just (ClientId {client = "97"})
     }
 
@@ -43,7 +41,7 @@ testObject_UserLegalHoldStatusResponse_team_2 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_2 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
-      ulhsrLastPrekey = Just (lastPrekey ("\111141L,")),
+      ulhsrLastPrekey = Just (lastPrekey "\111141L,"),
       ulhsrClientId = Just (ClientId {client = "46"})
     }
 
@@ -51,7 +49,7 @@ testObject_UserLegalHoldStatusResponse_team_3 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_3 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
-      ulhsrLastPrekey = Just (lastPrekey ("W\1042917z\1923\GS")),
+      ulhsrLastPrekey = Just (lastPrekey "W\1042917z\1923\GS"),
       ulhsrClientId = Just (ClientId {client = "6d"})
     }
 
@@ -63,7 +61,7 @@ testObject_UserLegalHoldStatusResponse_team_5 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_5 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
-      ulhsrLastPrekey = Just (lastPrekey ("?\tvSq")),
+      ulhsrLastPrekey = Just (lastPrekey "?\tvSq"),
       ulhsrClientId = Just (ClientId {client = "12"})
     }
 
@@ -79,7 +77,7 @@ testObject_UserLegalHoldStatusResponse_team_7 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_7 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
-      ulhsrLastPrekey = Just (lastPrekey ("")),
+      ulhsrLastPrekey = Just (lastPrekey ""),
       ulhsrClientId = Just (ClientId {client = "63"})
     }
 
@@ -107,7 +105,7 @@ testObject_UserLegalHoldStatusResponse_team_11 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_11 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
-      ulhsrLastPrekey = Just (lastPrekey ("")),
+      ulhsrLastPrekey = Just (lastPrekey ""),
       ulhsrClientId = Nothing
     }
 
@@ -119,7 +117,7 @@ testObject_UserLegalHoldStatusResponse_team_13 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_13 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldPending,
-      ulhsrLastPrekey = Just (lastPrekey ("=~\CAN\15127jSe\STX")),
+      ulhsrLastPrekey = Just (lastPrekey "=~\CAN\15127jSe\STX"),
       ulhsrClientId = Nothing
     }
 
@@ -127,7 +125,7 @@ testObject_UserLegalHoldStatusResponse_team_14 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_14 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
-      ulhsrLastPrekey = Just (lastPrekey ("jO\167324\rT\1028195")),
+      ulhsrLastPrekey = Just (lastPrekey "jO\167324\rT\1028195"),
       ulhsrClientId = Nothing
     }
 
@@ -135,7 +133,7 @@ testObject_UserLegalHoldStatusResponse_team_15 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_15 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
-      ulhsrLastPrekey = Just (lastPrekey ("\DLE{\STX")),
+      ulhsrLastPrekey = Just (lastPrekey "\DLE{\STX"),
       ulhsrClientId = Nothing
     }
 
@@ -143,7 +141,7 @@ testObject_UserLegalHoldStatusResponse_team_16 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_16 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
-      ulhsrLastPrekey = Just (lastPrekey ("}\65064LE\179801E")),
+      ulhsrLastPrekey = Just (lastPrekey "}\65064LE\179801E"),
       ulhsrClientId = Nothing
     }
 
@@ -151,7 +149,7 @@ testObject_UserLegalHoldStatusResponse_team_17 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_17 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldDisabled,
-      ulhsrLastPrekey = Just (lastPrekey ("\NAK \GS\1080662\&9,'<\a\8244")),
+      ulhsrLastPrekey = Just (lastPrekey "\NAK \GS\1080662\&9,'<\a\8244"),
       ulhsrClientId = Just (ClientId {client = "7a"})
     }
 
@@ -159,7 +157,7 @@ testObject_UserLegalHoldStatusResponse_team_18 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_18 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldPending,
-      ulhsrLastPrekey = Just (lastPrekey ("Z")),
+      ulhsrLastPrekey = Just (lastPrekey "Z"),
       ulhsrClientId = Just (ClientId {client = "ba"})
     }
 
@@ -167,7 +165,7 @@ testObject_UserLegalHoldStatusResponse_team_19 :: UserLegalHoldStatusResponse
 testObject_UserLegalHoldStatusResponse_team_19 =
   UserLegalHoldStatusResponse
     { ulhsrStatus = UserLegalHoldEnabled,
-      ulhsrLastPrekey = Just (lastPrekey ("")),
+      ulhsrLastPrekey = Just (lastPrekey ""),
       ulhsrClientId = Just (ClientId {client = "88"})
     }
 

@@ -191,6 +191,7 @@ type ConversationAPI =
            "get-unqualified-conversation-legalhold-alias"
            -- This alias exists, so that it can be uniquely selected in zauth.acl
            ( Summary "Get a conversation by ID (Legalhold alias)"
+               :> Until 'V2
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> ZLocalUser
@@ -1405,7 +1406,7 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
-               :> From 'V2
+               :> From 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
