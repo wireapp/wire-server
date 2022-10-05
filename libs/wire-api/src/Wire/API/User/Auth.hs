@@ -46,6 +46,7 @@ module Wire.API.User.Auth
     TokenType (..),
 
     -- * Access
+    Access (..),
     SomeAccess (..),
   )
 where
