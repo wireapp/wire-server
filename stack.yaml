@@ -151,6 +151,11 @@ extra-deps:
 - git: https://gitlab.com/axeman/cql-io
   commit: c2b6aa995b5817ed7c78c53f72d5aa586ef87c36
 
+- git: https://github.com/wireapp/tasty
+  commit: 394943c7672e5ad269e5587528b7678caf3b0720
+  subdirs:
+  - hunit
+
 ############################################################
 # Wire packages
 ############################################################
