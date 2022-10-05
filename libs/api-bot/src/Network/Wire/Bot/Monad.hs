@@ -691,7 +691,7 @@ mkBot :: BotTag -> User -> PlainTextPassword -> BotNet Bot
 mkBot tag user pw = do
   log Info $ botLogFields (userId user) tag . msg (val "Login")
   let ident = fromMaybe (error "No email") (userEmail user)
-  let cred = PasswordLogin (LoginByEmail ident) pw Nothing Nothing
+  let cred = PasswordLogin (PasswordLoginData (LoginByEmail ident) pw Nothing Nothing)
   auth <- login cred >>= maybe (throwM LoginFailed) pure
   aref <- nextAuthRefresh auth
   env <- BotNet ask

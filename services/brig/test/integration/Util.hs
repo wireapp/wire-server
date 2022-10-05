@@ -71,6 +71,7 @@ import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import qualified Data.ZAuth.Token as ZAuth
 import qualified Federator.MockServer as Mock
 import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
@@ -515,7 +516,7 @@ legalHoldLogin b l t =
 decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
-decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.AccessToken
+decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
 decodeToken = decodeToken'
 
 decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe LByteString) -> ZAuth.Token a
@@ -905,7 +906,7 @@ defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
 emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login
-emailLogin e pw cl = PasswordLogin (LoginByEmail e) pw cl Nothing
+emailLogin e pw cl = PasswordLogin (PasswordLoginData (LoginByEmail e) pw cl Nothing)
 
 somePrekeys :: [Prekey]
 somePrekeys =

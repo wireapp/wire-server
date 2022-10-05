@@ -335,7 +335,7 @@ testPhoneLogin brig = do
   case code of
     Nothing -> liftIO $ assertFailure "missing login code"
     Just c ->
-      login brig (SmsLogin p c Nothing) PersistentCookie
+      login brig (SmsLogin (SmsLoginData p c Nothing)) PersistentCookie
         !!! const 200 === statusCode
 
 testHandleLogin :: Brig -> Http ()
@@ -345,7 +345,7 @@ testHandleLogin brig = do
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
     !!! const 200 === statusCode
-  let l = PasswordLogin (LoginByHandle (Handle hdl)) defPassword Nothing Nothing
+  let l = PasswordLogin (PasswordLoginData (LoginByHandle (Handle hdl)) defPassword Nothing Nothing)
   login brig l PersistentCookie !!! const 200 === statusCode
 
 -- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
@@ -398,7 +398,13 @@ testLoginVerify6DigitEmailCodeSuccess brig galley db = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   key <- Code.mkKey (Code.ForEmail email)
   Just vcode <- Util.lookupCode db key Code.AccountLogin
-  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
+  checkLoginSucceeds $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just $ Code.codeValue vcode)
 
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: Brig -> Galley -> Opts.Opts -> DB.ClientState -> Http ()
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
@@ -426,8 +432,20 @@ testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
   void $ retryWhileN 10 ((==) 429 . statusCode) $ Util.generateVerificationCode' brig (Public.SendVerificationCode Public.Login email)
   mostRecentCode <- getCodeFromDb
 
-  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue fstCode)
-  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue mostRecentCode)
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just $ Code.codeValue fstCode)
+  checkLoginSucceeds $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just $ Code.codeValue mostRecentCode)
 
 -- @SF.Channel @TSFI.RESTfulAPI @S2
 --
@@ -445,7 +463,13 @@ testLoginVerify6DigitWrongCodeFails brig galley = do
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
-  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just wrongCode)
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just wrongCode)
 
 -- @END
 
@@ -464,7 +488,13 @@ testLoginVerify6DigitMissingCodeFails brig galley = do
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) Nothing
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        Nothing
 
 -- @END
 
@@ -487,7 +517,13 @@ testLoginVerify6DigitExpiredCodeFails brig galley db = do
   Just vcode <- Util.lookupCode db key Code.AccountLogin
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
   threadDelay $ (5 * 1000000) + 600000
-  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just $ Code.codeValue vcode)
 
 -- @END
 
@@ -500,11 +536,19 @@ testLoginFailure brig = do
   Just email <- userEmail <$> randomUser brig
   -- login with wrong password
   let badpw = PlainTextPassword "wrongpassword"
-  login brig (PasswordLogin (LoginByEmail email) badpw Nothing Nothing) PersistentCookie
+  login
+    brig
+    (PasswordLogin (PasswordLoginData (LoginByEmail email) badpw Nothing Nothing))
+    PersistentCookie
     !!! const 403 === statusCode
   -- login with wrong / non-existent email
   let badmail = Email "wrong" "wire.com"
-  login brig (PasswordLogin (LoginByEmail badmail) defPassword Nothing Nothing) PersistentCookie
+  login
+    brig
+    ( PasswordLogin
+        (PasswordLoginData (LoginByEmail badmail) defPassword Nothing Nothing)
+    )
+    PersistentCookie
     !!! const 403 === statusCode
 
 -- @END

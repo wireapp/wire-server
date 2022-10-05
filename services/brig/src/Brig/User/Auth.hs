@@ -140,7 +140,7 @@ login ::
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
-login (PasswordLogin li pw label code) typ = do
+login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
   uid <- wrapHttpClientE $ resolveLoginId li
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
@@ -161,7 +161,7 @@ login (PasswordLogin li pw label code) typ = do
           VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
-login (SmsLogin phone code label) typ = do
+login (SmsLogin (SmsLoginData phone code label)) typ = do
   uid <- wrapHttpClientE $ resolveLoginId (LoginByPhone phone)
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   wrapHttpClientE $ checkRetryLimit uid

@@ -22,6 +22,8 @@
 module Wire.API.User.Auth
   ( -- * Login
     Login (..),
+    PasswordLoginData (..),
+    SmsLoginData (..),
     loginLabel,
     LoginCode (..),
     LoginId (..),
@@ -75,8 +77,7 @@ data LoginId
   | LoginByHandle Handle
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LoginId)
-
-$(makePrisms ''LoginId)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema LoginId
 
 -- NB. this should fail if (e.g.) the email is present but unparseable even if the JSON contains a valid phone number or handle.
 -- See tests in `Test.Wire.API.User.Auth`.
@@ -123,6 +124,7 @@ data PendingLoginCode = PendingLoginCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PendingLoginCode)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema PendingLoginCode
 
 instance ToSchema PendingLoginCode where
   schema =
@@ -142,6 +144,7 @@ data SendLoginCode = SendLoginCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SendLoginCode)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema SendLoginCode
 
 instance ToSchema SendLoginCode where
   schema =
@@ -172,6 +175,7 @@ newtype LoginCodeTimeout = LoginCodeTimeout
   {fromLoginCodeTimeout :: Code.Timeout}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema LoginCodeTimeout
 
 instance ToSchema LoginCodeTimeout where
   schema =
@@ -193,6 +197,7 @@ data CookieList = CookieList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CookieList)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CookieList
 
 instance ToSchema CookieList where
   schema =
@@ -226,7 +231,13 @@ instance ToSchema (Cookie ()) where
         <*> cookieExpires .= field "expires" utcTimeSchema
         <*> cookieLabel .= optField "label" (maybeWithDefault A.Null schema)
         <*> cookieSucc .= optField "successor" (maybeWithDefault A.Null schema)
-        <*> cookieValue .= empty
+        <*> cookieValue .= pure ()
+
+deriving via Schema (Cookie ()) instance FromJSON (Cookie ())
+
+deriving via Schema (Cookie ()) instance ToJSON (Cookie ())
+
+deriving via Schema (Cookie ()) instance S.ToSchema (Cookie ())
 
 -- | A device-specific identifying label for one or more cookies.
 -- Cookies can be listed and deleted based on their labels.
@@ -262,6 +273,7 @@ data CookieType
     PersistentCookie
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CookieType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CookieType
 
 instance ToSchema CookieType where
   schema =
@@ -293,8 +305,8 @@ passwordLoginSchema =
   PasswordLoginData
     <$> plId .= loginObjectSchema
     <*> plPassword .= field "password" schema
-    <*> plLabel .= maybe_ (optField "label" schema)
-    <*> plCode .= maybe_ (optField "verification_code" schema)
+    <*> plLabel .= optField "label" (maybeWithDefault A.Null schema)
+    <*> plCode .= optField "verification_code" (maybeWithDefault A.Null schema)
 
 data SmsLoginData = SmsLoginData
   { slPhone :: Phone,
@@ -309,7 +321,7 @@ smsLoginSchema =
   SmsLoginData
     <$> slPhone .= field "phone" schema
     <*> slCode .= field "code" schema
-    <*> slLabel .= maybe_ (optField "label" schema)
+    <*> slLabel .= optField "label" (maybeWithDefault A.Null schema)
 
 $(makePrisms ''Login)
 
@@ -318,6 +330,12 @@ instance ToSchema Login where
     object "Login" $
       tag _PasswordLogin passwordLoginSchema
         <> tag _SmsLogin smsLoginSchema
+
+deriving via Schema Login instance FromJSON Login
+
+deriving via Schema Login instance ToJSON Login
+
+deriving via Schema Login instance S.ToSchema Login
 
 loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin pl) = plLabel pl
@@ -333,6 +351,7 @@ data RemoveCookies = RemoveCookies
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoveCookies)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema RemoveCookies
 
 instance ToSchema RemoveCookies where
   schema =
@@ -374,6 +393,7 @@ data AccessToken = AccessToken
     expiresIn :: Integer
   }
   deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema AccessToken
 
 instance ToSchema AccessToken where
   schema =
@@ -410,6 +430,7 @@ instance Arbitrary AccessToken where
 data TokenType = Bearer
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TokenType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema TokenType
 
 instance ToSchema TokenType where
   schema = enum @Text "TokenType" $ element "Bearer" Bearer

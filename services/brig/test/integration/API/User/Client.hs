@@ -136,7 +136,9 @@ testAddGetClientVerificationCode db brig galley = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
-  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+  checkLoginSucceeds $
+    PasswordLogin $
+      PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
   c <- addClient' codeValue
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
@@ -197,7 +199,9 @@ testAddGetClientCodeExpired db brig galley = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
-  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+  checkLoginSucceeds $
+    PasswordLogin $
+      PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
   threadDelay $ (5 * 1000000) + 600000
   addClient' codeValue !!! do
