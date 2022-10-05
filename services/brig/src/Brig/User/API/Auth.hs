@@ -39,7 +39,6 @@ import Control.Monad.Except
 import Control.Monad.Trans.Except (throwE)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
-import Data.Either.Combinators (leftToMaybe, rightToMaybe)
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
@@ -308,13 +307,13 @@ legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
-logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
+logoutH :: JSON ::: Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser))) ::: Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess)) -> (Handler r) Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at
 
 -- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
 logout ::
-  Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
-  Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+  Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser))) ->
+  Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess)) ->
   (Handler r) ()
 logout Nothing Nothing = throwStd authMissingCookieAndToken
 logout Nothing (Just _) = throwStd authMissingCookie
@@ -328,8 +327,8 @@ changeSelfEmailH ::
   Member BlacklistStore r =>
   JSON
     ::: JsonRequest Public.EmailUpdate
-    ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))
-    ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+    ::: Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser)))
+    ::: Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess)) ->
   (Handler r) Response
 changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
   usr <- validateCredentials ckies toks
@@ -338,10 +337,6 @@ changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
     ChangeEmailResponseIdempotent -> pure (WaiResp.setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (WaiResp.setStatus status202 empty)
   where
-    validateCredentials ::
-      Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
-      Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
-      (Handler r) UserId
     validateCredentials = \case
       Nothing ->
         const $ throwStd authMissingCookie
@@ -371,35 +366,35 @@ rmCookies :: UserId -> Public.RemoveCookies -> (Handler r) ()
 rmCookies uid (Public.RemoveCookies pw lls ids) =
   wrapClientE (Auth.revokeAccess uid pw ids lls) !>> authError
 
-_renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
-_renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
+-- _renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
+-- _renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
 
 -- | renew access for either:
 -- * a user with user token and optional access token, or
 -- * a legalhold user with legalhold user token and optional legalhold access token.
 --
 -- Other combinations of provided inputs will cause an error to be raised.
-renew ::
-  Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
-  Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
-  (Handler r) (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
-renew = \case
-  Nothing ->
-    const $ throwStd authMissingCookie
-  (Just (Left userTokens)) ->
-    -- normal UserToken, so we want a normal AccessToken
-    fmap Left . wrapHttpClientE . renewAccess userTokens <=< matchingOrNone leftToMaybe
-  (Just (Right legalholdUserTokens)) ->
-    -- LegalholdUserToken, so we want a LegalholdAccessToken
-    fmap Right . wrapHttpClientE . renewAccess legalholdUserTokens <=< matchingOrNone rightToMaybe
-  where
-    renewAccess uts mat =
-      Auth.renewAccess uts mat !>> zauthError
-    matchingOrNone :: (a -> Maybe b) -> Maybe a -> (Handler r) (Maybe b)
-    matchingOrNone matching = traverse $ \accessToken ->
-      case matching accessToken of
-        Just m -> pure m
-        Nothing -> throwStd authTokenMismatch
+-- renew ::
+--   Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
+--   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+--   (Handler r) (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
+-- renew = \case
+--   Nothing ->
+--     const $ throwStd authMissingCookie
+--   (Just (Left userTokens)) ->
+--     -- normal UserToken, so we want a normal AccessToken
+--     fmap Left . wrapHttpClientE . renewAccess userTokens <=< matchingOrNone leftToMaybe
+--   (Just (Right legalholdUserTokens)) ->
+--     -- LegalholdUserToken, so we want a LegalholdAccessToken
+--     fmap Right . wrapHttpClientE . renewAccess legalholdUserTokens <=< matchingOrNone rightToMaybe
+--   where
+--     renewAccess uts mat =
+--       Auth.renewAccess uts mat !>> zauthError
+--     matchingOrNone :: (a -> Maybe b) -> Maybe a -> (Handler r) (Maybe b)
+--     matchingOrNone matching = traverse $ \accessToken ->
+--       case matching accessToken of
+--         Just m -> pure m
+--         Nothing -> throwStd authTokenMismatch
 
 -- Utilities
 --
@@ -411,8 +406,8 @@ tokenRequest ::
   Predicate
     r
     P.Error
-    ( Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))
-        ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken)
+    ( Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser)))
+        ::: Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess))
     )
 tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| legalHoldAccessToken)
   where

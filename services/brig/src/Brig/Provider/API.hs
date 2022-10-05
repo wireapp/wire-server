@@ -77,6 +77,7 @@ import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
+import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -440,7 +441,7 @@ loginH req = do
   tok <- login =<< parseJsonBody req
   setProviderCookie tok empty
 
-login :: Public.ProviderLogin -> (Handler r) ZAuth.ProviderToken
+login :: Public.ProviderLogin -> Handler r (ZAuth.Token ZAuth.Provider)
 login l = do
   pid <- wrapClientE (DB.lookupKey (mkEmailKey (providerLoginEmail l))) >>= maybeBadCredentials
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
@@ -1169,7 +1170,7 @@ mkBotUserView u =
       Ext.botUserViewTeam = userTeam u
     }
 
-setProviderCookie :: ZAuth.ProviderToken -> Response -> (Handler r) Response
+setProviderCookie :: ZAuth.Token ZAuth.Provider -> Response -> (Handler r) Response
 setProviderCookie t r = do
   s <- view settings
   let hdr = toByteString' (Cookie.renderSetCookie (cookie s))
