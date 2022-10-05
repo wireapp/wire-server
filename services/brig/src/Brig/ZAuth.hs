@@ -350,7 +350,7 @@ newLegalHoldUserToken u = liftZAuth $ do
       let LegalHoldUserTokenTimeout ttl = z ^. settings . legalHoldUserTokenTimeout
        in ZC.legalHoldUserToken ttl (toUUID u) r
 
-newLegalHoldAccessToken :: MonadZAuth m => (Token LegalHoldUser) -> m (Token LegalHoldAccess)
+newLegalHoldAccessToken :: MonadZAuth m => Token LegalHoldUser -> m (Token LegalHoldAccess)
 newLegalHoldAccessToken xt = liftZAuth $ do
   z <- ask
   liftIO $
