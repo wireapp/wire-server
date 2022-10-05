@@ -11,14 +11,14 @@ The removal key is configured at path
 For example:
 
 ```yaml
-# values.yaml
+# values.yaml or secrets.yaml
 galley:
   secrets:
     mlsPrivateKeys:
       removal:
         ed25519: |
           -----BEGIN PRIVATE KEY-----
-          MC4CAQAwBQYDK2VwBCIEIAocCDXsKIAjb65gOUn5vEF0RIKnVJkKR4ebQzuZ709c
+          MC4CAQA....Z709c
           -----END PRIVATE KEY-----
 ```
 
