@@ -62,6 +62,7 @@ import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
+import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
@@ -1145,26 +1146,26 @@ type SearchAPI =
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 
 data SomeUserToken
-  = UserToken (ZAuth.Token ZAuth.User)
+  = PlainUserToken (ZAuth.Token ZAuth.User)
   | LHUserToken (ZAuth.Token ZAuth.LegalHoldUser)
   deriving (Show)
 
 instance FromHttpApiData SomeUserToken where
   parseHeader h =
     first T.pack $
-      fmap UserToken (runParser parser h)
+      fmap PlainUserToken (runParser parser h)
         <|> fmap LHUserToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
 data SomeAccessToken
-  = AccessToken (ZAuth.Token ZAuth.Access)
+  = PlainAccessToken (ZAuth.Token ZAuth.Access)
   | LHAccessToken (ZAuth.Token ZAuth.LegalHoldAccess)
   deriving (Show)
 
 instance FromHttpApiData SomeAccessToken where
   parseHeader h =
     first T.pack $
-      fmap AccessToken (runParser parser h)
+      fmap PlainAccessToken (runParser parser h)
         <|> fmap LHAccessToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
@@ -1180,7 +1181,14 @@ type AuthAPI =
              \ header, with the latter being preferred."
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
-        :> MultiVerb1 'POST '[JSON] (Respond 201 "TODO" Text)
+        :> MultiVerb1
+             'POST
+             '[JSON]
+             ( WithHeaders
+                 '[Header "Set-Cookie" SomeCookie]
+                 SomeAccess
+                 (Respond 201 "TODO" AccessToken)
+             )
     )
 
 type BrigAPI =

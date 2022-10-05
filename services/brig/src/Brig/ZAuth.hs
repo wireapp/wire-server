@@ -247,6 +247,7 @@ instance AccessTokenLike LegalHoldAccess where
 
 class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
   userTokenOf :: Token u -> UserId
+  mkSomeAccess :: Token u -> Maybe (Cookie (Token u)) -> SomeAccess
   mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m (Token u)
   userTokenRand :: Token u -> Word32
   newUserToken :: MonadZAuth m => UserId -> m (Token u)

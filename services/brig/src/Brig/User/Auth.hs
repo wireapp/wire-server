@@ -82,11 +82,6 @@ import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Auth
 
-data Access u = Access
-  { accessToken :: !AccessToken,
-    accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
-  }
-
 sendLoginCode ::
   ( MonadClient m,
     MonadReader Env m,

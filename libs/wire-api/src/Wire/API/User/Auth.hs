@@ -36,6 +36,7 @@ module Wire.API.User.Auth
     CookieId (..),
     CookieType (..),
     Cookie (..),
+    SomeCookie (..),
     CookieLabel (..),
     RemoveCookies (..),
 
@@ -43,6 +44,9 @@ module Wire.API.User.Auth
     AccessToken (..),
     bearerToken,
     TokenType (..),
+
+    -- * Access
+    SomeAccess (..),
   )
 where
 
@@ -64,6 +68,7 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy.Encoding as LT
 import Data.Time.Clock (UTCTime)
 import Data.Tuple.Extra
+import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Wire.API.User.Identity (Email, Phone)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -238,6 +243,13 @@ deriving via Schema (Cookie ()) instance FromJSON (Cookie ())
 deriving via Schema (Cookie ()) instance ToJSON (Cookie ())
 
 deriving via Schema (Cookie ()) instance S.ToSchema (Cookie ())
+
+data SomeCookie
+  = PlainCookie (Cookie (ZAuth.Token ZAuth.User))
+  | LHCookie (Cookie (ZAuth.Token ZAuth.LegalHoldUser))
+
+instance S.ToParamSchema SomeCookie where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
 
 -- | A device-specific identifying label for one or more cookies.
 -- Cookies can be listed and deleted based on their labels.
@@ -434,3 +446,15 @@ data TokenType = Bearer
 
 instance ToSchema TokenType where
   schema = enum @Text "TokenType" $ element "Bearer" Bearer
+
+--------------------------------------------------------------------------------
+-- Access
+
+data Access u = Access
+  { accessToken :: !AccessToken,
+    accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
+  }
+
+data SomeAccess
+  = PlainAccess (Access ZAuth.User)
+  | LHAccess (Access ZAuth.LegalHoldUser)
