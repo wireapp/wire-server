@@ -204,7 +204,7 @@ extra-deps:
 - QuickCheck-2.14.2
 - splitmix-0.1.0.4 # needed for QuickCheck
 - servant-mock-0.8.7
-- servant-swagger-ui-0.3.5.3.52.5
+- servant-swagger-ui-0.3.5.4.5.0
 - tls-1.5.5
 - cryptonite-0.29
 
