@@ -46,7 +46,7 @@ let lib = pkgs.lib;
       inherit lib;
     };
 
-    localPackages = {enableOptimization, enableDocs}: hsuper: hself:
+    localPackages = {enableOptimization, enableDocs, enableTests}: hsuper: hself:
       # The default packages are expected to have optimizations and docs turned
       # on.
       let defaultPkgs = import ./local-haskell-packages.nix {
@@ -63,6 +63,10 @@ let lib = pkgs.lib;
               # We need to explicitly add `-O0` because all the cabal files
               # explicitly have `-O2` in them
               hlib.appendConfigureFlag (hlib.disableOptimization drv) "--ghc-option=-O0";
+          tests = _: drv:
+            if enableTests
+            then drv
+            else hlib.dontCheck drv;
           docs = _: drv: if enableDocs
                          then drv
                          else hlib.dontHaddock drv;
@@ -73,6 +77,7 @@ let lib = pkgs.lib;
         werror
         opt
         docs
+        tests
         # triggerRebuild
       ];
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
@@ -87,7 +92,7 @@ let lib = pkgs.lib;
         attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables hsuper."${name}")
       ) executablesMap;
 
-    hPkgs = localMods@{enableOptimization, enableDocs}: pkgs.haskell.packages.ghc8107.override{
+    hPkgs = localMods@{enableOptimization, enableDocs, enableTests}: pkgs.haskell.packages.ghc8107.override{
       overrides = lib.composeManyExtensions [
         pinnedPackages
         (localPackages localMods)
@@ -97,7 +102,7 @@ let lib = pkgs.lib;
       ];
     };
 
-    extractExec = localMods@{enableOptimization, enableDocs}: hPkgName: execName:
+    extractExec = localMods@{enableOptimization, enableDocs, enableTests}: hPkgName: execName:
       pkgs.stdenv.mkDerivation {
         name = execName;
         buildInputs = [(hPkgs localMods)."${hPkgName}-static"];
@@ -108,7 +113,7 @@ let lib = pkgs.lib;
           '';
       };
 
-    staticExecs = localMods@{enableOptimization, enableDocs}:
+    staticExecs = localMods@{enableOptimization, enableDocs, enableTests}:
       let nested = attrsets.mapAttrs (hPkgName: execNames:
             attrsets.genAttrs execNames (extractExec localMods hPkgName)
           ) executablesMap;
@@ -135,7 +140,7 @@ let lib = pkgs.lib;
       galley-integration= [pkgs.mls-test-cli];
     };
 
-    images = localMods@{enableOptimization, enableDocs}:
+    images = localMods@{enableOptimization, enableDocs, enableTests}:
       attrsets.mapAttrs (execName: drv:
         pkgs.dockerTools.buildLayeredImage {
           name = "quay.io/wire/${execName}";
@@ -162,14 +167,17 @@ let lib = pkgs.lib;
     localModsEnableAll = {
       enableOptimization = true;
       enableDocs = true;
+      enableTests = true;
     };
-    localModsDisableAll = {
+    localModsOnlyTests = {
       enableOptimization = false;
       enableDocs = false;
+      enableTests = true;
     };
     localModsOnlyDocs = {
       enableOptimization = false;
       enableDocs = true;
+      enableTests = false;
     };
     imagesList = pkgs.writeTextFile {
       name = "imagesList";
@@ -222,14 +230,14 @@ in {
   inherit ciImage hoogleImage;
 
   images = images localModsEnableAll;
-  imagesUnoptimizedNoDocs = images localModsDisableAll;
+  imagesUnoptimizedNoDocs = images localModsOnlyTests;
   imagesNoDocs = images {
     enableOptimzation = true;
     enableDocs = false;
   };
   imagesList = imagesList;
 
-  devShell = (hPkgs localModsDisableAll).shellFor {
+  devShell = (hPkgs localModsOnlyTests).shellFor {
     packages = p: builtins.map (e: p.${e}) wireServerPackages;
     buildInputs = commonTools ++ [
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
@@ -255,5 +263,5 @@ in {
   };
   inherit brig-templates;
   haskellPackages = hPkgs localModsEnableAll;
-  haskellPackagesUnoptimizedNoDocs = hPkgs localModsDisableAll;
+  haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
 } // attrsets.genAttrs (wireServerPackages) (e: hPkgs.${e})
