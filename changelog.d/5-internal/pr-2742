@@ -1,1 +1,1 @@
-Add swagger2-ui to stern (#2742 ...)
+Migrate stern to swagger2-ui (remaining backwards compatible with circulating backoffice images) (see also #2742 from last release) (#2744)
