@@ -733,6 +733,10 @@ testUnregisterClient = do
 
 -----------------------------------------------------------------------------
 -- Native push token registration
+-- This expects the following SNS Platform applications to be present in AWS:
+
+-- ${env}-test (FCM), ${env}-test (APNS_SANDBOX), ${env}-com.wire.ent (APNS_SANDBOX),
+-- with ${env} normally being integration.
 
 testRegisterPushToken :: TestM ()
 testRegisterPushToken = do
