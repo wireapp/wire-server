@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -34,40 +34,29 @@ import Data.Aeson hiding (Error, json)
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (emptyArray)
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy (fromStrict)
 import Data.Handle (Handle)
 import Data.Id
-import Data.Predicate
 import Data.Proxy (Proxy (..))
 import Data.Range
 import qualified Data.Schema as S
 import Data.String.Conversions (cs)
-import Data.Swagger.Build.Api hiding (Response, def, min, response)
-import qualified Data.Swagger.Build.Api as Doc
 import Data.Text (unpack)
 import qualified Data.Text as T
-import Data.Text.Encoding (decodeLatin1)
 import GHC.TypeLits (KnownSymbol)
 import qualified Galley.Types.Teams.Intra as Team
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
-import qualified Network.Wai.Middleware.Gzip as GZip
-import Network.Wai.Predicate hiding (Error, reason, setStatus)
-import Network.Wai.Routing hiding (trace)
 import Network.Wai.Utilities
 import qualified Network.Wai.Utilities.Server as Server
-import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Servant (NoContent (NoContent), ServerT, (:<|>) (..), (:>))
+import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
 import qualified Servant
 import qualified Servant.Server
-import Stern.API.Predicates
 import Stern.API.Routes
 import qualified Stern.API.RoutesLegacy as RoutesLegacy
 import Stern.App
 import qualified Stern.Intra as Intra
 import Stern.Options
-import qualified Stern.Swagger as Doc
 import Stern.Types
 import System.Logger.Class hiding (Error, name, trace, (.=))
 import Util.Options
@@ -76,12 +65,9 @@ import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature hiding (setStatus)
-import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility
-import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User
 import Wire.API.User.Search
-import qualified Wire.Swagger as Doc
 
 default (ByteString)
 
