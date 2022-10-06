@@ -185,13 +185,15 @@ let lib = pkgs.lib;
     };
     wireServerPackages = (builtins.attrNames (localPackages localModsEnableAll {} {}));
 
-    ghcWithHoogle = (hPkgs localModsOnlyDocs).ghcWithHoogle (p: builtins.map (e: p.${e}) wireServerPackages);
+    hoogle = (hPkgs localModsOnlyDocs).hoogleWithPackages (p: builtins.map (e: p.${e}) wireServerPackages);
 
-    hoogleImage = pkgs.dockerTools.buildLayeredImage {
+    # More about dockerTools.streamLayeredImage:
+    # https://nixos.org/manual/nixpkgs/unstable/#ssec-pkgs-dockerTools-streamLayeredImage
+    hoogleImage = pkgs.dockerTools.streamLayeredImage {
       name = "quay.io/wire/wire-server-hoogle";
-      maxLayers = 10;
+      maxLayers = 50;
       contents = [
-        ghcWithHoogle
+        hoogle
         pkgs.coreutils
         pkgs.bashInteractive
       ];

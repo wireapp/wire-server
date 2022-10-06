@@ -57,4 +57,7 @@ hself: hsuper: {
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
+
+  # Make hoogle static to reduce size of the hoogle image
+  hoogle = hlib.justStaticExecutables hsuper.hoogle;
 }
