@@ -42,7 +42,7 @@ import qualified Bilge
 import Bilge.Assert
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
-import Control.Lens (at, ix, preview, view, (.~), (?~))
+import Control.Lens (at, ix, preview, view, (.~), (?~), (^.))
 import Control.Monad.Trans.Maybe
 import Data.Aeson hiding (json)
 import qualified Data.ByteString as BS
@@ -98,6 +98,7 @@ import Wire.API.Message
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Named
+import Wire.API.Team (teamCreator)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Teams
 import Wire.API.User
@@ -124,6 +125,8 @@ tests s =
       testGroup
         "Main Conversations API"
         [ test s "status" status,
+          test s "creating group without team doesn't create global team conv" getGlobalConvNotPresent,
+          test s "creating a team creates the global team conv" getGlobalConvPresent,
           test s "metrics" metrics,
           test s "create Proteus conversation" postProteusConvOk,
           test s "create conversation with remote users" postConvWithRemoteUsersOk,
@@ -2270,6 +2273,40 @@ getConvOk = do
   getConv alice conv !!! const 200 === statusCode
   getConv bob conv !!! const 200 === statusCode
   getConv chuck conv !!! const 200 === statusCode
+
+getGlobalConvNotPresent :: TestM ()
+getGlobalConvNotPresent = do
+  tid <- randomId
+  alice <- randomUser
+  bob <- randomUser
+  chuck <- randomUser
+  connectUsers alice (list1 bob [chuck])
+  _ <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+  getGlobalTeamConv tid !!! const 404 === statusCode
+
+-- Create global team conversation
+getGlobalConvPresent :: TestM ()
+getGlobalConvPresent = do
+  owner <- randomUser
+  tid <- createBindingTeamInternal "sample-team" owner
+  team <- getTeam owner tid
+  assertQueue "create team" tActivate
+  liftIO $ assertEqual "owner" owner (team ^. teamCreator)
+  assertQueueEmpty
+  let response = getGlobalTeamConv tid
+  response !!! const 200 === statusCode
+  Just rs <- responseBody <$> response
+  -- TODO: fix this when creator is  no longer hard-coded
+  let creator = newUserIdTemp "8a6e8a6e-8a6e-8a6e-8a6e-8a6e8a6e8a6e"
+      expected =
+        (defConversationMetadata creator)
+          { cnvmType = GlobalTeamConv,
+            cnvmAccess = [],
+            cnvmAccessRoles = Set.fromList [TeamMemberAccessRole],
+            cnvmTeam = Just tid
+          }
+  let cm = decode rs :: Maybe ConversationMetadata
+  liftIO $ assertEqual "conversation metadata" cm (Just expected)
 
 getConvQualifiedOk :: TestM ()
 getConvQualifiedOk = do

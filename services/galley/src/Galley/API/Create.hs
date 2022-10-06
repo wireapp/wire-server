@@ -199,7 +199,7 @@ createSelfConversation ::
   Local UserId ->
   Sem r ConversationResponse
 createSelfConversation lusr = do
-  let lcnv = fmap Data.selfConv lusr
+  let lcnv = Data.selfConv <$> lusr
   c <- E.getConversation (tUnqualified lcnv)
   maybe (create lcnv) (conversationExisted lusr) c
   where

@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE LambdaCase #-}
 
 module Galley.Cassandra.Team
   ( interpretTeamStoreToCassandra,
@@ -148,23 +149,23 @@ createTeam t uid (fromRange -> n) i k b = do
 
 listBillingTeamMembers :: TeamId -> Client [UserId]
 listBillingTeamMembers tid =
-  fmap runIdentity
-    <$> retry x1 (query Cql.listBillingTeamMembers (params LocalQuorum (Identity tid)))
+  runIdentity
+    <$$> retry x1 (query Cql.listBillingTeamMembers (params LocalQuorum (Identity tid)))
 
 getTeamName :: TeamId -> Client (Maybe Text)
 getTeamName tid =
-  fmap runIdentity
-    <$> retry x1 (query1 Cql.selectTeamName (params LocalQuorum (Identity tid)))
+  runIdentity
+    <$$> retry x1 (query1 Cql.selectTeamName (params LocalQuorum (Identity tid)))
 
 teamConversation :: TeamId -> ConvId -> Client (Maybe TeamConversation)
 teamConversation t c =
-  fmap (newTeamConversation . runIdentity)
-    <$> retry x1 (query1 Cql.selectTeamConv (params LocalQuorum (t, c)))
+  newTeamConversation . runIdentity
+    <$$> retry x1 (query1 Cql.selectTeamConv (params LocalQuorum (t, c)))
 
 getTeamConversations :: TeamId -> Client [TeamConversation]
 getTeamConversations t =
-  map (newTeamConversation . runIdentity)
-    <$> retry x1 (query Cql.selectTeamConvs (params LocalQuorum (Identity t)))
+  newTeamConversation . runIdentity
+    <$$> retry x1 (query Cql.selectTeamConvs (params LocalQuorum (Identity t)))
 
 teamIdsFrom :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Client (ResultSet TeamId)
 teamIdsFrom usr range (fromRange -> max) =
@@ -176,7 +177,7 @@ teamIdsFrom usr range (fromRange -> max) =
 
 teamIdsForPagination :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Client (Page TeamId)
 teamIdsForPagination usr range (fromRange -> max) =
-  fmap runIdentity <$> case range of
+  runIdentity <$$> case range of
     Just c -> paginate Cql.selectUserTeamsFrom (paramsP LocalQuorum (usr, c) max)
     Nothing -> paginate Cql.selectUserTeams (paramsP LocalQuorum (Identity usr) max)
 

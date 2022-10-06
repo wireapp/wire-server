@@ -37,6 +37,7 @@ module Galley.API.Query
   ( getBotConversationH,
     getUnqualifiedConversation,
     getConversation,
+    getGlobalTeamConversation,
     getConversationRoles,
     conversationIdsPageFromUnqualified,
     conversationIdsPageFrom,
@@ -147,6 +148,21 @@ getUnqualifiedConversation ::
 getUnqualifiedConversation lusr cnv = do
   c <- getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
+
+getGlobalTeamConversation ::
+  Members
+    '[ ConversationStore,
+       ErrorS 'ConvNotFound
+     ]
+    r =>
+  TeamId ->
+  Sem r Public.GlobalTeamConversation
+getGlobalTeamConversation tid = do
+  conv <- noteS @'ConvNotFound =<< E.getGlobalTeamConversation tid
+  pure $
+    Public.GlobalTeamConversation
+      (Data.convId conv)
+      (Data.convMetadata conv)
 
 getConversation ::
   forall r.

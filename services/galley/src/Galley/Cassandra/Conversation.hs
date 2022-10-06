@@ -191,6 +191,40 @@ getConversation conv = do
       <*> UnliftIO.wait cdata
   runMaybeT $ conversationGC =<< maybe mzero pure mbConv
 
+getGlobalTeamConversation :: TeamId -> Client (Maybe Conversation)
+getGlobalTeamConversation tid = do
+  conv' <- getConversation (globalTeamConv tid)
+  case conv' of
+    Nothing -> pure Nothing
+    Just conv ->
+      pure . Just $
+        conv
+          { convLocalMembers = [],
+            convRemoteMembers = []
+          }
+
+createGlobalTeamConversation :: Local TeamId -> Client Conversation
+createGlobalTeamConversation tid = do
+  -- TODO: elland finish this
+  createConversation (globalTeamConv <$> tid) nc
+  where
+    nc =
+      NewConversation
+        { ncMetadata =
+            ConversationMetadata
+              { cnvmType = GlobalTeamConv,
+                cnvmCreator = newUserIdTemp "8a6e8a6e-8a6e-8a6e-8a6e-8a6e8a6e8a6e", -- TODO: fix this
+                cnvmAccess = [LinkAccess],
+                cnvmAccessRoles = mempty,
+                cnvmName = Nothing,
+                cnvmTeam = Just (tUnqualified tid),
+                cnvmMessageTimer = Nothing,
+                cnvmReceiptMode = Nothing
+              },
+          ncUsers = UserList [] [],
+          ncProtocol = ProtocolMLSTag
+        }
+
 -- | "Garbage collect" a 'Conversation', i.e. if the conversation is
 -- marked as deleted, actually remove it from the database and return
 -- 'Nothing'.
@@ -315,6 +349,8 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateConversationId -> Id <$> embed nextRandom
   CreateConversation loc nc -> embedClient $ createConversation loc nc
   GetConversation cid -> embedClient $ getConversation cid
+  GetGlobalTeamConversation tid -> embedClient $ getGlobalTeamConversation tid
+  CreateGlobalTeamConversation tid -> embedClient $ createGlobalTeamConversation tid
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid

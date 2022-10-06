@@ -22,6 +22,7 @@
 -- modules.
 module Wire.API.Conversation
   ( -- * Conversation
+    GlobalTeamConversation (..),
     ConversationMetadata (..),
     defConversationMetadata,
     Conversation (..),
@@ -98,7 +99,7 @@ import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.Id
-import Data.List.Extra (disjointOrd)
+import Data.List.Extra (disjointOrd, enumerate)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
@@ -205,6 +206,26 @@ conversationMetadataObjectSchema =
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" conversationMetadataObjectSchema
+
+-- | Public-facing global team conversation.
+-- Membership is implicit. Every member of a team is part of it.
+-- Protocol is also implicit: it's always MLS.
+data GlobalTeamConversation = GlobalTeamConversation
+  { gtcId :: ConvId,
+    gtcMetadata :: ConversationMetadata
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GlobalTeamConversation)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GlobalTeamConversation
+
+instance ToSchema GlobalTeamConversation where
+  schema =
+    objectWithDocModifier
+      "GlobalTeamConversation"
+      (description ?~ "The global team conversation object as returned from the server")
+      $ GlobalTeamConversation
+        <$> gtcId .= field "id" schema
+        <*> gtcMetadata .= conversationMetadataObjectSchema
 
 -- | Public-facing conversation type. Represents information that a
 -- particular user is allowed to see.
@@ -491,6 +512,7 @@ defRole = activatedAccessRole
 
 maybeRole :: ConvType -> Maybe (Set AccessRoleV2) -> Set AccessRoleV2
 maybeRole SelfConv _ = privateAccessRole
+maybeRole GlobalTeamConv _ = teamAccessRole -- TODO(elland): verify this with team
 maybeRole ConnectConv _ = privateAccessRole
 maybeRole One2OneConv _ = privateAccessRole
 maybeRole RegularConv Nothing = defRole
@@ -573,7 +595,8 @@ data ConvType
   | SelfConv
   | One2OneConv
   | ConnectConv
-  deriving stock (Eq, Show, Generic)
+  | GlobalTeamConv
+  deriving stock (Eq, Show, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform ConvType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvType
 
@@ -584,11 +607,12 @@ instance ToSchema ConvType where
         [ element 0 RegularConv,
           element 1 SelfConv,
           element 2 One2OneConv,
-          element 3 ConnectConv
+          element 3 ConnectConv,
+          element 4 GlobalTeamConv
         ]
 
 typeConversationType :: Doc.DataType
-typeConversationType = Doc.int32 $ Doc.enum [0, 1, 2, 3]
+typeConversationType = Doc.int32 $ Doc.enum $ fromIntegral . fromEnum <$> enumerate @ConvType
 
 -- | Define whether receipts should be sent in the given conversation
 --   This datatype is defined as an int32 but the Backend does not

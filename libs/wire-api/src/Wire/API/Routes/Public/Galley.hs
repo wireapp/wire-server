@@ -211,6 +211,16 @@ type ConversationAPI =
                :> Get '[Servant.JSON] Conversation
            )
     :<|> Named
+           "get-global-team-conversation"
+           ( Summary "Get the global conversation for a given team ID"
+               :> CanThrow 'ConvNotFound
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "conversations"
+               :> "global"
+               :> Get '[Servant.JSON] GlobalTeamConversation
+           )
+    :<|> Named
            "get-conversation-roles"
            ( Summary "Get existing roles available for the given conversation"
                :> CanThrow 'ConvNotFound
@@ -951,7 +961,7 @@ type TeamAPI =
     "create-non-binding-team"
     ( Summary "Create a new non binding team"
         -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
-        :> ZUser
+        :> ZLocalUser
         :> ZConn
         :> CanThrow 'NotConnected
         :> CanThrow 'UserBindingExists

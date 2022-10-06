@@ -250,8 +250,10 @@ createUserSpar new = do
     case unRichInfo <$> newUserSparRichInfo new of
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
+
+    -- TODO(elland): Should we add the user to the GlobalTeamConv from here?
     liftSem $ GalleyProvider.createSelfConv uid
-    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    wrapHttp $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 

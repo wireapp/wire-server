@@ -49,6 +49,7 @@ module Data.Id
     RequestId (..),
     BotId (..),
     NoId,
+    newUserIdTemp,
   )
 where
 
@@ -127,6 +128,10 @@ type ConvId = Id 'C
 
 -- | A local user ID
 type UserId = Id 'U
+
+-- TODO: elland remove this once we fix creating global conv
+newUserIdTemp :: String -> UserId
+newUserIdTemp = Id @'U . fromJust . UUID.fromString
 
 type ProviderId = Id 'P
 

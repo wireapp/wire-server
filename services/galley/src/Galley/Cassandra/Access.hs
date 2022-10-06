@@ -31,6 +31,7 @@ defAccess SelfConv (Just (Set [])) = [PrivateAccess]
 defAccess ConnectConv (Just (Set [])) = [PrivateAccess]
 defAccess One2OneConv (Just (Set [])) = [PrivateAccess]
 defAccess RegularConv (Just (Set [])) = defRegularConvAccess
+defAccess GlobalTeamConv _ = []
 defAccess _ (Just (Set (x : xs))) = x : xs
 
 privateOnly :: Set Access
