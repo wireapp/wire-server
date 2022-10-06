@@ -17,7 +17,7 @@
 
 module Brig.API.Auth where
 
-import Brig.API.Error (authTokenMismatch, internalServerError, throwStd, zauthError)
+import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
 import Brig.Options
@@ -32,13 +32,22 @@ import Imports
 import Network.Wai.Utilities ((!>>))
 import Wire.API.User.Auth
 
-access :: forall r. NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
+access :: NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
 access ut mat = do
   partitionTokens ut mat >>= either (uncurry renew) (uncurry renew)
   where
     renew t mt =
       traverse mkUserTokenCookie
         =<< wrapHttpClientE (Auth.renewAccess (List1 t) mt) !>> zauthError
+
+sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
+sendLoginCode (SendLoginCode phone call force) = do
+  checkWhitelist (Right phone)
+  c <- wrapClientE (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
+  pure $ LoginCodeTimeout (pendingLoginTimeout c)
+
+--------------------------------------------------------------------------------
+-- Utils
 
 mkUserTokenCookie ::
   (MonadReader Env m, UserTokenLike u) =>

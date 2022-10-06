@@ -1162,6 +1162,22 @@ type AuthAPI =
                  (Respond 201 "TODO" AccessToken)
              )
     )
+    :<|> Named
+           "send-login-code"
+           ( "login" :> "send"
+               :> Summary "Send a login code to a verified phone number"
+               :> Description
+                    "This operation generates and sends a login code via sms for phone login.\
+                    \ A login code can be used only once and times out after\
+                    \ 10 minutes. Only one login code may be pending at a time.\
+                    \ For 2nd factor authentication login with email and password, use the\
+                    \ `/verification-code/send` endpoint."
+               :> ReqBody '[JSON] SendLoginCode
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    (Respond 201 "TODO" LoginCodeTimeout)
+           )
 
 type BrigAPI =
   UserAPI
