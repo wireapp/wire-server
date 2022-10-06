@@ -34,6 +34,8 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BudgetStore
 -- import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 -- import Control.Lens (view)
+
+import Brig.Effects.CookieStore
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess (GundeckAccess)
 import Brig.Effects.Twilio
@@ -83,6 +85,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth as Public
+import Wire.Sem.Concurrency
 import Wire.Swagger as Doc (pendingLoginError)
 
 routesPublic ::
@@ -91,6 +94,8 @@ routesPublic ::
        ActivationSupply,
        BlacklistStore,
        BudgetStore,
+       Concurrency 'Unsafe,
+       CookieStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
        GundeckAccess,
@@ -235,7 +240,9 @@ routesPublic = do
 
 routesInternal ::
   Members
-    '[ Error ReAuthError,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       Error ReAuthError,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -353,6 +360,8 @@ reAuthUser uid body = do
 loginH ::
   Members
     '[ BudgetStore,
+       Concurrency 'Unsafe,
+       CookieStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
        GundeckAccess,
@@ -373,6 +382,8 @@ loginH (req ::: persist ::: _) = do
 login ::
   Members
     '[ BudgetStore,
+       Concurrency 'Unsafe,
+       CookieStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
        GundeckAccess,
@@ -394,7 +405,9 @@ login l persist = do
 
 ssoLoginH ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery p
@@ -407,7 +420,9 @@ ssoLoginH (req ::: persist ::: _) = do
 
 ssoLogin ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery p
@@ -422,7 +437,9 @@ ssoLogin l persist = do
 
 legalHoldLoginH ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery p
@@ -435,7 +452,9 @@ legalHoldLoginH (req ::: _) = do
 
 legalHoldLogin ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery p
@@ -447,11 +466,15 @@ legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
-logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
+logoutH ::
+  Member CookieStore r =>
+  JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+  Handler r Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at
 
 -- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
 logout ::
+  Member CookieStore r =>
   Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
   (Handler r) ()
@@ -460,8 +483,8 @@ logout Nothing (Just _) = throwStd authMissingCookie
 logout (Just _) Nothing = throwStd authMissingToken
 logout (Just (Left _)) (Just (Right _)) = throwStd authTokenMismatch
 logout (Just (Right _)) (Just (Left _)) = throwStd authTokenMismatch
-logout (Just (Left ut)) (Just (Left at)) = wrapHttpClientE (Auth.logout ut at) !>> zauthError
-logout (Just (Right ut)) (Just (Right at)) = wrapHttpClientE (Auth.logout ut at) !>> zauthError
+logout (Just (Left ut)) (Just (Left at)) = Auth.logout ut at !>> zauthError
+logout (Just (Right ut)) (Just (Right at)) = Auth.logout ut at !>> zauthError
 
 changeSelfEmailH ::
   Members
@@ -502,22 +525,41 @@ changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
           Just (Left userTokens) ->
             fst <$> wrapHttpClientE (Auth.validateTokens userCookies (Just userTokens)) !>> zauthError
 
-listCookiesH :: UserId ::: Maybe (List Public.CookieLabel) ::: JSON -> (Handler r) Response
-listCookiesH (u ::: ll ::: _) = json <$> lift (listCookies u ll)
+listCookiesH ::
+  Member CookieStore r =>
+  UserId ::: Maybe (List Public.CookieLabel) ::: JSON ->
+  Handler r Response
+listCookiesH (u ::: ll ::: _) = json <$> (lift . liftSem $ listCookies u ll)
 
-listCookies :: UserId -> Maybe (List Public.CookieLabel) -> (AppT r) Public.CookieList
+listCookies ::
+  Member CookieStore r =>
+  UserId ->
+  Maybe (List Public.CookieLabel) ->
+  Sem r Public.CookieList
 listCookies u ll = do
-  Public.CookieList <$> wrapClient (Auth.listCookies u (maybe [] fromList ll))
+  Public.CookieList <$> Auth.listCookies u (maybe [] fromList ll)
 
 rmCookiesH ::
-  Members '[Input (Local ()), TinyLog, UserQuery p] r =>
+  Members
+    '[ CookieStore,
+       Input (Local ()),
+       TinyLog,
+       UserQuery p
+     ]
+    r =>
   UserId ::: JsonRequest Public.RemoveCookies ->
   Handler r Response
 rmCookiesH (uid ::: req) = do
   empty <$ (rmCookies uid =<< parseJsonBody req)
 
 rmCookies ::
-  Members '[Input (Local ()), TinyLog, UserQuery p] r =>
+  Members
+    '[ CookieStore,
+       Input (Local ()),
+       TinyLog,
+       UserQuery p
+     ]
+    r =>
   UserId ->
   Public.RemoveCookies ->
   Handler r ()
@@ -526,7 +568,9 @@ rmCookies uid (Public.RemoveCookies pw lls ids) =
 
 renewH ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -542,7 +586,9 @@ renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew u
 -- Other combinations of provided inputs will cause an error to be raised.
 renew ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]

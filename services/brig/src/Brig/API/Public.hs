@@ -52,6 +52,7 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BudgetStore
 import Brig.Effects.ClientStore (ClientStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.CookieStore (CookieStore)
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess (GundeckAccess)
 import Brig.Effects.JwtTools (JwtTools)
@@ -190,6 +191,7 @@ servantSitemap ::
        BlacklistStore,
        ClientStore,
        CodeStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -351,6 +353,7 @@ sitemap ::
        ClientStore,
        CodeStore,
        Concurrency 'Unsafe,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -385,6 +388,7 @@ apiDocs ::
        ClientStore,
        CodeStore,
        Concurrency 'Unsafe,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -525,6 +529,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
 addClient ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -550,6 +555,7 @@ addClient usr con ip new = do
 deleteClient ::
   Members
     '[ ClientStore,
+       CookieStore,
        GundeckAccess,
        Input (Local ()),
        P.Error ReAuthError,
@@ -906,7 +912,7 @@ checkPasswordExists :: UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . wrapClient . API.lookupPassword
 
 changePassword ::
-  Members '[UserQuery p] r =>
+  Members '[CookieStore, UserQuery p] r =>
   UserId ->
   Public.PasswordChange ->
   Handler r (Maybe Public.ChangePasswordError)
@@ -1005,6 +1011,7 @@ beginPasswordReset (Public.NewPasswordReset target) = do
 completePasswordReset ::
   Members
     '[ CodeStore,
+       CookieStore,
        PasswordResetStore,
        PasswordResetSupply,
        UserKeyStore
@@ -1167,6 +1174,7 @@ getConnection self other = do
 deleteSelfUser ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1186,6 +1194,7 @@ deleteSelfUser u body =
 verifyDeleteUser ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1346,6 +1355,7 @@ deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 deprecatedCompletePasswordReset ::
   Members
     '[ CodeStore,
+       CookieStore,
        PasswordResetStore,
        PasswordResetStore,
        PasswordResetSupply,

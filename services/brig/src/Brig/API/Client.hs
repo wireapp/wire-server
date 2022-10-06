@@ -55,6 +55,7 @@ import qualified Brig.Data.Client as Data
 import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
 import Brig.Effects.ClientStore
+import Brig.Effects.CookieStore
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess (GundeckAccess)
 import Brig.Effects.JwtTools (JwtTools)
@@ -155,6 +156,7 @@ lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 addClient ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -175,6 +177,7 @@ addClientWithReAuthPolicy ::
   forall r p.
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -251,6 +254,7 @@ updateClient u c r = do
 rmClient ::
   Members
     '[ ClientStore,
+       CookieStore,
        Error ReAuthError,
        GundeckAccess,
        Input (Local ()),
@@ -426,14 +430,14 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 
 -- | Enqueue an orderly deletion of an existing client.
 execDelete ::
-  Members '[ClientStore] r =>
+  Members '[ClientStore, CookieStore] r =>
   UserId ->
   Maybe ConnId ->
   Client ->
   AppT r ()
 execDelete u con c = do
   liftSem $ deleteClient u (clientId c)
-  for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
+  for_ (clientCookie c) $ \l -> liftSem $ Auth.revokeCookies u [] [l]
   queue <- view internalEvents
   Queue.enqueue queue (Internal.DeleteClient c u con)
 
@@ -489,7 +493,13 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     lhClientEvent = LegalHoldClientRequested eventData
 
 removeLegalHoldClient ::
-  Members '[ClientStore, GalleyAccess, GundeckAccess] r =>
+  Members
+    '[ ClientStore,
+       CookieStore,
+       GalleyAccess,
+       GundeckAccess
+     ]
+    r =>
   UserId ->
   AppT r ()
 removeLegalHoldClient uid = do

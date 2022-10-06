@@ -39,6 +39,8 @@ import Brig.Effects.ClientStore.Cassandra
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra)
 import Brig.Effects.Common
+import Brig.Effects.CookieStore (CookieStore)
+import Brig.Effects.CookieStore.Cassandra
 import Brig.Effects.GalleyAccess (GalleyAccess)
 import Brig.Effects.GalleyAccess.Http
 import Brig.Effects.GundeckAccess (GundeckAccess)
@@ -91,7 +93,8 @@ import Wire.Sem.Paging.Cassandra (InternalPaging)
 import qualified Wire.Sem.Paging.Cassandra as PC
 
 type BrigCanonicalEffects =
-  '[ ClientStore,
+  '[ CookieStore,
+     ClientStore,
      PublicKeyBundle,
      JwtTools,
      BlacklistPhonePrefixStore,
@@ -161,6 +164,7 @@ runBrigToIO e (AppT ma) =
     . interpretJwtTools
     . interpretPublicKeyBundle
     . clientStoreToCassandra @HttpClientIO
+    . cookieStoreToCassandra @Cas.Client
     $ runReaderT ma e
 
 interpretHttpToIO ::

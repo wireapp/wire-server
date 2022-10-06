@@ -69,6 +69,8 @@ library
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Common
+    Brig.Effects.CookieStore
+    Brig.Effects.CookieStore.Cassandra
     Brig.Effects.Delay
     Brig.Effects.GalleyAccess
     Brig.Effects.GalleyAccess.Http

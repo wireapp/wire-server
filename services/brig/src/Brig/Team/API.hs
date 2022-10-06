@@ -31,6 +31,7 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.CookieStore
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess
 import Brig.Effects.Twilio (Twilio)
@@ -88,6 +89,7 @@ import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
+import Wire.Sem.Concurrency
 
 routesPublic ::
   Members
@@ -212,6 +214,8 @@ routesPublic = do
 routesInternal ::
   Members
     '[ BlacklistStore,
+       Concurrency 'Unsafe,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        P.Error Twilio.ErrorResponse,
@@ -534,7 +538,9 @@ getInvitationByEmail email = do
 
 suspendTeamH ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -546,7 +552,9 @@ suspendTeamH (_ ::: tid) = do
 
 suspendTeam ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -560,7 +568,9 @@ suspendTeam tid = do
 
 unsuspendTeamH ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -572,7 +582,9 @@ unsuspendTeamH (_ ::: tid) = do
 
 unsuspendTeam ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -588,7 +600,9 @@ unsuspendTeam tid = do
 
 changeTeamAccountStatuses ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]

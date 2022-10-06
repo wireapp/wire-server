@@ -47,6 +47,7 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Effects.BudgetStore
 import Brig.Effects.Common
+import Brig.Effects.CookieStore
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess
 import Brig.Effects.Twilio (Twilio)
@@ -92,6 +93,7 @@ import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.Sem.Concurrency
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -158,6 +160,8 @@ login ::
   forall r p.
   Members
     '[ BudgetStore,
+       Concurrency 'Unsafe,
+       CookieStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
        GundeckAccess,
@@ -302,21 +306,22 @@ withRetryLimit action uid mLimitFailedLogins = do
 
 logout ::
   ( ZAuth.TokenPair u a,
-    ZAuth.MonadZAuth m,
-    MonadClient m
+    Member CookieStore r
   ) =>
   List1 (ZAuth.Token u) ->
   ZAuth.Token a ->
-  ExceptT ZAuth.Failure m ()
+  ExceptT ZAuth.Failure (AppT r) ()
 logout uts at = do
-  (u, ck) <- validateTokens uts (Just at)
-  lift $ revokeCookies u [cookieId ck] []
+  (u, ck) <- mapExceptT wrapHttpClient $ validateTokens uts (Just at)
+  lift . liftSem $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
   forall u a r p.
   ZAuth.TokenPair u a =>
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -328,12 +333,18 @@ renewAccess uts at = do
   (uid, ck) <- wrapHttpClientE $ validateTokens uts at
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
-  ck' <- lift . wrapHttpClient $ nextCookie ck
+  ck' <- lift $ nextCookie ck
   at' <- lift $ newAccessToken (fromMaybe ck ck') at
   pure $ Access at' ck'
 
 revokeAccess ::
-  Members '[Input (Local ()), TinyLog, UserQuery p] r =>
+  Members
+    '[ CookieStore,
+       Input (Local ()),
+       TinyLog,
+       UserQuery p
+     ]
+    r =>
   UserId ->
   PlainTextPassword ->
   [CookieId] ->
@@ -347,14 +358,16 @@ revokeAccess u pw cc ll = do
     . mapExceptT liftSem
     . semErrToExceptT
     $ Data.authenticate u pw
-  lift . wrapClient $ revokeCookies u cc ll
+  lift . liftSem $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
 -- Internal
 
 catchSuspendInactiveUser ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -363,7 +376,7 @@ catchSuspendInactiveUser ::
   e ->
   ExceptT e (AppT r) ()
 catchSuspendInactiveUser uid errval = do
-  mustsuspend <- wrapClientE $ mustSuspendInactiveUser uid
+  mustsuspend <- lift $ mustSuspendInactiveUser uid
   when mustsuspend $ do
     lift . Log.warn $
       msg (val "Suspending user due to inactivity")
@@ -382,7 +395,9 @@ newAccess ::
   forall u a r p.
   ZAuth.TokenPair u a =>
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -393,7 +408,7 @@ newAccess ::
   ExceptT LoginError (AppT r) (Access u)
 newAccess uid ct cl = do
   catchSuspendInactiveUser uid LoginSuspended
-  r <- lift . wrapHttpClient $ newCookieLimited uid ct cl
+  r <- lift $ newCookieLimited uid ct cl
   case r of
     Left delay -> throwE $ LoginThrottled delay
     Right ck -> do
@@ -524,7 +539,9 @@ validateToken ut at = do
 -- | Allow to login as any user without having the credentials.
 ssoLogin ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery p
@@ -555,7 +572,9 @@ ssoLogin (SsoLogin uid label) typ = do
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery p

@@ -25,6 +25,7 @@ import Brig.App
 import qualified Brig.Data.Client as Data
 import Brig.Effects.ClientStore (ClientStore)
 import qualified Brig.Effects.ClientStore as E
+import Brig.Effects.CookieStore
 import Brig.Effects.GalleyAccess (GalleyAccess)
 import Brig.Effects.GundeckAccess (GundeckAccess)
 import Brig.Effects.UniqueClaimsStore
@@ -62,6 +63,7 @@ onEvent ::
   Members
     '[ ClientStore,
        Concurrency 'Unsafe,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),

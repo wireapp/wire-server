@@ -42,6 +42,8 @@ module Brig.User.Auth.Cookie
 where
 
 import Brig.App
+import Brig.Effects.CookieStore (CookieStore)
+import qualified Brig.Effects.CookieStore as E
 import Brig.Options hiding (user)
 import Brig.User.Auth.Cookie.Limit
 import qualified Brig.User.Auth.DB.Cookie as DB
@@ -58,6 +60,7 @@ import Data.Time.Clock
 import Imports
 import Network.Wai (Response)
 import Network.Wai.Utilities.Response (addHeader)
+import Polysemy
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Web.Cookie as WebCookie
@@ -99,13 +102,10 @@ newCookie uid typ label = do
 -- exceeds the configured minimum threshold.
 nextCookie ::
   ( ZAuth.UserTokenLike u,
-    MonadReader Env m,
-    Log.MonadLogger m,
-    ZAuth.MonadZAuth m,
-    MonadClient m
+    Member CookieStore r
   ) =>
   Cookie (ZAuth.Token u) ->
-  m (Maybe (Cookie (ZAuth.Token u)))
+  AppT r (Maybe (Cookie (ZAuth.Token u)))
 nextCookie c = do
   s <- view settings
   now <- liftIO =<< view currentTime
@@ -119,13 +119,13 @@ nextCookie c = do
   where
     persist = (PersistentCookie ==) . cookieType
     getNext = case cookieSucc c of
-      Nothing -> renewCookie c
+      Nothing -> wrapHttpClient $ renewCookie c
       Just ck -> do
         let uid = ZAuth.userTokenOf (cookieValue c)
         trackSuperseded uid (cookieId c)
-        cs <- DB.listCookies uid
+        cs <- liftSem $ E.getCookies uid
         case List.find (\x -> cookieId x == ck && persist x) cs of
-          Nothing -> renewCookie c
+          Nothing -> wrapHttpClient $ renewCookie c
           Just c' -> do
             t <- ZAuth.mkUserToken uid (cookieIdNum ck) (cookieExpires c')
             pure c' {cookieValue = t}
@@ -156,7 +156,7 @@ renewCookie old = do
 -- 'suspendCookiesOlderThanSecs'.  Call this always before 'newCookie', 'nextCookie',
 -- 'newCookieLimited' if there is a chance that the user should be suspended (we don't do it
 -- implicitly because of cyclical dependencies).
-mustSuspendInactiveUser :: (MonadReader Env m, MonadClient m) => UserId -> m Bool
+mustSuspendInactiveUser :: Member CookieStore r => UserId -> AppT r Bool
 mustSuspendInactiveUser uid =
   view (settings . to setSuspendInactiveUsers) >>= \case
     Nothing -> pure False
@@ -166,7 +166,7 @@ mustSuspendInactiveUser uid =
           suspendHere = addUTCTime (-suspendAge) now
           youngEnough :: Cookie () -> Bool
           youngEnough = (>= suspendHere) . cookieCreated
-      ckies <- listCookies uid []
+      ckies <- liftSem $ listCookies uid []
       let mustSuspend
             | null ckies = False
             | any youngEnough ckies = False
@@ -202,20 +202,25 @@ lookupCookie t = do
   where
     setToken c = c {cookieValue = t}
 
-listCookies :: MonadClient m => UserId -> [CookieLabel] -> m [Cookie ()]
-listCookies u [] = DB.listCookies u
-listCookies u ll = filter byLabel <$> DB.listCookies u
+listCookies :: Member CookieStore r => UserId -> [CookieLabel] -> Sem r [Cookie ()]
+listCookies u [] = E.getCookies u
+listCookies u ll = filter byLabel <$> E.getCookies u
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
 
-revokeAllCookies :: MonadClient m => UserId -> m ()
+revokeAllCookies :: Member CookieStore r => UserId -> Sem r ()
 revokeAllCookies u = revokeCookies u [] []
 
-revokeCookies :: MonadClient m => UserId -> [CookieId] -> [CookieLabel] -> m ()
-revokeCookies u [] [] = DB.deleteAllCookies u
+revokeCookies ::
+  Member CookieStore r =>
+  UserId ->
+  [CookieId] ->
+  [CookieLabel] ->
+  Sem r ()
+revokeCookies u [] [] = E.deleteAllCookies u
 revokeCookies u ids labels = do
-  cc <- filter matching <$> DB.listCookies u
-  DB.deleteCookies u cc
+  cc <- filter matching <$> E.getCookies u
+  E.deleteCookies u cc
   where
     matching c =
       cookieId c `elem` ids
@@ -226,27 +231,25 @@ revokeCookies u ids labels = do
 
 newCookieLimited ::
   ( ZAuth.UserTokenLike t,
-    MonadReader Env m,
-    MonadClient m,
-    ZAuth.MonadZAuth m
+    Member CookieStore r
   ) =>
   UserId ->
   CookieType ->
   Maybe CookieLabel ->
-  m (Either RetryAfter (Cookie (ZAuth.Token t)))
+  AppT r (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u typ label = do
-  cs <- filter ((typ ==) . cookieType) <$> DB.listCookies u
+  cs <- liftSem $ filter ((typ ==) . cookieType) <$> E.getCookies u
   now <- liftIO =<< view currentTime
   lim <- CookieLimit . setUserCookieLimit <$> view settings
   thr <- setUserCookieThrottle <$> view settings
   let evict = map cookieId (limitCookies lim now cs)
   if null evict
-    then Right <$> newCookie u typ label
+    then Right <$> wrapHttpClient (newCookie u typ label)
     else case throttleCookies now thr cs of
       Just wait -> pure (Left wait)
       Nothing -> do
-        revokeCookies u evict []
-        Right <$> newCookie u typ label
+        liftSem $ revokeCookies u evict []
+        Right <$> wrapHttpClient (newCookie u typ label)
 
 --------------------------------------------------------------------------------
 -- HTTP

@@ -46,6 +46,7 @@ import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.ClientStore (ClientStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.CookieStore (CookieStore)
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess (GundeckAccess)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
@@ -118,6 +119,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
@@ -331,6 +333,8 @@ sitemap ::
        BlacklistStore,
        ClientStore,
        CodeStore,
+       Concurrency 'Unsafe,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -516,6 +520,7 @@ sitemap = do
 addClientInternalH ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -532,6 +537,7 @@ addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
 addClientInternal ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -560,7 +566,13 @@ legalHoldClientRequestedH (targetUser ::: req ::: _) = do
   pure $ setStatus status200 empty
 
 removeLegalHoldClientH ::
-  Members '[ClientStore, GalleyAccess, GundeckAccess] r =>
+  Members
+    '[ ClientStore,
+       CookieStore,
+       GalleyAccess,
+       GundeckAccess
+     ]
+    r =>
   UserId ::: JSON ->
   Handler r Response
 removeLegalHoldClientH (uid ::: _) = do
@@ -655,6 +667,7 @@ createUserNoVerifySpar uData =
 deleteUserNoAuthH ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -821,7 +834,14 @@ instance ToJSON GetPasswordResetCodeResp where
   toJSON (GetPasswordResetCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 changeAccountStatusH ::
-  Members '[GalleyAccess, GundeckAccess, UserQuery p] r =>
+  Members
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
+       GundeckAccess,
+       UserQuery p
+     ]
+    r =>
   UserId ::: JsonRequest AccountStatusUpdate ->
   Handler r Response
 changeAccountStatusH (usr ::: req) = do

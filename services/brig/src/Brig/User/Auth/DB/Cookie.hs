@@ -17,6 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- FUTUREWORK: Migrate the remaining actions to 'Brig.Effects.CookieStore'
 module Brig.User.Auth.DB.Cookie where
 
 import Brig.User.Auth.DB.Instances ()
@@ -64,40 +65,3 @@ lookupCookie u t c =
       "SELECT type, created, label, succ_id \
       \FROM user_cookies \
       \WHERE user = ? AND expires = ? AND id = ?"
-
-listCookies :: MonadClient m => UserId -> m [Cookie ()]
-listCookies u =
-  map toCookie <$> retry x1 (query cql (params LocalQuorum (Identity u)))
-  where
-    cql :: PrepQuery R (Identity UserId) (CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId)
-    cql =
-      "SELECT id, created, expires, type, label, succ_id \
-      \FROM user_cookies \
-      \WHERE user = ? \
-      \ORDER BY expires ASC"
-    toCookie :: (CookieId, UTCTime, UTCTime, CookieType, Maybe CookieLabel, Maybe CookieId) -> Cookie ()
-    toCookie (i, ct, et, t, l, sc) =
-      Cookie
-        { cookieId = i,
-          cookieType = t,
-          cookieCreated = ct,
-          cookieExpires = et,
-          cookieLabel = l,
-          cookieSucc = sc,
-          cookieValue = ()
-        }
-
-deleteCookies :: MonadClient m => UserId -> [Cookie a] -> m ()
-deleteCookies u cs = retry x5 . batch $ do
-  setType BatchUnLogged
-  setConsistency LocalQuorum
-  for_ cs $ \c -> addPrepQuery cql (u, cookieExpires c, cookieId c)
-  where
-    cql :: PrepQuery W (UserId, UTCTime, CookieId) ()
-    cql = "DELETE FROM user_cookies WHERE user = ? AND expires = ? AND id = ?"
-
-deleteAllCookies :: MonadClient m => UserId -> m ()
-deleteAllCookies u = retry x5 (write cql (params LocalQuorum (Identity u)))
-  where
-    cql :: PrepQuery W (Identity UserId) ()
-    cql = "DELETE FROM user_cookies WHERE user = ?"

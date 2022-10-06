@@ -31,6 +31,7 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BudgetStore
 import Brig.Effects.ClientStore
 import Brig.Effects.CodeStore
+import Brig.Effects.CookieStore
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess (GundeckAccess)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
@@ -69,6 +70,7 @@ sitemap ::
        ClientStore,
        CodeStore,
        Concurrency 'Unsafe,
+       CookieStore,
        Error ReAuthError,
        Error Twilio.ErrorResponse,
        GalleyAccess,

@@ -113,6 +113,7 @@ import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixS
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
 import Brig.Effects.ClientStore
+import Brig.Effects.CookieStore (CookieStore)
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
@@ -200,6 +201,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Wire.Sem.Concurrency
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -1013,7 +1015,9 @@ revokeIdentity key = do
 changeAccountStatus ::
   forall r p.
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -1022,7 +1026,7 @@ changeAccountStatus ::
   AccountStatus ->
   ExceptT AccountStatusError (AppT r) ()
 changeAccountStatus usrs status = do
-  ev <- wrapClientE $ mkUserEvent usrs status
+  ev <- liftSemE $ mkUserEvent usrs status
   lift $ do
     -- mapConcurrently_ (update ev) usrs
     -- TODO(md): do this updating concurrently, perhaps in an effect
@@ -1038,7 +1042,9 @@ changeAccountStatus usrs status = do
 
 changeSingleAccountStatus ::
   Members
-    '[ GalleyAccess,
+    '[ Concurrency 'Unsafe,
+       CookieStore,
+       GalleyAccess,
        GundeckAccess,
        UserQuery p
      ]
@@ -1048,23 +1054,24 @@ changeSingleAccountStatus ::
   ExceptT AccountStatusError (AppT r) ()
 changeSingleAccountStatus uid status = do
   unlessM (lift . liftSem $ Data.userExists uid) $ throwE AccountNotFound
-  ev <- wrapClientE $ mkUserEvent [uid] status
+  ev <- liftSemE $ mkUserEvent [uid] status
   lift . liftSem $ Data.updateStatus uid status
   lift $ Intra.onUserEvent uid Nothing (ev uid)
 
 mkUserEvent ::
-  (Traversable t, MonadClient m) =>
+  ( Traversable t,
+    Members '[Concurrency 'Unsafe, CookieStore] r
+  ) =>
   t UserId ->
   AccountStatus ->
-  ExceptT AccountStatusError m (UserId -> UserEvent)
+  ExceptT AccountStatusError (Sem r) (UserId -> UserEvent)
 mkUserEvent usrs status =
   case status of
     Active -> pure UserResumed
     Suspended ->
       lift $
-        -- mapConcurrently revokeAllCookies usrs >> pure UserSuspended
-        -- TODO(md): implement concurrently traversing this as an effect
-        traverse revokeAllCookies usrs >> pure UserSuspended
+        unsafePooledMapConcurrentlyN_ 16 revokeAllCookies usrs
+          >> pure UserSuspended
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
@@ -1309,7 +1316,7 @@ mkActivationKey (ActivatePhone p) = do
 -- Password Management
 
 changePassword ::
-  Members '[UserQuery p] r =>
+  Members '[CookieStore, UserQuery p] r =>
   UserId ->
   PasswordChange ->
   ExceptT ChangePasswordError (AppT r) ()
@@ -1327,7 +1334,7 @@ changePassword uid cp = do
         throwE InvalidCurrentPassword
       when (verifyPassword newpw pw) $
         throwE ChangePasswordMustDiffer
-      lift $ wrapClient (Data.updatePassword uid newpw) >> wrapClient (revokeAllCookies uid)
+      lift $ wrapClient (Data.updatePassword uid newpw) >> liftSem (revokeAllCookies uid)
 
 beginPasswordReset ::
   Members '[P.TinyLog, PasswordResetStore, UserKeyStore] r =>
@@ -1347,7 +1354,13 @@ beginPasswordReset target = do
   (user,) <$> lift (liftSem $ E.createPasswordResetCode user target)
 
 completePasswordReset ::
-  Members '[PasswordResetStore, PasswordResetSupply, UserKeyStore] r =>
+  Members
+    '[ CookieStore,
+       PasswordResetStore,
+       PasswordResetSupply,
+       UserKeyStore
+     ]
+    r =>
   PasswordResetIdentity ->
   PasswordResetCode ->
   PlainTextPassword ->
@@ -1363,7 +1376,7 @@ completePasswordReset ident code pw = do
       lift $ do
         wrapClient $ Data.updatePassword uid pw
         liftSem $ E.deletePasswordResetCode key
-        wrapClient $ revokeAllCookies uid
+        liftSem $ revokeAllCookies uid
 
 -- | Pull the current password of a user and compare it against the one about to be installed.
 -- If the two are the same, throw an error.  If no current password can be found, do nothing.
@@ -1403,6 +1416,7 @@ mkPasswordResetKey ident = case ident of
 deleteSelfUser ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1493,6 +1507,7 @@ deleteSelfUser uid pwd = do
 verifyDeleteUser ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1520,6 +1535,7 @@ verifyDeleteUser d = do
 ensureAccountDeleted ::
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        Input (Local ()),
@@ -1546,7 +1562,7 @@ ensureAccountDeleted uid = do
       conCount <-
         wrapClient $
           countConnections localUid [(minBound @Relation) .. maxBound]
-      cookies <- wrapClient $ listCookies uid []
+      cookies <- liftSem $ listCookies uid []
 
       if notNull probs
         || not accIsDeleted
@@ -1571,6 +1587,7 @@ deleteAccount ::
   forall r p.
   Members
     '[ ClientStore,
+       CookieStore,
        GalleyAccess,
        GundeckAccess,
        UniqueClaimsStore,
@@ -1600,7 +1617,7 @@ deleteAccount account@(accountUser -> user) = do
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
   wrapClient $ Data.deleteConnections uid
-  wrapClient $ revokeAllCookies uid
+  liftSem $ revokeAllCookies uid
   where
     mkTombstone = do
       defLoc <- setDefaultUserLocale <$> view settings
