@@ -20,6 +20,7 @@ library
     Stern.API
     Stern.API.Predicates
     Stern.API.Routes
+    Stern.API.RoutesLegacy
     Stern.App
     Stern.Intra
     Stern.Options

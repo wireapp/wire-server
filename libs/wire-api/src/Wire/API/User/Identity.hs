@@ -75,6 +75,7 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import qualified SAML2.WebSSO.Types as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import qualified SAML2.WebSSO.XML as SAML
+import qualified Servant.API as S
 import System.FilePath ((</>))
 import qualified Test.QuickCheck as QC
 import qualified Text.Email.Validate as Email.V
@@ -187,6 +188,12 @@ instance ToByteString Email where
 instance FromByteString Email where
   parser = parser >>= maybe (fail "Invalid email") pure . parseEmail
 
+instance S.FromHttpApiData Email where
+  parseUrlPiece = maybe (Left "Invalid email") Right . fromByteString . cs
+
+instance S.ToHttpApiData Email where
+  toUrlPiece = cs . toByteString'
+
 instance Arbitrary Email where
   arbitrary = do
     localPart <- Text.filter (/= '@') <$> arbitrary
@@ -249,6 +256,9 @@ newtype Phone = Phone {fromPhone :: Text}
   deriving stock (Eq, Ord, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Phone)
 
+instance ToParamSchema Phone where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
 instance ToSchema Phone where
   schema =
     over doc (S.description ?~ "E.164 phone number") $
@@ -259,6 +269,12 @@ instance ToByteString Phone where
 
 instance FromByteString Phone where
   parser = parser >>= maybe (fail "Invalid phone") pure . parsePhone
+
+instance S.FromHttpApiData Phone where
+  parseUrlPiece = maybe (Left "Invalid phone") Right . fromByteString . cs
+
+instance S.ToHttpApiData Phone where
+  toUrlPiece = cs . toByteString'
 
 instance Arbitrary Phone where
   arbitrary =

@@ -1,4 +1,9 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -31,6 +36,8 @@ import Data.Aeson
 import Data.Aeson.TH
 import qualified Data.Currency as Currency
 import Data.Json.Util
+import qualified Data.Schema as S
+import qualified Data.Swagger as Swagger hiding (schema)
 import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)
@@ -46,21 +53,18 @@ data TeamStatus
   | Suspended
   | PendingActive
   deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamStatus
 
-instance ToJSON TeamStatus where
-  toJSON Active = String "active"
-  toJSON PendingDelete = String "pending_delete"
-  toJSON Deleted = String "deleted"
-  toJSON Suspended = String "suspended"
-  toJSON PendingActive = String "pending_active"
-
-instance FromJSON TeamStatus where
-  parseJSON (String "active") = pure Active
-  parseJSON (String "pending_delete") = pure PendingDelete
-  parseJSON (String "deleted") = pure Deleted
-  parseJSON (String "suspended") = pure Suspended
-  parseJSON (String "pending_active") = pure PendingActive
-  parseJSON other = fail $ "Unknown TeamStatus: " <> show other
+instance S.ToSchema TeamStatus where
+  schema =
+    S.enum @Text "Access" $
+      mconcat
+        [ S.element "active" Active,
+          S.element "pending_delete" PendingDelete,
+          S.element "deleted" Deleted,
+          S.element "suspended" Suspended,
+          S.element "pending_active" PendingActive
+        ]
 
 data TeamData = TeamData
   { tdTeam :: !Team,
@@ -68,20 +72,15 @@ data TeamData = TeamData
     tdStatusTime :: !(Maybe UTCTime) -- This needs to be a Maybe due to backwards compatibility
   }
   deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamData
 
-instance ToJSON TeamData where
-  toJSON (TeamData t s st) =
-    object $
-      "team" .= t
-        # "status" .= s
-        # "status_time" .= (toUTCTimeMillis <$> st)
-        # []
-
-instance FromJSON TeamData where
-  parseJSON = withObject "team-data" $ \o -> do
-    TeamData <$> o .: "team"
-      <*> o .: "status"
-      <*> o .:? "status_time"
+instance S.ToSchema TeamData where
+  schema =
+    S.object "TeamData" $
+      TeamData
+        <$> tdTeam S..= S.field "team" S.schema
+        <*> tdStatus S..= S.field "status" S.schema
+        <*> tdStatusTime S..= S.maybe_ (S.optField "status_time" utcTimeSchema)
 
 data TeamStatusUpdate = TeamStatusUpdate
   { tuStatus :: !TeamStatus,

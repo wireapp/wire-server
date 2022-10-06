@@ -47,6 +47,7 @@ module Wire.API.Team.Feature
     withLockStatus,
     withUnlocked,
     FeatureTTL,
+    FeatureTTLDays,
     FeatureTTL' (..),
     FeatureTTLUnit (..),
     convertFeatureTTLDaysToSeconds,
@@ -970,6 +971,19 @@ data FeatureStatus
   deriving stock (Eq, Ord, Enum, Bounded, Show, Generic)
   deriving (Arbitrary) via (GenericUniform FeatureStatus)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema FeatureStatus)
+
+instance S.ToParamSchema FeatureStatus where
+  toParamSchema _ =
+    mempty
+      { S._paramSchemaType = Just S.SwaggerString,
+        S._paramSchemaEnum = Just (A.String . toQueryParam <$> [(minBound :: FeatureStatus) ..])
+      }
+
+instance FromHttpApiData FeatureStatus where
+  parseUrlPiece = maybe (Left "must be 'enabled' or 'disabled'") Right . fromByteString' . cs
+
+instance ToHttpApiData FeatureStatus where
+  toUrlPiece = cs . toByteString'
 
 typeFeatureStatus :: Doc.DataType
 typeFeatureStatus =
