@@ -1,13 +1,9 @@
-Stern - Backoffice facade
+Stern - Backoffice Facade
 =========================
 
-This tool can be used to create a very basic Backoffice tool to simplify performing operations on users and teams such as visualising their user profiles, suspending or even deleting accounts. It is used internally at Wire to provide customer support the means to respond to certain queries from our customers.
+This is a simple web app based on [swagger-ui](https://swagger.io/tools/swagger-ui/) for performing operations on users and teams such as browsing their user profiles, suspending, or deleting accounts. It is used internally at Wire by our customer support team.
 
-Stern provides a swagger interface that accesses multiple other services (mostly using internal endpoints) and is designed to be a simple way to create a basic backoffice functionality. The swagger interface is served at `<ip:stern_port>/stern/api-docs`
-
-### Legacy mode
-
-stern used to be run together with a separate docker image that carried the swagger-ui frontend, while stern only served the swagger data and the actual rest api.  This is not recommended any more, but until all the infrastructure everywhere has caught up with the new mode of operation, stern still delivers the old swagger1.2 data as before under the same path.  For details see `./src/Stern/API/RoutesLegacy.hs`.
+Stern is based on a swagger interface that accesses multiple other services (mostly using internal endpoints) and is designed to be a simple way to create a basic backoffice functionality. Point your browser at `http://<ip-or-host>:<port>/backoffice/api/swagger-ui/`; `<port>` is usually 8091.
 
 ## IMPORTANT NOTES
 
@@ -16,6 +12,10 @@ If you want to deploy this together with the rest of the wire-server services, d
 It is intended to be deployed in a private network and accessible only through a VPN (for instance).
 
 Some endpoints (marked as such on the Swagger interface) depend on internal services (named galeb and ibis) that are not relevant for a generic wire server installation as they gather info from other internal systems at Wire (related to billing or other services) and as such will not work properly on installations without them.
+
+### Legacy mode
+
+stern used to be run together with a separate docker image that carried the swagger-ui frontend, while stern only served the swagger data and the actual rest api.  This is not recommended any more, but until all the infrastructure everywhere has caught up with the new mode of operation, stern still delivers the old swagger1.2 data as before under the same path.  For details see `./src/Stern/API/RoutesLegacy.hs`.
 
 ## How to run stern together with the rest of wire-server
 
