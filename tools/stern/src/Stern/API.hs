@@ -38,7 +38,7 @@ import Data.Handle (Handle)
 import Data.Id
 import Data.Proxy (Proxy (..))
 import Data.Range
-import qualified Data.Schema as S
+import Data.Schema hiding ((.=))
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Data.Text as T
@@ -299,7 +299,7 @@ getTeamAdminInfo = fmap toAdminInfo . Intra.getTeamInfo
 mkFeatureGetRoute ::
   forall cfg.
   ( IsFeatureConfig cfg,
-    S.ToSchema cfg,
+    ToSchema cfg,
     KnownSymbol (FeatureSymbol cfg),
     FromJSON (WithStatusNoLock cfg),
     ToJSON (WithStatusNoLock cfg),
@@ -312,7 +312,7 @@ mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
 mkFeaturePutRoute ::
   forall cfg.
   ( IsFeatureConfig cfg,
-    S.ToSchema cfg,
+    ToSchema cfg,
     KnownSymbol (FeatureSymbol cfg),
     FromJSON (WithStatusNoLock cfg),
     ToJSON (WithStatusNoLock cfg),
@@ -327,7 +327,7 @@ type MkFeaturePutConstraints cfg =
   ( IsFeatureConfig cfg,
     FeatureTrivialConfig cfg,
     KnownSymbol (FeatureSymbol cfg),
-    S.ToSchema cfg,
+    ToSchema cfg,
     FromJSON (WithStatusNoLock cfg),
     ToJSON (WithStatusNoLock cfg),
     Typeable cfg
