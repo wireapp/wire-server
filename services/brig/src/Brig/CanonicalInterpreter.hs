@@ -31,6 +31,8 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
+import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
+import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
 
 type BrigCanonicalEffects =
   '[ PublicKeyBundle,
@@ -49,6 +51,7 @@ type BrigCanonicalEffects =
      Error SomeException,
      TinyLog,
      Embed IO,
+     Concurrency 'Unsafe,
      Final IO
    ]
 
@@ -56,6 +59,7 @@ runBrigToIO :: Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
   (either throwM pure =<<)
     . runFinal
+    . unsafelyPerformConcurrency
     . embedToFinal
     . loggerToTinyLog (e ^. applog)
     . runError @SomeException

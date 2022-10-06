@@ -23,6 +23,8 @@ module Brig.API.Util
     validateHandle,
     logEmail,
     traverseConcurrentlyWithErrors,
+    traverseConcurrentlyWithErrorsSem,
+    traverseConcurrentlyWithErrorsAppT,
     exceptTToMaybe,
     lookupSearchPolicy,
     ensureLocal,
@@ -60,6 +62,9 @@ import Wire.API.Error.Brig
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
+import Polysemy
+import qualified Polysemy.Error as E
+import qualified Wire.Sem.Concurrency as C
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
@@ -102,6 +107,32 @@ traverseConcurrentlyWithErrors f =
     . ( traverse (either throwIO pure)
           <=< pooledMapConcurrentlyN 8 (runExceptT . f)
       )
+
+-- | Traverse concurrently and fail on first error.
+traverseConcurrentlyWithErrorsSem ::
+  forall t e a r b.
+  (Traversable t, Member (C.Concurrency 'C.Unsafe) r) =>
+  (a -> ExceptT e (Sem r) b) ->
+  t a ->
+  ExceptT e (Sem r) [b]
+traverseConcurrentlyWithErrorsSem f =
+  ExceptT . E.runError
+    . ( traverse (either E.throw pure)
+          <=< C.unsafePooledMapConcurrentlyN 8 (raise . runExceptT . f)
+      )
+
+traverseConcurrentlyWithErrorsAppT ::
+  forall t e a r b.
+  (Traversable t, Member (C.Concurrency 'C.Unsafe) r) =>
+  (a -> ExceptT e (AppT r) b) ->
+  t a ->
+  ExceptT e (AppT r) [b]
+traverseConcurrentlyWithErrorsAppT f t = do
+  env <- lift temporaryGetEnv
+  ExceptT $ AppT $ lift $
+    runExceptT $ traverseConcurrentlyWithErrorsSem
+        (mapExceptT (lowerAppT env) . f)
+        t
 
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT

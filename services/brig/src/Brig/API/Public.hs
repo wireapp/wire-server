@@ -138,6 +138,7 @@ import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
 import Wire.Sem.Now (Now)
+import Wire.Sem.Concurrency
 
 -- User API -----------------------------------------------------------
 
@@ -170,6 +171,7 @@ servantSitemap ::
        CodeStore,
        JwtTools,
        PublicKeyBundle,
+       Concurrency 'Unsafe,
        Now
      ]
     r =>
@@ -642,6 +644,7 @@ getUser self qualifiedUserId = do
 listUsersByUnqualifiedIdsOrHandles ::
   Members
     '[ GalleyProvider
+     , Concurrency 'Unsafe
      ]
     r =>
   UserId ->
@@ -667,6 +670,7 @@ listUsersByIdsOrHandles ::
   forall r.
   Members
     '[ GalleyProvider
+     , Concurrency 'Unsafe
      ]
     r =>
   UserId ->

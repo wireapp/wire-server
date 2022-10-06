@@ -186,6 +186,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Wire.Sem.Concurrency
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -1437,16 +1438,17 @@ lookupProfile self other =
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
-  Members '[GalleyProvider] r =>
+  Members '[ GalleyProvider
+           , Concurrency 'Unsafe
+           ] r =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
   ExceptT FederationError (AppT r) [UserProfile]
--- TODO(sandy): PERFORMANCE CHANGE: no longer concurrent
 lookupProfiles self others =
-  concat
-    <$> traverse
+  concat <$>
+    traverseConcurrentlyWithErrorsAppT
       (lookupProfilesFromDomain self)
       (bucketQualified others)
 
