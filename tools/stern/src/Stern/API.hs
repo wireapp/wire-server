@@ -105,7 +105,8 @@ servantSitemap env = Servant.Server.hoistServer (Proxy @SternAPI) nt servantSite
       fmapL renderError <$> Stern.App.runAppT env (runExceptT m)
 
     renderError :: Error -> Servant.Server.ServerError
-    renderError (Error code label message _) = Servant.Server.ServerError (statusCode code) (cs label) (cs message) [("Content-type", "application/json")]
+    renderError (Error code label message _) =
+      Servant.Server.ServerError (statusCode code) (cs label) (cs message) [("Content-type", "application/json")]
 
 servantSitemap' :: ServerT SternAPI Handler
 servantSitemap' =
