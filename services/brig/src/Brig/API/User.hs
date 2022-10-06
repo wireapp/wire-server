@@ -1438,17 +1438,19 @@ lookupProfile self other =
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
-  Members '[ GalleyProvider
-           , Concurrency 'Unsafe
-           ] r =>
+  Members
+    '[ GalleyProvider,
+       Concurrency 'Unsafe
+     ]
+    r =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
   ExceptT FederationError (AppT r) [UserProfile]
 lookupProfiles self others =
-  concat <$>
-    traverseConcurrentlyWithErrorsAppT
+  concat
+    <$> traverseConcurrentlyWithErrorsAppT
       (lookupProfilesFromDomain self)
       (bucketQualified others)
 

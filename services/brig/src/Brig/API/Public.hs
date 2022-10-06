@@ -137,8 +137,8 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
-import Wire.Sem.Now (Now)
 import Wire.Sem.Concurrency
+import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
 
@@ -643,8 +643,8 @@ getUser self qualifiedUserId = do
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
   Members
-    '[ GalleyProvider
-     , Concurrency 'Unsafe
+    '[ GalleyProvider,
+       Concurrency 'Unsafe
      ]
     r =>
   UserId ->
@@ -669,8 +669,8 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
 listUsersByIdsOrHandles ::
   forall r.
   Members
-    '[ GalleyProvider
-     , Concurrency 'Unsafe
+    '[ GalleyProvider,
+       Concurrency 'Unsafe
      ]
     r =>
   UserId ->

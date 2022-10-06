@@ -52,6 +52,8 @@ import Data.Qualified
 import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
+import Polysemy
+import qualified Polysemy.Error as E
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import UnliftIO.Async
@@ -62,8 +64,6 @@ import Wire.API.Error.Brig
 import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
-import Polysemy
-import qualified Polysemy.Error as E
 import qualified Wire.Sem.Concurrency as C
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
@@ -129,10 +129,13 @@ traverseConcurrentlyWithErrorsAppT ::
   ExceptT e (AppT r) [b]
 traverseConcurrentlyWithErrorsAppT f t = do
   env <- lift temporaryGetEnv
-  ExceptT $ AppT $ lift $
-    runExceptT $ traverseConcurrentlyWithErrorsSem
-        (mapExceptT (lowerAppT env) . f)
-        t
+  ExceptT $
+    AppT $
+      lift $
+        runExceptT $
+          traverseConcurrentlyWithErrorsSem
+            (mapExceptT (lowerAppT env) . f)
+            t
 
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
