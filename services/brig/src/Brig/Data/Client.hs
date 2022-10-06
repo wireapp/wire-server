@@ -26,7 +26,6 @@ module Brig.Data.Client
     reAuthForNewClients,
     addClientWithReAuthPolicy,
     addClient,
-    rmClient,
     hasClient,
     lookupClient,
     lookupClients,
@@ -55,7 +54,7 @@ import Bilge.Retry (httpHandlers)
 import Brig.AWS
 import Brig.App
 import Brig.Data.Instances ()
-import Brig.Effects.ClientStore.Cassandra (key, lookupClients, rmClient, toClient)
+import Brig.Effects.ClientStore.Cassandra (key, lookupClients, toClient)
 -- import Brig.Data.User (AuthError (..), ReAuthError (..))
 -- import qualified Brig.Data.User as User
 -- import Brig.Options (setDefaultUserLocale)

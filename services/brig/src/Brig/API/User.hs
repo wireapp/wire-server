@@ -112,6 +112,7 @@ import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.ClientStore
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
@@ -1401,7 +1402,8 @@ mkPasswordResetKey ident = case ident of
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteSelfUser ::
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
@@ -1490,7 +1492,8 @@ deleteSelfUser uid pwd = do
 -- 'deleteUser'.  Called via @post /delete@.
 verifyDeleteUser ::
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
@@ -1516,7 +1519,8 @@ verifyDeleteUser d = do
 -- Called via @delete /i/user/:uid@.
 ensureAccountDeleted ::
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
@@ -1566,7 +1570,8 @@ ensureAccountDeleted uid = do
 deleteAccount ::
   forall r p.
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        UniqueClaimsStore,
        UserHandleStore,
@@ -1589,7 +1594,7 @@ deleteAccount account@(accountUser -> user) = do
   tombstone <- mkTombstone
   liftSem $ Data.insertAccount tombstone Nothing Nothing False
   wrapHttp $ Intra.rmUser uid (userAssets user)
-  wrapClient (Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId))
+  liftSem (lookupClients uid >>= mapM_ (deleteClient uid . clientId))
   luid <- qualifyLocal uid
   Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since

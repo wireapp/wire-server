@@ -44,6 +44,7 @@ import Brig.Effects.ActivationKeyStore
 import Brig.Effects.ActivationSupply
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
+import Brig.Effects.ClientStore (ClientStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.GalleyAccess
 import Brig.Effects.GundeckAccess (GundeckAccess)
@@ -328,6 +329,7 @@ sitemap ::
        Async,
        BlacklistPhonePrefixStore,
        BlacklistStore,
+       ClientStore,
        CodeStore,
        GalleyAccess,
        GundeckAccess,
@@ -513,7 +515,8 @@ sitemap = do
 -- | Add a client without authentication checks
 addClientInternalH ::
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery p,
@@ -528,7 +531,8 @@ addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
 
 addClientInternal ::
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery p,
@@ -556,7 +560,7 @@ legalHoldClientRequestedH (targetUser ::: req ::: _) = do
   pure $ setStatus status200 empty
 
 removeLegalHoldClientH ::
-  Members '[GalleyAccess, GundeckAccess] r =>
+  Members '[ClientStore, GalleyAccess, GundeckAccess] r =>
   UserId ::: JSON ->
   Handler r Response
 removeLegalHoldClientH (uid ::: _) = do
@@ -650,7 +654,8 @@ createUserNoVerifySpar uData =
 
 deleteUserNoAuthH ::
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,

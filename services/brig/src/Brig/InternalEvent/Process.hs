@@ -24,6 +24,7 @@ import qualified Brig.API.User as API
 import Brig.App
 import qualified Brig.Data.Client as Data
 import Brig.Effects.ClientStore (ClientStore)
+import qualified Brig.Effects.ClientStore as E
 import Brig.Effects.GalleyAccess (GalleyAccess)
 import Brig.Effects.GundeckAccess (GundeckAccess)
 import Brig.Effects.UniqueClaimsStore
@@ -83,7 +84,7 @@ onEvent n = do
       mc <- wrapClient $ Data.lookupClient uid cid
       for_ mc $ \c -> do
         wrapHttp $ rmClient uid cid
-        wrapClient $ Data.rmClient uid cid
+        liftSem $ E.deleteClient uid cid
         liftSem $ Intra.onClientEvent uid mcon (ClientRemoved uid c)
     DeleteUser uid -> do
       liftSem . P.info $

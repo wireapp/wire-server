@@ -188,7 +188,7 @@ servantSitemap ::
        Async,
        BlacklistPhonePrefixStore,
        BlacklistStore,
-       CodeStore,
+       ClientStore,
        CodeStore,
        GalleyAccess,
        GundeckAccess,
@@ -524,7 +524,8 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
 
 addClient ::
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UserQuery p,
@@ -548,7 +549,8 @@ addClient usr con ip new = do
 
 deleteClient ::
   Members
-    '[ GundeckAccess,
+    '[ ClientStore,
+       GundeckAccess,
        Input (Local ()),
        P.Error ReAuthError,
        UserQuery p
@@ -1164,7 +1166,8 @@ getConnection self other = do
 
 deleteSelfUser ::
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
@@ -1182,7 +1185,8 @@ deleteSelfUser u body =
 
 verifyDeleteUser ::
   Members
-    '[ GalleyAccess,
+    '[ ClientStore,
+       GalleyAccess,
        GundeckAccess,
        Input (Local ()),
        UniqueClaimsStore,
