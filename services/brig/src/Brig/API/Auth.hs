@@ -46,6 +46,12 @@ sendLoginCode (SendLoginCode phone call force) = do
   c <- wrapClientE (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
   pure $ LoginCodeTimeout (pendingLoginTimeout c)
 
+login :: Login -> Maybe Bool -> Handler r SomeAccess
+login l (fromMaybe False -> persist) = do
+  let typ = if persist then PersistentCookie else SessionCookie
+  c <- wrapHttpClientE (Auth.login l typ) !>> loginError
+  traverse mkUserTokenCookie c
+
 --------------------------------------------------------------------------------
 -- Utils
 

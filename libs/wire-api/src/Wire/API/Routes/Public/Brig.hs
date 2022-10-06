@@ -1141,6 +1141,12 @@ type SearchAPI =
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 
+type TokenResponse =
+  WithHeaders
+    '[OptHeader (Header "Set-Cookie" UserTokenCookie)]
+    SomeAccess
+    (Respond 201 "TODO" AccessToken)
+
 type AuthAPI =
   Named
     "access"
@@ -1153,14 +1159,7 @@ type AuthAPI =
              \ header, with the latter being preferred."
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
-        :> MultiVerb1
-             'POST
-             '[JSON]
-             ( WithHeaders
-                 '[OptHeader (Header "Set-Cookie" UserTokenCookie)]
-                 SomeAccess
-                 (Respond 201 "TODO" AccessToken)
-             )
+        :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
            "send-login-code"
@@ -1177,6 +1176,21 @@ type AuthAPI =
                     'POST
                     '[JSON]
                     (Respond 201 "TODO" LoginCodeTimeout)
+           )
+    :<|> Named
+           "login"
+           ( "login"
+               :> Summary "Authenticate a user to obtain a cookie and first access token"
+               :> Description "Logins are throttled at the server's discretion"
+               :> ReqBody '[JSON] Login
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Request a persistent cookie instead of a session cookie"
+                    ]
+                    "persist"
+                    Bool
+               :> MultiVerb1 'POST '[JSON] TokenResponse
            )
 
 type BrigAPI =
