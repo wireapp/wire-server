@@ -105,6 +105,12 @@ nginx_conf:
       - all
       max_body_size: "0"
       disable_request_buffering: true
+    - path: /assets/(.*)
+      envs:
+      - all
+      max_body_size: "0"
+      disable_request_buffering: true
+      unlimited_requests_endpoint: true
     - path: /assets
       envs:
       - all
