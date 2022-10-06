@@ -68,9 +68,6 @@ import Util (runRedisProxy, withSettingsOverrides)
 import Wire.API.Internal.Notification
 import qualified Prelude
 
-appName :: AppName
-appName = AppName "test"
-
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
@@ -1120,6 +1117,9 @@ buildPush sdr rcps pload =
    in newPush (Just sdr) (unsafeRange rcps') pload
   where
     rcpt u c = recipient u RouteAny & recipientClients .~ c
+
+appName :: AppName
+appName = AppName "test"
 
 data TokenSpec = TokenSpec {trans :: Transport, tSize :: Int, tName :: AppName}
 
