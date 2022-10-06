@@ -20,7 +20,6 @@
 module Wire.API.Routes.Public.Brig where
 
 import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
-import Data.Bifunctor
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
@@ -35,9 +34,6 @@ import Data.SOP
 import Data.Schema as Schema
 import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.ZAuth.Token as ZAuth
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
 import Network.Wai.Utilities
@@ -1145,30 +1141,6 @@ type SearchAPI =
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 
-data SomeUserToken
-  = PlainUserToken (ZAuth.Token ZAuth.User)
-  | LHUserToken (ZAuth.Token ZAuth.LegalHoldUser)
-  deriving (Show)
-
-instance FromHttpApiData SomeUserToken where
-  parseHeader h =
-    first T.pack $
-      fmap PlainUserToken (runParser parser h)
-        <|> fmap LHUserToken (runParser parser h)
-  parseUrlPiece = parseHeader . T.encodeUtf8
-
-data SomeAccessToken
-  = PlainAccessToken (ZAuth.Token ZAuth.Access)
-  | LHAccessToken (ZAuth.Token ZAuth.LegalHoldAccess)
-  deriving (Show)
-
-instance FromHttpApiData SomeAccessToken where
-  parseHeader h =
-    first T.pack $
-      fmap PlainAccessToken (runParser parser h)
-        <|> fmap LHAccessToken (runParser parser h)
-  parseUrlPiece = parseHeader . T.encodeUtf8
-
 type AuthAPI =
   Named
     "access"
@@ -1185,7 +1157,7 @@ type AuthAPI =
              'POST
              '[JSON]
              ( WithHeaders
-                 '[Header "Set-Cookie" SomeCookie]
+                 '[OptHeader (Header "Set-Cookie" UserTokenCookie)]
                  SomeAccess
                  (Respond 201 "TODO" AccessToken)
              )

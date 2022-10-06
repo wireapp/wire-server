@@ -70,7 +70,7 @@ module Brig.ZAuth
     accessTokenOf,
     userTokenOf,
     mkSomeAccess,
-    mkSomeCookie,
+    mkUserTokenCookie,
     legalHoldAccessTokenOf,
     legalHoldUserTokenOf,
     userTokenRand,
@@ -103,7 +103,7 @@ import qualified Data.ZAuth.Validation as ZV
 import Imports
 import OpenSSL.Random
 import Sodium.Crypto.Sign
-import Wire.API.User.Auth (Cookie, SomeAccess, SomeCookie)
+import Wire.API.User.Auth (Cookie, SomeAccess)
 import qualified Wire.API.User.Auth as Auth
 
 newtype ZAuth a = ZAuth {unZAuth :: ReaderT Env IO a}
@@ -252,7 +252,8 @@ instance AccessTokenLike LegalHoldAccess where
 class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
   userTokenOf :: Token u -> UserId
   mkSomeAccess :: Auth.Access u -> SomeAccess
-  mkSomeCookie :: Cookie (Token u) -> SomeCookie
+  mkSomeAccess = fmap mkUserTokenCookie
+  mkUserTokenCookie :: Cookie (Token u) -> Auth.UserTokenCookie
   mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m (Token u)
   userTokenRand :: Token u -> Word32
   newUserToken :: MonadZAuth m => UserId -> m (Token u)
@@ -263,8 +264,12 @@ class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
 instance UserTokenLike User where
   mkUserToken = mkUserToken'
   userTokenOf = userTokenOf'
-  mkSomeAccess = Auth.PlainAccess
-  mkSomeCookie = Auth.PlainCookie
+  mkUserTokenCookie c =
+    Auth.UserTokenCookie
+      { Auth.utcType = Auth.cookieType c,
+        Auth.utcExpires = Auth.cookieExpires c,
+        Auth.utcToken = Auth.PlainUserToken (Auth.cookieValue c)
+      }
   userTokenRand = userTokenRand'
   newUserToken = newUserToken'
   newSessionToken uid = newSessionToken' uid
@@ -274,8 +279,12 @@ instance UserTokenLike User where
 instance UserTokenLike LegalHoldUser where
   mkUserToken = mkLegalHoldUserToken
   userTokenOf = legalHoldUserTokenOf
-  mkSomeAccess = Auth.LHAccess
-  mkSomeCookie = Auth.LHCookie
+  mkUserTokenCookie c =
+    Auth.UserTokenCookie
+      { Auth.utcType = Auth.cookieType c,
+        Auth.utcExpires = Auth.cookieExpires c,
+        Auth.utcToken = Auth.LHUserToken (Auth.cookieValue c)
+      }
   userTokenRand = legalHoldUserTokenRand
   newUserToken = newLegalHoldUserToken
   newSessionToken _ = throwM ZV.Unsupported

@@ -28,6 +28,7 @@ module Wire.API.Routes.MultiVerb
     RespondStreaming,
     WithHeaders,
     DescHeader,
+    OptHeader,
     AsHeaders (..),
     AsUnion (..),
     eitherToUnion,
@@ -381,6 +382,9 @@ instance
       name = Text.pack (symbolVal (Proxy @name))
       desc = Text.pack (symbolVal (Proxy @desc))
       sch = S.toParamSchema (Proxy @a)
+
+instance ToResponseHeader h => ToResponseHeader (OptHeader h) where
+  toResponseHeader _ = toResponseHeader (Proxy @h)
 
 type instance ResponseType (WithHeaders hs a r) = a
 

@@ -29,9 +29,7 @@ import Data.List1 (List1 (..))
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities ((!>>))
-import Wire.API.Routes.Public.Brig (SomeUserToken)
-import Wire.API.Routes.Public.Brig hiding (SomeUserToken)
-import Wire.API.User.Auth (SomeAccess)
+import Wire.API.User.Auth
 
 access :: forall r. NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
 access ut mat = do

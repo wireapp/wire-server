@@ -36,7 +36,6 @@ module Wire.API.User.Auth
     CookieId (..),
     CookieType (..),
     Cookie (..),
-    SomeCookie (..),
     CookieLabel (..),
     RemoveCookies (..),
 
@@ -44,10 +43,14 @@ module Wire.API.User.Auth
     AccessToken (..),
     bearerToken,
     TokenType (..),
+    SomeUserToken (..),
+    SomeAccessToken (..),
+    UserTokenCookie (..),
 
     -- * Access
-    Access (..),
-    SomeAccess (..),
+    AccessWithCookie (..),
+    Access,
+    SomeAccess,
   )
 where
 
@@ -56,6 +59,7 @@ import Control.Lens ((?~))
 import Control.Lens.TH
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson.Types as A
+import Data.Bifunctor
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code as Code
@@ -63,14 +67,18 @@ import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
+import Data.SOP
 import Data.Schema
 import qualified Data.Swagger as S
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy.Encoding as LT
 import Data.Time.Clock (UTCTime)
-import Data.Tuple.Extra
+import Data.Tuple.Extra hiding (first)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
+import Web.HttpApiData
+import Wire.API.Routes.MultiVerb
 import Wire.API.User.Identity (Email, Phone)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -244,13 +252,6 @@ deriving via Schema (Cookie ()) instance FromJSON (Cookie ())
 deriving via Schema (Cookie ()) instance ToJSON (Cookie ())
 
 deriving via Schema (Cookie ()) instance S.ToSchema (Cookie ())
-
-data SomeCookie
-  = PlainCookie (Cookie (ZAuth.Token ZAuth.User))
-  | LHCookie (Cookie (ZAuth.Token ZAuth.LegalHoldUser))
-
-instance S.ToParamSchema SomeCookie where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
 
 -- | A device-specific identifying label for one or more cookies.
 -- Cookies can be listed and deleted based on their labels.
@@ -451,11 +452,63 @@ instance ToSchema TokenType where
 --------------------------------------------------------------------------------
 -- Access
 
-data Access u = Access
+-- summary of types involved:
+--
+-- user tokens     SomeUserToken = Token User + Token LHUser
+-- access tokens   SomeAccessToken = Token Access + Token LHAccess
+
+-- session: Cookie (Token u) (used in DB)
+
+-- cookie: UserTokenCookie
+
+data AccessWithCookie c = Access
   { accessToken :: !AccessToken,
-    accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
+    accessCookie :: !(Maybe c)
+  }
+  deriving (Functor)
+
+type Access u = AccessWithCookie (Cookie (ZAuth.Token u))
+
+type SomeAccess = AccessWithCookie UserTokenCookie
+
+instance AsHeaders '[Maybe UserTokenCookie] AccessToken SomeAccess where
+  toHeaders (Access at c) = (I c :* Nil, at)
+  fromHeaders (I c :* Nil, at) = Access at c
+
+--------------------------------------------------------------------------------
+-- Token sum types
+
+data SomeUserToken
+  = PlainUserToken (ZAuth.Token ZAuth.User)
+  | LHUserToken (ZAuth.Token ZAuth.LegalHoldUser)
+  deriving (Show)
+
+instance FromHttpApiData SomeUserToken where
+  parseHeader h =
+    first T.pack $
+      fmap PlainUserToken (runParser parser h)
+        <|> fmap LHUserToken (runParser parser h)
+  parseUrlPiece = parseHeader . T.encodeUtf8
+
+data SomeAccessToken
+  = PlainAccessToken (ZAuth.Token ZAuth.Access)
+  | LHAccessToken (ZAuth.Token ZAuth.LegalHoldAccess)
+  deriving (Show)
+
+instance FromHttpApiData SomeAccessToken where
+  parseHeader h =
+    first T.pack $
+      fmap PlainAccessToken (runParser parser h)
+        <|> fmap LHAccessToken (runParser parser h)
+  parseUrlPiece = parseHeader . T.encodeUtf8
+
+-- | Data that is returned to the client in the form of a cookie containing a
+-- user token.
+data UserTokenCookie = UserTokenCookie
+  { utcType :: CookieType,
+    utcExpires :: UTCTime,
+    utcToken :: SomeUserToken
   }
 
-data SomeAccess
-  = PlainAccess (Access ZAuth.User)
-  | LHAccess (Access ZAuth.LegalHoldUser)
+instance S.ToParamSchema UserTokenCookie where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString

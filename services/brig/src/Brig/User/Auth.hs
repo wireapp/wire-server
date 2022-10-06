@@ -17,7 +17,7 @@
 
 -- | High-level user authentication and access control.
 module Brig.User.Auth
-  ( Access (..),
+  ( Access,
     sendLoginCode,
     login,
     logout,
