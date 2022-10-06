@@ -24,6 +24,7 @@ library
     Data.List1
     Data.Misc
     Data.Nonce
+    Data.PEMKeys
     Data.Qualified
     Data.Range
     Data.RetryAfter
@@ -113,6 +114,7 @@ library
     , lens-datetime          >=0.3
     , mime                   >=0.4.0.2
     , optparse-applicative   >=0.10
+    , pem
     , protobuf               >=0.2
     , QuickCheck             >=2.9
     , quickcheck-instances   >=0.3.16
@@ -147,6 +149,7 @@ test-suite tests
   main-is:            Main.hs
   other-modules:
     Paths_types_common
+    Test.Data.PEMKeys
     Test.Domain
     Test.Handle
     Test.Properties

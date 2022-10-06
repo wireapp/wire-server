@@ -85,6 +85,8 @@ config:
     #   - example.com
     set2FACodeGenerationDelaySecs: 300 # 5 minutes
     setNonceTtlSecs: 300 # 5 minutes
+    setDpopMaxSkewSecs: 1
+    setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

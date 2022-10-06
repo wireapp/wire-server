@@ -16,6 +16,7 @@ packages:
   , libs/gundeck-types/
   , libs/hscim/
   , libs/imports/
+  , libs/jwt-tools/
   , libs/metrics-core/
   , libs/metrics-wai/
   , libs/polysemy-wire-zoo/
@@ -218,6 +219,8 @@ package gundeck-types
 package hscim
     ghc-options: -Werror
 package imports
+    ghc-options: -Werror
+package jwt-tools
     ghc-options: -Werror
 package metrics-core
     ghc-options: -Werror

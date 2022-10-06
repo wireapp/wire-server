@@ -1319,9 +1319,9 @@ testUpdateTeam = do
 
   let u =
         newTeamUpdateData
-          & nameUpdate .~ (Just $ unsafeRange "bar")
+          & nameUpdate ?~ unsafeRange "bar"
           & iconUpdate .~ fromByteString "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac"
-          & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
+          & iconKeyUpdate ?~ unsafeRange "yyy"
           & splashScreenUpdate .~ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a"
   WS.bracketR2 c owner member $ \(wsOwner, wsMember) -> do
     doPut (encode u) 200
@@ -1422,7 +1422,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     modifyTeamDataAndExpectEvent expect tid origin = do
       c <- view tsCannon
       g <- viewGalley
-      let u = newTeamUpdateData & nameUpdate .~ (Just $ unsafeRange "bar")
+      let u = newTeamUpdateData & nameUpdate ?~ unsafeRange "bar"
       WS.bracketR c origin $ \wsOrigin -> do
         put
           ( g

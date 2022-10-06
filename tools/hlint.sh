@@ -1,23 +1,21 @@
 #!/usr/bin/env bash
 
+
 usage() { echo "Usage: $0 -f [all, changeset] -m [check, inplace]" 1>&2; exit 1; }
 
 files=''
 check=true
 
-while getopts ':f:m:' opt
+while getopts ':f:m:k' opt
  do
      case $opt in
          f) f=${OPTARG}
             if [ "$f" = "all" ]; then
-              files=$(find libs/ services/ -not -path "*/test/*" -name "*.hs")
-              echo "WARNING: not linting tests."
+              files=$(find libs/ services/ -name "*.hs")
             elif [ "$f" = "pr" ]; then
               files=$(git diff --name-only origin/develop... | grep \.hs\$)
-              echo "WARNING: linting test files with changes. This may lead to some hard to fix warnings/errors, it is safe to ignore those!"
             elif [ "$f" = "changeset" ]; then
               files=$(git diff --name-only HEAD | grep \.hs\$)
-              echo "WARNING: linting test files with changes. This may lead to some hard to fix warnings/errors, it is safe to ignore those!"
             else
               usage
             fi
@@ -31,6 +29,7 @@ while getopts ':f:m:' opt
               usage
             fi
             ;;
+         k) k=true;;
          *) usage;;
      esac
 done
@@ -38,6 +37,12 @@ done
 if [ -z "${f}" ] || [ -z "${m}" ]; then
     usage
 fi
+
+if [ "${k}" ]; then
+  echo "Will fail on the first error"
+  set -euo pipefail
+fi
+
 
 count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
 

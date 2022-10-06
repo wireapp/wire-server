@@ -425,7 +425,7 @@ instance MonadPushAll MockGundeck where
   mpaForkIO = id -- just don't fork.  (this *may* cause deadlocks in principle, but as long as it
   -- doesn't, this is good enough for testing).
 
-  mpaRunWithBudget = \_ _ -> id -- no throttling needed as long as we don't overdo it in the tests...
+  mpaRunWithBudget _ _ = id -- no throttling needed as long as we don't overdo it in the tests...
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
@@ -619,7 +619,7 @@ mockLookupAddresses uid = do
       . fromMaybe (error $ "mockLookupAddress: unknown UserId: " <> show uid)
       . Map.lookup uid
       <$> asks (^. meClientInfos)
-  pure . catMaybes $ (^? ciNativeAddress . _Just . _1) <$> cinfos
+  pure . mapMaybe (^? ciNativeAddress . _Just . _1) $ cinfos
 
 mockBulkSend ::
   (HasCallStack, m ~ MockGundeck) =>
@@ -662,12 +662,15 @@ mockOldSimpleWebPush notif tgts _senderid mconnid connWhitelist = do
           -- reformat
           . mconcat
           . fmap
-            ( \tgt ->
-                PushTarget (tgt ^. targetUser) . fakeConnId
-                  <$> (tgt ^. targetClients)
+            ( ( \tgt ->
+                  PushTarget (tgt ^. targetUser)
+                    . fakeConnId
+                    <$> (tgt ^. targetClients)
+              )
+                -- apply filters
+                . connWhitelistSieve
+                . emptyMeansFullHack
             )
-          -- apply filters
-          . fmap (connWhitelistSieve . emptyMeansFullHack)
           $ toList tgts
       connWhitelistSieve :: NotificationTarget -> NotificationTarget
       connWhitelistSieve =

@@ -19,7 +19,7 @@ RUN cd /tmp && \
     git checkout 6370cd556f03f6834d0b8043615ffaf0044ef1fa && \
     git rev-parse HEAD
 
-RUN cd /tmp/rusty-jwt-tools && cargo build --release --target x86_64-unknown-linux-gnu
+RUN cd /tmp/rusty-jwt-tools && cargo build --features haskell --release --target x86_64-unknown-linux-gnu
 
 FROM ${prebuilder}
 

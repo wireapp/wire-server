@@ -484,9 +484,6 @@ nginx_conf:
     - path: /mls/public-keys
       envs:
       - all
-    - path: /nonce/clients
-      envs:
-      - all
     gundeck:
     - path: /push/api-docs$
       envs:

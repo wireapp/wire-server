@@ -95,6 +95,7 @@ library
     Wire.API.Routes.WebSocket
     Wire.API.ServantProto
     Wire.API.Swagger
+    Wire.API.SwaggerHelper
     Wire.API.Team
     Wire.API.Team.Conversation
     Wire.API.Team.Export
@@ -112,6 +113,7 @@ library
     Wire.API.User.Auth
     Wire.API.User.Auth2
     Wire.API.User.Client
+    Wire.API.User.Client.DPoPAccessToken
     Wire.API.User.Client.Prekey
     Wire.API.User.Handle
     Wire.API.User.Identity

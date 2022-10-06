@@ -7,8 +7,10 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
+import Brig.Effects.JwtTools
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
+import Brig.Effects.PublicKeyBundle
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import qualified Cassandra as Cas
@@ -20,7 +22,9 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ BlacklistPhonePrefixStore,
+  '[ PublicKeyBundle,
+     JwtTools,
+     BlacklistPhonePrefixStore,
      BlacklistStore,
      PasswordResetStore,
      UserPendingActivationStore InternalPaging,
@@ -42,4 +46,6 @@ runBrigToIO e (AppT ma) =
     . passwordResetStoreToCodeStore
     . interpretBlacklistStoreToCassandra @Cas.Client
     . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
+    . interpretJwtTools
+    . interpretPublicKeyBundle
     $ runReaderT ma e

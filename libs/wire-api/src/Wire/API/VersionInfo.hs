@@ -21,7 +21,6 @@ module Wire.API.VersionInfo
 
     -- * Version utilities
     readVersionNumber,
-    mkVersion,
     versionHeader,
     VersionHeader,
 
@@ -32,8 +31,6 @@ module Wire.API.VersionInfo
   )
 where
 
-import Data.Aeson (FromJSON)
-import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.CaseInsensitive as CI
 import Data.Metrics.Servant
@@ -60,11 +57,6 @@ readVersionNumber v = do
   case Text.decimal rest of
     Right (n, "") -> pure n
     _ -> Nothing
-
-mkVersion :: FromJSON v => Integer -> Maybe v
-mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
-  Aeson.Error _ -> Nothing
-  Aeson.Success v -> pure v
 
 type VersionHeader = "X-Wire-API-Version"
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -90,6 +89,10 @@ tests s =
         "Creation"
         [ test s "fail to create MLS conversation" postMLSConvFail,
           test s "create MLS conversation" postMLSConvOk
+        ],
+      testGroup
+        "Deletion"
+        [ test s "delete a MLS conversation" testDeleteMLSConv
         ],
       testGroup
         "Commit"
@@ -1932,3 +1935,22 @@ testFederatedGetGroupInfo = do
             err @?= ConvNotFound
           GetGroupInfoResponseState _ ->
             assertFailure "Unexpected success"
+
+testDeleteMLSConv :: TestM ()
+testDeleteMLSConv = do
+  localDomain <- viewFederationDomain
+  -- c <- view tsCannon
+  (tid, aliceUnq, [bobUnq]) <- API.Util.createBindingTeamWithMembers 2
+  let alice = Qualified aliceUnq localDomain
+      bob = Qualified bobUnq localDomain
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+    void $ sendAndConsumeCommitBundle commit
+
+    deleteTeamConv tid (qUnqualified qcnv) aliceUnq
+      !!! statusCode === const 200

@@ -46,15 +46,15 @@ spec = do
 genMember :: Gen GroupClass.Member
 genMember =
   GroupClass.Member
-    <$> (Gen.text (Range.constant 0 20) Gen.unicode)
-    <*> (Gen.text (Range.constant 0 20) Gen.unicode)
-    <*> (Gen.text (Range.constant 0 20) Gen.unicode)
+    <$> Gen.text (Range.constant 0 20) Gen.unicode
+    <*> Gen.text (Range.constant 0 20) Gen.unicode
+    <*> Gen.text (Range.constant 0 20) Gen.unicode
 
 genGroup :: Gen GroupClass.Group
 genGroup =
   GroupClass.Group
     <$> Gen.list (Range.linear 0 10) genSchema
-    <*> (Gen.text (Range.constant 0 20) Gen.unicode)
+    <*> Gen.text (Range.constant 0 20) Gen.unicode
     <*> Gen.list (Range.linear 0 10) genMember
 
 genSchema :: Gen Text
