@@ -19,10 +19,11 @@ module Brig.API.Auth where
 
 import Brig.API.Error (authTokenMismatch, internalServerError, throwStd, zauthError)
 import Brig.API.Handler
-import Brig.App (wrapHttpClientE)
+import Brig.App
+import Brig.Options
 import qualified Brig.User.Auth as Auth
-import Brig.ZAuth (UserTokenLike (mkSomeAccess))
-import qualified Brig.ZAuth as ZAuth
+import Brig.ZAuth hiding (Env, settings)
+import Control.Lens (view)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty as NE
 import Data.List1 (List1 (..))
@@ -35,7 +36,24 @@ access :: forall r. NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r
 access ut mat = do
   partitionTokens ut mat >>= either (uncurry renew) (uncurry renew)
   where
-    renew t mt = mkSomeAccess <$> wrapHttpClientE (Auth.renewAccess (List1 t) mt) !>> zauthError
+    renew t mt =
+      traverse mkUserTokenCookie
+        =<< wrapHttpClientE (Auth.renewAccess (List1 t) mt) !>> zauthError
+
+mkUserTokenCookie ::
+  (MonadReader Env m, UserTokenLike u) =>
+  Cookie (Token u) ->
+  m UserTokenCookie
+mkUserTokenCookie c = do
+  s <- view settings
+  pure
+    UserTokenCookie
+      { utcExpires =
+          guard (cookieType c == PersistentCookie)
+            $> cookieExpires c,
+        utcToken = mkSomeToken (cookieValue c),
+        utcSecure = not (setCookieInsecure s)
+      }
 
 partitionTokens ::
   NonEmpty SomeUserToken ->

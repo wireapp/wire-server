@@ -60,6 +60,7 @@ import Control.Lens.TH
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson.Types as A
 import Data.Bifunctor
+import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code as Code
@@ -77,6 +78,7 @@ import Data.Time.Clock (UTCTime)
 import Data.Tuple.Extra hiding (first)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
+import Web.Cookie
 import Web.HttpApiData
 import Wire.API.Routes.MultiVerb
 import Wire.API.User.Identity (Email, Phone)
@@ -465,7 +467,7 @@ data AccessWithCookie c = Access
   { accessToken :: !AccessToken,
     accessCookie :: !(Maybe c)
   }
-  deriving (Functor)
+  deriving (Functor, Foldable, Traversable)
 
 type Access u = AccessWithCookie (Cookie (ZAuth.Token u))
 
@@ -490,6 +492,15 @@ instance FromHttpApiData SomeUserToken where
         <|> fmap LHUserToken (runParser parser h)
   parseUrlPiece = parseHeader . T.encodeUtf8
 
+instance FromByteString SomeUserToken where
+  parser =
+    PlainUserToken <$> parser
+      <|> LHUserToken <$> parser
+
+instance ToByteString SomeUserToken where
+  builder (PlainUserToken t) = builder t
+  builder (LHUserToken t) = builder t
+
 data SomeAccessToken
   = PlainAccessToken (ZAuth.Token ZAuth.Access)
   | LHAccessToken (ZAuth.Token ZAuth.LegalHoldAccess)
@@ -505,10 +516,43 @@ instance FromHttpApiData SomeAccessToken where
 -- | Data that is returned to the client in the form of a cookie containing a
 -- user token.
 data UserTokenCookie = UserTokenCookie
-  { utcType :: CookieType,
-    utcExpires :: UTCTime,
-    utcToken :: SomeUserToken
+  { utcExpires :: Maybe UTCTime,
+    utcToken :: SomeUserToken,
+    utcSecure :: Bool
   }
+
+utcFromSetCookie :: SetCookie -> Either Text UserTokenCookie
+utcFromSetCookie c = do
+  v <- first T.pack $ runParser parser (setCookieValue c)
+  pure
+    UserTokenCookie
+      { utcToken = v,
+        utcExpires = setCookieExpires c,
+        utcSecure = setCookieSecure c
+      }
+
+utcToSetCookie :: UserTokenCookie -> SetCookie
+utcToSetCookie c =
+  def
+    { setCookieName = "zuid",
+      setCookieValue = toByteString' (utcToken c),
+      setCookiePath = Just "/access",
+      setCookieExpires = utcExpires c,
+      setCookieSecure = utcSecure c,
+      setCookieHttpOnly = True
+    }
 
 instance S.ToParamSchema UserTokenCookie where
   toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
+instance FromHttpApiData UserTokenCookie where
+  parseHeader = utcFromSetCookie . parseSetCookie
+  parseUrlPiece = parseHeader . T.encodeUtf8
+
+instance ToHttpApiData UserTokenCookie where
+  toHeader =
+    LBS.toStrict
+      . toLazyByteString
+      . renderSetCookie
+      . utcToSetCookie
+  toUrlPiece = T.decodeUtf8 . toHeader

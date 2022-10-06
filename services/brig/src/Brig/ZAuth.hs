@@ -50,6 +50,7 @@ module Brig.ZAuth
     -- * Token Creation
     Token,
     mkUserToken,
+    mkSomeToken,
     newUserToken,
     newSessionToken,
     newAccessToken,
@@ -69,8 +70,6 @@ module Brig.ZAuth
     -- * Token Inspection
     accessTokenOf,
     userTokenOf,
-    mkSomeAccess,
-    mkUserTokenCookie,
     legalHoldAccessTokenOf,
     legalHoldUserTokenOf,
     userTokenRand,
@@ -103,7 +102,6 @@ import qualified Data.ZAuth.Validation as ZV
 import Imports
 import OpenSSL.Random
 import Sodium.Crypto.Sign
-import Wire.API.User.Auth (Cookie, SomeAccess)
 import qualified Wire.API.User.Auth as Auth
 
 newtype ZAuth a = ZAuth {unZAuth :: ReaderT Env IO a}
@@ -251,9 +249,7 @@ instance AccessTokenLike LegalHoldAccess where
 
 class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
   userTokenOf :: Token u -> UserId
-  mkSomeAccess :: Auth.Access u -> SomeAccess
-  mkSomeAccess = fmap mkUserTokenCookie
-  mkUserTokenCookie :: Cookie (Token u) -> Auth.UserTokenCookie
+  mkSomeToken :: Token u -> Auth.SomeUserToken
   mkUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m (Token u)
   userTokenRand :: Token u -> Word32
   newUserToken :: MonadZAuth m => UserId -> m (Token u)
@@ -264,12 +260,7 @@ class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
 instance UserTokenLike User where
   mkUserToken = mkUserToken'
   userTokenOf = userTokenOf'
-  mkUserTokenCookie c =
-    Auth.UserTokenCookie
-      { Auth.utcType = Auth.cookieType c,
-        Auth.utcExpires = Auth.cookieExpires c,
-        Auth.utcToken = Auth.PlainUserToken (Auth.cookieValue c)
-      }
+  mkSomeToken = Auth.PlainUserToken
   userTokenRand = userTokenRand'
   newUserToken = newUserToken'
   newSessionToken uid = newSessionToken' uid
@@ -279,12 +270,7 @@ instance UserTokenLike User where
 instance UserTokenLike LegalHoldUser where
   mkUserToken = mkLegalHoldUserToken
   userTokenOf = legalHoldUserTokenOf
-  mkUserTokenCookie c =
-    Auth.UserTokenCookie
-      { Auth.utcType = Auth.cookieType c,
-        Auth.utcExpires = Auth.cookieExpires c,
-        Auth.utcToken = Auth.LHUserToken (Auth.cookieValue c)
-      }
+  mkSomeToken = Auth.LHUserToken
   userTokenRand = legalHoldUserTokenRand
   newUserToken = newLegalHoldUserToken
   newSessionToken _ = throwM ZV.Unsupported
