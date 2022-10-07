@@ -19,16 +19,21 @@ module Brig.API.Auth where
 
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.User
 import Brig.App
+import Brig.Effects.BlacklistStore
 import Brig.Options
 import qualified Brig.User.Auth as Auth
 import Brig.ZAuth hiding (Env, settings)
 import Control.Lens (view)
+import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 (List1 (..))
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities ((!>>))
+import Polysemy
+import Wire.API.User
 import Wire.API.User.Auth hiding (access)
 
 accessH :: NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
@@ -48,7 +53,7 @@ sendLoginCode (SendLoginCode phone call force) = do
 login :: Login -> Maybe Bool -> Handler r SomeAccess
 login l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
-  c <- wrapHttpClientE (Auth.login l typ) !>> loginError
+  c <- Auth.login l typ !>> loginError
   traverse mkUserTokenCookie c
 
 logoutH :: [SomeUserToken] -> Maybe SomeAccessToken -> Handler r ()
@@ -61,6 +66,27 @@ logoutH uts mat =
 logout :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
 logout _ Nothing = throwStd authMissingToken
 logout uts (Just at) = wrapHttpClientE $ Auth.logout (List1 uts) at !>> zauthError
+
+changeSelfEmailH ::
+  Member BlacklistStore r =>
+  NonEmpty SomeUserToken ->
+  Maybe SomeAccessToken ->
+  EmailUpdate ->
+  Handler r ChangeEmailResponse
+changeSelfEmailH uts mat up = do
+  toks <- partitionTokens uts mat
+  usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
+  let email = euEmail up
+  changeSelfEmail usr email ForbidSCIMUpdates
+
+validateCredentials ::
+  TokenPair u a =>
+  NonEmpty (Token u) ->
+  Maybe (Token a) ->
+  Handler r UserId
+validateCredentials _ Nothing = throwStd missingAccessToken
+validateCredentials uts mat =
+  fst <$> wrapHttpClientE (Auth.validateTokens (List1 uts) mat) !>> zauthError
 
 --------------------------------------------------------------------------------
 -- Utils

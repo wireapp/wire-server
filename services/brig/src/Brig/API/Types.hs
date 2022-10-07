@@ -81,12 +81,6 @@ data ChangeEmailResult
   | -- | The user asked to change the email address to the one already owned
     ChangeEmailIdempotent
 
--- | Typed response of the @put /self/email@ end-point (returned in
--- 'Brig.API.User.changeSelfEmail'.
-data ChangeEmailResponse
-  = ChangeEmailResponseIdempotent
-  | ChangeEmailResponseNeedsActivation
-
 -------------------------------------------------------------------------------
 -- Failures
 

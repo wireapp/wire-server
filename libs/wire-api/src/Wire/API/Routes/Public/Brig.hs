@@ -1160,6 +1160,7 @@ type AuthAPI =
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
         -- TODO: access_token query parameter
+        -- TODO: CanThrow
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
@@ -1173,6 +1174,7 @@ type AuthAPI =
                     \ For 2nd factor authentication login with email and password, use the\
                     \ `/verification-code/send` endpoint."
                :> ReqBody '[JSON] SendLoginCode
+               -- TODO: CanThrow
                :> MultiVerb1
                     'POST
                     '[JSON]
@@ -1191,6 +1193,7 @@ type AuthAPI =
                     ]
                     "persist"
                     Bool
+               -- TODO: CanThrow
                :> MultiVerb1 'POST '[JSON] TokenResponse
            )
     :<|> Named
@@ -1204,7 +1207,25 @@ type AuthAPI =
                :> Cookies '["zuid" ::? SomeUserToken]
                :> Bearer SomeAccessToken
                -- TODO: access_token query parameter
+               -- TODO: CanThrow
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Logout")
+           )
+    :<|> Named
+           "change-self-email"
+           ( "access" :> "self" :> "email"
+               :> Summary "Change your email address"
+               :> Cookies '["zuid" ::: SomeUserToken]
+               -- TODO: access_token query parameter
+               :> Bearer SomeAccessToken
+               :> ReqBody '[JSON] EmailUpdate
+               -- TODO: CanThrow
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    '[ Respond 202 "Update accepted and pending activation of the new email" (),
+                       Respond 204 "No update, current and new email address are the same" ()
+                     ]
+                    ChangeEmailResponse
            )
 
 type BrigAPI =
