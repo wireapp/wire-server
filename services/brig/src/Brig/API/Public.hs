@@ -288,9 +288,10 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
-      Named @"access" access
+      Named @"access" accessH
         :<|> Named @"send-login-code" sendLoginCode
         :<|> Named @"login" login
+        :<|> Named @"logout" logoutH
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

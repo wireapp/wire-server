@@ -337,7 +337,14 @@ smsLoginSchema =
   SmsLoginData
     <$> slPhone .= field "phone" schema
     <*> slCode .= field "code" schema
-    <*> slLabel .= optField "label" (maybeWithDefault A.Null schema)
+    <*> slLabel
+      .= optFieldWithDocModifier
+        "label"
+        ( description
+            ?~ "This label can be used to delete all cookies matching it\
+               \ (cf. /cookies/remove)"
+        )
+        (maybeWithDefault A.Null schema)
 
 $(makePrisms ''Login)
 

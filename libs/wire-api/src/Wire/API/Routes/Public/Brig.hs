@@ -1159,6 +1159,7 @@ type AuthAPI =
              \ header, with the latter being preferred."
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
+        -- TODO: access_token query parameter
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
@@ -1191,6 +1192,19 @@ type AuthAPI =
                     "persist"
                     Bool
                :> MultiVerb1 'POST '[JSON] TokenResponse
+           )
+    :<|> Named
+           "logout"
+           ( "access" :> "logout"
+               :> Summary "Log out in order to remove a cookie from the server"
+               :> Description
+                    "Calling this endpoint will effectively revoke the given cookie\
+                    \ and subsequent calls to /access with the same cookie will\
+                    \ result in a 403."
+               :> Cookies '["zuid" ::? SomeUserToken]
+               :> Bearer SomeAccessToken
+               -- TODO: access_token query parameter
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Logout")
            )
 
 type BrigAPI =

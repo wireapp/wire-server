@@ -25,20 +25,19 @@ import qualified Brig.User.Auth as Auth
 import Brig.ZAuth hiding (Env, settings)
 import Control.Lens (view)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import qualified Data.List.NonEmpty as NE
 import Data.List1 (List1 (..))
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities ((!>>))
-import Wire.API.User.Auth
+import Wire.API.User.Auth hiding (access)
 
-access :: NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
-access ut mat = do
-  partitionTokens ut mat >>= either (uncurry renew) (uncurry renew)
-  where
-    renew t mt =
-      traverse mkUserTokenCookie
-        =<< wrapHttpClientE (Auth.renewAccess (List1 t) mt) !>> zauthError
+accessH :: NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
+accessH ut mat = partitionTokens ut mat >>= either (uncurry access) (uncurry access)
+
+access :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r SomeAccess
+access t mt =
+  traverse mkUserTokenCookie
+    =<< wrapHttpClientE (Auth.renewAccess (List1 t) mt) !>> zauthError
 
 sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode (SendLoginCode phone call force) = do
@@ -51,6 +50,17 @@ login l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
   c <- wrapHttpClientE (Auth.login l typ) !>> loginError
   traverse mkUserTokenCookie c
+
+logoutH :: [SomeUserToken] -> Maybe SomeAccessToken -> Handler r ()
+logoutH [] Nothing = throwStd authMissingCookieAndToken
+logoutH [] (Just _) = throwStd authMissingCookie
+logoutH uts mat =
+  partitionTokens uts mat
+    >>= either (uncurry logout) (uncurry logout)
+
+logout :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r ()
+logout _ Nothing = throwStd authMissingToken
+logout uts (Just at) = wrapHttpClientE $ Auth.logout (List1 uts) at !>> zauthError
 
 --------------------------------------------------------------------------------
 -- Utils
@@ -71,7 +81,8 @@ mkUserTokenCookie c = do
       }
 
 partitionTokens ::
-  NonEmpty SomeUserToken ->
+  Foldable f =>
+  f SomeUserToken ->
   Maybe SomeAccessToken ->
   Handler
     r
@@ -80,7 +91,7 @@ partitionTokens ::
         (NonEmpty (ZAuth.Token ZAuth.LegalHoldUser), Maybe (ZAuth.Token ZAuth.LegalHoldAccess))
     )
 partitionTokens tokens mat =
-  case (partitionEithers (map toEither (NE.toList tokens)), mat) of
+  case (partitionEithers (map toEither (toList tokens)), mat) of
     -- only PlainUserToken
     ((at : ats, []), Nothing) -> pure (Left (at :| ats, Nothing))
     ((at : ats, []), Just (PlainAccessToken a)) -> pure (Left (at :| ats, Just a))

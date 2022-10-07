@@ -32,18 +32,32 @@ import Web.Cookie (parseCookies)
 
 data (:::) a b
 
+data (::?) a b
+
+-- | A combinator to extract cookies from an HTTP request. The recommended way
+-- to use this combinator is to specify it exactly once in the description of
+-- an endpoint, passing a list of pairs of cookie name and type, separated by
+-- either '(:::)' or '(::?)'. The former makes the corresponding cookie
+-- mandatory, while the latter makes it optional, and returns a 'Maybe' result.
+--
+-- For example:
+-- @@
+-- Cookies '["foo" ::: Int64, "bar" ::? Text]
+-- @@
+-- results in a mandatory cookie with name "foo" containing a 64-bit integer,
+-- and an optional cookie with name "bar" containing an arbitrary text value.
 data Cookies (cs :: [*])
 
 type CookieHeader cs = Header' '[Required] "Cookie" (CookieTuple cs)
-
-type CookieType = NonEmpty
 
 -- CookieTypes = map snd
 type family CookieTypes (cs :: [*]) :: [*]
 
 type instance CookieTypes '[] = '[]
 
-type instance CookieTypes ((lbl ::: x) ': cs) = (CookieType x ': CookieTypes cs)
+type instance CookieTypes ((lbl ::: x) ': cs) = (NonEmpty x ': CookieTypes cs)
+
+type instance CookieTypes ((lbl ::? x) ': cs) = ([x] ': CookieTypes cs)
 
 newtype CookieTuple cs = CookieTuple {unCookieTuple :: NP I (CookieTypes cs)}
 
@@ -74,12 +88,29 @@ instance
   ) =>
   CookieArgs ((lbl ::: (x :: *)) ': cs)
   where
-  type AddArgs ((lbl ::: x) ': cs) a = CookieType x -> AddArgs cs a
+  type AddArgs ((lbl ::: x) ': cs) a = NonEmpty x -> AddArgs cs a
   uncurryArgs f (CookieTuple (I x :* xs)) = uncurryArgs @cs (f x) (CookieTuple xs)
   mapArgs h f = mapArgs @cs h . f
   mkTuple m = do
     let k = T.pack (symbolVal (Proxy @lbl))
     bs <- note ("Missing cookie: " <> k) $ M.lookup (T.encodeUtf8 k) m
+    vs <- traverse parseHeader bs
+    CookieTuple t <- mkTuple @cs m
+    pure (CookieTuple (I vs :* t))
+
+instance
+  ( CookieArgs cs,
+    KnownSymbol lbl,
+    FromHttpApiData x
+  ) =>
+  CookieArgs ((lbl ::? (x :: *)) ': cs)
+  where
+  type AddArgs ((lbl ::? x) ': cs) a = [x] -> AddArgs cs a
+  uncurryArgs f (CookieTuple (I x :* xs)) = uncurryArgs @cs (f x) (CookieTuple xs)
+  mapArgs h f = mapArgs @cs h . f
+  mkTuple m = do
+    let k = T.pack (symbolVal (Proxy @lbl))
+    bs <- pure . maybe [] toList $ M.lookup (T.encodeUtf8 k) m
     vs <- traverse parseHeader bs
     CookieTuple t <- mkTuple @cs m
     pure (CookieTuple (I vs :* t))
