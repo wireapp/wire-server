@@ -138,7 +138,7 @@ getUsersByIds _ uids =
 
 claimPrekey :: Domain -> (UserId, ClientId) -> (Handler r) (Maybe ClientPrekey)
 claimPrekey _ (user, client) = do
-  wrapHttpClientE (API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client) !>> clientError
+  API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
 
 claimPrekeyBundle :: Domain -> UserId -> (Handler r) PrekeyBundle
 claimPrekeyBundle _ user =

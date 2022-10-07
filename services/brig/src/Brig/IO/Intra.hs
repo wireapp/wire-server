@@ -986,17 +986,11 @@ getTeamContacts u = do
         . expect [status200, status404]
 
 guardLegalhold ::
-  ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
   LegalholdProtectee ->
   UserClients ->
-  ExceptT ClientError m ()
+  ExceptT ClientError (AppT r) ()
 guardLegalhold protectee userClients = do
-  res <- lift $ galleyRequest PUT req
+  res <- lift . wrapHttp $ galleyRequest PUT req
   case Bilge.statusCode res of
     200 -> pure ()
     403 -> throwE ClientMissingLegalholdConsent
