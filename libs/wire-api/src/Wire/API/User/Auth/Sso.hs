@@ -17,19 +17,24 @@
 
 module Wire.API.User.Auth.Sso where
 
-import Data.Aeson
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
 import Data.Id
+import Data.Schema
+import qualified Data.Swagger as S
 import Imports
 import Wire.API.User.Auth
 
 -- | A special kind of login that is only used for an internal endpoint.
-data SsoLogin
-  = SsoLogin !UserId !(Maybe CookieLabel)
+data SsoLogin = SsoLogin
+  { ssoUserId :: !UserId,
+    ssoLabel :: !(Maybe CookieLabel)
+  }
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema SsoLogin
 
-instance FromJSON SsoLogin where
-  parseJSON = withObject "SsoLogin" $ \o ->
-    SsoLogin <$> o .: "user" <*> o .:? "label"
-
-instance ToJSON SsoLogin where
-  toJSON (SsoLogin uid label) =
-    object ["user" .= uid, "label" .= label]
+instance ToSchema SsoLogin where
+  schema =
+    object "SsoLogin" $
+      SsoLogin
+        <$> ssoUserId .= field "user" schema
+        <*> ssoLabel .= optField "label" (maybeWithDefault A.Null schema)

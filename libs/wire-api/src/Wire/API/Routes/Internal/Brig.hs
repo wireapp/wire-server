@@ -63,6 +63,7 @@ import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 
 type EJPDRequest =
@@ -365,6 +366,13 @@ type AuthAPI =
         :> ReqBody '[JSON] LegalHoldLogin
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
+    :<|> Named
+           "sso-login"
+           ( "sso-login"
+               :> ReqBody '[JSON] SsoLogin
+               :> QueryParam' [Optional, Strict] "persist" Bool
+               :> MultiVerb1 'POST '[JSON] TokenResponse
+           )
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 

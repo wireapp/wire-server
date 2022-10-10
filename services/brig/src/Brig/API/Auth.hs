@@ -39,6 +39,7 @@ import Polysemy
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.Sso
 
 accessH :: NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
 accessH ut mat = partitionTokens ut mat >>= either (uncurry access) (uncurry access)
@@ -107,10 +108,11 @@ legalHoldLogin lhl = do
   c <- wrapHttpClientE (Auth.legalHoldLogin lhl typ) !>> legalHoldLoginError
   traverse mkUserTokenCookie c
 
---legalHoldLogin :: LegalHoldLogin -> Handler r (Auth.Access ZAuth.LegalHoldUser)
---legalHoldLogin l = do
---  let typ = PersistentCookie -- Session cookie isn't a supported use case here
---  wrapHttpClientE (Auth.legalHoldLogin l typ) !>> legalHoldLoginError
+ssoLogin :: SsoLogin -> Maybe Bool -> Handler r SomeAccess
+ssoLogin l (fromMaybe False -> persist) = do
+  let typ = if persist then PersistentCookie else SessionCookie
+  c <- wrapHttpClientE (Auth.ssoLogin l typ) !>> loginError
+  traverse mkUserTokenCookie c
 
 --------------------------------------------------------------------------------
 -- Utils

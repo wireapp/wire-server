@@ -172,7 +172,9 @@ userAPI =
     :<|> getDefaultUserLocale
 
 authAPI :: ServerT BrigIRoutes.AuthAPI (Handler r)
-authAPI = Named @"legalhold-login" legalHoldLogin
+authAPI =
+  Named @"legalhold-login" legalHoldLogin
+    :<|> Named @"sso-login" ssoLogin
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
