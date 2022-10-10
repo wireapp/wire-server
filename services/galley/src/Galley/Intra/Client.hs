@@ -34,7 +34,6 @@ import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import Brig.Types.User.Auth (LegalHoldLogin (..))
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
@@ -64,6 +63,7 @@ import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig
+import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 

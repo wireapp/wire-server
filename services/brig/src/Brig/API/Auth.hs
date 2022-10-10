@@ -102,10 +102,10 @@ removeCookies :: Local UserId -> RemoveCookies -> Handler r ()
 removeCookies lusr (RemoveCookies pw lls ids) =
   wrapClientE (Auth.revokeAccess (tUnqualified lusr) pw ids lls) !>> authError
 
-legalHoldLogin :: LegalHoldLogin -> Handler r SomeAccess
+legalHoldLogin :: Member GalleyProvider r => LegalHoldLogin -> Handler r SomeAccess
 legalHoldLogin lhl = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
-  c <- wrapHttpClientE (Auth.legalHoldLogin lhl typ) !>> legalHoldLoginError
+  c <- Auth.legalHoldLogin lhl typ !>> legalHoldLoginError
   traverse mkUserTokenCookie c
 
 ssoLogin :: SsoLogin -> Maybe Bool -> Handler r SomeAccess
@@ -113,6 +113,11 @@ ssoLogin l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
   c <- wrapHttpClientE (Auth.ssoLogin l typ) !>> loginError
   traverse mkUserTokenCookie c
+
+getLoginCode :: Phone -> Handler r PendingLoginCode
+getLoginCode phone = do
+  code <- lift $ wrapClient $ Auth.lookupLoginCode phone
+  maybe (throwStd loginCodeNotFound) pure code
 
 --------------------------------------------------------------------------------
 -- Utils

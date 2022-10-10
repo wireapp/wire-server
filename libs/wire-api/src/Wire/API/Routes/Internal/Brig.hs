@@ -373,6 +373,12 @@ type AuthAPI =
                :> QueryParam' [Optional, Strict] "persist" Bool
                :> MultiVerb1 'POST '[JSON] TokenResponse
            )
+    :<|> Named
+           "login-code"
+           ( "users" :> "login-code"
+               :> QueryParam' [Required, Strict] "phone" Phone
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Login code" PendingLoginCode)
+           )
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 

@@ -61,7 +61,6 @@ import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
-import Data.Proxy (Proxy (..))
 import Data.Schema
 import Data.String.Conversions (cs)
 import Data.Swagger (ToParamSchema (..))
@@ -75,6 +74,7 @@ import SAML2.WebSSO.Test.Arbitrary ()
 import qualified SAML2.WebSSO.Types as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import qualified SAML2.WebSSO.XML as SAML
+import Servant
 import qualified Servant.API as S
 import System.FilePath ((</>))
 import qualified Test.QuickCheck as QC
