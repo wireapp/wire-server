@@ -1227,6 +1227,17 @@ type AuthAPI =
                      ]
                     ChangeEmailResponse
            )
+    :<|> Named
+           "list-cookies"
+           ( "cookies"
+               :> Summary "Retrieve the list of cookies currently stored for the user"
+               :> ZLocalUser
+               :> QueryParam'
+                    [Optional, Strict, Description "Filter by label (comma-separated list)"]
+                    "labels"
+                    (CommaSeparatedList CookieLabel)
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "List of cookies" CookieList)
+           )
 
 type BrigAPI =
   UserAPI

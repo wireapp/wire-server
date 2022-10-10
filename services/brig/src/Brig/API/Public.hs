@@ -78,7 +78,7 @@ import Data.Aeson hiding (json)
 import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
+import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
@@ -293,6 +293,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"login" login
         :<|> Named @"logout" logoutH
         :<|> Named @"change-self-email" changeSelfEmailH
+        :<|> Named @"list-cookies" listCookies
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

@@ -26,9 +26,11 @@ import Brig.Options
 import qualified Brig.User.Auth as Auth
 import Brig.ZAuth hiding (Env, settings)
 import Control.Lens (view)
+import Data.CommaSeparatedList
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 (List1 (..))
+import Data.Qualified
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities ((!>>))
@@ -87,6 +89,11 @@ validateCredentials ::
 validateCredentials _ Nothing = throwStd missingAccessToken
 validateCredentials uts mat =
   fst <$> wrapHttpClientE (Auth.validateTokens (List1 uts) mat) !>> zauthError
+
+listCookies :: Local UserId -> Maybe (CommaSeparatedList CookieLabel) -> Handler r CookieList
+listCookies lusr (fold -> labels) =
+  CookieList
+    <$> wrapClientE (Auth.listCookies (tUnqualified lusr) (toList labels))
 
 --------------------------------------------------------------------------------
 -- Utils

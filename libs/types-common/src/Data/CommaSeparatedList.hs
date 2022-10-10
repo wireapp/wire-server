@@ -32,7 +32,8 @@ import Servant (FromHttpApiData (..))
 
 newtype CommaSeparatedList a = CommaSeparatedList {fromCommaSeparatedList :: [a]}
   deriving stock (Show, Eq)
-  deriving newtype (Bounds)
+  deriving (Functor, Foldable, Traversable)
+  deriving newtype (Bounds, Semigroup, Monoid)
 
 instance FromByteString (List a) => FromHttpApiData (CommaSeparatedList a) where
   parseUrlPiece t =
