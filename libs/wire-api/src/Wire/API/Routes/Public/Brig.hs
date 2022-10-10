@@ -1238,6 +1238,15 @@ type AuthAPI =
                     (CommaSeparatedList CookieLabel)
                :> MultiVerb1 'GET '[JSON] (Respond 200 "List of cookies" CookieList)
            )
+    :<|> Named
+           "remove-cookies"
+           ( "cookies" :> "remove"
+               :> Summary "Revoke stored cookies"
+               :> ZLocalUser
+               :> CanThrow 'BadCredentials
+               :> ReqBody '[JSON] RemoveCookies
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Cookies revoked")
+           )
 
 type BrigAPI =
   UserAPI

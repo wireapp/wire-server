@@ -22,6 +22,7 @@ import Brig.API.Handler
 import Brig.API.User
 import Brig.App
 import Brig.Effects.BlacklistStore
+import Brig.Effects.GalleyProvider
 import Brig.Options
 import qualified Brig.User.Auth as Auth
 import Brig.ZAuth hiding (Env, settings)
@@ -52,7 +53,7 @@ sendLoginCode (SendLoginCode phone call force) = do
   c <- wrapClientE (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
   pure $ LoginCodeTimeout (pendingLoginTimeout c)
 
-login :: Login -> Maybe Bool -> Handler r SomeAccess
+login :: Member GalleyProvider r => Login -> Maybe Bool -> Handler r SomeAccess
 login l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
   c <- Auth.login l typ !>> loginError
@@ -94,6 +95,10 @@ listCookies :: Local UserId -> Maybe (CommaSeparatedList CookieLabel) -> Handler
 listCookies lusr (fold -> labels) =
   CookieList
     <$> wrapClientE (Auth.listCookies (tUnqualified lusr) (toList labels))
+
+removeCookies :: Local UserId -> RemoveCookies -> Handler r ()
+removeCookies lusr (RemoveCookies pw lls ids) =
+  wrapClientE (Auth.revokeAccess (tUnqualified lusr) pw ids lls) !>> authError
 
 --------------------------------------------------------------------------------
 -- Utils
