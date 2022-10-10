@@ -1145,7 +1145,7 @@ type TokenResponse =
   WithHeaders
     '[OptHeader (Header "Set-Cookie" UserTokenCookie)]
     SomeAccess
-    (Respond 201 "TODO" AccessToken)
+    (Respond 200 "OK" AccessToken)
 
 type AuthAPI =
   Named
@@ -1178,7 +1178,7 @@ type AuthAPI =
                :> MultiVerb1
                     'POST
                     '[JSON]
-                    (Respond 201 "TODO" LoginCodeTimeout)
+                    (Respond 200 "OK" LoginCodeTimeout)
            )
     :<|> Named
            "login"
