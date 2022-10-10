@@ -4,7 +4,6 @@ module Brig.Effects.GalleyProvider.RPC where
 
 import Bilge hiding (head, options, requestId)
 import Brig.API.Types
-import Brig.App
 import Brig.Effects.GalleyProvider (GalleyProvider (..))
 import Brig.Effects.ServiceRPC (Service (Galley), ServiceRPC)
 import qualified Brig.Effects.ServiceRPC as ServiceRPC
@@ -68,11 +67,6 @@ interpretGalleyProviderToRPC = interpret $ \case
   GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
   GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
   GetExposeInvitationURLsToTeamAdmin id' -> getTeamExposeInvitationURLsToTeamAdmin id'
-
-runIt :: HttpClientIO a -> Sem r a
-runIt = undefined
-
--- runIt = undefined
 
 -- | Calls 'Galley.API.createSelfConversationH'.
 createSelfConv ::
