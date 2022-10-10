@@ -33,7 +33,6 @@ import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
 import Brig.Types.Intra
-import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -117,6 +116,8 @@ import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth
+import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.VersionInfo
