@@ -45,7 +45,6 @@ where
 import Bilge
 import Brig.Types.Intra
 import Brig.Types.User
-import Brig.Types.User.Auth (SsoLogin (..))
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Code as Code
@@ -61,6 +60,7 @@ import Spar.Error
 import qualified System.Logger.Class as Log
 import Web.Cookie
 import Wire.API.User
+import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
 import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 

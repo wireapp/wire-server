@@ -38,6 +38,7 @@ import Network.Wai.Utilities ((!>>))
 import Polysemy
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
+import Wire.API.User.Auth.LegalHold
 
 accessH :: NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
 accessH ut mat = partitionTokens ut mat >>= either (uncurry access) (uncurry access)
@@ -99,6 +100,17 @@ listCookies lusr (fold -> labels) =
 removeCookies :: Local UserId -> RemoveCookies -> Handler r ()
 removeCookies lusr (RemoveCookies pw lls ids) =
   wrapClientE (Auth.revokeAccess (tUnqualified lusr) pw ids lls) !>> authError
+
+legalHoldLogin :: LegalHoldLogin -> Handler r SomeAccess
+legalHoldLogin lhl = do
+  let typ = PersistentCookie -- Session cookie isn't a supported use case here
+  c <- wrapHttpClientE (Auth.legalHoldLogin lhl typ) !>> legalHoldLoginError
+  traverse mkUserTokenCookie c
+
+--legalHoldLogin :: LegalHoldLogin -> Handler r (Auth.Access ZAuth.LegalHoldUser)
+--legalHoldLogin l = do
+--  let typ = PersistentCookie -- Session cookie isn't a supported use case here
+--  wrapHttpClientE (Auth.legalHoldLogin l typ) !>> legalHoldLoginError
 
 --------------------------------------------------------------------------------
 -- Utils

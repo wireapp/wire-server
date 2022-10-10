@@ -51,6 +51,9 @@ module Wire.API.User.Auth
     AccessWithCookie (..),
     Access,
     SomeAccess,
+
+    -- * Servant
+    TokenResponse,
   )
 where
 
@@ -78,8 +81,8 @@ import Data.Time.Clock (UTCTime)
 import Data.Tuple.Extra hiding (first)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
+import Servant
 import Web.Cookie
-import Web.HttpApiData
 import Wire.API.Routes.MultiVerb
 import Wire.API.User.Identity (Email, Phone)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -563,3 +566,12 @@ instance ToHttpApiData UserTokenCookie where
       . renderSetCookie
       . utcToSetCookie
   toUrlPiece = T.decodeUtf8 . toHeader
+
+--------------------------------------------------------------------------------
+-- Servant
+
+type TokenResponse =
+  WithHeaders
+    '[OptHeader (Header "Set-Cookie" UserTokenCookie)]
+    SomeAccess
+    (Respond 200 "OK" AccessToken)

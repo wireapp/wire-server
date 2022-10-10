@@ -1141,12 +1141,6 @@ type SearchAPI =
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 
-type TokenResponse =
-  WithHeaders
-    '[OptHeader (Header "Set-Cookie" UserTokenCookie)]
-    SomeAccess
-    (Respond 200 "OK" AccessToken)
-
 type AuthAPI =
   Named
     "access"

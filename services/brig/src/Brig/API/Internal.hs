@@ -24,6 +24,7 @@ module Brig.API.Internal
   )
 where
 
+import Brig.API.Auth
 import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
@@ -112,7 +113,14 @@ servantSitemap ::
      ]
     r =>
   ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI :<|> userAPI
+servantSitemap =
+  ejpdAPI
+    :<|> accountAPI
+    :<|> mlsAPI
+    :<|> getVerificationCode
+    :<|> teamsAPI
+    :<|> userAPI
+    :<|> authAPI
 
 ejpdAPI ::
   Members
@@ -162,6 +170,9 @@ userAPI =
   updateLocale
     :<|> deleteLocale
     :<|> getDefaultUserLocale
+
+authAPI :: ServerT BrigIRoutes.AuthAPI (Handler r)
+authAPI = Named @"legalhold-login" legalHoldLogin
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)

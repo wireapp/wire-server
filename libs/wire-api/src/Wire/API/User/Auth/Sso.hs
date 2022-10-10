@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,27 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.User.Auth
-  ( SsoLogin (..),
-    LegalHoldLogin (..),
-  )
-where
+module Wire.API.User.Auth.Sso where
 
 import Data.Aeson
-import Data.Id (UserId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Id
 import Imports
 import Wire.API.User.Auth
 
 -- | A special kind of login that is only used for an internal endpoint.
 data SsoLogin
   = SsoLogin !UserId !(Maybe CookieLabel)
-
--- | A special kind of login that is only used for an internal endpoint.
--- This kind of login returns restricted 'LegalHoldUserToken's instead of regular
--- tokens.
-data LegalHoldLogin
-  = LegalHoldLogin !UserId !(Maybe PlainTextPassword) !(Maybe CookieLabel)
 
 instance FromJSON SsoLogin where
   parseJSON = withObject "SsoLogin" $ \o ->
@@ -46,17 +33,3 @@ instance FromJSON SsoLogin where
 instance ToJSON SsoLogin where
   toJSON (SsoLogin uid label) =
     object ["user" .= uid, "label" .= label]
-
-instance FromJSON LegalHoldLogin where
-  parseJSON = withObject "LegalHoldLogin" $ \o ->
-    LegalHoldLogin <$> o .: "user"
-      <*> o .:? "password"
-      <*> o .:? "label"
-
-instance ToJSON LegalHoldLogin where
-  toJSON (LegalHoldLogin uid password label) =
-    object
-      [ "user" .= uid,
-        "password" .= password,
-        "label" .= label
-      ]

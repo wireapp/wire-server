@@ -54,7 +54,6 @@ import Brig.Email
 import qualified Brig.Options as Opt
 import Brig.Phone
 import Brig.Types.Intra
-import Brig.Types.User.Auth
 import Brig.User.Auth.Cookie
 import Brig.User.Handle
 import Brig.User.Phone
@@ -81,6 +80,8 @@ import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.Sso
 
 sendLoginCode ::
   ( MonadClient m,
