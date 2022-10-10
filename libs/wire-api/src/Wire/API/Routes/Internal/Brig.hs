@@ -63,6 +63,7 @@ import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 
@@ -378,6 +379,14 @@ type AuthAPI =
            ( "users" :> "login-code"
                :> QueryParam' [Required, Strict] "phone" Phone
                :> MultiVerb1 'GET '[JSON] (Respond 200 "Login code" PendingLoginCode)
+           )
+    :<|> Named
+           "reauthenticate"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "reauthenticate"
+               :> ReqBody '[JSON] ReAuthUser
+               :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "OK")
            )
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"

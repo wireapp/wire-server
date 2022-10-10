@@ -60,6 +60,7 @@ import Spar.Error
 import qualified System.Logger.Class as Log
 import Web.Cookie
 import Wire.API.User
+import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
 import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)

@@ -114,6 +114,7 @@ library
     Wire.API.User.Activation
     Wire.API.User.Auth
     Wire.API.User.Auth.LegalHold
+    Wire.API.User.Auth.ReAuth
     Wire.API.User.Auth.Sso
     Wire.API.User.Client
     Wire.API.User.Client.DPoPAccessToken

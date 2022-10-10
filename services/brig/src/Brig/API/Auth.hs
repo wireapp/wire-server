@@ -19,14 +19,17 @@ module Brig.API.Auth where
 
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.Types
 import Brig.API.User
 import Brig.App
+import qualified Brig.Data.User as User
 import Brig.Effects.BlacklistStore
 import Brig.Effects.GalleyProvider
 import Brig.Options
 import qualified Brig.User.Auth as Auth
 import Brig.ZAuth hiding (Env, settings)
 import Control.Lens (view)
+import Control.Monad.Trans.Except
 import Data.CommaSeparatedList
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -39,6 +42,7 @@ import Polysemy
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 
 accessH :: NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
@@ -118,6 +122,18 @@ getLoginCode :: Phone -> Handler r PendingLoginCode
 getLoginCode phone = do
   code <- lift $ wrapClient $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) pure code
+
+reauthenticate :: Member GalleyProvider r => UserId -> ReAuthUser -> Handler r ()
+reauthenticate uid body = do
+  wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
+  case reAuthCodeAction body of
+    Just action ->
+      Auth.verifyCode (reAuthCode body) action uid
+        `catchE` \case
+          VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
+          VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
+          VerificationCodeNoEmail -> throwE $ reauthError ReAuthCodeVerificationNoEmail
+    Nothing -> pure ()
 
 --------------------------------------------------------------------------------
 -- Utils
