@@ -89,6 +89,16 @@ serviceRequest ::
   m (Response (Maybe BL.ByteString))
 serviceRequest nm svc m r = do
   service <- view svc
+  serviceRequestImpl nm service m r
+
+serviceRequestImpl ::
+  (MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  LT.Text ->
+  Request ->
+  StdMethod ->
+  (Request -> Request) ->
+  m (Response (Maybe BL.ByteString))
+serviceRequestImpl nm service m r = do
   recovering x3 rpcHandlers $
     const $
       rpc' nm service (method m . r)

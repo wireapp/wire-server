@@ -26,6 +26,7 @@ import qualified Brig.API.Public as Public
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore
+import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Data.Swagger.Build.Api as Doc
@@ -39,6 +40,7 @@ sitemap ::
        PasswordResetStore,
        BlacklistStore,
        BlacklistPhonePrefixStore,
+       GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>

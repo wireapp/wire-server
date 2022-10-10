@@ -48,11 +48,12 @@ import qualified Brig.Data.UserKey as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -136,6 +137,7 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
+import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
@@ -163,11 +165,13 @@ servantSitemap ::
   Members
     '[ BlacklistStore,
        BlacklistPhonePrefixStore,
+       GalleyProvider,
        UserPendingActivationStore p,
        PasswordResetStore,
        CodeStore,
        JwtTools,
        PublicKeyBundle,
+       Concurrency 'Unsafe,
        Now
      ]
     r =>
@@ -292,7 +296,8 @@ sitemap ::
     '[ CodeStore,
        PasswordResetStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore
+       BlacklistPhonePrefixStore,
+       GalleyProvider
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
@@ -308,7 +313,8 @@ apiDocs ::
     '[ CodeStore,
        PasswordResetStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore
+       BlacklistPhonePrefixStore,
+       GalleyProvider
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
@@ -418,7 +424,16 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
     throwStd (errorToWai @'E.TooManyClients)
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
-addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> (Handler r) NewClientResponse
+addClient ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Maybe IpAddr ->
+  Public.NewClient ->
+  (Handler r) NewClientResponse
 addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
@@ -522,6 +537,7 @@ createAccessToken method uid cid proof = do
 createUser ::
   Members
     '[ BlacklistStore,
+       GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>
@@ -600,18 +616,41 @@ getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorToWai @'E.UserNotFound)
 
-getUserUnqualifiedH :: UserId -> UserId -> (Handler r) (Maybe Public.UserProfile)
+getUserUnqualifiedH ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  UserId ->
+  (Handler r) (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
   getUser self (Qualified uid domain)
 
-getUser :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserProfile)
+getUser ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  Qualified UserId ->
+  (Handler r) (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
   lself <- qualifyLocal self
-  wrapHttpClientE $ API.lookupProfile lself qualifiedUserId !>> fedError
+  API.lookupProfile lself qualifiedUserId !>> fedError
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
-listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> (Handler r) [Public.UserProfile]
+listUsersByUnqualifiedIdsOrHandles ::
+  Members
+    '[ GalleyProvider,
+       Concurrency 'Unsafe
+     ]
+    r =>
+  UserId ->
+  Maybe (CommaSeparatedList UserId) ->
+  Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
+  (Handler r) [Public.UserProfile]
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
@@ -627,7 +666,16 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
        in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> (Handler r) [Public.UserProfile]
+listUsersByIdsOrHandles ::
+  forall r.
+  Members
+    '[ GalleyProvider,
+       Concurrency 'Unsafe
+     ]
+    r =>
+  UserId ->
+  Public.ListUsersQuery ->
+  (Handler r) [Public.UserProfile]
 listUsersByIdsOrHandles self q = do
   lself <- qualifyLocal self
   foundUsers <- case q of
@@ -647,7 +695,7 @@ listUsersByIdsOrHandles self q = do
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
-    byIds lself uids = wrapHttpClientE (API.lookupProfiles lself uids) !>> fedError
+    byIds lself uids = API.lookupProfiles lself uids !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
@@ -713,7 +761,14 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- compatibility, whereas the corresponding qualified endpoint (implemented by
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
-getHandleInfoUnqualifiedH :: UserId -> Handle -> (Handler r) (Maybe Public.UserHandleInfo)
+getHandleInfoUnqualifiedH ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  Handle ->
+  (Handler r) (Maybe Public.UserHandleInfo)
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
   Public.UserHandleInfo . Public.profileQualifiedId
@@ -748,7 +803,8 @@ completePasswordReset req = do
 sendActivationCode ::
   Members
     '[ BlacklistStore,
-       BlacklistPhonePrefixStore
+       BlacklistPhonePrefixStore,
+       GalleyProvider
      ]
     r =>
   Public.SendActivationCode ->
@@ -773,13 +829,29 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+createConnectionUnqualified ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Public.ConnectionRequest ->
+  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnectionUnqualified self conn cr = do
   lself <- qualifyLocal self
   target <- qualifyLocal (Public.crUser cr)
   API.createConnection lself conn (qUntagged target) !>> connError
 
-createConnection :: UserId -> ConnId -> Qualified UserId -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Qualified UserId ->
+  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnection self conn target = do
   lself <- qualifyLocal self
   API.createConnection lself conn target !>> connError
@@ -855,6 +927,10 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
@@ -864,7 +940,17 @@ deleteSelfUser u body =
 verifyDeleteUser :: Public.VerifyDeleteUser -> Handler r ()
 verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 
-updateUserEmail :: Member BlacklistStore r => UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
+updateUserEmail ::
+  forall r.
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  UserId ->
+  UserId ->
+  Public.EmailUpdate ->
+  (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
@@ -882,18 +968,31 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
       where
         check = runMaybeT $ do
           teamId <- hoistMaybe maybeTeamId
-          teamMember <- MaybeT $ lift $ wrapHttp $ Intra.getTeamMember zuserId teamId
+          teamMember <- MaybeT $ lift $ liftSem $ GalleyProvider.getTeamMember zuserId teamId
           pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation
 
-activate :: Public.ActivationKey -> Public.ActivationCode -> (Handler r) ActivationRespWithStatus
+activate ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Public.ActivationKey ->
+  Public.ActivationCode ->
+  (Handler r) ActivationRespWithStatus
 activate k c = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
   activateKey activationRequest
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKey :: Public.Activate -> (Handler r) ActivationRespWithStatus
+activateKey ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Public.Activate ->
+  (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
     wrapClientE (API.preverify tgt code) !>> actError
@@ -907,7 +1006,14 @@ activateKey (Public.Activate tgt code dryrun)
     respond (Just ident) x = ActivationResp $ Public.ActivationResponse ident x
     respond Nothing _ = ActivationRespSuccessNoIdent
 
-sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()
+sendVerificationCode ::
+  forall r.
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Public.SendVerificationCode ->
+  (Handler r) ()
 sendVerificationCode req = do
   let email = Public.svcEmail req
   let action = Public.svcAction req
@@ -942,7 +1048,7 @@ sendVerificationCode req = do
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
     getFeatureStatus mbAccount = do
-      mbStatusEnabled <- lift $ wrapHttp $ Intra.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
+      mbStatusEnabled <- lift $ liftSem $ GalleyProvider.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
 -- Deprecated

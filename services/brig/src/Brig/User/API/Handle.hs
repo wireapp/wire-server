@@ -28,6 +28,7 @@ import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import Brig.App
 import qualified Brig.Data.User as Data
+import Brig.Effects.GalleyProvider (GalleyProvider)
 import qualified Brig.Federation.Client as Federation
 import Brig.Options (searchSameTeamOnly)
 import Control.Lens (view)
@@ -36,13 +37,18 @@ import Data.Id (UserId)
 import Data.Qualified
 import Imports
 import Network.Wai.Utilities ((!>>))
+import Polysemy
 import qualified System.Logger.Class as Log
 import Wire.API.User
 import qualified Wire.API.User as Public
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
 
-getHandleInfo :: UserId -> Qualified Handle -> (Handler r) (Maybe Public.UserProfile)
+getHandleInfo ::
+  Members '[GalleyProvider] r =>
+  UserId ->
+  Qualified Handle ->
+  (Handler r) (Maybe Public.UserProfile)
 getHandleInfo self handle = do
   lself <- qualifyLocal self
   foldQualified
@@ -58,7 +64,11 @@ getRemoteHandleInfo handle = do
       . Log.field "domain" (show (tDomain handle))
   Federation.getUserHandleInfo handle !>> fedError
 
-getLocalHandleInfo :: Local UserId -> Handle -> (Handler r) (Maybe Public.UserProfile)
+getLocalHandleInfo ::
+  Members '[GalleyProvider] r =>
+  Local UserId ->
+  Handle ->
+  (Handler r) (Maybe Public.UserProfile)
 getLocalHandleInfo self handle = do
   lift . Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
   maybeOwnerId <- lift . wrapClient $ API.lookupHandle handle
@@ -66,7 +76,7 @@ getLocalHandleInfo self handle = do
     Nothing -> pure Nothing
     Just ownerId -> do
       domain <- viewFederationDomain
-      ownerProfile <- wrapHttpClientE (API.lookupProfile self (Qualified ownerId domain)) !>> fedError
+      ownerProfile <- (API.lookupProfile self (Qualified ownerId domain)) !>> fedError
       owner <- filterHandleResults self (maybeToList ownerProfile)
       pure $ listToMaybe owner
 
