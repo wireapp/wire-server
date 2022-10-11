@@ -18,7 +18,7 @@
 module Wire.API.Routes.Cookies where
 
 import Control.Error.Util
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import qualified Data.Map as M
 import Data.Metrics.Servant
 import Data.SOP
@@ -94,7 +94,8 @@ instance
   mkTuple m = do
     let k = T.pack (symbolVal (Proxy @lbl))
     bs <- note ("Missing cookie: " <> k) $ M.lookup (T.encodeUtf8 k) m
-    vs <- traverse parseHeader bs
+    let (es, mvs) = nonEmpty <$> partitionEithers (map parseHeader (toList bs))
+    vs <- note (head es) mvs
     CookieTuple t <- mkTuple @cs m
     pure (CookieTuple (I vs :* t))
 
@@ -111,7 +112,7 @@ instance
   mkTuple m = do
     let k = T.pack (symbolVal (Proxy @lbl))
     bs <- pure . maybe [] toList $ M.lookup (T.encodeUtf8 k) m
-    vs <- traverse parseHeader bs
+    let vs = mapMaybe (hush . parseHeader) bs
     CookieTuple t <- mkTuple @cs m
     pure (CookieTuple (I vs :* t))
 
