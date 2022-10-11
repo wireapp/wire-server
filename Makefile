@@ -106,7 +106,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all shellcheck
+lint-all: formatc hlint-check-all shellcheck check-local-nix-derivations
 
 .PHONY: hlint-check-all
 hlint-check-all:
@@ -132,6 +132,12 @@ hlint-check:
 .PHONY: hlint-inplace
 hlint-inplace:
 	./tools/hlint.sh -f changeset -m inplace
+
+regen-local-nix-derivations:
+	./hack/bin/generate-local-nix-packages.sh
+
+check-local-nix-derivations: regen-local-nix-derivations
+	git diff --exit-code
 
 # reset db using cabal
 .PHONY: db-reset-package
