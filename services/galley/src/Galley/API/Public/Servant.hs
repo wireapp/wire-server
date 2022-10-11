@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.Servant (mkNamedAPI, servantSitemap) where
+module Galley.API.Public.Servant where
 
 import Galley.API.Create
 import Galley.API.CustomBackend
@@ -33,22 +33,9 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
-servantSitemap :: API ServantAPI GalleyEffects
-servantSitemap =
-  conversations
-    <@> teamConversations
-    <@> messaging
-    <@> bot
-    <@> team
-    <@> features
-    <@> mls
-    <@> customBackend
-    <@> legalHold
-    <@> teamMember
-
 conversations :: API ConversationAPI GalleyEffects
 conversations =
-    mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
+  mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
     <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
     <@> mkNamedAPI @"get-conversation" getConversation
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
@@ -92,14 +79,14 @@ conversations =
 
 teamConversations :: API TeamConversationAPI GalleyEffects
 teamConversations =
-    mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
+  mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
     <@> mkNamedAPI @"get-team-conversations" getTeamConversations
     <@> mkNamedAPI @"get-team-conversation" getTeamConversation
     <@> mkNamedAPI @"delete-team-conversation" deleteTeamConversation
 
 messaging :: API MessagingAPI GalleyEffects
 messaging =
-    mkNamedAPI @"post-otr-message-unqualified" postOtrMessageUnqualified
+  mkNamedAPI @"post-otr-message-unqualified" postOtrMessageUnqualified
     <@> mkNamedAPI @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
     <@> mkNamedAPI @"post-proteus-message" postProteusMessage
     <@> mkNamedAPI @"post-proteus-broadcast" postProteusBroadcast
@@ -109,7 +96,7 @@ bot = mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified
 
 team :: API TeamAPI GalleyEffects
 team =
-    mkNamedAPI @"create-non-binding-team" createNonBindingTeamH
+  mkNamedAPI @"create-non-binding-team" createNonBindingTeamH
     <@> mkNamedAPI @"update-team" updateTeamH
     <@> mkNamedAPI @"get-teams" getManyTeams
     <@> mkNamedAPI @"get-team" getTeamH
@@ -117,7 +104,7 @@ team =
 
 features :: API FeatureAPI GalleyEffects
 features =
-    mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
+  mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("put", LegalholdConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
@@ -166,7 +153,7 @@ features =
 
 mls :: API MLSAPI GalleyEffects
 mls =
-    mkNamedAPI @"mls-welcome-message" postMLSWelcomeFromLocalUser
+  mkNamedAPI @"mls-welcome-message" postMLSWelcomeFromLocalUser
     <@> mkNamedAPI @"mls-message-v1" postMLSMessageFromLocalUserV1
     <@> mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
     <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
@@ -177,7 +164,7 @@ customBackend = mkNamedAPI @"get-custom-backend-by-domain" getCustomBackendByDom
 
 legalHold :: API LegalHoldAPI GalleyEffects
 legalHold =
-    mkNamedAPI @"create-legal-hold-settings" (createSettings @Cassandra)
+  mkNamedAPI @"create-legal-hold-settings" (createSettings @Cassandra)
     <@> mkNamedAPI @"get-legal-hold-settings" (getSettings @Cassandra)
     <@> mkNamedAPI @"delete-legal-hold-settings" (removeSettingsInternalPaging @Cassandra)
     <@> mkNamedAPI @"get-legal-hold" getUserStatus
@@ -188,7 +175,7 @@ legalHold =
 
 teamMember :: API TeamMemberAPI GalleyEffects
 teamMember =
-    mkNamedAPI @"get-team-members" getTeamMembers
+  mkNamedAPI @"get-team-members" getTeamMembers
     <@> mkNamedAPI @"get-team-member" getTeamMember
     <@> mkNamedAPI @"get-team-members-by-ids" bulkGetTeamMembers
     <@> mkNamedAPI @"add-team-member" (addTeamMember @Cassandra)

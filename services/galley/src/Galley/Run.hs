@@ -15,6 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE NumericUnderscores #-}
+{-# OPTIONS_GHC -Wwarn #-}
 
 module Galley.Run
   ( run,
@@ -44,6 +45,7 @@ import Data.Text (unpack)
 import qualified Galley.API as API
 import Galley.API.Federation (FederationAPI, federationSitemap)
 import Galley.API.Internal
+import qualified Galley.API.Public.Servant as API
 import Galley.App
 import qualified Galley.App as App
 import Galley.Aws (awsEnv)
@@ -121,7 +123,16 @@ mkApp opts =
             )
        in ( routesToApp
               context
-              [ mkRouterApp (Proxy @GalleyAPI.ServantAPI) context id (hoistAPIHandler (toServantHandler e) API.servantSitemap),
+              [ mkRouterApp (Proxy @GalleyAPI.ConversationAPI) context id (hoistAPIHandler (toServantHandler e) API.conversations),
+                mkRouterApp (Proxy @GalleyAPI.TeamConversationAPI) context id (hoistAPIHandler (toServantHandler e) API.teamConversations),
+                mkRouterApp (Proxy @GalleyAPI.MessagingAPI) context id (hoistAPIHandler (toServantHandler e) API.messaging),
+                mkRouterApp (Proxy @GalleyAPI.BotAPI) context id (hoistAPIHandler (toServantHandler e) API.bot),
+                mkRouterApp (Proxy @GalleyAPI.TeamAPI) context id (hoistAPIHandler (toServantHandler e) API.team),
+                mkRouterApp (Proxy @GalleyAPI.FeatureAPI) context id (hoistAPIHandler (toServantHandler e) API.features),
+                mkRouterApp (Proxy @GalleyAPI.MLSAPI) context id (hoistAPIHandler (toServantHandler e) API.mls),
+                mkRouterApp (Proxy @GalleyAPI.CustomBackendAPI) context id (hoistAPIHandler (toServantHandler e) API.customBackend),
+                mkRouterApp (Proxy @GalleyAPI.LegalHoldAPI) context id (hoistAPIHandler (toServantHandler e) API.legalHold),
+                mkRouterApp (Proxy @GalleyAPI.TeamMemberAPI) context id (hoistAPIHandler (toServantHandler e) API.teamMember),
                 mkRouterApp (Proxy @InternalAPI) context id (hoistAPIHandler (toServantHandler e) internalAPI),
                 mkRouterApp (Proxy @FederationAPI) context id (hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap),
                 mkRouterApp (Proxy @Servant.Raw) context id (Servant.Tagged (runGalley e))
