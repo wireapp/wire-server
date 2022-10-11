@@ -1,0 +1,5 @@
+The experimental wire-server-metrics helm chart has been removed.
+
+These were mostly a wrapper around prometheus operator. It makes more sense to
+refer to the upstream docs of Prometheus Operator or Grafana Agent Operator for
+installation instead.
