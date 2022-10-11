@@ -48,6 +48,7 @@ packages:
   , tools/db/find-undead/
   , tools/db/move-team/
   , tools/db/repair-handles/
+  , tools/db/scim-emails/
   , tools/rex/
   , tools/stern/
 
@@ -151,4 +152,6 @@ package wire-api-federation
 package wire-message-proto-lens
     ghc-options: -Werror
 package zauth
+    ghc-options: -Werror
+package scim-emails
     ghc-options: -Werror
