@@ -40,7 +40,7 @@ runCommand l brig galley tid = do
       (transPipe (runClient galley) (getTeamMembers tid))
       .| C.mapM
         ( \(i, p) ->
-            Log.info l (Log.field "team members" (show (i * pageSize)))
+            Log.info l (Log.field "team members" (show ((i - 1) * pageSize + fromIntegral (length p))))
               >> pure (map runIdentity p)
         )
       .| transPipe (runClient brig) (C.mapM_ (mapM_ (checkUser l)))

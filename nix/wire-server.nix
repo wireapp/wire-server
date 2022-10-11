@@ -82,6 +82,7 @@ let
     stern = [ "stern" ];
 
     billing-team-member-backfill = [ "billing-team-member-backfill" ];
+    scim-emails = ["scim-emails"];
     api-simulations = [ "api-smoketest" "api-loadtest" ];
     zauth = [ "zauth" ];
   };

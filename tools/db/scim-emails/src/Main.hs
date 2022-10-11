@@ -28,15 +28,16 @@ import Imports
 import Options as O
 import Options.Applicative
 import qualified System.Logger as Log
+import System.Logger.Extended (structuredJSONRenderer)
 import Work
 
 main :: IO ()
 main = do
   s <- execParser (info (helper <*> settingsParser) desc)
   lgr <- initLogger
-  brig <- initCas (setCasBrig s) lgr
-  galley <- initCas (setCasGalley s) lgr
-  runCommand lgr brig galley (setTeamId s)
+  brig <- initCas (setCasBrig s) (Log.clone (Just "cassandra-brig") lgr)
+  galley <- initCas (setCasGalley s) (Log.clone (Just "cassandra-galley") lgr)
+  runCommand (Log.clone (Just "work") lgr) brig galley (setTeamId s)
   where
     desc =
       header "scim-emails"
@@ -46,6 +47,7 @@ main = do
       Log.new
         . Log.setOutput Log.StdOut
         . Log.setBufSize 0
+        . Log.setRenderer structuredJSONRenderer
         $ Log.defSettings
     initCas cas l =
       C.init
