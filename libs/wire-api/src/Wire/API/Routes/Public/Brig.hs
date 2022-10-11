@@ -1153,7 +1153,6 @@ type AuthAPI =
              \ header, with the latter being preferred."
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
-        -- TODO: access_token query parameter
         -- TODO: CanThrow
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
@@ -1200,7 +1199,6 @@ type AuthAPI =
                     \ result in a 403."
                :> Cookies '["zuid" ::? SomeUserToken]
                :> Bearer SomeAccessToken
-               -- TODO: access_token query parameter
                -- TODO: CanThrow
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Logout")
            )
@@ -1209,7 +1207,6 @@ type AuthAPI =
            ( "access" :> "self" :> "email"
                :> Summary "Change your email address"
                :> Cookies '["zuid" ::: SomeUserToken]
-               -- TODO: access_token query parameter
                :> Bearer SomeAccessToken
                :> ReqBody '[JSON] EmailUpdate
                -- TODO: CanThrow

@@ -34,6 +34,11 @@ instance FromHttpApiData a => FromHttpApiData (Bearer a) where
 
 type BearerHeader a = Header "Authorization" (Bearer a)
 
+type BearerQueryParam =
+  QueryParam'
+    [Optional, Strict, Description "Access token"]
+    "access_token"
+
 instance HasSwagger api => HasSwagger (Bearer a :> api) where
   -- TODO
   toSwagger _ = toSwagger (Proxy @api)
@@ -51,5 +56,8 @@ instance
   type ServerT (Bearer a :> api) m = Maybe a -> ServerT api m
 
   route _ ctx action =
-    route (Proxy @(BearerHeader a :> api)) ctx (fmap (. (fmap unBearer)) action)
+    route
+      (Proxy @(BearerHeader a :> BearerQueryParam a :> api))
+      ctx
+      (fmap (\f u v -> f (fmap unBearer u <|> v)) action)
   hoistServerWithContext _ ctx f h = hoistServerWithContext (Proxy @api) ctx f . h
