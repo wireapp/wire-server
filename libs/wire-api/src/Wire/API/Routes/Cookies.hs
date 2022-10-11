@@ -64,7 +64,6 @@ newtype CookieTuple cs = CookieTuple {unCookieTuple :: NP I (CookieTypes cs)}
 type CookieMap = Map ByteString (NonEmpty ByteString)
 
 instance HasSwagger api => HasSwagger (Cookies cs :> api) where
-  -- TODO
   toSwagger _ = toSwagger (Proxy @api)
 
 class CookieArgs (cs :: [*]) where

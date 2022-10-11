@@ -17,8 +17,11 @@
 
 module Wire.API.Routes.Bearer where
 
+import Control.Lens ((<>~))
 import qualified Data.ByteString as BS
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Metrics.Servant
+import Data.Swagger hiding (Header)
 import qualified Data.Text.Encoding as T
 import Imports
 import Servant
@@ -40,8 +43,9 @@ type BearerQueryParam =
     "access_token"
 
 instance HasSwagger api => HasSwagger (Bearer a :> api) where
-  -- TODO
-  toSwagger _ = toSwagger (Proxy @api)
+  toSwagger _ =
+    toSwagger (Proxy @api)
+      & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
 
 instance RoutesToPaths api => RoutesToPaths (Bearer a :> api) where
   getRoutes = getRoutes @api
