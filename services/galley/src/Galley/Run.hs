@@ -63,6 +63,7 @@ import Servant.Server.Internal.Delayed (emptyDelayed)
 import Servant.Server.Internal.ErrorFormatter (mkContextWithErrorFormatter)
 import Servant.Server.Internal.RouteResult
 import Servant.Server.Internal.Router
+import Servant.Server.Internal.RoutingApplication (RoutingApplication)
 import qualified System.Logger as Log
 import Util.Options
 import Wire.API.Routes.API
@@ -113,37 +114,45 @@ mkApp opts =
     -- the servant API wraps the one defined using wai-routing
     servantApp e0 r =
       let e = reqId .~ lookupReqId r $ e0
-       in serveWithContextT'
-            (Proxy @CombinedAPI)
+          context =
             ( view (options . optSettings . setFederationDomain) e
                 :. customFormatters
                 :. Servant.EmptyContext
             )
-            id
-            ( hoistAPIHandler (toServantHandler e) API.servantSitemap
-                :<|> hoistAPIHandler (toServantHandler e) internalAPI
-                :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-                :<|> Servant.Tagged (runGalley e)
-            )
+       in ( routesToApp
+              context
+              [ mkRouterApp (Proxy @GalleyAPI.ServantAPI) context id (hoistAPIHandler (toServantHandler e) API.servantSitemap),
+                mkRouterApp (Proxy @InternalAPI) context id (hoistAPIHandler (toServantHandler e) internalAPI),
+                mkRouterApp (Proxy @FederationAPI) context id (hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap),
+                mkRouterApp (Proxy @Servant.Raw) context id (Servant.Tagged (runGalley e))
+              ]
+          )
             r
 
     lookupReqId :: Request -> RequestId
     lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
--- | A general 'serve' function that allows you to pass a custom context and hoisting function to
--- apply on all routes.
-serveWithContextT' ::
+mkRouterApp ::
   forall api context m.
   (HasServer api context, ServerContext context) =>
   Proxy api ->
   Context context ->
   (forall x. m x -> Handler x) ->
   ServerT api m ->
-  Application
-serveWithContextT' p context toHandler server =
-  toApplication (runRouter format404 (Servant.route p context (emptyDelayed router)))
+  RoutingApplication
+mkRouterApp p context toHandler server =
+  runRouter format404 $ Servant.route p context (emptyDelayed router)
   where
     router = Route $ hoistServerWithContext p (Proxy :: Proxy context) toHandler server
+    format404 = notFoundErrorFormatter . getContextEntry . mkContextWithErrorFormatter $ context
+
+routesToApp ::
+  ServerContext context =>
+  Context context ->
+  [RoutingApplication] ->
+  Application
+routesToApp context rs = toApplication (runChoice format404 (map const rs) ())
+  where
     format404 = notFoundErrorFormatter . getContextEntry . mkContextWithErrorFormatter $ context
 
 customFormatters :: Servant.ErrorFormatters
