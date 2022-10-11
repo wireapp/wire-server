@@ -106,7 +106,10 @@ checkUser l uid = do
               mUidFromEmail <- lookupKey (userEmailKey email)
               case mUidFromEmail of
                 Nothing ->
-                  Log.warn l $ Log.msg (Log.val "Email missing from user_keys") . Log.field "user" (idToText uid) . Log.field "email" (fromEmail email)
+                  Log.warn l $
+                    Log.msg (Log.val "Email missing from user_keys")
+                      . Log.field "user" (idToText uid)
+                      . Log.field "email" (fromEmail email)
                 Just uidFromEmail ->
                   when (uidFromEmail /= uid) $
                     Log.warn l $
