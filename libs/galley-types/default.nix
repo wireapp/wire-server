@@ -5,8 +5,9 @@
 { mkDerivation, aeson, base, bytestring, bytestring-conversion
 , containers, cryptonite, currency-codes, errors, exceptions
 , gitignoreSource, imports, lens, lib, memory, QuickCheck
-, schema-profunctor, string-conversions, tagged, tasty, tasty-hunit
-, tasty-quickcheck, text, time, types-common, uuid, wire-api
+, schema-profunctor, string-conversions, swagger2, tagged, tasty
+, tasty-hunit, tasty-quickcheck, text, time, types-common, uuid
+, wire-api
 }:
 mkDerivation {
   pname = "galley-types";
@@ -15,8 +16,8 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson base bytestring bytestring-conversion containers cryptonite
     currency-codes errors exceptions imports lens memory QuickCheck
-    schema-profunctor string-conversions tagged text time types-common
-    uuid wire-api
+    schema-profunctor string-conversions swagger2 tagged text time
+    types-common uuid wire-api
   ];
   testHaskellDepends = [
     aeson base containers imports lens QuickCheck tasty tasty-hunit
