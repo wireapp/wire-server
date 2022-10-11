@@ -45,8 +45,8 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 
-accessH :: NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
-accessH ut mat = partitionTokens ut mat >>= either (uncurry access) (uncurry access)
+accessH :: Maybe SomeAccessToken -> NonEmpty SomeUserToken -> Handler r SomeAccess
+accessH mat ut = partitionTokens ut mat >>= either (uncurry access) (uncurry access)
 
 access :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r SomeAccess
 access t mt =
@@ -78,11 +78,11 @@ logout uts (Just at) = wrapHttpClientE $ Auth.logout (List1 uts) at !>> zauthErr
 
 changeSelfEmailH ::
   Member BlacklistStore r =>
-  NonEmpty SomeUserToken ->
   Maybe SomeAccessToken ->
+  NonEmpty SomeUserToken ->
   EmailUpdate ->
   Handler r ChangeEmailResponse
-changeSelfEmailH uts mat up = do
+changeSelfEmailH mat uts up = do
   toks <- partitionTokens uts mat
   usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
   let email = euEmail up

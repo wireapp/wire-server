@@ -768,7 +768,7 @@ testInvalidCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Htt
 testInvalidCookie z b = do
   -- Syntactically invalid
   post (unversioned . b . path "/access" . cookieRaw "zuid" "xxx") !!! do
-    const 403 === statusCode
+    const 400 === statusCode
     const (Just "Invalid user token") =~= responseBody
   -- Expired
   user <- userId <$> randomUser b
@@ -790,7 +790,7 @@ testInvalidToken b = do
     !!! errResponse
   where
     errResponse = do
-      const 403 === statusCode
+      const 400 === statusCode
       const (Just "Invalid access token") =~= responseBody
 
 testMissingCookie :: forall u a. ZAuth.TokenPair u a => ZAuth.Env -> Brig -> Http ()
@@ -805,9 +805,8 @@ testMissingCookie z b = do
     !!! errResponse
   where
     errResponse = do
-      const 403 === statusCode
-      const (Just "Missing cookie") =~= responseBody
-      const (Just "invalid-credentials") =~= responseBody
+      const 400 === statusCode
+      const (Just "Header Cookie is required") =~= responseBody
 
 testUnknownCookie :: forall u. ZAuth.UserTokenLike u => ZAuth.Env -> Brig -> Http ()
 testUnknownCookie z b = do
@@ -862,19 +861,19 @@ testAccessSelfEmailAllowed nginz brig withCookie = do
           . header "Authorization" ("Bearer " <> toByteString' tok)
 
   put (req . Bilge.json ())
-    !!! const (if withCookie then 400 else 403) === statusCode
+    !!! const 400 === statusCode
 
   put (req . Bilge.json (EmailUpdate email))
-    !!! const (if withCookie then 204 else 403) === statusCode
+    !!! const (if withCookie then 204 else 400) === statusCode
 
 -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
 testAccessSelfEmailDenied :: ZAuth.Env -> Nginz -> Brig -> Bool -> Http ()
 testAccessSelfEmailDenied zenv nginz brig withCookie = do
+  usr <- randomUser brig
+  let Just email = userEmail usr
   mbCky <-
     if withCookie
       then do
-        usr <- randomUser brig
-        let Just email = userEmail usr
         rsp <-
           login nginz (emailLogin email defPassword (Just "nexus1")) PersistentCookie
             <!! const 200 === statusCode
@@ -887,23 +886,27 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
         unversioned
           . nginz
           . path "/access/self/email"
-          . Bilge.json ()
+          . Bilge.json (EmailUpdate email)
           . maybe id cookie mbCky
 
   put req
-    !!! errResponse "invalid-credentials" "Missing access token"
+    !!! do
+      const (if withCookie then 403 else 400) === statusCode
+      when withCookie $ const (Just "Missing access token") =~= responseBody
   put (req . header "Authorization" "xxx")
-    !!! errResponse "invalid-credentials" "Missing access token"
+    !!! do
+      const 400 === statusCode
+      when withCookie $ const (Just "Invalid authorization scheme") =~= responseBody
   put (req . header "Authorization" "Bearer xxx")
-    !!! errResponse "client-error" "invalid: Invalid access token"
+    !!! do
+      const 400 === statusCode
+      when withCookie $ const (Just "Invalid access token") =~= responseBody
   put (req . header "Authorization" ("Bearer " <> toByteString' tok))
-    !!! errResponse "invalid-credentials" "Invalid token"
-  where
-    errResponse label msg = do
-      const 403 === statusCode
+    !!! do
+      const (if withCookie then 403 else 400) === statusCode
       when withCookie $ do
-        const (Just label) =~= responseBody
-        const (Just msg) =~= responseBody
+        const (Just "Invalid token") =~= responseBody
+        const (Just "invalid-credentials") =~= responseBody
 
 -- | We are a little bit nasty on this test. For most cases, one can use brig and nginz interchangeably.
 --   In this case, the issue relates to the usage of `getAndTestDBSupersededCookieAndItsValidSuccessor`.
