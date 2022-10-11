@@ -65,8 +65,10 @@ clean:
 .PHONY: clean-hint
 clean-hint:
 	@echo -e "\n\n\n>>> PSA: if you get errors that are hard to explain,"
-	@echo -e ">>> try 'make full-clean' and run your command again."
-	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/developer/building.md#linker-errors-while-compiling\n\n\n"
+	@echo -e ">>> try 'git submodule update --init --recursive' and 'make full-clean' and run your command again."
+	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/developer/building.md#linker-errors-while-compiling"
+	@echo -e ">>> to never have to remember submodules again, try `git config --global submodule.recurse true`"
+	@echo -e "\n\n\n"
 
 .PHONY: cabal.project.local
 cabal.project.local:
