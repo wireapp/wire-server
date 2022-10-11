@@ -46,8 +46,6 @@ module Brig.API.Client
   )
 where
 
-import Bilge.IO
-import Bilge.RPC
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
@@ -76,7 +74,6 @@ import Brig.User.Email
 import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
-import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain (Domain)
@@ -108,6 +105,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 
@@ -290,7 +288,12 @@ claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppT r) Prek
 claimRemotePrekeyBundle quser = do
   Federation.claimPrekeyBundle quser !>> ClientFederationError
 
-claimMultiPrekeyBundles :: LegalholdProtectee -> QualifiedUserClients -> ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
+claimMultiPrekeyBundles ::
+  forall r.
+  Members '[Concurrency 'Unsafe] r =>
+  LegalholdProtectee ->
+  QualifiedUserClients ->
+  ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles protectee quc = do
   loc <- qualifyLocal ()
   let (locals, remotes) =
@@ -326,6 +329,8 @@ claimMultiPrekeyBundles protectee quc = do
         <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
 
 claimLocalMultiPrekeyBundles ::
+  forall r.
+  Members '[Concurrency 'Unsafe] r =>
   LegalholdProtectee ->
   UserClients ->
   ExceptT ClientError (AppT r) UserClientPrekeyMap
@@ -340,9 +345,15 @@ claimLocalMultiPrekeyBundles protectee userClients = do
     $ userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppT r (Map UserId (Map ClientId (Maybe Prekey)))
-    getChunk =
-      -- FUTUREWORK: this should be concurrent calls to getUserKeys
-      Map.traverseWithKey getUserKeys
+    getChunk m = do
+      e <- ask
+      AppT $
+        lift $
+          fmap (Map.fromListWith (<>)) $
+            unsafePooledMapConcurrentlyN
+              16
+              (\(u, cids) -> (u,) <$> lowerAppT e (getUserKeys u cids))
+              (Map.toList m)
     getUserKeys ::
       UserId ->
       Set ClientId ->

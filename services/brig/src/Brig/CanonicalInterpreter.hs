@@ -27,8 +27,8 @@ import Imports
 import Polysemy (Embed, Final, embedToFinal, runFinal)
 import Polysemy.Error (Error, mapError, runError)
 import Polysemy.TinyLog (TinyLog)
-import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
-import Wire.Sem.Concurrency.IO (unsafelyPerformConcurrency)
+import Wire.Sem.Concurrency
+import Wire.Sem.Concurrency.IO
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)

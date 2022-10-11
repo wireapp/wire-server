@@ -163,16 +163,17 @@ swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 servantSitemap ::
   forall r p.
   Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore,
-       GalleyProvider,
-       UserPendingActivationStore p,
-       PasswordResetStore,
+    '[ BlacklistPhonePrefixStore,
+       BlacklistStore,
        CodeStore,
-       JwtTools,
-       PublicKeyBundle,
        Concurrency 'Unsafe,
-       Now
+       Concurrency 'Unsafe,
+       GalleyProvider,
+       JwtTools,
+       Now,
+       PasswordResetStore,
+       PublicKeyBundle,
+       UserPendingActivationStore p
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -293,11 +294,12 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 
 sitemap ::
   Members
-    '[ CodeStore,
-       PasswordResetStore,
+    '[ BlacklistPhonePrefixStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore,
-       GalleyProvider
+       CodeStore,
+       Concurrency 'Unsafe,
+       GalleyProvider,
+       PasswordResetStore
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
@@ -310,11 +312,12 @@ sitemap = do
 apiDocs ::
   forall r.
   Members
-    '[ CodeStore,
-       PasswordResetStore,
+    '[ BlacklistPhonePrefixStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore,
-       GalleyProvider
+       CodeStore,
+       Concurrency 'Unsafe,
+       GalleyProvider,
+       PasswordResetStore
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
@@ -406,14 +409,22 @@ getPrekeyBundleH :: UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundl
 getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> (Handler r) Public.UserClientPrekeyMap
+getMultiUserPrekeyBundleUnqualifiedH ::
+  Members '[Concurrency 'Unsafe] r =>
+  UserId ->
+  Public.UserClients ->
+  Handler r Public.UserClientPrekeyMap
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
-getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> (Handler r) Public.QualifiedUserClientPrekeyMap
+getMultiUserPrekeyBundleH ::
+  Members '[Concurrency 'Unsafe] r =>
+  UserId ->
+  Public.QualifiedUserClients ->
+  (Handler r) Public.QualifiedUserClientPrekeyMap
 getMultiUserPrekeyBundleH zusr qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =

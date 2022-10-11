@@ -484,9 +484,6 @@ instance MonadReader Env (AppT r) where
 liftSem :: Sem r a -> AppT r a
 liftSem sem = AppT $ lift sem
 
-lowerAppT :: Member (Final IO) r => Env -> AppT r a -> Sem r a
-lowerAppT env = flip runReaderT env . unAppT
-
 instance MonadIO m => MonadLogger (ReaderT Env m) where
   log l m = do
     g <- view applog

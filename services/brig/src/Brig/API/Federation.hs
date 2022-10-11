@@ -47,7 +47,7 @@ import Data.Range
 import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
-import Polysemy (Members)
+import Polysemy
 import Servant (ServerT)
 import Servant.API
 import UnliftIO.Async (pooledForConcurrentlyN_)
@@ -64,12 +64,14 @@ import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
+import Wire.Sem.Concurrency
 
 type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
   Members
-    '[ GalleyProvider
+    '[ GalleyProvider,
+       Concurrency 'Unsafe
      ]
     r =>
   ServerT FederationAPI (Handler r)
@@ -144,7 +146,11 @@ claimPrekeyBundle :: Domain -> UserId -> (Handler r) PrekeyBundle
 claimPrekeyBundle _ user =
   API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
-claimMultiPrekeyBundle :: Domain -> UserClients -> (Handler r) UserClientPrekeyMap
+claimMultiPrekeyBundle ::
+  Members '[Concurrency 'Unsafe] r =>
+  Domain ->
+  UserClients ->
+  Handler r UserClientPrekeyMap
 claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
 
 fedClaimKeyPackages :: Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyPackageBundle)
