@@ -73,6 +73,7 @@ executable scim-emails
     , cassandra-util
     , conduit
     , containers
+    , extended
     , galley-types
     , http-client
     , imports
