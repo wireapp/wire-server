@@ -133,8 +133,8 @@ mockBrig lookup_user delete_response = interpret $ \case
 withActiveUser :: UserAccount -> UserId -> Maybe UserAccount
 withActiveUser acc uid =
   if uid == (userId . accountUser) acc
-      then Just acc
-      else Nothing
+    then Just acc
+    else Nothing
 
 someActiveUser :: ScimTokenInfo -> IO UserAccount
 someActiveUser tokenInfo = do
