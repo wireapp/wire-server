@@ -1153,7 +1153,7 @@ type AuthAPI =
              \ header, with the latter being preferred."
         :> Bearer SomeAccessToken
         :> Cookies '["zuid" ::: SomeUserToken]
-        -- TODO: CanThrow
+        :> CanThrow 'BadCredentials
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
@@ -1167,7 +1167,8 @@ type AuthAPI =
                     \ For 2nd factor authentication login with email and password, use the\
                     \ `/verification-code/send` endpoint."
                :> ReqBody '[JSON] SendLoginCode
-               -- TODO: CanThrow
+               :> CanThrow 'InvalidPhone
+               :> CanThrow 'PasswordExists
                :> MultiVerb1
                     'POST
                     '[JSON]
@@ -1186,7 +1187,11 @@ type AuthAPI =
                     ]
                     "persist"
                     Bool
-               -- TODO: CanThrow
+               :> CanThrow 'BadCredentials
+               :> CanThrow 'AccountSuspended
+               :> CanThrow 'AccountPending
+               :> CanThrow 'LoginCodeAuthenticationFailed
+               :> CanThrow 'LoginCodeAuthenticationRequired
                :> MultiVerb1 'POST '[JSON] TokenResponse
            )
     :<|> Named
@@ -1199,7 +1204,7 @@ type AuthAPI =
                     \ result in a 403."
                :> Cookies '["zuid" ::? SomeUserToken]
                :> Bearer SomeAccessToken
-               -- TODO: CanThrow
+               :> CanThrow 'BadCredentials
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Logout")
            )
     :<|> Named
@@ -1209,7 +1214,11 @@ type AuthAPI =
                :> Bearer SomeAccessToken
                :> Cookies '["zuid" ::: SomeUserToken]
                :> ReqBody '[JSON] EmailUpdate
-               -- TODO: CanThrow
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'BlacklistedEmail
+               :> CanThrow 'BlacklistedPhone
+               :> CanThrow 'BadCredentials
                :> MultiVerb
                     'PUT
                     '[JSON]

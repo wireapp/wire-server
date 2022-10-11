@@ -55,6 +55,12 @@ data BrigError
   | MLSProtocolError
   | MLSDuplicatePublicKey
   | InvalidPhone
+  | PasswordExists
+  | AccountSuspended
+  | AccountEphemeral
+  | AccountPending
+  | LoginCodeAuthenticationFailed
+  | LoginCodeAuthenticationRequired
   | UserKeyExists
   | NameManagedByScim
   | HandleManagedByScim
@@ -161,6 +167,27 @@ type instance MapError 'UserCreationRestricted = 'StaticError 403 "user-creation
 type instance MapError 'MLSProtocolError = 'StaticError 400 "mls-protocol-error" "MLS protocol error"
 
 type instance MapError 'InvalidPhone = 'StaticError 400 "invalid-phone" "Invalid mobile phone number"
+
+type instance
+  MapError 'PasswordExists =
+    'StaticError
+      403
+      "password-exists"
+      "The operation is not permitted because the user has a password set"
+
+type instance MapError 'AccountSuspended = 'StaticError 403 "suspended" "Account suspended"
+
+type instance MapError 'AccountEphemeral = 'StaticError 403 "ephemeral" "Account ephemeral"
+
+type instance MapError 'AccountPending = 'StaticError 403 "pending-activation" "Account pending activation"
+
+type instance
+  MapError 'LoginCodeAuthenticationFailed =
+    'StaticError 403 "code-authentication-failed" "The login code is not valid"
+
+type instance
+  MapError 'LoginCodeAuthenticationRequired =
+    'StaticError 403 "code-authentication-required" "A login verification code is required."
 
 type instance MapError 'UserKeyExists = 'StaticError 409 "key-exists" "The given e-mail address or phone number is in use."
 
