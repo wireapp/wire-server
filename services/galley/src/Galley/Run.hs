@@ -58,7 +58,11 @@ import Network.Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server
-import Servant hiding (route)
+import Servant
+import Servant.Server.Internal.Delayed (emptyDelayed)
+import Servant.Server.Internal.ErrorFormatter (mkContextWithErrorFormatter)
+import Servant.Server.Internal.RouteResult
+import Servant.Server.Internal.Router
 import qualified System.Logger as Log
 import Util.Options
 import Wire.API.Routes.API
@@ -105,16 +109,17 @@ mkApp opts =
     pure (middlewares $ servantApp env, env)
   where
     rtree = compile API.sitemap
-    runGalley e r k = evalGalleyToIO e (route rtree r k)
+    runGalley e r k = evalGalleyToIO e (Network.Wai.Utilities.Server.route rtree r k)
     -- the servant API wraps the one defined using wai-routing
     servantApp e0 r =
       let e = reqId .~ lookupReqId r $ e0
-       in Servant.serveWithContext
+       in serveWithContextT'
             (Proxy @CombinedAPI)
             ( view (options . optSettings . setFederationDomain) e
                 :. customFormatters
                 :. Servant.EmptyContext
             )
+            id
             ( hoistAPIHandler (toServantHandler e) API.servantSitemap
                 :<|> hoistAPIHandler (toServantHandler e) internalAPI
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
@@ -124,6 +129,22 @@ mkApp opts =
 
     lookupReqId :: Request -> RequestId
     lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
+
+-- | A general 'serve' function that allows you to pass a custom context and hoisting function to
+-- apply on all routes.
+serveWithContextT' ::
+  forall api context m.
+  (HasServer api context, ServerContext context) =>
+  Proxy api ->
+  Context context ->
+  (forall x. m x -> Handler x) ->
+  ServerT api m ->
+  Application
+serveWithContextT' p context toHandler server =
+  toApplication (runRouter format404 (Servant.route p context (emptyDelayed router)))
+  where
+    router = Route $ hoistServerWithContext p (Proxy :: Proxy context) toHandler server
+    format404 = notFoundErrorFormatter . getContextEntry . mkContextWithErrorFormatter $ context
 
 customFormatters :: Servant.ErrorFormatters
 customFormatters =
