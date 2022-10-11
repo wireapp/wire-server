@@ -68,9 +68,6 @@ import Util (runRedisProxy, withSettingsOverrides)
 import Wire.API.Internal.Notification
 import qualified Prelude
 
-appName :: AppName
-appName = AppName "test"
-
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
@@ -736,6 +733,10 @@ testUnregisterClient = do
 
 -----------------------------------------------------------------------------
 -- Native push token registration
+-- This expects the following SNS Platform applications to be present in AWS:
+
+-- ${env}-test (FCM), ${env}-test (APNS_SANDBOX), ${env}-com.wire.ent (APNS_SANDBOX),
+-- with ${env} normally being integration.
 
 testRegisterPushToken :: TestM ()
 testRegisterPushToken = do
@@ -1120,6 +1121,9 @@ buildPush sdr rcps pload =
    in newPush (Just sdr) (unsafeRange rcps') pload
   where
     rcpt u c = recipient u RouteAny & recipientClients .~ c
+
+appName :: AppName
+appName = AppName "test"
 
 data TokenSpec = TokenSpec {trans :: Transport, tSize :: Int, tName :: AppName}
 

@@ -31,6 +31,7 @@ module Wire.API.Team.Member
     teamMemberJson,
     setOptionalPerms,
     setOptionalPermsMany,
+    teamMemberObjectSchema,
 
     -- * TeamMemberList
     TeamMemberList,
@@ -133,11 +134,13 @@ mkTeamMember ::
 mkTeamMember uid perms inv = TeamMember (NewTeamMember uid perms inv)
 
 instance ToSchema TeamMember where
-  schema =
-    object "TeamMember" $
-      TeamMember
-        <$> _newTeamMember .= newTeamMemberSchema
-        <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optFieldWithDocModifier "legalhold_status" (description ?~ lhDesc) schema)
+  schema = object "TeamMember" teamMemberObjectSchema
+
+teamMemberObjectSchema :: ObjectSchema SwaggerDoc TeamMember
+teamMemberObjectSchema =
+  TeamMember
+    <$> _newTeamMember .= newTeamMemberSchema
+    <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optFieldWithDocModifier "legalhold_status" (description ?~ lhDesc) schema)
 
 instance ToSchema (TeamMember' 'Optional) where
   schema =

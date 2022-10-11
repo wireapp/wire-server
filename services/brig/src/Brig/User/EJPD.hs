@@ -22,9 +22,11 @@ module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
-import Brig.App (AppT, wrapClient, wrapHttp)
+import Brig.App (AppT, liftSem, wrapClient, wrapHttp)
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import qualified Brig.IO.Intra as Intra
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error hiding (bool)
@@ -33,6 +35,7 @@ import Data.Handle (Handle)
 import Data.Id (UserId)
 import qualified Data.Set as Set
 import Imports hiding (head)
+import Polysemy (Member)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHistory)
 import qualified Wire.API.Push.Token as PushTok
@@ -40,7 +43,7 @@ import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJ
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
 
-ejpdRequest :: Maybe Bool -> EJPDRequestBody -> (Handler r) EJPDResponseBody
+ejpdRequest :: forall r. Member GalleyProvider r => Maybe Bool -> EJPDRequestBody -> (Handler r) EJPDResponseBody
 ejpdRequest includeContacts (EJPDRequestBody handles) = do
   ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles (go1 (fromMaybe False includeContacts))
   where
@@ -77,7 +80,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
       mbTeamContacts <-
         case (includeContacts', userTeam target) of
           (True, Just tid) -> do
-            memberList <- wrapHttp $ Intra.getTeamMembers tid
+            memberList <- liftSem $ GalleyProvider.getTeamMembers tid
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
             contactsFull :: [Maybe EJPDResponseItem] <-

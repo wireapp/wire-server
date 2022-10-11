@@ -78,6 +78,8 @@ module Brig.App
     wrapHttp,
     HttpClientIO (..),
     liftSem,
+    lowerAppT,
+    temporaryGetEnv,
   )
 where
 
@@ -437,6 +439,12 @@ newtype AppT r a = AppT
       Monoid
     )
     via (Ap (AppT r) a)
+
+lowerAppT :: Member (Final IO) r => Env -> AppT r a -> Sem r a
+lowerAppT env = flip runReaderT env . unAppT
+
+temporaryGetEnv :: AppT r Env
+temporaryGetEnv = AppT ask
 
 instance Functor (AppT r) where
   fmap fab (AppT x0) = AppT $ fmap fab x0
