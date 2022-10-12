@@ -15,13 +15,11 @@ cat >"$warningFile" <<EOF
 # dependencies are added or removed.
 EOF
 
-# cabalFiles="/home/stefan/repos/wire-server/libs/wire-api/wire-api.cabal"
-
 # shellcheck disable=SC2016
 echo "$cabalFiles" \
     | xargs -I {} bash -c 'cd $(dirname {}); cat $0 > default.nix' "$warningFile"
 
-# shellcheck disable=SC2016,SC1001
+# shellcheck disable=SC2016
 echo "$cabalFiles" \
     | xargs -I {} bash -c 'cd $(dirname {}); cabal2nix . --no-hpack --extra-arguments gitignoreSource | sed "s/.\/./gitignoreSource .\/./g" >> default.nix'
 
