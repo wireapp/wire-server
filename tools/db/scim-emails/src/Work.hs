@@ -23,6 +23,7 @@ module Work where
 
 import Brig.Data.UserKey
 import Cassandra
+import Cassandra.Util
 import Conduit
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
@@ -59,12 +60,12 @@ getTeamMembers tid = paginateC cql (paramsP LocalQuorum (Identity tid) pageSize)
     cql :: PrepQuery R (Identity TeamId) (UserId, Maybe UserId, Maybe UTCTime)
     cql = "SELECT user, invited_by, invited_at FROM team_member where team = ?"
 
-getEmailAndExternalId :: UserId -> Client (Maybe (Maybe Email, Maybe Email, Maybe UserSSOId))
+getEmailAndExternalId :: UserId -> Client (Maybe (Maybe Email, Maybe (Writetime Email), Maybe Email, Maybe UserSSOId))
 getEmailAndExternalId uid =
   retry x1 $ query1 cql (params LocalQuorum (Identity uid))
   where
-    cql :: PrepQuery R (Identity UserId) (Maybe Email, Maybe Email, Maybe UserSSOId)
-    cql = "SELECT email, email_unvalidated, sso_id from user where id = ?"
+    cql :: PrepQuery R (Identity UserId) (Maybe Email, Maybe (Writetime Email), Maybe Email, Maybe UserSSOId)
+    cql = "SELECT email, writetime(email), email_unvalidated, sso_id from user where id = ?"
 
 checkUser :: ClientState -> ClientState -> Logger -> (UserId, Maybe UserId, Maybe UTCTime) -> IO ()
 checkUser brig spar l (uid, mInvitedBy, mInvitedAt) = do
@@ -72,13 +73,14 @@ checkUser brig spar l (uid, mInvitedBy, mInvitedAt) = do
   case maybeEmails of
     Nothing ->
       Log.warn l (Log.msg (Log.val "No email information found") . Log.field "user" (idToText uid))
-    Just (mEmail, unvalidatedEmail, ssoId) -> do
+    Just (mEmail, mEmailWritetime, unvalidatedEmail, ssoId) -> do
       case mEmail of
         Nothing ->
           Log.warn l $
             Log.msg (Log.val "No email found")
               . Log.field "user" (idToText uid)
         Just email -> do
+          let emailWritetime = writeTimeToUTC <$> mEmailWritetime
           case unvalidatedEmail of
             Nothing -> pure ()
             Just ue ->
@@ -116,6 +118,7 @@ checkUser brig spar l (uid, mInvitedBy, mInvitedAt) = do
                     Log.msg (Log.val "Email missing from user_keys")
                       . Log.field "user" (idToText uid)
                       . Log.field "email" (fromEmail email)
+                      . Log.field "email_write_time" (showMaybe emailWritetime)
                       . Log.field "scim_created_at" (showMaybe $ fst <$> mTimes)
                       . Log.field "scim_updated_at" (showMaybe $ snd <$> mTimes)
                       . Log.field "invited_by" (showMaybe mInvitedBy)
