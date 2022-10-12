@@ -39,7 +39,7 @@ let
   ];
 
   docs =
-    pkgs.runCommandNoCC
+    pkgs.runCommand
       "wire-docs"
       {
         nativeBuildInputs = docsPkgs ++ [ pkgs.gnumake ];
