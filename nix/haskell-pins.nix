@@ -172,14 +172,31 @@ let
       };
     };
   };
-  # TODO: This depends on <some-hardcoded-list-of-sha56sum-for-each-package-version-combo>, make it not depend on it.
   hackagePins = {
-    kind-generics = "0.4.1.0";
-    wai-route = "0.4.0";
-    partial-isomorphisms = "0.2.2.1";
-    singletons = "2.7";
-    th-desugar = "1.11";
-    one-liner = "1.0";
+    kind-generics = {
+      version = "0.4.1.0";
+      sha256 = "sha256-gD9b9AXpLkpPSAeg8oPBU7tsHtSNQjxIZKBo+7+r3+c=";
+    };
+    wai-route = {
+      version = "0.4.0";
+      sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
+    };
+    partial-isomorphisms = {
+      version = "0.2.2.1";
+      sha256 = "sha256-TdsLB0ueaUUllLdvcGu3YNQXCfGRRk5WxP3deHEbHGI=";
+    };
+    singletons = {
+      version = "2.7";
+      sha256 = "sha256-q7yc/wyGSyYI0KdgHgRi0WISv9WEibxQ5yM7cSjXS2s=";
+    };
+    th-desugar = {
+      version = "1.11";
+      sha256 = "sha256-07sUW1ufEM7Xqv6C2rlFGI5CDO5cchDOND7QFstKu5g=";
+    };
+    one-liner = {
+      version = "1.0";
+      sha256 = "sha256-dv/W8hIPoHVevxiiCb6OfeP53O/9HPgUiqOHGSNb/pk=";
+    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
@@ -197,5 +214,10 @@ let
     ) packages
   ) gitPins;
   # AttrSet
-  hackagePackages = lib.attrsets.mapAttrs (p: v: hself.callHackage p v {}) hackagePins;
+  hackagePackages = lib.attrsets.mapAttrs (pkg: {version, sha256}:
+    hself.callHackageDirect {
+      ver = version;
+      inherit pkg sha256;
+    } {}
+  ) hackagePins;
 in lib.lists.foldr (a: b: a // b) hackagePackages (lib.lists.flatten gitPackages)
