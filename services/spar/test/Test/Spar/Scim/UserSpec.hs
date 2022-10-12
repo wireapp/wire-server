@@ -107,14 +107,16 @@ interpretWithBrigAccessMock mock =
   runFinal
     . embedToFinal @IO
     . discardTinyLogs
-    . ignoringState scimExternalIdStoreToMem
-    . ignoringState scimUserTimesStoreToMem
-    . ignoringState samlUserStoreToMem
-    . ignoringState idPToMem
+    . ignoringState
+      ( scimExternalIdStoreToMem
+          . scimUserTimesStoreToMem
+          . samlUserStoreToMem
+          . idPToMem
+      )
     . mock
 
-ignoringState :: Functor f => (a -> f (c, b)) -> a -> f b
-ignoringState f = fmap snd . f
+ignoringState :: Functor f => (a -> f (c1, (c2, (c3, (c4, b))))) -> a -> f b
+ignoringState f = fmap (snd . snd . snd . snd) . f
 
 mockBrig ::
   forall (r :: EffectRow) a.
