@@ -47,6 +47,7 @@ module Data.ZAuth.Token
     -- * User body
     User,
     user,
+    client,
     rand,
     mkUser,
 
@@ -133,6 +134,7 @@ data Access = Access
 
 data User = User
   { _user :: !UUID,
+    _client :: Maybe Text,
     _rand :: !Word32
   }
   deriving (Eq, Show)
@@ -241,7 +243,7 @@ mkHeader = Header
 mkAccess :: UUID -> Word64 -> Access
 mkAccess = Access
 
-mkUser :: UUID -> Word32 -> User
+mkUser :: UUID -> Maybe Text -> Word32 -> User
 mkUser = User
 
 mkBot :: UUID -> UUID -> UUID -> Bot
@@ -253,8 +255,8 @@ mkProvider = Provider
 mkLegalHoldAccess :: UUID -> Word64 -> LegalHoldAccess
 mkLegalHoldAccess uid cid = LegalHoldAccess $ Access uid cid
 
-mkLegalHoldUser :: UUID -> Word32 -> LegalHoldUser
-mkLegalHoldUser uid r = LegalHoldUser $ User uid r
+mkLegalHoldUser :: UUID -> Maybe Text -> Word32 -> LegalHoldUser
+mkLegalHoldUser uid cid r = LegalHoldUser $ User uid cid r
 
 -----------------------------------------------------------------------------
 -- Reading
@@ -301,6 +303,7 @@ readUserBody :: Properties -> Maybe User
 readUserBody t =
   User
     <$> (lookup "u" t >>= fromLazyASCIIBytes)
+    <*> pure (lookup "c" t >>= fromByteString')
     <*> (lookup "r" t >>= fmap fromHex . fromByteString')
 
 readBotBody :: Properties -> Maybe Bot
@@ -354,6 +357,8 @@ instance ToByteString User where
     field "u" (toLazyASCIIBytes $ t ^. user)
       <> dot
       <> field "r" (Hex (t ^. rand))
+      <> dot
+      <> foldMap (field "cl") (t ^. client)
 
 instance ToByteString Bot where
   builder t =

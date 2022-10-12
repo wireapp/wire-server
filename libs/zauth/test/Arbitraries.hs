@@ -22,6 +22,9 @@
 module Arbitraries where
 
 import Control.Lens ((.~))
+import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.Builder as LT
+import qualified Data.Text.Lazy.Builder.Int as LT
 import Data.UUID hiding (fromString)
 import Data.ZAuth.Token
 import Imports
@@ -55,11 +58,18 @@ instance Arbitrary Header where
       <*> arbitrary
       <*> arbitrary
 
+arbitraryClientId :: Gen (Maybe Text)
+arbitraryClientId =
+  liftArbitrary $ fmap toClientId arbitrary
+  where
+    toClientId :: Word64 -> Text
+    toClientId = LT.toStrict . LT.toLazyText . LT.hexadecimal
+
 instance Arbitrary Access where
   arbitrary = mkAccess <$> arbitrary <*> arbitrary
 
 instance Arbitrary User where
-  arbitrary = mkUser <$> arbitrary <*> arbitrary
+  arbitrary = mkUser <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary Bot where
   arbitrary = mkBot <$> arbitrary <*> arbitrary <*> arbitrary
@@ -71,7 +81,7 @@ instance Arbitrary LegalHoldAccess where
   arbitrary = mkLegalHoldAccess <$> arbitrary <*> arbitrary
 
 instance Arbitrary LegalHoldUser where
-  arbitrary = mkLegalHoldUser <$> arbitrary <*> arbitrary
+  arbitrary = mkLegalHoldUser <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary ByteString where
   arbitrary = fromString <$> arbitrary `suchThat` notElem '.'

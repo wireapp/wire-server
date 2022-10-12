@@ -148,7 +148,7 @@ login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
       AuthEphemeral -> throwE LoginEphemeral
       AuthPendingInvitation -> throwE LoginPendingActivation
   verifyLoginCode code uid
-  wrapHttpClientE $ newAccess @ZAuth.User @ZAuth.Access uid typ label
+  wrapHttpClientE $ newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
   where
     verifyLoginCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppT r) ()
     verifyLoginCode mbCode uid =
@@ -165,7 +165,7 @@ login (SmsLogin (SmsLoginData phone code label)) typ = do
   unless ok $
     wrapHttpClientE $
       loginFailed uid
-  wrapHttpClientE $ newAccess @ZAuth.User @ZAuth.Access uid typ label
+  wrapHttpClientE $ newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
 
 verifyCode ::
   forall r.
@@ -320,12 +320,13 @@ newAccess ::
     MonadUnliftIO m
   ) =>
   UserId ->
+  Maybe ClientId ->
   CookieType ->
   Maybe CookieLabel ->
   ExceptT LoginError m (Access u)
-newAccess uid ct cl = do
+newAccess uid cid ct cl = do
   catchSuspendInactiveUser uid LoginSuspended
-  r <- lift $ newCookieLimited uid ct cl
+  r <- lift $ newCookieLimited uid cid ct cl
   case r of
     Left delay -> throwE $ LoginThrottled delay
     Right ck -> do
@@ -454,7 +455,7 @@ ssoLogin (SsoLogin uid label) typ = do
       AuthSuspended -> throwE LoginSuspended
       AuthEphemeral -> throwE LoginEphemeral
       AuthPendingInvitation -> throwE LoginPendingActivation
-  newAccess @ZAuth.User @ZAuth.Access uid typ label
+  newAccess @ZAuth.User @ZAuth.Access uid Nothing typ label
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
@@ -472,7 +473,7 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
     Nothing -> throwE LegalHoldLoginNoBindingTeam
     Just tid -> assertLegalHoldEnabled tid
   -- create access token and cookie
-  wrapHttpClientE (newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label)
+  wrapHttpClientE (newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid Nothing typ label)
     !>> LegalHoldLoginError
 
 assertLegalHoldEnabled ::

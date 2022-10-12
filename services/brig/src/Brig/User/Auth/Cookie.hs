@@ -72,15 +72,16 @@ newCookie ::
     MonadClient m
   ) =>
   UserId ->
+  Maybe ClientId ->
   CookieType ->
   Maybe CookieLabel ->
   m (Cookie (ZAuth.Token u))
-newCookie uid typ label = do
+newCookie uid cid typ label = do
   now <- liftIO =<< view currentTime
   tok <-
     if typ == PersistentCookie
-      then ZAuth.newUserToken uid
-      else ZAuth.newSessionToken uid
+      then ZAuth.newUserToken uid cid
+      else ZAuth.newSessionToken uid cid
   let c =
         Cookie
           { cookieId = CookieId (ZAuth.userTokenRand tok),
@@ -121,12 +122,13 @@ nextCookie c = do
       Nothing -> renewCookie c
       Just ck -> do
         let uid = ZAuth.userTokenOf (cookieValue c)
+            cid = ZAuth.clientTokenOf (cookieValue c)
         trackSuperseded uid (cookieId c)
         cs <- DB.listCookies uid
         case List.find (\x -> cookieId x == ck && persist x) cs of
           Nothing -> renewCookie c
           Just c' -> do
-            t <- ZAuth.mkUserToken uid (cookieIdNum ck) (cookieExpires c')
+            t <- ZAuth.mkUserToken uid cid (cookieIdNum ck) (cookieExpires c')
             pure c' {cookieValue = t}
 
 -- | Renew the given cookie with a fresh token.
@@ -141,8 +143,9 @@ renewCookie ::
 renewCookie old = do
   let t = cookieValue old
   let uid = ZAuth.userTokenOf t
+      cid = ZAuth.clientTokenOf t
   -- Insert new cookie
-  new <- newCookie uid (cookieType old) (cookieLabel old)
+  new <- newCookie uid cid (cookieType old) (cookieLabel old)
   -- Link the old cookie to the new (successor), keeping it
   -- around only for another renewal period so as not to build
   -- an ever growing chain of superseded cookies.
@@ -230,22 +233,23 @@ newCookieLimited ::
     ZAuth.MonadZAuth m
   ) =>
   UserId ->
+  Maybe ClientId ->
   CookieType ->
   Maybe CookieLabel ->
   m (Either RetryAfter (Cookie (ZAuth.Token t)))
-newCookieLimited u typ label = do
+newCookieLimited u c typ label = do
   cs <- filter ((typ ==) . cookieType) <$> DB.listCookies u
   now <- liftIO =<< view currentTime
   lim <- CookieLimit . setUserCookieLimit <$> view settings
   thr <- setUserCookieThrottle <$> view settings
   let evict = map cookieId (limitCookies lim now cs)
   if null evict
-    then Right <$> newCookie u typ label
+    then Right <$> newCookie u c typ label
     else case throttleCookies now thr cs of
       Just wait -> pure (Left wait)
       Nothing -> do
         revokeCookies u evict []
-        Right <$> newCookie u typ label
+        Right <$> newCookie u c typ label
 
 --------------------------------------------------------------------------------
 -- HTTP

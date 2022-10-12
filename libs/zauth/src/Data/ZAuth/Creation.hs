@@ -97,15 +97,15 @@ withIndex k m = Create $ do
     error "withIndex: Key index out of range."
   local (const (e {keyIdx = k})) (zauth m)
 
-userToken :: Integer -> UUID -> Word32 -> Create (Token User)
-userToken dur usr rnd = do
+userToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token User)
+userToken dur usr cli rnd = do
   d <- expiry dur
-  newToken d U Nothing (mkUser usr rnd)
+  newToken d U Nothing (mkUser usr cli rnd)
 
-sessionToken :: Integer -> UUID -> Word32 -> Create (Token User)
-sessionToken dur usr rnd = do
+sessionToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token User)
+sessionToken dur usr cli rnd = do
   d <- expiry dur
-  newToken d U (Just S) (mkUser usr rnd)
+  newToken d U (Just S) (mkUser usr cli rnd)
 
 -- | Create an access token taking a duration, userId and a (random) number that can be used as connection identifier
 accessToken :: Integer -> UUID -> Word64 -> Create (Token Access)
@@ -120,10 +120,10 @@ accessToken1 dur usr = do
   d <- liftIO $ asGenIO (uniform :: GenIO -> IO Word64) g
   accessToken dur usr d
 
-legalHoldUserToken :: Integer -> UUID -> Word32 -> Create (Token LegalHoldUser)
-legalHoldUserToken dur usr rnd = do
+legalHoldUserToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token LegalHoldUser)
+legalHoldUserToken dur usr cli rnd = do
   d <- expiry dur
-  newToken d LU Nothing (mkLegalHoldUser usr rnd)
+  newToken d LU Nothing (mkLegalHoldUser usr cli rnd)
 
 -- | Create a legal hold access token taking a duration, userId and a (random) number that can be used as connection identifier
 legalHoldAccessToken :: Integer -> UUID -> Word64 -> Create (Token LegalHoldAccess)

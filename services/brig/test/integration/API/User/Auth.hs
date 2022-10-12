@@ -178,7 +178,9 @@ randomAccessToken :: forall u a. ZAuth.TokenPair u a => ZAuth (ZAuth.Token a)
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
 randomUserToken :: ZAuth.UserTokenLike u => ZAuth (ZAuth.Token u)
-randomUserToken = liftIO UUID.nextRandom >>= ZAuth.newUserToken . Id
+randomUserToken = do
+  r <- Id <$> liftIO UUID.nextRandom
+  ZAuth.newUserToken r Nothing
 
 -------------------------------------------------------------------------------
 -- Nginz authentication tests (end-to-end sanity checks)
@@ -773,7 +775,7 @@ testInvalidCookie z b = do
   -- Expired
   user <- userId <$> randomUser b
   let f = set (ZAuth.userTTL (Proxy @u)) 0
-  t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user))
+  t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user Nothing))
   liftIO $ threadDelay 1000000
   post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
@@ -784,7 +786,7 @@ testInvalidCookie z b = do
 testInvalidToken :: ZAuth.Env -> Brig -> Http ()
 testInvalidToken z b = do
   user <- userId <$> randomUser b
-  t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.User user)
+  t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.User user Nothing)
 
   -- Syntactically invalid
   post (unversioned . b . path "/access" . queryItem "access_token" "xxx" . cookieRaw "zuid" t)
