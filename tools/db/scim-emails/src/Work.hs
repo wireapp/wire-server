@@ -27,13 +27,14 @@ import Conduit
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
+import Data.Time
 import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
 import Wire.API.User.Identity
 
-runCommand :: Logger -> ClientState -> ClientState -> TeamId -> IO ()
-runCommand l brig galley tid = do
+runCommand :: Logger -> ClientState -> ClientState -> ClientState -> TeamId -> IO ()
+runCommand l brig galley spar tid = do
   runConduit $
     zipSources
       (C.sourceList [(1 :: Int32) ..])
@@ -41,9 +42,9 @@ runCommand l brig galley tid = do
       .| C.mapM
         ( \(i, p) ->
             Log.info l (Log.field "team members" (show ((i - 1) * pageSize + fromIntegral (length p))))
-              >> pure (map runIdentity p)
+              >> pure p
         )
-      .| transPipe (runClient brig) (C.mapM_ (mapM_ (checkUser l)))
+      .| C.mapM_ (mapM_ (checkUser brig spar l))
 
 pageSize :: Int32
 pageSize = 1000
@@ -52,11 +53,11 @@ pageSize = 1000
 -- Queries
 
 -- | Get team members from Galley
-getTeamMembers :: TeamId -> ConduitM () [Identity UserId] Client ()
+getTeamMembers :: TeamId -> ConduitM () [(UserId, Maybe UserId, Maybe UTCTime)] Client ()
 getTeamMembers tid = paginateC cql (paramsP LocalQuorum (Identity tid) pageSize) x5
   where
-    cql :: PrepQuery R (Identity TeamId) (Identity UserId)
-    cql = "SELECT user FROM team_member where team = ?"
+    cql :: PrepQuery R (Identity TeamId) (UserId, Maybe UserId, Maybe UTCTime)
+    cql = "SELECT user, invited_by, invited_at FROM team_member where team = ?"
 
 getEmailAndExternalId :: UserId -> Client (Maybe (Maybe Email, Maybe Email, Maybe UserSSOId))
 getEmailAndExternalId uid =
@@ -65,9 +66,9 @@ getEmailAndExternalId uid =
     cql :: PrepQuery R (Identity UserId) (Maybe Email, Maybe Email, Maybe UserSSOId)
     cql = "SELECT email, email_unvalidated, sso_id from user where id = ?"
 
-checkUser :: Logger -> UserId -> Client ()
-checkUser l uid = do
-  maybeEmails <- getEmailAndExternalId uid
+checkUser :: ClientState -> ClientState -> Logger -> (UserId, Maybe UserId, Maybe UTCTime) -> IO ()
+checkUser brig spar l (uid, mInvitedBy, mInvitedAt) = do
+  maybeEmails <- runClient brig $ getEmailAndExternalId uid
   case maybeEmails of
     Nothing ->
       Log.warn l (Log.msg (Log.val "No email information found") . Log.field "user" (idToText uid))
@@ -91,10 +92,14 @@ checkUser l uid = do
               Log.warn l $
                 Log.msg (Log.val "No SSO Id Found")
                   . Log.field "user" (idToText uid)
+                  . Log.field "email" (show email)
+                  . Log.field "invited_by" (showMaybe mInvitedBy)
+                  . Log.field "invited_at" (showMaybe mInvitedAt)
             Just (UserSSOId ref) ->
               Log.warn l $
                 Log.msg (Log.val "User SSO Id is not SCIM External ID")
                   . Log.field "user" (idToText uid)
+                  . Log.field "email" (show email)
                   . Log.field "userSSOIdRef" (show ref)
             Just (UserScimExternalId extId) -> do
               when (extId /= fromEmail email) $
@@ -103,13 +108,18 @@ checkUser l uid = do
                     . Log.field "user" (idToText uid)
                     . Log.field "email" (fromEmail email)
                     . Log.field "external id" extId
-              mUidFromEmail <- lookupKey (userEmailKey email)
+              mUidFromEmail <- runClient brig $ lookupKey (userEmailKey email)
               case mUidFromEmail of
-                Nothing ->
+                Nothing -> do
+                  mTimes <- runClient spar $ readScimUserTimes uid
                   Log.warn l $
                     Log.msg (Log.val "Email missing from user_keys")
                       . Log.field "user" (idToText uid)
                       . Log.field "email" (fromEmail email)
+                      . Log.field "scim_created_at" (showMaybe $ fst <$> mTimes)
+                      . Log.field "scim_updated_at" (showMaybe $ snd <$> mTimes)
+                      . Log.field "invited_by" (showMaybe mInvitedBy)
+                      . Log.field "invited_at" (showMaybe mInvitedAt)
                 Just uidFromEmail ->
                   when (uidFromEmail /= uid) $
                     Log.warn l $
@@ -117,3 +127,15 @@ checkUser l uid = do
                         . Log.field "expected_user" (idToText uid)
                         . Log.field "found_user" (idToText uidFromEmail)
                         . Log.field "email" (fromEmail email)
+
+-- | Read creation and last-update time from database for a given user id.
+readScimUserTimes :: (HasCallStack, MonadClient m) => UserId -> m (Maybe (UTCTime, UTCTime))
+readScimUserTimes uid = do
+  retry x1 . query1 sel $ params LocalQuorum (Identity uid)
+  where
+    sel :: PrepQuery R (Identity UserId) (UTCTime, UTCTime)
+    sel = "SELECT created_at, last_updated_at FROM scim_user_times WHERE uid = ?"
+
+showMaybe :: Show a => Maybe a -> String
+showMaybe (Just a) = show a
+showMaybe Nothing = ""

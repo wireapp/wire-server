@@ -28,6 +28,7 @@ import Options.Applicative
 data Settings = Settings
   { setCasBrig :: CassandraSettings,
     setCasGalley :: CassandraSettings,
+    setCasSpar :: CassandraSettings,
     setTeamId :: TeamId
   }
   deriving (Show)
@@ -44,6 +45,7 @@ settingsParser =
   Settings
     <$> cassandraSettingsParser "brig"
     <*> cassandraSettingsParser "galley"
+    <*> cassandraSettingsParser "spar"
     <*> teamIdParser
 
 teamIdParser :: Parser TeamId
