@@ -85,5 +85,6 @@ executable scim-emails
     , types-common
     , uuid
     , wire-api
+    , time
 
   default-language:   Haskell2010
