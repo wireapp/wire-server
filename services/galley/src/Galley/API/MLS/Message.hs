@@ -103,7 +103,10 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSCommitMissingReferences,
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
-     ErrorS 'MLSGroupConversationMismatch
+     ErrorS 'MLSGroupConversationMismatch,
+     ErrorS 'MLSMissingExternalInit,
+     ErrorS 'MLSRemovalUserMismatch,
+     ErrorS 'MLSExternalCommitRemoveProposal
    ]
 
 type MLSBundleStaticErrors =
@@ -119,14 +122,17 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
+         ErrorS 'MissingLegalholdConsent,
+         ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSExternalCommitRemoveProposal,
+         ErrorS 'MLSGroupConversationMismatch,
+         ErrorS 'MLSMissingExternalInit,
          ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSRemovalUserMismatch,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSGroupConversationMismatch,
-         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -152,14 +158,17 @@ postMLSMessageFromLocalUser ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
+         ErrorS 'MissingLegalholdConsent,
+         ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSExternalCommitRemoveProposal,
+         ErrorS 'MLSGroupConversationMismatch,
+         ErrorS 'MLSMissingExternalInit,
          ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSRemovalUserMismatch,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSGroupConversationMismatch,
-         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -186,6 +195,9 @@ postMLSCommitBundle ::
          Error FederationError,
          Error InternalError,
          Error MLSProtocolError,
+         ErrorS 'MLSExternalCommitRemoveProposal,
+         ErrorS 'MLSMissingExternalInit,
+         ErrorS 'MLSRemovalUserMismatch,
          Input (Local ()),
          Input Opts,
          Input UTCTime,
@@ -216,6 +228,9 @@ postMLSCommitBundleFromLocalUser ::
       '[ BrigAccess,
          Error FederationError,
          Error InternalError,
+         ErrorS 'MLSExternalCommitRemoveProposal,
+         ErrorS 'MLSMissingExternalInit,
+         ErrorS 'MLSRemovalUserMismatch,
          Input (Local ()),
          Input Opts,
          Input UTCTime,
@@ -247,11 +262,13 @@ postMLSCommitBundleToLocalConv ::
          Error FederationError,
          Error InternalError,
          Error MLSProtocolError,
+         ErrorS 'MLSExternalCommitRemoveProposal,
+         ErrorS 'MLSMissingExternalInit,
+         ErrorS 'MLSRemovalUserMismatch,
          Input (Local ()),
-         Input UTCTime,
          Input Opts,
+         Input UTCTime,
          ProposalStore,
-         BrigAccess,
          Resource,
          TinyLog
        ]
@@ -355,18 +372,21 @@ postMLSMessage ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
+         ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSExternalCommitRemoveProposal,
          ErrorS 'MLSGroupConversationMismatch,
+         ErrorS 'MLSMissingExternalInit,
          ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSRemovalUserMismatch,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MissingLegalholdConsent,
-         Resource,
-         TinyLog,
+         Input (Local ()),
          ProposalStore,
-         Input (Local ())
+         Resource,
+         TinyLog
        ]
       r
   ) =>
@@ -418,16 +438,20 @@ postMLSMessageToLocalConv ::
       '[ Error FederationError,
          Error InternalError,
          ErrorS 'ConvNotFound,
-         ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
+         ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSExternalCommitRemoveProposal,
+         ErrorS 'MLSMissingExternalInit,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSRemovalUserMismatch,
          ErrorS 'MLSSelfRemovalNotAllowed,
-         Resource,
-         TinyLog,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnsupportedMessage,
+         Input (Local ()),
          ProposalStore,
-         Input (Local ())
+         Resource,
+         TinyLog
        ]
       r
   ) =>
@@ -526,23 +550,30 @@ type HasProposalEffects r =
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap,
-    paRemove :: ClientMap
+    paRemove :: ClientMap,
+    -- The backend does not process external init proposals, but still it needs
+    -- to know if a commit has one when processing external commits
+    paExternalInit :: Maybe ()
   }
 
 instance Semigroup ProposalAction where
-  ProposalAction add1 rem1 <> ProposalAction add2 rem2 =
+  ProposalAction add1 rem1 init1 <> ProposalAction add2 rem2 init2 =
     ProposalAction
       (Map.unionWith mappend add1 add2)
       (Map.unionWith mappend rem1 rem2)
+      (init1 <> init2)
 
 instance Monoid ProposalAction where
-  mempty = ProposalAction mempty mempty
+  mempty = ProposalAction mempty mempty mempty
 
 paAddClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
 paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
 paRemoveClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
 paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
+
+paExternalInitPresent :: ProposalAction
+paExternalInitPresent = mempty {paExternalInit = Just ()}
 
 getCommitData ::
   ( HasProposalEffects r,
@@ -578,8 +609,12 @@ processCommit ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSExternalCommitRemoveProposal) r,
+    Member (ErrorS 'MLSMissingExternalInit) r,
     Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSRemovalUserMismatch) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
@@ -602,12 +637,17 @@ processCommit qusr senderClient con lconv cm epoch sender commit = do
   processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender Nothing commit
 
 processCommitWithAction ::
+  forall r.
   ( HasProposalEffects r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSExternalCommitRemoveProposal) r,
+    Member (ErrorS 'MLSMissingExternalInit) r,
     Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSRemovalUserMismatch) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
@@ -634,7 +674,7 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
   let ttlSeconds :: Int = 600 -- 10 minutes
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
     checkEpoch epoch (tUnqualified lconv)
-    postponedKeyPackageRefUpdate <-
+    (postponedKeyPackageRefUpdate, actionWithUpdate) <-
       if epoch == Epoch 0
         then do
           -- this is a newly created conversation, and it should contain exactly one
@@ -660,25 +700,57 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
               throw (InternalErrorWithDescription "Unexpected creator client set")
             -- the sender of the first commit must be a member
             _ -> throw (mlsProtocolError "Unexpected sender")
-          pure $ pure () -- no key package ref update necessary
+          pure $ (pure (), action) -- no key package ref update necessary
         else case (sender, upLeaf <$> cPath commit) of
           (MemberSender senderRef, Just updatedKeyPackage) -> do
             updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
             -- postpone key package ref update until other checks/processing passed
             case senderClient of
-              Just cli -> pure $ updateKeyPackageMapping lconv qusr cli (Just senderRef) updatedRef
-              Nothing -> pure $ pure ()
-          (_, Nothing) -> pure $ pure () -- ignore commits without update path
+              Just cli -> pure (updateKeyPackageMapping lconv qusr cli (Just senderRef) updatedRef, action)
+              Nothing -> pure (pure (), action)
+          (_, Nothing) -> pure (pure (), action) -- ignore commits without update path
+          (NewMemberSender, Just newKeyPackage) -> do
+            -- this is an external commit
+            when (paExternalInit action == mempty) $
+              throwS @'MLSMissingExternalInit
+            unless (paAdd action == mempty) $
+              throwS @'MLSExternalCommitRemoveProposal
+
+            cid <- case kpIdentity (rmValue newKeyPackage) of
+              Left e -> throw (mlsProtocolError $ "Failed to parse the client identity: " <> e)
+              Right v -> pure v
+            newRef <-
+              kpRef' newKeyPackage
+                & note (mlsProtocolError "An invalid key package in the update path")
+
+            -- check if there is a key package ref in the remove proposal
+            remRef <-
+              if Map.null (paRemove action)
+                then pure Nothing
+                else do
+                  (remCid, r) <- derefUser (paRemove action) qusr
+                  unless (cidQualifiedUser cid == cidQualifiedUser remCid) $
+                    throwS @'MLSRemovalUserMismatch
+                  pure (Just r)
+
+            updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
+
+            pure (pure (), action {paRemove = mempty})
           _ -> throw (mlsProtocolError "Unexpected sender")
 
-    -- check all pending proposals are referenced in the commit
-    allPendingProposals <- getAllPendingProposals groupId epoch
-    let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
-    unless (all (`Set.member` referencedProposals) allPendingProposals) $
-      throwS @'MLSCommitMissingReferences
+    -- FUTUREWORK: Resubmit backend-provided proposals when processing an
+    -- external commit.
+    --
+    -- check all pending proposals are referenced in the commit. Skip the check
+    -- if this is an external commit.
+    when (sender /= NewMemberSender) $ do
+      allPendingProposals <- getAllPendingProposals groupId epoch
+      let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
+      unless (all (`Set.member` referencedProposals) allPendingProposals) $
+        throwS @'MLSCommitMissingReferences
 
     -- process and execute proposals
-    updates <- executeProposalAction qusr con lconv cm action
+    updates <- executeProposalAction qusr con lconv cm actionWithUpdate
 
     -- update key package ref if necessary
     postponedKeyPackageRefUpdate
@@ -691,6 +763,22 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
         . gipGroupState
 
     pure updates
+  where
+    derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
+    derefUser (Map.toList -> l) user = case l of
+      [(u, s)] -> do
+        unless (user == u) $
+          throwS @'MLSClientSenderUserMismatch
+        ref <- snd <$> ensureSingleton s
+        ci <- derefKeyPackage ref
+        unless (cidQualifiedUser ci == user) $
+          throwS @'MLSClientSenderUserMismatch
+        pure (ci, ref)
+      _ -> throwS @'MLSExternalCommitRemoveProposal
+    ensureSingleton :: Set a -> Sem r a
+    ensureSingleton (Set.toList -> l) = case l of
+      [e] -> pure e
+      _ -> throwS @'MLSExternalCommitRemoveProposal
 
 -- | Note: Use this only for KeyPackage that are already validated
 updateKeyPackageMapping ::
@@ -784,6 +872,10 @@ applyProposal convId (AddProposal kp) = do
 applyProposal _conv (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient ((,ref) <$$> qclient))
+applyProposal _conv (ExternalInitProposal _) =
+  -- only record the fact there was an external init proposal, but do not
+  -- process it in any way.
+  pure paExternalInitPresent
 applyProposal _conv _ = pure mempty
 
 checkProposalCipherSuite ::
