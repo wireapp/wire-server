@@ -216,8 +216,7 @@ let lib = pkgs.lib;
       pkgs.skopeo
     ];
 
-    sources = import ./sources.nix;
-    ciImage = import "${sources.nix}/docker.nix" {
+    ciImage = import "${pkgs.nix.src}/docker.nix" {
       inherit pkgs;
       name = "quay.io/wire/wire-server-ci";
       maxLayers = 2;
