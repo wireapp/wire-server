@@ -10,11 +10,11 @@ hself: hsuper: {
   polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
   swagger = hlib.doJailbreak hsuper.swagger;
   multihash = hlib.markUnbroken (hlib.doJailbreak hsuper.multihash);
-  hashable = hsuper.hashable_1_4_0_2;
+  hashable = hsuper.hashable_1_4_1_0;
   hashable-time = hsuper.hashable-time_0_3;
   text-short = hlib.dontCheck hsuper.text-short;
-  aeson = hsuper.aeson_2_1_0_0;
-  lens-aeson = hsuper.lens-aeson_1_2_1;
+  aeson = hsuper.aeson_2_1_1_0;
+  lens-aeson = hsuper.lens-aeson_1_2_2;
   swagger2 = hlib.doJailbreak hsuper.swagger2;
   servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
   servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
