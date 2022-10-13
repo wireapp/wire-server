@@ -14,19 +14,12 @@ set -euo pipefail
 
 readonly usage="USAGE: $0 <images_attr>"
 
-readonly DOCKER_TAG=${DOCKER_TAG:?"Please set the DOCKER_TAG env variable"}
 # nix attribute under wireServer from "$ROOT_DIR/nix" containing all the images
 readonly IMAGES_ATTR=${1:?$usage}
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
 readonly SCRIPT_DIR ROOT_DIR
-
-credsArgs=""
-if [[ "${DOCKER_USER+x}" != "" ]]; then
-    DOCKER_PASSWORD=${DOCKER_PASSWORD:?"DOCKER_PASSWORD must be provided when DOCKER_USER is provided"}
-    credsArgs="--dest-creds=$DOCKER_USER:$DOCKER_PASSWORD"
-fi
 
 tmp_link_store=$(mktemp -d)
 image_list_file="$tmp_link_store/image-list"
@@ -38,10 +31,5 @@ nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR" --no-l
 while IFS="" read -r image_name || [ -n "$image_name" ]
 do
     printf '*** Uploading image %s\n' "$image_name"
-    image_file="$tmp_link_store/$image_name"
-    nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR.$image_name" -o "$image_file"
-    repo=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
-    echo "Uploading $image_file to $repo:$DOCKER_TAG"
-    # shellcheck disable=SC2086
-    skopeo --insecure-policy copy $credsArgs "docker-archive://$image_file" "docker://$repo:$DOCKER_TAG"
+    "$SCRIPT_DIR/upload-image.sh" "wireServer.$IMAGES_ATTR.$image_name"
 done < "$image_list_file"

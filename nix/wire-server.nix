@@ -139,7 +139,7 @@ let lib = pkgs.lib;
 
     images = localMods@{enableOptimization, enableDocs, enableTests}:
       attrsets.mapAttrs (execName: drv:
-        pkgs.dockerTools.buildLayeredImage {
+        pkgs.dockerTools.streamLayeredImage {
           name = "quay.io/wire/${execName}";
           maxLayers = 10;
           contents = [

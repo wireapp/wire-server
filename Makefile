@@ -246,7 +246,7 @@ upload-images-dev:
 	./hack/bin/upload-images.sh imagesUnoptimizedNoDocs
 
 upload-hoogle-image:
-	./hack/bin/upload-hoogle-image.sh
+	./hack/bin/upload-image.sh wireServer.hoogleImage
 
 #################################
 ## cassandra management
