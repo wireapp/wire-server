@@ -389,14 +389,19 @@ noPrekeys ::
   ClientId ->
   (AppT r) ()
 noPrekeys u c = do
-  Log.info $
-    field "user" (toByteString u)
-      ~~ field "client" (toByteString c)
-      ~~ msg (val "No prekey found. Ensuring client does not exist.")
-  clientM <- wrapClient $ Data.lookupClient u c
-  case clientM of
-    Nothing -> error "fun"
-    Just client -> execDelete u Nothing client
+  mclient <- wrapClient $ Data.lookupClient u c
+  case mclient of
+    Nothing -> do
+      Log.warn $
+        field "user" (toByteString u)
+          ~~ field "client" (toByteString c)
+          ~~ msg (val "No prekey found. Client is missing, so doing nothing.")
+    Just client -> do
+      Log.warn $
+        field "user" (toByteString u)
+          ~~ field "client" (toByteString c)
+          ~~ msg (val "No prekey found. Deleting client.")
+      execDelete u Nothing client
 
 pubClient :: Client -> PubClient
 pubClient c =
