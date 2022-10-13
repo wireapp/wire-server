@@ -122,7 +122,7 @@ nextCookie c = do
       Nothing -> renewCookie c
       Just ck -> do
         let uid = ZAuth.userTokenOf (cookieValue c)
-            cid = ZAuth.clientTokenOf (cookieValue c)
+            cid = ZAuth.userTokenClient (cookieValue c)
         trackSuperseded uid (cookieId c)
         cs <- DB.listCookies uid
         case List.find (\x -> cookieId x == ck && persist x) cs of
@@ -143,7 +143,7 @@ renewCookie ::
 renewCookie old = do
   let t = cookieValue old
   let uid = ZAuth.userTokenOf t
-      cid = ZAuth.clientTokenOf t
+      cid = ZAuth.userTokenClient t
   -- Insert new cookie
   new <- newCookie uid cid (cookieType old) (cookieLabel old)
   -- Link the old cookie to the new (successor), keeping it

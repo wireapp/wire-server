@@ -37,7 +37,7 @@ import qualified Brig.ZAuth as ZAuth
 import qualified Cassandra as DB
 import Control.Lens (set, (^.))
 import Control.Retry
-import Data.Aeson as Aeson
+import Data.Aeson as Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy

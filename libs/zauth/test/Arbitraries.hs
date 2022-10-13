@@ -66,7 +66,7 @@ arbitraryClientId =
     toClientId = LT.toStrict . LT.toLazyText . LT.hexadecimal
 
 instance Arbitrary Access where
-  arbitrary = mkAccess <$> arbitrary <*> arbitrary
+  arbitrary = mkAccess <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary User where
   arbitrary = mkUser <$> arbitrary <*> arbitraryClientId <*> arbitrary
@@ -78,7 +78,7 @@ instance Arbitrary Provider where
   arbitrary = mkProvider <$> arbitrary
 
 instance Arbitrary LegalHoldAccess where
-  arbitrary = mkLegalHoldAccess <$> arbitrary <*> arbitrary
+  arbitrary = mkLegalHoldAccess <$> arbitrary <*> arbitraryClientId <*> arbitrary
 
 instance Arbitrary LegalHoldUser where
   arbitrary = mkLegalHoldUser <$> arbitrary <*> arbitraryClientId <*> arbitrary
