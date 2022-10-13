@@ -1,5 +1,6 @@
 { libsodium, protobuf, snappy, hlib, mls-test-cli }:
-# TODO: make sure the things marked unbroken are actually broken.
+# FUTUREWORK: Figure out a way to detect if some of these packages are not
+# actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
   network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
   cql = hlib.markUnbroken hsuper.cql;
