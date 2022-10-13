@@ -87,6 +87,7 @@ tests _cl _at opts p db b c g =
       test p "post /users/list-prekeys" $ testMultiUserGetPrekeysQualified b opts,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /users/list-clients/v2 - 200" $ testListClientsBulkV2 opts b,
+      test p "post /users/list-prekeys - clients without prekeys" $ testClientsWithoutPrekeys b c db opts,
       test p "post /clients - 201 (pwd)" $ testAddGetClient def {addWithPassword = True} b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient def {addWithPassword = False} b c,
       testGroup
@@ -398,6 +399,61 @@ testListClientsBulk opts brig = do
     !!! do
       const 200 === statusCode
       const (Just expectedResponse) === responseJsonMaybe
+
+testClientsWithoutPrekeys :: Brig -> Cannon -> DB.ClientState -> Opt.Opts -> Http ()
+testClientsWithoutPrekeys brig cannon db opts = do
+  uid1 <- userId <$> randomUser brig
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
+
+  getClient brig uid1 (clientId c11) !!! do
+    const 200 === statusCode
+
+  -- Simulating loss of all prekeys (due e.g. DB problems, business logic
+  -- prevents this from happening)
+  let removeClientKeys :: DB.PrepQuery DB.W (UserId, ClientId) ()
+      removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
+  liftIO $
+    DB.runClient db $ DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, clientId c11))
+
+  uid2 <- userId <$> randomUser brig
+
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+
+  let userClients =
+        QualifiedUserClients $
+          Map.singleton domain $
+            Map.singleton uid1 $
+              Set.fromList [clientId c11]
+
+  let expectedUserClientMap =
+        mkQualifiedUserClientPrekeyMap $
+          Map.singleton domain $
+            mkUserClientPrekeyMap $
+              Map.singleton uid1 $
+                Map.singleton (clientId c11) Nothing
+
+  WS.bracketR cannon uid1 $ \ws -> do
+    post
+      ( brig
+          . paths ["users", "list-prekeys"]
+          . contentJson
+          . body (RequestBodyLBS $ encode userClients)
+          . zUser uid2
+      )
+      !!! do
+        const 200 === statusCode
+        const (Right $ expectedUserClientMap) === responseJsonEither
+
+    getClient brig uid1 (clientId c11) !!! do
+      const 404 === statusCode
+
+    liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let ob = Object $ List1.head (ntfPayload n)
+      ob ^? key "type" . _String
+        @?= Just "user.client-remove"
+      fmap ClientId (ob ^? key "client" . key "id" . _String)
+        @?= Just (clientId c11)
 
 testListClientsBulkV2 :: Opt.Opts -> Brig -> Http ()
 testListClientsBulkV2 opts brig = do
