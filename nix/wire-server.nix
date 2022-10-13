@@ -53,8 +53,6 @@ let lib = pkgs.lib;
             inherit gitignoreSource;
           } hsuper hself;
 
-          # TODO: Remove
-          # triggerRebuild = _: drv: hlib.triggerRebuild drv 1;
           werror = _: hlib.failOnAllWarnings;
           opt = _: drv:
             if enableOptimization
@@ -78,7 +76,6 @@ let lib = pkgs.lib;
         opt
         docs
         tests
-        # triggerRebuild
       ];
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy mls-test-cli;
