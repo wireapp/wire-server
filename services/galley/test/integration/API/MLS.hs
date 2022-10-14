@@ -106,10 +106,16 @@ tests s =
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "return error when commit is locked" testCommitLock,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
-          test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
+          test s "post commit that references an unknown proposal" testUnknownProposalRefCommit,
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
           test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete
+        ],
+      testGroup
+        "External commit"
+        [ test s "non-member attempts to join a conversation" testExternalCommitNotMember,
+          test s "join a conversation with the same client" testExternalCommitSameClient,
+          test s "join a conversation with a new client" testExternalCommitNewClient
         ],
       testGroup
         "Application Message"
@@ -947,6 +953,64 @@ testLocalToRemoteNonMember = do
             const 404 === statusCode
             const (Just "no-conversation-member")
               === fmap Wai.label . responseJsonError
+
+testExternalCommitNotMember :: TestM ()
+testExternalCommitNotMember = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+
+  runMLSTest $ do
+    [alice1, alice2, bob1] <- traverse createMLSClient [alice, alice, bob]
+    traverse_ uploadNewKeyPackage [bob1, alice2]
+    (_, qcnv) <- setupMLSGroup alice1
+
+    -- so that we have the public group state
+    void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommitBundle
+
+    pgs <-
+      LBS.toStrict . fromJust . responseBody
+        <$> getGroupInfo (ciUser alice1) qcnv
+    mp <- createExternalCommit bob1 (Just pgs) qcnv
+    bundle <- createBundle mp
+    postCommitBundle (ciUser (mpSender mp)) bundle
+      !!! const 404 === statusCode
+
+testExternalCommitSameClient :: TestM ()
+testExternalCommitSameClient = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+    let rejoiner = alice1
+    ecEvents <- createExternalCommit rejoiner Nothing qcnv >>= sendAndConsumeCommitBundle
+    liftIO $
+      assertBool "No events after external commit expected" (null ecEvents)
+
+    message <- createApplicationMessage bob1 "hello"
+    void $ sendAndConsumeMessage message
+
+testExternalCommitNewClient :: TestM ()
+testExternalCommitNewClient = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+    nc <- createMLSClient bob
+    ecEvents <- createExternalCommit nc Nothing qcnv >>= sendAndConsumeCommitBundle
+    liftIO $
+      assertBool "No events after external commit expected" (null ecEvents)
+
+    message <- createApplicationMessage nc "hello"
+    void $ sendAndConsumeMessage message
+
+-- the list of members should be [alice1, bob1]
 
 testAppMessage :: TestM ()
 testAppMessage = do

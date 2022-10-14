@@ -35,6 +35,7 @@ import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64.URL as B64U
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Hex
 import Data.Id
@@ -257,7 +258,9 @@ mlscli :: HasCallStack => ClientIdentity -> [String] -> Maybe ByteString -> MLST
 mlscli qcid args mbstdin = do
   bd <- State.gets mlsBaseDir
   let cdir = bd </> cid2Str qcid
-  liftIO $ spawn (proc "mls-test-cli" (["--store", cdir </> "store"] <> args)) mbstdin
+  liftIO $ do
+    -- Imports.setEnv "RUST_BACKTRACE" "full"
+    spawn (proc "mls-test-cli" (["--store", cdir </> "store"] <> args)) mbstdin
 
 createWireClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
 createWireClient qusr = do
@@ -509,6 +512,50 @@ createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTe
 createAddCommit cid users = do
   kps <- concat <$> traverse (bundleKeyPackages <=< claimKeyPackages cid) users
   createAddCommitWithKeyPackages cid kps
+
+createExternalCommit ::
+  HasCallStack =>
+  ClientIdentity ->
+  Maybe ByteString ->
+  Qualified ConvId ->
+  MLSTest MessagePackage
+createExternalCommit qcid mpgs qcnv = do
+  bd <- State.gets mlsBaseDir
+  gNew <- nextGroupFile qcid
+  pgsFile <- liftIO $ emptyTempFile bd "pgs"
+  pgs <- case mpgs of
+    Nothing ->
+      LBS.toStrict . fromJust . responseBody
+        <$> getGroupInfo (ciUser qcid) qcnv
+    Just v -> pure v
+  commit <-
+    mlscli
+      qcid
+      [ "external-commit",
+        "--group-state-in",
+        "-",
+        "--group-state-out",
+        pgsFile,
+        "--group-out",
+        gNew
+      ]
+      (Just pgs)
+
+  State.modify $ \mls ->
+    mls
+      { mlsNewMembers = Set.singleton qcid -- This might be a different client
+      -- than those that have been in the
+      -- group from before.
+      }
+
+  newPgs <- liftIO $ BS.readFile pgsFile
+  pure $
+    MessagePackage
+      { mpSender = qcid,
+        mpMessage = commit,
+        mpWelcome = Nothing,
+        mpPublicGroupState = Just newPgs
+      }
 
 createAddProposals :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest [MessagePackage]
 createAddProposals cid users = do
