@@ -92,7 +92,7 @@ import qualified OpenSSL.EVP.PKey as SSL
 import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import OpenSSL.Random (randBytes)
-import Polysemy (Members)
+import Polysemy
 import qualified Ssl.Util as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -122,8 +122,11 @@ import Wire.API.User.Client
 import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
+import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 
-routesPublic :: Members '[GalleyProvider] r => Routes Doc.ApiBuilder (Handler r) ()
+routesPublic ::
+  Members '[GalleyProvider, Concurrency 'Unsafe] r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
 
@@ -1024,12 +1027,18 @@ botUpdatePrekeys bot upd = do
       let pks = updateBotPrekeyList upd
       wrapClientE (User.updatePrekeys (botUserId bot) (clientId c) pks) !>> clientDataError
 
-botClaimUsersPrekeysH :: Members '[GalleyProvider] r => JsonRequest Public.UserClients -> (Handler r) Response
+botClaimUsersPrekeysH ::
+  Members '[GalleyProvider, Concurrency 'Unsafe] r =>
+  JsonRequest Public.UserClients ->
+  Handler r Response
 botClaimUsersPrekeysH req = do
   guardSecondFactorDisabled Nothing
   json <$> (botClaimUsersPrekeys =<< parseJsonBody req)
 
-botClaimUsersPrekeys :: Public.UserClients -> (Handler r) Public.UserClientPrekeyMap
+botClaimUsersPrekeys ::
+  Members '[Concurrency 'Unsafe] r =>
+  Public.UserClients ->
+  Handler r Public.UserClientPrekeyMap
 botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $

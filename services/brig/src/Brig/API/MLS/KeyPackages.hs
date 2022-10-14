@@ -76,10 +76,9 @@ claimLocalKeyPackages qusr skipOwn target = do
   foldQualified
     target
     ( \lusr ->
-        wrapHttpClientE $
-          guardLegalhold
-            (ProtectedUser (tUnqualified lusr))
-            (mkUserClients [(tUnqualified target, clients)])
+        guardLegalhold
+          (ProtectedUser (tUnqualified lusr))
+          (mkUserClients [(tUnqualified target, clients)])
     )
     (\_ -> pure ())
     qusr

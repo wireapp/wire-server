@@ -32,15 +32,17 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
+import Wire.Sem.Concurrency
 
 sitemap ::
   forall r p.
   Members
-    '[ CodeStore,
-       PasswordResetStore,
+    '[ BlacklistPhonePrefixStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore,
        GalleyProvider,
+       CodeStore,
+       Concurrency 'Unsafe,
+       PasswordResetStore,
        UserPendingActivationStore p
      ]
     r =>
