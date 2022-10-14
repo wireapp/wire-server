@@ -1,4 +1,4 @@
-### Messaging Layer Security (MLS)
+# Messaging Layer Security (MLS)
 
 To enable support for [MLS](https://datatracker.ietf.org/wg/mls/documents/)
 conversations you need to configure the `wire-server` helm chart with a removal
@@ -36,3 +36,24 @@ This is a sensitive configuration value. Consider using Helm/Helmfile's support
 for managing secrets instead of putting this value in plaintext in a
 `values.yaml` file.
 
+Additionally, the web applications need to be made aware of *MLS*. This is done by
+setting the following environment variable for the web application:
+
+```yaml
+webapp:
+  envVars:
+    FEATURE_ENABLE_MLS: "true"
+```
+
+and for the team settings web application:
+
+```yaml
+# NOTE: Only relevant if you want team-settings
+team-settings:
+  envVars:
+    FEATURE_ENABLE_MLS: "true"
+```
+
+As long as *MLS* is still an opt-in feature, please remember that in order to be able
+to use the *MLS* protocol when creating conversation on clients, the team administrator
+need to have opted in for the *MLS* feature in the team settings.
