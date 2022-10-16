@@ -10,12 +10,14 @@ import Polysemy.Testing
 import Polysemy.Trace
 import Test.Hspec
 import UnliftIO (async)
+import Polysemy.Output (runOutputList, output)
+import Polysemy.State (evalState, get, modify)
 
--- | This test spins up an async thread that communicates with the main
--- polysemy monad via an 'MVar'. We then use 'intersperse' to inject polling
--- logic between each bind in order to read from the 'MVar'.
 spec :: Spec
 spec = do
+  -- This test spins up an async thread that communicates with the main
+  -- polysemy monad via an 'MVar'. We then use 'intersperse' to inject polling
+  -- logic between each bind in order to read from the 'MVar'.
   it "should poll from async-written channel" $ do
     result <- liftIO test
     let desired =
@@ -26,6 +28,25 @@ spec = do
                 ["finished"]
               ]
     result `shouldBe` desired
+
+  -- Example showing how intersperse lays out actions
+  it "should stick code before every action" $ do
+    let result =
+          fst $ run $
+            runTraceList $
+              outputToTrace show $
+                evalState @Int 0 $
+                  intersperse ((output =<< get) <* modify (+1)) $ do
+                    -- 0
+                    trace "start"
+                    pure ()
+                    -- 1
+                    trace "middle"
+                    -- 2
+                    _ <- get
+                    -- 3
+                    trace "end"
+    result `shouldBe` [ "0", "start", "1", "middle", "2", "3", "end" ]
 
 pull :: (Member (Embed IO) r, Member Trace r) => MVar String -> Sem r ()
 pull chan = do
