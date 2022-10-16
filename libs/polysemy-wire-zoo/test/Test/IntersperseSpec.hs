@@ -6,12 +6,12 @@ module Test.IntersperseSpec where
 import qualified Data.Set as S
 import Imports hiding (intersperse)
 import Polysemy
+import Polysemy.Output (output, runOutputList)
+import Polysemy.State (evalState, get, modify)
 import Polysemy.Testing
 import Polysemy.Trace
 import Test.Hspec
 import UnliftIO (async)
-import Polysemy.Output (runOutputList, output)
-import Polysemy.State (evalState, get, modify)
 
 spec :: Spec
 spec = do
@@ -32,21 +32,22 @@ spec = do
   -- Example showing how intersperse lays out actions
   it "should stick code before every action" $ do
     let result =
-          fst $ run $
-            runTraceList $
-              outputToTrace show $
-                evalState @Int 0 $
-                  intersperse ((output =<< get) <* modify (+1)) $ do
-                    -- 0
-                    trace "start"
-                    pure ()
-                    -- 1
-                    trace "middle"
-                    -- 2
-                    _ <- get
-                    -- 3
-                    trace "end"
-    result `shouldBe` [ "0", "start", "1", "middle", "2", "3", "end" ]
+          fst $
+            run $
+              runTraceList $
+                outputToTrace show $
+                  evalState @Int 0 $
+                    intersperse ((output =<< get) <* modify (+ 1)) $ do
+                      -- 0
+                      trace "start"
+                      pure ()
+                      -- 1
+                      trace "middle"
+                      -- 2
+                      _ <- get
+                      -- 3
+                      trace "end"
+    result `shouldBe` ["0", "start", "1", "middle", "2", "3", "end"]
 
 pull :: (Member (Embed IO) r, Member Trace r) => MVar String -> Sem r ()
 pull chan = do
