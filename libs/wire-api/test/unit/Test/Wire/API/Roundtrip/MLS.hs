@@ -21,10 +21,14 @@ module Test.Wire.API.Roundtrip.MLS (tests) where
 
 import Data.Binary.Put
 import Imports
+import qualified Proto.Mls
 import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
+import Wire.API.ConverProtoLens
+import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Extension
+import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -36,7 +40,7 @@ tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "MLS roundtrip tests" $
     [ testRoundTrip @KeyPackageRef,
-      testRoundTrip @RemoveProposalSender,
+      testRoundTrip @TestPreconfiguredSender,
       testRoundTrip @RemoveProposalMessage,
       testRoundTrip @RemoveProposalPayload,
       testRoundTrip @AppAckProposalTest,
@@ -44,7 +48,9 @@ tests =
       testRoundTrip @PublicGroupStateTBS,
       testRoundTrip @PublicGroupState,
       testRoundTrip @Welcome,
-      testRoundTrip @OpaquePublicGroupState
+      testRoundTrip @OpaquePublicGroupState,
+      testConvertProtoRoundTrip @Proto.Mls.GroupInfoBundle @GroupInfoBundle,
+      testConvertProtoRoundTrip @Proto.Mls.CommitBundle @TestCommitBundle
     ]
 
 testRoundTrip ::
@@ -58,30 +64,72 @@ testRoundTrip = testProperty msg trip
       counterexample (show (runPut (serialiseMLS v))) $
         Right v === (decodeMLS . runPut . serialiseMLS) v
 
+testConvertProtoRoundTrip ::
+  forall p a.
+  ( Arbitrary a,
+    Typeable a,
+    Show a,
+    Show p,
+    Eq a,
+    ConvertProtoLens p a
+  ) =>
+  T.TestTree
+testConvertProtoRoundTrip = testProperty (show (typeRep @a)) trip
+  where
+    trip (v :: a) =
+      counterexample (show (toProtolens @p @a v)) $
+        Right v === do
+          let pa = toProtolens @p @a v
+          fromProtolens @p @a pa
+
 --------------------------------------------------------------------------------
 -- auxiliary types
 
-newtype RemoveProposalMessage = RemoveProposalMessage (Message 'MLSPlainText)
+class ArbitrarySender a where
+  arbitrarySender :: Gen (Sender 'MLSPlainText)
+
+class ArbitraryMessagePayload a where
+  arbitraryMessagePayload :: Gen (MessagePayload 'MLSPlainText)
+
+class ArbitraryMessageTBS a where
+  arbitraryArbitraryMessageTBS :: Gen (MessageTBS 'MLSPlainText)
+
+newtype MessageGenerator tbs = MessageGenerator {unMessageGenerator :: Message 'MLSPlainText}
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
-newtype RemoveProposalTBS = RemoveProposalTBS (MessageTBS 'MLSPlainText)
-  deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
+instance (ArbitraryMessageTBS tbs) => Arbitrary (MessageGenerator tbs) where
+  arbitrary = do
+    tbs <- arbitraryArbitraryMessageTBS @tbs
+    MessageGenerator
+      <$> (Message (mkRawMLS tbs) <$> arbitrary)
 
-instance Arbitrary RemoveProposalTBS where
-  arbitrary =
-    fmap RemoveProposalTBS $
-      MessageTBS KnownFormatTag
-        <$> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> (unRemoveProposalSender <$> arbitrary)
-        <*> (unRemoveProposalPayload <$> arbitrary)
+data MessageTBSGenerator sender payload
+
+instance
+  ( ArbitrarySender sender,
+    ArbitraryMessagePayload payload
+  ) =>
+  ArbitraryMessageTBS (MessageTBSGenerator sender payload)
+  where
+  arbitraryArbitraryMessageTBS =
+    MessageTBS KnownFormatTag
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrarySender @sender
+      <*> arbitraryMessagePayload @payload
+
+---
+
+newtype RemoveProposalMessage = RemoveProposalMessage {unRemoveProposalMessage :: Message 'MLSPlainText}
+  deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
 instance Arbitrary RemoveProposalMessage where
-  arbitrary = do
-    RemoveProposalTBS tbs <- arbitrary
+  arbitrary =
     RemoveProposalMessage
-      <$> (Message (mkRawMLS tbs) <$> arbitrary)
+      <$> (unMessageGenerator <$> arbitrary @(MessageGenerator (MessageTBSGenerator TestPreconfiguredSender RemoveProposalPayload)))
+
+---
 
 newtype RemoveProposalPayload = RemoveProposalPayload {unRemoveProposalPayload :: MessagePayload 'MLSPlainText}
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
@@ -89,12 +137,22 @@ newtype RemoveProposalPayload = RemoveProposalPayload {unRemoveProposalPayload :
 instance Arbitrary RemoveProposalPayload where
   arbitrary = RemoveProposalPayload . ProposalMessage . mkRemoveProposal <$> arbitrary
 
-newtype RemoveProposalSender = RemoveProposalSender
-  {unRemoveProposalSender :: Sender 'MLSPlainText}
+instance ArbitraryMessagePayload RemoveProposalPayload where
+  arbitraryMessagePayload = unRemoveProposalPayload <$> arbitrary
+
+---
+
+newtype TestPreconfiguredSender = TestPreconfiguredSender
+  {unTestPreconfiguredSender :: Sender 'MLSPlainText}
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
-instance Arbitrary RemoveProposalSender where
-  arbitrary = RemoveProposalSender . PreconfiguredSender <$> arbitrary
+instance Arbitrary TestPreconfiguredSender where
+  arbitrary = TestPreconfiguredSender . PreconfiguredSender <$> arbitrary
+
+instance ArbitrarySender TestPreconfiguredSender where
+  arbitrarySender = unTestPreconfiguredSender <$> arbitrary
+
+---
 
 newtype AppAckProposalTest = AppAckProposalTest Proposal
   deriving newtype (ParseMLS, Eq, Show)
@@ -106,6 +164,8 @@ instance SerialiseMLS AppAckProposalTest where
   serialiseMLS (AppAckProposalTest (AppAckProposal mrs)) = serialiseAppAckProposal mrs
   serialiseMLS _ = serialiseAppAckProposal []
 
+---
+
 newtype ExtensionVector = ExtensionVector [Extension]
   deriving newtype (Arbitrary, Eq, Show)
 
@@ -115,3 +175,24 @@ instance ParseMLS ExtensionVector where
 instance SerialiseMLS ExtensionVector where
   serialiseMLS (ExtensionVector exts) = do
     serialiseMLSVector @Word32 serialiseMLS exts
+
+---
+
+newtype TestCommitBundle = TestCommitBundle {unTestCommitBundle :: CommitBundle}
+  deriving (Show, Eq)
+
+-- | The commit bundle should contain a commit message, not a remove proposal
+-- message. However defining MLS serialization for Commits and all nested types
+-- seems overkill to test the commit bundle roundtrip
+instance Arbitrary TestCommitBundle where
+  arbitrary = do
+    bundle <-
+      CommitBundle
+        <$> (mkRawMLS . unRemoveProposalMessage <$> arbitrary)
+        <*> oneof [Just <$> (mkRawMLS <$> arbitrary), pure Nothing]
+        <*> arbitrary
+    pure (TestCommitBundle bundle)
+
+instance ConvertProtoLens Proto.Mls.CommitBundle TestCommitBundle where
+  fromProtolens = fmap TestCommitBundle . fromProtolens @Proto.Mls.CommitBundle @CommitBundle
+  toProtolens = toProtolens . unTestCommitBundle

@@ -9,7 +9,8 @@ maintainer:         Wire Swiss GmbH <backend@wire.com>
 copyright:          (c) 2021 Wire Swiss GmbH
 license:            AGPL-3
 build-type:         Custom
-extra-source-files: generic-message-proto/proto/otr.proto
+extra-source-files:   generic-message-proto/proto/otr.proto
+                    , generic-message-proto/proto/mls.proto
 
 custom-setup
   setup-depends:
@@ -21,6 +22,8 @@ library
   exposed-modules:
     Proto.Otr
     Proto.Otr_Fields
+    Proto.Mls
+    Proto.Mls_Fields
 
   other-modules:      Paths_wire_message_proto_lens
   hs-source-dirs:     ./.
