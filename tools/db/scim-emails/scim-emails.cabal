@@ -81,10 +81,10 @@ executable scim-emails
     , optparse-applicative
     , string-conversions
     , text
+    , time
     , tinylog
     , types-common
     , uuid
     , wire-api
-    , time
 
   default-language:   Haskell2010
