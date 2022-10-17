@@ -22,7 +22,7 @@ let lib = pkgs.lib;
       };
       in (import gitignoreSrc { inherit (pkgs) lib; }).gitignoreSource;
 
-    # Mapping from package -> executbale
+    # Mapping from package -> [executable]
     executablesMap = {
       brig = ["brig" "brig-index" "brig-integration" "brig-schema"];
       cannon = ["cannon"];
