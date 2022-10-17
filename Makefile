@@ -33,7 +33,7 @@ EXE_SCHEMA := ./dist/$(package)-schema
 # also exported in stack-deps.nix.
 export HSPEC_OPTIONS = --fail-on-focused
 
-default: fast
+default: install
 
 init:
 	mkdir -p dist
