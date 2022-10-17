@@ -86,7 +86,7 @@ getSCIMTeams :: ConduitM () [Identity TeamId] Client ()
 getSCIMTeams = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
     cql :: PrepQuery R () (Identity TeamId)
-    cql = "SELECT team from scim_external"
+    cql = "SELECT distinct team from scim_external"
 
 checkUser :: Logger -> ClientState -> ClientState -> TeamId -> (UserId, Maybe UserId, Maybe UTCTime) -> IO ()
 checkUser l brig spar tid (uid, mInvitedBy, mInvitedAt) = do
