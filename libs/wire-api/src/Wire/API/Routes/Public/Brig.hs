@@ -1151,9 +1151,9 @@ type AuthAPI =
              \ Every other combination is invalid.\
              \ Access tokens can be given as query parameter or authorisation\
              \ header, with the latter being preferred."
-        :> Bearer SomeAccessToken
         :> Cookies '["zuid" ::: SomeUserToken]
         :> CanThrow 'BadCredentials
+        :> Bearer SomeAccessToken
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
@@ -1211,8 +1211,8 @@ type AuthAPI =
            "change-self-email"
            ( "access" :> "self" :> "email"
                :> Summary "Change your email address"
-               :> Bearer SomeAccessToken
                :> Cookies '["zuid" ::: SomeUserToken]
+               :> Bearer SomeAccessToken
                :> ReqBody '[JSON] EmailUpdate
                :> CanThrow 'InvalidEmail
                :> CanThrow 'UserKeyExists
