@@ -25,7 +25,7 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 17 "Remove table `scim_external_ids` (from db migration V10, deprecated in favor of `scim_external`, emptied in `/services/spar/migrate-data/src/Spar/DataMigration/V1_ExternalIds.hs`)" $ do
+migration = Migration 17 "Remove table `scim_external_ids` (from db migration V10, deprecated in favor of `scim_external`, data migrated in `/services/spar/migrate-data/src/Spar/DataMigration/V1_ExternalIds.hs`)" $ do
   void $
     schema'
       [r|
