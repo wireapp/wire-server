@@ -20,7 +20,6 @@
 module Options where
 
 import qualified Cassandra as C
-import Data.Id
 import qualified Data.Text as Text
 import Imports
 import Options.Applicative
@@ -28,8 +27,7 @@ import Options.Applicative
 data Settings = Settings
   { setCasBrig :: CassandraSettings,
     setCasGalley :: CassandraSettings,
-    setCasSpar :: CassandraSettings,
-    setTeamId :: TeamId
+    setCasSpar :: CassandraSettings
   }
   deriving (Show)
 
@@ -46,16 +44,6 @@ settingsParser =
     <$> cassandraSettingsParser "brig"
     <*> cassandraSettingsParser "galley"
     <*> cassandraSettingsParser "spar"
-    <*> teamIdParser
-
-teamIdParser :: Parser TeamId
-teamIdParser =
-  option
-    (eitherReader (parseIdFromText . Text.pack))
-    ( long "team-id"
-        <> help "Team id to search into"
-        <> metavar "TEAM_ID"
-    )
 
 cassandraSettingsParser :: String -> Parser CassandraSettings
 cassandraSettingsParser ks =

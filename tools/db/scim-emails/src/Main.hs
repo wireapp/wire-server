@@ -38,7 +38,7 @@ main = do
   brig <- initCas (setCasBrig s) (Log.clone (Just "cassandra-brig") lgr)
   galley <- initCas (setCasGalley s) (Log.clone (Just "cassandra-galley") lgr)
   spar <- initCas (setCasSpar s) (Log.clone (Just "cassandra-spar") lgr)
-  runCommand (Log.clone (Just "work") lgr) brig galley spar (setTeamId s)
+  runCommand (Log.clone (Just "work") lgr) brig galley spar
   where
     desc =
       header "scim-emails"
