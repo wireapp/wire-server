@@ -48,7 +48,7 @@ import Wire.API.User.Saml
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 16
+schemaVersion = 17
 
 ----------------------------------------------------------------------
 -- helpers
