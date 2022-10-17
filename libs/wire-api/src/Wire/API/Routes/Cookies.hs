@@ -18,7 +18,7 @@
 module Wire.API.Routes.Cookies where
 
 import Control.Error.Util
-import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as M
 import Data.Metrics.Servant
 import Data.SOP
@@ -55,9 +55,9 @@ type family CookieTypes (cs :: [*]) :: [*]
 
 type instance CookieTypes '[] = '[]
 
-type instance CookieTypes ((lbl ::: x) ': cs) = (NonEmpty x ': CookieTypes cs)
+type instance CookieTypes ((lbl ::: x) ': cs) = (NonEmpty (Either Text x) ': CookieTypes cs)
 
-type instance CookieTypes ((lbl ::? x) ': cs) = ([x] ': CookieTypes cs)
+type instance CookieTypes ((lbl ::? x) ': cs) = ([Either Text x] ': CookieTypes cs)
 
 newtype CookieTuple cs = CookieTuple {unCookieTuple :: NP I (CookieTypes cs)}
 
@@ -87,14 +87,13 @@ instance
   ) =>
   CookieArgs ((lbl ::: (x :: *)) ': cs)
   where
-  type AddArgs ((lbl ::: x) ': cs) a = NonEmpty x -> AddArgs cs a
+  type AddArgs ((lbl ::: x) ': cs) a = NonEmpty (Either Text x) -> AddArgs cs a
   uncurryArgs f (CookieTuple (I x :* xs)) = uncurryArgs @cs (f x) (CookieTuple xs)
   mapArgs h f = mapArgs @cs h . f
   mkTuple m = do
     let k = T.pack (symbolVal (Proxy @lbl))
     bs <- note ("Missing cookie: " <> k) $ M.lookup (T.encodeUtf8 k) m
-    let (es, mvs) = nonEmpty <$> partitionEithers (map parseHeader (toList bs))
-    vs <- note (head es) mvs
+    let vs = fmap parseHeader bs
     CookieTuple t <- mkTuple @cs m
     pure (CookieTuple (I vs :* t))
 
@@ -105,13 +104,13 @@ instance
   ) =>
   CookieArgs ((lbl ::? (x :: *)) ': cs)
   where
-  type AddArgs ((lbl ::? x) ': cs) a = [x] -> AddArgs cs a
+  type AddArgs ((lbl ::? x) ': cs) a = [Either Text x] -> AddArgs cs a
   uncurryArgs f (CookieTuple (I x :* xs)) = uncurryArgs @cs (f x) (CookieTuple xs)
   mapArgs h f = mapArgs @cs h . f
   mkTuple m = do
     let k = T.pack (symbolVal (Proxy @lbl))
     bs <- pure . maybe [] toList $ M.lookup (T.encodeUtf8 k) m
-    let vs = mapMaybe (hush . parseHeader) bs
+    let vs = map parseHeader bs
     CookieTuple t <- mkTuple @cs m
     pure (CookieTuple (I vs :* t))
 

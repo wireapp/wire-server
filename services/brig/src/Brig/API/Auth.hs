@@ -35,9 +35,12 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 (List1 (..))
 import Data.Qualified
+import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
+import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
@@ -45,8 +48,11 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 
-accessH :: NonEmpty SomeUserToken -> Maybe SomeAccessToken -> Handler r SomeAccess
-accessH ut mat = partitionTokens ut mat >>= either (uncurry access) (uncurry access)
+accessH :: NonEmpty (Either Text SomeUserToken) -> Maybe SomeAccessToken -> Handler r SomeAccess
+accessH eut mat = do
+  ut <- traverse handleTokenErrors eut
+  partitionTokens ut mat
+    >>= either (uncurry access) (uncurry access)
 
 access :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r SomeAccess
 access t mt =
@@ -65,10 +71,11 @@ login l (fromMaybe False -> persist) = do
   c <- Auth.login l typ !>> loginError
   traverse mkUserTokenCookie c
 
-logoutH :: [SomeUserToken] -> Maybe SomeAccessToken -> Handler r ()
+logoutH :: [Either Text SomeUserToken] -> Maybe SomeAccessToken -> Handler r ()
 logoutH [] Nothing = throwStd authMissingCookieAndToken
 logoutH [] (Just _) = throwStd authMissingCookie
-logoutH uts mat =
+logoutH euts mat = do
+  uts <- traverse handleTokenErrors euts
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
@@ -78,11 +85,12 @@ logout uts (Just at) = wrapHttpClientE $ Auth.logout (List1 uts) at !>> zauthErr
 
 changeSelfEmailH ::
   Member BlacklistStore r =>
-  NonEmpty SomeUserToken ->
+  NonEmpty (Either Text SomeUserToken) ->
   Maybe SomeAccessToken ->
   EmailUpdate ->
   Handler r ChangeEmailResponse
-changeSelfEmailH uts mat up = do
+changeSelfEmailH euts mat up = do
+  uts <- traverse handleTokenErrors euts
   toks <- partitionTokens uts mat
   usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
   let email = euEmail up
@@ -181,3 +189,12 @@ partitionTokens tokens mat =
     toEither :: SomeUserToken -> Either (ZAuth.Token ZAuth.User) (ZAuth.Token ZAuth.LegalHoldUser)
     toEither (PlainUserToken ut) = Left ut
     toEither (LHUserToken lt) = Right lt
+
+handleTokenErrors :: Either Text a -> Handler r a
+handleTokenErrors =
+  either
+    ( throwStd
+        . Wai.mkError status403 "client-error"
+        . LT.fromStrict
+    )
+    pure
