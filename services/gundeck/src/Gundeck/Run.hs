@@ -22,6 +22,7 @@ import AWS.Util (readAuthExpiration)
 import qualified Amazonka as AWS
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
+import Control.Error (ExceptT (ExceptT))
 import Control.Exception (finally)
 import Control.Lens hiding (enum)
 import Control.Monad.Extra
@@ -29,9 +30,11 @@ import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Middleware (metrics)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import qualified Database.Redis as Redis
 import Gundeck.API (sitemap)
+import Gundeck.API.Public (servantSitemap)
 import qualified Gundeck.Aws as Aws
 import Gundeck.Env
 import qualified Gundeck.Env as Env
@@ -45,9 +48,12 @@ import Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
 import Network.Wai.Utilities.Server hiding (serverPort)
+import Servant (Handler (Handler), (:<|>) (..))
+import qualified Servant
 import qualified System.Logger as Log
 import qualified UnliftIO.Async as Async
 import Util.Options
+import Wire.API.Routes.Public.Gundeck (GundeckAPI)
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
@@ -80,10 +86,22 @@ run o = do
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. monitor]
 
+type CombinedAPI = GundeckAPI :<|> Servant.Raw
+
 mkApp :: Env -> Wai.Application
-mkApp e r k = runGundeck e r (route routes r k)
+mkApp env =
+  Servant.serve
+    (Proxy @CombinedAPI)
+    (servantSitemap' env :<|> Servant.Tagged (runGundeckWithRoutes env))
   where
-    routes = compile sitemap
+    runGundeckWithRoutes :: Env -> Wai.Application
+    runGundeckWithRoutes e r k = runGundeck e r (route (compile sitemap) r k)
+
+servantSitemap' :: Env -> Servant.Server GundeckAPI
+servantSitemap' env = Servant.hoistServer (Proxy @GundeckAPI) toServantHandler servantSitemap
+  where
+    toServantHandler :: Gundeck a -> Handler a
+    toServantHandler m = Handler . ExceptT $ Right <$> runDirect env m
 
 collectAuthMetrics :: MonadIO m => Metrics -> AWS.Env -> m ()
 collectAuthMetrics m env = do

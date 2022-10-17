@@ -32,6 +32,7 @@ library
     Wire.API.Error.Cargohold
     Wire.API.Error.Empty
     Wire.API.Error.Galley
+    Wire.API.Error.Gundeck
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
     Wire.API.Event.Team
@@ -87,6 +88,7 @@ library
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
     Wire.API.Routes.Public.Galley
+    Wire.API.Routes.Public.Gundeck
     Wire.API.Routes.Public.Spar
     Wire.API.Routes.Public.Util
     Wire.API.Routes.QualifiedCapture
@@ -508,6 +510,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
+    Test.Wire.API.Golden.Manual.Token
     Test.Wire.API.Golden.Manual.UserClientPrekeyMap
     Test.Wire.API.Golden.Manual.UserIdList
     Test.Wire.API.Golden.Protobuf

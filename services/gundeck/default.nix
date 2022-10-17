@@ -12,8 +12,9 @@
 , metrics-wai, MonadRandom, mtl, multiset, network, network-uri
 , optparse-applicative, psqueues, QuickCheck, quickcheck-instances
 , quickcheck-state-machine, random, raw-strings-qq, resourcet
-, retry, safe, safe-exceptions, scientific, streaming-commons
-, string-conversions, swagger, tagged, tasty, tasty-hunit
+, retry, safe, safe-exceptions, scientific, servant, servant-server
+, servant-swagger, servant-swagger-ui, streaming-commons
+, string-conversions, swagger, swagger2, tagged, tasty, tasty-hunit
 , tasty-quickcheck, text, time, tinylog, tls, tree-diff
 , types-common, types-common-aws, unix, unliftio
 , unordered-containers, uuid, wai, wai-extra, wai-middleware-gunzip
@@ -33,10 +34,11 @@ mkDerivation {
     extra gundeck-types hedis HsOpenSSL http-client http-client-tls
     http-types imports lens lens-aeson metrics-core metrics-wai mtl
     network network-uri optparse-applicative psqueues resourcet retry
-    safe-exceptions swagger text time tinylog tls types-common
-    types-common-aws unliftio unordered-containers uuid wai wai-extra
-    wai-middleware-gunzip wai-predicates wai-routing wai-utilities
-    wire-api yaml
+    safe-exceptions servant servant-server servant-swagger
+    servant-swagger-ui swagger swagger2 text time tinylog tls
+    types-common types-common-aws unliftio unordered-containers uuid
+    wai wai-extra wai-middleware-gunzip wai-predicates wai-routing
+    wai-utilities wire-api yaml
   ];
   executableHaskellDepends = [
     aeson async base base16-bytestring bilge bytestring

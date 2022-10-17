@@ -401,6 +401,7 @@ nativeTargets psh rcps' alreadySent =
     check (Left e) = mntgtLogErr e >> pure []
     check (Right r) = pure r
 
+-- todo(leif): can we get rid of this and use the type in wire-api instead?
 data AddTokenResponse
   = AddTokenSuccess Public.PushToken
   | AddTokenNoBudget

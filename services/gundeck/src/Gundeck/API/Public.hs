@@ -18,16 +18,15 @@
 module Gundeck.API.Public
   ( sitemap,
     apiDocs,
+    servantSitemap,
   )
 where
 
-import Control.Lens ((^.))
 import Data.Id
 import Data.Range
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
 import Data.Text.Encoding (decodeLatin1)
-import qualified Data.Text.Encoding as Text
 import Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import Gundeck.API.Error
@@ -39,29 +38,28 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing hiding (route)
-import Network.Wai.Utilities
+import Network.Wai.Utilities as Wai
 import Network.Wai.Utilities.Swagger
+import Servant (HasServer (..))
 import Wire.API.Notification (NotificationId)
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Push.Token as Public
+import Wire.API.Routes.Named (Named (Named))
+import Wire.API.Routes.Public.Gundeck
 import qualified Wire.API.Swagger as Public.Swagger
+
+-------------------------------------------------------------------------------
+-- Servant API
+
+servantSitemap :: ServerT GundeckAPI Gundeck
+servantSitemap = Named @"register-push-token" addToken
+
+--------------------------------------------------------------------------------
+-- Wai Routes API
 
 sitemap :: Routes ApiBuilder Gundeck ()
 sitemap = do
   -- Push API -----------------------------------------------------------
-
-  post "/push/tokens" (continue addTokenH) $
-    header "Z-User"
-      .&. header "Z-Connection"
-      .&. jsonRequest @Public.PushToken
-      .&. accept "application" "json"
-  document "POST" "registerPushToken" $ do
-    summary "Register a native push token"
-    body (ref Public.modelPushToken) $
-      description "JSON body"
-    returns (ref Public.modelPushToken)
-    response 201 "Push token registered" end
-    response 404 "App does not exist" end
 
   delete "/push/tokens/:pid" (continue deleteTokenH) $
     header "Z-User"
@@ -146,47 +144,15 @@ docsH (url ::: _) =
   let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models sitemap
    in pure $ json doc
 
-addTokenH :: UserId ::: ConnId ::: JsonRequest Public.PushToken ::: JSON -> Gundeck Response
-addTokenH (uid ::: cid ::: req ::: _) = do
-  newtok <- fromJsonBody req
-  handleAddTokenResponse <$> Push.addToken uid cid newtok
-
-handleAddTokenResponse :: Push.AddTokenResponse -> Response
-handleAddTokenResponse = \case
-  Push.AddTokenSuccess newtok -> success newtok
-  Push.AddTokenNoBudget -> snsThreadBudgetReached
-  Push.AddTokenNotFound -> notFound
-  Push.AddTokenInvalid -> invalidToken
-  Push.AddTokenTooLong -> tokenTooLong
-  Push.AddTokenMetadataTooLong -> metadataTooLong
-
-success :: Public.PushToken -> Response
-success t =
-  let loc = Text.encodeUtf8 . Public.tokenText $ t ^. Public.token
-   in json t & setStatus status201 & addHeader hLocation loc
-
-invalidToken :: Response
-invalidToken =
-  json (mkError status400 "invalid-token" "Invalid push token")
-    & setStatus status404
-
-snsThreadBudgetReached :: Response
-snsThreadBudgetReached =
-  json (mkError status400 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?")
-    & setStatus status413
-
-tokenTooLong :: Response
-tokenTooLong =
-  json (mkError status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")
-    & setStatus status413
-
-metadataTooLong :: Response
-metadataTooLong =
-  json (mkError status400 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048")
-    & setStatus status413
-
-notFound :: Response
-notFound = empty & setStatus status404
+addToken :: UserId -> ConnId -> Public.PushToken -> Gundeck (Either Public.AddTokenError Public.AddTokenSuccess)
+addToken uid cid newtok =
+  Push.addToken uid cid newtok <&> \case
+    Push.AddTokenSuccess t -> Right (Public.AddTokenSuccess t)
+    Push.AddTokenNoBudget -> Left Public.AddTokenErrorNoBudget
+    Push.AddTokenNotFound -> Left Public.AddTokenErrorNotFound
+    Push.AddTokenInvalid -> Left Public.AddTokenErrorInvalid
+    Push.AddTokenTooLong -> Left Public.AddTokenErrorTooLong
+    Push.AddTokenMetadataTooLong -> Left Public.AddTokenErrorMetadataTooLong
 
 deleteTokenH :: UserId ::: Public.Token ::: JSON -> Gundeck Response
 deleteTokenH (uid ::: tok ::: _) =
