@@ -17,7 +17,7 @@
 
 module Wire.API.MLS.CommitBundle where
 
-import Control.Lens (view, (.~))
+import Control.Lens (view, (.~), (?~))
 import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
 import Data.ProtoLens (decodeMessage, encodeMessage)
@@ -63,18 +63,13 @@ instance ConvertProtoLens Proto.Mls.CommitBundle CommitBundle where
             & Proto.Mls.groupInfoBundle .~ groupInfoData
         )
 
-instance ParseMLS CommitBundle where
-  parseMLS = CommitBundle <$> parseMLS <*> parseMLSOptional parseMLS <*> parseMLS
-
 instance S.ToSchema CommitBundle where
-  declareNamedSchema _ = pure (mlsSwagger "CommitBundle")
-
--- TODO: remove this
-instance SerialiseMLS CommitBundle where
-  serialiseMLS (CommitBundle commit welcome gi) = do
-    serialiseMLS commit
-    serialiseMLSOptional serialiseMLS welcome
-    serialiseMLS gi
+  declareNamedSchema _ =
+    pure $
+      S.NamedSchema (Just "CommitBundle") $
+        mempty
+          & S.description
+            ?~ "A protobuf-serialized object. See wireapp/generic-message-proto for the definition."
 
 deserializeCommitBundle :: ByteString -> Either Text CommitBundle
 deserializeCommitBundle b = do
