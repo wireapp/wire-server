@@ -747,6 +747,7 @@ applyProposalRef conv _groupId _epoch (Inline p) = do
   applyProposal (convId conv) p
 
 applyProposal ::
+  forall r.
   HasProposalEffects r =>
   ConvId ->
   Proposal ->
@@ -764,6 +765,7 @@ applyProposal convId (AddProposal kp) = do
       pure ci
   pure (paAddClient . (<$$>) (,ref) . cidQualifiedClient $ clientIdentity)
   where
+    addKeyPackageMapping :: Local ConvId -> KeyPackageRef -> KeyPackageData -> Sem r ClientIdentity
     addKeyPackageMapping lconv ref kpdata = do
       -- validate and update mapping in brig
       mCid <-

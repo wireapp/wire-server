@@ -7,10 +7,9 @@ All following commands expect that you've entered the nix-provided build-environ
 
 1. Create a `.envrc.local` file with these contents
 
-```
+    ```
     export COMPILE_NGINX_USING_NIX=1
-    export WIRE_BUILD_WITH_CABAL=1
-```
+    ```
 
    and reload the direnv via `direnv reload`
 
