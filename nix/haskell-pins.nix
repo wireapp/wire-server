@@ -1,3 +1,59 @@
+# How to add a git pin:
+#
+# 1. If your target git repository has only package with the cabal file at the
+# root, add it like this under 'gitPins':
+#     <name-of-the-package> = {
+#       src = fetchgit = {
+#          url = "<https-url-to-git>"
+#          rev = "<commit-id/sha>";
+#          sha256 = "";
+#       }
+#     }
+#
+# 2. If your target git repsitory has many packages, add it like this under 'gitPins':
+#
+#    <name-of-git-repo> = {
+#      src = fetchgit {
+#        url = "<https-url-to-git>";
+#        rev = "<commit-id/sha>";
+#        sha256 = "";
+#      };
+#      packages =  {
+#        <name-of-package1> = "<relative-path-to-package1>";
+#        <name-of-package2> = "<relative-path-to-package2>";
+#        <name-of-package3> = "<relative-path-to-package3>";
+#      };
+#    };
+#
+# 3. Run 'nix build -f ./nix wireServer.haskellPackagesUnoptimizedNoDocs.<your-packge-name>'.
+# This should produce an error saying expected sha <something with a lot of
+# 'A's> and the actual sha. Replace the empty string in 'sha256' with the actual
+# sha.
+#
+# How to update a git pin:
+#
+# 1. Determine the new commit ID/SHA of the git repository that you want to pin
+# and update the 'rev' field of the pin under 'gitPins'.
+#
+# 2. Update 'sha256' field under `fetchgit` to be an empty string.
+#
+# 3. Run step 3. from how to add a git pin.
+#
+# How to add a hackage pin:
+#
+# 1. Add your package like this, under 'hackagePins':
+#    <package-name> = {
+#      version = "<version>";
+#      sha256 = "sha256-gD9b9AXpLkpPSAeg8oPBU7tsHtSNQjxIZKBo+7+r3+c=";
+#    };
+#
+# 2. Run step 3. from how to add a git pin.
+#
+# How to update a hackage pin:
+#
+# 1. Update version number.
+# 2. Make the 'sha256' blank string.
+# 3. Run step 3. from how to add a git pin.
 {lib, fetchgit}: hself: hsuper:
 let
   gitPins = {
