@@ -147,20 +147,6 @@ let
         sha256 = "18icwks9jc6sy42vcvj2ysaip2s0dsrpvm9sy608b6nq6kk1ahlk";
       };
     };
-    snappy = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/snappy";
-        rev = "b0e5c08af48911caecffa4fa6a3e74872018b258";
-        sha256 = "1d1x0kkh2p4mb29wi31wpffgr64i27jd10ci70i81y5fwn44c542";
-      };
-    };
-    snappy-framing = {
-      src = fetchgit {
-        url = "https://github.com/kim/snappy-framing";
-        rev = "d99f702c0086729efd6848dea8a01e5266c3a61c";
-        sha256 = "04z8qw5jaw58c09bf29w5k8hp7xa5w69c14ad672crw8zgsw7860";
-      };
-    };
     tasty = {
       src = fetchgit {
         url = "https://github.com/wireapp/tasty";

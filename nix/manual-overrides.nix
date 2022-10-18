@@ -1,4 +1,4 @@
-{ libsodium, protobuf, snappy, hlib, mls-test-cli }:
+{ libsodium, protobuf, hlib, mls-test-cli }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -50,10 +50,6 @@ hself: hsuper: {
   amazonka-sso = hlib.dontCheck hsuper.amazonka-sso;
   amazonka-sts = hlib.dontCheck hsuper.amazonka-sts;
   servant-server = hlib.dontCheck hsuper.servant-server;
-
-
-  # Avoid infinite recursion
-  snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = snappy; };
 
   # Build toool dependencies of local packages
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
