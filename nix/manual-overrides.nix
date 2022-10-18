@@ -62,4 +62,11 @@ hself: hsuper: {
 
   # Make hoogle static to reduce size of the hoogle image
   hoogle = hlib.justStaticExecutables hsuper.hoogle;
+
+  # By default haskellSrc2nix doesn't allow substitutes
+  # https://github.com/NixOS/nixpkgs/pull/49829
+  #
+  # But this makes our CI slow because most of the time we will actually get a
+  # hit, so we override this for faster CI.
+  haskellSrc2nix = args: (hsuper.haskellSrc2nix args).overrideAttrs(_old: {allowSubstitutes = true;});
 }
