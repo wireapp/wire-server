@@ -207,6 +207,10 @@ let lib = pkgs.lib;
             pkgs.dumb-init
             drv
             tmpDir
+            # pkgs.cacerts provides etc/ssl/certs/ca-bundle.crt, but maybe haskell reads from  ca-certificates.crt?
+            (pkgs.runCommand "ca-certificates" {} ''
+              ln -s ${pkgs.cacert.out}/etc/ssl/certs/ca-bundle.crt $out/etc/ssl/ca-certificates.crt
+            '')
           ] ++ pkgs.lib.optionals (builtins.hasAttr execName extraContents) (builtins.getAttr execName extraContents);
           # Any mkdir running in this step won't actually make it to the image,
           # hence we use the tmpDir derivation in the contents
