@@ -29,6 +29,7 @@ module Cassandra.Settings
 where
 
 import Control.Lens
+import qualified Data.Aeson.Key as Key
 import Data.Aeson.Lens
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (pack, stripSuffix, unpack)
@@ -45,9 +46,10 @@ import qualified System.Logger as Log
 initialContactsDisco :: MonadIO m => String -> String -> m (NonEmpty String)
 initialContactsDisco (pack -> srv) url = liftIO $ do
   rs <- asValue =<< get url
-  let srvs = case stripSuffix "_seed" srv of
-        Nothing -> [srv, srv <> "_seed"]
-        Just _ -> [srv] -- requesting only seeds is a valid use-case
+  let srvs = map Key.fromText $
+        case stripSuffix "_seed" srv of
+          Nothing -> [srv, srv <> "_seed"]
+          Just _ -> [srv] -- requesting only seeds is a valid use-case
   let ip =
         rs
           ^.. responseBody

@@ -33,7 +33,7 @@ EXE_SCHEMA := ./dist/$(package)-schema
 # also exported in stack-deps.nix.
 export HSPEC_OPTIONS = --fail-on-focused
 
-default: fast
+default: install
 
 init:
 	mkdir -p dist
@@ -41,14 +41,10 @@ init:
 # Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	cabal update
 	cabal build all
 	./hack/bin/cabal-run-all-tests.sh
 	./hack/bin/cabal-install-artefacts.sh all
-else
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
-endif
 
 # Clean
 .PHONY: full-clean
@@ -62,14 +58,9 @@ endif
 
 .PHONY: clean
 clean:
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	cabal clean
-else
-	stack clean
-endif
 	$(MAKE) -C services/nginz clean
 	-rm -rf dist
-	-rm -f .metadata
 
 .PHONY: clean-hint
 clean-hint:
@@ -81,15 +72,6 @@ clean-hint:
 cabal.project.local:
 	echo "optimization: False" > ./cabal.project.local
 	./hack/bin/cabal-project-local-template.sh "ghc-options: -O0" >> ./cabal.project.local
-
-# Build all Haskell services and executables with -O0, run unit tests
-.PHONY: fast
-fast: init
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
-	make install
-else
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
-endif
 
 # Usage: make c package=brig test=1
 .PHONY: c
@@ -122,6 +104,10 @@ repl: cabal-fmt
 ghcid:
 	ghcid -l=hlint --command "cabal repl $(target)"
 
+# Used by CI
+.PHONY: lint-all
+lint-all: formatc hlint-check-all shellcheck check-local-nix-derivations
+
 .PHONY: hlint-check-all
 hlint-check-all:
 	./tools/hlint.sh -f all -m check
@@ -147,6 +133,12 @@ hlint-check:
 hlint-inplace:
 	./tools/hlint.sh -f changeset -m inplace
 
+regen-local-nix-derivations:
+	./hack/bin/generate-local-nix-packages.sh
+
+check-local-nix-derivations: regen-local-nix-derivations
+	git diff --exit-code
+
 # reset db using cabal
 .PHONY: db-reset-package
 db-reset-package: c
@@ -163,16 +155,6 @@ db-migrate-package: c
 .PHONY: services
 services: init install
 	$(MAKE) -C services/nginz
-
-# Build haddocks
-.PHONY: haddock
-haddock:
-	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal" make fast
-
-# Build haddocks only for wire-server
-.PHONY: haddock-shallow
-haddock-shallow:
-	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal --no-haddock-deps" make fast
 
 # formats all Haskell files (which don't contain CPP)
 .PHONY: format
@@ -255,60 +237,19 @@ i-%:
 #################################
 ## docker targets
 
-.PHONY: docker-prebuilder
-docker-prebuilder:
-	# `docker-prebuilder` needs to be built or pulled only once (unless native dependencies change)
-	$(MAKE) -C build/ubuntu prebuilder
+.PHONY: upload-images
+upload-images:
+	./hack/bin/upload-images.sh images
 
-.PHONY: docker-deps
-docker-deps:
-	# `docker-deps` needs to be built or pulled only once (unless native dependencies change)
-	$(MAKE) -C build/ubuntu deps
+.PHONY: upload-images-dev
+upload-images-dev:
+	./hack/bin/upload-images.sh imagesUnoptimizedNoDocs
 
-.PHONY: docker-builder
-docker-builder:
-	# `docker-builder` needs to be built or pulled only once (unless native dependencies change)
-	$(MAKE) -C build/ubuntu builder
+upload-hoogle-image:
+	./hack/bin/upload-image.sh wireServer.hoogleImage
 
-.PHONY: docker-intermediate
-docker-intermediate:
-	# `docker-intermediate` needs to be built whenever code changes - this essentially runs `cabal clean && cabal build all` on the whole repo
-	docker build -t $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG) -f build/ubuntu/Dockerfile.intermediate --build-arg builder=$(DOCKER_USER)/ubuntu20-builder:develop --build-arg deps=$(DOCKER_USER)/ubuntu20-deps:develop .;
-	docker tag $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG) $(DOCKER_USER)/ubuntu20-intermediate:latest;
-	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/ubuntu20-intermediate:latest; fi;
-
-.PHONY: docker-exe-%
-docker-exe-%:
-	docker image ls | grep $(DOCKER_USER)/ubuntu20-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
-	docker image ls | grep $(DOCKER_USER)/ubuntu20-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
-	docker build -t $(DOCKER_USER)/"$*":$(DOCKER_TAG) -f build/ubuntu/Dockerfile.executable --build-arg executable="$*" --build-arg intermediate=$(DOCKER_USER)/ubuntu20-intermediate --build-arg deps=$(DOCKER_USER)/ubuntu20-deps .
-	docker tag $(DOCKER_USER)/"$*":$(DOCKER_TAG) $(DOCKER_USER)/"$*":latest
-	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/"$*":$(DOCKER_TAG); docker push $(DOCKER_USER)/"$*":latest; fi;
-
-.PHONY: docker-services
-docker-services:
-	# make docker-services doesn't compile, only makes small images out of the `docker-intermediate` image
-	# to recompile, run `docker-intermediate` first.
-	docker image ls | grep $(DOCKER_USER)/ubuntu20-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
-	docker image ls | grep $(DOCKER_USER)/ubuntu20-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
-	# `make -C services/brig docker` == `make docker-exe-brig docker-exe-brig-integration docker-exe-brig-schema docker-exe-brig-index`
-	$(MAKE) -C services/brig docker
-	$(MAKE) -C services/gundeck docker
-	$(MAKE) -C services/galley docker
-	$(MAKE) -C services/cannon docker
-	$(MAKE) -C services/proxy docker
-	$(MAKE) -C services/spar docker
-	$(MAKE) -C tools/stern docker
-	$(MAKE) docker-exe-zauth
-	$(MAKE) -C services/nginz docker
-
-DOCKER_DEV_NETWORK := --net=host
-DOCKER_DEV_VOLUMES := -v `pwd`:/wire-server
-DOCKER_DEV_IMAGE   := quay.io/wire/ubuntu20-builder:$(DOCKER_TAG)
-.PHONY: run-docker-builder
-run-docker-builder:
-	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build/ubuntu builder'."
-	docker run --workdir /wire-server -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash
+#################################
+## cassandra management
 
 .PHONY: git-add-cassandra-schema
 git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
@@ -328,17 +269,10 @@ cqlsh:
 .PHONY: db-reset
 db-reset:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	make db-reset-package package=brig
 	make db-reset-package package=galley
 	make db-reset-package package=gundeck
 	make db-reset-package package=spar
-else
-	make -C services/brig db-reset
-	make -C services/galley db-reset
-	make -C services/gundeck db-reset
-	make -C services/spar db-reset
-endif
 
 #################################
 ## dependencies
@@ -353,14 +287,7 @@ libzauth:
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
 hie.yaml:
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	echo -e 'cradle:\n  cabal: {}' > hie.yaml
-else
-	cp stack.yaml stack-dev.yaml
-	echo -e '\n\nghc-options:\n "$$locals": -O0 -Wall -Werror' >> stack-dev.yaml
-	stack build implicit-hie
-	stack exec gen-hie | yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml
-endif
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes

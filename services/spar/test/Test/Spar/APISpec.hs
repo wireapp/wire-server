@@ -20,9 +20,9 @@ module Test.Spar.APISpec where
 import Arbitrary ()
 import qualified Control.Lens as Lens
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Lens as Aeson
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.HashMap.Strict as HM
 import Data.Metrics.Servant (routesToPaths)
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Proxy (Proxy (Proxy))
@@ -48,8 +48,8 @@ spec = do
       property $
         \(ssoSettings :: SsoSettings) -> do
           let object = Aeson.toJSON ssoSettings
-          let objectWithoutKey = Lens.over Aeson._Object (HM.delete "default_sso_code") $ object
-          (HM.lookup "default_sso_code" =<< Lens.preview Aeson._Object object)
+          let objectWithoutKey = Lens.over Aeson._Object (KeyMap.delete "default_sso_code") $ object
+          (KeyMap.lookup "default_sso_code" =<< Lens.preview Aeson._Object object)
             `shouldSatisfy` isJust
           Aeson.parseMaybe (Aeson.parseJSON @SsoSettings) objectWithoutKey
             `shouldSatisfy` isNothing

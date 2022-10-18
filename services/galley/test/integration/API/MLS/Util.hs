@@ -47,7 +47,7 @@ import qualified Data.Text.Encoding as T
 import Data.Time.Clock (getCurrentTime)
 import Galley.Keys
 import Galley.Options
-import Imports
+import Imports hiding (getSymbolicLinkTarget)
 import System.Directory (getSymbolicLinkTarget)
 import System.FilePath
 import System.IO.Temp
