@@ -25,7 +25,7 @@ echo "$cabalFiles" \
 
 overridesFile="$ROOT_DIR/nix/local-haskell-packages.nix"
 
-echo "{ gitignoreSource }: hsuper: hself: {" > "$overridesFile"
+cat "$warningFile" <(echo "{ gitignoreSource }: hsuper: hself: {") > "$overridesFile"
 # shellcheck disable=SC2016
 echo "$cabalFiles" \
     | xargs -I {} bash -c 'name=$(basename {} | sed "s|.cabal||"); echo "  $name = hself.callPackage $(realpath --relative-to='"$ROOT_DIR/nix"' "$(dirname {})")/default.nix { inherit gitignoreSource; };"' >> "$overridesFile"
