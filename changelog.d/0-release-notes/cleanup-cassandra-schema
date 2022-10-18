@@ -1,0 +1,3 @@
+If you have not upgraded to [release 2021-03-21 (Chart Release 2.103.0)](https://github.com/wireapp/wire-server/releases/tag/v2021-03-21) yet, please do that now!
+
+NB: we only support releases 6 months back, so this should not be an issue.  But in this particular case we are positive that things will break if you don't do an intermediate upgrade. (#2768)
