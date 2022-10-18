@@ -1,2 +1,0 @@
-# spar_test.scim_external_ids
-: this table has been deprecated and should be empty.  its contents has been migrated away in [release 2021-03-21](https://github.com/wireapp/wire-server/releases/tag/v2021-03-21) (see `/services/spar/migrate-data/src/Spar/DataMigration/V1_ExternalIds.hs`); last time it has been touched in production is before upgrade to [release 2021-03-23 (Chart Release 2.104.0)](https://github.com/wireapp/wire-server/releases/tag/v2021-03-23).
