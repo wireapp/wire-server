@@ -154,6 +154,13 @@ let lib = pkgs.lib;
           '';
       };
 
+    # We extract static executables out of the output of building the packages
+    # so they don't depend on all the haskell dependencies. These exectuables
+    # are "static" from the perspective of ghc, i.e. they don't dynamically
+    # depend on other haskell packages but they still dynamically depend on C
+    # dependencies like openssl, cryptobox, libxml2, etc. Doing this makes the
+    # final images that we generate much smaller as we don't have to carry
+    # around so files for all haskell packages.
     staticExecs = localMods@{enableOptimization, enableDocs, enableTests}:
       let nested = attrsets.mapAttrs (hPkgName: execNames:
             attrsets.genAttrs execNames (extractExec localMods hPkgName)
@@ -177,6 +184,10 @@ let lib = pkgs.lib;
       '';
     };
 
+    # Some images require extra things which is not possible to specify using
+    # cabal file dependencies, so cabal2nix cannot automatically add these.
+    #
+    # extraContents :: Map Text [Derivation]
     extraContents = {
       brig = [brig-templates];
       brig-integration = [brig-templates pkgs.mls-test-cli];
@@ -224,6 +235,7 @@ let lib = pkgs.lib;
       enableDocs = true;
       enableTests = false;
     };
+
     imagesList = pkgs.writeTextFile {
       name = "imagesList";
       text = "${lib.concatStringsSep "\n" (builtins.attrNames (images localModsEnableAll))}";
@@ -261,6 +273,10 @@ let lib = pkgs.lib;
       pkgs.skopeo
     ];
 
+    # Building an image which can do nix builds is hard. This is programmed
+    # nicely in docker.nix at the root of https://github.com/nixos/nix. We get
+    # this file using "${pkgs.nix.src}/docker.nix" so we don't have to also pin
+    # the nix repository along with the nixpkgs repository.
     ciImage = import "${pkgs.nix.src}/docker.nix" {
       inherit pkgs;
       name = "quay.io/wire/wire-server-ci";
