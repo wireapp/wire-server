@@ -1,3 +1,47 @@
+# This file provides nix attributes which can be used to build wire server
+# components, the development shell, the CI Image and an image with hoogle.
+#
+# Most haskell dependencies come from the package set present in nixpkgs.
+# However, the package set is not enough to build wire-server components and
+# requires some tweaks. These tweaks are built using a few things:
+#
+# 1. nix/local-haskell-packages.nix: This file provides a list of overrides
+# which add the local packages from this repository into the nixpkgs haskell
+# package set. This file is generated using `make regen-local-nix-derivations`
+# which uses cabal2nix to generate nix derivations for each haskell package in
+# this repository.
+#
+# 2. nix/haskell-pins.nix: This file provides a list of overrides for haskell
+# packages we wish to pin to a certain version, either because we have had to
+# fork them or because we're using an old/new version of the package so it
+# supports our use cases.
+#
+# 3. nix/manual-overrides.nix: This file provides a list of overrides that we
+# have to manually maintain. This is different from pinned dependencies because
+# it overrides packages in a few ways:
+#
+# 3.1. Broken packages: Some packages are marked broken in the nixpkgs package
+# set, but they work if we use them with our pins or sometimes we have to
+# disable their tests to make them work.
+#
+# 3.2: Version overrides: These are very similar to nix/haskell-pins.nix, but
+# the package set itself sometimes contains newer versions of a few packages
+# along with the old versions, e.g., the package set contains aeson and
+# aeson_2_1_1_0. We use the latest version provided by the pacakge set, so we
+# don't have to remember to update the version here, nixpkgs will take care of
+# giving us the latest version.
+#
+# 3.3: External dependencies: cabal2nix sometimes fails to provide the external
+# dependencies like adding protobuf and mls-test-cli as a buld tools. So, we
+# need to write overrides to ensure these are present during build.
+#
+# 3.4: Other overrides: We may need to override haskell package derivations for
+# some other reasons, like ensuring hoogle derivation produces just the
+# executable. We can use nix/manual-overrides.nix for this.
+#
+# Using thse tweaks we can get a haskell package set which has wire-server
+# components and the required dependencies. We then use this package set along
+# with nixpkgs' dockerTools to make derivations for docker images that we need.
 pkgs:
 let lib = pkgs.lib;
     hlib = pkgs.haskell.lib;
@@ -117,6 +161,8 @@ let lib = pkgs.lib;
           unnested = lib.lists.foldr (x: y: x // y) {} (attrsets.attrValues nested);
       in unnested;
 
+    # Docker tools doesn't create tmp directories but some processes need this
+    # and so we have to create it ourself.
     tmpDir = pkgs.runCommand "tmp-dir" {} ''
        mkdir -p $out/tmp
        mkdir -p $out/var/tmp
@@ -151,6 +197,8 @@ let lib = pkgs.lib;
             drv
             tmpDir
           ] ++ pkgs.lib.optionals (builtins.hasAttr execName extraContents) (builtins.getAttr execName extraContents);
+          # Any mkdir running in this step won't actually make it to the image,
+          # hence we use the tmpDir derivation in the contents
           fakeRootCommands = ''
                            chmod 1777 tmp
                            chmod 1777 var/tmp
@@ -231,8 +279,11 @@ in {
 
   images = images localModsEnableAll;
   imagesUnoptimizedNoDocs = images localModsOnlyTests;
+  # Used for production images, ensure that optimizations and tests are always
+  # enabled!
   imagesNoDocs = images {
     enableOptimzation = true;
+    enableTests = true;
     enableDocs = false;
   };
   imagesList = imagesList;
