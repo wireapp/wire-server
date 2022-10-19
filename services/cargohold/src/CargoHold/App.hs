@@ -66,7 +66,6 @@ import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
 

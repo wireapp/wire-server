@@ -90,7 +90,6 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import qualified Network.Wai.Utilities.Error as Wai
 import OpenSSL.Session as Ssl
-import qualified OpenSSL.X509.SystemStore as Ssl
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
