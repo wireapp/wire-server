@@ -308,7 +308,7 @@ testAddUserWithBundle :: TestM ()
 testAddUserWithBundle = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
 
-  qcnv <- runMLSTest $ do
+  (qcnv, commit) <- runMLSTest $ do
     (alice1 : bobClients) <- traverse createMLSClient [alice, bob, bob]
     traverse_ uploadNewKeyPackage bobClients
     (_, qcnv) <- setupMLSGroup alice1
@@ -324,7 +324,7 @@ testAddUserWithBundle = do
 
     event <- assertOne events
     liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
-    pure qcnv
+    pure (qcnv, commit)
 
   -- check that bob can now see the conversation
   convs <-
@@ -334,6 +334,13 @@ testAddUserWithBundle = do
     assertBool
       "Users added to an MLS group should find it when listing conversations"
       (qcnv `elem` map cnvQualifiedId (convList convs))
+
+  returnedGS <-
+    fmap responseBody $
+      getGroupInfo (qUnqualified alice) qcnv
+        <!! const 200 === statusCode
+  liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpPublicGroupState commit))
+  liftIO $ mpPublicGroupState commit @=? LBS.toStrict <$> returnedGS
 
 testAddUserWithBundleIncompleteWelcome :: TestM ()
 testAddUserWithBundleIncompleteWelcome = do
