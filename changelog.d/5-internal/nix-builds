@@ -1,0 +1,4 @@
+The dev environment provided by nix now contains all the haskell packages
+compiled by nix. This could casue linker errors while compiling haskell code in
+this repo. One way to get resolve them is to delete the 'dist-newstyle'
+directory. (#2331)

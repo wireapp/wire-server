@@ -239,7 +239,7 @@ i-%:
 
 .PHONY: upload-images
 upload-images:
-	./hack/bin/upload-images.sh images
+	./hack/bin/upload-images.sh imagesNoDocs
 
 .PHONY: upload-images-dev
 upload-images-dev:
