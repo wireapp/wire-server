@@ -97,7 +97,6 @@ tests s =
       testGroup
         "Commit"
         [ test s "add user to a conversation" testAddUser,
-          test s "add user with a commit bundle" testAddUserWithBundle,
           test s "add user with an incomplete welcome" testAddUserWithBundleIncompleteWelcome,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
@@ -173,6 +172,11 @@ tests s =
         [ test s "get group info for a local conversation" testGetGroupInfoOfLocalConv,
           test s "get group info for a remote conversation" testGetGroupInfoOfRemoteConv,
           test s "get group info for a remote user" testFederatedGetGroupInfo
+        ],
+      testGroup
+        "CommitBundle"
+        [ test s "add user with a commit bundle" testAddUserWithBundle,
+          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoveConvWithBundle
         ]
     ]
 
@@ -1914,3 +1918,46 @@ testDeleteMLSConv = do
 
     deleteTeamConv tid (qUnqualified qcnv) aliceUnq
       !!! statusCode === const 200
+
+testAddUserToRemoveConvWithBundle :: TestM ()
+testAddUserToRemoveConvWithBundle = do
+  let aliceDomain = Domain "faraway.example.com"
+  [alice, bob, charlie] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing, Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+
+    void $ uploadNewKeyPackage bob1
+    (groupId, qcnv) <- setupFakeMLSGroup alice1
+
+    mp <- createAddCommit alice1 [bob]
+    traverse_ consumeWelcome (mpWelcome mp)
+
+    receiveNewRemoteConv qcnv groupId
+    receiveOnConvUpdated qcnv alice bob
+
+    -- NB. this commit would be rejected by the owning backend, but for the
+    -- purpose of this test it's good enough.
+    [charlie1] <- traverse createMLSClient [charlie]
+    void $ uploadNewKeyPackage charlie1
+    commit <- createAddCommit bob1 [charlie]
+    commitBundle <- createBundle commit
+
+    let mock req = case frRPC req of
+          "send-mls-commit-bundle" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
+          s -> error ("unmocked: " <> T.unpack s)
+    (_, reqs) <- withTempMockFederator' mock $ do
+      void $ sendAndConsumeCommitBundle commit
+
+    req <- liftIO $ assertOne reqs
+    liftIO $ do
+      frRPC req @?= "send-mls-commit-bundle"
+      frTargetDomain req @?= qDomain qcnv
+
+      msr <- case Aeson.eitherDecode (frBody req) of
+        Right b -> pure b
+        Left e -> assertFailure $ "Could not parse send-mls-commit-bundle request body: " <> e
+
+      msrConvId msr @?= qUnqualified qcnv
+      msrSender msr @?= qUnqualified bob
+      fromBase64ByteString (msrRawMessage msr) @?= commitBundle
