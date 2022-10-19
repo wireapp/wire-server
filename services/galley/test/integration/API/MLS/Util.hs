@@ -136,7 +136,7 @@ postCommitBundle sender bundle = do
     ( galley . paths ["mls", "commit-bundles"]
         . zUser sender
         . zConn "conn"
-        . content "message/mls"
+        . content "application/vnd.wire.commit-bundle"
         . bytes bundle
     )
 
@@ -806,7 +806,7 @@ createBundle mp = do
   bundle <-
     either (liftIO . assertFailure . T.unpack) pure $
       mkBundle mp
-  pure (encodeMLS' bundle)
+  pure (serializeCommitBundle bundle)
 
 sendAndConsumeCommitBundle ::
   HasCallStack =>
