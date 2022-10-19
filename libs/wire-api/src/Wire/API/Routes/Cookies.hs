@@ -17,7 +17,6 @@
 
 module Wire.API.Routes.Cookies where
 
-import Control.Error.Util
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as M
 import Data.Metrics.Servant
@@ -32,32 +31,27 @@ import Web.Cookie (parseCookies)
 
 data (:::) a b
 
-data (::?) a b
-
 -- | A combinator to extract cookies from an HTTP request. The recommended way
 -- to use this combinator is to specify it exactly once in the description of
 -- an endpoint, passing a list of pairs of cookie name and type, separated by
--- either '(:::)' or '(::?)'. The former makes the corresponding cookie
--- mandatory, while the latter makes it optional, and returns a 'Maybe' result.
+-- '(:::)'. Cookies are always optional.
 --
 -- For example:
 -- @@
--- Cookies '["foo" ::: Int64, "bar" ::? Text]
+-- Cookies '["foo" ::: Int64, "bar" ::: Text]
 -- @@
--- results in a mandatory cookie with name "foo" containing a 64-bit integer,
--- and an optional cookie with name "bar" containing an arbitrary text value.
+-- results in a cookie with name "foo" containing a 64-bit integer, and a
+-- cookie with name "bar" containing an arbitrary text value.
 data Cookies (cs :: [*])
 
-type CookieHeader cs = Header' '[Required] "Cookie" (CookieTuple cs)
+type CookieHeader cs = Header "Cookie" (CookieTuple cs)
 
 -- CookieTypes = map snd
 type family CookieTypes (cs :: [*]) :: [*]
 
 type instance CookieTypes '[] = '[]
 
-type instance CookieTypes ((lbl ::: x) ': cs) = (NonEmpty (Either Text x) ': CookieTypes cs)
-
-type instance CookieTypes ((lbl ::? x) ': cs) = ([Either Text x] ': CookieTypes cs)
+type instance CookieTypes ((lbl ::: x) ': cs) = ([Either Text x] ': CookieTypes cs)
 
 newtype CookieTuple cs = CookieTuple {unCookieTuple :: NP I (CookieTypes cs)}
 
@@ -73,12 +67,14 @@ class CookieArgs (cs :: [*]) where
   uncurryArgs :: AddArgs cs a -> CookieTuple cs -> a
   mapArgs :: (a -> b) -> AddArgs cs a -> AddArgs cs b
   mkTuple :: CookieMap -> Either Text (CookieTuple cs)
+  emptyTuple :: CookieTuple cs
 
 instance CookieArgs '[] where
   type AddArgs '[] a = a
   uncurryArgs a _ = a
   mapArgs h = h
-  mkTuple _ = pure (CookieTuple Nil)
+  mkTuple _ = pure emptyTuple
+  emptyTuple = CookieTuple Nil
 
 instance
   ( CookieArgs cs,
@@ -87,24 +83,7 @@ instance
   ) =>
   CookieArgs ((lbl ::: (x :: *)) ': cs)
   where
-  type AddArgs ((lbl ::: x) ': cs) a = NonEmpty (Either Text x) -> AddArgs cs a
-  uncurryArgs f (CookieTuple (I x :* xs)) = uncurryArgs @cs (f x) (CookieTuple xs)
-  mapArgs h f = mapArgs @cs h . f
-  mkTuple m = do
-    let k = T.pack (symbolVal (Proxy @lbl))
-    bs <- note ("Missing cookie: " <> k) $ M.lookup (T.encodeUtf8 k) m
-    let vs = fmap parseHeader bs
-    CookieTuple t <- mkTuple @cs m
-    pure (CookieTuple (I vs :* t))
-
-instance
-  ( CookieArgs cs,
-    KnownSymbol lbl,
-    FromHttpApiData x
-  ) =>
-  CookieArgs ((lbl ::? (x :: *)) ': cs)
-  where
-  type AddArgs ((lbl ::? x) ': cs) a = [Either Text x] -> AddArgs cs a
+  type AddArgs ((lbl ::: x) ': cs) a = [Either Text x] -> AddArgs cs a
   uncurryArgs f (CookieTuple (I x :* xs)) = uncurryArgs @cs (f x) (CookieTuple xs)
   mapArgs h f = mapArgs @cs h . f
   mkTuple m = do
@@ -113,6 +92,7 @@ instance
     let vs = map parseHeader bs
     CookieTuple t <- mkTuple @cs m
     pure (CookieTuple (I vs :* t))
+  emptyTuple = CookieTuple (I [] :* unCookieTuple (emptyTuple @cs))
 
 mkCookieMap :: [(ByteString, ByteString)] -> CookieMap
 mkCookieMap = foldr (\(k, v) -> M.insertWith (<>) k (pure v)) mempty
@@ -131,7 +111,13 @@ instance
   type ServerT (Cookies cs :> api) m = AddArgs cs (ServerT api m)
 
   route _ ctx action =
-    route (Proxy @(CookieHeader cs :> api)) ctx (fmap uncurryArgs action)
+    route
+      (Proxy @(CookieHeader cs :> api))
+      ctx
+      ( fmap
+          (\f -> uncurryArgs f . fromMaybe emptyTuple)
+          action
+      )
   hoistServerWithContext _ ctx f = mapArgs @cs (hoistServerWithContext (Proxy @api) ctx f)
 
 instance RoutesToPaths api => RoutesToPaths (Cookies cs :> api) where

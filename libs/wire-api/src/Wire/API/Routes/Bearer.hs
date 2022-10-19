@@ -35,11 +35,11 @@ instance FromHttpApiData a => FromHttpApiData (Bearer a) where
     _ -> Left "Invalid authorization scheme"
   parseUrlPiece = parseHeader . T.encodeUtf8
 
-type BearerHeader a = Header "Authorization" (Bearer a)
+type BearerHeader a = Header' '[Lenient] "Authorization" (Bearer a)
 
 type BearerQueryParam =
   QueryParam'
-    [Optional, Strict, Description "Access token"]
+    [Lenient, Description "Access token"]
     "access_token"
 
 instance HasSwagger api => HasSwagger (Bearer a :> api) where
@@ -57,11 +57,11 @@ instance
   ) =>
   HasServer (Bearer a :> api) ctx
   where
-  type ServerT (Bearer a :> api) m = Maybe a -> ServerT api m
+  type ServerT (Bearer a :> api) m = Maybe (Either Text a) -> ServerT api m
 
   route _ ctx action =
     route
       (Proxy @(BearerHeader a :> BearerQueryParam a :> api))
       ctx
-      (fmap (\f u v -> f (fmap unBearer u <|> v)) action)
+      (fmap (\f u v -> f (fmap (fmap unBearer) u <|> v)) action)
   hoistServerWithContext _ ctx f h = hoistServerWithContext (Proxy @api) ctx f . h

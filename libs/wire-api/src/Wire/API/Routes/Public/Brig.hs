@@ -1202,7 +1202,7 @@ type AuthAPI =
                     "Calling this endpoint will effectively revoke the given cookie\
                     \ and subsequent calls to /access with the same cookie will\
                     \ result in a 403."
-               :> Cookies '["zuid" ::? SomeUserToken]
+               :> Cookies '["zuid" ::: SomeUserToken]
                :> Bearer SomeAccessToken
                :> CanThrow 'BadCredentials
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Logout")

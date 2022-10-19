@@ -140,7 +140,7 @@ tests conf m z db b g n =
         "refresh /access"
         [ test m "invalid-cookie" (testInvalidCookie @ZAuth.User z b),
           test m "invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser z b),
-          test m "invalid-token" (testInvalidToken b),
+          test m "invalid-token" (testInvalidToken z b),
           test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access z b),
           test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess z b),
           test m "unknown-cookie" (testUnknownCookie @ZAuth.User z b),
@@ -781,12 +781,15 @@ testInvalidCookie z b = do
 
 -- @END
 
-testInvalidToken :: Brig -> Http ()
-testInvalidToken b = do
+testInvalidToken :: ZAuth.Env -> Brig -> Http ()
+testInvalidToken z b = do
+  user <- userId <$> randomUser b
+  t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.User user)
+
   -- Syntactically invalid
-  post (unversioned . b . path "/access" . queryItem "access_token" "xxx")
+  post (unversioned . b . path "/access" . queryItem "access_token" "xxx" . cookieRaw "zuid" t)
     !!! errResponse
-  post (unversioned . b . path "/access" . header "Authorization" "Bearer xxx")
+  post (unversioned . b . path "/access" . header "Authorization" "Bearer xxx" . cookieRaw "zuid" t)
     !!! errResponse
   where
     errResponse = do

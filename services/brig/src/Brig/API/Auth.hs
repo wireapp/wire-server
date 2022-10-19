@@ -48,9 +48,13 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 
-accessH :: NonEmpty (Either Text SomeUserToken) -> Maybe SomeAccessToken -> Handler r SomeAccess
-accessH eut mat = do
-  ut <- traverse handleTokenErrors eut
+accessH ::
+  [Either Text SomeUserToken] ->
+  Maybe (Either Text SomeAccessToken) ->
+  Handler r SomeAccess
+accessH ut' mat' = do
+  ut <- handleTokenErrors ut'
+  mat <- traverse handleTokenError mat'
   partitionTokens ut mat
     >>= either (uncurry access) (uncurry access)
 
@@ -71,11 +75,13 @@ login l (fromMaybe False -> persist) = do
   c <- Auth.login l typ !>> loginError
   traverse mkUserTokenCookie c
 
-logoutH :: [Either Text SomeUserToken] -> Maybe SomeAccessToken -> Handler r ()
-logoutH [] Nothing = throwStd authMissingCookieAndToken
-logoutH [] (Just _) = throwStd authMissingCookie
-logoutH euts mat = do
-  uts <- traverse handleTokenErrors euts
+logoutH ::
+  [Either Text SomeUserToken] ->
+  Maybe (Either Text SomeAccessToken) ->
+  Handler r ()
+logoutH uts' mat' = do
+  uts <- handleTokenErrors uts'
+  mat <- traverse handleTokenError mat'
   partitionTokens uts mat
     >>= either (uncurry logout) (uncurry logout)
 
@@ -85,12 +91,13 @@ logout uts (Just at) = wrapHttpClientE $ Auth.logout (List1 uts) at !>> zauthErr
 
 changeSelfEmailH ::
   Member BlacklistStore r =>
-  NonEmpty (Either Text SomeUserToken) ->
-  Maybe SomeAccessToken ->
+  [Either Text SomeUserToken] ->
+  Maybe (Either Text SomeAccessToken) ->
   EmailUpdate ->
   Handler r ChangeEmailResponse
-changeSelfEmailH euts mat up = do
-  uts <- traverse handleTokenErrors euts
+changeSelfEmailH uts' mat' up = do
+  uts <- handleTokenErrors uts'
+  mat <- traverse handleTokenError mat'
   toks <- partitionTokens uts mat
   usr <- either (uncurry validateCredentials) (uncurry validateCredentials) toks
   let email = euEmail up
@@ -162,8 +169,7 @@ mkUserTokenCookie c = do
       }
 
 partitionTokens ::
-  Foldable f =>
-  f SomeUserToken ->
+  [SomeUserToken] ->
   Maybe SomeAccessToken ->
   Handler
     r
@@ -181,8 +187,9 @@ partitionTokens tokens mat =
     (([], lt : lts), Nothing) -> pure (Right (lt :| lts, Nothing))
     (([], _t : _ts), Just (PlainAccessToken _)) -> throwStd authTokenMismatch
     (([], lt : lts), Just (LHAccessToken l)) -> pure (Right (lt :| lts, Just l))
-    -- impossible
-    (([], []), _) -> throwStd internalServerError
+    -- no cookie
+    (([], []), Nothing) -> throwStd authMissingCookieAndToken
+    (([], []), _) -> throwStd authMissingCookie
     -- mixed PlainUserToken and LHUserToken
     ((_ats, _lts), _) -> throwStd authTokenMismatch
   where
@@ -190,11 +197,21 @@ partitionTokens tokens mat =
     toEither (PlainUserToken ut) = Left ut
     toEither (LHUserToken lt) = Right lt
 
-handleTokenErrors :: Either Text a -> Handler r a
-handleTokenErrors =
+handleTokenError :: Either Text a -> Handler r a
+handleTokenError =
   either
     ( throwStd
         . Wai.mkError status403 "client-error"
         . LT.fromStrict
     )
     pure
+
+handleTokenErrors :: [Either Text a] -> Handler r [a]
+handleTokenErrors ts = case partitionEithers ts of
+  ((e : _), []) ->
+    ( throwStd
+        . Wai.mkError status403 "client-error"
+        . LT.fromStrict
+        $ e
+    )
+  (_, vs) -> pure vs
