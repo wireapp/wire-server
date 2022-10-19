@@ -90,7 +90,6 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import qualified Network.Wai.Utilities.Error as Wai
 import OpenSSL.Session as Ssl
-import qualified OpenSSL.X509.SystemStore as Ssl
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -189,7 +188,7 @@ initHttpManager o = do
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
   Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
   Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextLoadSystemCerts ctx
+  Ssl.contextSetDefaultVerifyPaths ctx
   newManager
     (opensslManagerSettings (pure ctx))
       { managerResponseTimeout = responseTimeoutMicro 10000000,

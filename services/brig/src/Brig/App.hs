@@ -135,7 +135,6 @@ import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy
 import Polysemy.Final
 import qualified Ropes.Nexmo as Nexmo
@@ -339,7 +338,7 @@ initHttpManager = do
   SSL.contextSetCiphers ctx "HIGH"
   SSL.contextSetVerificationMode ctx $
     SSL.VerifyPeer True True Nothing
-  SSL.contextLoadSystemCerts ctx
+  SSL.contextSetDefaultVerifyPaths ctx
   -- Unfortunately, there are quite some AWS services we talk to
   -- (e.g. SES, Dynamo) that still only support TLSv1.
   -- Ideally: SSL.contextAddOption ctx SSL_OP_NO_TLSv1
@@ -369,7 +368,7 @@ initExtGetManager = do
   -- We use public key pinning with service providers and want to
   -- support self-signed certificates as well, hence 'VerifyNone'.
   SSL.contextSetVerificationMode ctx SSL.VerifyNone
-  SSL.contextLoadSystemCerts ctx
+  SSL.contextSetDefaultVerifyPaths ctx
   mgr <-
     newManager
       (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
