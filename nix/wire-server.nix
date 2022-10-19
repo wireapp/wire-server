@@ -216,6 +216,7 @@ let lib = pkgs.lib;
                            '';
           config = {
             Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}"];
+            Env = ["SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"];
           };
         }
       ) (staticExecs localMods);

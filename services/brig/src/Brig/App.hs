@@ -135,7 +135,6 @@ import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy
 import Polysemy.Final
 import qualified Ropes.Nexmo as Nexmo
