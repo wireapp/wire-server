@@ -72,7 +72,7 @@ RUN curl -h
 RUN set -x \
     && addgroup -g 101 -S nginx \
     && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
-    && export GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
+    && export GPG_KEYS=13C82A63B603576156E30A4EA0EA981B66B0D967 \
     && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
     && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc  -o nginx.tar.gz.asc \
     && found=''; \
