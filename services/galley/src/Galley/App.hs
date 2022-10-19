@@ -189,7 +189,7 @@ initHttpManager o = do
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
   Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
   Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextLoadSystemCerts ctx
+  Ssl.contextSetDefaultVerifyPaths ctx
   newManager
     (opensslManagerSettings (pure ctx))
       { managerResponseTimeout = responseTimeoutMicro 10000000,

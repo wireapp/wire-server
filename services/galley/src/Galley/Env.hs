@@ -34,7 +34,6 @@ import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest
 import OpenSSL.Session as Ssl
-import qualified OpenSSL.X509.SystemStore as Ssl
 import Ssl.Util
 import System.Logger
 import Util.Options
@@ -80,7 +79,7 @@ initExtEnv = do
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
   Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
   Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextLoadSystemCerts ctx
+  Ssl.contextSetDefaultVerifyPaths ctx
   mgr <-
     newManager
       (opensslManagerSettings (pure ctx))
