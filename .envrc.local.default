@@ -1,0 +1,5 @@
+# In order to run integration tests
+# we need ngin(xz) locally built using nix.
+# Copy/move this file to .envrc.local for that to work
+export COMPILE_NGINX_USING_NIX=1
+export INTEGRATION_USE_NGINZ=1
