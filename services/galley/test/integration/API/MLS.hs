@@ -176,7 +176,8 @@ tests s =
       testGroup
         "CommitBundle"
         [ test s "add user with a commit bundle" testAddUserWithBundle,
-          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoveConvWithBundle
+          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoveConvWithBundle,
+          test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
         ]
     ]
 
@@ -1961,3 +1962,44 @@ testAddUserToRemoveConvWithBundle = do
       msrConvId msr @?= qUnqualified qcnv
       msrSender msr @?= qUnqualified bob
       fromBase64ByteString (msrRawMessage msr) @?= commitBundle
+
+testRemoteUserPostsCommitBundle :: TestM ()
+testRemoteUserPostsCommitBundle = do
+  let bobDomain = "bob.example.com"
+  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Just bobDomain, Just bobDomain]
+  fedGalleyClient <- view tsFedGalleyClient
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    (_, qcnv) <- setupMLSGroup alice1
+
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True . ciClient)
+              $ [bob1]
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    commit <- createAddCommit alice1 [bob]
+    void $
+      withTempMockFederator' mock $ do
+        void $ sendAndConsumeCommit commit
+        putOtherMemberQualified (qUnqualified alice) bob (OtherMemberUpdate (Just roleNameWireAdmin)) qcnv
+          !!! const 200 === statusCode
+
+        [_charlie1] <- traverse createMLSClient [charlie]
+        commitAddCharlie <- createAddCommit bob1 [charlie]
+        commitBundle <- createBundle commitAddCharlie
+
+        let msr = MessageSendRequest (qUnqualified qcnv) (qUnqualified bob) (Base64ByteString commitBundle)
+        -- we can't fully test it, because remote admins are not implemeted, but
+        -- at least this proves that proposal processing has started on the
+        -- backend
+        MLSMessageResponseError MLSUnsupportedProposal <- runFedClient @"send-mls-commit-bundle" fedGalleyClient (Domain bobDomain) msr
+
+        pure ()
