@@ -46,7 +46,7 @@ ENV CONFIG --prefix=/etc/nginx \
 # This uses dockerfile logic from before 1.16
 ####################################################################################
 
-ENV NGINX_VERSION 1.20.2
+ENV NGINX_VERSION 1.22.1
 
 RUN apk update
 
