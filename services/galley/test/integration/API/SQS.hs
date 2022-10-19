@@ -42,7 +42,6 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.Session as Ssl
-import qualified OpenSSL.X509.SystemStore as Ssl
 import Proto.TeamEvents as E
 import Proto.TeamEvents_Fields as E
 import Safe (headDef)
@@ -243,7 +242,7 @@ initHttpManager = do
   Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
   Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
   Ssl.contextSetCiphers ctx rsaCiphers
-  Ssl.contextLoadSystemCerts ctx
+  Ssl.contextSetDefaultVerifyPaths ctx
   newManager
     (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
       { managerResponseTimeout = responseTimeoutMicro 10000000,
