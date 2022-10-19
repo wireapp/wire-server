@@ -42,7 +42,6 @@ import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.Session as Ssl
-import qualified OpenSSL.X509.SystemStore as Ssl
 import Proto.TeamEvents as E
 import Proto.TeamEvents_Fields as E
 import Safe (headDef)
