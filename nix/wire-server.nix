@@ -57,13 +57,13 @@ let lib = pkgs.lib;
 
     gitignoreSource =
       let gitignoreSrc = pkgs.fetchFromGitHub {
-        owner = "hercules-ci";
-        repo = "gitignore.nix";
-        # put the latest commit sha of gitignore Nix library here:
-        rev = "a20de23b925fd8264fd7fad6454652e142fd7f73";
-        # use what nix suggests in the mismatch message here:
-        sha256 = "sha256:07vg2i9va38zbld9abs9lzqblz193vc5wvqd6h7amkmwf66ljcgh";
-      };
+            owner = "hercules-ci";
+            repo = "gitignore.nix";
+            # put the latest commit sha of gitignore Nix library here:
+            rev = "a20de23b925fd8264fd7fad6454652e142fd7f73";
+            # use what nix suggests in the mismatch message here:
+            sha256 = "sha256:07vg2i9va38zbld9abs9lzqblz193vc5wvqd6h7amkmwf66ljcgh";
+          };
       in (import gitignoreSrc { inherit (pkgs) lib; }).gitignoreSource;
 
     # Mapping from package -> [executable]
@@ -291,6 +291,21 @@ let lib = pkgs.lib;
         experimental-features = "nix-command";
       };
     };
+
+    shell = (hPkgs localModsOnlyTests).shellFor {
+      packages = p: builtins.map (e: p.${e}) wireServerPackages;
+    };
+    ghcWithPackages = shell.nativeBuildInputs ++ shell.buildInputs;
+
+    profileEnv = pkgs.writeTextFile {
+      name = "profile-env";
+      destination = "/.profile";
+      # This gets sourced by direnv. Set NIX_PATH, so `nix-shell` uses the same nixpkgs as here.
+      text = ''
+        export NIX_PATH=nixpkgs=${toString pkgs.path}
+        export LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive
+        '';
+    };
 in {
   inherit ciImage hoogleImage;
 
@@ -303,11 +318,11 @@ in {
     enableTests = true;
     enableDocs = false;
   };
-  imagesList = imagesList;
+  inherit imagesList;
 
-  devShell = (hPkgs localModsOnlyTests).shellFor {
-    packages = p: builtins.map (e: p.${e}) wireServerPackages;
-    buildInputs = commonTools ++ [
+  devEnv = pkgs.buildEnv {
+    name = "wire-server-dev-env";
+    paths = commonTools ++ [
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
       pkgs.ghcid
       pkgs.cfssl
@@ -322,13 +337,16 @@ in {
       pkgs.cabal-install
       pkgs.haskellPackages.cabal-plan
       pkgs.nix-prefetch-git
-    ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+      profileEnv
+    ]
+    ++ ghcWithPackages
+    ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
       # linux-only, not strictly required tools
-
       pkgs.docker-compose
       pkgs.telepresence
     ];
   };
+
   inherit brig-templates;
   haskellPackages = hPkgs localModsEnableAll;
   haskellPackagesUnoptimizedNoDocs = hPkgs localModsOnlyTests;
