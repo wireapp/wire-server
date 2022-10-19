@@ -299,7 +299,7 @@ in {
   # Used for production images, ensure that optimizations and tests are always
   # enabled!
   imagesNoDocs = images {
-    enableOptimzation = true;
+    enableOptimization = true;
     enableTests = true;
     enableDocs = false;
   };
