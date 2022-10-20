@@ -186,55 +186,6 @@ shellcheck:
 	./hack/bin/shellcheck.sh
 
 #################################
-## running integration tests
-
-# Build services with --fast and run tests
-.PHONY: integration
-integration: fast i
-
-# Run tests without building services
-.PHONY: i
-i:
-	$(MAKE) -C services/cargohold i
-	$(MAKE) -C services/galley i
-	$(MAKE) -C services/brig i
-	$(MAKE) -C services/gundeck i
-	$(MAKE) -C services/spar i
-
-# Build services and run tests using AWS
-.PHONY: integration-aws
-integration-aws: fast i-aws
-
-# Run tests using AWS
-.PHONY: i-aws
-i-aws:
-	$(MAKE) -C services/cargohold i-aws
-	$(MAKE) -C services/galley i-aws
-	$(MAKE) -C services/brig i-aws
-	$(MAKE) -C services/gundeck i-aws
-	$(MAKE) -C services/spar i-aws
-
-# Build services and run tests of one service using AWS
-.PHONY: integration-aws-%
-integration-aws-%: fast
-	$(MAKE) "i-aws-$*"
-
-# Run tests of one service using AWS
-.PHONY: i-aws-%
-i-aws-%:
-	$(MAKE) -C "services/$*" i-aws
-
-# Build services and run tests of one service
-.PHONY: integration-%
-integration-%: fast
-	$(MAKE) "i-$*"
-
-# Run tests of one service
-.PHONY: i-%
-i-%:
-	$(MAKE) -C "services/$*" i
-
-#################################
 ## docker targets
 
 .PHONY: upload-images
