@@ -5,7 +5,7 @@ As a prerequisiste install the [nix package manager](https://nixos.org/) and [di
 All following commands expect that you've entered the nix-provided build-environment by running `direnv allow`.
 
 
-1. Create a `.envrc.local` file with these contents
+1. Create a `.envrc.local` file with these contents (or rename the provided `.envrc.local.default`)
 
     ```
     export COMPILE_NGINX_USING_NIX=1
