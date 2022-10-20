@@ -724,10 +724,11 @@ deleteAccountH ::
 deleteAccountH (pid ::: req) = do
   guardSecondFactorDisabled Nothing
   empty
-    <$ ( mapExceptT wrapHttpClient $
-           deleteAccount pid
-             =<< parseJsonBody req
-       )
+    <$ mapExceptT
+      wrapHttpClient
+      ( deleteAccount pid
+          =<< parseJsonBody req
+      )
 
 deleteAccount ::
   ( MonadReader Env m,
