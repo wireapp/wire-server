@@ -318,6 +318,7 @@ in {
       pkgs.rsync
       pkgs.wget
       pkgs.yq
+      pkgs.nginz
 
       pkgs.cabal-install
       pkgs.haskellPackages.cabal-plan
