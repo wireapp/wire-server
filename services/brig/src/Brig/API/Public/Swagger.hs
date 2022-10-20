@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Brig.API.Public.Swagger
   ( SwaggerDocsAPI,
     pregenSwagger,

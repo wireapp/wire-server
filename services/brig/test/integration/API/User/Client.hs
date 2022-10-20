@@ -414,7 +414,8 @@ testClientsWithoutPrekeys brig cannon db opts = do
   let removeClientKeys :: DB.PrepQuery DB.W (UserId, ClientId) ()
       removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
   liftIO $
-    DB.runClient db $ DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, clientId c11))
+    DB.runClient db $
+      DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, clientId c11))
 
   uid2 <- userId <$> randomUser brig
 
@@ -441,13 +442,12 @@ testClientsWithoutPrekeys brig cannon db opts = do
         const 200 === statusCode
         const
           ( Right $
-              ( expectedClientMap
-                  domain
-                  uid1
-                  [ (clientId c11, Nothing),
-                    (clientId c12, Just pk12)
-                  ]
-              )
+              expectedClientMap
+                domain
+                uid1
+                [ (clientId c11, Nothing),
+                  (clientId c12, Just pk12)
+                ]
           )
           === responseJsonEither
 
@@ -701,7 +701,8 @@ testRemoveClient hasPwd brig cannon = do
   -- Permanent client with attached cookie
   when hasPwd $ do
     login brig (defEmailLogin email) PersistentCookie
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
     numCookies <- countCookies brig uid defCookieLabel
     liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
@@ -711,7 +712,8 @@ testRemoveClient hasPwd brig cannon = do
   -- Success
   WS.bracketR cannon uid $ \ws -> do
     deleteClient brig uid (clientId c) (if hasPwd then Just defPasswordText else Nothing)
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
@@ -747,13 +749,15 @@ testRemoveClientShortPwd brig = do
   let Just email = userEmail u
   -- Permanent client with attached cookie
   login brig (defEmailLogin email) PersistentCookie
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   numCookies <- countCookies brig uid defCookieLabel
   liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
   resp <-
     deleteClient brig uid (clientId c) (Just "a")
-      <!! const 400 === statusCode
+      <!! const 400
+      === statusCode
   err :: Object <- responseJsonError resp
   liftIO $ do
     (err ^. at "code") @?= Just (Number 400)
@@ -781,13 +785,15 @@ testRemoveClientIncorrectPwd brig = do
   let Just email = userEmail u
   -- Permanent client with attached cookie
   login brig (defEmailLogin email) PersistentCookie
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   numCookies <- countCookies brig uid defCookieLabel
   liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
   resp <-
     deleteClient brig uid (clientId c) (Just "abcdef")
-      <!! const 403 === statusCode
+      <!! const 403
+      === statusCode
   err :: Object <- responseJsonError resp
   liftIO $ do
     (err ^. at "code") @?= Just (Number 403)
@@ -949,7 +955,8 @@ testUpdateClient opts brig = do
                 updateClientLabel = Just label
               }
       )
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
     checkClientLabel
     put
       ( brig
@@ -957,7 +964,8 @@ testUpdateClient opts brig = do
           . zUser uid
           . json defUpdateClient {updateClientCapabilities = caps}
       )
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
     checkClientLabel
     checkClientPrekeys prekey
     checkClientPrekeys (unpackLastPrekey lastprekey)
@@ -987,7 +995,9 @@ testMissingClient brig = do
     -- This is unfortunate, but fixing this breaks clients.
     const Nothing === responseBody
     const ["text/plain;charset=utf-8"]
-      === map snd . filter ((== "Content-Type") . fst) . responseHeaders
+      === map snd
+        . filter ((== "Content-Type") . fst)
+        . responseHeaders
 
 -- The testAddMultipleTemporary test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -1125,7 +1135,8 @@ testCan'tDeleteLegalHoldClient brig = do
   let lk = head someLastPrekeys
   resp <-
     addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
-      <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
   lhClientId <- clientId <$> responseJsonError resp
   deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode
 

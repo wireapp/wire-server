@@ -1,7 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use shutdown" #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -343,7 +347,7 @@ getPeerConnectivityStats lgr seed dom = do
           (`connect` SockAddrInet (fromIntegral port) (toHostAddress addr))
 
     mkAddr (_, Left _) = mempty
-    mkAddr (rr, Right ips) = map (\ip -> (ip, _3 rr)) ips
+    mkAddr (rr, Right ips) = (,_3 rr) <$> ips
 
     _4 (_, _, _, x) = x
     _3 (_, _, x, _) = x

@@ -349,8 +349,8 @@ claimLocalMultiPrekeyBundles protectee userClients = do
       e <- ask
       AppT $
         lift $
-          fmap (Map.fromListWith (<>)) $
-            unsafePooledMapConcurrentlyN
+          Map.fromListWith (<>)
+            <$> unsafePooledMapConcurrentlyN
               16
               (\(u, cids) -> (u,) <$> lowerAppT e (getUserKeys u cids))
               (Map.toList m)
