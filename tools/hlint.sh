@@ -43,11 +43,10 @@ if [ "${k}" ]; then
   set -euo pipefail
 fi
 
-count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
-
 if [ "$f" = "all" ]; then
   hlint -g -v
 else
+  count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
   echo "Analysing $count file(s)…"
   for f in $files
   do
