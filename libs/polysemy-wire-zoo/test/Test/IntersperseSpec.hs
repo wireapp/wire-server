@@ -13,6 +13,7 @@ import Polysemy.Trace
 import Test.Hspec
 import UnliftIO (async)
 
+{-# ANN spec ("HLint: ignore Redundant pure" :: String) #-}
 spec :: Spec
 spec = do
   -- This test spins up an async thread that communicates with the main
