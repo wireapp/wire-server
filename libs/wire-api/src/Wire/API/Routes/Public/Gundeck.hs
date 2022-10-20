@@ -18,6 +18,7 @@
 module Wire.API.Routes.Public.Gundeck where
 
 import Data.Id (ClientId)
+import Data.Range
 import Data.SOP
 import qualified Data.Swagger as Swagger
 import Imports
@@ -94,6 +95,22 @@ type NotificationAPI =
                        Respond 200 "Notification found" QueuedNotification
                      ]
                     (Maybe QueuedNotification)
+           )
+    :<|> Named
+           "get-notifications"
+           ( Summary "Fetch notifications"
+               :> ZUser
+               :> "notifications"
+               :> QueryParam' [Optional, Strict, Description "Only return notifications more recent than this"] "since" RawNotificationId
+               :> QueryParam' [Optional, Strict, Description "Only return notifications targeted at the given client"] "client" ClientId
+               :> QueryParam' [Optional, Strict, Description "Maximum number of notifications to return"] "size" (Range 100 10000 Int32)
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ Respond 404 "Notification list" QueuedNotificationList,
+                       Respond 200 "Notification list" QueuedNotificationList
+                     ]
+                    GetNotificationsResponse
            )
 
 swaggerDoc :: Swagger.Swagger

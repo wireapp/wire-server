@@ -20,6 +20,7 @@
 
 module Wire.API.Notification
   ( NotificationId,
+    RawNotificationId (..),
     Event,
 
     -- * QueuedNotification
@@ -32,6 +33,7 @@ module Wire.API.Notification
     queuedNotifications,
     queuedHasMore,
     queuedTime,
+    GetNotificationsResponse (..),
 
     -- * Swagger
     modelEvent,
@@ -46,11 +48,16 @@ import qualified Data.Aeson.Types as Aeson
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty)
+import Data.SOP
 import Data.Schema
+import Data.String.Conversions (cs)
+import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time.Clock (UTCTime)
 import Imports
+import Servant
+import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 type NotificationId = Id QueuedNotification
@@ -131,3 +138,23 @@ instance ToSchema QueuedNotificationList where
         .= maybe_ (optField "time" utcTimeSchema)
 
 makeLenses ''QueuedNotificationList
+
+newtype RawNotificationId = RawNotificationId {unRawNotificationId :: ByteString}
+  deriving stock (Eq, Show, Generic)
+
+instance FromHttpApiData RawNotificationId where
+  parseUrlPiece = pure . RawNotificationId . cs
+
+instance ToParamSchema RawNotificationId where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+data GetNotificationsResponse
+  = GetNotificationsWithStatusNotFound QueuedNotificationList
+  | GetNotificationsSuccess QueuedNotificationList
+
+instance AsUnion '[Respond 404 "Notification list" QueuedNotificationList, Respond 200 "Notification list" QueuedNotificationList] GetNotificationsResponse where
+  toUnion (GetNotificationsSuccess xs) = S (Z (I xs))
+  toUnion (GetNotificationsWithStatusNotFound xs) = Z (I xs)
+  fromUnion (S (Z (I xs))) = GetNotificationsSuccess xs
+  fromUnion (Z (I xs)) = GetNotificationsWithStatusNotFound xs
+  fromUnion (S (S x)) = case x of {}
