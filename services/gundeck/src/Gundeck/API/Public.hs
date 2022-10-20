@@ -57,6 +57,7 @@ servantSitemap = pushAPI :<|> notificationAPI
     pushAPI =
       Named @"register-push-token" addToken
         :<|> Named @"delete-push-token" deleteToken
+        :<|> Named @"get-push-tokens" listTokens
 
     notificationAPI =
       Named @"get-notification-by-id" getById
@@ -67,16 +68,6 @@ servantSitemap = pushAPI :<|> notificationAPI
 
 sitemap :: Routes ApiBuilder Gundeck ()
 sitemap = do
-  -- Push API -----------------------------------------------------------
-
-  get "/push/tokens" (continue listTokensH) $
-    header "Z-User"
-      .&. accept "application" "json"
-  document "GET" "getPushTokens" $ do
-    summary "List the user's registered push tokens."
-    returns (ref Public.modelPushTokenList)
-    response 200 "Object containing list of push tokens" end
-
   -- Notification API --------------------------------------------------------
 
   get "/notifications" (continue paginateH) $
@@ -125,9 +116,8 @@ addToken uid cid newtok =
 deleteToken :: UserId -> Public.Token -> Gundeck (Maybe ())
 deleteToken = Push.deleteToken
 
-listTokensH :: UserId ::: JSON -> Gundeck Response
-listTokensH (uid ::: _) =
-  setStatus status200 . json @Public.PushTokenList <$> Push.listTokens uid
+listTokens :: UserId -> Gundeck Public.PushTokenList
+listTokens = Push.listTokens
 
 -- | Returns a list of notifications for given 'uid'
 --

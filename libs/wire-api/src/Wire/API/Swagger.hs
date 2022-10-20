@@ -30,7 +30,6 @@ import qualified Wire.API.Message as Message
 import qualified Wire.API.Notification as Notification
 import qualified Wire.API.Properties as Properties
 import qualified Wire.API.Provider.Service as Provider.Service
-import qualified Wire.API.Push.Token as Push.Token
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
 import qualified Wire.API.Team.Invitation as Team.Invitation
@@ -85,8 +84,6 @@ models =
     Properties.modelPropertyValue,
     Properties.modelPropertyDictionary,
     Provider.Service.modelServiceRef,
-    Push.Token.modelPushToken,
-    Push.Token.modelPushTokenList,
     Team.modelTeam,
     Team.modelTeamList,
     Team.modelTeamDelete,

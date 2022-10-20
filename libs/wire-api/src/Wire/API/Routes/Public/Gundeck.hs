@@ -53,6 +53,16 @@ type PushAPI =
                :> Capture' '[Description "The push token to delete"] "pid" Token
                :> MultiVerb 'DELETE '[JSON] DeleteTokenResponses (Maybe ())
            )
+    :<|> Named
+           "get-push-tokens"
+           ( Summary "List the user's registered push tokens"
+               :> ZUser
+               :> "push"
+               :> "tokens"
+               :> Get
+                    '[JSON]
+                    PushTokenList
+           )
 
 type NotificationAPI =
   Named

@@ -39,11 +39,6 @@ module Wire.API.Push.V2.Token
     AddTokenSuccess (..),
     AddTokenResponses,
     DeleteTokenResponses,
-
-    -- * Swagger
-    modelPushToken,
-    modelPushTokenList,
-    typeTransport,
   )
 where
 
@@ -56,7 +51,6 @@ import Data.SOP
 import Data.Schema
 import Data.Swagger (ToParamSchema)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Generics.SOP as GSOP
 import Imports
 import Servant
@@ -73,14 +67,7 @@ newtype PushTokenList = PushTokenList
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
-  deriving (A.ToJSON, A.FromJSON) via (Schema PushTokenList)
-
--- todo(leif): remove when last endpoint is servantified
-modelPushTokenList :: Doc.Model
-modelPushTokenList = Doc.defineModel "PushTokenList" $ do
-  Doc.description "List of Native Push Tokens"
-  Doc.property "tokens" (Doc.array (Doc.ref modelPushToken)) $
-    Doc.description "Push tokens"
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema PushTokenList)
 
 instance ToSchema PushTokenList where
   schema =
@@ -101,20 +88,6 @@ data PushToken = PushToken
 
 pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
 pushToken = PushToken
-
--- todo(leif): remove when last endpoint is servantified
-modelPushToken :: Doc.Model
-modelPushToken = Doc.defineModel "PushToken" $ do
-  Doc.description "Native Push Token"
-  Doc.property "transport" typeTransport $
-    Doc.description "Transport"
-  Doc.property "app" Doc.string' $
-    Doc.description "Application"
-  Doc.property "token" Doc.bytes' $
-    Doc.description "Access Token"
-  Doc.property "client" Doc.bytes' $ do
-    Doc.description "Client ID"
-    Doc.optional
 
 instance ToSchema PushToken where
   schema =
@@ -147,17 +120,6 @@ data Transport
   deriving stock (Eq, Ord, Show, Bounded, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform Transport)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Transport)
-
-typeTransport :: Doc.DataType
-typeTransport =
-  Doc.string $
-    Doc.enum
-      [ "GCM",
-        "APNS",
-        "APNS_SANDBOX",
-        "APNS_VOIP",
-        "APNS_VOIP_SANDBOX"
-      ]
 
 instance ToSchema Transport where
   schema =
