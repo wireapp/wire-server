@@ -251,10 +251,16 @@ let lib = pkgs.lib;
       name = "quay.io/wire/wire-server-hoogle";
       maxLayers = 50;
       contents = [
-        hoogle
+        pkgs.cacert
         pkgs.coreutils
         pkgs.bashInteractive
+        pkgs.dumb-init
+        hoogle
       ];
+      config = {
+        Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${hoogle}/bin/hoogle" "server" "--local" "--host=*"];
+        Env = ["SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"];
+      };
     };
 
     # Tools common between CI and developers
