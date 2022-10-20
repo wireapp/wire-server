@@ -120,6 +120,14 @@ Keys below ``gundeck.secrets`` belong into ``values/wire-server/secrets.yaml``:
 
 After making this change and applying it to gundeck (ensure gundeck pods have restarted to make use of the updated configuration - that should happen automatically), make sure to reset the push token on any mobile devices that you may have in use.
 
+Next, if you want, you can stop using the `fake-aws-sns` pods in case you ran them before:
+
+.. code:: yaml
+
+   # inside override values/fake-aws/values.yaml
+   fake-aws-sns:
+     enabled: false
+
 Controlling the speed of websocket draining during cannon pod replacement
 -------------------------------------------------------------------------
 
