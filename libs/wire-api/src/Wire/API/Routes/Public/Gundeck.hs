@@ -61,7 +61,7 @@ type NotificationAPI =
         :> ZUser
         :> "notifications"
         :> Capture' '[Description "Notification ID"] "id" NotificationId
-        :> QueryParam' [Optional, Strict, Description "Only return notifications targeted at the given client."] "client" ClientId
+        :> QueryParam' [Optional, Strict, Description "Only return notifications targeted at the given client"] "client" ClientId
         :> MultiVerb
              'GET
              '[JSON]
@@ -70,6 +70,21 @@ type NotificationAPI =
               ]
              (Maybe QueuedNotification)
     )
+    :<|> Named
+           "get-last-notification"
+           ( Summary "Fetch the last notification"
+               :> ZUser
+               :> "notifications"
+               :> "last"
+               :> QueryParam' [Optional, Strict, Description "Only return notifications targeted at the given client"] "client" ClientId
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ ErrorResponse 'E.NotificationNotFound,
+                       Respond 200 "Notification found" QueuedNotification
+                     ]
+                    (Maybe QueuedNotification)
+           )
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @GundeckAPI)

@@ -58,7 +58,9 @@ servantSitemap = pushAPI :<|> notificationAPI
       Named @"register-push-token" addToken
         :<|> Named @"delete-push-token" deleteToken
 
-    notificationAPI = Named @"get-notification-by-id" getById
+    notificationAPI =
+      Named @"get-notification-by-id" getById
+        :<|> Named @"get-last-notification" getLastNotification
 
 --------------------------------------------------------------------------------
 -- Wai Routes API
@@ -97,19 +99,6 @@ sitemap = do
     returns (ref Public.modelNotificationList)
     response 200 "Notification list" end
     errorResponse' notificationNotFound Public.modelNotificationList
-
-  get "/notifications/last" (continue getLastH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. opt (query "client")
-  document "GET" "getLastNotification" $ do
-    summary "Fetch the last notification."
-    parameter Query "client" bytes' $ do
-      optional
-      description "Only return the last notification targeted at the given client."
-    returns (ref Public.modelNotification)
-    response 200 "Notification found" end
-    errorResponse notificationNotFound
 
 apiDocs :: Routes ApiBuilder Gundeck ()
 apiDocs = do
@@ -193,6 +182,5 @@ paginateH (_ ::: uid ::: sinceRaw ::: clt ::: size) = do
 getById :: UserId -> NotificationId -> Maybe ClientId -> Gundeck (Maybe Public.QueuedNotification)
 getById = Notification.getById
 
-getLastH :: JSON ::: UserId ::: Maybe ClientId -> Gundeck Response
-getLastH (_ ::: uid ::: cid) =
-  json @Public.QueuedNotification <$> Notification.getLast uid cid
+getLastNotification :: UserId -> Maybe ClientId -> Gundeck (Maybe Public.QueuedNotification)
+getLastNotification = Notification.getLast

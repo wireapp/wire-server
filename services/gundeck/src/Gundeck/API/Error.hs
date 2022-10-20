@@ -26,6 +26,3 @@ notificationNotFound = mkError status404 "not-found" "Some notifications not fou
 
 clientError :: Text -> Error
 clientError = mkError status400 "client-error"
-
-invalidNotificationId :: Error
-invalidNotificationId = clientError "Notification ID must be a version 1 UUID"
