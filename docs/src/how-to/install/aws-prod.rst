@@ -8,12 +8,11 @@ Introduction
 
 The following procedures are for configuring wire-server on top of AWS. They are not required to use wire-server in AWS, but they may be a good idea, depending on the AWS features you are comfortable using.
 
-
-Using real AWS services for SNS / DynamoDB
+Using real AWS services for SNS
 --------------------------------------------------------
-AWS SNS and dynamoDB are required to send notification events to clients via `FCM <https://firebase.google.com/docs/cloud-messaging/>`__/`APNS <https://developer.apple.com/notifications/>`__ . These notification channels are useable only for clients that are connected from the public internet. Using these vendor provided communication channels allows client devices (phones) running a wire client to save a considerable amount of battery life, compared to the websockets approach.
+AWS SNS is required to send notification events to clients via `FCM <https://firebase.google.com/docs/cloud-messaging/>`__/`APNS <https://developer.apple.com/notifications/>`__ . These notification channels are useable only for clients that are connected from the public internet. Using these vendor provided communication channels allows client devices (phones) running a wire client to save a considerable amount of battery life, compared to the websockets approach.
 
-FIXME: detail this step.
+For details on how to set up SNS in cooperation with us (We - Wire - will proxy push notifications through Amazon for you), see :ref:`pushsns`.
 
 Using real AWS services for SES / SQS
 ---------------------------------------------
