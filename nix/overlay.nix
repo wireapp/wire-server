@@ -139,4 +139,8 @@ self: super: {
 
     inherit (super) stdenv fetchurl;
   };
+
+  # This is to match the ormolu version that ships with HLS.
+  # TODO(stefan): If this doesn't compile use ghc92 (which works). Remove this before merging the PR
+  ormolu = super.haskell.lib.justStaticExecutables (super.haskell.lib.doJailbreak super.haskell.packages.ghc8107.ormolu_0_5_0_1);
 }
