@@ -51,7 +51,7 @@ type family CookieTypes (cs :: [*]) :: [*]
 
 type instance CookieTypes '[] = '[]
 
-type instance CookieTypes ((lbl ::: x) ': cs) = ([Either Text x] ': CookieTypes cs)
+type instance CookieTypes ((label ::: x) ': cs) = ([Either Text x] ': CookieTypes cs)
 
 newtype CookieTuple cs = CookieTuple {unCookieTuple :: NP I (CookieTypes cs)}
 
@@ -78,16 +78,16 @@ instance CookieArgs '[] where
 
 instance
   ( CookieArgs cs,
-    KnownSymbol lbl,
+    KnownSymbol label,
     FromHttpApiData x
   ) =>
-  CookieArgs ((lbl ::: (x :: *)) ': cs)
+  CookieArgs ((label ::: (x :: *)) ': cs)
   where
-  type AddArgs ((lbl ::: x) ': cs) a = [Either Text x] -> AddArgs cs a
+  type AddArgs ((label ::: x) ': cs) a = [Either Text x] -> AddArgs cs a
   uncurryArgs f (CookieTuple (I x :* xs)) = uncurryArgs @cs (f x) (CookieTuple xs)
   mapArgs h f = mapArgs @cs h . f
   mkTuple m = do
-    let k = T.pack (symbolVal (Proxy @lbl))
+    let k = T.pack (symbolVal (Proxy @label))
     bs <- pure . maybe [] toList $ M.lookup (T.encodeUtf8 k) m
     let vs = map parseHeader bs
     CookieTuple t <- mkTuple @cs m
