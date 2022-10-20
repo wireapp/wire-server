@@ -93,10 +93,12 @@ tests s =
           test s "Fetch all notifications" testFetchAllNotifs,
           test s "Fetch new notifications" testFetchNewNotifs,
           test s "No new notifications" testNoNewNotifs,
-          test s "Missing notifications" testMissingNotifs,
+          test s "Missing notifications (until API Version 3)" testMissingNotifsV2,
+          test s "Missing notifications (from API Version 3)" testMissingNotifsV3,
           test s "Fetch last notification" testFetchLastNotif,
           test s "No last notification" testNoLastNotif,
-          test s "Bad 'since' parameter" testFetchNotifBadSince,
+          test s "Bad 'since' parameter (until API Version 3)" testFetchNotifBadSinceV2,
+          test s "Bad 'since' parameter (from API Version 3)" testFetchNotifBadSinceV3,
           test s "Fetch notification by ID" testFetchNotifById,
           test s "Filter notifications by client" testFilterNotifByClient,
           test s "Paging" testNotificationPaging
@@ -482,7 +484,7 @@ testFetchNewNotifs = do
   get
     ( runGundeckR gu
         . zUser ally
-        . path "notifications"
+        . paths ["v3", "notifications"]
         . query [("since", Just (toByteString' (ns !! 1)))]
     )
     !!! do
@@ -498,31 +500,40 @@ testNoNewNotifs = do
   get
     ( runGundeckR gu
         . zUser ally
-        . path "notifications"
+        . paths ["v3", "notifications"]
         . query [("since", Just (toByteString' n))]
     )
     !!! do
       const 200 === statusCode
       const (Just []) === parseNotificationIds
 
-testMissingNotifs :: TestM ()
-testMissingNotifs = do
-  gu <- view tsGundeck
-  other <- randomId
-  sendPush (buildPush other [(other, RecipientClientsAll)] (textPayload "hello"))
-  (old : _) <- map (view queuedNotificationId) <$> listNotifications other Nothing
-  ally <- randomId
-  sendPush (buildPush ally [(ally, RecipientClientsAll)] (textPayload "hello"))
-  ns <- listNotifications ally Nothing
-  get
-    ( runGundeckR gu
-        . zUser ally
-        . path "notifications"
-        . query [("since", Just (toByteString' old))]
-    )
-    !!! do
-      const 404 === statusCode
-      const (Just ns) === parseNotifications
+testMissingNotifsV2 :: TestM ()
+testMissingNotifsV2 = do
+  testMissingNotifs "v2" $ \ns -> do
+    const 404 === statusCode
+    const (Just ns) === parseNotifications
+
+testMissingNotifsV3 :: TestM ()
+testMissingNotifsV3 =
+  testMissingNotifs "v2" $ const $ const 404 === statusCode
+
+testMissingNotifs :: ByteString -> ([QueuedNotification] -> Assertions ()) -> TestM ()
+testMissingNotifs version checks =
+  do
+    gu <- view tsGundeck
+    other <- randomId
+    sendPush (buildPush other [(other, RecipientClientsAll)] (textPayload "hello"))
+    (old : _) <- map (view queuedNotificationId) <$> listNotifications other Nothing
+    ally <- randomId
+    sendPush (buildPush ally [(ally, RecipientClientsAll)] (textPayload "hello"))
+    ns <- listNotifications ally Nothing
+    get
+      ( runGundeckR gu
+          . zUser ally
+          . paths [version, "notifications"]
+          . query [("since", Just (toByteString' old))]
+      )
+      !!! checks ns
 
 testFetchLastNotif :: TestM ()
 testFetchLastNotif = do
@@ -543,8 +554,22 @@ testNoLastNotif = do
     const 404 === statusCode
     const (Just "not-found") =~= responseBody
 
-testFetchNotifBadSince :: TestM ()
-testFetchNotifBadSince = do
+testFetchNotifBadSinceV3 :: TestM ()
+testFetchNotifBadSinceV3 = do
+  gu <- view tsGundeck
+  ally <- randomId
+  sendPush (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
+  get
+    ( runGundeckR gu
+        . zUser ally
+        . paths ["v3", "notifications"]
+        . query [("since", Just "jumberjack")]
+    )
+    !!! do
+      const 400 === statusCode
+
+testFetchNotifBadSinceV2 :: TestM ()
+testFetchNotifBadSinceV2 = do
   gu <- view tsGundeck
   ally <- randomId
   sendPush (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
@@ -712,7 +737,7 @@ testNotificationPaging = do
             maybe id (queryItem "client" . toByteString') c
               . maybe id (queryItem "since" . toByteString') start
               . queryItem "size" (toByteString' step)
-      r <- get (runGundeckR gu . path "/notifications" . zUser u . range) <!! const 200 === statusCode
+      r <- get (runGundeckR gu . paths ["v3", "notifications"] . zUser u . range) <!! const 200 === statusCode
       let rs = decode =<< responseBody r
       let (ns, more) = (fmap (view queuedNotifications) &&& fmap (view queuedHasMore)) rs
       let count' = count + step
@@ -1093,7 +1118,7 @@ getNotifications u c =
     get $
       runGundeckR gu
         . zUser u
-        . path "notifications"
+        . paths ["v3", "notifications"]
         . maybe id (queryItem "client" . toByteString') c
 
 getLastNotification :: UserId -> Maybe ClientId -> TestM (Response (Maybe BL.ByteString))

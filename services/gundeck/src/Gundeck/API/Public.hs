@@ -48,6 +48,7 @@ servantSitemap = pushAPI :<|> notificationAPI
     notificationAPI =
       Named @"get-notification-by-id" getById
         :<|> Named @"get-last-notification" getLastNotification
+        :<|> Named @"get-notifications@v2" paginateUntilV2
         :<|> Named @"get-notifications" paginate
 
 addToken :: UserId -> ConnId -> Public.PushToken -> Gundeck (Either Public.AddTokenError Public.AddTokenSuccess)
@@ -98,13 +99,13 @@ listTokens = Push.listTokens
 --
 -- (arianvp): I am not sure why it is convenient for clients to distinct
 -- between these two cases.
-paginate ::
+paginateUntilV2 ::
   UserId ->
   Maybe Public.RawNotificationId ->
   Maybe ClientId ->
   Maybe (Range 100 10000 Int32) ->
   Gundeck Public.GetNotificationsResponse
-paginate uid mbSince mbClient mbSize = do
+paginateUntilV2 uid mbSince mbClient mbSize = do
   let size = fromMaybe (unsafeRange 1000) mbSize
   Notification.PaginateResult gap page <- Notification.paginate uid (join since) mbClient size
   pure $
@@ -123,6 +124,17 @@ paginate uid mbSince mbClient mbSize = do
 
     isV1UUID :: UUID -> Maybe UUID
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
+
+paginate ::
+  UserId ->
+  Maybe Public.NotificationId ->
+  Maybe ClientId ->
+  Maybe (Range 100 10000 Int32) ->
+  Gundeck (Maybe Public.QueuedNotificationList)
+paginate uid mbSince mbClient mbSize = do
+  let size = fromMaybe (unsafeRange 1000) mbSize
+  Notification.PaginateResult gap page <- Notification.paginate uid mbSince mbClient size
+  pure $ if gap then Nothing else Just page
 
 getById :: UserId -> Public.NotificationId -> Maybe ClientId -> Gundeck (Maybe Public.QueuedNotification)
 getById = Notification.getById

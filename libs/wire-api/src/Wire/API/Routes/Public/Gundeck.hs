@@ -31,6 +31,7 @@ import Wire.API.Push.V2.Token
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Version
 
 type GundeckAPI = PushAPI :<|> NotificationAPI
 
@@ -97,8 +98,9 @@ type NotificationAPI =
                     (Maybe QueuedNotification)
            )
     :<|> Named
-           "get-notifications"
+           "get-notifications@v2"
            ( Summary "Fetch notifications"
+               :> Until 'V3
                :> ZUser
                :> "notifications"
                :> QueryParam' [Optional, Strict, Description "Only return notifications more recent than this"] "since" RawNotificationId
@@ -111,6 +113,23 @@ type NotificationAPI =
                        Respond 200 "Notification list" QueuedNotificationList
                      ]
                     GetNotificationsResponse
+           )
+    :<|> Named
+           "get-notifications"
+           ( Summary "Fetch notifications"
+               :> From 'V3
+               :> ZUser
+               :> "notifications"
+               :> QueryParam' [Optional, Strict, Description "Only return notifications more recent than this"] "since" NotificationId
+               :> QueryParam' [Optional, Strict, Description "Only return notifications targeted at the given client"] "client" ClientId
+               :> QueryParam' [Optional, Strict, Description "Maximum number of notifications to return"] "size" (Range 100 10000 Int32)
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ ErrorResponse 'E.NotificationNotFound,
+                       Respond 200 "Notification list" QueuedNotificationList
+                     ]
+                    (Maybe QueuedNotificationList)
            )
 
 swaggerDoc :: Swagger.Swagger
