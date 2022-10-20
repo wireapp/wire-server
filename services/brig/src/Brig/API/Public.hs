@@ -62,7 +62,6 @@ import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
-import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Handle as Handle
 import Brig.User.API.Search (teamUserSearch)
 import qualified Brig.User.API.Search as Search
@@ -328,7 +327,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Provider.routesPublic
-  Auth.routesPublic
   Team.routesPublic
   Calling.routesPublic
 

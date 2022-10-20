@@ -110,7 +110,6 @@ library
     Brig.Team.Util
     Brig.Template
     Brig.Unique
-    Brig.User.API.Auth
     Brig.User.API.Handle
     Brig.User.API.Search
     Brig.User.Auth
