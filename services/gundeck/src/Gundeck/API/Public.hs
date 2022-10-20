@@ -52,9 +52,13 @@ import qualified Wire.API.Swagger as Public.Swagger
 -- Servant API
 
 servantSitemap :: ServerT GundeckAPI Gundeck
-servantSitemap =
-  Named @"register-push-token" addToken
-    :<|> Named @"delete-push-token" deleteToken
+servantSitemap = pushAPI :<|> notificationAPI
+  where
+    pushAPI =
+      Named @"register-push-token" addToken
+        :<|> Named @"delete-push-token" deleteToken
+
+    notificationAPI = Named @"get-notification-by-id" getById
 
 --------------------------------------------------------------------------------
 -- Wai Routes API
@@ -93,22 +97,6 @@ sitemap = do
     returns (ref Public.modelNotificationList)
     response 200 "Notification list" end
     errorResponse' notificationNotFound Public.modelNotificationList
-
-  get "/notifications/:id" (continue getByIdH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "id"
-      .&. opt (query "client")
-  document "GET" "getNotification" $ do
-    summary "Fetch a notification by ID."
-    parameter Query "id" bytes' $
-      description "Notification ID"
-    parameter Query "client" bytes' $ do
-      optional
-      description "Only return notifications targeted at the given client."
-    returns (ref Public.modelNotification)
-    response 200 "Notification found" end
-    errorResponse notificationNotFound
 
   get "/notifications/last" (continue getLastH) $
     accept "application" "json"
@@ -202,9 +190,8 @@ paginateH (_ ::: uid ::: sinceRaw ::: clt ::: size) = do
       Nothing -> id
       Just Nothing -> setStatus status404
 
-getByIdH :: JSON ::: UserId ::: NotificationId ::: Maybe ClientId -> Gundeck Response
-getByIdH (_ ::: uid ::: nid ::: cid) =
-  json @Public.QueuedNotification <$> Notification.getById uid nid cid
+getById :: UserId -> NotificationId -> Maybe ClientId -> Gundeck (Maybe Public.QueuedNotification)
+getById = Notification.getById
 
 getLastH :: JSON ::: UserId ::: Maybe ClientId -> Gundeck Response
 getLastH (_ ::: uid ::: cid) =

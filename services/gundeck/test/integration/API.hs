@@ -181,7 +181,8 @@ replacePresence = do
     assertTrue "Cannon is not removed" $
       elem localhost8080 . map resource . decodePresence
   setPresence gu pres2
-    !!! const 201 === statusCode
+    !!! const 201
+    === statusCode
   getPresence gu (showUser uid) !!! do
     const 2 === length . decodePresence
     assertTrue "New Cannon" $
@@ -729,7 +730,8 @@ testUnregisterClient = do
   uid <- randomId
   cid <- randomClientId
   unregisterClient g uid cid
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
 
 -----------------------------------------------------------------------------
 -- Native push token registration
@@ -915,7 +917,8 @@ testRedisMigration = do
   withSettingsOverrides (optRedisAdditionalWrite ?~ redis2) $ do
     g <- view tsGundeck
     setPresence g presence
-      !!! const 201 === statusCode
+      !!! const 201
+      === statusCode
     retrievedPresence <-
       map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
     liftIO $ assertEqual "With both redises: presences should match the set presences" [cannonURI] retrievedPresence
@@ -1167,7 +1170,8 @@ randomUser = do
             "password" .= ("secret" :: Text)
           ]
   r <- post (runBrigR br . path "/i/users" . json p)
-  pure . readNote "unable to parse Location header"
+  pure
+    . readNote "unable to parse Location header"
     . C.unpack
     $ getHeader' "Location" r
   where

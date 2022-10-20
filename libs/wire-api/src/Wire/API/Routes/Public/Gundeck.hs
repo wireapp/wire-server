@@ -17,17 +17,23 @@
 
 module Wire.API.Routes.Public.Gundeck where
 
+import Data.Id (ClientId)
 import Data.SOP
 import qualified Data.Swagger as Swagger
 import Imports
 import Servant
 import Servant.Swagger
+import Wire.API.Error
+import Wire.API.Error.Gundeck as E
+import Wire.API.Notification
 import Wire.API.Push.V2.Token
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 
-type GundeckAPI =
+type GundeckAPI = PushAPI :<|> NotificationAPI
+
+type PushAPI =
   Named
     "register-push-token"
     ( Summary "Register a native push token"
@@ -47,6 +53,23 @@ type GundeckAPI =
                :> Capture' '[Description "The push token to delete"] "pid" Token
                :> MultiVerb 'DELETE '[JSON] DeleteTokenResponses (Maybe ())
            )
+
+type NotificationAPI =
+  Named
+    "get-notification-by-id"
+    ( Summary "Fetch a notification by ID"
+        :> ZUser
+        :> "notifications"
+        :> Capture' '[Description "Notification ID"] "id" NotificationId
+        :> QueryParam' [Optional, Strict, Description "Only return notifications targeted at the given client."] "client" ClientId
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ ErrorResponse 'E.NotificationNotFound,
+                Respond 200 "Notification found" QueuedNotification
+              ]
+             (Maybe QueuedNotification)
+    )
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @GundeckAPI)

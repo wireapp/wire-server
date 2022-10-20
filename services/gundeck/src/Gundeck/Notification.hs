@@ -52,10 +52,8 @@ paginate uid since clt size = do
         (Just (millisToUTC time))
     millisToUTC = posixSecondsToUTCTime . fromIntegral . (`div` 1000) . ms
 
-getById :: UserId -> NotificationId -> Maybe ClientId -> Gundeck QueuedNotification
-getById uid nid clt = do
-  mn <- Data.fetchId uid nid clt
-  maybe (throwM notificationNotFound) pure mn
+getById :: UserId -> NotificationId -> Maybe ClientId -> Gundeck (Maybe QueuedNotification)
+getById = Data.fetchId
 
 getLast :: UserId -> Maybe ClientId -> Gundeck QueuedNotification
 getLast uid clt = do

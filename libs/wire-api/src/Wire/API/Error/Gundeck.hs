@@ -26,6 +26,7 @@ data GundeckError
   | AddTokenErrorTooLong
   | AddTokenErrorMetadataTooLong
   | TokenNotFound
+  | NotificationNotFound
 
 instance KnownError (MapError e) => IsSwaggerError (e :: GundeckError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -41,3 +42,5 @@ type instance MapError 'AddTokenErrorTooLong = 'StaticError 413 "token-too-long"
 type instance MapError 'AddTokenErrorMetadataTooLong = 'StaticError 413 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048"
 
 type instance MapError 'TokenNotFound = 'StaticError 404 "not-found" "Push token not found"
+
+type instance MapError 'NotificationNotFound = 'StaticError 404 "not-found" "Some notifications not found"
