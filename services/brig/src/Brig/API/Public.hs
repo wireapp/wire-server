@@ -178,7 +178,19 @@ servantSitemap ::
      ]
     r =>
   ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI :<|> searchAPI :<|> authAPI
+servantSitemap =
+  userAPI
+    :<|> selfAPI
+    :<|> accountAPI
+    :<|> clientAPI
+    :<|> prekeyAPI
+    :<|> userClientAPI
+    :<|> connectionAPI
+    :<|> propertiesAPI
+    :<|> mlsAPI
+    :<|> userHandleAPI
+    :<|> searchAPI
+    :<|> authAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
