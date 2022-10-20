@@ -723,9 +723,11 @@ deleteAccountH ::
   ExceptT Error (AppT r) Response
 deleteAccountH (pid ::: req) = do
   guardSecondFactorDisabled Nothing
-  empty <$ mapExceptT wrapHttpClient $
-    deleteAccount pid
-      =<< parseJsonBody req
+  empty
+    <$ ( mapExceptT wrapHttpClient $
+           deleteAccount pid
+             =<< parseJsonBody req
+       )
 
 deleteAccount ::
   ( MonadReader Env m,
