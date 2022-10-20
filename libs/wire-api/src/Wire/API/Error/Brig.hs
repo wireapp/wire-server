@@ -59,8 +59,6 @@ data BrigError
   | AccountSuspended
   | AccountEphemeral
   | AccountPending
-  | LoginCodeAuthenticationFailed
-  | LoginCodeAuthenticationRequired
   | UserKeyExists
   | NameManagedByScim
   | HandleManagedByScim
@@ -180,14 +178,6 @@ type instance MapError 'AccountSuspended = 'StaticError 403 "suspended" "Account
 type instance MapError 'AccountEphemeral = 'StaticError 403 "ephemeral" "Account ephemeral"
 
 type instance MapError 'AccountPending = 'StaticError 403 "pending-activation" "Account pending activation"
-
-type instance
-  MapError 'LoginCodeAuthenticationFailed =
-    'StaticError 403 "code-authentication-failed" "The login code is not valid"
-
-type instance
-  MapError 'LoginCodeAuthenticationRequired =
-    'StaticError 403 "code-authentication-required" "A login verification code is required."
 
 type instance MapError 'UserKeyExists = 'StaticError 409 "key-exists" "The given e-mail address or phone number is in use."
 

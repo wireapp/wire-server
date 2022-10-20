@@ -136,8 +136,8 @@ loginError (LoginBlocked wait) =
     tooManyFailedLogins
     ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
-loginError LoginCodeRequired = StdError (errorToWai @'E.LoginCodeAuthenticationRequired)
-loginError LoginCodeInvalid = StdError (errorToWai @'E.LoginCodeAuthenticationFailed)
+loginError LoginCodeRequired = StdError (errorToWai @'E.CodeAuthenticationRequired)
+loginError LoginCodeInvalid = StdError (errorToWai @'E.CodeAuthenticationFailed)
 
 authError :: AuthError -> Error
 authError AuthInvalidUser = StdError (errorToWai @'E.BadCredentials)

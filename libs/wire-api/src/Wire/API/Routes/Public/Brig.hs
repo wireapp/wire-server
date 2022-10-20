@@ -1190,8 +1190,8 @@ type AuthAPI =
                :> CanThrow 'BadCredentials
                :> CanThrow 'AccountSuspended
                :> CanThrow 'AccountPending
-               :> CanThrow 'LoginCodeAuthenticationFailed
-               :> CanThrow 'LoginCodeAuthenticationRequired
+               :> CanThrow 'CodeAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationRequired
                :> MultiVerb1 'POST '[JSON] TokenResponse
            )
     :<|> Named
