@@ -865,7 +865,7 @@ testAccessSelfEmailAllowed nginz brig withCookie = do
           . header "Authorization" ("Bearer " <> toByteString' tok)
 
   put (req . Bilge.json ())
-    !!! const (if withCookie then 400 else 403) === statusCode
+    !!! const 400 === statusCode
 
   put (req . Bilge.json (EmailUpdate email))
     !!! const (if withCookie then 204 else 403) === statusCode
@@ -873,11 +873,11 @@ testAccessSelfEmailAllowed nginz brig withCookie = do
 -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
 testAccessSelfEmailDenied :: ZAuth.Env -> Nginz -> Brig -> Bool -> Http ()
 testAccessSelfEmailDenied zenv nginz brig withCookie = do
+  usr <- randomUser brig
+  let Just email = userEmail usr
   mbCky <-
     if withCookie
       then do
-        usr <- randomUser brig
-        let Just email = userEmail usr
         rsp <-
           login nginz (emailLogin email defPassword (Just "nexus1")) PersistentCookie
             <!! const 200 === statusCode
@@ -890,15 +890,15 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
         unversioned
           . nginz
           . path "/access/self/email"
-          . Bilge.json ()
+          . Bilge.json (EmailUpdate email)
           . maybe id cookie mbCky
 
   put req
     !!! errResponse "invalid-credentials" "Missing access token"
   put (req . header "Authorization" "xxx")
-    !!! errResponse "invalid-credentials" "Missing access token"
+    !!! errResponse "invalid-credentials" "Invalid authorization scheme"
   put (req . header "Authorization" "Bearer xxx")
-    !!! errResponse "client-error" "invalid: Invalid access token"
+    !!! errResponse "client-error" "Failed reading: Invalid access token"
   put (req . header "Authorization" ("Bearer " <> toByteString' tok))
     !!! errResponse "invalid-credentials" "Invalid token"
   where

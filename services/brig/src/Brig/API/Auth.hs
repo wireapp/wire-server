@@ -35,6 +35,7 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 (List1 (..))
 import Data.Qualified
+import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
@@ -200,11 +201,18 @@ partitionTokens tokens mat =
 handleTokenError :: Either Text a -> Handler r a
 handleTokenError =
   either
-    ( throwStd
-        . Wai.mkError status403 "client-error"
-        . LT.fromStrict
+    ( \e ->
+        throwStd
+          . Wai.mkError status403 (label e)
+          . LT.fromStrict
+          $ e
     )
     pure
+  where
+    -- for backwards compatibility
+    label e
+      | T.isPrefixOf "Failed reading" e = "client-error"
+      | otherwise = "invalid-credentials"
 
 handleTokenErrors :: [Either Text a] -> Handler r [a]
 handleTokenErrors ts = case partitionEithers ts of
