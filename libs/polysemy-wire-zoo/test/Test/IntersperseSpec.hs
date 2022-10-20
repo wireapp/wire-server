@@ -6,7 +6,7 @@ module Test.IntersperseSpec where
 import qualified Data.Set as S
 import Imports hiding (intersperse)
 import Polysemy
-import Polysemy.Output (output, runOutputList)
+import Polysemy.Output (output)
 import Polysemy.State (evalState, get, modify)
 import Polysemy.Testing
 import Polysemy.Trace
