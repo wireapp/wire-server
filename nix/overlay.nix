@@ -141,6 +141,6 @@ self: super: {
   };
 
   # This is to match the ormolu version that ships with HLS.
-  # TODO(stefan): If this doesn't compile use ghc92 (which works). Remove this before merging the PR
-  ormolu = super.haskell.lib.justStaticExecutables (super.haskell.lib.doJailbreak super.haskell.packages.ghc8107.ormolu_0_5_0_1);
+  # This doesn't compile with ghc8107 howerver, so we use ghc92
+  ormolu = super.haskell.lib.justStaticExecutables (super.haskell.lib.doJailbreak super.haskell.packages.ghc92.ormolu_0_5_0_1);
 }
