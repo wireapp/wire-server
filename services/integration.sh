@@ -135,7 +135,8 @@ function run_nginz() {
 }
 
 NGINZ_PORT=""
-if [[ $INTEGRATION_USE_NGINZ -eq 1 ]]; then
+
+if [[ ! ${INTEGRATION_USE_NGINZ:-1} -eq 0 ]]; then
     NGINZ_PORT=8080
     # Note: for integration tests involving nginz,
     # nginz and brig must share the same zauth public/private keys
