@@ -432,7 +432,7 @@ instance ToSchema AccessToken where
           .= fieldWithDocModifier
             "access_token"
             (description ?~ "The opaque access token string")
-            ( (LBS.fromStrict . T.encodeUtf8) <$> (T.decodeUtf8 . LBS.toStrict)
+            ( LBS.fromStrict . T.encodeUtf8 <$> (T.decodeUtf8 . LBS.toStrict)
                 .= schema
             )
         <*> tokenType .= field "token_type" schema
