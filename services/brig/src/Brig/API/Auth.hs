@@ -216,10 +216,9 @@ handleTokenError =
 
 handleTokenErrors :: [Either Text a] -> Handler r [a]
 handleTokenErrors ts = case partitionEithers ts of
-  ((e : _), []) ->
-    ( throwStd
-        . Wai.mkError status403 "client-error"
-        . LT.fromStrict
-        $ e
-    )
+  (e : _, []) ->
+    throwStd
+      . Wai.mkError status403 "client-error"
+      . LT.fromStrict
+      $ e
   (_, vs) -> pure vs
