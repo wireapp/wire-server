@@ -38,6 +38,7 @@ module Wire.API.Push.V2.Token
     AddTokenError (..),
     AddTokenSuccess (..),
     AddTokenResponses,
+    DeleteTokenResponses,
 
     -- * Swagger
     modelPushToken,
@@ -205,7 +206,7 @@ instance ToSchema AppName where
 makeLenses ''PushToken
 
 --------------------------------------------------------------------------------
--- API types
+-- Add token types
 
 type AddTokenErrorResponses =
   '[ ErrorResponse 'E.AddTokenErrorNoBudget,
@@ -244,3 +245,11 @@ instance AsHeaders '[Token] PushToken AddTokenSuccess where
 instance (res ~ AddTokenResponses) => AsUnion res (Either AddTokenError AddTokenSuccess) where
   toUnion = eitherToUnion (toUnion @AddTokenErrorResponses) (Z . I)
   fromUnion = eitherFromUnion (fromUnion @AddTokenErrorResponses) (unI . unZ)
+
+--------------------------------------------------------------------------------
+-- Delete token types
+
+type DeleteTokenResponses =
+  '[ ErrorResponse 'E.TokenNotFound,
+     RespondEmpty 204 "Push token unregistered"
+   ]

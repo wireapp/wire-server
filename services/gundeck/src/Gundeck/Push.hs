@@ -414,8 +414,10 @@ addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
 addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
   (cur, old) <- foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.LocalQuorum
   Log.info $
-    "user" .= UUID.toASCIIBytes (toUUID uid)
-      ~~ "token" .= Text.take 16 (tokenText (newtok ^. token))
+    "user"
+      .= UUID.toASCIIBytes (toUUID uid)
+      ~~ "token"
+      .= Text.take 16 (tokenText (newtok ^. token))
       ~~ msg (val "Registering push token")
   continue newtok cur
     >>= either
@@ -466,7 +468,8 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
           pure (Left AddTokenNotFound)
         Left (Aws.InvalidToken _) -> do
           Log.info $
-            "token" .= tokenText tok
+            "token"
+              .= tokenText tok
               ~~ msg (val "Invalid push token.")
           pure (Left AddTokenInvalid)
         Left (Aws.TokenTooLong l) -> do
@@ -537,17 +540,22 @@ updateEndpoint uid t arn e = do
     equalTransport = t ^. tokenTransport == arn ^. snsTopic . endpointTransport
     equalApp = t ^. tokenApp == arn ^. snsTopic . endpointAppName
     logMessage a r tk m =
-      "user" .= UUID.toASCIIBytes (toUUID a)
-        ~~ "token" .= Text.take 16 (tokenText tk)
-        ~~ "arn" .= toText r
+      "user"
+        .= UUID.toASCIIBytes (toUUID a)
+        ~~ "token"
+        .= Text.take 16 (tokenText tk)
+        ~~ "arn"
+        .= toText r
         ~~ msg (val m)
 
-deleteToken :: UserId -> Token -> Gundeck ()
+deleteToken :: UserId -> Token -> Gundeck (Maybe ())
 deleteToken uid tok = do
-  as <- filter (\x -> x ^. addrToken == tok) <$> Data.lookup uid Data.LocalQuorum
-  when (null as) $
-    throwM (mkError status404 "not-found" "Push token not found")
-  Native.deleteTokens as Nothing
+  Data.lookup uid Data.LocalQuorum
+    >>= ( \case
+            [] -> pure Nothing
+            xs -> Native.deleteTokens xs Nothing $> Just ()
+        )
+      . filter (\x -> x ^. addrToken == tok)
 
 listTokens :: UserId -> Gundeck PushTokenList
 listTokens uid = PushTokenList . map (^. addrPushToken) <$> Data.lookup uid Data.LocalQuorum

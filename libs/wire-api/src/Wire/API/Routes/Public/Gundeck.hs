@@ -38,6 +38,15 @@ type GundeckAPI =
         :> ReqBody '[JSON] PushToken
         :> MultiVerb 'POST '[JSON] AddTokenResponses (Either AddTokenError AddTokenSuccess)
     )
+    :<|> Named
+           "delete-push-token"
+           ( Summary "Unregister a native push token"
+               :> ZUser
+               :> "push"
+               :> "tokens"
+               :> Capture' '[Description "The push token to delete"] "pid" Token
+               :> MultiVerb 'DELETE '[JSON] DeleteTokenResponses (Maybe ())
+           )
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @GundeckAPI)

@@ -40,7 +40,7 @@ import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities as Wai
 import Network.Wai.Utilities.Swagger
-import Servant (HasServer (..))
+import Servant (HasServer (..), (:<|>) (..))
 import Wire.API.Notification (NotificationId)
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Push.Token as Public
@@ -52,7 +52,9 @@ import qualified Wire.API.Swagger as Public.Swagger
 -- Servant API
 
 servantSitemap :: ServerT GundeckAPI Gundeck
-servantSitemap = Named @"register-push-token" addToken
+servantSitemap =
+  Named @"register-push-token" addToken
+    :<|> Named @"delete-push-token" deleteToken
 
 --------------------------------------------------------------------------------
 -- Wai Routes API
@@ -60,17 +62,6 @@ servantSitemap = Named @"register-push-token" addToken
 sitemap :: Routes ApiBuilder Gundeck ()
 sitemap = do
   -- Push API -----------------------------------------------------------
-
-  delete "/push/tokens/:pid" (continue deleteTokenH) $
-    header "Z-User"
-      .&. param "pid"
-      .&. accept "application" "json"
-  document "DELETE" "unregisterPushToken" $ do
-    summary "Unregister a native push token"
-    parameter Path "pid" bytes' $
-      description "The push token to delete"
-    response 204 "Push token unregistered" end
-    response 404 "Push token does not exist" end
 
   get "/push/tokens" (continue listTokensH) $
     header "Z-User"
@@ -154,9 +145,8 @@ addToken uid cid newtok =
     Push.AddTokenTooLong -> Left Public.AddTokenErrorTooLong
     Push.AddTokenMetadataTooLong -> Left Public.AddTokenErrorMetadataTooLong
 
-deleteTokenH :: UserId ::: Public.Token ::: JSON -> Gundeck Response
-deleteTokenH (uid ::: tok ::: _) =
-  setStatus status204 empty <$ Push.deleteToken uid tok
+deleteToken :: UserId -> Public.Token -> Gundeck (Maybe ())
+deleteToken = Push.deleteToken
 
 listTokensH :: UserId ::: JSON -> Gundeck Response
 listTokensH (uid ::: _) =
