@@ -222,13 +222,13 @@ instance
       checkType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
         (Just t, value)
           | value /= Just t ->
-            delayedFail
-              ServerError
-                { errHTTPCode = 403,
-                  errReasonPhrase = "Access denied",
-                  errBody = "",
-                  errHeaders = []
-                }
+              delayedFail
+                ServerError
+                  { errHTTPCode = 403,
+                    errReasonPhrase = "Access denied",
+                    errBody = "",
+                    errHeaders = []
+                  }
         _ -> pure ()
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s

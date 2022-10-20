@@ -161,7 +161,8 @@ genStoredUser = do
 
 genMeta :: Gen Meta
 genMeta =
-  Meta <$> Gen.enumBounded
+  Meta
+    <$> Gen.enumBounded
     <*> Gen.element [read "2021-08-23 13:13:31.450140036 UTC", read "2019-01-01 09:55:59 UTC"]
     <*> Gen.element [read "2021-08-23 13:13:31.450140036 UTC", read "2022-01-01 09:55:59 UTC"]
     <*> (Gen.element [Weak, Strong] <*> Gen.text (Range.constant 0 20) Gen.unicode)

@@ -337,8 +337,8 @@ instance
   ServantHeaders (h ': hs) (x ': xs)
   where
   constructHeaders (I x :* xs) =
-    (headerName @name, toHeader x) :
-    constructHeaders @hs xs
+    (headerName @name, toHeader x)
+      : constructHeaders @hs xs
 
   -- FUTUREWORK: should we concatenate all the matching headers instead of just
   -- taking the first one?
@@ -464,8 +464,9 @@ combineSwaggerSchema s1 s2
   -- if they are both errors, merge label enums
   | notNullOf (S.properties . ix "code") s1
       && notNullOf (S.properties . ix "code") s2 =
-    s1 & S.properties . ix "label" . S._Inline . S.enum_ . _Just
-      <>~ (s2 ^. S.properties . ix "label" . S._Inline . S.enum_ . _Just)
+      s1
+        & S.properties . ix "label" . S._Inline . S.enum_ . _Just
+          <>~ (s2 ^. S.properties . ix "label" . S._Inline . S.enum_ . _Just)
   | otherwise = s1
 
 -- | This type can be used in Servant to produce an endpoint which can return
@@ -800,7 +801,8 @@ instance
   route _ _ action = leafRouter $ \env req k -> do
     let acc = getAcceptHeader req
         action' =
-          action `addMethodCheck` methodCheck method req
+          action
+            `addMethodCheck` methodCheck method req
             `addAcceptCheck` acceptCheck' (Proxy @cs) acc
     runAction action' env req k $ \output -> do
       let mresp = responseListRender @cs @as acc (toUnion @as output)

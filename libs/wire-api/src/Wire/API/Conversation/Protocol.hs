@@ -96,10 +96,11 @@ protocolTagSchema = fmap (fromMaybe ProtocolProteusTag) (optField "protocol" sch
 
 protocolSchema :: ObjectSchema SwaggerDoc Protocol
 protocolSchema =
-  snd <$> (protocolTag &&& id)
-    .= bind
-      (fst .= protocolTagSchema)
-      (snd .= dispatch protocolDataSchema)
+  snd
+    <$> (protocolTag &&& id)
+      .= bind
+        (fst .= protocolTagSchema)
+        (snd .= dispatch protocolDataSchema)
 
 instance ToSchema Protocol where
   schema = object "Protocol" protocolSchema
@@ -116,17 +117,17 @@ mlsDataSchema :: ObjectSchema SwaggerDoc ConversationMLSData
 mlsDataSchema =
   ConversationMLSData
     <$> cnvmlsGroupId
-    .= fieldWithDocModifier
-      "group_id"
-      (description ?~ "An MLS group identifier (at most 256 bytes long)")
-      schema
+      .= fieldWithDocModifier
+        "group_id"
+        (description ?~ "An MLS group identifier (at most 256 bytes long)")
+        schema
     <*> cnvmlsEpoch
-    .= fieldWithDocModifier
-      "epoch"
-      (description ?~ "The epoch number of the corresponding MLS group")
-      schema
+      .= fieldWithDocModifier
+        "epoch"
+        (description ?~ "The epoch number of the corresponding MLS group")
+        schema
     <*> cnvmlsCipherSuite
-    .= fieldWithDocModifier
-      "cipher_suite"
-      (description ?~ "The cipher suite of the corresponding MLS group")
-      schema
+      .= fieldWithDocModifier
+        "cipher_suite"
+        (description ?~ "The cipher suite of the corresponding MLS group")
+        schema

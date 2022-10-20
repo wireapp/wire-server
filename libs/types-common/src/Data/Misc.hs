@@ -273,7 +273,7 @@ instance ToSchema HttpsUrl where
   schema =
     (decodeUtf8 . toByteString')
       .= parsedText "HttpsUrl" (runParser parser . encodeUtf8)
-        & doc' . S.schema . S.example ?~ toJSON ("https://example.com" :: Text)
+      & doc' . S.schema . S.example ?~ toJSON ("https://example.com" :: Text)
 
 instance Cql HttpsUrl where
   ctype = Tagged BlobColumn
@@ -318,7 +318,8 @@ deriving via
 instance ToSchema (Fingerprint Rsa) where
   schema =
     (decodeUtf8 . B64.encode . fingerprintBytes)
-      .= parsedText "Fingerprint" (runParser p . encodeUtf8) & doc' . S.schema . S.example ?~ toJSON ("ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8=" :: Text)
+      .= parsedText "Fingerprint" (runParser p . encodeUtf8)
+      & doc' . S.schema . S.example ?~ toJSON ("ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8=" :: Text)
     where
       p :: Chars.Parser (Fingerprint Rsa)
       p = do

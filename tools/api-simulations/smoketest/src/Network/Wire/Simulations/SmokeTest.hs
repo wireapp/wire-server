@@ -130,9 +130,9 @@ mainBotNet n = do
   let carlWithTablet = (carl, carlTablet)
   let people :: [(Bot, ConvId, BotClient)] -- everyone except for Ally
       people =
-        (bill, a2b, billPC) :
-        (carl, a2c, carlTablet) :
-        zip3 goons a2goons goonClients
+        (bill, a2b, billPC)
+          : (carl, a2c, carlTablet)
+          : zip3 goons a2goons goonClients
   info $ msg (val "OTR 1-1 greetings")
   -- Ally greets everyone in 1-1
   runBotSession ally $

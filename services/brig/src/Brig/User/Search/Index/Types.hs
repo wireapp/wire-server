@@ -131,7 +131,8 @@ instance ToJSON UserDoc where
 
 instance FromJSON UserDoc where
   parseJSON = withObject "UserDoc" $ \o ->
-    UserDoc <$> o .: "id"
+    UserDoc
+      <$> o .: "id"
       <*> o .:? "team"
       <*> o .:? "name"
       <*> o .:? "normalized"

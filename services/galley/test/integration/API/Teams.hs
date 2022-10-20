@@ -591,7 +591,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           . zConn "conn"
       )
       !!! const 400
-      === statusCode
+        === statusCode
     -- Deleting from a binding team without a password is forbidden
     delete
       ( g
@@ -627,7 +627,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
               . json (newTeamMemberDeleteData (Just $ Util.defPassword))
           )
           !!! const 202
-          === statusCode
+            === statusCode
       else do
         -- Deleting from a binding team without a password is fine if the owner is
         -- authenticated, but has none.
@@ -639,7 +639,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
               . json (newTeamMemberDeleteData Nothing)
           )
           !!! const 202
-          === statusCode
+            === statusCode
     checkTeamMemberLeave tid (mem1 ^. userId) wsOwner
     checkConvMemberLeaveEvent (Qualified cid1 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext
     assertQueue "team member leave" $ tUpdate 2 [ownerWithPassword, owner]
@@ -938,7 +938,7 @@ testDeleteBindingTeamSingleMember = do
           )
     )
     !!! const 202
-    === statusCode
+      === statusCode
   assertQueue "team member leave 1" $ tUpdate 1 [owner]
   -- Async things are hard...
   void $
@@ -955,7 +955,7 @@ testDeleteBindingTeamSingleMember = do
           . zConn "conn"
       )
       !!! const 202
-      === statusCode
+        === statusCode
     checkUserDeleteEvent owner wsOwner
 
     WS.assertNoEvent (1 # Second) [wsExtern]
@@ -1181,7 +1181,7 @@ testDeleteBindingTeam ownerHasPassword = do
           )
     )
     !!! const 202
-    === statusCode
+      === statusCode
   assertQueue "team member leave 1" $ tUpdate 4 [ownerWithPassword, owner]
   void . WS.bracketRN c [owner, mem1 ^. userId, mem2 ^. userId, extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
     delete
@@ -1198,7 +1198,7 @@ testDeleteBindingTeam ownerHasPassword = do
             )
       )
       !!! const 202
-      === statusCode
+        === statusCode
     checkUserDeleteEvent owner wsOwner
     checkUserDeleteEvent (mem1 ^. userId) wsMember1
     checkUserDeleteEvent (mem2 ^. userId) wsMember2
@@ -1283,7 +1283,7 @@ testUpdateTeamIconValidation = do
               . json payload
           )
           !!! const expectedStatusCode
-          === statusCode
+            === statusCode
   let payloadWithInvalidIcon = object ["name" .= String "name", "icon" .= String "invalid"]
   update payloadWithInvalidIcon 400
   let payloadWithValidIcon =
@@ -1312,7 +1312,7 @@ testUpdateTeam = do
               . body (RequestBodyLBS payload)
           )
           !!! const code
-          === statusCode
+            === statusCode
 
   let bad = object ["name" .= T.replicate 100 "too large"]
   doPut (encode bad) 400
@@ -1414,7 +1414,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
               . json u
           )
           !!! const 200
-          === statusCode
+            === statusCode
         if expect
           then mapM_ (checkUserUpdateEvent target) wsListeners
           else WS.assertNoEvent (1 # Second) wsListeners
@@ -1432,7 +1432,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
               . json u
           )
           !!! const 200
-          === statusCode
+            === statusCode
         -- Due to the fact that the team is too large, we expect no events!
         if expect
           then checkTeamUpdateEvent tid u wsOrigin
@@ -1460,7 +1460,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
               . json (newTeamMemberDeleteData (Just $ Util.defPassword))
           )
           !!! const 202
-          === statusCode
+            === statusCode
         if expect
           then checkTeamMemberLeave tid victim wsOwner
           else WS.assertNoEvent (1 # Second) [wsOwner]

@@ -172,8 +172,8 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
           prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params LocalQuorum prm)
       addMLSPublicKeys u newId (Map.assocs (newClientMLSPublicKeys c))
-      pure
-        $! Client
+      pure $!
+        Client
           { clientId = newId,
             clientType = newClientType c,
             clientTime = now,
@@ -359,7 +359,7 @@ addMLSPublicKey u c ss pk = do
   case rows of
     [row]
       | C.fromRow 0 row /= Right (Just True) ->
-        throwE MLSPublicKeyDuplicate
+          throwE MLSPublicKeyDuplicate
     _ -> pure ()
 
 -------------------------------------------------------------------------------
@@ -515,17 +515,20 @@ withOptLock u c ma = go (10 :: Int)
           _ -> Nothing
     get :: Text -> AWS.GetItem
     get t =
-      AWS.newGetItem t & AWS.getItem_key .~ key u c
+      AWS.newGetItem t
+        & AWS.getItem_key .~ key u c
         & AWS.getItem_consistentRead ?~ True
     put :: Maybe Word32 -> Text -> AWS.PutItem
     put v t =
-      AWS.newPutItem t & AWS.putItem_item .~ item v
+      AWS.newPutItem t
+        & AWS.putItem_item .~ item v
         & AWS.putItem_expected ?~ check v
     check :: Maybe Word32 -> HashMap Text AWS.ExpectedAttributeValue
     check Nothing = HashMap.singleton ddbVersion $ AWS.newExpectedAttributeValue & AWS.expectedAttributeValue_comparisonOperator ?~ AWS.ComparisonOperator_NULL
     check (Just v) =
       HashMap.singleton ddbVersion $
-        AWS.newExpectedAttributeValue & AWS.expectedAttributeValue_comparisonOperator ?~ AWS.ComparisonOperator_EQ
+        AWS.newExpectedAttributeValue
+          & AWS.expectedAttributeValue_comparisonOperator ?~ AWS.ComparisonOperator_EQ
           & AWS.expectedAttributeValue_attributeValueList ?~ [toAttributeValue v]
     item :: Maybe Word32 -> HashMap Text AWS.AttributeValue
     item v =

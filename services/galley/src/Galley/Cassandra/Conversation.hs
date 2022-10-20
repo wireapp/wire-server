@@ -210,8 +210,8 @@ localConversation cid =
   UnliftIO.runConcurrently $
     toConv cid
       <$> UnliftIO.Concurrently (members cid)
-        <*> UnliftIO.Concurrently (lookupRemoteMembers cid)
-        <*> UnliftIO.Concurrently (retry x1 $ query1 Cql.selectConv (params LocalQuorum (Identity cid)))
+      <*> UnliftIO.Concurrently (lookupRemoteMembers cid)
+      <*> UnliftIO.Concurrently (retry x1 $ query1 Cql.selectConv (params LocalQuorum (Identity cid)))
 
 localConversations ::
   Members '[Embed IO, Input ClientState, TinyLog] r =>

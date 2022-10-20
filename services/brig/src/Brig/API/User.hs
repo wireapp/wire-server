@@ -429,8 +429,8 @@ createUser new = do
           case (inv, Team.inInviteeEmail <$> inv) of
             (Just invite, Just em)
               | e == userEmailKey em -> do
-                _ <- ensureMemberCanJoin (Team.iiTeam ii)
-                pure $ Just (invite, ii, Team.iiTeam ii)
+                  _ <- ensureMemberCanJoin (Team.iiTeam ii)
+                  pure $ Just (invite, ii, Team.iiTeam ii)
             _ -> throwE RegisterErrorInvalidInvitationCode
         Nothing -> throwE RegisterErrorInvalidInvitationCode
 
@@ -654,18 +654,18 @@ checkHandle uhandle = do
   owner <- lift . wrapClient $ lookupHandle xhandle
   if
       | isJust owner ->
-        -- Handle is taken (=> getHandleInfo will return 200)
-        pure CheckHandleFound
+          -- Handle is taken (=> getHandleInfo will return 200)
+          pure CheckHandleFound
       | isBlacklistedHandle xhandle ->
-        -- Handle is free but cannot be taken
-        --
-        -- FUTUREWORK: i wonder if this is correct?  isn't this the error for malformed
-        -- handles?  shouldn't we throw not-found here?  or should there be a fourth case
-        -- 'CheckHandleBlacklisted'?
-        pure CheckHandleInvalid
+          -- Handle is free but cannot be taken
+          --
+          -- FUTUREWORK: i wonder if this is correct?  isn't this the error for malformed
+          -- handles?  shouldn't we throw not-found here?  or should there be a fourth case
+          -- 'CheckHandleBlacklisted'?
+          pure CheckHandleInvalid
       | otherwise ->
-        -- Handle is free and can be taken
-        pure CheckHandleNotFound
+          -- Handle is free and can be taken
+          pure CheckHandleNotFound
 
 --------------------------------------------------------------------------------
 -- Check Handles
@@ -1054,7 +1054,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         case mbTeam of
           Just team
             | team ^. teamCreator == uid ->
-              sendTeamActivationMail em name p loc' (team ^. teamName)
+                sendTeamActivationMail em name p loc' (team ^. teamName)
           _otherwise ->
             sendActivationMail em name p loc' ident
 

@@ -70,13 +70,13 @@ data Site tag route = Site
     users ::
       route
         :- Header "Authorization" (AuthData tag)
-        :> "Users"
-        :> UserAPI tag,
+          :> "Users"
+          :> UserAPI tag,
     groups ::
       route
         :- Header "Authorization" (AuthData tag)
-        :> "Groups"
-        :> GroupAPI tag
+          :> "Groups"
+          :> GroupAPI tag
   }
   deriving (Generic)
 

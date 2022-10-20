@@ -433,7 +433,8 @@ customerExtensionBlockedDomain :: Domain -> Wai.Error
 customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable For Legal Reasons") "domain-blocked-for-registration" msg
   where
     msg =
-      "[Customer extension] the email domain " <> cs (show domain)
+      "[Customer extension] the email domain "
+        <> cs (show domain)
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
 

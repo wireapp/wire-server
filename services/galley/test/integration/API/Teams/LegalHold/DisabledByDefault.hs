@@ -1293,7 +1293,8 @@ assertNotification :: (HasCallStack, FromJSON a, MonadIO m) => WS.WebSocket -> (
 assertNotification ws predicate =
   void . liftIO . WS.assertMatch (5 WS.# WS.Second) ws $ \notif -> do
     unless ((NonEmpty.length . List1.toNonEmpty $ ntfPayload $ notif) == 1) $
-      error $ "not suppored by test helper: event with more than one object in the payload: " <> cs (Aeson.encode notif)
+      error $
+        "not suppored by test helper: event with more than one object in the payload: " <> cs (Aeson.encode notif)
     let j = Aeson.Object $ List1.head (ntfPayload notif)
     case Aeson.fromJSON j of
       Aeson.Success x -> predicate x

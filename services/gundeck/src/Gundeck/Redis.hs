@@ -94,7 +94,8 @@ connectRobust l retryStrategy connectLowLevel = do
       reconnectOnce <- once . retry $ reconnectRedis robustConnection -- avoid concurrent attempts to reconnect
       let newReConnection = ReConnection {_rrConnection = conn, _rrReconnect = reconnectOnce}
       unlessM (tryPutMVar robustConnection newReConnection) $
-        void $ swapMVar robustConnection newReConnection
+        void $
+          swapMVar robustConnection newReConnection
 
     logEx :: Show e => ((Msg -> Msg) -> IO ()) -> e -> ByteString -> IO ()
     logEx lLevel e description = lLevel $ Log.msg (Log.val description) . Log.field "error" (show e)

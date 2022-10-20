@@ -31,7 +31,9 @@ cleanupSwagger =
     -- sanitise general responses
     . (S.responses . traverse . S.schema . _Just . S._Inline %~ sanitise)
     -- sanitise all responses of all paths
-    . ( S.allOperations . S.responses . S.responses
+    . ( S.allOperations
+          . S.responses
+          . S.responses
           . traverse
           . S._Inline
           . S.schema

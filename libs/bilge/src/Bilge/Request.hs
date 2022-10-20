@@ -155,8 +155,8 @@ expectStatus property r = r {Rq.checkResponse = check}
     check _ res
       | property (HTTP.statusCode (Rq.responseStatus res)) = pure ()
       | otherwise = do
-        some <- Lazy.toStrict <$> brReadSome (Rq.responseBody res) 1024
-        throwHttp $ Rq.StatusCodeException (void res) some
+          some <- Lazy.toStrict <$> brReadSome (Rq.responseBody res) 1024
+          throwHttp $ Rq.StatusCodeException (void res) some
 
 checkStatus :: (Status -> ResponseHeaders -> CookieJar -> Maybe SomeException) -> Request -> Request
 checkStatus f r = r {Rq.checkResponse = check}

@@ -318,13 +318,13 @@ testRemoteDownloadNoAsset = do
       qkey = Qualified key (Domain "faraway.example.com")
       respond req
         | frRPC req == "get-asset" =
-          pure ("application" // "json", Aeson.encode (GetAssetResponse False))
+            pure ("application" // "json", Aeson.encode (GetAssetResponse False))
         | otherwise =
-          throw
-            . MockErrorResponse HTTP.status404
-            . LText.decodeUtf8With Text.lenientDecode
-            . Aeson.encode
-            $ assetNotFound
+            throw
+              . MockErrorResponse HTTP.status404
+              . LText.decodeUtf8With Text.lenientDecode
+              . Aeson.encode
+              $ assetNotFound
   (_, reqs) <- withMockFederator respond $ do
     downloadAsset uid qkey () !!! do
       const 404 === statusCode
@@ -348,12 +348,13 @@ testRemoteDownloadFederationFailure = do
       qkey = Qualified key (Domain "faraway.example.com")
       respond req
         | frRPC req == "get-asset" =
-          pure ("application" // "json", Aeson.encode (GetAssetResponse True))
+            pure ("application" // "json", Aeson.encode (GetAssetResponse True))
         | otherwise = throw (MockErrorResponse HTTP.status500 "mock error")
   (resp, _) <-
     withMockFederator respond $ do
-      responseJsonError =<< downloadAsset uid qkey () <!! do
-        const 500 === statusCode
+      responseJsonError
+        =<< downloadAsset uid qkey () <!! do
+          const 500 === statusCode
   liftIO $ do
     Wai.label resp @?= "mock-error"
     Wai.message resp @?= "mock error"
@@ -367,7 +368,7 @@ testRemoteDownload assetContent = do
       qkey = Qualified key (Domain "faraway.example.com")
       respond req
         | frRPC req == "get-asset" =
-          pure ("application" // "json", Aeson.encode (GetAssetResponse True))
+            pure ("application" // "json", Aeson.encode (GetAssetResponse True))
         | otherwise = pure ("application" // "octet-stream", assetContent)
   (_, reqs) <- withMockFederator respond $ do
     downloadAsset uid qkey () !!! do

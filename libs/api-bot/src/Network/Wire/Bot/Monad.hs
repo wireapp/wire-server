@@ -169,8 +169,8 @@ newBotNetEnv manager logger o = do
             serverSSL = setBotNetApiSSL o,
             serverManager = manager
           }
-  pure
-    $! BotNetEnv
+  pure $!
+    BotNetEnv
       { botNetGen = gen,
         botNetMailboxes = mbx,
         botNetSender = setBotNetSender o,
@@ -195,16 +195,16 @@ initMetrics = do
   pure m
   where
     counters =
-      Metrics.assertionsTotal :
-      Metrics.assertionsFailed :
-      Metrics.exceptionsTotal :
-      Metrics.botsCreatedNew :
-      Metrics.botsCreatedCached :
-      Metrics.eventsTotalRcvd :
-      Metrics.eventsTotalAckd :
-      Metrics.eventsTotalIgnd :
-      Metrics.eventsTotalMssd :
-      concatMap etc [(minBound :: EventType) ..]
+      Metrics.assertionsTotal
+        : Metrics.assertionsFailed
+        : Metrics.exceptionsTotal
+        : Metrics.botsCreatedNew
+        : Metrics.botsCreatedCached
+        : Metrics.eventsTotalRcvd
+        : Metrics.eventsTotalAckd
+        : Metrics.eventsTotalIgnd
+        : Metrics.eventsTotalMssd
+        : concatMap etc [(minBound :: EventType) ..]
     etc t =
       [ Metrics.eventTypeRcvd t,
         Metrics.eventTypeAckd t,
@@ -592,7 +592,9 @@ assertFailure :: (HasCallStack, MonadBotNet m) => Text -> m ()
 assertFailure m = whenAsserts $ do
   incrAssertFailed
   log Error . msg $
-    val "Assertion failed: " +++ m +++ val "\n"
+    val "Assertion failed: "
+      +++ m
+      +++ val "\n"
       +++ prettyCallStack callStack
 
 -- | Place an assertion on a 'Bot', expecting a matching 'Event' to arrive
@@ -771,7 +773,8 @@ heartbeat bot e = forever $ do
       for_ out $ liftIO . atomically . flip tryPutTMVar Nothing
       botLog l bot Warn $
         msg $
-          "Assertion Timeout: " <> eventTypeText typ
+          "Assertion Timeout: "
+            <> eventTypeText typ
             <> "\nAssertion was created at: "
             <> pack (prettyCallStack stack)
   -- Re-establish the push connection, if it died

@@ -128,5 +128,5 @@ executeTeamUserSearch brig teamid self mbSearchText mRoleFilter mSortBy mSortOrd
           . maybe id (queryItem "sortorder" . cs . toByteString) mSortOrder
       )
       <!! const 200
-      === statusCode
+        === statusCode
   responseJsonError r

@@ -500,13 +500,13 @@ instance ToSchema NewUserPublic where
 validateNewUserPublic :: NewUser -> Either String NewUserPublic
 validateNewUserPublic nu
   | isJust (newUserSSOId nu) =
-    Left "SSO-managed users are not allowed here."
+      Left "SSO-managed users are not allowed here."
   | isJust (newUserUUID nu) =
-    Left "it is not allowed to provide a UUID for the users here."
+      Left "it is not allowed to provide a UUID for the users here."
   | newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire] =
-    Left "only managed-by-Wire users can be created here."
+      Left "only managed-by-Wire users can be created here."
   | otherwise =
-    Right (NewUserPublic nu)
+      Right (NewUserPublic nu)
 
 -- | A user is Ephemeral if she has neither email, phone, nor sso credentials and is not
 -- created via scim.  Ephemeral users can be deleted after expires_in or sessionTokenTimeout

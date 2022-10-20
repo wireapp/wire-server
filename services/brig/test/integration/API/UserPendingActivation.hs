@@ -348,7 +348,8 @@ registerInvitation :: Brig -> Email -> Name -> InvitationCode -> Bool -> Http ()
 registerInvitation brig email name inviteeCode shouldSucceed = do
   void $
     post
-      ( brig . path "/register"
+      ( brig
+          . path "/register"
           . contentJson
           . json (acceptWithName name email inviteeCode)
       )

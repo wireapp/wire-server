@@ -277,7 +277,8 @@ testSSO setSSOFeature = do
 
 putSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
 putSSOInternal tid =
-  void . putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid
+  void
+    . putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid
     . (\st -> Public.WithStatusNoLock st Public.SSOConfig Public.FeatureTTLUnlimited)
 
 patchSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
@@ -325,7 +326,8 @@ testLegalHold setLegalHoldInternal = do
 
 putLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()
 putLegalHoldInternal expectation tid =
-  void . putTeamFeatureFlagInternal @Public.LegalholdConfig expectation tid
+  void
+    . putTeamFeatureFlagInternal @Public.LegalholdConfig expectation tid
     . (\st -> Public.WithStatusNoLock st Public.LegalholdConfig Public.FeatureTTLUnlimited)
 
 patchLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()
@@ -1011,7 +1013,8 @@ testFeatureConfigConsistency = do
   allTeamFeaturesRes <- getAllTeamFeatures member tid >>= parseObjectKeys
 
   unless (allTeamFeaturesRes `Set.isSubsetOf` allFeaturesRes) $
-    liftIO $ expectationFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
+    liftIO $
+      expectationFailure (show allTeamFeaturesRes <> " is not a subset of " <> show allFeaturesRes)
   where
     parseObjectKeys :: ResponseLBS -> TestM (Set.Set Text)
     parseObjectKeys res = do

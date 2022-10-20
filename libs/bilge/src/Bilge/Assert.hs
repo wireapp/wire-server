@@ -87,8 +87,8 @@ io <!! aa = do
   let failures = filter (isJust . snd) $ zip [1 ..] results
   unless (null failures) $
     error . concat $
-      title "Assertions failed:\n" :
-      intersperse "\n" (map msg failures)
+      title "Assertions failed:\n"
+        : intersperse "\n" (map msg failures)
         ++ ["\n\nResponse was:\n\n" ++ show r]
   pure r
   where

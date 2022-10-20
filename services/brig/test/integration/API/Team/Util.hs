@@ -90,12 +90,14 @@ createPopulatedBindingTeamWithNames brig names = do
     inviteeEmail <- randomEmail
     let invite = stdInvitationRequest inviteeEmail
     inv <-
-      responseJsonError =<< postInvitation brig tid (userId inviter) invite
-        <!! statusCode === const 201
+      responseJsonError
+        =<< postInvitation brig tid (userId inviter) invite
+          <!! statusCode === const 201
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <-
       post
-        ( brig . path "/register"
+        ( brig
+            . path "/register"
             . contentJson
             . body (acceptWithName name inviteeEmail inviteeCode)
         )
@@ -178,17 +180,19 @@ inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail
   inv <-
-    responseJsonError =<< postInvitation brig tid u invite
-      <!! statusCode === const 201
+    responseJsonError
+      =<< postInvitation brig tid u invite
+        <!! statusCode === const 201
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rspInvitee <-
     post
-      ( brig . path "/register"
+      ( brig
+          . path "/register"
           . contentJson
           . body (accept inviteeEmail inviteeCode)
       )
       <!! const 201
-      === statusCode
+        === statusCode
   let Just invitee = responseJsonMaybe rspInvitee
   liftIO $ assertEqual "Team ID in registration and team table do not match" (Just tid) (userTeam invitee)
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
@@ -205,7 +209,7 @@ updatePermissions from tid (to, perm) galley =
         . Bilge.json changeMember
     )
     !!! const 200
-    === statusCode
+      === statusCode
   where
     changeMember = Member.mkNewTeamMember to perm Nothing
 
@@ -224,7 +228,7 @@ createTeamConv g tid u us mtimer = do
           . lbytes (encode conv)
       )
       <!! const 201
-      === statusCode
+        === statusCode
   maybe (error "invalid conv id") pure $
     fromByteString $
       getHeader' "Location" r
@@ -238,7 +242,7 @@ deleteTeamConv g tid cid u = do
         . zConn "conn"
     )
     !!! const 200
-    === statusCode
+      === statusCode
 
 deleteTeam :: HasCallStack => Galley -> TeamId -> UserId -> Http ()
 deleteTeam g tid u = do
@@ -250,7 +254,7 @@ deleteTeam g tid u = do
         . json (newTeamDeleteData $ Just Util.defPassword)
     )
     !!! const 202
-    === statusCode
+      === statusCode
 
 getTeams ::
   (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
@@ -314,7 +318,9 @@ extAccept email name phone phoneCode code =
 register :: Email -> BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
 register e t brig =
   post
-    ( brig . path "/register" . contentJson
+    ( brig
+        . path "/register"
+        . contentJson
         . body
           ( RequestBodyLBS . encode $
               object
@@ -329,7 +335,9 @@ register e t brig =
 register' :: Email -> BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
 register' e t c brig =
   post
-    ( brig . path "/register" . contentJson
+    ( brig
+        . path "/register"
+        . contentJson
         . body
           ( RequestBodyLBS . encode $
               object

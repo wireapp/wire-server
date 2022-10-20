@@ -121,9 +121,9 @@ qualifyAs = ($>)
 foldQualified :: Local x -> (Local a -> b) -> (Remote a -> b) -> Qualified a -> b
 foldQualified loc f g q
   | tDomain loc == qDomain q =
-    f (qTagUnsafe q)
+      f (qTagUnsafe q)
   | otherwise =
-    g (qTagUnsafe q)
+      g (qTagUnsafe q)
 
 -- Partition a collection of qualified values into locals and remotes.
 --

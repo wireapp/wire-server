@@ -702,7 +702,7 @@ testRemoveClient hasPwd brig cannon = do
   when hasPwd $ do
     login brig (defEmailLogin email) PersistentCookie
       !!! const 200
-      === statusCode
+        === statusCode
     numCookies <- countCookies brig uid defCookieLabel
     liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
@@ -713,7 +713,7 @@ testRemoveClient hasPwd brig cannon = do
   WS.bracketR cannon uid $ \ws -> do
     deleteClient brig uid (clientId c) (if hasPwd then Just defPasswordText else Nothing)
       !!! const 200
-      === statusCode
+        === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
@@ -750,14 +750,14 @@ testRemoveClientShortPwd brig = do
   -- Permanent client with attached cookie
   login brig (defEmailLogin email) PersistentCookie
     !!! const 200
-    === statusCode
+      === statusCode
   numCookies <- countCookies brig uid defCookieLabel
   liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
   resp <-
     deleteClient brig uid (clientId c) (Just "a")
       <!! const 400
-      === statusCode
+        === statusCode
   err :: Object <- responseJsonError resp
   liftIO $ do
     (err ^. at "code") @?= Just (Number 400)
@@ -786,14 +786,14 @@ testRemoveClientIncorrectPwd brig = do
   -- Permanent client with attached cookie
   login brig (defEmailLogin email) PersistentCookie
     !!! const 200
-    === statusCode
+      === statusCode
   numCookies <- countCookies brig uid defCookieLabel
   liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
   resp <-
     deleteClient brig uid (clientId c) (Just "abcdef")
       <!! const 403
-      === statusCode
+        === statusCode
   err :: Object <- responseJsonError resp
   liftIO $ do
     (err ^. at "code") @?= Just (Number 403)
@@ -839,7 +839,7 @@ testUpdateClient opts brig = do
         . body (RequestBodyLBS $ encode update)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   get (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ ClientPrekey (clientId c) newPrekey) === responseJsonMaybe
@@ -878,7 +878,7 @@ testUpdateClient opts brig = do
         . body (RequestBodyLBS $ encode update')
     )
     !!! const 200
-    === statusCode
+      === statusCode
 
   -- check if label is still present
   getClient brig uid (clientId c) !!! do
@@ -926,7 +926,7 @@ testUpdateClient opts brig = do
             <$> ( get
                     (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid)
                     <!! const 200
-                    === statusCode
+                      === statusCode
                 )
 
         checkClientPrekeys :: HasCallStack => Prekey -> Http ()
@@ -956,7 +956,7 @@ testUpdateClient opts brig = do
               }
       )
       !!! const 200
-      === statusCode
+        === statusCode
     checkClientLabel
     put
       ( brig
@@ -965,7 +965,7 @@ testUpdateClient opts brig = do
           . json defUpdateClient {updateClientCapabilities = caps}
       )
       !!! const 200
-      === statusCode
+        === statusCode
     checkClientLabel
     checkClientPrekeys prekey
     checkClientPrekeys (unpackLastPrekey lastprekey)
@@ -1136,7 +1136,7 @@ testCan'tDeleteLegalHoldClient brig = do
   resp <-
     addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
       <!! const 201
-      === statusCode
+        === statusCode
   lhClientId <- clientId <$> responseJsonError resp
   deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode
 

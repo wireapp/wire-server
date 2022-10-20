@@ -167,7 +167,8 @@ login (SmsLogin phone code label) typ = do
   wrapHttpClientE $ checkRetryLimit uid
   ok <- wrapHttpClientE $ Data.verifyLoginCode uid code
   unless ok $
-    wrapHttpClientE $ loginFailed uid
+    wrapHttpClientE $
+      loginFailed uid
   wrapHttpClientE $ newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 verifyCode ::

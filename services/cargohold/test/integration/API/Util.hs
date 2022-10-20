@@ -99,7 +99,8 @@ deleteAsset :: UserId -> Qualified AssetKey -> TestM (Response (Maybe Lazy.ByteS
 deleteAsset u k = do
   c <- viewCargohold
   delete $
-    c . zUser u
+    c
+      . zUser u
       . paths
         [ "assets",
           toByteString' (qDomain k),
@@ -144,7 +145,8 @@ downloadAssetWith ::
 downloadAssetWith r uid loc tok = do
   c <- viewUnversionedCargohold
   get $
-    c . r
+    c
+      . r
       . zUser uid
       . locationPath loc
       . tokenParam tok
@@ -162,14 +164,16 @@ postToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
 postToken uid key = do
   c <- viewCargohold
   post $
-    c . zUser uid
+    c
+      . zUser uid
       . paths ["assets", toByteString' key, "token"]
 
 deleteToken :: UserId -> AssetKey -> TestM (Response (Maybe LByteString))
 deleteToken uid key = do
   c <- viewCargohold
   delete $
-    c . zUser uid
+    c
+      . zUser uid
       . paths ["assets", toByteString' key, "token"]
 
 viewFederationDomain :: TestM Domain

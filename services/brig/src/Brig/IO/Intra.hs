@@ -509,7 +509,7 @@ notifyContacts events orig route conn = do
     screenMemberList :: Maybe Team.TeamMemberList -> m [UserId]
     screenMemberList (Just mems)
       | mems ^. Team.teamMemberListType == Team.ListComplete =
-        pure $ fmap (view Team.userId) (mems ^. Team.teamMembers)
+          pure $ fmap (view Team.userId) (mems ^. Team.teamMembers)
     screenMemberList _ = pure []
 
 -- Event Serialisation:

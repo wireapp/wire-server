@@ -141,7 +141,8 @@ testSFTDiscoveryLoopWhenSuccessful = do
   tick <- newEmptyMVar
   delayCallsTVar <- newTVarIO []
   discoveryLoop <-
-    Async.async . runM
+    Async.async
+      . runM
       . ignoreLogs
       . runDelayWithTick tick delayCallsTVar
       . runFakeDNSLookup fakeDNSEnv

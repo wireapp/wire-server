@@ -74,7 +74,8 @@ add n tgts (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
 fetchId :: MonadClient m => UserId -> NotificationId -> Maybe ClientId -> m (Maybe QueuedNotification)
 fetchId u n c =
   listToMaybe . foldr' (toNotif c) []
-    <$> query cqlById (params LocalQuorum (u, n)) & retry x1
+    <$> query cqlById (params LocalQuorum (u, n))
+    & retry x1
   where
     cqlById :: PrepQuery R (UserId, NotificationId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlById =
@@ -133,7 +134,7 @@ fetch u c since (fromRange -> size) = do
     x :< xs -> case since of
       Just s
         | s == x ^. queuedNotificationId ->
-          ResultPage xs more False
+            ResultPage xs more False
       _ -> ResultPage (x <| xs) more (isJust since)
   where
     collect acc num page =
@@ -148,8 +149,8 @@ fetch u c since (fromRange -> size) = do
     trim l ns
       | Seq.length ns <= l = ns
       | otherwise = case Seq.viewr ns of
-        EmptyR -> ns
-        xs :> _ -> xs
+          EmptyR -> ns
+          xs :> _ -> xs
     cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlStart =
       "SELECT id, payload, clients \

@@ -323,11 +323,11 @@ checkHandleAvailable hnd = do
   let sCode = statusCode resp
   if
       | sCode == 200 -> -- handle exists
-        pure False
+          pure False
       | sCode == 404 -> -- handle not found
-        pure True
+          pure True
       | otherwise ->
-        rethrow "brig" resp
+          rethrow "brig" resp
 
 -- | Call brig to delete a user.
 -- If the user wasn't deleted completely before, another deletion attempt will be made.

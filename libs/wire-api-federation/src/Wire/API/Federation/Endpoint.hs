@@ -38,6 +38,8 @@ type FedEndpoint name input output = FedEndpointWithMods '[] name input output
 type StreamingFedEndpoint name input output =
   Named
     name
-    ( name :> OriginDomainHeader :> ReqBody '[JSON] input
+    ( name
+        :> OriginDomainHeader
+        :> ReqBody '[JSON] input
         :> StreamPost NoFraming OctetStream output
     )

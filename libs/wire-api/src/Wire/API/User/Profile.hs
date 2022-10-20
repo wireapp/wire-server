@@ -192,7 +192,8 @@ parseLocale = hush . parseOnly localeParser
   where
     localeParser :: Parser Locale
     localeParser =
-      Locale <$> (languageParser <?> "Language code")
+      Locale
+        <$> (languageParser <?> "Language code")
         <*> (optional (char '-' *> countryParser) <?> "Country code")
 
 --------------------------------------------------------------------------------

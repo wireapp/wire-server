@@ -1167,7 +1167,8 @@ randomUser = do
             "password" .= ("secret" :: Text)
           ]
   r <- post (runBrigR br . path "/i/users" . json p)
-  pure . readNote "unable to parse Location header"
+  pure
+    . readNote "unable to parse Location header"
     . C.unpack
     $ getHeader' "Location" r
   where

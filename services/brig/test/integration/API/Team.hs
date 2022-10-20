@@ -150,7 +150,8 @@ testUpdateEvents brig cannon = do
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rsp2 <-
     post
-      ( brig . path "/register"
+      ( brig
+          . path "/register"
           . contentJson
           . body (accept inviteeEmail inviteeCode)
       )
@@ -240,7 +241,8 @@ registerInvite brig tid inv invemail = do
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rsp <-
     post
-      ( brig . path "/register"
+      ( brig
+          . path "/register"
           . contentJson
           . body (accept invemail inviteeCode)
       )
@@ -269,7 +271,9 @@ testInvitationRoles brig galley = do
             )
     uid <- registerInvite brig tid inv bobEmail
     let memreq =
-          galley . zUser owner . zConn "c"
+          galley
+            . zUser owner
+            . zConn "c"
             . paths ["teams", toByteString' tid, "members", toByteString' uid]
     mem :: TeamMember <- responseJsonError =<< (get memreq <!! const 200 === statusCode)
     liftIO $ assertEqual "perms" (Team.rolePermissions RoleExternalPartner) (mem ^. permissions)
@@ -365,7 +369,8 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
         Just invitation <- getInvitation brig inviteeCode
         rsp2 <-
           post
-            ( brig . path "/register"
+            ( brig
+                . path "/register"
                 . contentJson
                 . body (acceptFn inviteeCode)
             )
@@ -384,8 +389,9 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
   liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Member.userId)
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Member.invitation)
   conns <-
-    responseJsonError =<< listConnections brig invitee
-      <!! const 200 === statusCode
+    responseJsonError
+      =<< listConnections brig invitee
+        <!! const 200 === statusCode
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
   pure (responseJsonMaybe rsp2, invitation)
 
@@ -455,7 +461,9 @@ testTeamNoPassword brig = do
   e <- randomEmail
   -- Team creators must have a password
   post
-    ( brig . path "/register" . contentJson
+    ( brig
+        . path "/register"
+        . contentJson
         . body
           ( RequestBodyLBS . encode $
               object
@@ -466,11 +474,13 @@ testTeamNoPassword brig = do
           )
     )
     !!! const 400
-    === statusCode
+      === statusCode
   -- And so do any other binding team members
   code <- liftIO $ InvitationCode . Ascii.encodeBase64Url <$> randomBytes 24
   post
-    ( brig . path "/register" . contentJson
+    ( brig
+        . path "/register"
+        . contentJson
         . body
           ( RequestBodyLBS . encode $
               object
@@ -481,7 +491,7 @@ testTeamNoPassword brig = do
           )
     )
     !!! const 400
-    === statusCode
+      === statusCode
 
 testInvitationCodeExists :: Brig -> Http ()
 testInvitationCodeExists brig = do
@@ -547,7 +557,9 @@ testInvitationMutuallyExclusive brig = do
       HttpT IO (Response (Maybe LByteString))
     req e c t i =
       post
-        ( brig . path "/register" . contentJson
+        ( brig
+            . path "/register"
+            . contentJson
             . body
               ( RequestBodyLBS . encode $
                   object
@@ -572,7 +584,8 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
   inv <- responseJsonError =<< postInvitation brig tid creator (invite email)
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   post
-    ( brig . path "/register"
+    ( brig
+        . path "/register"
         . contentJson
         . body (accept email inviteeCode)
     )
@@ -670,7 +683,8 @@ testSuspendTeam brig = do
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rsp2 <-
     post
-      ( brig . path "/register"
+      ( brig
+          . path "/register"
           . contentJson
           . body (accept inviteeEmail inviteeCode)
       )

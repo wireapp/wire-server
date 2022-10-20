@@ -334,8 +334,8 @@ verify k s v = lookup k s >>= maybe (pure Nothing) continue
     continue c
       | codeValue c == v = pure (Just c)
       | codeRetries c > 0 = do
-        insertInternal (c {codeRetries = codeRetries c - 1})
-        pure Nothing
+          insertInternal (c {codeRetries = codeRetries c - 1})
+          pure Nothing
       | otherwise = pure Nothing
 
 -- | Delete a code associated with the given key and scope.

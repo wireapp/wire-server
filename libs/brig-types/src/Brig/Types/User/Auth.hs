@@ -49,7 +49,8 @@ instance ToJSON SsoLogin where
 
 instance FromJSON LegalHoldLogin where
   parseJSON = withObject "LegalHoldLogin" $ \o ->
-    LegalHoldLogin <$> o .: "user"
+    LegalHoldLogin
+      <$> o .: "user"
       <*> o .:? "password"
       <*> o .:? "label"
 

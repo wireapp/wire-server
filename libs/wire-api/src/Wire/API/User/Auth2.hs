@@ -45,8 +45,9 @@ data LoginId
 -- See tests in `Test.Wire.API.User.Auth`.
 instance ToSchema LoginId where
   schema =
-    object "LoginId" $
-      fromLoginId .= tupleSchema `withParser` validate
+    object "LoginId"
+      $ fromLoginId .= tupleSchema
+      `withParser` validate
     where
       fromLoginId :: LoginId -> (Maybe Email, Maybe Phone, Maybe Handle)
       fromLoginId = \case

@@ -178,7 +178,7 @@ instance ToSchema AssetKey where
   schema =
     assetKeyToText
       .= parsedText "AssetKey" (runParser parser . T.encodeUtf8)
-        & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
+      & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
 
 instance S.ToParamSchema AssetKey where
   toParamSchema _ = S.toParamSchema (Proxy @Text)
@@ -200,9 +200,10 @@ newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
 
 instance ToSchema AssetToken where
   schema =
-    AssetToken <$> assetTokenAscii
-      .= schema
-        & doc' . S.schema . S.example ?~ toJSON ("aGVsbG8" :: Text)
+    AssetToken
+      <$> assetTokenAscii
+        .= schema
+      & doc' . S.schema . S.example ?~ toJSON ("aGVsbG8" :: Text)
 
 instance S.ToParamSchema AssetToken where
   toParamSchema _ = S.toParamSchema (Proxy @Text)

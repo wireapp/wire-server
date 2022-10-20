@@ -196,11 +196,11 @@ searchUsers domain (SearchRequest searchTerm) = do
     exactHandleSearch :: Int -> ExceptT Error (AppT r) [Contact]
     exactHandleSearch n
       | n > 0 = do
-        let maybeHandle = parseHandle searchTerm
-        maybeOwnerId <- maybe (pure Nothing) (wrapHttpClientE . API.lookupHandle) maybeHandle
-        case maybeOwnerId of
-          Nothing -> pure []
-          Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+          let maybeHandle = parseHandle searchTerm
+          maybeOwnerId <- maybe (pure Nothing) (wrapHttpClientE . API.lookupHandle) maybeHandle
+          case maybeOwnerId of
+            Nothing -> pure []
+            Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
       | otherwise = pure []
 
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))

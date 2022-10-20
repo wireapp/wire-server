@@ -113,7 +113,7 @@ setRandomHandle brig user = do
         . body (RequestBodyLBS . encode $ HandleUpdate h)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   pure user {userHandle = Just (Handle h)}
 
 -- Note: This actually _will_ send out an email, so we ensure that the email
@@ -356,7 +356,7 @@ countCookies brig u label = do
           . header "Z-User" (toByteString' u)
       )
       <!! const 200
-      === statusCode
+        === statusCode
   pure $ Vec.length <$> (preview (key "cookies" . _Array) =<< responseJsonMaybe @Value r)
 
 assertConnections :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> [ConnectionStatus] -> m ()
@@ -463,7 +463,7 @@ uploadAsset c usr sts dat = do
         . lbytes (toLazyByteString mpb)
     )
     <!! const 201
-    === statusCode
+      === statusCode
 
 downloadAsset ::
   (MonadIO m, MonadHttp m) =>

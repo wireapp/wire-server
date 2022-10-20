@@ -71,7 +71,8 @@ verify (Whitelist url user pass) key =
     urlEmail = queryItem "email" . encodeUtf8 . fromEmail
     urlPhone = queryItem "mobile" . encodeUtf8 . fromPhone
     req u p =
-      port 443 . secure
+      port 443
+        . secure
         . either urlEmail urlPhone key
         . applyBasicAuth u p
     x3 = limitRetries 3 <> exponentialBackoff 100000

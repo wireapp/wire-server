@@ -287,7 +287,8 @@ instance FromJSON Notification where
 
 instance FromJSON a => FromJSON (ConvEvent a) where
   parseJSON = withObject "conversation-event" $ \o ->
-    ConvEvent <$> o .: "conversation"
+    ConvEvent
+      <$> o .: "conversation"
       <*> o .: "from"
       <*> o .: "time"
       <*> o .: "data"

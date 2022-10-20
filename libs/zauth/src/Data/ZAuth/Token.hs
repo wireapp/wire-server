@@ -263,7 +263,8 @@ readToken :: Type -> (Properties -> Maybe a) -> LByteString -> Maybe (Token a)
 readToken t f b = case split '.' b of
   (s : rest) ->
     let p = map pairwise rest
-     in Token <$> hush (Signature <$> decode (toStrict s))
+     in Token
+          <$> hush (Signature <$> decode (toStrict s))
           <*> readHeader t p
           <*> f p
   _ -> Nothing
@@ -332,7 +333,8 @@ writeData h a = writeHeader h <> dot <> builder a
 
 writeHeader :: Header -> Builder
 writeHeader t =
-  field "v" (t ^. version) <> dot
+  field "v" (t ^. version)
+    <> dot
     <> field "k" (t ^. key)
     <> dot
     <> field "d" (t ^. time)
@@ -343,17 +345,20 @@ writeHeader t =
 
 instance ToByteString Access where
   builder t =
-    field "u" (toLazyASCIIBytes $ t ^. userId) <> dot
+    field "u" (toLazyASCIIBytes $ t ^. userId)
+      <> dot
       <> field "c" (t ^. connection)
 
 instance ToByteString User where
   builder t =
-    field "u" (toLazyASCIIBytes $ t ^. user) <> dot
+    field "u" (toLazyASCIIBytes $ t ^. user)
+      <> dot
       <> field "r" (Hex (t ^. rand))
 
 instance ToByteString Bot where
   builder t =
-    field "p" (toLazyASCIIBytes $ t ^. prov) <> dot
+    field "p" (toLazyASCIIBytes $ t ^. prov)
+      <> dot
       <> field "b" (toLazyASCIIBytes $ t ^. bot)
       <> dot
       <> field "c" (toLazyASCIIBytes $ t ^. conv)
@@ -363,12 +368,14 @@ instance ToByteString Provider where
 
 instance ToByteString LegalHoldAccess where
   builder t =
-    field "u" (toLazyASCIIBytes $ t ^. legalHoldAccess . userId) <> dot
+    field "u" (toLazyASCIIBytes $ t ^. legalHoldAccess . userId)
+      <> dot
       <> field "c" (t ^. legalHoldAccess . connection)
 
 instance ToByteString LegalHoldUser where
   builder t =
-    field "u" (toLazyASCIIBytes $ t ^. legalHoldUser . user) <> dot
+    field "u" (toLazyASCIIBytes $ t ^. legalHoldUser . user)
+      <> dot
       <> field "r" (Hex (t ^. legalHoldUser . rand))
 
 instance ToByteString Type where

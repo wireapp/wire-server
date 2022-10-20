@@ -141,7 +141,8 @@ recipient u r = Recipient u r RecipientClientsAll
 
 instance FromJSON Recipient where
   parseJSON = withObject "Recipient" $ \p ->
-    Recipient <$> p .: "user_id"
+    Recipient
+      <$> p .: "user_id"
       <*> p .: "route"
       <*> p .:? "clients" .!= RecipientClientsAll
 
@@ -216,7 +217,8 @@ instance ToJSON ApsData where
 
 instance FromJSON ApsData where
   parseJSON = withObject "ApsData" $ \o ->
-    ApsData <$> o .: "loc_key"
+    ApsData
+      <$> o .: "loc_key"
       <*> o .:? "loc_args" .!= []
       <*> o .:? "sound"
       <*> o .:? "preference"
@@ -291,7 +293,8 @@ singletonPayload = List1.singleton . toJSONObject
 
 instance FromJSON Push where
   parseJSON = withObject "Push" $ \p ->
-    Push <$> p .: "recipients"
+    Push
+      <$> p .: "recipients"
       <*> p .:? "origin"
       <*> p .:? "connections" .!= Set.empty
       <*> p .:? "origin_connection"

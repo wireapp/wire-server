@@ -120,7 +120,8 @@ instance ToJSON PresenceData where
 
 instance FromJSON PresenceData where
   parseJSON = withObject "PresenceData" $ \o ->
-    PresenceData <$> o .: "r"
+    PresenceData
+      <$> o .: "r"
       <*> o .:? "c"
       <*> o .:? "t" .!= 0
 

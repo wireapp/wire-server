@@ -449,8 +449,9 @@ addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new
-    !>> clientError
+  clientResponse
+    <$> API.addClient usr (Just con) (ipAddr <$> ip) new
+      !>> clientError
   where
     clientResponse :: Public.Client -> NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
@@ -608,9 +609,9 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
         let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
-        sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
+          sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
       | otherwise =
-        sendActivationMail e u p l Nothing
+          sendActivationMail e u p l Nothing
 
     sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
@@ -838,7 +839,8 @@ customerExtensionCheckBlockedDomains email = do
         pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
       Right domain ->
         when (domain `elem` blockedDomains) $
-          throwM $ customerExtensionBlockedDomain domain
+          throwM $
+            customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
   Members
@@ -1006,13 +1008,13 @@ activateKey ::
   (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
-    wrapClientE (API.preverify tgt code) !>> actError
-    pure ActivationRespDryRun
+      wrapClientE (API.preverify tgt code) !>> actError
+      pure ActivationRespDryRun
   | otherwise = do
-    result <- API.activate tgt code Nothing !>> actError
-    pure $ case result of
-      ActivationSuccess ident x -> respond ident x
-      ActivationPass -> ActivationRespPass
+      result <- API.activate tgt code Nothing !>> actError
+      pure $ case result of
+        ActivationSuccess ident x -> respond ident x
+        ActivationPass -> ActivationRespPass
   where
     respond (Just ident) x = ActivationResp $ Public.ActivationResponse ident x
     respond Nothing _ = ActivationRespSuccessNoIdent

@@ -520,17 +520,17 @@ updateServiceTags ::
 updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
   | eqTags && eqNames = pure ()
   | eqNames = do
-    let name = oldNameLower
-    let added = diffTags newTags oldTags
-    let removed = diffTags oldTags newTags
-    let retained = unfoldTags (diffTags oldTags removed)
-    for_ (nonEmptyTags removed) $ \r ->
-      deleteTags name (r `unfoldTagsInto` retained)
-    for_ (nonEmptyTags added) $ \a ->
-      insertTags name (a `unfoldTagsInto` retained)
+      let name = oldNameLower
+      let added = diffTags newTags oldTags
+      let removed = diffTags oldTags newTags
+      let retained = unfoldTags (diffTags oldTags removed)
+      for_ (nonEmptyTags removed) $ \r ->
+        deleteTags name (r `unfoldTagsInto` retained)
+      for_ (nonEmptyTags added) $ \a ->
+        insertTags name (a `unfoldTagsInto` retained)
   | otherwise = do
-    deleteTags oldNameLower (unfoldTags oldTags)
-    insertTags newNameLower (unfoldTags newTags)
+      deleteTags oldNameLower (unfoldTags oldTags)
+      insertTags newNameLower (unfoldTags newTags)
   where
     oldNameLower = Name (Text.toLower (fromName oldName))
     newNameLower = Name (Text.toLower (fromName newName))
@@ -797,8 +797,8 @@ paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
       . maybeFilterDisabled
       . catMaybes
       <$> mapConcurrently (uncurry lookupServiceProfile) p
-  pure
-    $! ServiceProfilePage
+  pure $!
+    ServiceProfilePage
       (length r > fromIntegral size)
       (trim size r)
   where
@@ -812,8 +812,8 @@ paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
       | otherwise = id
     maybeFilterPrefix
       | Just prefix <- mbPrefix =
-        let prefix' = Text.toLower (fromRange prefix)
-         in filter ((prefix' `Text.isPrefixOf`) . Text.toLower . fromName . serviceProfileName)
+          let prefix' = Text.toLower (fromRange prefix)
+           in filter ((prefix' `Text.isPrefixOf`) . Text.toLower . fromName . serviceProfileName)
       | otherwise = id
 
 getServiceWhitelistStatus ::

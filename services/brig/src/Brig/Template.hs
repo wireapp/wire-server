@@ -177,7 +177,8 @@ readWithDefault readFn baseDir defLoc typ prefix name = do
   where
     fileToLoad = prefix <> "/" <> name
     fallback =
-      baseDir <> "/"
+      baseDir
+        <> "/"
         <> unpack (locToText defLoc)
         <> "/"
         <> typ

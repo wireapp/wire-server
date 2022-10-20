@@ -2215,5 +2215,5 @@ executeTeamUserSearch brig teamid self mbSearchText =
           . maybe id (queryItem "q" . encodeUtf8) mbSearchText
       )
       <!! const 200
-      === statusCode
+        === statusCode
       >>= fmap Search.searchResults . responseJsonError

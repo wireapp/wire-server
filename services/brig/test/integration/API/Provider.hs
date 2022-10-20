@@ -435,7 +435,7 @@ testListServices config db brig = do
         . header "Z-User" (toByteString' uid)
     )
     !!! const 400
-    === statusCode
+      === statusCode
   -- An empty prefix is not sufficient
   listServiceProfilesByPrefix brig uid (Name "") 10 !!! const 400 === statusCode
   -- nb. We use a random name prefix so tests can run concurrently
@@ -1639,8 +1639,8 @@ waitFor t f ma = do
       | f a -> pure a
       | t <= 0 -> liftIO $ throwM TimedOut
       | otherwise -> do
-        liftIO $ threadDelay (1 # Second)
-        waitFor (t - 1 # Second) f ma
+          liftIO $ threadDelay (1 # Second)
+          waitFor (t - 1 # Second) f ma
 
 -- | Run a test case with an external service application.
 withTestService ::
@@ -1660,7 +1660,8 @@ registerService config db brig = do
   new <- defNewService config
   let Just url =
         fromByteString $
-          encodeUtf8 (botHost config) <> ":"
+          encodeUtf8 (botHost config)
+            <> ":"
             <> C8.pack (show (botPort config))
   svc <- addGetService brig (providerId prv) (new {newServiceUrl = url})
   let pid = providerId prv

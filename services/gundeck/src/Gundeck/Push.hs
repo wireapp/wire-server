@@ -348,10 +348,10 @@ nativeTargets psh rcps' alreadySent =
     addresses :: Recipient -> m [Address]
     addresses u = do
       addrs <- mntgtLookupAddresses (u ^. recipientId)
-      pure $
-        preference
+      pure
+        $ preference
           . filter (eligible u)
-          $ addrs
+        $ addrs
     eligible :: Recipient -> Address -> Bool
     eligible u a
       -- Never include the origin client.
@@ -433,9 +433,9 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
       | a ^. addrTransport == t ^. tokenTransport
           && a ^. addrApp == t ^. tokenApp
           && a ^. addrClient == t ^. tokenClient =
-        if a ^. addrToken == t ^. token
-          then (Just a, old)
-          else (x, a : old)
+          if a ^. addrToken == t ^. token
+            then (Just a, old)
+            else (x, a : old)
       | otherwise = (x, old)
 
     continue ::

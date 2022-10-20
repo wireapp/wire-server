@@ -102,7 +102,8 @@ data GcmData = GcmData
 
 instance FromJSON GcmData where
   parseJSON = withObject "GcmData" $ \o ->
-    GcmData <$> o .: "priority"
+    GcmData
+      <$> o .: "priority"
       <*> o .: "data"
 
 data ApnsData = ApnsData
@@ -113,7 +114,8 @@ data ApnsData = ApnsData
 
 instance FromJSON ApnsData where
   parseJSON = withObject "ApnsData" $ \o ->
-    ApnsData <$> o .: "aps"
+    ApnsData
+      <$> o .: "aps"
       <*> o .: "data"
 
 newtype Bundle = NoticeBundle NotificationId

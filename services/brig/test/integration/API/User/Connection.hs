@@ -971,8 +971,9 @@ testInternalGetConnStatusesAll brig opts fedBrigClient = do
     receiveConnectionAction brig fedBrigClient uid remoteDomain2User1 RemoteConnect (Just RemoteConnect) Accepted
 
   allStatuses :: [ConnectionStatusV2] <-
-    responseJsonError =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids Nothing Nothing)
-      <!! const 200 === statusCode
+    responseJsonError
+      =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids Nothing Nothing)
+        <!! const 200 === statusCode
 
   liftIO $ do
     sort (nub (map csv2From allStatuses)) @?= sort uids
@@ -982,8 +983,9 @@ testInternalGetConnStatusesAll brig opts fedBrigClient = do
     length (filter ((== Accepted) . csv2Status) allStatuses) @?= 6
 
   acceptedRemoteDomain1Only :: [ConnectionStatusV2] <-
-    responseJsonError =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids (Just remoteDomain1Users) (Just Accepted))
-      <!! const 200 === statusCode
+    responseJsonError
+      =<< getConnStatusInternal brig (ConnectionsStatusRequestV2 uids (Just remoteDomain1Users) (Just Accepted))
+        <!! const 200 === statusCode
 
   liftIO $ do
     let ordFn x = (csv2From x, csv2To x)
