@@ -46,7 +46,9 @@ import Brig.User.Auth.Cookie.Limit
 import qualified Brig.User.Auth.DB.Cookie as DB
 import qualified Brig.ZAuth as ZAuth
 import Cassandra
+import Control.Error.Util
 import Control.Lens (to, view)
+import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.List as List
@@ -105,31 +107,35 @@ nextCookie ::
     MonadClient m
   ) =>
   Cookie (ZAuth.Token u) ->
+  Maybe ClientId ->
   m (Maybe (Cookie (ZAuth.Token u)))
-nextCookie c = do
+nextCookie c mNewCid = runMaybeT $ do
+  let mOldCid = ZAuth.userTokenClient (cookieValue c)
+  -- Keep old client ID by default, but use new one if none was set.
+  let mcid = mOldCid <|> mNewCid
+
   s <- view settings
   now <- liftIO =<< view currentTime
   let created = cookieCreated c
   let renewAge = fromInteger (setUserCookieRenewAge s)
-  -- TODO: Also renew the cookie if it was signed with
-  -- a different zauth key index, regardless of age.
-  if persist c && diffUTCTime now created > renewAge
-    then Just <$> getNext
-    else pure Nothing
-  where
-    persist = (PersistentCookie ==) . cookieType
-    getNext = case cookieSucc c of
-      Nothing -> renewCookie c
-      Just ck -> do
-        let uid = ZAuth.userTokenOf (cookieValue c)
-            cid = ZAuth.userTokenClient (cookieValue c)
-        trackSuperseded uid (cookieId c)
-        cs <- DB.listCookies uid
-        case List.find (\x -> cookieId x == ck && persist x) cs of
-          Nothing -> renewCookie c
-          Just c' -> do
-            t <- ZAuth.mkUserToken uid cid (cookieIdNum ck) (cookieExpires c')
-            pure c' {cookieValue = t}
+  -- Renew the cookie if the client ID has changed, regardless of age.
+  -- FUTUREWORK: Also renew the cookie if it was signed with a different zauth
+  -- key index, regardless of age.
+  when (mcid /= mOldCid) $ do
+    guard (cookieType c == PersistentCookie)
+    guard (diffUTCTime now created > renewAge)
+  lift $ do
+    c' <- runMaybeT $ do
+      ck <- hoistMaybe $ cookieSucc c
+      let uid = ZAuth.userTokenOf (cookieValue c)
+      lift $ trackSuperseded uid (cookieId c)
+      cs <- lift $ DB.listCookies uid
+      c' <-
+        hoistMaybe $
+          List.find (\x -> cookieId x == ck && cookieType x == PersistentCookie) cs
+      t <- lift $ ZAuth.mkUserToken uid mcid (cookieIdNum ck) (cookieExpires c')
+      pure c' {cookieValue = t}
+    maybe (renewCookie c mcid) pure c'
 
 -- | Renew the given cookie with a fresh token.
 renewCookie ::
@@ -139,13 +145,13 @@ renewCookie ::
     MonadClient m
   ) =>
   Cookie (ZAuth.Token u) ->
+  Maybe ClientId ->
   m (Cookie (ZAuth.Token u))
-renewCookie old = do
+renewCookie old mcid = do
   let t = cookieValue old
   let uid = ZAuth.userTokenOf t
-      cid = ZAuth.userTokenClient t
   -- Insert new cookie
-  new <- newCookie uid cid (cookieType old) (cookieLabel old)
+  new <- newCookie uid mcid (cookieType old) (cookieLabel old)
   -- Link the old cookie to the new (successor), keeping it
   -- around only for another renewal period so as not to build
   -- an ever growing chain of superseded cookies.

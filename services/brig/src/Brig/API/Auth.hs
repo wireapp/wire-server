@@ -50,19 +50,25 @@ import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 
 accessH ::
+  Maybe ClientId ->
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
   Handler r SomeAccess
-accessH ut' mat' = do
+accessH mcid ut' mat' = do
   ut <- handleTokenErrors ut'
   mat <- traverse handleTokenError mat'
   partitionTokens ut mat
-    >>= either (uncurry access) (uncurry access)
+    >>= either (uncurry (access mcid)) (uncurry (access mcid))
 
-access :: TokenPair u a => NonEmpty (Token u) -> Maybe (Token a) -> Handler r SomeAccess
-access t mt =
+access ::
+  TokenPair u a =>
+  Maybe ClientId ->
+  NonEmpty (Token u) ->
+  Maybe (Token a) ->
+  Handler r SomeAccess
+access mcid t mt =
   traverse mkUserTokenCookie
-    =<< wrapHttpClientE (Auth.renewAccess (List1 t) mt) !>> zauthError
+    =<< wrapHttpClientE (Auth.renewAccess (List1 t) mt mcid) !>> zauthError
 
 sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode (SendLoginCode phone call force) = do

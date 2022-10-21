@@ -1151,9 +1151,10 @@ type AuthAPI =
              \ Every other combination is invalid.\
              \ Access tokens can be given as query parameter or authorisation\
              \ header, with the latter being preferred."
+        :> QueryParam "client_id" ClientId
         :> Cookies '["zuid" ::: SomeUserToken]
-        :> CanThrow 'BadCredentials
         :> Bearer SomeAccessToken
+        :> CanThrow 'BadCredentials
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named

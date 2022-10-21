@@ -253,12 +253,13 @@ renewAccess ::
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
+  Maybe ClientId ->
   ExceptT ZAuth.Failure m (Access u)
-renewAccess uts at = do
+renewAccess uts at mcid = do
   (uid, ck) <- validateTokens uts at
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
-  ck' <- lift $ nextCookie ck
+  ck' <- lift $ nextCookie ck mcid
   at' <- lift $ newAccessToken (fromMaybe ck ck') at
   pure $ Access at' ck'
 
