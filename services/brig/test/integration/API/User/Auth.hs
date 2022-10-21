@@ -71,6 +71,7 @@ import qualified Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.API.User.Client
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -148,7 +149,8 @@ tests conf m z db b g n =
           test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
-          test m "suspend-inactive" (testSuspendInactiveUsers conf b)
+          test m "suspend-inactive" (testSuspendInactiveUsers conf b),
+          test m "client access" (testAccessWithClientId b)
         ],
       testGroup
         "update /access/self/email"
@@ -969,6 +971,46 @@ getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   -- Return non-expired cookie but removed from DB (because it was renewed)
   -- and a valid cookie
   pure (c, c')
+
+testAccessWithClientId :: Brig -> Http ()
+testAccessWithClientId brig = do
+  u <- randomUser brig
+  rs <-
+    login
+      brig
+      ( emailLogin
+          (fromJust (userEmail u))
+          defPassword
+          (Just "nexus1")
+      )
+      PersistentCookie
+      <!! const 200 === statusCode
+  let c = decodeCookie rs
+  cl <-
+    responseJsonError
+      =<< addClient
+        brig
+        (userId u)
+        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+      <!! const 201 === statusCode
+  r <-
+    post
+      ( unversioned
+          . brig
+          . path "/access"
+          . queryItem "client_id" (toByteString' (clientId cl))
+          . cookie c
+      )
+      <!! const 200 === statusCode
+  now <- liftIO getCurrentTime
+  liftIO $ do
+    let ck = decodeCookie r
+        Just token = fromByteString (cookie_value ck)
+        atoken = decodeToken' @ZAuth.Access r
+    assertSanePersistentCookie @ZAuth.User ck
+    ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+    assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
+    ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
 
 testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do

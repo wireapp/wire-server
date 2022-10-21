@@ -121,7 +121,7 @@ nextCookie c mNewCid = runMaybeT $ do
   -- Renew the cookie if the client ID has changed, regardless of age.
   -- FUTUREWORK: Also renew the cookie if it was signed with a different zauth
   -- key index, regardless of age.
-  when (mcid /= mOldCid) $ do
+  when (mcid == mOldCid) $ do
     guard (cookieType c == PersistentCookie)
     guard (diffUTCTime now created > renewAge)
   lift $ do
