@@ -81,7 +81,7 @@ import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util.Core
-import Util.Scim (filterBy, listUsers, registerScimToken)
+import Util.Scim (createUser, filterBy, listUsers, randomScimUserWithEmail, registerScimToken)
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
@@ -705,17 +705,43 @@ specCRUDIdentityProvider = do
 
   describe "PUT /identity-providers/:idp" $ do
     testGetPutDelete callIdpUpdate
-    context "known IdP, client is team owner" $ do
+    focus . context "known IdP, client is team owner" $ do
       it "responds with 2xx and updates IdP" $ do
+        let haveScim = True
         env <- ask
-        (owner, _, (^. idpId) -> idpid, (IdPMetadataValue _ idpmeta, _)) <- registerTestIdPWithMeta
-        (_, _, cert1) <- liftIO $ mkSignCredsWithCert Nothing 96
+        (owner, teamid, idp, (IdPMetadataValue _ idpmeta, privCreds)) <- registerTestIdPWithMeta
+        let idpid = idp ^. idpId
+
+        Just tok <-
+          if haveScim
+            then Just <$> registerScimToken teamid (Just idpid)
+            else pure Nothing
+
+        (user, email) <- randomScimUserWithEmail
+        let Just externalId = Scim.externalId user
+        let nameid = emailToSAMLNameID email
+        scimStoredUser <- createUser tok user
+        _ :: SAML.UserRef <- tryLogin privCreds idp nameid
+
+        (newPrivCreds, _, cert1) <- liftIO $ mkSignCredsWithCert Nothing 96
         (_, _, cert2) <- liftIO $ mkSignCredsWithCert Nothing 96
         let idpmeta' = idpmeta & edCertAuthnResponse .~ (cert1 :| [cert2])
         callIdpUpdate (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
           `shouldRespondWith` ((== 200) . statusCode)
-        callIdpGet (env ^. teSpar) (Just owner) idpid
-          `shouldRespondWith` ((== idpmeta') . view idpMetadata)
+        newIdp <- call $ callIdpGet (env ^. teSpar) (Just owner) idpid
+        liftIO $ (newIdp ^. idpMetadata) `shouldBe` idpmeta'
+
+        do
+          resp <- listUsers tok (Just (filterBy "externalId" externalId))
+          liftIO $ resp `shouldBe` [scimStoredUser]
+
+        -- TODO: try both logging in with old and with new, in two different test runs.
+        _ :: SAML.UserRef <- tryLogin newPrivCreds newIdp nameid
+
+        do
+          resp <- listUsers tok (Just (filterBy "externalId" externalId))
+          liftIO $ resp `shouldBe` [scimStoredUser]
+
       it "updates the handle" $ do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -728,6 +754,7 @@ specCRUDIdentityProvider = do
           `shouldRespondWith` ((== 200) . statusCode)
         callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           `shouldRespondWith` ((== expected) . (\idp' -> idp' ^. (SAML.idpExtraInfo . wiHandle)))
+
       it "updates IdP metadata and creates a new IdP with the first metadata" $ do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -1054,10 +1081,25 @@ specCRUDIdentityProvider = do
             idp `shouldBe` idp'
             let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
             ST.take (ST.length prefix) rawmeta `shouldBe` prefix
-    describe "replaces an existing idp" $ do
+
+    focus . describe "replaces an existing idp" $ do
       it "creates new idp, setting old_issuer; sets replaced_by in old idp" $ do
+        let haveScim = True
         env <- ask
-        (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
+        (owner1, teamid, idp1, (IdPMetadataValue _ idpmeta1, privCreds)) <- registerTestIdPWithMeta
+        let idp1id = idp1 ^. idpId
+
+        Just tok <-
+          if haveScim
+            then Just <$> registerScimToken teamid (Just idp1id)
+            else pure Nothing
+
+        (user, email) <- randomScimUserWithEmail
+        let Just externalId = Scim.externalId user
+        let nameid = emailToSAMLNameID email
+        scimStoredUser <- createUser tok user
+        _ :: SAML.UserRef <- tryLogin privCreds idp1 nameid
+
         issuer2 <- makeIssuer
         idp2 <-
           let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
@@ -1082,6 +1124,18 @@ specCRUDIdentityProvider = do
                   . (idpExtraInfo . wiReplacedBy .~ (idp1 ^. idpExtraInfo . wiReplacedBy))
                   . (idpExtraInfo . wiHandle .~ (idp1 ^. idpExtraInfo . wiHandle))
           erase idp1 `shouldBe` erase idp2
+
+        do
+          resp <- listUsers tok (Just (filterBy "externalId" externalId))
+          liftIO $ resp `shouldBe` [scimStoredUser]
+
+        -- TODO: try both logging in with old and with new, in two different test runs.
+        _ :: SAML.UserRef <- tryLogin privCreds idp2 nameid
+
+        do
+          resp <- listUsers tok (Just (filterBy "externalId" externalId))
+          liftIO $ resp `shouldBe` [scimStoredUser]
+
       it "users can still login on old idp as before" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
@@ -1100,6 +1154,7 @@ specCRUDIdentityProvider = do
           olduid `shouldBe` newuid
           (olduref ^. SAML.uidTenant) `shouldBe` issuer1
           (newuref ^. SAML.uidTenant) `shouldBe` issuer1
+
       it "migrates old users to new idp on their next login on new idp; after that, login on old won't work any more" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
@@ -1120,6 +1175,7 @@ specCRUDIdentityProvider = do
           (olduref ^. SAML.uidTenant) `shouldBe` issuer1
           (newuref ^. SAML.uidTenant) `shouldBe` issuer2
         tryLoginFail privkey1 idp1 userSubject "cannont-provision-on-replaced-idp"
+
       it "creates non-existent users on new idp" $ do
         env <- ask
         (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
