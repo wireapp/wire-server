@@ -10,7 +10,7 @@ SCIM_TEST_SUITE_BRIG_PORT=8082
 function create_team_and_scim_token {
     TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../../.." && pwd )"
 
-    IFS=',' read -r -a creds <<< $($TOP_LEVEL/deploy/services-demo/create_test_team_admins.sh -c)
+    IFS=',' read -r -a creds <<< $($TOP_LEVEL/hack/bin/create_test_team_admins.sh -c)
 
     BRIG_HOST="http://$SCIM_TEST_SUITE_BRIG_HOST:$SCIM_TEST_SUITE_BRIG_PORT"
     WIRE_ADMIN_UUID=${creds[0]}

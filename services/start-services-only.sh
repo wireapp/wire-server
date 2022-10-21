@@ -3,8 +3,6 @@
 # Run all haskell services without immediately starting a test executable.
 # Can be useful for manually poking at the API.
 
-# This is NOT intended for a demo with the external API, as nginz is missing here - see the demo.sh script in wire-server/deploy/services-demo for that instead.
-
 set -eo pipefail
 
 SERVICES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
