@@ -16,6 +16,7 @@ library
     Wire.API.Asset
     Wire.API.Call.Config
     Wire.API.Connection
+    Wire.API.ConverProtoLens
     Wire.API.Conversation
     Wire.API.Conversation.Action
     Wire.API.Conversation.Action.Tag
@@ -68,7 +69,9 @@ library
     Wire.API.RawJson
     Wire.API.Routes.API
     Wire.API.Routes.AssetBody
+    Wire.API.Routes.Bearer
     Wire.API.Routes.ClientAlgebra
+    Wire.API.Routes.Cookies
     Wire.API.Routes.CSV
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
@@ -111,7 +114,9 @@ library
     Wire.API.User
     Wire.API.User.Activation
     Wire.API.User.Auth
-    Wire.API.User.Auth2
+    Wire.API.User.Auth.LegalHold
+    Wire.API.User.Auth.ReAuth
+    Wire.API.User.Auth.Sso
     Wire.API.User.Client
     Wire.API.User.Client.DPoPAccessToken
     Wire.API.User.Client.Prekey
@@ -263,6 +268,7 @@ library
     , websockets
     , wire-message-proto-lens
     , x509
+    , zauth
 
   default-language:   Haskell2010
 

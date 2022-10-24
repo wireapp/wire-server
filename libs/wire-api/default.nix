@@ -22,7 +22,7 @@
 , tasty-hunit, tasty-quickcheck, text, time, types-common, unliftio
 , unordered-containers, uri-bytestring, utf8-string, uuid, vector
 , wai, wai-extra, wai-utilities, wai-websockets, websockets
-, wire-message-proto-lens, x509
+, wire-message-proto-lens, x509, zauth
 }:
 mkDerivation {
   pname = "wire-api";
@@ -45,7 +45,7 @@ mkDerivation {
     sop-core string-conversions swagger swagger2 tagged text time
     types-common unordered-containers uri-bytestring utf8-string uuid
     vector wai wai-extra wai-utilities wai-websockets websockets
-    wire-message-proto-lens x509
+    wire-message-proto-lens x509 zauth
   ];
   testHaskellDepends = [
     aeson aeson-pretty aeson-qq async base binary bytestring

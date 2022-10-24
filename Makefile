@@ -88,7 +88,7 @@ endif
 # Usage: make ci package=brig test=1
 # If you want to pass arguments to the test-suite call the script directly.
 .PHONY: ci
-ci: c
+ci: c db-migrate
 	./hack/bin/cabal-run-integration.sh $(package)
 
 .PHONY: cabal-fmt
@@ -140,18 +140,6 @@ regen-local-nix-derivations:
 
 check-local-nix-derivations: regen-local-nix-derivations
 	git diff --exit-code
-
-# reset db using cabal
-.PHONY: db-reset-package
-db-reset-package: c
-	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
-
-# migrate db using cabal
-# For using stack see the Makefile of the package, e.g. services/brig/Makefile
-# Usage: make db-migrate-package package=galley
-.PHONY: db-migrate-package
-db-migrate-package: c
-	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1
 
 # Build everything (Haskell services and nginz)
 .PHONY: services
@@ -219,13 +207,53 @@ cqlsh:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 	docker exec -it $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
 
+.PHONY: db-reset-package
+db-reset-package:
+	@echo "Deprecated! Please use 'db-reset' instead"
+	$(MAKE) db-reset package=$(package)
+
+.PHONY: db-migrate-package
+db-migrate-package:
+	@echo "Deprecated! Please use 'db-migrate' instead"
+	$(MAKE) db-migrate package=$(package)
+
+# Usage:
+#
+# Reset all keyspaces
+# make db-reset
+#
+# Reset keyspace for only one service, say galley:
+# make db-reset package=galley
 .PHONY: db-reset
-db-reset:
-	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
-	make db-reset-package package=brig
-	make db-reset-package package=galley
-	make db-reset-package package=gundeck
-	make db-reset-package package=spar
+db-reset: c
+	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+ifeq ($(package), all)
+	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
+	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
+	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
+	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
+else
+	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
+endif
+
+# Usage:
+#
+# Migrate all keyspaces
+# make db-migrate
+#
+# Migrate keyspace for only one service, say galley:
+# make db-migrate package=galley
+.PHONY: db-migrate
+db-migrate: c
+ifeq ($(package), all)
+	./dist/brig-schema --keyspace brig_test --replication-factor 1
+	./dist/galley-schema --keyspace galley_test --replication-factor 1
+	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1
+	./dist/spar-schema --keyspace spar_test --replication-factor 1
+else
+	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1
+endif
+
 
 #################################
 ## dependencies

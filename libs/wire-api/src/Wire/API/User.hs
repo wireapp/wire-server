@@ -89,6 +89,7 @@ module Wire.API.User
     ChangeHandleError (..),
     ChangeHandleResponses,
     NameUpdate (..),
+    ChangeEmailResponse (..),
 
     -- * Account Deletion
     DeleteUser (..),
@@ -1269,6 +1270,21 @@ instance ToJSON NameUpdate where
 instance FromJSON NameUpdate where
   parseJSON = A.withObject "name-update" $ \o ->
     NameUpdate <$> o A..: "name"
+
+data ChangeEmailResponse
+  = ChangeEmailResponseIdempotent
+  | ChangeEmailResponseNeedsActivation
+
+instance
+  AsUnion
+    '[Respond 202 desc1 (), Respond 204 desc2 ()]
+    ChangeEmailResponse
+  where
+  toUnion ChangeEmailResponseIdempotent = S (Z (I ()))
+  toUnion ChangeEmailResponseNeedsActivation = Z (I ())
+  fromUnion (Z (I ())) = ChangeEmailResponseNeedsActivation
+  fromUnion (S (Z (I ()))) = ChangeEmailResponseIdempotent
+  fromUnion (S (S x)) = case x of {}
 
 -----------------------------------------------------------------------------
 -- Account Deletion

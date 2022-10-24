@@ -200,12 +200,12 @@ postMLSCommitBundle ::
   Qualified UserId ->
   Qualified ConvId ->
   Maybe ConnId ->
-  RawMLS CommitBundle ->
+  CommitBundle ->
   Sem r [LocalConversationUpdate]
 postMLSCommitBundle loc qusr qcnv conn rawBundle =
   foldQualified
     loc
-    (postMLSCommitBundleToLocalConv qusr conn (rmValue rawBundle))
+    (postMLSCommitBundleToLocalConv qusr conn rawBundle)
     (postMLSCommitBundleToRemoteConv loc qusr conn rawBundle)
     qcnv
 
@@ -228,10 +228,10 @@ postMLSCommitBundleFromLocalUser ::
   ) =>
   Local UserId ->
   ConnId ->
-  RawMLS CommitBundle ->
+  CommitBundle ->
   Sem r MLSMessageSendingStatus
 postMLSCommitBundleFromLocalUser lusr conn bundle = do
-  let msg = rmValue (cbCommitMsg (rmValue bundle))
+  let msg = rmValue (cbCommitMsg bundle)
   qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
   events <-
     map lcuEvent
@@ -320,7 +320,7 @@ postMLSCommitBundleToRemoteConv ::
   Local x ->
   Qualified UserId ->
   Maybe ConnId ->
-  RawMLS CommitBundle ->
+  CommitBundle ->
   Remote ConvId ->
   Sem r [LocalConversationUpdate]
 postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
@@ -335,7 +335,7 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
         MessageSendRequest
           { msrConvId = tUnqualified rcnv,
             msrSender = tUnqualified lusr,
-            msrRawMessage = Base64ByteString (rmRaw bundle)
+            msrRawMessage = Base64ByteString (serializeCommitBundle bundle)
           }
   updates <- case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e

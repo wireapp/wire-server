@@ -24,14 +24,11 @@ module Brig.Types.Intra
     UserAccount (..),
     NewUserScimInvitation (..),
     UserSet (..),
-    ReAuthUser (..),
   )
 where
 
 import Data.Aeson as A
-import Data.Code as Code
 import Data.Id (TeamId)
-import Data.Misc (PlainTextPassword (..))
 import qualified Data.Schema as Schema
 import qualified Data.Swagger as S
 import Imports
@@ -133,28 +130,4 @@ instance ToJSON NewUserScimInvitation where
         "locale" .= loc,
         "name" .= name,
         "email" .= email
-      ]
-
--------------------------------------------------------------------------------
--- ReAuthUser
-
--- | Certain operations might require reauth of the user. These are available
--- only for users that have already set a password.
-data ReAuthUser = ReAuthUser
-  { reAuthPassword :: Maybe PlainTextPassword,
-    reAuthCode :: Maybe Code.Value,
-    reAuthCodeAction :: Maybe VerificationAction
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON ReAuthUser where
-  parseJSON = withObject "reauth-user" $ \o ->
-    ReAuthUser <$> o .:? "password" <*> o .:? "verification_code" <*> o .:? "action"
-
-instance ToJSON ReAuthUser where
-  toJSON ru =
-    object
-      [ "password" .= reAuthPassword ru,
-        "verification_code" .= reAuthCode ru,
-        "action" .= reAuthCodeAction ru
       ]

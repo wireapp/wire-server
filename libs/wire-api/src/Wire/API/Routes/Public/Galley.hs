@@ -1427,7 +1427,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSProposalFailure
                :> "commit-bundles"
                :> ZConn
-               :> ReqBody '[MLS] (RawMLS CommitBundle)
+               :> ReqBody '[CommitBundleMimeType] CommitBundle
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
            )
     :<|> Named
