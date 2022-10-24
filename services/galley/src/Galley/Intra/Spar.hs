@@ -47,4 +47,4 @@ lookupScimUserInfos uids = do
       method POST
         . paths ["i", "scim", "userinfos"]
         . json (UserSet $ Set.fromList uids)
-  pure $ maybe mempty scimUserInfos $ responseJsonMaybe response
+  pure $ foldMap scimUserInfos $ responseJsonMaybe response
