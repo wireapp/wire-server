@@ -48,6 +48,8 @@ import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.Properties
+import Wire.API.Routes.Bearer
+import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -56,6 +58,7 @@ import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
+import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
@@ -1138,6 +1141,113 @@ type SearchAPI =
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 
+type AuthAPI =
+  Named
+    "access"
+    ( "access"
+        :> Summary "Obtain an access tokens for a cookie"
+        :> Description
+             "You can provide only a cookie or a cookie and token.\
+             \ Every other combination is invalid.\
+             \ Access tokens can be given as query parameter or authorisation\
+             \ header, with the latter being preferred."
+        :> Cookies '["zuid" ::: SomeUserToken]
+        :> CanThrow 'BadCredentials
+        :> Bearer SomeAccessToken
+        :> MultiVerb1 'POST '[JSON] TokenResponse
+    )
+    :<|> Named
+           "send-login-code"
+           ( "login" :> "send"
+               :> Summary "Send a login code to a verified phone number"
+               :> Description
+                    "This operation generates and sends a login code via sms for phone login.\
+                    \ A login code can be used only once and times out after\
+                    \ 10 minutes. Only one login code may be pending at a time.\
+                    \ For 2nd factor authentication login with email and password, use the\
+                    \ `/verification-code/send` endpoint."
+               :> ReqBody '[JSON] SendLoginCode
+               :> CanThrow 'InvalidPhone
+               :> CanThrow 'PasswordExists
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    (Respond 200 "OK" LoginCodeTimeout)
+           )
+    :<|> Named
+           "login"
+           ( "login"
+               :> Summary "Authenticate a user to obtain a cookie and first access token"
+               :> Description "Logins are throttled at the server's discretion"
+               :> ReqBody '[JSON] Login
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Request a persistent cookie instead of a session cookie"
+                    ]
+                    "persist"
+                    Bool
+               :> CanThrow 'BadCredentials
+               :> CanThrow 'AccountSuspended
+               :> CanThrow 'AccountPending
+               :> CanThrow 'CodeAuthenticationFailed
+               :> CanThrow 'CodeAuthenticationRequired
+               :> MultiVerb1 'POST '[JSON] TokenResponse
+           )
+    :<|> Named
+           "logout"
+           ( "access" :> "logout"
+               :> Summary "Log out in order to remove a cookie from the server"
+               :> Description
+                    "Calling this endpoint will effectively revoke the given cookie\
+                    \ and subsequent calls to /access with the same cookie will\
+                    \ result in a 403."
+               :> Cookies '["zuid" ::: SomeUserToken]
+               :> Bearer SomeAccessToken
+               :> CanThrow 'BadCredentials
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Logout")
+           )
+    :<|> Named
+           "change-self-email"
+           ( "access" :> "self" :> "email"
+               :> Summary "Change your email address"
+               :> Cookies '["zuid" ::: SomeUserToken]
+               :> Bearer SomeAccessToken
+               :> ReqBody '[JSON] EmailUpdate
+               :> CanThrow 'InvalidEmail
+               :> CanThrow 'UserKeyExists
+               :> CanThrow 'BlacklistedEmail
+               :> CanThrow 'BlacklistedPhone
+               :> CanThrow 'BadCredentials
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    '[ Respond 202 "Update accepted and pending activation of the new email" (),
+                       Respond 204 "No update, current and new email address are the same" ()
+                     ]
+                    ChangeEmailResponse
+           )
+    :<|> Named
+           "list-cookies"
+           ( "cookies"
+               :> Summary "Retrieve the list of cookies currently stored for the user"
+               :> ZLocalUser
+               :> QueryParam'
+                    [Optional, Strict, Description "Filter by label (comma-separated list)"]
+                    "labels"
+                    (CommaSeparatedList CookieLabel)
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "List of cookies" CookieList)
+           )
+    :<|> Named
+           "remove-cookies"
+           ( "cookies" :> "remove"
+               :> Summary "Revoke stored cookies"
+               :> ZLocalUser
+               :> CanThrow 'BadCredentials
+               :> ReqBody '[JSON] RemoveCookies
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Cookies revoked")
+           )
+
 type BrigAPI =
   UserAPI
     :<|> SelfAPI
@@ -1150,6 +1260,7 @@ type BrigAPI =
     :<|> MLSAPI
     :<|> UserHandleAPI
     :<|> SearchAPI
+    :<|> AuthAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
