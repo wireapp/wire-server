@@ -18,7 +18,6 @@ flag static
 library
   exposed-modules:
     Gundeck.API
-    Gundeck.API.Error
     Gundeck.API.Internal
     Gundeck.API.Public
     Gundeck.Aws
