@@ -1,0 +1,1 @@
+Use locally build schema binaries for db migrations and execute them right before running integration tests.
