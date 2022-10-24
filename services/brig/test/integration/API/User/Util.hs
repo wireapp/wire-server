@@ -46,6 +46,7 @@ import Data.Qualified
 import Data.Range (unsafeRange)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
+import qualified Data.ZAuth.Token as ZAuth
 import Federation.Util (withTempMockFederator)
 import Federator.MockServer (FederatedRequest (..))
 import GHC.TypeLits (KnownSymbol)
@@ -184,7 +185,7 @@ initiateEmailUpdateLogin brig email loginCreds uid = do
     pure (decodeCookie rsp, decodeToken rsp)
   initiateEmailUpdateCreds brig email (cky, tok) uid
 
-initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.AccessToken) -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
+initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.Token ZAuth.Access) -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
 initiateEmailUpdateCreds brig email (cky, tok) uid = do
   put $
     unversioned

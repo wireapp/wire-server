@@ -26,7 +26,7 @@
 module Test.Brig.Types.User where
 
 import Brig.Types.Connection (UpdateConnectionsInternal (..))
-import Brig.Types.Intra (NewUserScimInvitation (..), ReAuthUser (..), UserAccount (..))
+import Brig.Types.Intra (NewUserScimInvitation (..), UserAccount (..))
 import Brig.Types.Search (SearchVisibilityInbound (..))
 import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..))
 import Data.Aeson
@@ -36,6 +36,7 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (..), EJPDResponseBody (..))
+import Wire.API.User.Auth.ReAuth
 
 tests :: TestTree
 tests = testGroup "User (types vs. aeson)" $ roundtripTests

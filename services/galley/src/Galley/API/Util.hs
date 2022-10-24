@@ -19,7 +19,6 @@
 
 module Galley.API.Util where
 
-import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
@@ -79,6 +78,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
 import qualified Wire.API.User as User
+import Wire.API.User.Auth.ReAuth
 
 type JSON = Media "application" "json"
 

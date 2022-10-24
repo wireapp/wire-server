@@ -67,6 +67,7 @@ import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Mul
 import Wire.API.Routes.Named
 import Wire.API.Team.Feature
 import Wire.API.User
+import Wire.API.User.Auth.ReAuth
 import Wire.API.User.RichInfo (RichInfo)
 
 -- | Get statuses of all connections between two groups of users (the usual
@@ -141,7 +142,7 @@ deleteBot cid bot = do
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
 reAuthUser ::
   UserId ->
-  Brig.ReAuthUser ->
+  ReAuthUser ->
   App (Either AuthenticationError ())
 reAuthUser uid auth = do
   let req =

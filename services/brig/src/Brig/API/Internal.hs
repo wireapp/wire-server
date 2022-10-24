@@ -24,6 +24,7 @@ module Brig.API.Internal
   )
 where
 
+import Brig.API.Auth
 import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
@@ -57,7 +58,6 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User
 import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
-import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
@@ -112,7 +112,14 @@ servantSitemap ::
      ]
     r =>
   ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI :<|> userAPI
+servantSitemap =
+  ejpdAPI
+    :<|> accountAPI
+    :<|> mlsAPI
+    :<|> getVerificationCode
+    :<|> teamsAPI
+    :<|> userAPI
+    :<|> authAPI
 
 ejpdAPI ::
   Members
@@ -162,6 +169,13 @@ userAPI =
   updateLocale
     :<|> deleteLocale
     :<|> getDefaultUserLocale
+
+authAPI :: Member GalleyProvider r => ServerT BrigIRoutes.AuthAPI (Handler r)
+authAPI =
+  Named @"legalhold-login" legalHoldLogin
+    :<|> Named @"sso-login" ssoLogin
+    :<|> Named @"login-code" getLoginCode
+    :<|> Named @"reauthenticate" reauthenticate
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
@@ -434,7 +448,6 @@ sitemap = do
       .&. accept "application" "json"
 
   Provider.routesInternal
-  Auth.routesInternal
   Search.routesInternal
   Team.routesInternal
 
