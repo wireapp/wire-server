@@ -27,5 +27,5 @@ class ConvertProtoLens a b where
   toProtolens :: b -> a
 
 -- | Add labels to error messages
-label :: Text -> Either Text a -> Either Text a
-label lbl = first ((lbl <> ": ") <>)
+protoLabel :: Text -> Either Text a -> Either Text a
+protoLabel lbl = first ((lbl <> ": ") <>)

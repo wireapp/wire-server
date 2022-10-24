@@ -42,17 +42,17 @@ data CommitBundle = CommitBundle
   deriving (Eq, Show)
 
 instance ConvertProtoLens Proto.Mls.CommitBundle CommitBundle where
-  fromProtolens protoBundle = CP.label "CommitBundle" $ do
+  fromProtolens protoBundle = CP.protoLabel "CommitBundle" $ do
     CommitBundle
-      <$> CP.label "commit" (decodeMLS' (view Proto.Mls.commit protoBundle))
-      <*> CP.label
+      <$> CP.protoLabel "commit" (decodeMLS' (view Proto.Mls.commit protoBundle))
+      <*> CP.protoLabel
         "welcome"
         ( let bs = view Proto.Mls.welcome protoBundle
            in if BS.length bs == 0
                 then pure Nothing
                 else Just <$> decodeMLS' bs
         )
-      <*> CP.label "group_info_bundle" (fromProtolens (view Proto.Mls.groupInfoBundle protoBundle))
+      <*> CP.protoLabel "group_info_bundle" (fromProtolens (view Proto.Mls.groupInfoBundle protoBundle))
   toProtolens bundle =
     let commitData = rmRaw (cbCommitMsg bundle)
         welcomeData = maybe mempty rmRaw (cbWelcome bundle)
