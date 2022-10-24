@@ -136,7 +136,7 @@ postCommitBundle sender bundle = do
     ( galley . paths ["mls", "commit-bundles"]
         . zUser sender
         . zConn "conn"
-        . content "application/vnd.wire.commit-bundle"
+        . content "application/x-protobuf"
         . bytes bundle
     )
 
