@@ -16,6 +16,7 @@
 # custom rules:
 - hint: { lhs: (() <$), rhs: void }
 - hint: { lhs: return, rhs: pure }
+- hint: { lhs:  maybe mempty, rhs: foldMap }
 
 # We want the latter function because it handles signals properly.
 - error: { name: Use shutdown, lhs: runSettings, rhs: runSettingsWithShutdown }
