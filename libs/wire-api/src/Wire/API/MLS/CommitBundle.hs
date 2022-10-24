@@ -28,7 +28,6 @@ import Imports
 import qualified Proto.Mls
 import qualified Proto.Mls_Fields as Proto.Mls
 import Wire.API.ConverProtoLens
-import qualified Wire.API.ConverProtoLens as CP
 import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
@@ -42,17 +41,17 @@ data CommitBundle = CommitBundle
   deriving (Eq, Show)
 
 instance ConvertProtoLens Proto.Mls.CommitBundle CommitBundle where
-  fromProtolens protoBundle = CP.protoLabel "CommitBundle" $ do
+  fromProtolens protoBundle = protoLabel "CommitBundle" $ do
     CommitBundle
-      <$> CP.protoLabel "commit" (decodeMLS' (view Proto.Mls.commit protoBundle))
-      <*> CP.protoLabel
+      <$> protoLabel "commit" (decodeMLS' (view Proto.Mls.commit protoBundle))
+      <*> protoLabel
         "welcome"
         ( let bs = view Proto.Mls.welcome protoBundle
            in if BS.length bs == 0
                 then pure Nothing
                 else Just <$> decodeMLS' bs
         )
-      <*> CP.protoLabel "group_info_bundle" (fromProtolens (view Proto.Mls.groupInfoBundle protoBundle))
+      <*> protoLabel "group_info_bundle" (fromProtolens (view Proto.Mls.groupInfoBundle protoBundle))
   toProtolens bundle =
     let commitData = rmRaw (cbCommitMsg bundle)
         welcomeData = foldMap rmRaw (cbWelcome bundle)
