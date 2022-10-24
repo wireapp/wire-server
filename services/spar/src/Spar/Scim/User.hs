@@ -482,7 +482,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       createValidScimUserSpar stiTeam buid storedUser veid
 
       -- If applicable, trigger email validation procedure on brig.
-      lift $ Spar.App.validateEmail (Just stiTeam) buid `mapM_` (veidEmail veid)
+      lift $ Spar.App.validateEmail (Just stiTeam) buid `mapM_` veidEmail veid
 
       -- TODO: suspension via scim is brittle, and may leave active users behind: if we don't
       -- reach the following line due to a crash, the user will be active.
