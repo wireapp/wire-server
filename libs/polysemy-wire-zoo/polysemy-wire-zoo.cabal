@@ -96,7 +96,6 @@ library
 
   default-language:   Haskell2010
 
-
 test-suite spec
   type:               exitcode-stdio-1.0
   main-is:            Spec.hs
@@ -158,7 +157,7 @@ test-suite spec
     , hspec
     , imports
     , polysemy
-    , polysemy-check             >=0.9
+    , polysemy-check     >=0.9
     , polysemy-plugin
     , polysemy-wire-zoo
     , unliftio
