@@ -515,7 +515,9 @@ testMissingNotifsV2 = do
 
 testMissingNotifsV3 :: TestM ()
 testMissingNotifsV3 =
-  testMissingNotifs "v2" $ const $ const 404 === statusCode
+  testMissingNotifs "v3" $ const $ do
+    const 404 === statusCode
+    const Nothing === parseNotifications
 
 testMissingNotifs :: ByteString -> ([QueuedNotification] -> Assertions ()) -> TestM ()
 testMissingNotifs version checks =
