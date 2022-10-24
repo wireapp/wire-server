@@ -12,6 +12,7 @@ build-type:    Simple
 
 library
   exposed-modules:
+    Polysemy.Testing
     Polysemy.TinyLog
     Wire.Sem.Concurrency
     Wire.Sem.Concurrency.IO
@@ -92,5 +93,74 @@ library
     , unliftio
     , uuid
     , wire-api
+
+  default-language:   Haskell2010
+
+
+test-suite spec
+  type:               exitcode-stdio-1.0
+  main-is:            Spec.hs
+  other-modules:
+    Paths_polysemy_wire_zoo
+    Test.IntersperseSpec
+
+  hs-source-dirs:     test
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j
+    -Wno-redundant-constraints -Werror -threaded -rtsopts
+    -with-rtsopts=-N
+
+  build-tool-depends: hspec-discover:hspec-discover
+  build-depends:
+      base
+    , containers
+    , hspec
+    , imports
+    , polysemy
+    , polysemy-check             >=0.9
+    , polysemy-plugin
+    , polysemy-wire-zoo
+    , unliftio
 
   default-language:   Haskell2010
