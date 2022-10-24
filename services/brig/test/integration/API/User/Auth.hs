@@ -992,7 +992,7 @@ testAccessWithClientId brig = do
       =<< addClient
         brig
         (userId u)
-        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
       <!! const 201 === statusCode
   r <-
     post
@@ -1032,7 +1032,7 @@ testAccessWithExistingClientId brig = do
       =<< addClient
         brig
         (userId u)
-        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
       <!! const 201 === statusCode
   now <- liftIO getCurrentTime
 
