@@ -14,14 +14,22 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 import datetime
-
+import requests
 
 # -- Project information -----------------------------------------------------
 
 project = 'Wire'
-today_date = datetime.date.today()
-copyright = f'{today_date.year}, Wire'
 author = 'Wire Swiss GmbH'
+# Since nix has an old timestamp it operates under for reproducability, get
+# current date from the internet.
+try:
+    r = requests.get("https://worldtimeapi.org/api/timezone/Europe/Berlin").json()
+    today_year = r['datetime'][:4]
+    # the first commit of wire-docs was in 2019.
+    copyright = f'2019 - {today_year}, ' + author
+except:
+    print("Error in getting online date, fallback to potentially out-of-date year")
+    copyright = f'2019 - 2022, Wire Swiss GmbH'
 version = '0.0.4'
 # the 'release' variable is used in latex-based PDF generation
 release = version
