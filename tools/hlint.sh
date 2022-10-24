@@ -11,7 +11,7 @@ while getopts ':f:m:k' opt
      case $opt in
          f) f=${OPTARG}
             if [ "$f" = "all" ]; then
-              files=$(find libs/ services/ -name "*.hs")
+              echo "Checking every file…"
             elif [ "$f" = "pr" ]; then
               files=$(git diff --name-only origin/develop... | grep \.hs\$)
             elif [ "$f" = "changeset" ]; then
@@ -43,17 +43,18 @@ if [ "${k}" ]; then
   set -euo pipefail
 fi
 
-
-count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
-
-echo "Analysing $count file(s)…"
-
-for f in $files
-do
-  echo "$f"
-  if [ $check = true ]; then
-    hlint --no-summary "$f"
-  else
-    hlint --refactor --refactor-options="--inplace" "$f"
-  fi
-done
+if [ "$f" = "all" ]; then
+  hlint -g -v
+else
+  count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
+  echo "Analysing $count file(s)…"
+  for f in $files
+  do
+    echo "$f"
+    if [ $check = true ]; then
+      hlint --no-summary "$f"
+    else
+      hlint --refactor --refactor-options="--inplace" "$f"
+    fi
+  done
+fi

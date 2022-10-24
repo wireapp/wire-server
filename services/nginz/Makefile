@@ -1,7 +1,7 @@
 LANG           := en_US.UTF-8
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.20.2
+NGINX_VERSION   = 1.22.1
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
 SHELL          := /usr/bin/env bash

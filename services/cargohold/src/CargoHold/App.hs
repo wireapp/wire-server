@@ -66,7 +66,6 @@ import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
 
@@ -132,7 +131,7 @@ initSSLContext = do
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
   SSL.contextSetCiphers ctx "HIGH"
-  SSL.contextLoadSystemCerts ctx
+  SSL.contextSetDefaultVerifyPaths ctx
   SSL.contextSetVerificationMode ctx $
     SSL.VerifyPeer True True Nothing
   pure ctx
