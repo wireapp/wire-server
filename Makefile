@@ -86,7 +86,7 @@ endif
 # Usage: make ci package=brig test=1
 # If you want to pass arguments to the test-suite call the script directly.
 .PHONY: ci
-ci: c
+ci: c db-migrate
 	./hack/bin/cabal-run-integration.sh $(package)
 
 .PHONY: cabal-fmt
