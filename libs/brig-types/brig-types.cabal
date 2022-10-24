@@ -23,7 +23,6 @@ library
     Brig.Types.Team.LegalHold
     Brig.Types.Test.Arbitrary
     Brig.Types.User
-    Brig.Types.User.Auth
     Brig.Types.User.Event
 
   other-modules:      Paths_brig_types

@@ -17,7 +17,7 @@
 
 -- | High-level user authentication and access control.
 module Brig.User.Auth
-  ( Access (..),
+  ( Access,
     sendLoginCode,
     login,
     logout,
@@ -54,7 +54,6 @@ import Brig.Email
 import qualified Brig.Options as Opt
 import Brig.Phone
 import Brig.Types.Intra
-import Brig.Types.User.Auth
 import Brig.User.Auth.Cookie
 import Brig.User.Handle
 import Brig.User.Phone
@@ -81,11 +80,8 @@ import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Auth
-
-data Access u = Access
-  { accessToken :: !AccessToken,
-    accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
-  }
+import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.Sso
 
 sendLoginCode ::
   ( MonadClient m,
@@ -140,7 +136,7 @@ login ::
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
-login (PasswordLogin li pw label code) typ = do
+login (PasswordLogin (PasswordLoginData li pw label code)) typ = do
   uid <- wrapHttpClientE $ resolveLoginId li
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
@@ -161,7 +157,7 @@ login (PasswordLogin li pw label code) typ = do
           VerificationCodeNoPendingCode -> wrapHttpClientE $ loginFailedWith LoginCodeInvalid uid
           VerificationCodeRequired -> wrapHttpClientE $ loginFailedWith LoginCodeRequired uid
           VerificationCodeNoEmail -> wrapHttpClientE $ loginFailed uid
-login (SmsLogin phone code label) typ = do
+login (SmsLogin (SmsLoginData phone code label)) typ = do
   uid <- wrapHttpClientE $ resolveLoginId (LoginByPhone phone)
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
