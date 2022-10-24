@@ -441,13 +441,12 @@ testClientsWithoutPrekeys brig cannon db opts = do
         const 200 === statusCode
         const
           ( Right $
-              ( expectedClientMap
-                  domain
-                  uid1
-                  [ (clientId c11, Nothing),
-                    (clientId c12, Just pk12)
-                  ]
-              )
+              expectedClientMap
+                domain
+                uid1
+                [ (clientId c11, Nothing),
+                  (clientId c12, Just pk12)
+                ]
           )
           === responseJsonEither
 

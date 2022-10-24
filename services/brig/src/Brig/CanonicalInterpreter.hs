@@ -57,23 +57,25 @@ type BrigCanonicalEffects =
 
 runBrigToIO :: Env -> AppT BrigCanonicalEffects a -> IO a
 runBrigToIO e (AppT ma) = do
-  (either throwM pure =<<)
-    . runFinal
-    . unsafelyPerformConcurrency
-    . embedToFinal
-    . loggerToTinyLog (e ^. applog)
-    . runError @SomeException
-    . mapError @ParseException SomeException
-    . interpretClientToIO (e ^. casClient)
-    . interpretRpcToIO (e ^. httpManager) (e ^. requestId)
-    . interpretServiceRpcToRpc @'Galley "galley" (e ^. galley)
-    . interpretGalleyProviderToRPC
-    . codeStoreToCassandra @Cas.Client
-    . nowToIOAction (e ^. currentTime)
-    . userPendingActivationStoreToCassandra
-    . passwordResetStoreToCodeStore
-    . interpretBlacklistStoreToCassandra @Cas.Client
-    . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
-    . interpretJwtTools
-    . interpretPublicKeyBundle
+  ( either throwM pure
+      <=< ( runFinal
+              . unsafelyPerformConcurrency
+              . embedToFinal
+              . loggerToTinyLog (e ^. applog)
+              . runError @SomeException
+              . mapError @ParseException SomeException
+              . interpretClientToIO (e ^. casClient)
+              . interpretRpcToIO (e ^. httpManager) (e ^. requestId)
+              . interpretServiceRpcToRpc @'Galley "galley" (e ^. galley)
+              . interpretGalleyProviderToRPC
+              . codeStoreToCassandra @Cas.Client
+              . nowToIOAction (e ^. currentTime)
+              . userPendingActivationStoreToCassandra
+              . passwordResetStoreToCodeStore
+              . interpretBlacklistStoreToCassandra @Cas.Client
+              . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
+              . interpretJwtTools
+              . interpretPublicKeyBundle
+          )
+    )
     $ runReaderT ma e

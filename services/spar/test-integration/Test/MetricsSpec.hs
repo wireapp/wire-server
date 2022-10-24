@@ -37,7 +37,7 @@ spec = describe "metrics" . it "works" $ do
   _ <- call $ get (spar . path p1)
   _ <- call $ get (spar . path (p2 "316f1c18-2980-11e9-ab0b-ef604d1791b2"))
   _ <- call $ get (spar . path (p2 "60a7dda8-2980-11e9-b359-fb5b41565453"))
-  resp :: String <- call $ maybe mempty cs . responseBody <$> get (spar . path "i/metrics")
+  resp :: String <- call $ foldMap cs . responseBody <$> get (spar . path "i/metrics")
   -- FUTUREWORK: here we could parse the prometheus 'RegistrySample' and inspect it more
   -- thoroughly, but i'm not sure there is a parser.
   liftIO $ do

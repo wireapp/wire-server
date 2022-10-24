@@ -55,7 +55,7 @@ instance ConvertProtoLens Proto.Mls.CommitBundle CommitBundle where
       <*> CP.protoLabel "group_info_bundle" (fromProtolens (view Proto.Mls.groupInfoBundle protoBundle))
   toProtolens bundle =
     let commitData = rmRaw (cbCommitMsg bundle)
-        welcomeData = maybe mempty rmRaw (cbWelcome bundle)
+        welcomeData = foldMap rmRaw (cbWelcome bundle)
         groupInfoData = toProtolens (cbGroupInfoBundle bundle)
      in ( Data.ProtoLens.defMessage
             & Proto.Mls.commit .~ commitData
