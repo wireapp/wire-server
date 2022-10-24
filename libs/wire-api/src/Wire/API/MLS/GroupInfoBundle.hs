@@ -24,7 +24,6 @@ import qualified Proto.Mls
 import qualified Proto.Mls_Fields as Proto.Mls
 import Test.QuickCheck
 import Wire.API.ConverProtoLens
-import qualified Wire.API.ConverProtoLens as CP
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
@@ -64,11 +63,11 @@ data GroupInfoBundle = GroupInfoBundle
 
 instance ConvertProtoLens Proto.Mls.GroupInfoBundle GroupInfoBundle where
   fromProtolens protoBundle =
-    CP.protoLabel "GroupInfoBundle" $
+    protoLabel "GroupInfoBundle" $
       GroupInfoBundle
-        <$> CP.protoLabel "field group_info_type" (fromProtolens (view Proto.Mls.groupInfoType protoBundle))
-        <*> CP.protoLabel "field ratchet_tree_type" (fromProtolens (view Proto.Mls.ratchetTreeType protoBundle))
-        <*> CP.protoLabel "field group_info" (decodeMLS' (view Proto.Mls.groupInfo protoBundle))
+        <$> protoLabel "field group_info_type" (fromProtolens (view Proto.Mls.groupInfoType protoBundle))
+        <*> protoLabel "field ratchet_tree_type" (fromProtolens (view Proto.Mls.ratchetTreeType protoBundle))
+        <*> protoLabel "field group_info" (decodeMLS' (view Proto.Mls.groupInfo protoBundle))
   toProtolens bundle =
     let encryptionType = toProtolens (gipGroupInfoType bundle)
         treeType = toProtolens (gipRatchetTreeType bundle)
