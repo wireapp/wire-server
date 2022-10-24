@@ -45,7 +45,7 @@ mimeUnrenderMLSWith p = first T.unpack . decodeMLSWith p
 data CommitBundleMimeType
 
 instance Accept CommitBundleMimeType where
-  contentType _ = "application" // "vnd.wire.commit-bundle"
+  contentType _ = "application" // "x-protobuf"
 
 instance MimeUnrender CommitBundleMimeType CommitBundle where
   mimeUnrender _ = first T.unpack . deserializeCommitBundle . LBS.toStrict
