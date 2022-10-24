@@ -371,6 +371,7 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         ngx_str_t z_prov_id = ngx_string("zauth_provider");
         ngx_str_t z_bot_id  = ngx_string("zauth_bot");
         ngx_str_t z_user_id = ngx_string("zauth_user");
+        ngx_str_t z_client_id = ngx_string("zauth_client");
         ngx_str_t z_conn_id = ngx_string("zauth_connection");
         ngx_str_t z_conv_id = ngx_string("zauth_conversation");
 
@@ -386,6 +387,9 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         ngx_http_variable_t * z_user_var =
                 ngx_http_add_variable(conf, &z_user_id, NGX_HTTP_VAR_NOHASH);
 
+        ngx_http_variable_t * z_client_var =
+                ngx_http_add_variable(conf, &z_client_id, NGX_HTTP_VAR_NOHASH);
+
         ngx_http_variable_t * z_conn_var =
                 ngx_http_add_variable(conf, &z_conn_id, NGX_HTTP_VAR_NOHASH);
 
@@ -393,7 +397,8 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
                 ngx_http_add_variable(conf, &z_conv_id, NGX_HTTP_VAR_NOHASH);
 
         if ( z_type_var == NULL || z_prov_var == NULL || z_bot_var == NULL ||
-             z_user_var == NULL || z_conn_var == NULL || z_conv_var == NULL )
+             z_user_var == NULL || z_client_var == NULL || z_conn_var == NULL ||
+             z_conv_var == NULL )
         {
                 return NGX_ERROR;
         }
@@ -403,6 +408,8 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         z_bot_var->data         = 'b';
         z_user_var->get_handler = zauth_token_var;
         z_user_var->data        = 'u';
+        z_client_var->get_handler = zauth_token_var;
+        z_client_var->data        = 'i';
         z_prov_var->get_handler = zauth_token_var;
         z_prov_var->data        = 'p';
         z_conn_var->get_handler = zauth_token_var_conn;
