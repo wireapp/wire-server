@@ -64,11 +64,11 @@ data GroupInfoBundle = GroupInfoBundle
 
 instance ConvertProtoLens Proto.Mls.GroupInfoBundle GroupInfoBundle where
   fromProtolens protoBundle =
-    CP.label "GroupInfoBundle" $
+    CP.protoLabel "GroupInfoBundle" $
       GroupInfoBundle
-        <$> CP.label "field group_info_type" (fromProtolens (view Proto.Mls.groupInfoType protoBundle))
-        <*> CP.label "field ratchet_tree_type" (fromProtolens (view Proto.Mls.ratchetTreeType protoBundle))
-        <*> CP.label "field group_info" (decodeMLS' (view Proto.Mls.groupInfo protoBundle))
+        <$> CP.protoLabel "field group_info_type" (fromProtolens (view Proto.Mls.groupInfoType protoBundle))
+        <*> CP.protoLabel "field ratchet_tree_type" (fromProtolens (view Proto.Mls.ratchetTreeType protoBundle))
+        <*> CP.protoLabel "field group_info" (decodeMLS' (view Proto.Mls.groupInfo protoBundle))
   toProtolens bundle =
     let encryptionType = toProtolens (gipGroupInfoType bundle)
         treeType = toProtolens (gipRatchetTreeType bundle)
