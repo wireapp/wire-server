@@ -299,14 +299,14 @@ readAccessBody :: Properties -> Maybe Access
 readAccessBody t =
   Access
     <$> (lookup "u" t >>= fromLazyASCIIBytes)
-    <*> pure (lookup "cl" t >>= fromByteString')
+    <*> pure (lookup "i" t >>= fromByteString')
     <*> (lookup "c" t >>= fromByteString')
 
 readUserBody :: Properties -> Maybe User
 readUserBody t =
   User
     <$> (lookup "u" t >>= fromLazyASCIIBytes)
-    <*> pure (lookup "cl" t >>= fromByteString')
+    <*> pure (lookup "i" t >>= fromByteString')
     <*> (lookup "r" t >>= fmap fromHex . fromByteString')
 
 readBotBody :: Properties -> Maybe Bot
@@ -352,7 +352,7 @@ writeHeader t =
 instance ToByteString Access where
   builder t =
     field "u" (toLazyASCIIBytes $ t ^. userId)
-      <> foldMap (\c -> dot <> field "cl" c) (t ^. clientId)
+      <> foldMap (\c -> dot <> field "i" c) (t ^. clientId)
       <> dot
       <> field "c" (t ^. connection)
 
@@ -361,7 +361,7 @@ instance ToByteString User where
     field "u" (toLazyASCIIBytes $ t ^. user)
       <> dot
       <> field "r" (Hex (t ^. rand))
-      <> foldMap (\c -> dot <> field "cl" c) (t ^. client)
+      <> foldMap (\c -> dot <> field "i" c) (t ^. client)
 
 instance ToByteString Bot where
   builder t =
@@ -377,7 +377,7 @@ instance ToByteString Provider where
 instance ToByteString LegalHoldAccess where
   builder t =
     field "u" (toLazyASCIIBytes $ t ^. legalHoldAccess . userId)
-      <> foldMap (\c -> dot <> field "cl" c) (t ^. legalHoldAccess . clientId)
+      <> foldMap (\c -> dot <> field "i" c) (t ^. legalHoldAccess . clientId)
       <> dot
       <> field "c" (t ^. legalHoldAccess . connection)
 
@@ -386,7 +386,7 @@ instance ToByteString LegalHoldUser where
     field "u" (toLazyASCIIBytes $ t ^. legalHoldUser . user)
       <> dot
       <> field "r" (Hex (t ^. legalHoldUser . rand))
-      <> foldMap (\c -> dot <> field "cl" c) (t ^. legalHoldUser . client)
+      <> foldMap (\c -> dot <> field "i" c) (t ^. legalHoldUser . client)
 
 instance ToByteString Type where
   builder A = char8 'a'
