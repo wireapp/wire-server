@@ -40,9 +40,6 @@ let zauth = callPackage ./pkgs/zauth { };
       installPhase = ''
          mkdir -p $out/usr/bin
          cp $src $out/usr/bin/nginz_reload.sh
-         # pkgs.envsubst installs 'env' under /sbin/env, not what nginz_reload needs
-         # so we add a symlink here.
-         ln -s /sbin/env $out/usr/bin/env
       '';
     };
 
@@ -54,10 +51,27 @@ let zauth = callPackage ./pkgs/zauth { };
     #   arch = "amd64";
     # };
 
+    # TODO I don't get it, /var/log/nginx doesn't exist in the end image, but the symlink does. :cry:
+    bloodyDeterministicPaths = stdenvNoCC.mkDerivation {
+      name = "bloodyDeterministicPaths";
+      src = ../services/nginz/nginz_reload.sh;
+      buildInputs = [ envsubst coreutils bashInteractive  ];
+      phases = "installPhase";
+      installPhase = ''
+          # nginx still tries to read this directory even if error_log
+          # directive is specifying another file :/
+          mkdir -p $out/var/log/nginx
+          mkdir -p $out/var/cache/nginx
+          # pkgs.envsubst installs 'env' under /sbin/env, not what nginz_reload needs
+          # so we add a symlink here.
+          mkdir -p $out/usr/bin
+          ln -s /sbin/env $out/usr/bin/env
+      '';
+    };
+
     nginzImage = dockerTools.buildLayeredImage {
-      # fromImage = "docker.io/alpine:3.15";
       name = "quay.io/wire/nginz";
-      # maxLayers = 5;
+      maxLayers = 3;
       contents = [
         cacert
         coreutils
@@ -71,15 +85,15 @@ let zauth = callPackage ./pkgs/zauth { };
         envsubst
         reload-script
         nginz
+        bloodyDeterministicPaths
       ];
-      extraCommands = ''
-        # nginx still tries to read this directory even if error_log
-        # directive is specifying another file :/
-        mkdir -p var/log/nginx
-        mkdir -p var/cache/nginx
-      '';
+      # TODO add user and group for nginx
+      # extraCommands = ''
+      #     addgroup -g 101 -S nginx
+      #     adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx
+      # '';
       config = {
-        Entrypoint = ["${dumb-init}/bin/dumb-init" "--" "${nginz}/usr/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf"];
+        Entrypoint = ["${dumb-init}/bin/dumb-init" "--" "/usr/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf"];
         Env = ["SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"];
         ExposedPorts = {
           "80/tcp" = {};
