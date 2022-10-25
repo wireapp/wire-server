@@ -212,7 +212,7 @@ createGlobalTeamConversation tid uid = do
         { ncMetadata =
             ConversationMetadata
               { cnvmType = GlobalTeamConv,
-                cnvmCreator = uid, 
+                cnvmCreator = uid,
                 cnvmAccess = [LinkAccess],
                 cnvmAccessRoles = mempty,
                 cnvmName = Nothing,

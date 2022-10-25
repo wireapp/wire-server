@@ -710,10 +710,10 @@ postMessageQualifiedLocalOwningBackendSuccess = do
               pure $
                 if
                     | d == bDomain ->
-                        UserMap . Map.fromList $
-                          [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
-                            (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
-                          ]
+                      UserMap . Map.fromList $
+                        [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
+                          (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
+                        ]
                     | d == cDomain -> UserMap (Map.singleton (qUnqualified carl) (Set.singleton (PubClient carlClient Nothing)))
                     | otherwise -> mempty
 
@@ -2441,9 +2441,9 @@ testAddRemoteMember = do
     respond :: Qualified UserId -> FederatedRequest -> Value
     respond bob req
       | frComponent req == Brig =
-          toJSON [mkProfile bob (Name "bob")]
+        toJSON [mkProfile bob (Name "bob")]
       | frRPC req == "on-new-remote-conversation" =
-          toJSON EmptyResponse
+        toJSON EmptyResponse
       | otherwise = toJSON ()
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
@@ -2699,10 +2699,10 @@ testAddRemoteMemberInvalidDomain = do
       const 422 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path")
-        . responseJsonUnsafe @Value
+          . responseJsonUnsafe @Value
       const (Just "invalid.example.com")
         === preview (ix "data" . ix "domain")
-        . responseJsonUnsafe @Value
+          . responseJsonUnsafe @Value
 
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)
@@ -2956,10 +2956,10 @@ deleteRemoteMemberConvLocalQualifiedOk = do
         case (frTargetDomain fedReq, frRPC fedReq) of
           (d, mp)
             | d == remoteDomain1 && mp == getUsersRPC ->
-                success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
+              success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
           (d, mp)
             | d == remoteDomain2 && mp == getUsersRPC ->
-                success [mkProfile qEve (Name "Eve")]
+              success [mkProfile qEve (Name "Eve")]
           _ -> success ()
 
   (convId, _) <-
@@ -3008,7 +3008,7 @@ leaveRemoteConvQualifiedOk = do
   let mockedFederatedGalleyResponse :: FederatedRequest -> Maybe Value
       mockedFederatedGalleyResponse req
         | frComponent req == Galley =
-            Just . toJSON . F.LeaveConversationResponse . Right $ ()
+          Just . toJSON . F.LeaveConversationResponse . Right $ ()
         | otherwise = Nothing
       mockResponses =
         joinMockedFederatedResponses
@@ -3039,8 +3039,8 @@ leaveNonExistentRemoteConv = do
   let mockResponses :: FederatedRequest -> Maybe Value
       mockResponses req
         | frComponent req == Galley =
-            Just . toJSON . F.LeaveConversationResponse $
-              Left F.RemoveFromConversationErrorNotFound
+          Just . toJSON . F.LeaveConversationResponse $
+            Left F.RemoveFromConversationErrorNotFound
         | otherwise = Nothing
 
   (resp, fedRequests) <-
@@ -3066,8 +3066,8 @@ leaveRemoteConvDenied = do
   let mockResponses :: FederatedRequest -> Maybe Value
       mockResponses req
         | frComponent req == Galley =
-            Just . toJSON . F.LeaveConversationResponse $
-              Left F.RemoveFromConversationErrorRemovalNotAllowed
+          Just . toJSON . F.LeaveConversationResponse $
+            Left F.RemoveFromConversationErrorRemovalNotAllowed
         | otherwise = Nothing
 
   (resp, fedRequests) <-
@@ -3817,12 +3817,12 @@ removeUser = do
     let handler :: FederatedRequest -> IO LByteString
         handler freq
           | frTargetDomain freq == dDomain =
-              throw $ DiscoveryFailureSrvNotAvailable "dDomain"
+            throw $ DiscoveryFailureSrvNotAvailable "dDomain"
           | frTargetDomain freq `elem` [bDomain, cDomain] =
-              case frRPC freq of
-                "leave-conversation" -> pure (encode (F.LeaveConversationResponse (Right ())))
-                "on-conversation-updated" -> pure (encode ())
-                _ -> throw $ MockErrorResponse HTTP.status404 "invalid rpc"
+            case frRPC freq of
+              "leave-conversation" -> pure (encode (F.LeaveConversationResponse (Right ())))
+              "on-conversation-updated" -> pure (encode ())
+              _ -> throw $ MockErrorResponse HTTP.status404 "invalid rpc"
           | otherwise = throw $ MockErrorResponse HTTP.status500 "unmocked domain"
     (_, fedRequests) <-
       withTempMockFederator' handler $
