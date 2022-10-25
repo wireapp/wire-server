@@ -18,7 +18,6 @@
 
 module Gundeck.Push
   ( push,
-    AddTokenResponse (..),
     addToken,
     listTokens,
     deleteToken,
@@ -401,16 +400,10 @@ nativeTargets psh rcps' alreadySent =
     check (Left e) = mntgtLogErr e >> pure []
     check (Right r) = pure r
 
-data AddTokenResponse
-  = AddTokenSuccess Public.PushToken
-  | AddTokenNoBudget
-  | AddTokenNotFound
-  | AddTokenInvalid
-  | AddTokenTooLong
-  | AddTokenMetadataTooLong
+type AddTokenResponse = Either Public.AddTokenError Public.AddTokenSuccess
 
 addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
-addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
+addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget) $ do
   (cur, old) <- foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.LocalQuorum
   Log.info $
     "user"
@@ -423,7 +416,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
       pure
       ( \a -> do
           Native.deleteTokens old (Just a)
-          pure (AddTokenSuccess newtok)
+          pure (Right $ Public.AddTokenSuccess newtok)
       )
   where
     matching ::
@@ -464,16 +457,16 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
           update (n + 1) t arn
         Left (Aws.AppNotFound app') -> do
           Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
-          pure (Left AddTokenNotFound)
+          pure (Left (Left Public.AddTokenErrorNotFound))
         Left (Aws.InvalidToken _) -> do
           Log.info $
             "token"
               .= tokenText tok
               ~~ msg (val "Invalid push token.")
-          pure (Left AddTokenInvalid)
+          pure (Left (Left Public.AddTokenErrorInvalid))
         Left (Aws.TokenTooLong l) -> do
           Log.info $ msg ("Push token is too long: token length = " ++ show l)
-          pure (Left AddTokenTooLong)
+          pure (Left (Left Public.AddTokenErrorTooLong))
         Right arn -> do
           Data.insert uid trp app tok arn cid (t ^. tokenClient)
           pure (Right (mkAddr t arn))
@@ -511,7 +504,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
               -- possibly updates in general). We make another attempt to (re-)create
               -- the endpoint in these cases instead of failing immediately.
               Aws.EndpointNotFound {} -> create (n + 1) t
-              Aws.InvalidCustomData {} -> pure (Left AddTokenMetadataTooLong)
+              Aws.InvalidCustomData {} -> pure (Left (Left Public.AddTokenErrorMetadataTooLong))
               ex -> throwM ex
 
     mkAddr ::

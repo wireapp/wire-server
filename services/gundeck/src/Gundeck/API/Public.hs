@@ -31,7 +31,6 @@ import qualified Gundeck.Push as Push
 import Imports
 import Servant (HasServer (..), (:<|>) (..))
 import qualified Wire.API.Notification as Public
-import qualified Wire.API.Push.Token as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Gundeck
 
@@ -42,7 +41,7 @@ servantSitemap :: ServerT GundeckAPI Gundeck
 servantSitemap = pushAPI :<|> notificationAPI
   where
     pushAPI =
-      Named @"register-push-token" addToken
+      Named @"register-push-token" Push.addToken
         :<|> Named @"delete-push-token" Push.deleteToken
         :<|> Named @"get-push-tokens" Push.listTokens
 
@@ -51,16 +50,6 @@ servantSitemap = pushAPI :<|> notificationAPI
         :<|> Named @"get-last-notification" Data.fetchLast
         :<|> Named @"get-notifications@v2" paginateUntilV2
         :<|> Named @"get-notifications" paginate
-
-addToken :: UserId -> ConnId -> Public.PushToken -> Gundeck (Either Public.AddTokenError Public.AddTokenSuccess)
-addToken uid cid newTok =
-  Push.addToken uid cid newTok <&> \case
-    Push.AddTokenSuccess t -> Right (Public.AddTokenSuccess t)
-    Push.AddTokenNoBudget -> Left Public.AddTokenErrorNoBudget
-    Push.AddTokenNotFound -> Left Public.AddTokenErrorNotFound
-    Push.AddTokenInvalid -> Left Public.AddTokenErrorInvalid
-    Push.AddTokenTooLong -> Left Public.AddTokenErrorTooLong
-    Push.AddTokenMetadataTooLong -> Left Public.AddTokenErrorMetadataTooLong
 
 -- | Returns a list of notifications for given 'uid'
 --
