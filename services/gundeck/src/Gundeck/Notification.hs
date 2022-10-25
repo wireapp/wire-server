@@ -18,8 +18,6 @@
 module Gundeck.Notification
   ( paginate,
     PaginateResult (..),
-    getById,
-    getLast,
   )
 where
 
@@ -49,9 +47,3 @@ paginate uid since clt size = do
         (Data.resultHasMore rs)
         (Just (millisToUTC time))
     millisToUTC = posixSecondsToUTCTime . fromIntegral . (`div` 1000) . ms
-
-getById :: UserId -> NotificationId -> Maybe ClientId -> Gundeck (Maybe QueuedNotification)
-getById = Data.fetchId
-
-getLast :: UserId -> Maybe ClientId -> Gundeck (Maybe QueuedNotification)
-getLast = Data.fetchLast

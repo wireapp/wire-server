@@ -26,6 +26,7 @@ import Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import Gundeck.Monad
 import qualified Gundeck.Notification as Notification
+import qualified Gundeck.Notification.Data as Data
 import qualified Gundeck.Push as Push
 import Imports
 import Servant (HasServer (..), (:<|>) (..))
@@ -42,12 +43,12 @@ servantSitemap = pushAPI :<|> notificationAPI
   where
     pushAPI =
       Named @"register-push-token" addToken
-        :<|> Named @"delete-push-token" deleteToken
-        :<|> Named @"get-push-tokens" listTokens
+        :<|> Named @"delete-push-token" Push.deleteToken
+        :<|> Named @"get-push-tokens" Push.listTokens
 
     notificationAPI =
-      Named @"get-notification-by-id" getById
-        :<|> Named @"get-last-notification" getLastNotification
+      Named @"get-notification-by-id" Data.fetchId
+        :<|> Named @"get-last-notification" Data.fetchLast
         :<|> Named @"get-notifications@v2" paginateUntilV2
         :<|> Named @"get-notifications" paginate
 
@@ -60,12 +61,6 @@ addToken uid cid newTok =
     Push.AddTokenInvalid -> Left Public.AddTokenErrorInvalid
     Push.AddTokenTooLong -> Left Public.AddTokenErrorTooLong
     Push.AddTokenMetadataTooLong -> Left Public.AddTokenErrorMetadataTooLong
-
-deleteToken :: UserId -> Public.Token -> Gundeck (Maybe ())
-deleteToken = Push.deleteToken
-
-listTokens :: UserId -> Gundeck Public.PushTokenList
-listTokens = Push.listTokens
 
 -- | Returns a list of notifications for given 'uid'
 --
@@ -135,9 +130,3 @@ paginate uid mbSince mbClient mbSize = do
   let size = fromMaybe (unsafeRange 1000) mbSize
   Notification.PaginateResult gap page <- Notification.paginate uid mbSince mbClient size
   pure $ if gap then Nothing else Just page
-
-getById :: UserId -> Public.NotificationId -> Maybe ClientId -> Gundeck (Maybe Public.QueuedNotification)
-getById = Notification.getById
-
-getLastNotification :: UserId -> Maybe ClientId -> Gundeck (Maybe Public.QueuedNotification)
-getLastNotification = Notification.getLast
