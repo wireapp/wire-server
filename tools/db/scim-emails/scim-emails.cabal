@@ -86,5 +86,8 @@ executable scim-emails
     , types-common
     , uuid
     , wire-api
+    , saml2-web-sso
+    , case-insensitive
+    , uri-bytestring
 
   default-language:   Haskell2010

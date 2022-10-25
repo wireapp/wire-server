@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -25,13 +26,20 @@ import Brig.Data.UserKey
 import Cassandra
 import Cassandra.Util
 import Conduit
+import Control.Lens
+import qualified Data.CaseInsensitive as CI
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
+import Data.String.Conversions
 import Data.Time
 import Imports
+import SAML2.Util (parseURI', renderURI)
+import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import System.Logger (Logger)
 import qualified System.Logger as Log
+import URI.ByteString
 import Wire.API.User.Identity
 
 runCommand :: Logger -> ClientState -> ClientState -> ClientState -> IO ()
@@ -88,12 +96,51 @@ getSCIMTeams = paginateC cql (paramsP LocalQuorum () pageSize) x5
     cql :: PrepQuery R () (Identity TeamId)
     cql = "SELECT distinct team from scim_external"
 
+getSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+getSAMLUser uref = do
+  mbUid <- getSAMLUserNew uref
+  case mbUid of
+    Nothing -> getSAMLUserLegacy uref
+    Just uid -> pure $ Just uid
+  where
+    getSAMLUserNew :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    getSAMLUserNew (SAML.UserRef tenant subject) =
+      runIdentity
+        <$$> (retry x1 . query1 sel $ params LocalQuorum (tenant, normalizeQualifiedNameId subject))
+      where
+        sel :: PrepQuery R (SAML.Issuer, NormalizedUNameID) (Identity UserId)
+        sel = "SELECT uid FROM user_v2 WHERE issuer = ? AND normalized_uname_id = ?"
+
+    getSAMLUserLegacy :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+    getSAMLUserLegacy (SAML.UserRef tenant subject) =
+      runIdentity
+        <$$> (retry x1 . query1 sel $ params LocalQuorum (tenant, subject))
+      where
+        sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
+        sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
+
+instance Cql (URIRef Absolute) where
+  ctype = Tagged TextColumn
+  toCql = CqlText . SAML.renderURI
+
+  fromCql (CqlText t) = parseURI' t
+  fromCql _ = Left "URI: expected CqlText"
+
+deriving instance Cql SAML.Issuer
+
+instance Cql SAML.NameID where
+  ctype = Tagged TextColumn
+  toCql = CqlText . cs . SAML.encodeElem
+
+  fromCql (CqlText t) = SAML.decodeElem (cs t)
+  fromCql _ = Left "NameID: expected CqlText"
+
 checkUser :: Logger -> ClientState -> ClientState -> TeamId -> (UserId, Maybe UserId, Maybe UTCTime) -> IO ()
 checkUser l brig spar tid (uid, mInvitedBy, mInvitedAt) = do
   maybeEmails <- runClient brig $ getEmailAndExternalId uid
   case maybeEmails of
     Nothing ->
-      Log.warn l (Log.msg (Log.val "No email information found") . Log.field "user" (idToText uid))
+      Log.warn l (Log.msg (Log.val "No information found") . Log.field "user" (idToText uid))
     Just (mEmail, mEmailWritetime, unvalidatedEmail, ssoId) -> do
       case mEmail of
         Nothing ->
@@ -121,13 +168,25 @@ checkUser l brig spar tid (uid, mInvitedBy, mInvitedAt) = do
                   . Log.field "invited_by" (showMaybe mInvitedBy)
                   . Log.field "invited_at" (showMaybe mInvitedAt)
                   . Log.field "team" (idToText tid)
-            Just (UserSSOId ref) ->
-              Log.warn l $
-                Log.msg (Log.val "User SSO Id is not SCIM External ID")
-                  . Log.field "user" (idToText uid)
-                  . Log.field "email" (show email)
-                  . Log.field "userSSOIdRef" (show ref)
-                  . Log.field "team" (idToText tid)
+            Just (UserSSOId ref) -> do
+              mUserIdFromSpar <- runClient spar $ getSAMLUser ref
+              case mUserIdFromSpar of
+                Nothing ->
+                  Log.warn l $
+                    Log.msg (Log.val "No UserId found for SSO Ref")
+                      . Log.field "user" (idToText uid)
+                      . Log.field "email" (show email)
+                      . Log.field "userSSOIdRef" (show ref)
+                      . Log.field "team" (idToText tid)
+                Just userIdFromSpar ->
+                  when (userIdFromSpar /= uid) $
+                    Log.warn l $
+                      Log.msg (Log.val "Wrong UserId found for SSO Ref")
+                        . Log.field "user" (idToText uid)
+                        . Log.field "email" (show email)
+                        . Log.field "userSSOIdRef" (show ref)
+                        . Log.field "ssoUserId" (show userIdFromSpar)
+                        . Log.field "team" (idToText tid)
             Just (UserScimExternalId extId) -> do
               when (extId /= fromEmail email) $
                 Log.warn l $
@@ -170,3 +229,32 @@ readScimUserTimes uid = do
 showMaybe :: Show a => Maybe a -> String
 showMaybe (Just a) = show a
 showMaybe Nothing = ""
+
+-- | Used as a lookup key for 'UnqualifiedNameID' that only depends on the
+-- lowercase version of the identifier. Use 'normalizeUnqualifiedNameId' or
+-- 'normalizeQualifiedNameId' to create values.
+newtype NormalizedUNameID = NormalizedUNameID {unNormalizedUNameID :: Text}
+  deriving stock (Eq, Ord, Generic)
+
+instance Cql NormalizedUNameID where
+  ctype = Tagged TextColumn
+  toCql = CqlText . unNormalizedUNameID
+  fromCql (CqlText t) = pure $ NormalizedUNameID t
+  fromCql _ = Left "NormalizedNameID: expected CqlText"
+
+normalizeUnqualifiedNameId :: SAML.UnqualifiedNameID -> NormalizedUNameID
+normalizeUnqualifiedNameId = NormalizedUNameID . CI.foldCase . nameIdTxt
+  where
+    nameIdTxt :: SAML.UnqualifiedNameID -> ST
+    nameIdTxt (SAML.UNameIDUnspecified txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEmail email) = SAMLEmail.render $ CI.original email
+    nameIdTxt (SAML.UNameIDX509 txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDWindows txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDKerberos txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDEntity uri) = renderURI uri
+    nameIdTxt (SAML.UNameIDPersistent txt) = SAML.unsafeFromXmlText txt
+    nameIdTxt (SAML.UNameIDTransient txt) = SAML.unsafeFromXmlText txt
+
+-- | Qualifiers are ignored.
+normalizeQualifiedNameId :: SAML.NameID -> NormalizedUNameID
+normalizeQualifiedNameId = normalizeUnqualifiedNameId . view SAML.nameID
