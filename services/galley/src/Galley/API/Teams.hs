@@ -254,7 +254,7 @@ createNonBindingTeamH lusr zcon (Public.NonBindingNewTeam body) = do
       NonBinding
   finishCreateTeam team owner others (Just zcon)
   let tid = team ^. teamId
-  void $ E.createGlobalTeamConversation (qualifyAs lusr tid)
+  void $ E.createGlobalTeamConversation (qualifyAs lusr tid) zusr
   pure tid
 
 createBindingTeam ::
@@ -274,7 +274,7 @@ createBindingTeam tid lusr (BindingNewTeam body) = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
-  void $ E.createGlobalTeamConversation (qualifyAs lusr tid)
+  void $ E.createGlobalTeamConversation (qualifyAs lusr tid) zusr
   finishCreateTeam team owner [] Nothing
   pure tid
 

@@ -252,9 +252,11 @@ status :: TestM ()
 status = do
   g <- viewGalley
   get (g . path "/i/status")
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   Bilge.head (g . path "/i/status")
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
 
 metrics :: TestM ()
 metrics = do
@@ -276,7 +278,8 @@ postProteusConvOk = do
   WS.bracketR3 c alice bob jane $ \(wsA, wsB, wsJ) -> do
     rsp <-
       postConv alice [bob, jane] (Just nameMaxSize) [] Nothing Nothing
-        <!! const 201 === statusCode
+        <!! const 201
+        === statusCode
     cid <- assertConv rsp RegularConv alice qalice [bob, jane] (Just nameMaxSize) Nothing
     cvs <- mapM (convView cid) [alice, bob, jane]
     liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qalice) (zip cvs [wsA, wsB, wsJ])
@@ -311,7 +314,8 @@ postConvWithRemoteUsersOk = do
     (rsp, federatedRequests) <-
       withTempMockFederator (const ()) $
         postConvQualified alice defNewProteusConv {newConvName = checked nameMaxSize, newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
-          <!! const 201 === statusCode
+          <!! const 201
+          === statusCode
     cid <- assertConvQualified rsp RegularConv alice qAlice [qAlex, qAmy, qChad, qCharlie, qDee] (Just nameMaxSize) Nothing
     cvs <- mapM (convView cid) [alice, alex, amy]
     liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs qAlice) (zip cvs [wsAlice, wsAlex, wsAmy])
@@ -460,7 +464,8 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
   b <- view tsUnversionedBrig
   r2 <-
     post (b . zUser alice . path "v1/users/prekeys" . json (missingClients x))
-      <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
@@ -482,7 +487,8 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   let m = otrRecipients [(bob, bc, ciphertext)]
   r1 <-
     postProtoOtrMessage alice ac conv m
-      <!! const 412 === statusCode
+      <!! const 412
+      === statusCode
   let x = responseJsonUnsafeWithMsg "ClientMismatch" r1
   pure r1
     !!! assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
@@ -490,7 +496,8 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   b <- view tsUnversionedBrig
   r2 <-
     post (b . zUser alice . path "v1/users/prekeys" . json (missingClients x))
-      <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do
     Map.keys (userClientMap (getUserClientPrekeyMap p)) @=? [eve]
@@ -511,7 +518,8 @@ postCryptoMessageNotAuthorizeUnknownClient = do
   let ciphertext = toBase64Text "hello bob"
   let m = otrRecipients [(bob, bc, ciphertext)]
   postProtoOtrMessage alice (ClientId "172618352518396") conv m
-    !!! const 403 === statusCode
+    !!! const 403
+    === statusCode
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test verifies the following scenario.
@@ -587,43 +595,56 @@ postCryptoMessageVerifyCorrectResponseIfIgnoreAndReportMissingQueryParam = do
   let m' = otrRecipients [(bob, bc, toBase64Text "hello bob")]
   -- These three are equivalent (i.e. report all missing clients)
   postOtrMessage id alice ac conv msgMissingChadAndEve
-    !!! const 412 === statusCode
+    !!! const 412
+    === statusCode
   postOtrMessage (queryItem "ignore_missing" "false") alice ac conv msgMissingChadAndEve
-    !!! const 412 === statusCode
+    !!! const 412
+    === statusCode
   postOtrMessage (queryItem "report_missing" "true") alice ac conv msgMissingChadAndEve
-    !!! const 412 === statusCode
+    !!! const 412
+    === statusCode
   -- These two are equivalent (i.e. ignore all missing clients)
   postOtrMessage (queryItem "ignore_missing" "true") alice ac conv msgMissingChadAndEve
-    !!! const 201 === statusCode
+    !!! const 201
+    === statusCode
   postOtrMessage (queryItem "report_missing" "false") alice ac conv msgMissingChadAndEve
-    !!! const 201 === statusCode
+    !!! const 201
+    === statusCode
   -- Report missing clients of a specific user only
   postOtrMessage (queryItem "report_missing" (toByteString' bob)) alice ac conv msgMissingChadAndEve
-    !!! const 201 === statusCode
+    !!! const 201
+    === statusCode
   -- Let's make sure that the same logic using protobuf in the body works too
   postProtoOtrMessage' Nothing (queryItem "report_missing" (toByteString' bob)) alice ac conv m'
-    !!! const 201 === statusCode
+    !!! const 201
+    === statusCode
   -- Body takes precedence
   postOtrMessage' (Just [bob]) (queryItem "report_missing" (listToByteString [eve, chad])) alice ac conv msgMissingChadAndEve
-    !!! const 201 === statusCode
+    !!! const 201
+    === statusCode
   -- Set it only in the body of the message
   postOtrMessage' (Just [bob]) id alice ac conv msgMissingChadAndEve
-    !!! const 201 === statusCode
+    !!! const 201
+    === statusCode
   -- Let's make sure that protobuf works too, when specified in the body only
   postProtoOtrMessage' (Just [bob]) id alice ac conv m'
-    !!! const 201 === statusCode
+    !!! const 201
+    === statusCode
   reportEveAndChad <-
     -- send message with no clients
     postOtrMessage (queryItem "report_missing" (listToByteString [eve, chad])) alice ac conv []
-      <!! const 412 === statusCode
+      <!! const 412
+      === statusCode
   pure reportEveAndChad
     !!! assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec), (chad, Set.singleton cc)] [] []
   -- Ignore missing clients of a specific user only
   postOtrMessage (queryItem "ignore_missing" (listToByteString [chad, eve])) alice ac conv msgMissingChadAndEve
-    !!! const 201 === statusCode
+    !!! const 201
+    === statusCode
   ignoreEveAndChadButNotBob <-
     postOtrMessage (queryItem "ignore_missing" (listToByteString [chad, eve])) alice ac conv []
-      <!! const 412 === statusCode
+      <!! const 412
+      === statusCode
   pure ignoreEveAndChadButNotBob
     !!! assertMismatchWithMessage (Just "client mismatch") [(bob, Set.singleton bc)] [] []
   where
@@ -1461,7 +1482,8 @@ postConvertTeamConv = do
   let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
   -- creating a team-only conversation containing eve should fail
   createTeamConvAccessRaw alice tid [bob, eve] (Just "blaa") acc (Just (Set.fromList [TeamMemberAccessRole])) Nothing Nothing
-    !!! const 403 === statusCode
+    !!! const 403
+    === statusCode
   Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
   -- create conversation allowing any type of guest
   conv <- createTeamConvAccess alice tid [bob, eve] (Just "blaa") acc (Just accessRoles) Nothing Nothing
@@ -1534,7 +1556,8 @@ testAccessUpdateGuestRemoved = do
         (qUnqualified alice)
         (cnvQualifiedId conv)
         (ConversationAccessData mempty (Set.fromList [TeamMemberAccessRole]))
-        !!! const 200 === statusCode
+        !!! const 200
+        === statusCode
 
       -- charlie and dee are kicked out
       --
@@ -1582,7 +1605,8 @@ testAccessUpdateGuestRemoved = do
   conv2 <-
     responseJsonError
       =<< getConvQualified (qUnqualified alice) (cnvQualifiedId conv)
-        <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
 
 -- @END
@@ -1708,7 +1732,8 @@ getConvsOk2 = do
   cnv2 <-
     responseJsonError
       =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
-        <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
   getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv2]) Nothing !!! do
     const 200 === statusCode
     const (Just [cnvQualifiedId cnv2]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
@@ -1735,7 +1760,8 @@ getConvsFailMaxSize :: TestM ()
 getConvsFailMaxSize = do
   usr <- randomUser
   getConvs usr Nothing (Just 501)
-    !!! const 400 === statusCode
+    !!! const 400
+    === statusCode
 
 getConvIdsOk :: TestM ()
 getConvIdsOk = do
@@ -1756,7 +1782,8 @@ paginateConvIds = do
   connectUsers alice (singleton eve)
   replicateM_ 253 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
-      !!! const 201 === statusCode
+      !!! const 201
+      === statusCode
   -- 1 self conv, 2 convs with bob and eve, 253 gossips = 256 convs
   foldM_ (getChunk 16 alice) Nothing [15, 14 .. 0 :: Int]
   where
@@ -1781,7 +1808,8 @@ getConvIdsFailMaxSize :: TestM ()
 getConvIdsFailMaxSize = do
   usr <- randomUser
   getConvIds usr Nothing (Just 1001)
-    !!! const 400 === statusCode
+    !!! const 400
+    === statusCode
 
 listConvIdsOk :: TestM ()
 listConvIdsOk = do
@@ -1807,7 +1835,8 @@ paginateConvListIds = do
 
   replicateM_ 197 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
-      !!! const 201 === statusCode
+      !!! const 201
+      === statusCode
 
   remoteChad <- randomId
   let chadDomain = Domain "chad.example.com"
@@ -1863,7 +1892,8 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   -- get 32 convs. The 2nd page should end here.
   replicateM_ 29 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
-      !!! const 201 === statusCode
+      !!! const 201
+      === statusCode
 
   -- We should be able to page through current state in 2 pages exactly
   foldM_ (getChunkedConvs 16 0 alice) Nothing [2, 1, 0 :: Int]
@@ -2005,7 +2035,8 @@ postConvFailBlocked = do
   jane <- randomUser
   connectUsers alice (list1 bob [jane])
   putConnection jane alice Blocked
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   postConv alice [bob, jane] Nothing [] Nothing Nothing !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
@@ -2019,7 +2050,8 @@ postConvQualifiedFailBlocked = do
   jane <- randomQualifiedUser
   connectLocalQualifiedUsers alice (list1 bob [jane])
   putConnectionQualified jane alice Blocked
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   postConvQualified alice defNewProteusConv {newConvQualifiedUsers = [bob, jane]} !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
@@ -2029,7 +2061,8 @@ postConvQualifiedNoConnection = do
   alice <- randomUser
   bob <- flip Qualified (Domain "far-away.example.com") <$> randomId
   postConvQualified alice defNewProteusConv {newConvQualifiedUsers = [bob]}
-    !!! const 403 === statusCode
+    !!! const 403
+    === statusCode
 
 postTeamConvQualifiedNoConnection :: TestM ()
 postTeamConvQualifiedNoConnection = do
@@ -2042,14 +2075,16 @@ postTeamConvQualifiedNoConnection = do
       { newConvQualifiedUsers = [bob],
         newConvTeam = Just (ConvTeamInfo tid)
       }
-    !!! const 403 === statusCode
+    !!! const 403
+    === statusCode
   postConvQualified
     (qUnqualified alice)
     defNewProteusConv
       { newConvQualifiedUsers = [charlie],
         newConvTeam = Just (ConvTeamInfo tid)
       }
-    !!! const 403 === statusCode
+    !!! const 403
+    === statusCode
 
 postConvQualifiedNonExistentDomain :: TestM ()
 postConvQualifiedNonExistentDomain = do
@@ -2119,10 +2154,12 @@ postConnectConvOk = do
   bob <- randomUser
   m <-
     postConnectConv alice bob "Alice" "connect with me!" Nothing
-      <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
   n <-
     postConnectConv alice bob "Alice" "connect with me!" Nothing
-      <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   mId <- assertConv m ConnectConv alice qalice [] (Just "Alice") Nothing
   nId <- assertConv n ConnectConv alice qalice [] (Just "Alice") Nothing
   liftIO $ mId @=? nId
@@ -2168,11 +2205,13 @@ postMutualConnectConvOk = do
   let bob = qUnqualified qbob
   ac <-
     postConnectConv alice bob "A" "a" Nothing
-      <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
   acId <- assertConv ac ConnectConv alice qalice [] (Just "A") Nothing
   bc <-
     postConnectConv bob alice "B" "b" Nothing
-      <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   -- The connect conversation was simply accepted, thus the
   -- conversation name and message sent in Bob's request ignored.
   bcId <- assertConv bc One2OneConv alice qbob [alice] (Just "A") Nothing
@@ -2229,7 +2268,8 @@ postRepeatConnectConvCancel = do
       g <- viewGalley
       let cnvId = qUnqualified . cnvQualifiedId
       put (g . paths ["/i/conversations", toByteString' (cnvId c), "block"] . zUser u)
-        !!! const 200 === statusCode
+        !!! const 200
+        === statusCode
       getConv u (cnvId c) !!! const 403 === statusCode
 
 putBlockConvOk :: TestM ()
@@ -2242,23 +2282,27 @@ putBlockConvOk = do
   getConv alice convId !!! const 200 === statusCode
   getConv bob convId !!! const 403 === statusCode
   put (g . paths ["/i/conversations", toByteString' convId, "block"] . zUser bob)
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   -- A is still the only member of the 1-1
   getConv alice convId !!! do
     const 200 === statusCode
     const (cnvMembers conv) === cnvMembers . responseJsonUnsafeWithMsg "conversation"
   -- B accepts the conversation by unblocking
   put (g . paths ["/i/conversations", toByteString' convId, "unblock"] . zUser bob)
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   getConv bob convId !!! const 200 === statusCode
   -- B blocks A in the 1-1
   put (g . paths ["/i/conversations", toByteString' convId, "block"] . zUser bob)
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   -- B no longer sees the 1-1
   getConv bob convId !!! const 403 === statusCode
   -- B unblocks A in the 1-1
   put (g . paths ["/i/conversations", toByteString' convId, "unblock"] . zUser bob)
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   -- B sees the blocked 1-1 again
   getConv bob convId !!! do
     const 200 === statusCode
@@ -2296,10 +2340,8 @@ getGlobalConvPresent = do
   let response = getGlobalTeamConv tid
   response !!! const 200 === statusCode
   Just rs <- responseBody <$> response
-  -- TODO: fix this when creator is  no longer hard-coded
-  let creator = newUserIdTemp "8a6e8a6e-8a6e-8a6e-8a6e-8a6e8a6e8a6e"
-      expected =
-        (defConversationMetadata creator)
+  let expected =
+        (defConversationMetadata owner)
           { cnvmType = GlobalTeamConv,
             cnvmAccess = [],
             cnvmAccessRoles = Set.fromList [TeamMemberAccessRole],
@@ -2377,7 +2419,8 @@ testAddRemoteMember = do
   (resp, reqs) <-
     withTempMockFederator (respond remoteBob) $
       postQualifiedMembers alice (remoteBob :| []) convId
-        <!! const 200 === statusCode
+        <!! const 200
+        === statusCode
   liftIO $ do
     map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
     map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
@@ -2426,10 +2469,12 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   (_, received) <- withTempServantMockFederator brigApi galleyApi localDomain $ do
     postQualifiedMembers alice (remoteBob :| []) convId
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
 
     deleteTeamConv tid convId alice
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
 
   liftIO $ do
     let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
@@ -2653,9 +2698,11 @@ testAddRemoteMemberInvalidDomain = do
     !!! do
       const 422 === statusCode
       const (Just "/federation/api-version")
-        === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
+        === preview (ix "data" . ix "path")
+        . responseJsonUnsafe @Value
       const (Just "invalid.example.com")
-        === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value
+        === preview (ix "data" . ix "domain")
+        . responseJsonUnsafe @Value
 
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)
@@ -2921,7 +2968,8 @@ deleteRemoteMemberConvLocalQualifiedOk = do
         postConvQualified
           alice
           defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
-          <!! const 201 === statusCode
+          <!! const 201
+          === statusCode
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
@@ -3127,7 +3175,8 @@ putQualifiedConvRenameWithRemotesOk = do
     postConvWithRemoteUsers
       bob
       defNewProteusConv {newConvQualifiedUsers = [qalice]}
-      <!! const 201 === statusCode
+      <!! const 201
+      === statusCode
   let qconv = decodeQualifiedConvId resp
 
   WS.bracketR c bob $ \wsB -> do
@@ -3226,7 +3275,8 @@ putQualifiedOtherMemberOk = do
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     -- demote qalice
     putOtherMemberQualified bob qalice (OtherMemberUpdate (Just roleNameWireMember)) qconv
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
@@ -3260,7 +3310,8 @@ putOtherMemberOk = do
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     -- demote alice
     putOtherMember bob alice (OtherMemberUpdate (Just roleNameWireMember)) conv
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
@@ -3455,7 +3506,8 @@ putRemoteConvMemberOk update = do
     withTempMockFederator
       (const remoteConversationResponse)
       $ getConvQualified alice qconv
-        <!! const 200 === statusCode
+        <!! const 200
+        === statusCode
 
   -- Verify new member state
   let alice' = cmSelf . cnvMembers <$> responseJsonUnsafe rs
@@ -3581,7 +3633,8 @@ putRemoteReceiptModeOk = do
   WS.bracketR c adam $ \wsAdam -> do
     (res, federatedRequests) <- withTempMockFederator mockResponse $ do
       putQualifiedReceiptMode alice qconv newReceiptMode
-        <!! const 200 === statusCode
+        <!! const 200
+        === statusCode
 
     let event :: Event = responseJsonUnsafe res
     let (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate receiptModeEvent)) = evtData event
@@ -3654,7 +3707,8 @@ postTypingIndicators = do
         . zType "access"
         . json (TypingData StartedTyping)
     )
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
   post
     ( g
         . paths ["conversations", toByteString' conv, "typing"]
@@ -3663,7 +3717,8 @@ postTypingIndicators = do
         . zType "access"
         . json (object ["status" .= ("dummy" :: T.Text)])
     )
-    !!! const 400 === statusCode
+    !!! const 400
+    === statusCode
 
 removeUserNoFederation :: TestM ()
 removeUserNoFederation = do
@@ -3874,7 +3929,8 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
     let req = UpsertOne2OneConversationRequest alice bob actor desired Nothing
     res <-
       iUpsertOne2OneConversation req
-        <!! statusCode === const 200
+        <!! statusCode
+        === const 200
     uuorConvId <$> responseJsonError res
 
   liftIO $ convId @?= expectedConvId

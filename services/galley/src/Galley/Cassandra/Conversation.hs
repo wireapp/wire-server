@@ -203,9 +203,8 @@ getGlobalTeamConversation tid = do
             convRemoteMembers = []
           }
 
-createGlobalTeamConversation :: Local TeamId -> Client Conversation
-createGlobalTeamConversation tid = do
-  -- TODO: elland finish this
+createGlobalTeamConversation :: Local TeamId -> UserId -> Client Conversation
+createGlobalTeamConversation tid uid = do
   createConversation (globalTeamConv <$> tid) nc
   where
     nc =
@@ -213,7 +212,7 @@ createGlobalTeamConversation tid = do
         { ncMetadata =
             ConversationMetadata
               { cnvmType = GlobalTeamConv,
-                cnvmCreator = newUserIdTemp "8a6e8a6e-8a6e-8a6e-8a6e-8a6e8a6e8a6e", -- TODO: fix this
+                cnvmCreator = uid, 
                 cnvmAccess = [LinkAccess],
                 cnvmAccessRoles = mempty,
                 cnvmName = Nothing,
@@ -350,7 +349,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateConversation loc nc -> embedClient $ createConversation loc nc
   GetConversation cid -> embedClient $ getConversation cid
   GetGlobalTeamConversation tid -> embedClient $ getGlobalTeamConversation tid
-  CreateGlobalTeamConversation tid -> embedClient $ createGlobalTeamConversation tid
+  CreateGlobalTeamConversation tid uid -> embedClient $ createGlobalTeamConversation tid uid
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid

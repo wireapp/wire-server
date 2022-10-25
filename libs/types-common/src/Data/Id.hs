@@ -49,7 +49,6 @@ module Data.Id
     RequestId (..),
     BotId (..),
     NoId,
-    newUserIdTemp,
   )
 where
 
@@ -128,10 +127,6 @@ type ConvId = Id 'C
 
 -- | A local user ID
 type UserId = Id 'U
-
--- TODO: elland remove this once we fix creating global conv
-newUserIdTemp :: String -> UserId
-newUserIdTemp = Id @'U . fromJust . UUID.fromString
 
 type ProviderId = Id 'P
 
@@ -370,8 +365,10 @@ newtype RequestId = RequestId
 
 instance ToSchema RequestId where
   schema =
-    RequestId . encodeUtf8
-      <$> (decodeUtf8 . unRequestId) .= text "RequestId"
+    RequestId
+      . encodeUtf8
+      <$> (decodeUtf8 . unRequestId)
+      .= text "RequestId"
 
 -- | Returns "N/A"
 instance Default RequestId where
@@ -399,4 +396,5 @@ instance ToSchema a => ToSchema (IdObject a) where
   schema =
     object "Id" $
       IdObject
-        <$> fromIdObject .= field "id" schema
+        <$> fromIdObject
+        .= field "id" schema
