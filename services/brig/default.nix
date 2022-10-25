@@ -72,7 +72,7 @@ mkDerivation {
     aeson async attoparsec base base16-bytestring base64-bytestring
     bilge bloodhound brig-types bytestring bytestring-conversion
     cargohold-types case-insensitive cassandra-util containers cookie
-    data-default data-timeout email-validate exceptions extended
+    data-default data-timeout email-validate exceptions extended extra
     federator filepath galley-types gundeck-types hscim HsOpenSSL
     http-api-data http-client http-client-tls http-media
     http-reverse-proxy http-types imports lens lens-aeson metrics-wai
