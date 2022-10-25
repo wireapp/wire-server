@@ -84,11 +84,11 @@ type ConversationVerb =
     '[ WithHeaders
          ConversationHeaders
          Conversation
-         (Respond 200 "Conversation existed" Conversation),
+         (VersionedRespond 'V2 200 "Conversation existed" Conversation),
        WithHeaders
          ConversationHeaders
          Conversation
-         (Respond 201 "Conversation created" Conversation)
+         (VersionedRespond 'V2 201 "Conversation created" Conversation)
      ]
     ConversationResponse
 

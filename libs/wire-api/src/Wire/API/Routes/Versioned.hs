@@ -26,6 +26,7 @@ import Servant
 import Servant.API.ContentTypes
 import Servant.Swagger
 import Servant.Swagger.Internal
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 
 --------------------------------------
@@ -76,3 +77,6 @@ deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => ToJSON 
 
 deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => S.ToSchema (Versioned v a)
 
+---------------------- -------------------- -----------------------------------
+
+type VersionedRespond v = Respond
