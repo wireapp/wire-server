@@ -38,7 +38,10 @@ main = do
   brig <- initCas (setCasBrig s) (Log.clone (Just "cassandra-brig") lgr)
   galley <- initCas (setCasGalley s) (Log.clone (Just "cassandra-galley") lgr)
   spar <- initCas (setCasSpar s) (Log.clone (Just "cassandra-spar") lgr)
-  runCommand (Log.clone (Just "work") lgr) brig galley spar
+  let workLogger = Log.clone (Just "work") lgr
+  case setTeamId s of
+    Nothing -> runCommand workLogger brig galley spar
+    Just tid -> findMismatchesForTeam workLogger brig galley spar tid
   where
     desc =
       header "scim-emails"
