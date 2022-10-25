@@ -62,6 +62,8 @@ instance
   where
   toSwagger _ = toSwagger (Proxy @(ReqBody cts (Versioned v a) :> api))
 
+-------------------------------------------------------------------------------
+
 newtype Versioned (v :: Version) a = Versioned {unVersioned :: a}
   deriving (Eq, Show)
 
@@ -73,3 +75,4 @@ deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => FromJSO
 deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => ToJSON (Versioned v a)
 
 deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => S.ToSchema (Versioned v a)
+
