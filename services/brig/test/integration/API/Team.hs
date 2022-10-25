@@ -90,6 +90,7 @@ tests conf m n b c g aws = do
       [ testGroup "invitation" $
           [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b,
             test m "post /teams/:tid/invitations - invitation url" $ testInvitationUrl conf b,
+            test m "post /teams/:tid/invitations - no invitation url" $ testNoInvitationUrl conf b,
             test m "post /teams/:tid/invitations - email lookup" $ testInvitationEmailLookup b,
             test m "post /teams/:tid/invitations - email lookup nginz" $ testInvitationEmailLookupNginz b n,
             test m "post /teams/:tid/invitations - email lookup register" $ testInvitationEmailLookupRegister b,
@@ -243,12 +244,52 @@ testInvitationUrl opts brig = do
       tid @=? inTeam inv
       getQueryParam "team_code" resp @=? (invCode <&> (toStrict . toByteString))
       getQueryParam "team" resp @=? (pure . encodeUtf8 . idToText) tid
-  where
-    getQueryParam :: ByteString -> ResponseLBS -> Maybe ByteString
-    getQueryParam name r = do
-      inv <- (eitherToMaybe . responseJsonEither) r
-      url <- inInviteeUrl inv
-      (lookup name . queryPairs . uriQuery) url
+
+getQueryParam :: ByteString -> ResponseLBS -> Maybe ByteString
+getQueryParam name r = do
+  inv <- (eitherToMaybe . responseJsonEither) r
+  url <- inInviteeUrl inv
+  (lookup name . queryPairs . uriQuery) url
+
+-- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
+-- inlined into Brig.
+testNoInvitationUrl :: Opt.Opts -> Brig -> Http ()
+testNoInvitationUrl opts brig = do
+  (inviter, tid) <- createUserWithTeam brig
+  invite <- stdInvitationRequest <$> randomEmail
+
+  -- Mock the feature API because exposeInvitationURLsToTeamAdmin depends on
+  -- static configuration that cannot be changed at runtime.
+  let mockGalley (ReceivedRequest mth pth _body)
+        | mth == "GET"
+            && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
+          pure . Wai.responseLBS HTTP.status200 mempty $
+            encode
+              ( withStatus
+                  FeatureStatusDisabled
+                  LockStatusUnlocked
+                  ExposeInvitationURLsToTeamAdminConfig
+                  FeatureTTLUnlimited
+              )
+        | mth == "GET"
+            && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =
+          pure . Wai.responseLBS HTTP.status200 mempty $
+            encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
+        | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
+
+  void . withMockedGalley opts mockGalley $ do
+    resp <-
+      postInvitation brig tid inviter invite
+        <!! (const 201 === statusCode)
+
+    inv :: Invitation <- responseJsonError resp
+    invCode <- getInvitationCode brig tid (inInvitation inv)
+    liftIO $ do
+      assertInvitationResponseInvariants invite inv
+      isJust invCode @? "Expect an invitation code in the backend"
+      Just inviter @=? inCreatedBy inv
+      tid @=? inTeam inv
+      (isNothing . inInviteeUrl) inv @? "No invitation url expected"
 
 testInvitationEmailLookup :: Brig -> Http ()
 testInvitationEmailLookup brig = do
