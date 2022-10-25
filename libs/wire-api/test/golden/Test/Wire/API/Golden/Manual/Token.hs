@@ -15,17 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Gundeck.API.Error where
+module Test.Wire.API.Golden.Manual.Token where
 
-import Data.Text.Lazy (Text)
-import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error (Error (..), mkError)
+import Data.Id
+import Wire.API.Push.V2.Token
 
-notificationNotFound :: Error
-notificationNotFound = mkError status404 "not-found" "Some notifications not found."
-
-clientError :: Text -> Error
-clientError = mkError status400 "client-error"
-
-invalidNotificationId :: Error
-invalidNotificationId = clientError "Notification ID must be a version 1 UUID"
+testObject_Token_1 :: PushToken
+testObject_Token_1 =
+  pushToken
+    APNSVoIPSandbox
+    (AppName {appNameText = "j{\110746\SOH_\1084873M"})
+    (Token {tokenText = "K"})
+    (ClientId {client = "6"})

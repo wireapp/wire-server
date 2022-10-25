@@ -18,17 +18,13 @@
 module Gundeck.Notification
   ( paginate,
     PaginateResult (..),
-    getById,
-    getLast,
   )
 where
 
-import Control.Monad.Catch (throwM)
 import Data.Id
 import Data.Misc (Milliseconds (..))
 import Data.Range
 import Data.Time.Clock.POSIX
-import Gundeck.API.Error
 import Gundeck.Monad
 import qualified Gundeck.Notification.Data as Data
 import Imports hiding (getLast)
@@ -51,13 +47,3 @@ paginate uid since clt size = do
         (Data.resultHasMore rs)
         (Just (millisToUTC time))
     millisToUTC = posixSecondsToUTCTime . fromIntegral . (`div` 1000) . ms
-
-getById :: UserId -> NotificationId -> Maybe ClientId -> Gundeck QueuedNotification
-getById uid nid clt = do
-  mn <- Data.fetchId uid nid clt
-  maybe (throwM notificationNotFound) pure mn
-
-getLast :: UserId -> Maybe ClientId -> Gundeck QueuedNotification
-getLast uid clt = do
-  mn <- Data.fetchLast uid clt
-  maybe (throwM notificationNotFound) pure mn
