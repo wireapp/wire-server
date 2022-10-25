@@ -44,6 +44,7 @@ import Brig.App
 import Brig.Budget
 import qualified Brig.Code as Code
 import qualified Brig.Data.Activation as Data
+import Brig.Data.Client
 import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
@@ -257,6 +258,7 @@ renewAccess ::
   ExceptT ZAuth.Failure m (Access u)
 renewAccess uts at mcid = do
   (uid, ck) <- validateTokens uts at
+  traverse_ (checkClientId uid) mcid
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
   ck' <- lift $ nextCookie ck mcid
@@ -486,3 +488,7 @@ assertLegalHoldEnabled tid = do
   case wsStatus stat of
     FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     FeatureStatusEnabled -> pure ()
+
+checkClientId :: MonadClient m => UserId -> ClientId -> ExceptT ZAuth.Failure m ()
+checkClientId uid cid =
+  lookupClient uid cid >>= maybe (throwE ZAuth.Invalid) (const (pure ()))

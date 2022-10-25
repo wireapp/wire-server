@@ -151,6 +151,7 @@ tests conf m z db b g n =
           test m "new-session-cookie" (testNewSessionCookie conf b),
           test m "suspend-inactive" (testSuspendInactiveUsers conf b),
           test m "client access" (testAccessWithClientId b),
+          test m "client access incorrect" (testAccessWithIncorrectClientId b),
           test m "multiple client accesses" (testAccessWithExistingClientId b)
         ],
       testGroup
@@ -1013,6 +1014,34 @@ testAccessWithClientId brig = do
     assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
     ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
 
+testAccessWithIncorrectClientId :: Brig -> Http ()
+testAccessWithIncorrectClientId brig = do
+  u <- randomUser brig
+  rs <-
+    login
+      brig
+      ( emailLogin
+          (fromJust (userEmail u))
+          defPassword
+          (Just "nexus1")
+      )
+      PersistentCookie
+      <!! const 200 === statusCode
+  let c = decodeCookie rs
+  addClient
+    brig
+    (userId u)
+    (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+    !!! const 201 === statusCode
+  post
+    ( unversioned
+        . brig
+        . path "/access"
+        . queryItem "client_id" "beef"
+        . cookie c
+    )
+    !!! const 403 === statusCode
+
 testAccessWithExistingClientId :: Brig -> Http ()
 testAccessWithExistingClientId brig = do
   u <- randomUser brig
@@ -1071,12 +1100,19 @@ testAccessWithExistingClientId brig = do
 
   -- now access with a different client ID
   do
+    cl2 <-
+      responseJsonError
+        =<< addClient
+          brig
+          (userId u)
+          (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+        <!! const 201 === statusCode
     r <-
       post
         ( unversioned
             . brig
             . path "/access"
-            . queryItem "client_id" "beef"
+            . queryItem "client_id" (toByteString' (clientId cl2))
             . cookie c2
         )
         <!! const 200 === statusCode
