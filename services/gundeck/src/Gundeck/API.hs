@@ -22,12 +22,9 @@ where
 
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Gundeck.API.Internal as Internal
-import qualified Gundeck.API.Public as Public
 import Gundeck.Monad (Gundeck)
 import Network.Wai.Routing (Routes)
 
 sitemap :: Routes Doc.ApiBuilder Gundeck ()
 sitemap = do
-  Public.sitemap
-  Public.apiDocs
   Internal.sitemap
