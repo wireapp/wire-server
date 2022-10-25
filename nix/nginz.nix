@@ -1,24 +1,39 @@
-{ pkgs ? import <nixpkgs> { }
-, pkgsLinux ? import <nixpkgs> { system = "x86_64-linux"; }
+{ nginxModules
+, pkg-config
+, callPackage
+, stdenvNoCC
+, dockerTools
+, nginx
+, inotify-tools
+, dumb-init
+, envsubst
+, pkgs
+, cacert
+, coreutils
+, bashInteractive
+, openssl
+, which
+, gnugrep
+, less
 }:
-let zauth = pkgs.callPackage ./pkgs/zauth { };
+let zauth = callPackage ./pkgs/zauth { };
 
-    nginxModules = pkgs.nginxModules // {
+    nginzModules = nginxModules // {
       zauth = {
         src = ../services/nginz/third_party/nginx-zauth-module;
-        inputs = [ pkgs.pkg-config zauth ];
+        inputs = [ pkg-config zauth ];
       };
     };
 
-    nginz = pkgs.nginx.override {
+    nginz = nginx.override {
       modules = [
-        nginxModules.vts
-        nginxModules.moreheaders
-        nginxModules.zauth
+        nginzModules.vts
+        nginzModules.moreheaders
+        nginzModules.zauth
       ];
     };
 
-    reload-script = pkgs.stdenvNoCC.mkDerivation {
+    reload-script = stdenvNoCC.mkDerivation {
       name = "reload-script";
       src = ../services/nginz/nginz_reload.sh;
       phases = "installPhase";
@@ -39,22 +54,21 @@ let zauth = pkgs.callPackage ./pkgs/zauth { };
     #   arch = "amd64";
     # };
 
-    nginzImage = pkgs.dockerTools.buildLayeredImage {
+    nginzImage = dockerTools.buildLayeredImage {
       # fromImage = "docker.io/alpine:3.15";
       name = "quay.io/wire/nginz";
       # maxLayers = 5;
       contents = [
-        pkgs.cacert
-        pkgs.coreutils
-        pkgs.bashInteractive
-        pkgs.openssl
-        pkgs.which
-        pkgs.gnugrep
-        pkgs.less
-
-        pkgs.dumb-init
-        pkgs.inotify-tools
-        pkgs.envsubst
+        cacert
+        coreutils
+        bashInteractive
+        openssl
+        which
+        gnugrep
+        less
+        dumb-init
+        inotify-tools
+        envsubst
         reload-script
         nginz
       ];
@@ -65,7 +79,7 @@ let zauth = pkgs.callPackage ./pkgs/zauth { };
         mkdir -p var/cache/nginx
       '';
       config = {
-        Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${nginz}/usr/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf"];
+        Entrypoint = ["${dumb-init}/bin/dumb-init" "--" "${nginz}/usr/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf"];
         Env = ["SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"];
         ExposedPorts = {
           "80/tcp" = {};
