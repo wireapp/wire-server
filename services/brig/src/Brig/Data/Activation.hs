@@ -122,15 +122,15 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
       -- activating existing key and exactly same profile
       -- (can happen when a user clicks on activation links more than once)
       | oldKey == Just key && profileNeedsUpdate = do
-        lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
-        pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
+          lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
+          pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-        lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
-        claim key uid
-        lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
-        for_ oldKey $ lift . deleteKey
-        pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
+          lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
+          claim key uid
+          lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
+          for_ oldKey $ lift . deleteKey
+          pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       where
         updateEmailAndDeleteEmailUnvalidated :: UserId -> Email -> m ()
         updateEmailAndDeleteEmailUnvalidated u' email =

@@ -122,10 +122,11 @@ getKeyPackageCount :: HasCallStack => Brig -> Qualified UserId -> ClientId -> Ht
 getKeyPackageCount brig u c =
   responseJsonError
     =<< get
-      ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
+      ( brig
+          . paths ["mls", "key-packages", "self", toByteString' c, "count"]
           . zUser (qUnqualified u)
       )
-    <!! const 200 === statusCode
+      <!! const 200 === statusCode
 
 decodeMLSError :: ParseMLS a => ByteString -> IO a
 decodeMLSError s = case decodeMLS' s of

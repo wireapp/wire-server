@@ -163,7 +163,8 @@ instance Serialize SymmetricKeys where
 
 randomSymmetricKeys :: MonadIO m => BotClient -> m SymmetricKeys
 randomSymmetricKeys clt =
-  SymmetricKeys <$> randomBytes (botClientBox clt) 32
+  SymmetricKeys
+    <$> randomBytes (botClientBox clt) 32
     <*> randomBytes (botClientBox clt) 32
 
 encryptSymmetric :: MonadIO m => BotClient -> SymmetricKeys -> Plaintext -> m Ciphertext

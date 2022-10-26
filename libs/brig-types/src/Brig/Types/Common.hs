@@ -88,7 +88,8 @@ instance FromJSON PhonePrefix where
       Just p -> pure p
       Nothing ->
         fail $
-          "Invalid phone number prefix: [" ++ show s
+          "Invalid phone number prefix: ["
+            ++ show s
             ++ "]. Expected format similar to E.164 (with 1-15 digits after the +)."
 
 instance FromByteString PhonePrefix where

@@ -347,10 +347,10 @@ nativeTargets psh rcps' alreadySent =
     addresses :: Recipient -> m [Address]
     addresses u = do
       addrs <- mntgtLookupAddresses (u ^. recipientId)
-      pure $
-        preference
+      pure
+        $ preference
           . filter (eligible u)
-          $ addrs
+        $ addrs
     eligible :: Recipient -> Address -> Bool
     eligible u a
       -- Never include the origin client.
@@ -409,7 +409,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
     "user"
       .= UUID.toASCIIBytes (toUUID uid)
       ~~ "token"
-      .= Text.take 16 (tokenText (newtok ^. token))
+        .= Text.take 16 (tokenText (newtok ^. token))
       ~~ msg (val "Registering push token")
   continue newtok cur
     >>= either
@@ -428,9 +428,9 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
       | a ^. addrTransport == t ^. tokenTransport
           && a ^. addrApp == t ^. tokenApp
           && a ^. addrClient == t ^. tokenClient =
-        if a ^. addrToken == t ^. token
-          then (Just a, old)
-          else (x, a : old)
+          if a ^. addrToken == t ^. token
+            then (Just a, old)
+            else (x, a : old)
       | otherwise = (x, old)
 
     continue ::
@@ -535,9 +535,9 @@ updateEndpoint uid t arn e = do
       "user"
         .= UUID.toASCIIBytes (toUUID a)
         ~~ "token"
-        .= Text.take 16 (tokenText tk)
+          .= Text.take 16 (tokenText tk)
         ~~ "arn"
-        .= toText r
+          .= toText r
         ~~ msg (val m)
 
 deleteToken :: UserId -> Token -> Gundeck (Maybe ())

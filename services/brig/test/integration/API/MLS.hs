@@ -220,7 +220,7 @@ checkMapping brig u bundle =
     cid <-
       responseJsonError
         =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
-        <!! const 200 === statusCode
+          <!! const 200 === statusCode
     liftIO $ do
       ciDomain cid @?= qDomain u
       ciUser cid @?= qUnqualified u
@@ -234,4 +234,4 @@ createClient brig u i =
         brig
         (qUnqualified u)
         (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode

@@ -54,7 +54,8 @@ addBot = AddBot
 
 instance FromJSON AddBot where
   parseJSON = withObject "AddBot" $ \o ->
-    AddBot <$> o .: "service"
+    AddBot
+      <$> o .: "service"
       <*> o .: "conversation"
       <*> o .: "bot"
       <*> o .: "client"
@@ -82,7 +83,8 @@ removeBot = RemoveBot
 
 instance FromJSON RemoveBot where
   parseJSON = withObject "RemoveBot" $ \o ->
-    RemoveBot <$> o .: "conversation"
+    RemoveBot
+      <$> o .: "conversation"
       <*> o .: "bot"
 
 instance ToJSON RemoveBot where

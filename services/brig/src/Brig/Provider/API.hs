@@ -138,12 +138,12 @@ routesPublic = do
   get "/provider/activate" (continue activateAccountKeyH) $
     accept "application" "json"
       .&> query "key"
-      .&. query "code"
+        .&. query "code"
 
   get "/provider/approve" (continue approveAccountKeyH) $
     accept "application" "json"
       .&> query "key"
-      .&. query "code"
+        .&. query "code"
 
   post "/provider/login" (continue loginH) $
     jsonRequest @Public.ProviderLogin
@@ -161,23 +161,23 @@ routesPublic = do
   delete "/provider" (continue deleteAccountH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.DeleteProvider
+        .&. jsonRequest @Public.DeleteProvider
 
   put "/provider" (continue updateAccountProfileH) $
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.UpdateProvider
+        .&. jsonRequest @Public.UpdateProvider
 
   put "/provider/email" (continue updateAccountEmailH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.EmailUpdate
+        .&. jsonRequest @Public.EmailUpdate
 
   put "/provider/password" (continue updateAccountPasswordH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.PasswordChange
+        .&. jsonRequest @Public.PasswordChange
 
   get "/provider" (continue getAccountH) $
     accept "application" "json"
@@ -188,7 +188,7 @@ routesPublic = do
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.NewService
+        .&. jsonRequest @Public.NewService
 
   get "/provider/services" (continue listServicesH) $
     accept "application" "json"
@@ -199,19 +199,19 @@ routesPublic = do
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
-      .&. capture "sid"
+        .&. capture "sid"
 
   put "/provider/services/:sid" (continue updateServiceH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. capture "sid"
-      .&. jsonRequest @Public.UpdateService
+        .&. capture "sid"
+        .&. jsonRequest @Public.UpdateService
 
   put "/provider/services/:sid/connection" (continue updateServiceConnH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. capture "sid"
-      .&. jsonRequest @Public.UpdateServiceConn
+        .&. capture "sid"
+        .&. jsonRequest @Public.UpdateServiceConn
 
   -- TODO
   --     post "/provider/services/:sid/token" (continue genServiceTokenH) $
@@ -221,8 +221,8 @@ routesPublic = do
   delete "/provider/services/:sid" (continue deleteServiceH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. capture "sid"
-      .&. jsonRequest @Public.DeleteService
+        .&. capture "sid"
+        .&. jsonRequest @Public.DeleteService
 
   -- User API ----------------------------------------------------------------
 
@@ -240,14 +240,14 @@ routesPublic = do
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> capture "pid"
-      .&. capture "sid"
+        .&. capture "sid"
 
   get "/services" (continue searchServiceProfilesH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> opt (query "tags")
-      .&. opt (query "start")
-      .&. def (unsafeRange 20) (query "size")
+        .&. opt (query "start")
+        .&. def (unsafeRange 20) (query "size")
 
   get "/services/tags" (continue getServiceTagListH) $
     accept "application" "json"
@@ -256,33 +256,33 @@ routesPublic = do
   get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfilesH) $
     accept "application" "json"
       .&> zauthUserId
-      .&. capture "tid"
-      .&. opt (query "prefix")
-      .&. def True (query "filter_disabled")
-      .&. def (unsafeRange 20) (query "size")
+        .&. capture "tid"
+        .&. opt (query "prefix")
+        .&. def True (query "filter_disabled")
+        .&. def (unsafeRange 20) (query "size")
 
   post "/teams/:tid/services/whitelist" (continue updateServiceWhitelistH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. jsonRequest @Public.UpdateServiceWhitelist
+        .&. zauthConnId
+        .&. capture "tid"
+        .&. jsonRequest @Public.UpdateServiceWhitelist
 
   post "/conversations/:cnv/bots" (continue addBotH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.AddBot
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. jsonRequest @Public.AddBot
 
   delete "/conversations/:cnv/bots/:bot" (continue removeBotH) $
     zauth ZAuthAccess
       .&> zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. capture "bot"
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. capture "bot"
 
   -- Bot API -----------------------------------------------------------------
 
@@ -294,7 +294,7 @@ routesPublic = do
   delete "/bot/self" (continue botDeleteSelfH) $
     zauth ZAuthBot
       .&> zauthBotId
-      .&. zauthConvId
+        .&. zauthConvId
 
   get "/bot/client/prekeys" (continue botListPrekeysH) $
     accept "application" "json"
@@ -304,7 +304,7 @@ routesPublic = do
   post "/bot/client/prekeys" (continue botUpdatePrekeysH) $
     zauth ZAuthBot
       .&> zauthBotId
-      .&. jsonRequest @Public.UpdateBotPrekeys
+        .&. jsonRequest @Public.UpdateBotPrekeys
 
   get "/bot/client" (continue botGetClientH) $
     contentType "application" "json"
@@ -872,17 +872,17 @@ updateServiceWhitelist uid con tid upd = do
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
       -- conversations
-      lift $
-        fmap
+      lift
+        $ fmap
           wrapHttpClient
           runConduit
-          $ User.lookupServiceUsersForTeam pid sid tid
-            .| C.mapM_
-              ( pooledMapConcurrentlyN_
-                  16
-                  ( uncurry (deleteBot uid (Just con))
-                  )
-              )
+        $ User.lookupServiceUsersForTeam pid sid tid
+          .| C.mapM_
+            ( pooledMapConcurrentlyN_
+                16
+                ( uncurry (deleteBot uid (Just con))
+                )
+            )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
 

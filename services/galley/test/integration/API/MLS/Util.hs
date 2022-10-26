@@ -112,7 +112,8 @@ postMessage ::
 postMessage sender msg = do
   galley <- viewGalley
   post
-    ( galley . paths ["mls", "messages"]
+    ( galley
+        . paths ["mls", "messages"]
         . zUser sender
         . zConn "conn"
         . content "message/mls"
@@ -133,7 +134,8 @@ postCommitBundle ::
 postCommitBundle sender bundle = do
   galley <- viewGalley
   post
-    ( galley . paths ["mls", "commit-bundles"]
+    ( galley
+        . paths ["mls", "commit-bundles"]
         . zUser sender
         . zConn "conn"
         . content "application/x-protobuf"
@@ -400,7 +402,7 @@ setupMLSGroup creator = do
             (ciUser creator)
             (defNewMLSConv (ciClient creator))
         )
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
   let groupId =
         fromJust
           (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
@@ -437,7 +439,8 @@ setupFakeMLSGroup creator = do
 keyPackageFile :: HasCallStack => ClientIdentity -> KeyPackageRef -> MLSTest FilePath
 keyPackageFile qcid ref =
   State.gets $ \mls ->
-    mlsBaseDir mls </> cid2Str qcid
+    mlsBaseDir mls
+      </> cid2Str qcid
       </> T.unpack (T.decodeUtf8 (hex (unKeyPackageRef ref)))
 
 claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
@@ -449,7 +452,7 @@ claimLocalKeyPackages qcid lusr = do
           . paths ["mls", "key-packages", "claim", toByteString' (tDomain lusr), toByteString' (tUnqualified lusr)]
           . zUser (ciUser qcid)
       )
-    <!! const 200 === statusCode
+      <!! const 200 === statusCode
 
 -- | Get all test clients of a user by listing the temporary MLS directory.
 getUserClients :: HasCallStack => Qualified UserId -> MLSTest [ClientIdentity]
@@ -762,7 +765,7 @@ sendAndConsumeMessage mp = do
   events <-
     fmap mmssEvents . responseJsonError
       =<< postMessage (ciUser (mpSender mp)) (mpMessage mp)
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
   consumeMessage mp
 
   for_ (mpWelcome mp) $ \welcome -> do
@@ -818,7 +821,7 @@ sendAndConsumeCommitBundle mp = do
     fmap mmssEvents
       . responseJsonError
       =<< postCommitBundle (ciUser (mpSender mp)) bundle
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
   consumeMessage mp
   traverse_ consumeWelcome (mpWelcome mp)
 

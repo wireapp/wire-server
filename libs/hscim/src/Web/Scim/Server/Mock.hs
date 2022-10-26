@@ -242,13 +242,13 @@ nt storage =
 filterUser :: Filter -> User extra -> Either Text Bool
 filterUser (FilterAttrCompare (AttrPath schema' attrib subAttr) op val) user
   | isUserSchema schema' =
-    case (subAttr, val) of
-      (Nothing, ValString str)
-        | attrib == "userName" ->
-          Right (compareStr op (CI.foldCase (userName user)) (CI.foldCase str))
-      (Nothing, _)
-        | attrib == "userName" ->
-          Left "usernames can only be compared with strings"
-      (_, _) ->
-        Left "Only search on usernames is currently supported"
+      case (subAttr, val) of
+        (Nothing, ValString str)
+          | attrib == "userName" ->
+              Right (compareStr op (CI.foldCase (userName user)) (CI.foldCase str))
+        (Nothing, _)
+          | attrib == "userName" ->
+              Left "usernames can only be compared with strings"
+        (_, _) ->
+          Left "Only search on usernames is currently supported"
   | otherwise = Left "Invalid schema. Only user schema is supported"

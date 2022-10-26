@@ -1,0 +1,5 @@
+infixr 10 .=
+infix 4 ===
+infix 4 =/=
+infixr 3 !!!
+infixr 3 <!!

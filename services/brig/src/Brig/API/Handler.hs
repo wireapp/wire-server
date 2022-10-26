@@ -146,10 +146,10 @@ onError g r k e = do
   -- So, this can probably be deleted and is not part of the new servant
   -- handler.
   Server.flushRequestBody r
-  k $
-    setStatus (WaiError.code we)
+  k
+    $ setStatus (WaiError.code we)
       . appEndo (foldMap (Endo . uncurry addHeader) hs)
-      $ json e
+    $ json e
   where
     (we, hs) = case e of
       StdError x -> (x, [])

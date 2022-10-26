@@ -92,9 +92,9 @@ instance ToSchema QueuedNotification where
     object "QueuedNotification" $
       QueuedNotification
         <$> _queuedNotificationId
-        .= field "id" schema
+          .= field "id" schema
         <*> _queuedNotificationPayload
-        .= field "payload" (nonEmptyArray jsonObject)
+          .= field "payload" (nonEmptyArray jsonObject)
 
 makeLenses ''QueuedNotification
 
@@ -131,11 +131,11 @@ instance ToSchema QueuedNotificationList where
     object "QueuedNotificationList" $
       QueuedNotificationList
         <$> _queuedNotifications
-        .= field "notifications" (array schema)
+          .= field "notifications" (array schema)
         <*> _queuedHasMore
-        .= fmap (fromMaybe False) (optField "has_more" schema)
+          .= fmap (fromMaybe False) (optField "has_more" schema)
         <*> _queuedTime
-        .= maybe_ (optField "time" utcTimeSchema)
+          .= maybe_ (optField "time" utcTimeSchema)
 
 makeLenses ''QueuedNotificationList
 

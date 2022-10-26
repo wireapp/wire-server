@@ -81,8 +81,8 @@ runTests run = defaultMainWithIngredients ings $
       includingOptions
         [ Option (Proxy :: Proxy ServiceConfigFile),
           Option (Proxy :: Proxy IntegrationConfigFile)
-        ] :
-      defaultIngredients
+        ]
+        : defaultIngredients
 
 main :: IO ()
 main = withOpenSSL $ runTests go

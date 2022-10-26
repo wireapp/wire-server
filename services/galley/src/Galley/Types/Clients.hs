@@ -91,7 +91,8 @@ singleton u c =
 
 filter :: (UserId -> Bool) -> Clients -> Clients
 filter p =
-  Clients . UserClients
+  Clients
+    . UserClients
     . Map.filterWithKey (\u _ -> p u)
     . (userClients . clients)
 
@@ -101,7 +102,8 @@ contains u c =
 
 insert :: UserId -> ClientId -> Clients -> Clients
 insert u c =
-  Clients . UserClients
+  Clients
+    . UserClients
     . Map.insertWith Set.union u (Set.singleton c)
     . (userClients . clients)
 

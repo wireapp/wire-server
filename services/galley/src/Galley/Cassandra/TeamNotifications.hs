@@ -124,8 +124,8 @@ fetch tid since (fromRange -> size) = do
     trim l ns
       | Seq.length ns <= l = ns
       | otherwise = case Seq.viewr ns of
-        EmptyR -> ns
-        xs :> _ -> xs
+          EmptyR -> ns
+          xs :> _ -> xs
     cqlStart :: PrepQuery R (Identity TeamId) (TimeUuid, Blob)
     cqlStart =
       "SELECT id, payload \

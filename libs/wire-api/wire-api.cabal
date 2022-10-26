@@ -119,6 +119,7 @@ library
     Wire.API.User.Auth.LegalHold
     Wire.API.User.Auth.ReAuth
     Wire.API.User.Auth.Sso
+    Wire.API.User.Auth2
     Wire.API.User.Client
     Wire.API.User.Client.DPoPAccessToken
     Wire.API.User.Client.Prekey

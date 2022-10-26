@@ -103,7 +103,8 @@ traverseConcurrentlyWithErrors ::
   t a ->
   ExceptT e m (t b)
 traverseConcurrentlyWithErrors f =
-  ExceptT . try
+  ExceptT
+    . try
     . ( traverse (either throwIO pure)
           <=< pooledMapConcurrentlyN 8 (runExceptT . f)
       )
@@ -116,7 +117,8 @@ traverseConcurrentlyWithErrorsSem ::
   t a ->
   ExceptT e (Sem r) [b]
 traverseConcurrentlyWithErrorsSem f =
-  ExceptT . E.runError
+  ExceptT
+    . E.runError
     . ( traverse (either E.throw pure)
           <=< C.unsafePooledMapConcurrentlyN 8 (raise . runExceptT . f)
       )

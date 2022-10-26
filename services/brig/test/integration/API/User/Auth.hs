@@ -1056,13 +1056,14 @@ testRemoveCookiesByLabel b = do
   liftIO $ ["nexus1", "nexus2", "nexus3"] @=? sort _cookies
   let rem1 = encode $ remJson defPassword (Just ["nexus1"]) Nothing
   post
-    ( b . path "/cookies/remove"
+    ( b
+        . path "/cookies/remove"
         . content "application/json"
         . lbytes rem1
         . zUser (userId u)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   _cookies <- mapMaybe cookieLabel <$> listCookies b (userId u)
   liftIO $ ["nexus2", "nexus3"] @=? sort _cookies
   let rem2 = encode $ remJson defPassword Nothing Nothing
@@ -1074,7 +1075,7 @@ testRemoveCookiesByLabel b = do
         . zUser (userId u)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   listCookies b (userId u) >>= liftIO . ([] @=?) . mapMaybe cookieLabel
 
 testRemoveCookiesByLabelAndId :: Brig -> Http ()
@@ -1097,7 +1098,7 @@ testRemoveCookiesByLabelAndId b = do
         . zUser (userId u)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   -- Check the remaining cookie
   let lbl = cookieLabel c4
   listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
@@ -1212,7 +1213,8 @@ listCookiesWithLabel :: HasCallStack => Brig -> UserId -> [CookieLabel] -> Http 
 listCookiesWithLabel b u l = do
   rs <-
     get
-      ( b . path "/cookies"
+      ( b
+          . path "/cookies"
           . queryItem "labels" labels
           . header "Z-User" (toByteString' u)
       )

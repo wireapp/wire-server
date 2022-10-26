@@ -91,7 +91,8 @@ data TeamStatusUpdate = TeamStatusUpdate
 
 instance FromJSON TeamStatusUpdate where
   parseJSON = withObject "team-status-update" $ \o ->
-    TeamStatusUpdate <$> o .: "status"
+    TeamStatusUpdate
+      <$> o .: "status"
       <*> o .:? "currency"
 
 instance ToJSON TeamStatusUpdate where

@@ -44,17 +44,17 @@ limitCookies :: CookieLimit -> UTCTime -> [Cookie a] -> [Cookie a]
 limitCookies lim now cs
   | freeSlots > 0 = []
   | otherwise =
-    let carry = max 1 (abs freeSlots)
-     in take carry (sortBy preference cs)
+      let carry = max 1 (abs freeSlots)
+       in take carry (sortBy preference cs)
   where
     freeSlots = cookieLimitTotal lim - length cs
     preference a b
       | cookieExpires a < now = LT
       | cookieExpires b < now = GT
       | otherwise = case (cookieSucc a, cookieSucc b) of
-        (Just _, Nothing) -> LT
-        (Nothing, Just _) -> GT
-        (_, _) -> comparing cookieCreated a b
+          (Just _, Nothing) -> LT
+          (Nothing, Just _) -> GT
+          (_, _) -> comparing cookieCreated a b
 
 --------------------------------------------------------------------------------
 -- Temporal Throttling

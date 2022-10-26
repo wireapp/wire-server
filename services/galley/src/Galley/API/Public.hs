@@ -158,8 +158,8 @@ sitemap = do
   get "/bot/conversation" (continueE (getBotConversationH @Cassandra)) $
     zauth ZAuthBot
       .&> zauthBotId
-      .&. zauthConvId
-      .&. accept "application" "json"
+        .&. zauthConvId
+        .&. accept "application" "json"
 
 getBotConversationH ::
   forall db r.

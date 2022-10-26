@@ -225,8 +225,8 @@ lookupInvitationInfo :: MonadClient m => InvitationCode -> m (Maybe InvitationIn
 lookupInvitationInfo ic@(InvitationCode c)
   | c == mempty = pure Nothing
   | otherwise =
-    fmap (toInvitationInfo ic)
-      <$> retry x1 (query1 cqlInvitationInfo (params LocalQuorum (Identity ic)))
+      fmap (toInvitationInfo ic)
+        <$> retry x1 (query1 cqlInvitationInfo (params LocalQuorum (Identity ic)))
   where
     toInvitationInfo i (t, r) = InvitationInfo i t r
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)

@@ -60,9 +60,9 @@ checkMessageClientSuccess = testProperty "success" $
   \(sender :: QualifiedUserClient) (msg :: Map QualifiedUserClient ByteString) (strat :: ClientMismatchStrategy) ->
     let expectedRecipients = Map.keysSet msg
         expectedRecipientMap = recipientSetToMap expectedRecipients
-     in not (Map.member sender msg)
-          ==> checkMessageClients sender expectedRecipientMap msg strat
-          === (True, msg, QualifiedMismatch mempty mempty mempty)
+     in not (Map.member sender msg) ==>
+          checkMessageClients sender expectedRecipientMap msg strat
+            === (True, msg, QualifiedMismatch mempty mempty mempty)
 
 checkMessageClientRedundantSender :: TestTree
 checkMessageClientRedundantSender = testProperty "sender should be part of redundant" $

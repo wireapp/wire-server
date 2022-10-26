@@ -302,7 +302,8 @@ type ITeamsAPIBase =
   Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
     :<|> Named
            "create-binding-team"
-           ( ZUser :> ReqBody '[Servant.JSON] BindingNewTeam
+           ( ZUser
+               :> ReqBody '[Servant.JSON] BindingNewTeam
                :> MultiVerb1
                     'PUT
                     '[Servant.JSON]
@@ -324,7 +325,9 @@ type ITeamsAPIBase =
     :<|> Named "get-team-name" ("name" :> CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamName)
     :<|> Named
            "update-team-status"
-           ( "status" :> CanThrow 'TeamNotFound :> CanThrow 'InvalidTeamStatusUpdate
+           ( "status"
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'InvalidTeamStatusUpdate
                :> ReqBody '[Servant.JSON] TeamStatusUpdate
                :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "OK")
            )
@@ -343,7 +346,8 @@ type ITeamsAPIBase =
                     )
              :<|> Named
                     "unchecked-get-team-member"
-                    ( Capture "uid" UserId :> CanThrow 'TeamMemberNotFound
+                    ( Capture "uid" UserId
+                        :> CanThrow 'TeamMemberNotFound
                         :> Get '[Servant.JSON] TeamMember
                     )
              :<|> Named
@@ -355,7 +359,8 @@ type ITeamsAPIBase =
          )
     :<|> Named
            "user-is-team-owner"
-           ( "is-team-owner" :> Capture "uid" UserId
+           ( "is-team-owner"
+               :> Capture "uid" UserId
                :> CanThrow 'AccessDenied
                :> CanThrow 'TeamMemberNotFound
                :> CanThrow 'NotATeamMember
@@ -691,21 +696,21 @@ rmUser lusr conn = do
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
-            runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
-              Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
-              Right _ -> pure ()
-            deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
-            let e =
-                  Event
-                    (qUntagged (qualifyAs lusr (Data.convId c)))
-                    (qUntagged lusr)
-                    now
-                    (EdMembersLeave (QualifiedUserIdList [qUser]))
-            for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-            pure $
-              Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
-                <&> set Intra.pushConn conn
-                  . set Intra.pushRoute Intra.RouteDirect
+              runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
+                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+                Right _ -> pure ()
+              deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
+              let e =
+                    Event
+                      (qUntagged (qualifyAs lusr (Data.convId c)))
+                      (qUntagged lusr)
+                      now
+                      (EdMembersLeave (QualifiedUserIdList [qUser]))
+              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
+              pure $
+                Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
+                  <&> set Intra.pushConn conn
+                    . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> pure Nothing
 
       for_

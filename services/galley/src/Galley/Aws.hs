@@ -169,7 +169,8 @@ enqueue e = do
   where
     event = decodeLatin1 $ B64.encode $ encodeMessage e
     req url dedup =
-      SQS.newSendMessage url event & SQS.sendMessage_messageGroupId ?~ "team.events"
+      SQS.newSendMessage url event
+        & SQS.sendMessage_messageGroupId ?~ "team.events"
         & SQS.sendMessage_messageDeduplicationId ?~ toText dedup
 
 --------------------------------------------------------------------------------

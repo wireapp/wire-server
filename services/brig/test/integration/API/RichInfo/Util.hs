@@ -44,8 +44,8 @@ getRichInfo brig self uid = do
       | statusCode r == 200 -> Right <$> responseJsonError r
       | statusCode r `elem` [403, 404] -> pure . Left . statusCode $ r
       | otherwise ->
-        error $
-          "expected status code 200, 403, or 404, got: " <> show (statusCode r)
+          error $
+            "expected status code 200, 403, or 404, got: " <> show (statusCode r)
 
 -- | This contacts an internal end-point.  Note the asymmetry between this and the external
 -- GET end-point in the body: here we need to wrap the 'RichInfo' in a 'RichInfoUpdate'.

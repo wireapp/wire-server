@@ -642,17 +642,17 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
           case (sender, self, cmAssocs cm) of
             (MemberSender currentRef, Left lm, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
-                -- use update path as sender reference and if not existing fall back to sender
-                senderRef <-
-                  maybe
-                    (pure currentRef)
-                    ( note (mlsProtocolError "Could not compute key package ref")
-                        . kpRef'
-                        . upLeaf
-                    )
-                    $ cPath commit
-                -- register the creator client
-                updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef
+                  -- use update path as sender reference and if not existing fall back to sender
+                  senderRef <-
+                    maybe
+                      (pure currentRef)
+                      ( note (mlsProtocolError "Could not compute key package ref")
+                          . kpRef'
+                          . upLeaf
+                      )
+                      $ cPath commit
+                  -- register the creator client
+                  updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef
             -- remote clients cannot send the first commit
             (_, Right _, _) -> throwS @'MLSStaleMessage
             -- uninitialised conversations should contain exactly one client

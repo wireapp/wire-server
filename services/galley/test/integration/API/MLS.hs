@@ -235,7 +235,7 @@ testSenderNotInConversation = do
     err <-
       responseJsonError
         =<< postMessage (qUnqualified bob) (mpMessage message)
-        <!! const 404 === statusCode
+          <!! const 404 === statusCode
 
     liftIO $ Wai.label err @?= "no-conversation"
 
@@ -277,9 +277,10 @@ testWelcomeNoKey = do
       Just w -> pure w
 
     err <-
-      responseJsonError =<< postWelcome (ciUser alice1) welcome
-        <!! do
-          const 404 === statusCode
+      responseJsonError
+        =<< postWelcome (ciUser alice1) welcome
+          <!! do
+            const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
 
 testRemoteWelcome :: TestM ()
@@ -333,8 +334,9 @@ testAddUserWithBundle = do
 
   -- check that bob can now see the conversation
   convs <-
-    responseJsonError =<< getConvs (qUnqualified bob) Nothing Nothing
-      <!! const 200 === statusCode
+    responseJsonError
+      =<< getConvs (qUnqualified bob) Nothing Nothing
+        <!! const 200 === statusCode
   liftIO $
     assertBool
       "Users added to an MLS group should find it when listing conversations"
@@ -371,7 +373,7 @@ testAddUserWithBundleIncompleteWelcome = do
     err <-
       responseJsonError
         =<< postCommitBundle (ciUser (mpSender commit)) bundle
-        <!! const 400 === statusCode
+          <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-welcome-mismatch"
 
 testAddUser :: TestM ()
@@ -389,8 +391,9 @@ testAddUser = do
 
   -- check that bob can now see the conversation
   convs <-
-    responseJsonError =<< getConvs (qUnqualified bob) Nothing Nothing
-      <!! const 200 === statusCode
+    responseJsonError
+      =<< getConvs (qUnqualified bob) Nothing Nothing
+        <!! const 200 === statusCode
   liftIO $
     assertBool
       "Users added to an MLS group should find it when listing conversations"
@@ -410,7 +413,7 @@ testAddUserNotConnected = do
       err <-
         responseJsonError
           =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
-          <!! const 403 === statusCode
+            <!! const 403 === statusCode
       void . liftIO $ WS.assertNoEvent (1 # WS.Second) wss
       pure err
     liftIO $ Wai.label err @?= "not-connected"
@@ -457,7 +460,7 @@ testAddUserPartial = do
     err <-
       responseJsonError
         =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
-        <!! const 409 === statusCode
+          <!! const 409 === statusCode
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testAddClientPartial :: TestM ()
@@ -538,7 +541,7 @@ testAddUsersDirectly = do
           (qUnqualified alice)
           (pure charlie)
           qcnv
-        <!! const 403 === statusCode
+          <!! const 403 === statusCode
     liftIO $ Wai.label e @?= "invalid-op"
 
 testRemoveUsersDirectly :: TestM ()
@@ -555,7 +558,7 @@ testRemoveUsersDirectly = do
           (qUnqualified alice)
           bob
           qcnv
-        <!! const 403 === statusCode
+          <!! const 403 === statusCode
     liftIO $ Wai.label e @?= "invalid-op"
 
 testProteusMessage :: TestM ()
@@ -575,7 +578,7 @@ testProteusMessage = do
           []
           "data"
           MismatchReportAll
-        <!! const 404 === statusCode
+          <!! const 404 === statusCode
     liftIO $ Wai.label e @?= "no-conversation"
 
 testStaleCommit :: TestM ()
@@ -597,7 +600,7 @@ testStaleCommit = do
     err <-
       responseJsonError
         =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
-        <!! const 409 === statusCode
+          <!! const 409 === statusCode
     liftIO $ Wai.label err @?= "mls-stale-message"
 
 testAddRemoteUser :: TestM ()
@@ -671,7 +674,7 @@ testCommitLock = do
       err <-
         responseJsonError
           =<< postMessage (ciUser alice1) (mpMessage commit)
-          <!! const 409 === statusCode
+            <!! const 409 === statusCode
       liftIO $ Wai.label err @?= "mls-stale-message"
   where
     lock :: PrepQuery W (GroupId, Epoch) ()
@@ -703,8 +706,9 @@ testAddUserBareProposalCommit = do
     -- check that bob can now see the conversation
     liftTest $ do
       convs <-
-        responseJsonError =<< getConvs (ciUser bob1) Nothing Nothing
-          <!! const 200 === statusCode
+        responseJsonError
+          =<< getConvs (ciUser bob1) Nothing Nothing
+            <!! const 200 === statusCode
       liftIO $
         assertBool
           "Users added to an MLS group should find it when listing conversations"
@@ -724,8 +728,9 @@ testUnknownProposalRefCommit = do
 
     -- send commit before proposal
     err <-
-      responseJsonError =<< postMessage (ciUser alice1) (mpMessage commit)
-        <!! const 404 === statusCode
+      responseJsonError
+        =<< postMessage (ciUser alice1) (mpMessage commit)
+          <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-proposal-not-found"
 
 testCommitNotReferencingAllProposals :: TestM ()
@@ -747,8 +752,9 @@ testCommitNotReferencingAllProposals = do
 
     -- send commit and expect and error
     err <-
-      responseJsonError =<< postMessage (ciUser alice1) (mpMessage commit)
-        <!! const 400 === statusCode
+      responseJsonError
+        =<< postMessage (ciUser alice1) (mpMessage commit)
+          <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
 testAdminRemovesUserFromConv :: TestM ()
@@ -766,8 +772,9 @@ testAdminRemovesUserFromConv = do
 
   do
     convs <-
-      responseJsonError =<< getConvs (qUnqualified bob) Nothing Nothing
-        <!! const 200 === statusCode
+      responseJsonError
+        =<< getConvs (qUnqualified bob) Nothing Nothing
+          <!! const 200 === statusCode
     liftIO $
       assertBool
         "bob is not longer part of conversation after the commit"
@@ -937,7 +944,8 @@ testLocalToRemoteNonMember = do
 
         -- bob sends a message: step 12
         post
-          ( galley . paths ["mls", "messages"]
+          ( galley
+              . paths ["mls", "messages"]
               . zUser (qUnqualified bob)
               . zConn "conn"
               . content "message/mls"
@@ -1239,7 +1247,7 @@ propInvalidEpoch = do
       err <-
         responseJsonError
           =<< postMessage (qUnqualified alice) (mpMessage prop)
-          <!! const 409 === statusCode
+            <!! const 409 === statusCode
       liftIO $ Wai.label err @?= "mls-stale-message"
       setGroupState alice1 groupState
 
@@ -1252,7 +1260,7 @@ propInvalidEpoch = do
       err <-
         responseJsonError
           =<< postMessage (qUnqualified alice) (mpMessage prop)
-          <!! const 404 === statusCode
+            <!! const 404 === statusCode
       liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
       replicateM_ 2 (rollBackClient alice1)
       -- remove charlie from users expected to get a welcome message
@@ -1422,7 +1430,7 @@ testPublicKeys = do
             . paths ["mls", "public-keys"]
             . zUser u
         )
-      <!! const 200 === statusCode
+        <!! const 200 === statusCode
 
   liftIO $
     Map.keys

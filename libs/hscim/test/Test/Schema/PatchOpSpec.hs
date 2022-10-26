@@ -115,7 +115,7 @@ spec = do
           "operations": []
         }|]
           `shouldSatisfy` (not . isSuccess)
-    --TODO(arianvp): We don't support arbitrary path names (yet)
+    -- TODO(arianvp): We don't support arbitrary path names (yet)
     it "roundtrips Path" $ require $ prop_roundtrip @PatchTestTag
     it "roundtrips PatchOp" $ require $ prop_roundtrip_PatchOp @PatchTestTag
     it "case-insensitive" $ require $ mk_prop_caseInsensitive (genSimplePatchOp @PatchTestTag)

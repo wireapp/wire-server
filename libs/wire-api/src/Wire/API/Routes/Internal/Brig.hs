@@ -156,7 +156,8 @@ type AccountAPI =
     )
     :<|> Named
            "createUserNoVerifySpar"
-           ( "users" :> "spar"
+           ( "users"
+               :> "spar"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
@@ -175,8 +176,8 @@ instance ToSchema NewKeyPackageRef where
     object "NewKeyPackageRef" $
       NewKeyPackageRef
         <$> nkprUserId .= field "user_id" schema
-          <*> nkprClientId .= field "client_id" schema
-          <*> nkprConversation .= field "conversation" schema
+        <*> nkprClientId .= field "client_id" schema
+        <*> nkprConversation .= field "conversation" schema
 
 data NewKeyPackage = NewKeyPackage
   { nkpConversation :: Qualified ConvId,
@@ -190,7 +191,7 @@ instance ToSchema NewKeyPackage where
     object "NewKeyPackage" $
       NewKeyPackage
         <$> nkpConversation .= field "conversation" schema
-          <*> nkpKeyPackage .= field "key_package" schema
+        <*> nkpKeyPackage .= field "key_package" schema
 
 data NewKeyPackageResult = NewKeyPackageResult
   { nkpresClientIdentity :: ClientIdentity,
@@ -204,11 +205,12 @@ instance ToSchema NewKeyPackageResult where
     object "NewKeyPackageResult" $
       NewKeyPackageResult
         <$> nkpresClientIdentity .= field "client_identity" schema
-          <*> nkpresKeyPackageRef .= field "key_package_ref" schema
+        <*> nkpresKeyPackageRef .= field "key_package_ref" schema
 
 type MLSAPI =
   "mls"
-    :> ( ( "key-packages" :> Capture "ref" KeyPackageRef
+    :> ( ( "key-packages"
+             :> Capture "ref" KeyPackageRef
              :> ( Named
                     "get-client-by-key-package-ref"
                     ( Summary "Resolve an MLS key package ref to a qualified client ID"
@@ -376,7 +378,8 @@ type AuthAPI =
            )
     :<|> Named
            "login-code"
-           ( "users" :> "login-code"
+           ( "users"
+               :> "login-code"
                :> QueryParam' [Required, Strict] "phone" Phone
                :> MultiVerb1 'GET '[JSON] (Respond 200 "Login code" PendingLoginCode)
            )

@@ -51,7 +51,9 @@ testObject_RTCIceServer_user_1 =
              turnURI SchemeTurns (TurnHostIp (IpAddr (read "125.103.68.5"))) (read "1") (Just TransportTCP)
            ]
     )
-    ( turnUsername (secondsToNominalDiffTime 38.000000000000) "6vgzfba" & tuVersion .~ 4 & tuKeyindex .~ 24
+    ( turnUsername (secondsToNominalDiffTime 38.000000000000) "6vgzfba"
+        & tuVersion .~ 4
+        & tuKeyindex .~ 24
         & tuT .~ '\DC1'
     )
     (fromRight undefined (validate "ZtBPgUaUYg=="))
@@ -62,7 +64,9 @@ testObject_RTCIceServer_user_2 =
     ( turnURI SchemeTurn (TurnHostIp (IpAddr (read "108.37.81.160"))) (read "0") (Just TransportTCP)
         :| []
     )
-    ( turnUsername (secondsToNominalDiffTime 3.000000000000) "a8kdffu4" & tuVersion .~ 5 & tuKeyindex .~ 24
+    ( turnUsername (secondsToNominalDiffTime 3.000000000000) "a8kdffu4"
+        & tuVersion .~ 5
+        & tuKeyindex .~ 24
         & tuT .~ '\SOH'
     )
     (fromRight undefined (validate "d1VUzpxZ3TeM"))

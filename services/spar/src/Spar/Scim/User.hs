@@ -146,11 +146,11 @@ instance
         case filter' of
           Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
             | Scim.isUserSchema schema -> do
-              x <- runMaybeT $ case attrName of
-                "username" -> scimFindUserByHandle mIdpConfig stiTeam val
-                "externalid" -> scimFindUserByEmail mIdpConfig stiTeam val
-                _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
-              pure $ Scim.fromList (toList x)
+                x <- runMaybeT $ case attrName of
+                  "username" -> scimFindUserByHandle mIdpConfig stiTeam val
+                  "externalid" -> scimFindUserByEmail mIdpConfig stiTeam val
+                  _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
+                pure $ Scim.fromList (toList x)
             | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
           _ -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Operation not supported")
 

@@ -65,21 +65,21 @@ tests =
             == Just (sort (convUids (tDomain luid) c)),
       testProperty "conversation view for an invalid user is empty" $
         \(RandomConversation c) luid ->
-          notElem (tUnqualified luid) (map lmId (Data.convLocalMembers c))
-            ==> isNothing (conversationViewMaybe luid c),
+          notElem (tUnqualified luid) (map lmId (Data.convLocalMembers c)) ==>
+            isNothing (conversationViewMaybe luid c),
       testProperty "remote conversation view for a valid user is non-empty" $
         \(ConvWithRemoteUser c ruid) dom ->
-          qDomain (qUntagged ruid) /= dom
-            ==> isJust (conversationToRemote dom ruid c),
+          qDomain (qUntagged ruid) /= dom ==>
+            isJust (conversationToRemote dom ruid c),
       testProperty "self user role in remote conversation view is correct" $
         \(ConvWithRemoteUser c ruid) dom ->
-          qDomain (qUntagged ruid) /= dom
-            ==> fmap (rcmSelfRole . rcnvMembers) (conversationToRemote dom ruid c)
+          qDomain (qUntagged ruid) /= dom ==>
+            fmap (rcmSelfRole . rcnvMembers) (conversationToRemote dom ruid c)
               == Just roleNameWireMember,
       testProperty "remote conversation view metadata is correct" $
         \(ConvWithRemoteUser c ruid) dom ->
-          qDomain (qUntagged ruid) /= dom
-            ==> fmap rcnvMetadata (conversationToRemote dom ruid c)
+          qDomain (qUntagged ruid) /= dom ==>
+            fmap rcnvMetadata (conversationToRemote dom ruid c)
               == Just (Data.convMetadata c),
       testProperty "remote conversation view does not contain self" $
         \(ConvWithRemoteUser c ruid) dom -> case conversationToRemote dom ruid c of
@@ -92,8 +92,8 @@ tests =
 cnvUids :: Conversation -> [Qualified UserId]
 cnvUids c =
   let mems = cnvMembers c
-   in memId (cmSelf mems) :
-      map omQualifiedId (cmOthers mems)
+   in memId (cmSelf mems)
+        : map omQualifiedId (cmOthers mems)
 
 convUids :: Domain -> Data.Conversation -> [Qualified UserId]
 convUids dom c =
@@ -123,7 +123,8 @@ genConversation =
 
 genConversationMetadata :: Gen ConversationMetadata
 genConversationMetadata =
-  ConversationMetadata RegularConv <$> arbitrary
+  ConversationMetadata RegularConv
+    <$> arbitrary
     <*> pure []
     <*> pure (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
     <*> arbitrary

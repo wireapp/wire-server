@@ -128,9 +128,9 @@ getBotConversation zbot lcnv = do
     mkMember :: Domain -> LocalMember -> Maybe OtherMember
     mkMember domain m
       | lmId m == botUserId zbot =
-        Nothing -- no need to list the bot itself
+          Nothing -- no need to list the bot itself
       | otherwise =
-        Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
+          Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
 getUnqualifiedConversation ::
   Members

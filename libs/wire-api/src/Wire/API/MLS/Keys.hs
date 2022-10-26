@@ -54,8 +54,9 @@ newtype MLSPublicKeys = MLSPublicKeys
 instance ToSchema MLSPublicKeys where
   schema =
     named "MLSKeys" $
-      MLSPublicKeys <$> unMLSPublicKeys
-        .= map_ (map_ base64Schema)
+      MLSPublicKeys
+        <$> unMLSPublicKeys
+          .= map_ (map_ base64Schema)
 
 mlsKeysToPublic1 :: MLSKeys -> Map SignatureSchemeTag ByteString
 mlsKeysToPublic1 (MLSKeys mEd25519key) =

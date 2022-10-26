@@ -102,7 +102,8 @@ testSuspendNonExistingUser db brig = do
 setAccountStatus :: (MonadIO m, MonadHttp m, HasCallStack, MonadCatch m) => Brig -> UserId -> AccountStatus -> m ResponseLBS
 setAccountStatus brig u s =
   put
-    ( brig . paths ["i", "users", toByteString' u, "status"]
+    ( brig
+        . paths ["i", "users", toByteString' u, "status"]
         . contentJson
         . json (AccountStatusUpdate s)
     )
@@ -338,7 +339,8 @@ testAddKeyPackageRef brig = do
   qusr <- liftIO $ generate arbitrary
   c <- liftIO $ generate arbitrary
   put
-    ( brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref]
+    ( brig
+        . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref]
         . json
           NewKeyPackageRef
             { nkprUserId = qusr,
@@ -350,7 +352,7 @@ testAddKeyPackageRef brig = do
   ci <-
     responseJsonError
       =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref])
-      <!! const 200 === statusCode
+        <!! const 200 === statusCode
   liftIO $ do
     fmap ciDomain ci @?= Just (qDomain qusr)
     fmap ciUser ci @?= Just (qUnqualified qusr)
@@ -358,7 +360,7 @@ testAddKeyPackageRef brig = do
   mqcnv <-
     responseJsonError
       =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"])
-      <!! const 200 === statusCode
+        <!! const 200 === statusCode
   liftIO $ mqcnv @?= Just qcnv
 
 getFeatureConfig :: forall cfg m. (MonadIO m, MonadHttp m, HasCallStack, ApiFt.IsFeatureConfig cfg, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS

@@ -108,14 +108,14 @@ writeLoop ws clock (TTL ttl) st = loop
       s <- readIORef st
       if
           | s ^. counter == 0 -> do
-            set counter st succ
-            threadDelay $ s ^. pingFreq
-            keepAlive
+              set counter st succ
+              threadDelay $ s ^. pingFreq
+              keepAlive
           | s ^. counter < 3 -> do
-            set counter st succ
-            send (connection ws) ping
-            threadDelay $ (10 # Second) `min` (s ^. pingFreq)
-            keepAlive
+              set counter st succ
+              send (connection ws) ping
+              threadDelay $ (10 # Second) `min` (s ^. pingFreq)
+              keepAlive
           | otherwise -> pure ()
     keepAlive = do
       time <- getTime clock

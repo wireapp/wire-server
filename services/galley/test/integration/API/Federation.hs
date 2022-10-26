@@ -641,10 +641,10 @@ leaveConversationSuccess = do
         case (frTargetDomain fedReq, frRPC fedReq) of
           (d, mp)
             | d == remoteDomain1 && mp == getUsersRPC ->
-              success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
+                success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
           (d, mp)
             | d == remoteDomain2 && mp == getUsersRPC ->
-              success [mkProfile qEve (Name "Eve")]
+                success [mkProfile qEve (Name "Eve")]
           _ -> success ()
 
   (convId, _) <-
@@ -701,7 +701,7 @@ leaveConversationNonExistent = do
               . header "Wire-Origin-Domain" (toByteString' remoteDomain)
               . json leaveRequest
           )
-        <!! const 200 === statusCode
+          <!! const 200 === statusCode
   liftIO $ resp @?= Left FedGalley.RemoveFromConversationErrorNotFound
 
 leaveConversationInvalidType :: TestM ()
@@ -725,7 +725,7 @@ leaveConversationInvalidType = do
               . header "Wire-Origin-Domain" (toByteString' remoteDomain)
               . json leaveRequest
           )
-        <!! const 200 === statusCode
+          <!! const 200 === statusCode
   liftIO $ resp @?= Left FedGalley.RemoveFromConversationErrorRemovalNotAllowed
 
 onMessageSent :: TestM ()
@@ -835,7 +835,7 @@ sendMessage = do
   -- conversation
   let responses1 req
         | frComponent req == Brig =
-          toJSON [bobProfile, chadProfile]
+            toJSON [bobProfile, chadProfile]
         | otherwise = toJSON ()
   (convId, requests1) <-
     withTempMockFederator responses1 $
@@ -871,12 +871,12 @@ sendMessage = do
           }
   let responses2 req
         | frComponent req == Brig =
-          toJSON
-            ( Map.fromList
-                [ (chadId, Set.singleton (PubClient chadClient Nothing)),
-                  (bobId, Set.singleton (PubClient bobClient Nothing))
-                ]
-            )
+            toJSON
+              ( Map.fromList
+                  [ (chadId, Set.singleton (PubClient chadClient Nothing)),
+                    (bobId, Set.singleton (PubClient bobClient Nothing))
+                  ]
+              )
         | otherwise = toJSON ()
   (_, requests2) <- withTempMockFederator responses2 $ do
     WS.bracketR cannon aliceId $ \ws -> do
@@ -994,7 +994,7 @@ onUserDeleted = do
               . header "Wire-Origin-Domain" (toByteString' (tDomain bob))
               . json udcn
           )
-        <!! const 200 === statusCode
+          <!! const 200 === statusCode
 
     ooConvAfterDel <- responseJsonError =<< getConvQualified (tUnqualified alice) ooConvId <!! const 200 === statusCode
     groupConvAfterDel <- responseJsonError =<< getConvQualified (tUnqualified alice) groupConvId <!! const 200 === statusCode

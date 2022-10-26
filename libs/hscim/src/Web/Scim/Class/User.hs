@@ -49,29 +49,29 @@ data UserSite tag route = UserSite
   { usGetUsers ::
       route
         :- QueryParam "filter" Filter
-        :> Get '[SCIM] (ListResponse (StoredUser tag)),
+          :> Get '[SCIM] (ListResponse (StoredUser tag)),
     usGetUser ::
       route
         :- Capture "id" (UserId tag)
-        :> Get '[SCIM] (StoredUser tag),
+          :> Get '[SCIM] (StoredUser tag),
     usPostUser ::
       route
         :- ReqBody '[SCIM] (User tag)
-        :> PostCreated '[SCIM] (StoredUser tag),
+          :> PostCreated '[SCIM] (StoredUser tag),
     usPutUser ::
       route
         :- Capture "id" (UserId tag)
-        :> ReqBody '[SCIM] (User tag)
-        :> Put '[SCIM] (StoredUser tag),
+          :> ReqBody '[SCIM] (User tag)
+          :> Put '[SCIM] (StoredUser tag),
     usPatchUser ::
       route
         :- Capture "id" (UserId tag)
-        :> ReqBody '[SCIM] (PatchOp tag)
-        :> Patch '[SCIM] (StoredUser tag),
+          :> ReqBody '[SCIM] (PatchOp tag)
+          :> Patch '[SCIM] (StoredUser tag),
     usDeleteUser ::
       route
         :- Capture "id" (UserId tag)
-        :> DeleteNoContent
+          :> DeleteNoContent
   }
   deriving (Generic)
 

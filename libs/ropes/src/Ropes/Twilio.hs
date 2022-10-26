@@ -69,7 +69,8 @@ data Credentials = Credentials
 
 instance FromJSON Credentials where
   parseJSON = withObject "credentials" $ \o ->
-    Credentials <$> (SID . encodeUtf8 <$> o .: "sid")
+    Credentials
+      <$> (SID . encodeUtf8 <$> o .: "sid")
       <*> (AccessToken . encodeUtf8 <$> o .: "token")
 
 data Message = Message
@@ -91,7 +92,8 @@ instance Exception ErrorResponse
 
 instance FromJSON ErrorResponse where
   parseJSON = withObject "error-response" $ \o ->
-    ErrorResponse <$> o .: "status"
+    ErrorResponse
+      <$> o .: "status"
       <*> o .: "message"
       <*> o .:? "code"
       <*> o .:? "more_info"
@@ -132,12 +134,14 @@ data PhoneType
 
 instance FromJSON LookupResult where
   parseJSON = withObject "LookupResult" $ \o ->
-    LookupResult <$> o .: "phone_number"
+    LookupResult
+      <$> o .: "phone_number"
       <*> o .:? "carrier"
 
 instance FromJSON CarrierInfo where
   parseJSON = withObject "CarrierInfo" $ \o ->
-    CarrierInfo <$> o .:? "name"
+    CarrierInfo
+      <$> o .:? "name"
       <*> o .:? "type"
 
 instance FromJSON PhoneType where

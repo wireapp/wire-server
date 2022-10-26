@@ -474,20 +474,20 @@ createConnectConversation lusr conn j = do
                       else pure conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
-        let lcnv = qualifyAs lusr (Data.convId conv)
-        n' <- case n of
-          Just x -> do
-            E.setConversationName (Data.convId conv) x
-            pure . Just $ fromRange x
-          Nothing -> pure $ Data.convName conv
-        t <- input
-        let e = Event (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
-        for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
-          E.push1 $
-            p
-              & pushRoute .~ RouteDirect
-              & pushConn .~ conn
-        pure $ Data.convSetName n' conv
+          let lcnv = qualifyAs lusr (Data.convId conv)
+          n' <- case n of
+            Just x -> do
+              E.setConversationName (Data.convId conv) x
+              pure . Just $ fromRange x
+            Nothing -> pure $ Data.convName conv
+          t <- input
+          let e = Event (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
+          for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
+            E.push1 $
+              p
+                & pushRoute .~ RouteDirect
+                & pushConn .~ conn
+          pure $ Data.convSetName n' conv
       | otherwise = pure conv
 
 --------------------------------------------------------------------------------

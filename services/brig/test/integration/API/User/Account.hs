@@ -1615,28 +1615,29 @@ testTooManyMembersForLegalhold opts brig = do
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail
   inv <-
-    responseJsonError =<< postInvitation brig tid owner invite
-      <!! statusCode === const 201
+    responseJsonError
+      =<< postInvitation brig tid owner invite
+        <!! statusCode === const 201
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   let mockGalley (ReceivedRequest mth pth _body)
         | mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"] =
-          pure . Wai.responseLBS HTTP.status403 mempty $
-            encode
-              ( Wai.mkError
-                  HTTP.status403
-                  "too-many-members-for-legalhold"
-                  "cannot add more members to team when legalhold service is enabled."
-              )
+            pure . Wai.responseLBS HTTP.status403 mempty $
+              encode
+                ( Wai.mkError
+                    HTTP.status403
+                    "too-many-members-for-legalhold"
+                    "cannot add more members to team when legalhold service is enabled."
+                )
         | mth == "GET"
             && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
-          pure . Wai.responseLBS HTTP.status200 mempty $
-            encode
-              ( withStatus
-                  FeatureStatusDisabled
-                  LockStatusLocked
-                  ExposeInvitationURLsToTeamAdminConfig
-                  FeatureTTLUnlimited
-              )
+            pure . Wai.responseLBS HTTP.status200 mempty $
+              encode
+                ( withStatus
+                    FeatureStatusDisabled
+                    LockStatusLocked
+                    ExposeInvitationURLsToTeamAdminConfig
+                    FeatureTTLUnlimited
+                )
         | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
 
   void . withMockedGalley opts mockGalley $ do

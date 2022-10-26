@@ -307,7 +307,8 @@ newTeamMemberSchema =
 
 invitedSchema :: ObjectSchemaP SwaggerDoc (Maybe (UserId, UTCTimeMillis)) (Maybe UserId, Maybe UTCTimeMillis)
 invitedSchema =
-  (,) <$> fmap fst .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user.  Requires created_at.") (maybeWithDefault Null schema)
+  (,)
+    <$> fmap fst .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user.  Requires created_at.") (maybeWithDefault Null schema)
     <*> fmap snd .= optFieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation.  Requires created_by.") (maybeWithDefault Null schema)
 
 invitedSchema' :: ObjectSchema SwaggerDoc (Maybe (UserId, UTCTimeMillis))
@@ -320,7 +321,8 @@ invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
 instance ToSchema NewTeamMember where
   schema =
     objectWithDocModifier "NewTeamMember" (description ?~ "Required data when creating new team members") $
-      fieldWithDocModifier "member" (description ?~ "the team member to add (the legalhold_status field must be null or missing!)") $ unnamed (object "Unnamed" newTeamMemberSchema)
+      fieldWithDocModifier "member" (description ?~ "the team member to add (the legalhold_status field must be null or missing!)") $
+        unnamed (object "Unnamed" newTeamMemberSchema)
 
 --------------------------------------------------------------------------------
 -- TeamMemberDeleteData

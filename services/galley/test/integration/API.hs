@@ -686,10 +686,10 @@ postMessageQualifiedLocalOwningBackendSuccess = do
               pure $
                 if
                     | d == bDomain ->
-                      UserMap . Map.fromList $
-                        [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
-                          (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
-                        ]
+                        UserMap . Map.fromList $
+                          [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
+                            (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
+                          ]
                     | d == cDomain -> UserMap (Map.singleton (qUnqualified carl) (Set.singleton (PubClient carlClient Nothing)))
                     | otherwise -> mempty
 
@@ -886,7 +886,8 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
                in pure $ UserMap . Map.fromList . mapMaybe lookupClients $ F.gucUsers getUserClients
         galleyApi _ =
           mkHandler @(FedApi 'Galley) $
-            Named @"on-message-sent" $ \_ _ -> pure ()
+            Named @"on-message-sent" $
+              \_ _ -> pure ()
 
     (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
     pure resp2 !!! do
@@ -1520,7 +1521,7 @@ testAccessUpdateGuestRemoved = do
           { newConvQualifiedUsers = [bob, charlie, dee],
             newConvTeam = Just (ConvTeamInfo tid)
           }
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   c <- view tsCannon
   WS.bracketRN c (map qUnqualified [alice, bob, charlie]) $ \[wsA, wsB, wsC] -> do
@@ -1702,8 +1703,9 @@ getConvsOk2 = do
   carl <- randomUser
   connectUsers alice (singleton carl)
   cnv2 <-
-    responseJsonError =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
-      <!! const 201 === statusCode
+    responseJsonError
+      =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
+        <!! const 201 === statusCode
   getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv2]) Nothing !!! do
     const 200 === statusCode
     const (Just [cnvQualifiedId cnv2]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
@@ -2359,9 +2361,9 @@ testAddRemoteMember = do
     respond :: Qualified UserId -> FederatedRequest -> Value
     respond bob req
       | frComponent req == Brig =
-        toJSON [mkProfile bob (Name "bob")]
+          toJSON [mkProfile bob (Name "bob")]
       | frRPC req == "on-new-remote-conversation" =
-        toJSON EmptyResponse
+          toJSON EmptyResponse
       | otherwise = toJSON ()
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
@@ -2870,10 +2872,10 @@ deleteRemoteMemberConvLocalQualifiedOk = do
         case (frTargetDomain fedReq, frRPC fedReq) of
           (d, mp)
             | d == remoteDomain1 && mp == getUsersRPC ->
-              success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
+                success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
           (d, mp)
             | d == remoteDomain2 && mp == getUsersRPC ->
-              success [mkProfile qEve (Name "Eve")]
+                success [mkProfile qEve (Name "Eve")]
           _ -> success ()
 
   (convId, _) <-
@@ -2921,7 +2923,7 @@ leaveRemoteConvQualifiedOk = do
   let mockedFederatedGalleyResponse :: FederatedRequest -> Maybe Value
       mockedFederatedGalleyResponse req
         | frComponent req == Galley =
-          Just . toJSON . F.LeaveConversationResponse . Right $ ()
+            Just . toJSON . F.LeaveConversationResponse . Right $ ()
         | otherwise = Nothing
       mockResponses =
         joinMockedFederatedResponses
@@ -2952,14 +2954,15 @@ leaveNonExistentRemoteConv = do
   let mockResponses :: FederatedRequest -> Maybe Value
       mockResponses req
         | frComponent req == Galley =
-          Just . toJSON . F.LeaveConversationResponse $
-            Left F.RemoveFromConversationErrorNotFound
+            Just . toJSON . F.LeaveConversationResponse $
+              Left F.RemoveFromConversationErrorNotFound
         | otherwise = Nothing
 
   (resp, fedRequests) <-
     withTempMockFederator mockResponses $
-      responseJsonError =<< deleteMemberQualified (qUnqualified alice) alice conv
-        <!! const 404 === statusCode
+      responseJsonError
+        =<< deleteMemberQualified (qUnqualified alice) alice conv
+          <!! const 404 === statusCode
   let leaveRequest =
         fromJust . decode . frBody . Imports.head $
           fedRequests
@@ -2978,14 +2981,15 @@ leaveRemoteConvDenied = do
   let mockResponses :: FederatedRequest -> Maybe Value
       mockResponses req
         | frComponent req == Galley =
-          Just . toJSON . F.LeaveConversationResponse $
-            Left F.RemoveFromConversationErrorRemovalNotAllowed
+            Just . toJSON . F.LeaveConversationResponse $
+              Left F.RemoveFromConversationErrorRemovalNotAllowed
         | otherwise = Nothing
 
   (resp, fedRequests) <-
     withTempMockFederator mockResponses $
-      responseJsonError =<< deleteMemberQualified (qUnqualified alice) alice conv
-        <!! const 403 === statusCode
+      responseJsonError
+        =<< deleteMemberQualified (qUnqualified alice) alice conv
+          <!! const 403 === statusCode
   let leaveRequest =
         fromJust . decode . frBody . Imports.head $
           fedRequests
@@ -3132,7 +3136,7 @@ putConvDeprecatedRenameOk = do
           . json (ConversationRename "gossip++")
       )
       !!! const 200
-      === statusCode
+        === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
@@ -3721,12 +3725,12 @@ removeUser = do
     let handler :: FederatedRequest -> IO LByteString
         handler freq
           | frTargetDomain freq == dDomain =
-            throw $ DiscoveryFailureSrvNotAvailable "dDomain"
+              throw $ DiscoveryFailureSrvNotAvailable "dDomain"
           | frTargetDomain freq `elem` [bDomain, cDomain] =
-            case frRPC freq of
-              "leave-conversation" -> pure (encode (F.LeaveConversationResponse (Right ())))
-              "on-conversation-updated" -> pure (encode ())
-              _ -> throw $ MockErrorResponse HTTP.status404 "invalid rpc"
+              case frRPC freq of
+                "leave-conversation" -> pure (encode (F.LeaveConversationResponse (Right ())))
+                "on-conversation-updated" -> pure (encode ())
+                _ -> throw $ MockErrorResponse HTTP.status404 "invalid rpc"
           | otherwise = throw $ MockErrorResponse HTTP.status500 "unmocked domain"
     (_, fedRequests) <-
       withTempMockFederator' handler $

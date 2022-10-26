@@ -250,9 +250,9 @@ takeStepT acc _ (Error _) = pure (toLazyByteString acc)
 takeStepT acc s (Skip next) = takeStepT acc s next
 takeStepT acc s (Yield chunk next)
   | BS.length chunk >= s =
-    pure $ toLazyByteString (acc <> byteString (BS.take s chunk))
+      pure $ toLazyByteString (acc <> byteString (BS.take s chunk))
   | otherwise = do
-    takeStepT (acc <> byteString chunk) (s - BS.length chunk) next
+      takeStepT (acc <> byteString chunk) (s - BS.length chunk) next
 takeStepT acc s (Effect m) = m >>= takeStepT acc s
 
 takeSourceT :: Int -> SourceT IO ByteString -> IO LByteString

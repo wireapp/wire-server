@@ -52,7 +52,8 @@ data Error = Error
 
 instance FromJSON Error where
   parseJSON = withObject "error" $ \o ->
-    Error <$> o .: "code"
+    Error
+      <$> o .: "code"
       <*> o .: "label"
       <*> o .: "message"
 
@@ -89,7 +90,8 @@ clientRequest rq expected f = do
     exec = do
       s <- getServer
       let rq' =
-            rq & setServer s
+            rq
+              & setServer s
               & header hUserAgent "api-client"
       Log.debug $ Log.msg (show rq')
       runInIO <- askRunInIO

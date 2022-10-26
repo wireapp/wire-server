@@ -93,6 +93,7 @@ getGroupInfoFromRemoteConv lusr rcnv = do
   case response of
     GetGroupInfoResponseError e -> rethrowErrors @MLSGroupInfoStaticErrors e
     GetGroupInfoResponseState s ->
-      pure . OpaquePublicGroupState
+      pure
+        . OpaquePublicGroupState
         . fromBase64ByteString
         $ s

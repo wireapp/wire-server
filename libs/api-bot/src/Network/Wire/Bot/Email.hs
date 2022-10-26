@@ -56,7 +56,8 @@ data MailboxSettings = MailboxSettings
 
 instance FromJSON MailboxSettings where
   parseJSON = withObject "mailbox-settings" $ \o ->
-    MailboxSettings <$> o .: "host"
+    MailboxSettings
+      <$> o .: "host"
       <*> o .: "user"
       <*> o .: "pass"
       <*> o .: "conn"

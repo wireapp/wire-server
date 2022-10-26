@@ -235,8 +235,8 @@ newEnv o = do
     Just True -> Just <$> newMVar ()
     _ -> pure Nothing
   kpLock <- newMVar ()
-  pure
-    $! Env
+  pure $!
+    Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
         _gundeck = mkEndpoint $ Opt.gundeck o,
@@ -391,8 +391,8 @@ initCassandra o g = do
       (Cas.initialContactsDisco "cassandra_brig" . unpack)
       (Opt.discoUrl o)
   p <-
-    Cas.init $
-      Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
+    Cas.init
+      $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
         . Cas.setContacts (NE.head c) (NE.tail c)
         . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. casEndpoint . epPort))
         . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. casKeyspace))
@@ -402,7 +402,7 @@ initCassandra o g = do
         . Cas.setResponseTimeout 10
         . Cas.setProtocolVersion Cas.V4
         . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. casFilterNodesByDatacentre))
-        $ Cas.defSettings
+      $ Cas.defSettings
   runClient p $ versionCheck schemaVersion
   pure p
 
@@ -496,7 +496,8 @@ instance MonadLogger (AppT r) where
     AppT $
       lift $
         embedFinal @IO $
-          Log.log g l $ field "request" (unRequestId r) ~~ m
+          Log.log g l $
+            field "request" (unRequestId r) ~~ m
 
 instance MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)

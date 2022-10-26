@@ -43,12 +43,15 @@ formatReport ::
   Lazy.Text
 formatReport pretty r =
   toLazyText $
-    "\n" <> title <> "\n"
+    "\n"
+      <> title
+      <> "\n"
       <> foldMap section (reportSections r)
   where
     pp x = if pretty then x else mempty
     title =
-      pp underline <> pp bold
+      pp underline
+        <> pp bold
         <> fromText (reportTitle r)
         <> " Report\n\n"
         <> pp clear
@@ -57,7 +60,10 @@ formatReport pretty r =
         <> pp clear
         <> "\n"
     section s =
-      pp bold <> fromText (sectionName s) <> "\n" <> pp clear
+      pp bold
+        <> fromText (sectionName s)
+        <> "\n"
+        <> pp clear
         <> foldMap metric (sectionMetrics s)
         <> "\n"
     metric (Counter l p) = single l . fromString . show $ reportCounter r p

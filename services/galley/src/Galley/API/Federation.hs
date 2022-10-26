@@ -723,14 +723,14 @@ mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawW
   welcome <- either (throw . InternalErrorWithDescription . LT.fromStrict) pure $ decodeMLS' rawWelcome
   -- Extract only recipients local to this backend
   rcpts <-
-    fmap catMaybes $
-      traverse
+    fmap catMaybes
+      $ traverse
         ( fmap (fmap cidQualifiedClient . hush)
             . runError @(Tagged 'MLSKeyPackageRefNotFound ())
             . derefKeyPackage
             . gsNewMember
         )
-        $ welSecrets welcome
+      $ welSecrets welcome
   let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
   sendLocalWelcomes Nothing now rawWelcome lrcpts
   pure EmptyResponse

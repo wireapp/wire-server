@@ -808,7 +808,8 @@ getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m Acc
 getStatus brig u =
   (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJsonUnsafe @Value)
     <$> get
-      ( brig . paths ["i", "users", toByteString' u, "status"]
+      ( brig
+          . paths ["i", "users", toByteString' u, "status"]
           . expect2xx
       )
 
@@ -822,12 +823,13 @@ setStatus :: Brig -> UserId -> AccountStatus -> Http ()
 setStatus brig u s =
   let js = RequestBodyLBS . encode $ AccountStatusUpdate s
    in put
-        ( brig . paths ["i", "users", toByteString' u, "status"]
+        ( brig
+            . paths ["i", "users", toByteString' u, "status"]
             . contentJson
             . body js
         )
         !!! const 200
-        === statusCode
+          === statusCode
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -1232,7 +1234,8 @@ instance Servant.RunClient WaiTestFedClient where
             Nothing -> HTTP.statusIsSuccessful status
             Just ex -> status `elem` ex
     unless statusIsSuccess $
-      unWaiTestFedClient $ throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
+      unWaiTestFedClient $
+        throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
     pure servantResponse
   throwClientError = liftIO . throw
 
@@ -1252,7 +1255,8 @@ fromServantRequest domain r =
       -- Content-Type and Accept are specified by requestBody and requestAccept
       headers =
         filter (\(h, _) -> h /= "Accept" && h /= "Content-Type") $
-          toList $ Servant.requestHeaders r
+          toList $
+            Servant.requestHeaders r
       acceptHdr
         | null hs = Nothing
         | otherwise = Just ("Accept", renderHeader hs)

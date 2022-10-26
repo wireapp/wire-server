@@ -119,9 +119,9 @@ initHttpManager s3Compat =
   where
     dropContentLengthHeaderIfChunked req
       | ("content-encoding", "aws-chunked") `elem` requestHeaders req =
-        modifyRequestHeaders (filter ((/= "content-length") . fst)) req
+          modifyRequestHeaders (filter ((/= "content-length") . fst)) req
       | otherwise =
-        req
+          req
     modifyRequestHeaders f req =
       req {requestHeaders = f (requestHeaders req)}
 

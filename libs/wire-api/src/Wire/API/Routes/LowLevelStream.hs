@@ -71,7 +71,8 @@ instance
         accCheck = when (isNothing cmediatype) $ delayedFail err406
         contentHeader = (hContentType, HTTP.renderHeader . maybeToList $ cmediatype)
      in runAction
-          ( action `addMethodCheck` methodCheck method request
+          ( action
+              `addMethodCheck` methodCheck method request
               `addAcceptCheck` accCheck
           )
           env

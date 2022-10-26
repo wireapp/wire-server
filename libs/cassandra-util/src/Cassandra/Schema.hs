@@ -137,7 +137,8 @@ createKeyspace (Keyspace k) rs = void $ schema (cql rs) (params All ())
   where
     cql (SimpleStrategy (ReplicationFactor n)) =
       QueryString . toLazyText $
-        fromText "create keyspace if not exists " <> fromText k
+        fromText "create keyspace if not exists "
+          <> fromText k
           <> fromText " with replication = { "
           <> fromText "    'class': 'SimpleStrategy' "
           <> fromText "  , 'replication_factor': '"
@@ -146,7 +147,8 @@ createKeyspace (Keyspace k) rs = void $ schema (cql rs) (params All ())
           <> fromText "};"
     cql (NetworkTopologyStrategy (ReplicationMap dcs)) =
       QueryString . toLazyText $
-        fromText "create keyspace if not exists " <> fromText k
+        fromText "create keyspace if not exists "
+          <> fromText k
           <> fromText " with replication = { "
           <> fromText "    'class': 'NetworkTopologyStrategy' "
           <> fromText "  , "
@@ -165,8 +167,8 @@ migrateSchema :: Log.Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
   hosts <- initialContactsPlain $ pack (migHost o)
   p <-
-    CQL.init $
-      setLogger (CT.mkLogger l)
+    CQL.init
+      $ setLogger (CT.mkLogger l)
         . setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
         . setPortNumber (fromIntegral $ migPort o)
         . setMaxConnections 1
@@ -183,7 +185,7 @@ migrateSchema l o ms = do
         . setSendTimeout 20
         . setResponseTimeout 50
         . setProtocolVersion V4
-        $ defSettings
+      $ defSettings
   runClient p $ do
     let keyspace = Keyspace . migKeyspace $ o
     when (migReset o) $ do
