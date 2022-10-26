@@ -2699,10 +2699,10 @@ testAddRemoteMemberInvalidDomain = do
       const 422 === statusCode
       const (Just "/federation/api-version")
         === preview (ix "data" . ix "path")
-          . responseJsonUnsafe @Value
+        . responseJsonUnsafe @Value
       const (Just "invalid.example.com")
         === preview (ix "data" . ix "domain")
-          . responseJsonUnsafe @Value
+        . responseJsonUnsafe @Value
 
 -- This test is a safeguard to ensure adding remote members will fail
 -- on environments where federation isn't configured (such as our production as of May 2021)
@@ -3074,7 +3074,8 @@ leaveRemoteConvDenied = do
     withTempMockFederator mockResponses $
       responseJsonError
         =<< deleteMemberQualified (qUnqualified alice) alice conv
-          <!! const 403 === statusCode
+        <!! const 403
+        === statusCode
   let leaveRequest =
         fromJust . decode . frBody . Imports.head $
           fedRequests
@@ -3222,7 +3223,7 @@ putConvDeprecatedRenameOk = do
           . json (ConversationRename "gossip++")
       )
       !!! const 200
-        === statusCode
+      === statusCode
     void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False

@@ -368,7 +368,7 @@ instance ToSchema RequestId where
     RequestId
       . encodeUtf8
       <$> (decodeUtf8 . unRequestId)
-      .= text "RequestId"
+        .= text "RequestId"
 
 -- | Returns "N/A"
 instance Default RequestId where
@@ -397,4 +397,4 @@ instance ToSchema a => ToSchema (IdObject a) where
     object "Id" $
       IdObject
         <$> fromIdObject
-        .= field "id" schema
+          .= field "id" schema

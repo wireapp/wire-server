@@ -253,7 +253,7 @@ createUserSpar new = do
 
     -- TODO(elland): Should we add the user to the GlobalTeamConv from here?
     liftSem $ GalleyProvider.createSelfConv uid
-    wrapHttp $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
