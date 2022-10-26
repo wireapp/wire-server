@@ -33,6 +33,7 @@ import Data.Id
 import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
+import UnliftIO.Async
 
 runCommand :: Logger -> ClientState -> IO ()
 runCommand l brig = do
@@ -45,7 +46,7 @@ runCommand l brig = do
             Log.info l (Log.field "userIds" (show ((i - 1) * pageSize + fromIntegral (length userHandles))))
             pure userHandles
         )
-      .| C.mapM_ (mapM_ (uncurry (checkUser l brig)))
+      .| C.mapM_ (pooledMapConcurrentlyN_ 12 (uncurry (checkUser l brig)))
 
 pageSize :: Int32
 pageSize = 1000
@@ -63,7 +64,7 @@ getUserDetails :: UserId -> Client (Maybe (Maybe AccountStatus, Maybe Handle, Ma
 getUserDetails uid = retry x1 $ query1 cql (params LocalQuorum (Identity uid))
   where
     cql :: PrepQuery R (Identity UserId) (Maybe AccountStatus, Maybe Handle, Maybe TeamId)
-    cql = "SELECT status handle team from user where uid = ?"
+    cql = "SELECT status, handle, team from user where id = ?"
 
 checkUser :: Logger -> ClientState -> Handle -> UserId -> IO ()
 checkUser l brig handle uid = do

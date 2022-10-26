@@ -89,5 +89,6 @@ executable dangling-handles
     , saml2-web-sso
     , case-insensitive
     , uri-bytestring
+    , unliftio
 
   default-language:   Haskell2010

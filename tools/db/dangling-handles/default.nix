@@ -6,7 +6,8 @@
 , cassandra-util, conduit, containers, extended, galley-types
 , gitignoreSource, http-client, imports, lens, lib
 , optparse-applicative, saml2-web-sso, string-conversions, text
-, time, tinylog, types-common, uri-bytestring, uuid, wire-api
+, time, tinylog, types-common, unliftio, uri-bytestring, uuid
+, wire-api
 }:
 mkDerivation {
   pname = "dangling-handles";
@@ -18,9 +19,9 @@ mkDerivation {
     aeson base brig brig-types case-insensitive cassandra-util conduit
     containers extended galley-types http-client imports lens
     optparse-applicative saml2-web-sso string-conversions text time
-    tinylog types-common uri-bytestring uuid wire-api
+    tinylog types-common unliftio uri-bytestring uuid wire-api
   ];
   description = "Find handles which belong to deleted users";
   license = lib.licenses.agpl3Only;
-  mainProgram = "scim-emails";
+  mainProgram = "dangling-handles";
 }
