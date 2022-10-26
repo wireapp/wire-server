@@ -6,15 +6,9 @@
 , nginx
 , inotify-tools
 , dumb-init
-, envsubst
-, pkgs
 , cacert
-, coreutils
 , bashInteractive
 , openssl
-, which
-, gnugrep
-, less
 }:
 let zauth = callPackage ./pkgs/zauth { };
 
@@ -43,55 +37,41 @@ let zauth = callPackage ./pkgs/zauth { };
       '';
     };
 
-    # alpine-image = pkgs.dockerTools.pullImage {
-    #   imageName = "alpine";
-    #   imageDigest = "sha256:fe785cb65b7bcd332154183e4509ef9b6aeb9913d5b13fb6312df6ee9cc8a543";
-    #   sha256 = "10jb3l46zz5vvpfddc24ppp0cibgdgkxi33n459dr5b7h0fhk51v";
-    #   os = "linux";
-    #   arch = "amd64";
-    # };
-
-    # TODO I don't get it, /var/log/nginx doesn't exist in the end image, but the symlink does. :cry:
-    bloodyDeterministicPaths = stdenvNoCC.mkDerivation {
-      name = "bloodyDeterministicPaths";
-      src = ../services/nginz/nginz_reload.sh;
-      buildInputs = [ envsubst coreutils bashInteractive  ];
-      phases = "installPhase";
-      installPhase = ''
-          # nginx still tries to read this directory even if error_log
-          # directive is specifying another file :/
-          mkdir -p $out/var/log/nginx
-          mkdir -p $out/var/cache/nginx
-          # pkgs.envsubst installs 'env' under /sbin/env, not what nginz_reload needs
-          # so we add a symlink here.
-          mkdir -p $out/usr/bin
-          ln -s /sbin/env $out/usr/bin/env
-      '';
+    # Use the following to get the digest and sha:
+    # nix-shell -p pkgs.nix-prefetch-docker --run 'nix-prefetch-docker --image-name alpine --image-tag 3.15'
+    # And the sha this gives back seems incorrect, so build it, wait for the error, then adjust the sha again.
+    alpine-image = dockerTools.pullImage {
+      imageName = "alpine";
+      imageDigest = "sha256:69463fdff1f025c908939e86d4714b4d5518776954ca627cbeff4c74bcea5b22";
+      sha256 = "sha256-LTayEaBtNOho1mhGyivKLZdu5+pSL3SZWbIAMpUJM4E=";
     };
 
     nginzImage = dockerTools.buildLayeredImage {
       name = "quay.io/wire/nginz";
-      maxLayers = 3;
+      maxLayers = 5;
+      fromImage = alpine-image;
       contents = [
         cacert
-        coreutils
         bashInteractive
         openssl
-        which
-        gnugrep
-        less
         dumb-init
         inotify-tools
-        envsubst
         reload-script
-        nginz
-        bloodyDeterministicPaths
+        # nginz # adding this removes the 'apk' command from alpine for some reason...
       ];
-      # TODO add user and group for nginx
-      # extraCommands = ''
-      #     addgroup -g 101 -S nginx
-      #     adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx
-      # '';
+      # TODO add user and group for nginx, doesn't work! :(
+      enableFakechroot = true;
+      fakeRootCommands = ''
+          /sbin/apk update
+          /sbin/apk add curl
+          # nginx still tries to read this directory even if error_log
+          # directive is specifying another file :/
+          mkdir -p /var/log/nginx
+          mkdir -p /var/cache/nginx
+          # nginz config hardcodes nginx user/group
+          addgroup -g 101 -S nginx
+          adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx
+      '';
       config = {
         Entrypoint = ["${dumb-init}/bin/dumb-init" "--" "/usr/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf"];
         Env = ["SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"];
