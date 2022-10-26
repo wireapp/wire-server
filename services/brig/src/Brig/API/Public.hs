@@ -27,6 +27,7 @@ module Brig.API.Public
   )
 where
 
+import Brig.API.Auth
 import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
@@ -61,7 +62,6 @@ import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
-import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Handle as Handle
 import Brig.User.API.Search (teamUserSearch)
 import qualified Brig.User.API.Search as Search
@@ -77,7 +77,7 @@ import Data.Aeson hiding (json)
 import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
+import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
@@ -118,6 +118,7 @@ import Wire.API.Routes.Public.Brig
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import qualified Wire.API.Routes.Public.Gundeck as GundeckAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
@@ -151,6 +152,7 @@ swaggerDocsAPI (Just V3) =
         <> SparAPI.swaggerDoc
         <> CargoholdAPI.swaggerDoc
         <> CannonAPI.swaggerDoc
+        <> GundeckAPI.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
@@ -177,7 +179,19 @@ servantSitemap ::
      ]
     r =>
   ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI :<|> searchAPI
+servantSitemap =
+  userAPI
+    :<|> selfAPI
+    :<|> accountAPI
+    :<|> clientAPI
+    :<|> prekeyAPI
+    :<|> userClientAPI
+    :<|> connectionAPI
+    :<|> propertiesAPI
+    :<|> mlsAPI
+    :<|> userHandleAPI
+    :<|> searchAPI
+    :<|> authAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -285,6 +299,16 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
     searchAPI =
       Named @"browse-team" teamUserSearch
 
+    authAPI :: ServerT AuthAPI (Handler r)
+    authAPI =
+      Named @"access" accessH
+        :<|> Named @"send-login-code" sendLoginCode
+        :<|> Named @"login" login
+        :<|> Named @"logout" logoutH
+        :<|> Named @"change-self-email" changeSelfEmailH
+        :<|> Named @"list-cookies" listCookies
+        :<|> Named @"remove-cookies" removeCookies
+
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
 -- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
@@ -305,7 +329,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Provider.routesPublic
-  Auth.routesPublic
   Team.routesPublic
   Calling.routesPublic
 

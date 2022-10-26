@@ -341,7 +341,7 @@ writeHeader t =
     <> dot
     <> field "t" (t ^. typ)
     <> dot
-    <> field "l" (maybe mempty builder (t ^. tag))
+    <> field "l" (foldMap builder (t ^. tag))
 
 instance ToByteString Access where
   builder t =

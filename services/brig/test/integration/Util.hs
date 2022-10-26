@@ -33,7 +33,6 @@ import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
 import Brig.Types.Intra
-import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -71,6 +70,7 @@ import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import qualified Data.ZAuth.Token as ZAuth
 import qualified Federator.MockServer as Mock
 import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
@@ -116,6 +116,8 @@ import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth
+import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.VersionInfo
@@ -515,7 +517,7 @@ legalHoldLogin b l t =
 decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
-decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.AccessToken
+decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
 decodeToken = decodeToken'
 
 decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe LByteString) -> ZAuth.Token a
@@ -907,7 +909,7 @@ defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
 emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login
-emailLogin e pw cl = PasswordLogin (LoginByEmail e) pw cl Nothing
+emailLogin e pw cl = PasswordLogin (PasswordLoginData (LoginByEmail e) pw cl Nothing)
 
 somePrekeys :: [Prekey]
 somePrekeys =
@@ -1090,10 +1092,6 @@ aFewTimes
       (exponentialBackoff 1000 <> limitRetries retries)
       (\_ -> pure . not . good)
       (const action)
-
--- see also: `aFewTimes`.  we should really clean this up.
-eventually :: (MonadIO m, MonadMask m) => m a -> m a
-eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
 
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a

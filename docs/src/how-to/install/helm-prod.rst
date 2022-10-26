@@ -134,11 +134,14 @@ If you are using minio instead of AWS S3, you should also run:
 
    helm upgrade --install minio-external wire/minio-external -f values/minio-external/values.yaml --wait
 
-How to install fake AWS services for SNS / SQS / DynamoDB
----------------------------------------------------------
-AWS SNS is required to send notifications to clients. If you use the fake-aws version, clients will use the websocket method to receive notifications, which keeps connections to the servers open, draining battery.
-AWS SES and SQS are used for mail delivery, and reception, respectively.
+How to install fake AWS services for SNS / SQS
+----------------------------------------------
 
+AWS SNS is required to send notifications to clients. SQS is used to get notified of any devices that have discontinued using Wire (e.g. if you uninstall the app, the push notification token is removed, and the wire-server will get feedback for that using SQS).
+
+Note: *for using real SQS for real native push notifications instead, see also :ref:`pushsns`.*
+
+If you use the fake-aws version, clients will use the websocket method to receive notifications, which keeps connections to the servers open, draining battery.
 
 Open a terminal and run:
 

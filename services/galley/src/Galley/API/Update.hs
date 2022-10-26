@@ -1269,7 +1269,7 @@ unqualifyEndpoint loc f ignoreMissing reportMissing message = do
             qualifiedNewOtrNativePush = newOtrNativePush message,
             qualifiedNewOtrTransient = newOtrTransient message,
             qualifiedNewOtrNativePriority = newOtrNativePriority message,
-            qualifiedNewOtrData = maybe mempty fromBase64TextLenient (newOtrData message),
+            qualifiedNewOtrData = foldMap fromBase64TextLenient (newOtrData message),
             qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
           }
   unqualify (tDomain loc) <$> f qualifiedMessage

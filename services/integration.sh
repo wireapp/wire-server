@@ -121,7 +121,7 @@ fi
 function run_nginz() {
     colour=$1
 
-    if [[ $COMPILE_NGINX_USING_NIX -eq 1 ]]; then
+    if [[ ! ${COMPILE_NGINX_USING_NIX:-1} -eq 0 ]]; then
       # For nix we don't need LD_LIBRARY_PATH; we link against libzauth directly.
       nginz=$(nix-build "${TOP_LEVEL}/nix" -A pkgs.nginz --no-out-link )
       (cd ${NGINZ_WORK_DIR} && ${nginz}/bin/nginx -p ${NGINZ_WORK_DIR} -c ${NGINZ_WORK_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
@@ -135,7 +135,8 @@ function run_nginz() {
 }
 
 NGINZ_PORT=""
-if [[ $INTEGRATION_USE_NGINZ -eq 1 ]]; then
+
+if [[ ! ${INTEGRATION_USE_NGINZ:-1} -eq 0 ]]; then
     NGINZ_PORT=8080
     # Note: for integration tests involving nginz,
     # nginz and brig must share the same zauth public/private keys

@@ -1,0 +1,1 @@
+Rename the make targets from `db-migrate-package` and `db-reset-package` to `db-migrate` and `db-reset` and allow migrating and resetting all keyspaces.

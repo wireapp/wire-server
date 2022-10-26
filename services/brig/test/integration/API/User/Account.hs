@@ -429,7 +429,8 @@ testCreateUserNoEmailNoPassword brig = do
   Just code <- do
     sendLoginCode brig p LoginCodeSMS False !!! const 200 === statusCode
     getPhoneLoginCode brig p
-  initiateEmailUpdateLogin brig e (SmsLogin p code Nothing) uid !!! (const 202 === statusCode)
+  initiateEmailUpdateLogin brig e (SmsLogin (SmsLoginData p code Nothing)) uid
+    !!! (const 202 === statusCode)
 
 -- The testCreateUserConflict test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -1089,7 +1090,10 @@ testPasswordChange brig = do
   put (brig . path "/self/password" . contentJson . zUser uid . body pwChange)
     !!! const 200 === statusCode
   -- login with new password
-  login brig (PasswordLogin (LoginByEmail email) newPass Nothing Nothing) PersistentCookie
+  login
+    brig
+    (PasswordLogin (PasswordLoginData (LoginByEmail email) newPass Nothing Nothing))
+    PersistentCookie
     !!! const 200 === statusCode
   -- try to change the password to itself should fail
   put (brig . path "/self/password" . contentJson . zUser uid . body pwChange')

@@ -18,7 +18,6 @@
 
 module Gundeck.Push
   ( push,
-    AddTokenResponse (..),
     addToken,
     listTokens,
     deleteToken,
@@ -401,27 +400,23 @@ nativeTargets psh rcps' alreadySent =
     check (Left e) = mntgtLogErr e >> pure []
     check (Right r) = pure r
 
-data AddTokenResponse
-  = AddTokenSuccess Public.PushToken
-  | AddTokenNoBudget
-  | AddTokenNotFound
-  | AddTokenInvalid
-  | AddTokenTooLong
-  | AddTokenMetadataTooLong
+type AddTokenResponse = Either Public.AddTokenError Public.AddTokenSuccess
 
 addToken :: UserId -> ConnId -> PushToken -> Gundeck AddTokenResponse
-addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
+addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget) $ do
   (cur, old) <- foldl' (matching newtok) (Nothing, []) <$> Data.lookup uid Data.LocalQuorum
   Log.info $
-    "user" .= UUID.toASCIIBytes (toUUID uid)
-      ~~ "token" .= Text.take 16 (tokenText (newtok ^. token))
+    "user"
+      .= UUID.toASCIIBytes (toUUID uid)
+      ~~ "token"
+      .= Text.take 16 (tokenText (newtok ^. token))
       ~~ msg (val "Registering push token")
   continue newtok cur
     >>= either
       pure
       ( \a -> do
           Native.deleteTokens old (Just a)
-          pure (AddTokenSuccess newtok)
+          pure (Right $ Public.AddTokenSuccess newtok)
       )
   where
     matching ::
@@ -462,15 +457,16 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
           update (n + 1) t arn
         Left (Aws.AppNotFound app') -> do
           Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
-          pure (Left AddTokenNotFound)
+          pure (Left (Left Public.AddTokenErrorNotFound))
         Left (Aws.InvalidToken _) -> do
           Log.info $
-            "token" .= tokenText tok
+            "token"
+              .= tokenText tok
               ~~ msg (val "Invalid push token.")
-          pure (Left AddTokenInvalid)
+          pure (Left (Left Public.AddTokenErrorInvalid))
         Left (Aws.TokenTooLong l) -> do
           Log.info $ msg ("Push token is too long: token length = " ++ show l)
-          pure (Left AddTokenTooLong)
+          pure (Left (Left Public.AddTokenErrorTooLong))
         Right arn -> do
           Data.insert uid trp app tok arn cid (t ^. tokenClient)
           pure (Right (mkAddr t arn))
@@ -508,7 +504,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
               -- possibly updates in general). We make another attempt to (re-)create
               -- the endpoint in these cases instead of failing immediately.
               Aws.EndpointNotFound {} -> create (n + 1) t
-              Aws.InvalidCustomData {} -> pure (Left AddTokenMetadataTooLong)
+              Aws.InvalidCustomData {} -> pure (Left (Left Public.AddTokenErrorMetadataTooLong))
               ex -> throwM ex
 
     mkAddr ::
@@ -536,17 +532,22 @@ updateEndpoint uid t arn e = do
     equalTransport = t ^. tokenTransport == arn ^. snsTopic . endpointTransport
     equalApp = t ^. tokenApp == arn ^. snsTopic . endpointAppName
     logMessage a r tk m =
-      "user" .= UUID.toASCIIBytes (toUUID a)
-        ~~ "token" .= Text.take 16 (tokenText tk)
-        ~~ "arn" .= toText r
+      "user"
+        .= UUID.toASCIIBytes (toUUID a)
+        ~~ "token"
+        .= Text.take 16 (tokenText tk)
+        ~~ "arn"
+        .= toText r
         ~~ msg (val m)
 
-deleteToken :: UserId -> Token -> Gundeck ()
+deleteToken :: UserId -> Token -> Gundeck (Maybe ())
 deleteToken uid tok = do
-  as <- filter (\x -> x ^. addrToken == tok) <$> Data.lookup uid Data.LocalQuorum
-  when (null as) $
-    throwM (mkError status404 "not-found" "Push token not found")
-  Native.deleteTokens as Nothing
+  Data.lookup uid Data.LocalQuorum
+    >>= ( \case
+            [] -> pure Nothing
+            xs -> Native.deleteTokens xs Nothing $> Just ()
+        )
+      . filter (\x -> x ^. addrToken == tok)
 
 listTokens :: UserId -> Gundeck PushTokenList
 listTokens uid = PushTokenList . map (^. addrPushToken) <$> Data.lookup uid Data.LocalQuorum

@@ -28,6 +28,7 @@ module Wire.API.Routes.MultiVerb
     RespondStreaming,
     WithHeaders,
     DescHeader,
+    OptHeader,
     AsHeaders (..),
     AsUnion (..),
     eitherToUnion,
@@ -312,6 +313,9 @@ instance AsHeaders '[h] a (a, h) where
 
 data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
 
+-- | A wrapper to turn a response header into an optional one.
+data OptHeader h
+
 class ServantHeaders hs xs | hs -> xs where
   constructHeaders :: NP I xs -> [HTTP.Header]
   extractHeaders :: Seq HTTP.Header -> Maybe (NP I xs)
@@ -337,8 +341,8 @@ instance
   ServantHeaders (h ': hs) (x ': xs)
   where
   constructHeaders (I x :* xs) =
-    (headerName @name, toHeader x)
-      : constructHeaders @hs xs
+    constructHeader @h x
+      <> constructHeaders @hs xs
 
   -- FUTUREWORK: should we concatenate all the matching headers instead of just
   -- taking the first one?
@@ -351,11 +355,23 @@ instance
     xs <- extractHeaders @hs hs1
     pure (I x :* xs)
 
-class ServantHeader h (name :: Symbol) x | h -> name x
+class ServantHeader h (name :: Symbol) x | h -> name x where
+  constructHeader :: x -> [HTTP.Header]
 
-instance ServantHeader (Header' mods name x) name x
+instance
+  (KnownSymbol name, ToHttpApiData x) =>
+  ServantHeader (Header' mods name x) name x
+  where
+  constructHeader x = [(headerName @name, toHeader x)]
 
-instance ServantHeader (DescHeader name desc x) name x
+instance
+  (KnownSymbol name, ToHttpApiData x) =>
+  ServantHeader (DescHeader name desc x) name x
+  where
+  constructHeader x = [(headerName @name, toHeader x)]
+
+instance ServantHeader h name x => ServantHeader (OptHeader h) name (Maybe x) where
+  constructHeader = foldMap (constructHeader @h)
 
 instance
   (KnownSymbol name, KnownSymbol desc, S.ToParamSchema a) =>
@@ -366,6 +382,9 @@ instance
       name = Text.pack (symbolVal (Proxy @name))
       desc = Text.pack (symbolVal (Proxy @desc))
       sch = S.toParamSchema (Proxy @a)
+
+instance ToResponseHeader h => ToResponseHeader (OptHeader h) where
+  toResponseHeader _ = toResponseHeader (Proxy @h)
 
 type instance ResponseType (WithHeaders hs a r) = a
 

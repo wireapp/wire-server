@@ -62,7 +62,7 @@ tests =
       testCase "key package ref" testKeyPackageRef,
       testCase "validate message signature" testVerifyMLSPlainTextWithKey,
       testCase "create signed remove proposal" testRemoveProposalMessageSignature,
-      testCase "parse GroupInfoBundle" testParseGroupInfoBundle
+      testCase "parse GroupInfoBundle" testParseGroupInfoBundle -- TODO: remove this also
     ]
 
 testParseKeyPackage :: IO ()

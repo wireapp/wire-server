@@ -131,7 +131,7 @@ import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User
-import Wire.API.User.Auth
+import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Client.Prekey

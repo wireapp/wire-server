@@ -42,4 +42,4 @@ image_file="$tmp_link_store/image"
 repo=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
 printf "*** Uploading $image_file to %s:%s" "$repo" "$DOCKER_TAG"
 # shellcheck disable=SC2086
-skopeo --insecure-policy copy $credsArgs "docker-archive://$image_file" "docker://$repo:$DOCKER_TAG"
+skopeo --insecure-policy copy --retry-times 5 $credsArgs "docker-archive://$image_file" "docker://$repo:$DOCKER_TAG"

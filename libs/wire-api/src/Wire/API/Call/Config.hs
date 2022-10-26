@@ -255,7 +255,7 @@ instance BC.ToByteString TurnURI where
       <> BC.builder h
       <> byteString ":"
       <> BC.builder p
-      <> maybe mempty ((byteString "?transport=" <>) . BC.builder) tp
+      <> foldMap ((byteString "?transport=" <>) . BC.builder) tp
 
 instance BC.FromByteString TurnURI where
   parser = BC.parser >>= either fail pure . parseTurnURI

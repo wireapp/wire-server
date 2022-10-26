@@ -5,15 +5,7 @@ As a prerequisiste install the [nix package manager](https://nixos.org/) and [di
 All following commands expect that you've entered the nix-provided build-environment by running `direnv allow`.
 
 
-1. Create a `.envrc.local` file with these contents
-
-    ```
-    export COMPILE_NGINX_USING_NIX=1
-    ```
-
-   and reload the direnv via `direnv reload`
-
-2. Create a `cabal.project.local`. This file is not included in wire-server because it disables optimization.
+1. Create a `cabal.project.local`. This file is not included in wire-server because it disables optimization.
 
 
    make cabal.project.local

@@ -25,7 +25,6 @@ module Spar.App
     verdictHandler,
     getUserByUrefUnsafe,
     getUserIdByScimExternalId,
-    validateEmailIfExists,
     validateEmail,
     errorPage,
     deleteTeam,
@@ -196,7 +195,6 @@ autoprovisionSamlUser idp buid suid = do
   guardReplacedIdP
   guardScimTokens
   createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid
-  validateEmailIfExists buid suid
   where
     -- Replaced IdPs are not allowed to create new wire accounts.
     guardReplacedIdP :: Sem r ()
@@ -393,6 +391,7 @@ verdictHandlerResultCore idp = \case
             Nothing -> do
               buid <- Id <$> Random.uuid
               autoprovisionSamlUser idp buid uref
+              validateEmailIfExists buid uref
               pure buid
 
     Logger.log Logger.Debug ("granting sso login for " <> show uid)

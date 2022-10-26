@@ -79,10 +79,10 @@ instance FromJSON SnsNotification where
     where
       parseApns t n =
         let apn = decodeStrict' (T.encodeUtf8 n)
-         in maybe mempty (pure . SnsNotification t . SnsApnsData) apn
+         in foldMap (pure . SnsNotification t . SnsApnsData) apn
       parseGcm n =
         let gcm = decodeStrict' (T.encodeUtf8 n)
-         in maybe mempty (pure . SnsNotification GCM . SnsGcmData) gcm
+         in foldMap (pure . SnsNotification GCM . SnsGcmData) gcm
 
 data SnsData
   = SnsGcmData !GcmData
