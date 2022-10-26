@@ -1158,7 +1158,8 @@ type AuthAPI =
     )
     :<|> Named
            "send-login-code"
-           ( "login" :> "send"
+           ( "login"
+               :> "send"
                :> Summary "Send a login code to a verified phone number"
                :> Description
                     "This operation generates and sends a login code via sms for phone login.\
@@ -1196,7 +1197,8 @@ type AuthAPI =
            )
     :<|> Named
            "logout"
-           ( "access" :> "logout"
+           ( "access"
+               :> "logout"
                :> Summary "Log out in order to remove a cookie from the server"
                :> Description
                     "Calling this endpoint will effectively revoke the given cookie\
@@ -1209,7 +1211,9 @@ type AuthAPI =
            )
     :<|> Named
            "change-self-email"
-           ( "access" :> "self" :> "email"
+           ( "access"
+               :> "self"
+               :> "email"
                :> Summary "Change your email address"
                :> Cookies '["zuid" ::: SomeUserToken]
                :> Bearer SomeAccessToken
@@ -1240,7 +1244,8 @@ type AuthAPI =
            )
     :<|> Named
            "remove-cookies"
-           ( "cookies" :> "remove"
+           ( "cookies"
+               :> "remove"
                :> Summary "Revoke stored cookies"
                :> ZLocalUser
                :> CanThrow 'BadCredentials

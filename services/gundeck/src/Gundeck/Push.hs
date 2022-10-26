@@ -409,7 +409,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
     "user"
       .= UUID.toASCIIBytes (toUUID uid)
       ~~ "token"
-      .= Text.take 16 (tokenText (newtok ^. token))
+        .= Text.take 16 (tokenText (newtok ^. token))
       ~~ msg (val "Registering push token")
   continue newtok cur
     >>= either
@@ -535,9 +535,9 @@ updateEndpoint uid t arn e = do
       "user"
         .= UUID.toASCIIBytes (toUUID a)
         ~~ "token"
-        .= Text.take 16 (tokenText tk)
+          .= Text.take 16 (tokenText tk)
         ~~ "arn"
-        .= toText r
+          .= toText r
         ~~ msg (val m)
 
 deleteToken :: UserId -> Token -> Gundeck (Maybe ())

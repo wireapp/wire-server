@@ -184,7 +184,7 @@ replacePresence = do
       elem localhost8080 . map resource . decodePresence
   setPresence gu pres2
     !!! const 201
-    === statusCode
+      === statusCode
   getPresence gu (showUser uid) !!! do
     const 2 === length . decodePresence
     assertTrue "New Cannon" $
@@ -759,7 +759,7 @@ testUnregisterClient = do
   cid <- randomClientId
   unregisterClient g uid cid
     !!! const 200
-    === statusCode
+      === statusCode
 
 -----------------------------------------------------------------------------
 -- Native push token registration
@@ -946,7 +946,7 @@ testRedisMigration = do
     g <- view tsGundeck
     setPresence g presence
       !!! const 201
-      === statusCode
+        === statusCode
     retrievedPresence <-
       map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
     liftIO $ assertEqual "With both redises: presences should match the set presences" [cannonURI] retrievedPresence

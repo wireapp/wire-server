@@ -74,7 +74,7 @@ instance ToSchema PushTokenList where
     objectWithDocModifier "PushTokenList" (description ?~ "List of Native Push Tokens") $
       PushTokenList
         <$> pushTokens
-        .= fieldWithDocModifier "tokens" (description ?~ "Push tokens") (array schema)
+          .= fieldWithDocModifier "tokens" (description ?~ "Push tokens") (array schema)
 
 data PushToken = PushToken
   { _tokenTransport :: Transport,
@@ -94,13 +94,13 @@ instance ToSchema PushToken where
     objectWithDocModifier "PushToken" desc $
       PushToken
         <$> _tokenTransport
-        .= fieldWithDocModifier "transport" transDesc schema
+          .= fieldWithDocModifier "transport" transDesc schema
         <*> _tokenApp
-        .= fieldWithDocModifier "app" appDesc schema
+          .= fieldWithDocModifier "app" appDesc schema
         <*> _token
-        .= fieldWithDocModifier "token" tokenDesc schema
+          .= fieldWithDocModifier "token" tokenDesc schema
         <*> _tokenClient
-        .= fieldWithDocModifier "client" clientIdDesc schema
+          .= fieldWithDocModifier "client" clientIdDesc schema
     where
       desc = description ?~ "Native Push Token"
       transDesc = description ?~ "Transport"

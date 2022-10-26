@@ -378,7 +378,8 @@ type AuthAPI =
            )
     :<|> Named
            "login-code"
-           ( "users" :> "login-code"
+           ( "users"
+               :> "login-code"
                :> QueryParam' [Required, Strict] "phone" Phone
                :> MultiVerb1 'GET '[JSON] (Respond 200 "Login code" PendingLoginCode)
            )

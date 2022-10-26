@@ -203,10 +203,10 @@ instance ToSchema LoginCodeTimeout where
       (description ?~ "A response for a successfully sent login code")
       $ LoginCodeTimeout
         <$> fromLoginCodeTimeout
-        .= fieldWithDocModifier
-          "expires_in"
-          (description ?~ "Number of seconds before the login code expires")
-          (unnamed schema)
+          .= fieldWithDocModifier
+            "expires_in"
+            (description ?~ "Number of seconds before the login code expires")
+            (unnamed schema)
 
 --------------------------------------------------------------------------------
 -- Cookie
@@ -432,8 +432,9 @@ instance ToSchema AccessToken where
           .= fieldWithDocModifier
             "access_token"
             (description ?~ "The opaque access token string")
-            ( LBS.fromStrict . T.encodeUtf8 <$> (T.decodeUtf8 . LBS.toStrict)
-                .= schema
+            ( LBS.fromStrict . T.encodeUtf8
+                <$> (T.decodeUtf8 . LBS.toStrict)
+                  .= schema
             )
         <*> tokenType .= field "token_type" schema
         <*> expiresIn
