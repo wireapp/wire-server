@@ -161,7 +161,7 @@ getGlobalTeamConversation ::
   TeamId ->
   Sem r Public.GlobalTeamConversation
 getGlobalTeamConversation lusr tid = do
-  void $ noteS @'ConvNotFound =<< E.getTeamMember tid (tUnqualified lusr) 
+  void $ noteS @'ConvNotFound =<< E.getTeamMember tid (tUnqualified lusr)
   conv <- noteS @'ConvNotFound =<< E.getGlobalTeamConversation tid
   pure $
     Public.GlobalTeamConversation
