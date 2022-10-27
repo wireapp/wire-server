@@ -216,6 +216,7 @@ tests =
       testRoundTrip @Team.Member.TeamMemberList,
       testRoundTrip @Team.Member.NewTeamMember,
       testRoundTrip @Team.Member.TeamMemberDeleteData,
+      testRoundTrip @Team.Member.TeamMemberListPage,
       testRoundTrip @Team.Permission.Permissions,
       testRoundTrip @Team.Role.Role,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibility,

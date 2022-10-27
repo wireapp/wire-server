@@ -29,7 +29,7 @@ where
 import Data.Id
 import Imports
 import Polysemy
-import Wire.API.Team.Member
+import Wire.API.Team.Member hiding (PagingState)
 import Wire.Sem.Paging
 
 data TeamMemberStore p m a where

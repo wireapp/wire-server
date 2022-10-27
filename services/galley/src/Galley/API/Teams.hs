@@ -138,7 +138,7 @@ import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Feature
-import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberOptPerms, hardTruncationLimit, invitation, nPermissions, nUserId, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMembers, tmdAuthPassword, userId)
+import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberListPage (TeamMemberListPage), TeamMemberOptPerms, hardTruncationLimit, invitation, nPermissions, nUserId, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMembers, tmdAuthPassword, userId)
 import qualified Wire.API.Team.Member as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
 import Wire.API.Team.Role
@@ -489,12 +489,13 @@ getTeamMembers ::
   Local UserId ->
   TeamId ->
   Maybe (Range 1 Public.HardTruncationLimit Int32) ->
-  Sem r TeamMemberListOptPerms
-getTeamMembers lzusr tid mbMaxResults = do
+  Maybe Public.PagingState ->
+  Sem r TeamMemberListPage
+getTeamMembers lzusr tid mbMaxResults _pState = do
   m <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
   memberList <- E.getTeamMembersWithLimit tid (fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults)
   let withPerms = (m `canSeePermsOf`)
-  pure $ setOptionalPermsMany withPerms memberList
+  pure $ TeamMemberListPage (setOptionalPermsMany withPerms memberList) Nothing
 
 outputToStreamingBody :: Member (Final IO) r => Sem (Output LByteString ': r) () -> Sem r StreamingBody
 outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
