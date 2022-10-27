@@ -963,6 +963,7 @@ type TeamAPI =
     "create-non-binding-team"
     ( Summary "Create a new non binding team"
         -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
+        :> ZClient
         :> ZLocalUser
         :> ZConn
         :> CanThrow 'NotConnected

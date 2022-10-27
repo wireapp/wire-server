@@ -83,6 +83,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
+import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import qualified Galley.API.Teams.Notifications as APITeamQueue
 import qualified Galley.API.Update as API
 import Galley.API.Util
@@ -216,22 +217,24 @@ lookupTeam zusr tid = do
 
 createNonBindingTeamH ::
   Members
-    '[ BrigAccess,
-       ErrorS 'UserBindingExists,
+    '[ ConversationStore,
        ErrorS 'NotConnected,
+       ErrorS 'UserBindingExists,
        GundeckAccess,
        Input UTCTime,
+       MemberStore,
        P.TinyLog,
        TeamStore,
-       ConversationStore,
-       WaiRoutes
+       WaiRoutes,
+       BrigAccess
      ]
     r =>
+  ClientId ->
   Local UserId ->
   ConnId ->
   Public.NonBindingNewTeam ->
   Sem r TeamId
-createNonBindingTeamH lusr zcon (Public.NonBindingNewTeam body) = do
+createNonBindingTeamH c lusr zcon (Public.NonBindingNewTeam body) = do
   let zusr = tUnqualified lusr
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
@@ -254,27 +257,31 @@ createNonBindingTeamH lusr zcon (Public.NonBindingNewTeam body) = do
       NonBinding
   finishCreateTeam team owner others (Just zcon)
   let tid = team ^. teamId
-  void $ E.createGlobalTeamConversation (qualifyAs lusr tid) zusr
+  conv <- E.createGlobalTeamConversation (qualifyAs lusr tid) zusr
+  E.addMLSClients (qualifyAs lusr $ Data.convId conv) (qUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
   pure tid
 
 createBindingTeam ::
   Members
     '[ GundeckAccess,
        Input UTCTime,
+       MemberStore,
        TeamStore,
        ConversationStore
      ]
     r =>
   TeamId ->
+  ClientId ->
   Local UserId ->
   BindingNewTeam ->
   Sem r TeamId
-createBindingTeam tid lusr (BindingNewTeam body) = do
+createBindingTeam tid c lusr (BindingNewTeam body) = do
   let zusr = tUnqualified lusr
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
-  void $ E.createGlobalTeamConversation (qualifyAs lusr tid) zusr
+  conv <- E.createGlobalTeamConversation (qualifyAs lusr tid) zusr
+  E.addMLSClients (qualifyAs lusr $ Data.convId conv) (qUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
   finishCreateTeam team owner [] Nothing
   pure tid
 

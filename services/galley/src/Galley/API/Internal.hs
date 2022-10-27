@@ -302,7 +302,8 @@ type ITeamsAPIBase =
   Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
     :<|> Named
            "create-binding-team"
-           ( ZLocalUser
+           ( ZClient
+               :> ZLocalUser
                :> ReqBody '[Servant.JSON] BindingNewTeam
                :> MultiVerb1
                     'PUT
