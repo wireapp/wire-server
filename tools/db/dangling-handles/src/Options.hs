@@ -26,10 +26,8 @@ import Imports
 import Options.Applicative
 
 data Settings = Settings
-  { setCasBrig :: CassandraSettings
-  -- setCasGalley :: CassandraSettings,
-  -- setCasSpar :: CassandraSettings,
-  -- setTeamId :: Maybe TeamId
+  { setCasBrig :: CassandraSettings,
+    setHandlesFile :: Maybe FilePath
   }
   deriving (Show)
 
@@ -44,10 +42,15 @@ settingsParser :: Parser Settings
 settingsParser =
   Settings
     <$> cassandraSettingsParser "brig"
+    <*> optional handlesFileParser
 
--- <*> cassandraSettingsParser "galley"
--- <*> cassandraSettingsParser "spar"
--- <*> optional teamIdParser
+handlesFileParser :: Parser FilePath
+handlesFileParser =
+  strOption
+    ( long "handles-file"
+        <> help "file containing list of handles separated by new lines"
+        <> metavar "FILEPATH"
+    )
 
 teamIdParser :: Parser TeamId
 teamIdParser =
