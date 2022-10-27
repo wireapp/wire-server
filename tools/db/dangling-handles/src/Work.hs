@@ -25,15 +25,18 @@ module Work where
 import Brig.Data.Instances ()
 import Brig.Types.Intra
 import Cassandra
+import Cassandra.Util
 import Conduit
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Handle
 import Data.Id
 import Imports
-import System.Logger (Logger)
+import System.Logger
 import qualified System.Logger as Log
 import UnliftIO.Async
+import Wire.API.User.Identity
+import Wire.API.User.Profile
 
 runCommand :: Logger -> ClientState -> IO ()
 runCommand l brig = do
@@ -46,7 +49,7 @@ runCommand l brig = do
             Log.info l (Log.field "userIds" (show ((i - 1) * pageSize + fromIntegral (length userHandles))))
             pure userHandles
         )
-      .| C.mapM_ (pooledMapConcurrentlyN_ 12 (uncurry (checkUser l brig)))
+      .| C.mapM_ (pooledMapConcurrentlyN_ 12 (\(handle, userId, claimTime) -> (checkUser l brig handle userId claimTime)))
 
 pageSize :: Int32
 pageSize = 1000
@@ -54,45 +57,59 @@ pageSize = 1000
 ----------------------------------------------------------------------------
 -- Queries
 
-getHandles :: ConduitM () [(Handle, UserId)] Client ()
+getHandles :: ConduitM () [(Handle, UserId, Writetime UserId)] Client ()
 getHandles = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
-    cql :: PrepQuery R () (Handle, UserId)
-    cql = "SELECT handle, user from user_handle"
+    cql :: PrepQuery R () (Handle, UserId, Writetime UserId)
+    cql = "SELECT handle, user, writetime(user) from user_handle"
 
-getUserDetails :: UserId -> Client (Maybe (Maybe AccountStatus, Maybe Handle, Maybe TeamId))
+type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Handle, Maybe (Writetime Handle), Maybe TeamId, Maybe (Writetime TeamId), Maybe UserSSOId, Maybe (Writetime UserSSOId), Maybe ManagedBy, Maybe (Writetime ManagedBy))
+
+getUserDetails :: UserId -> Client (Maybe UserDetailsRow)
 getUserDetails uid = retry x1 $ query1 cql (params LocalQuorum (Identity uid))
   where
-    cql :: PrepQuery R (Identity UserId) (Maybe AccountStatus, Maybe Handle, Maybe TeamId)
-    cql = "SELECT status, handle, team from user where id = ?"
+    cql :: PrepQuery R (Identity UserId) UserDetailsRow
+    cql = "SELECT status, writetime(status), handle, writetime(handle), team, writetime(team), managed_by, writetime(managed_by) from user where id = ?"
 
-checkUser :: Logger -> ClientState -> Handle -> UserId -> IO ()
-checkUser l brig handle uid = do
+checkUser :: Logger -> ClientState -> Handle -> UserId -> Writetime UserId -> IO ()
+checkUser l brig handle uid claimTime = do
   let userLog = Log.field "user" (idToText uid)
       handleLog = Log.field "handle" (fromHandle handle)
+      claimTimeLog = Log.field "handleClaimTime" (show (writeTimeToUTC claimTime))
   maybeDetails <- runClient brig $ getUserDetails uid
   case maybeDetails of
     Nothing ->
-      Log.warn l (Log.msg (Log.val "No information found") . userLog . handleLog)
-    Just (mStatus, mHandle, mTeam) -> do
-      let teamLog = maybe id (\t -> Log.field "team" (idToText t)) mTeam
-          statusLog = maybe id (\status -> Log.field "status" (show status)) mStatus
-          userHandleLog = maybe id (\h -> Log.field "user.handle" (fromHandle h)) mHandle
-          allFields = userLog . handleLog . teamLog . statusLog . userHandleLog
-      case mStatus of
-        Nothing ->
-          Log.warn l $
-            Log.msg (Log.val "No user status found")
-              . allFields
-        Just Deleted -> do
-          Log.warn l $
-            Log.msg (Log.val "Handle found for deleted user")
-              . allFields
-        _ -> pure ()
-      case mHandle of
-        Nothing ->
-          Log.warn l $ Log.msg (Log.val "user.handle is null") . allFields
-        Just userHandle ->
-          if userHandle /= handle
-            then Log.warn l $ Log.msg (Log.val "user.handle is not same as claimed handle") . allFields
-            else pure ()
+      Log.warn l (Log.msg (Log.val "No information found") . userLog . handleLog . claimTimeLog)
+    Just (mStatus, mStatusWriteTime, mHandle, mHandleWriteTime, mTeam, mTeamWriteTime, mSSOId, mSSOIdWriteTime, mManagedBy, mManagedByWriteTime) -> do
+      let teamLog = logMaybeWithWritetime "team" (idToText <$> mTeam) mTeamWriteTime
+          statusLog = logMaybeWithWritetime "status" (show <$> mStatus) mStatusWriteTime
+          userHandleLog = logMaybeWithWritetime "user.handle" (fromHandle <$> mHandle) mHandleWriteTime
+          ssoLog = logMaybeWithWritetime "ssoId" (show <$> mSSOId) mSSOIdWriteTime
+          managedByLog = logMaybeWithWritetime "managedBy" (show <$> mManagedBy) mManagedByWriteTime
+          allFields = userLog . handleLog . teamLog . statusLog . userHandleLog . claimTimeLog . ssoLog . managedByLog
+          statusError = case mStatus of
+            Nothing ->
+              Just $ Log.field "statusError" (Log.val "No user status found")
+            Just Deleted ->
+              Just $ Log.field "statusError" (Log.val "Handle found for deleted user")
+            _ -> Nothing
+          handleError = case mHandle of
+            Nothing ->
+              Just $ Log.field "handleError" (Log.val "user.handle is null")
+            Just userHandle ->
+              if userHandle /= handle
+                then Just $ Log.field "handleError" (Log.val "user.handle is not same as claimed handle")
+                else Nothing
+      case catMaybes [statusError, handleError] of
+        [] -> pure ()
+        msgs -> do
+          Log.warn l $ (foldr (.) id msgs) . allFields
+
+logMaybe :: ToBytes a => ByteString -> Maybe a -> Msg -> Msg
+logMaybe _ Nothing = id
+logMaybe fieldName (Just x) = Log.field fieldName x
+
+logMaybeWithWritetime :: ToBytes a => ByteString -> Maybe a -> Maybe (Writetime b) -> Msg -> Msg
+logMaybeWithWritetime fieldName x t =
+  logMaybe fieldName x
+    . logMaybe (fieldName <> "-writetime") (show . writeTimeToUTC <$> t)
