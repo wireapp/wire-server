@@ -83,6 +83,7 @@ let
 
     billing-team-member-backfill = [ "billing-team-member-backfill" ];
     scim-emails = ["scim-emails"];
+    dangling-handles = ["dangling-handles"];
     api-simulations = [ "api-smoketest" "api-loadtest" ];
     zauth = [ "zauth" ];
   };
