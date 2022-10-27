@@ -2086,8 +2086,9 @@ getGlobalConvPresent = do
   let expected =
         (defConversationMetadata owner)
           { cnvmType = GlobalTeamConv,
-            cnvmAccess = [],
+            cnvmAccess = [LinkAccess],
             cnvmAccessRoles = Set.fromList [TeamMemberAccessRole],
+            cnvmName = Just "Global team conversation",
             cnvmTeam = Just tid
           }
   let cm = Aeson.decode rs :: Maybe ConversationMetadata

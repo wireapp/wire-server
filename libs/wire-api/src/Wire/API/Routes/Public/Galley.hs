@@ -42,6 +42,7 @@ import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CommitBundle
+import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.PublicGroupState

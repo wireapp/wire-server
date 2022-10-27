@@ -22,10 +22,10 @@
 -- modules.
 module Wire.API.Conversation
   ( -- * Conversation
-    GlobalTeamConversation (..),
     ConversationMetadata (..),
     defConversationMetadata,
     Conversation (..),
+    conversationMetadataObjectSchema,
     cnvType,
     cnvCreator,
     cnvAccess,
@@ -177,9 +177,9 @@ accessRolesSchemaTuple :: ObjectSchema SwaggerDoc (Maybe AccessRoleLegacy, Maybe
 accessRolesSchemaTuple =
   (,)
     <$> fst
-    .= optFieldWithDocModifier "access_role" (description ?~ "Deprecated, please use access_role_v2") (maybeWithDefault A.Null schema)
+      .= optFieldWithDocModifier "access_role" (description ?~ "Deprecated, please use access_role_v2") (maybeWithDefault A.Null schema)
     <*> snd
-    .= optFieldWithDocModifier "access_role_v2" (description ?~ desc) (maybeWithDefault A.Null $ set schema)
+      .= optFieldWithDocModifier "access_role_v2" (description ?~ desc) (maybeWithDefault A.Null $ set schema)
   where
     desc = "This field is optional. If it is not present, the default will be `[team_member, non_team_member, service]`. Please note that an empty list is not allowed when creating a new conversation."
 
@@ -187,56 +187,34 @@ conversationMetadataObjectSchema :: ObjectSchema SwaggerDoc ConversationMetadata
 conversationMetadataObjectSchema =
   ConversationMetadata
     <$> cnvmType
-    .= field "type" schema
+      .= field "type" schema
     <*> cnvmCreator
-    .= fieldWithDocModifier
-      "creator"
-      (description ?~ "The creator's user ID")
-      schema
+      .= fieldWithDocModifier
+        "creator"
+        (description ?~ "The creator's user ID")
+        schema
     <*> cnvmAccess
-    .= field "access" (array schema)
+      .= field "access" (array schema)
     <*> cnvmAccessRoles
-    .= accessRolesSchema
+      .= accessRolesSchema
     <*> cnvmName
-    .= optField "name" (maybeWithDefault A.Null schema)
+      .= optField "name" (maybeWithDefault A.Null schema)
     <* const ("0.0" :: Text)
-    .= optional (field "last_event" schema)
+      .= optional (field "last_event" schema)
     <* const ("1970-01-01T00:00:00.000Z" :: Text)
-    .= optional (field "last_event_time" schema)
+      .= optional (field "last_event_time" schema)
     <*> cnvmTeam
-    .= optField "team" (maybeWithDefault A.Null schema)
+      .= optField "team" (maybeWithDefault A.Null schema)
     <*> cnvmMessageTimer
-    .= optFieldWithDocModifier
-      "message_timer"
-      (description ?~ "Per-conversation message timer (can be null)")
-      (maybeWithDefault A.Null schema)
+      .= optFieldWithDocModifier
+        "message_timer"
+        (description ?~ "Per-conversation message timer (can be null)")
+        (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode
-    .= optField "receipt_mode" (maybeWithDefault A.Null schema)
+      .= optField "receipt_mode" (maybeWithDefault A.Null schema)
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" conversationMetadataObjectSchema
-
--- | Public-facing global team conversation.
--- Membership is implicit. Every member of a team is part of it.
--- Protocol is also implicit: it's always MLS.
-data GlobalTeamConversation = GlobalTeamConversation
-  { gtcId :: ConvId,
-    gtcMetadata :: ConversationMetadata
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform GlobalTeamConversation)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema GlobalTeamConversation
-
-instance ToSchema GlobalTeamConversation where
-  schema =
-    objectWithDocModifier
-      "GlobalTeamConversation"
-      (description ?~ "The global team conversation object as returned from the server")
-      $ GlobalTeamConversation
-        <$> gtcId
-        .= field "id" schema
-        <*> gtcMetadata
-        .= conversationMetadataObjectSchema
 
 -- | Public-facing conversation type. Represents information that a
 -- particular user is allowed to see.
@@ -286,15 +264,15 @@ instance ToSchema Conversation where
       (description ?~ "A conversation object as returned from the server")
       $ Conversation
         <$> cnvQualifiedId
-        .= field "qualified_id" schema
+          .= field "qualified_id" schema
         <* (qUnqualified . cnvQualifiedId)
-        .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
         <*> cnvMetadata
-        .= conversationMetadataObjectSchema
+          .= conversationMetadataObjectSchema
         <*> cnvMembers
-        .= field "members" schema
+          .= field "members" schema
         <*> cnvProtocol
-        .= protocolSchema
+          .= protocolSchema
 
 modelConversation :: Doc.Model
 modelConversation = Doc.defineModel "Conversation" $ do
@@ -352,9 +330,9 @@ instance ToSchema ConversationCoverView where
       (description ?~ "Limited view of Conversation.")
       $ ConversationCoverView
         <$> cnvCoverConvId
-        .= field "id" schema
+          .= field "id" schema
         <*> cnvCoverName
-        .= optField "name" (maybeWithDefault A.Null schema)
+          .= optField "name" (maybeWithDefault A.Null schema)
 
 data ConversationList a = ConversationList
   { convList :: [a],
@@ -400,9 +378,9 @@ instance FromJSON a => FromJSON (ConversationList a) where
   parseJSON = A.withObject "conversation-list" $ \o ->
     ConversationList
       <$> o
-      A..: "conversations"
+        A..: "conversations"
       <*> o
-      A..: "has_more"
+        A..: "has_more"
 
 type ConversationPagingName = "ConversationIds"
 
@@ -437,7 +415,7 @@ instance ToSchema ListConversations where
       (description ?~ "A request to list some of a user's conversations, including remote ones. Maximum 1000 qualified conversation IDs")
       $ ListConversations
         <$> (fromRange . lcQualifiedIds)
-        .= field "qualified_ids" (rangedSchema (array schema))
+          .= field "qualified_ids" (rangedSchema (array schema))
 
 data ConversationsResponse = ConversationsResponse
   { crFound :: [Conversation],
@@ -456,11 +434,11 @@ instance ToSchema ConversationsResponse where
           (description ?~ "Response object for getting metadata of a list of conversations")
           $ ConversationsResponse
             <$> crFound
-            .= field "found" (array schema)
+              .= field "found" (array schema)
             <*> crNotFound
-            .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
+              .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
             <*> crFailed
-            .= fieldWithDocModifier "failed" failedDoc (array schema)
+              .= fieldWithDocModifier "failed" failedDoc (array schema)
 
 --------------------------------------------------------------------------------
 -- Conversation properties
@@ -711,49 +689,49 @@ instance ToSchema NewConv where
       (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
       $ NewConv
         <$> newConvUsers
-        .= ( fieldWithDocModifier
-               "users"
-               (description ?~ usersDesc)
-               (array schema)
-               <|> pure []
-           )
+          .= ( fieldWithDocModifier
+                 "users"
+                 (description ?~ usersDesc)
+                 (array schema)
+                 <|> pure []
+             )
         <*> newConvQualifiedUsers
-        .= ( fieldWithDocModifier
-               "qualified_users"
-               (description ?~ qualifiedUsersDesc)
-               (array schema)
-               <|> pure []
-           )
+          .= ( fieldWithDocModifier
+                 "qualified_users"
+                 (description ?~ qualifiedUsersDesc)
+                 (array schema)
+                 <|> pure []
+             )
         <*> newConvName
-        .= maybe_ (optField "name" schema)
+          .= maybe_ (optField "name" schema)
         <*> (Set.toList . newConvAccess)
-        .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
+          .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
         <*> newConvAccessRoles
-        .= accessRolesSchemaOpt
+          .= accessRolesSchemaOpt
         <*> newConvTeam
-        .= maybe_
-          ( optFieldWithDocModifier
-              "team"
-              (description ?~ "Team information of this conversation")
-              schema
-          )
+          .= maybe_
+            ( optFieldWithDocModifier
+                "team"
+                (description ?~ "Team information of this conversation")
+                schema
+            )
         <*> newConvMessageTimer
-        .= maybe_
-          ( optFieldWithDocModifier
-              "message_timer"
-              (description ?~ "Per-conversation message timer")
-              schema
-          )
+          .= maybe_
+            ( optFieldWithDocModifier
+                "message_timer"
+                (description ?~ "Per-conversation message timer")
+                schema
+            )
         <*> newConvReceiptMode
-        .= maybe_ (optField "receipt_mode" schema)
+          .= maybe_ (optField "receipt_mode" schema)
         <*> newConvUsersRole
-        .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
-               <|> pure roleNameWireAdmin
-           )
+          .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
+                 <|> pure roleNameWireAdmin
+             )
         <*> newConvProtocol
-        .= protocolTagSchema
+          .= protocolTagSchema
         <*> newConvCreatorClient
-        .= maybe_ (optField "creator_client" schema)
+          .= maybe_ (optField "creator_client" schema)
     where
       usersDesc =
         "List of user IDs (excluding the requestor) to be \
@@ -789,12 +767,12 @@ instance ToSchema ConvTeamInfo where
       (description ?~ "Team information")
       $ ConvTeamInfo
         <$> cnvTeamId
-        .= field "teamid" schema
+          .= field "teamid" schema
         <* const ()
-        .= fieldWithDocModifier
-          "managed"
-          (description ?~ managedDesc)
-          (c (False :: Bool))
+          .= fieldWithDocModifier
+            "managed"
+            (description ?~ managedDesc)
+            (c (False :: Bool))
     where
       c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
@@ -824,9 +802,9 @@ instance ToSchema Invite where
     object "Invite" $
       Invite
         <$> (toNonEmpty . invUsers)
-        .= fmap List1 (field "users" (nonEmptyArray schema))
+          .= fmap List1 (field "users" (nonEmptyArray schema))
         <*> invRoleName
-        .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+          .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
 
 data InviteQualified = InviteQualified
   { invQUsers :: NonEmpty (Qualified UserId),
@@ -842,9 +820,9 @@ instance ToSchema InviteQualified where
     object "InviteQualified" $
       InviteQualified
         <$> invQUsers
-        .= field "qualified_users" (nonEmptyArray schema)
+          .= field "qualified_users" (nonEmptyArray schema)
         <*> invQRoleName
-        .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
+          .= (fromMaybe roleNameWireAdmin <$> optField "conversation_role" schema)
 
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
@@ -870,10 +848,10 @@ instance ToSchema ConversationRename where
     object "ConversationRename" $
       ConversationRename
         <$> cupName
-        .= fieldWithDocModifier
-          "name"
-          (description ?~ desc)
-          (unnamed (schema @Text))
+          .= fieldWithDocModifier
+            "name"
+            (description ?~ desc)
+            (unnamed (schema @Text))
     where
       desc = "The new conversation name"
 
@@ -896,9 +874,9 @@ instance ToSchema ConversationAccessData where
     object "ConversationAccessData" $
       ConversationAccessData
         <$> cupAccess
-        .= field "access" (set schema)
+          .= field "access" (set schema)
         <*> cupAccessRoles
-        .= accessRolesSchema
+          .= accessRolesSchema
 
 modelConversationAccessData :: Doc.Model
 modelConversationAccessData = Doc.defineModel "ConversationAccessData" $ do
@@ -920,7 +898,7 @@ instance ToSchema ConversationReceiptModeUpdate where
     objectWithDocModifier "ConversationReceiptModeUpdate" (description ?~ desc) $
       ConversationReceiptModeUpdate
         <$> cruReceiptMode
-        .= field "receipt_mode" (unnamed schema)
+          .= field "receipt_mode" (unnamed schema)
     where
       desc =
         "Contains conversation receipt mode to update to. Receipt mode tells \
@@ -951,7 +929,7 @@ instance ToSchema ConversationMessageTimerUpdate where
       (description ?~ "Contains conversation properties to update")
       $ ConversationMessageTimerUpdate
         <$> cupMessageTimer
-        .= optField "message_timer" (maybeWithDefault A.Null schema)
+          .= optField "message_timer" (maybeWithDefault A.Null schema)
 
 modelConversationMessageTimerUpdate :: Doc.Model
 modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerUpdate" $ do
@@ -974,9 +952,9 @@ instance ToSchema ConversationJoin where
       (description ?~ "The action of some users joining a conversation")
       $ ConversationJoin
         <$> cjUsers
-        .= field "users" (nonEmptyArray schema)
+          .= field "users" (nonEmptyArray schema)
         <*> cjRole
-        .= field "role" schema
+          .= field "role" schema
 
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTarget :: Qualified UserId,
@@ -993,6 +971,6 @@ instance ToSchema ConversationMemberUpdate where
       (description ?~ "The action of promoting/demoting a member of a conversation")
       $ ConversationMemberUpdate
         <$> cmuTarget
-        .= field "target" schema
+          .= field "target" schema
         <*> cmuUpdate
-        .= field "update" schema
+          .= field "update" schema
