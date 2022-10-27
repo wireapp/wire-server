@@ -250,7 +250,6 @@ createUserSpar new = do
     case unRichInfo <$> newUserSparRichInfo new of
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
-
     liftSem $ GalleyProvider.createSelfConv uid
     wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 

@@ -193,15 +193,8 @@ getConversation conv = do
 
 getGlobalTeamConversation :: TeamId -> Client (Maybe Conversation)
 getGlobalTeamConversation tid = do
-  conv' <- getConversation (globalTeamConv tid)
-  case conv' of
-    Nothing -> pure Nothing
-    Just conv ->
-      pure . Just $
-        conv
-          { convLocalMembers = [],
-            convRemoteMembers = []
-          }
+  (\c -> c {convLocalMembers = [], convRemoteMembers = []})
+    <$$> getConversation (globalTeamConv tid)
 
 createGlobalTeamConversation :: Local TeamId -> UserId -> Client Conversation
 createGlobalTeamConversation tid uid = do
