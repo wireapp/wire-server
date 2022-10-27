@@ -85,7 +85,7 @@ let
 
   nginzImage = dockerTools.buildLayeredImage {
     name = "quay.io/wire/nginz";
-    maxLayers = 5;
+    maxLayers = 10;
     contents = [
       cacert
       bashInteractive
