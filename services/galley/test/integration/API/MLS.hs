@@ -2064,16 +2064,13 @@ getGlobalConvNotPresent = do
 getGlobalConvUserNotMemberOfTeam :: TestM ()
 getGlobalConvUserNotMemberOfTeam = do
   uid <- randomUser
-
   owner <- randomUser
   tid <- createBindingTeamInternal "sample-team" owner
   team <- getTeam owner tid
   assertQueue "create team" tActivate
   liftIO $ assertEqual "owner" owner (team ^. teamCreator)
   assertQueueEmpty
-
   getGlobalTeamConv uid tid !!! const 404 === statusCode
-  getGlobalTeamConv owner tid !!! const 200 === statusCode
 
 -- Create global team conversation
 getGlobalConvPresent :: TestM ()
