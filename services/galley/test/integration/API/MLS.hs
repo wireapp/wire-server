@@ -20,11 +20,12 @@
 module API.MLS (tests) where
 
 import API.MLS.Util
+import API.SQS
 import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
@@ -66,6 +67,7 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
+import Wire.API.Team (teamCreator)
 import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
@@ -178,6 +180,12 @@ tests s =
         [ test s "add user with a commit bundle" testAddUserWithBundle,
           test s "add user with a commit bundle to a remote conversation" testAddUserToRemoveConvWithBundle,
           test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
+        ],
+      testGroup
+        "GlobalTeamConv"
+        [ test s "Non-existing team returns 404" getGlobalConvNotPresent,
+          test s "Non-members can't query the global conversation of a team" getGlobalConvUserNotMemberOfTeam,
+          test s "creating a team creates the global team conv" getGlobalConvPresent
         ]
     ]
 
@@ -235,7 +243,8 @@ testSenderNotInConversation = do
     err <-
       responseJsonError
         =<< postMessage (qUnqualified bob) (mpMessage message)
-          <!! const 404 === statusCode
+        <!! const 404
+        === statusCode
 
     liftIO $ Wai.label err @?= "no-conversation"
 
@@ -279,8 +288,8 @@ testWelcomeNoKey = do
     err <-
       responseJsonError
         =<< postWelcome (ciUser alice1) welcome
-          <!! do
-            const 404 === statusCode
+        <!! do
+          const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
 
 testRemoteWelcome :: TestM ()
@@ -304,7 +313,8 @@ testRemoteWelcome = do
     (_, reqs) <-
       withTempMockFederator' mockedResponse $
         postWelcome (ciUser (mpSender commit)) welcome
-          !!! const 201 === statusCode
+          !!! const 201
+          === statusCode
     consumeWelcome welcome
     fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
     let req :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
@@ -336,7 +346,8 @@ testAddUserWithBundle = do
   convs <-
     responseJsonError
       =<< getConvs (qUnqualified bob) Nothing Nothing
-        <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   liftIO $
     assertBool
       "Users added to an MLS group should find it when listing conversations"
@@ -345,7 +356,8 @@ testAddUserWithBundle = do
   returnedGS <-
     fmap responseBody $
       getGroupInfo (qUnqualified alice) qcnv
-        <!! const 200 === statusCode
+        <!! const 200
+        === statusCode
   liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpPublicGroupState commit))
   liftIO $ mpPublicGroupState commit @=? LBS.toStrict <$> returnedGS
 
@@ -373,7 +385,8 @@ testAddUserWithBundleIncompleteWelcome = do
     err <-
       responseJsonError
         =<< postCommitBundle (ciUser (mpSender commit)) bundle
-          <!! const 400 === statusCode
+        <!! const 400
+        === statusCode
     liftIO $ Wai.label err @?= "mls-welcome-mismatch"
 
 testAddUser :: TestM ()
@@ -393,7 +406,8 @@ testAddUser = do
   convs <-
     responseJsonError
       =<< getConvs (qUnqualified bob) Nothing Nothing
-        <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   liftIO $
     assertBool
       "Users added to an MLS group should find it when listing conversations"
@@ -413,7 +427,8 @@ testAddUserNotConnected = do
       err <-
         responseJsonError
           =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
-            <!! const 403 === statusCode
+          <!! const 403
+          === statusCode
       void . liftIO $ WS.assertNoEvent (1 # WS.Second) wss
       pure err
     liftIO $ Wai.label err @?= "not-connected"
@@ -460,7 +475,8 @@ testAddUserPartial = do
     err <-
       responseJsonError
         =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
-          <!! const 409 === statusCode
+        <!! const 409
+        === statusCode
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testAddClientPartial :: TestM ()
@@ -507,7 +523,8 @@ testSendAnotherUsersCommit = do
     err <-
       responseJsonError
         =<< postMessage (qUnqualified bob) (mpMessage mp)
-          <!! const 400 === statusCode
+        <!! const 400
+        === statusCode
     liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
 
 testAddUsersToProteus :: TestM ()
@@ -523,7 +540,9 @@ testAddUsersToProteus = do
     mp <- createAddCommit alice1 [bob]
     err <-
       responseJsonError
-        =<< postMessage (ciUser alice1) (mpMessage mp) <!! const 404 === statusCode
+        =<< postMessage (ciUser alice1) (mpMessage mp)
+        <!! const 404
+        === statusCode
     liftIO $ Wai.label err @?= "no-conversation"
 
 testAddUsersDirectly :: TestM ()
@@ -541,7 +560,8 @@ testAddUsersDirectly = do
           (qUnqualified alice)
           (pure charlie)
           qcnv
-          <!! const 403 === statusCode
+        <!! const 403
+        === statusCode
     liftIO $ Wai.label e @?= "invalid-op"
 
 testRemoveUsersDirectly :: TestM ()
@@ -558,7 +578,8 @@ testRemoveUsersDirectly = do
           (qUnqualified alice)
           bob
           qcnv
-          <!! const 403 === statusCode
+        <!! const 403
+        === statusCode
     liftIO $ Wai.label e @?= "invalid-op"
 
 testProteusMessage :: TestM ()
@@ -578,7 +599,8 @@ testProteusMessage = do
           []
           "data"
           MismatchReportAll
-          <!! const 404 === statusCode
+        <!! const 404
+        === statusCode
     liftIO $ Wai.label e @?= "no-conversation"
 
 testStaleCommit :: TestM ()
@@ -600,7 +622,8 @@ testStaleCommit = do
     err <-
       responseJsonError
         =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
-          <!! const 409 === statusCode
+        <!! const 409
+        === statusCode
     liftIO $ Wai.label err @?= "mls-stale-message"
 
 testAddRemoteUser :: TestM ()
@@ -674,7 +697,8 @@ testCommitLock = do
       err <-
         responseJsonError
           =<< postMessage (ciUser alice1) (mpMessage commit)
-            <!! const 409 === statusCode
+          <!! const 409
+          === statusCode
       liftIO $ Wai.label err @?= "mls-stale-message"
   where
     lock :: PrepQuery W (GroupId, Epoch) ()
@@ -708,7 +732,8 @@ testAddUserBareProposalCommit = do
       convs <-
         responseJsonError
           =<< getConvs (ciUser bob1) Nothing Nothing
-            <!! const 200 === statusCode
+          <!! const 200
+          === statusCode
       liftIO $
         assertBool
           "Users added to an MLS group should find it when listing conversations"
@@ -730,7 +755,8 @@ testUnknownProposalRefCommit = do
     err <-
       responseJsonError
         =<< postMessage (ciUser alice1) (mpMessage commit)
-          <!! const 404 === statusCode
+        <!! const 404
+        === statusCode
     liftIO $ Wai.label err @?= "mls-proposal-not-found"
 
 testCommitNotReferencingAllProposals :: TestM ()
@@ -754,7 +780,8 @@ testCommitNotReferencingAllProposals = do
     err <-
       responseJsonError
         =<< postMessage (ciUser alice1) (mpMessage commit)
-          <!! const 400 === statusCode
+        <!! const 400
+        === statusCode
     liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
 testAdminRemovesUserFromConv :: TestM ()
@@ -774,7 +801,8 @@ testAdminRemovesUserFromConv = do
     convs <-
       responseJsonError
         =<< getConvs (qUnqualified bob) Nothing Nothing
-          <!! const 200 === statusCode
+        <!! const 200
+        === statusCode
     liftIO $
       assertBool
         "bob is not longer part of conversation after the commit"
@@ -793,7 +821,8 @@ testRemoveClientsIncomplete = do
     err <-
       responseJsonError
         =<< postMessage (qUnqualified alice) (mpMessage commit)
-          <!! statusCode === const 409
+        <!! statusCode
+        === const 409
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testRemoteAppMessage :: TestM ()
@@ -954,7 +983,8 @@ testLocalToRemoteNonMember = do
           !!! do
             const 404 === statusCode
             const (Just "no-conversation-member")
-              === fmap Wai.label . responseJsonError
+              === fmap Wai.label
+              . responseJsonError
 
 testAppMessage :: TestM ()
 testAppMessage = do
@@ -1247,7 +1277,8 @@ propInvalidEpoch = do
       err <-
         responseJsonError
           =<< postMessage (qUnqualified alice) (mpMessage prop)
-            <!! const 409 === statusCode
+          <!! const 409
+          === statusCode
       liftIO $ Wai.label err @?= "mls-stale-message"
       setGroupState alice1 groupState
 
@@ -1260,7 +1291,8 @@ propInvalidEpoch = do
       err <-
         responseJsonError
           =<< postMessage (qUnqualified alice) (mpMessage prop)
-            <!! const 404 === statusCode
+          <!! const 404
+          === statusCode
       liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
       replicateM_ 2 (rollBackClient alice1)
       -- remove charlie from users expected to get a welcome message
@@ -1327,7 +1359,8 @@ testExternalAddProposal = do
       bob
       (OtherMemberUpdate (Just roleNameWireAdmin))
       qcnv
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
     createAddCommit bob2 [charlie]
       >>= sendAndConsumeCommit
 
@@ -1430,7 +1463,8 @@ testPublicKeys = do
             . paths ["mls", "public-keys"]
             . zUser u
         )
-        <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
 
   liftIO $
     Map.keys
@@ -1606,7 +1640,8 @@ testBackendRemoveProposalLocalConvLocalLeaverCreator = do
     mlsBracket [alice1, bob1, bob2] $ \wss -> void $ do
       liftTest $
         deleteMemberQualified (qUnqualified alice) alice qcnv
-          !!! const 200 === statusCode
+          !!! const 200
+          === statusCode
       -- remove alice's client from the test state
       State.modify $ \mls ->
         mls
@@ -1643,7 +1678,8 @@ testBackendRemoveProposalLocalConvLocalLeaverCommitter = do
 
     -- promote bob
     putOtherMemberQualified (ciUser alice1) bob (OtherMemberUpdate (Just roleNameWireAdmin)) qcnv
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
 
     void $ createAddCommit bob1 [charlie] >>= sendAndConsumeCommit
 
@@ -1651,7 +1687,8 @@ testBackendRemoveProposalLocalConvLocalLeaverCommitter = do
     mlsBracket [alice1, charlie1, bob1, bob2] $ \wss -> void $ do
       liftTest $
         deleteMemberQualified (qUnqualified bob) bob qcnv
-          !!! const 200 === statusCode
+          !!! const 200
+          === statusCode
       -- remove bob clients from the test state
       State.modify $ \mls ->
         mls
@@ -1732,7 +1769,8 @@ testBackendRemoveProposalLocalConvLocalClient = do
     mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
       liftTest $
         deleteClient (ciUser bob1) (ciClient bob1) (Just defPassword)
-          !!! statusCode === const 200
+          !!! statusCode
+          === const 200
 
       State.modify $ \mls ->
         mls
@@ -1809,7 +1847,8 @@ testGetGroupInfoOfLocalConv = do
     returnedGS <-
       fmap responseBody $
         getGroupInfo (qUnqualified alice) qcnv
-          <!! const 200 === statusCode
+          <!! const 200
+          === statusCode
     liftIO $ Just gs @=? LBS.toStrict <$> returnedGS
 
 testGetGroupInfoOfRemoteConv :: TestM ()
@@ -1843,10 +1882,12 @@ testGetGroupInfoOfRemoteConv = do
       res <-
         fmap responseBody $
           getGroupInfo (qUnqualified bob) qcnv
-            <!! const 200 === statusCode
+            <!! const 200
+            === statusCode
 
       getGroupInfo (qUnqualified charlie) qcnv
-        !!! const 404 === statusCode
+        !!! const 404
+        === statusCode
 
       liftIO $ res @?= Just (LBS.fromStrict fakeGroupState)
 
@@ -1926,7 +1967,8 @@ testDeleteMLSConv = do
     void $ sendAndConsumeCommitBundle commit
 
     deleteTeamConv tid (qUnqualified qcnv) aliceUnq
-      !!! statusCode === const 200
+      !!! statusCode
+      === const 200
 
 testAddUserToRemoveConvWithBundle :: TestM ()
 testAddUserToRemoveConvWithBundle = do
@@ -1998,7 +2040,8 @@ testRemoteUserPostsCommitBundle = do
       withTempMockFederator' mock $ do
         void $ sendAndConsumeCommit commit
         putOtherMemberQualified (qUnqualified alice) bob (OtherMemberUpdate (Just roleNameWireAdmin)) qcnv
-          !!! const 200 === statusCode
+          !!! const 200
+          === statusCode
 
         [_charlie1] <- traverse createMLSClient [charlie]
         commitAddCharlie <- createAddCommit bob1 [charlie]
@@ -2011,3 +2054,44 @@ testRemoteUserPostsCommitBundle = do
         MLSMessageResponseError MLSUnsupportedProposal <- runFedClient @"send-mls-commit-bundle" fedGalleyClient (Domain bobDomain) msr
 
         pure ()
+
+getGlobalConvNotPresent :: TestM ()
+getGlobalConvNotPresent = do
+  tid <- randomId
+  uid <- randomUser
+  getGlobalTeamConv uid tid !!! const 404 === statusCode
+
+getGlobalConvUserNotMemberOfTeam :: TestM ()
+getGlobalConvUserNotMemberOfTeam = do
+  uid <- randomUser
+
+  owner <- randomUser
+  tid <- createBindingTeamInternal "sample-team" owner
+  team <- getTeam owner tid
+  assertQueue "create team" tActivate
+  liftIO $ assertEqual "owner" owner (team ^. teamCreator)
+  assertQueueEmpty
+
+  getGlobalTeamConv uid tid !!! const 404 === statusCode
+  getGlobalTeamConv owner tid !!! const 200 === statusCode
+
+-- Create global team conversation
+getGlobalConvPresent :: TestM ()
+getGlobalConvPresent = do
+  owner <- randomUser
+  tid <- createBindingTeamInternal "sample-team" owner
+  team <- getTeam owner tid
+  assertQueue "create team" tActivate
+  liftIO $ assertEqual "owner" owner (team ^. teamCreator)
+  assertQueueEmpty
+  let response = getGlobalTeamConv owner tid <!! const 200 === statusCode
+  Just rs <- responseBody <$> response
+  let expected =
+        (defConversationMetadata owner)
+          { cnvmType = GlobalTeamConv,
+            cnvmAccess = [],
+            cnvmAccessRoles = Set.fromList [TeamMemberAccessRole],
+            cnvmTeam = Just tid
+          }
+  let cm = Aeson.decode rs :: Maybe ConversationMetadata
+  liftIO $ assertEqual "conversation metadata" cm (Just expected)

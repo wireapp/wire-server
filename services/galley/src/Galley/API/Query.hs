@@ -78,6 +78,7 @@ import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import qualified Galley.Effects.TeamStore as E
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
@@ -152,12 +153,15 @@ getUnqualifiedConversation lusr cnv = do
 getGlobalTeamConversation ::
   Members
     '[ ConversationStore,
-       ErrorS 'ConvNotFound
+       ErrorS 'ConvNotFound,
+       TeamStore
      ]
     r =>
+  Local UserId ->
   TeamId ->
   Sem r Public.GlobalTeamConversation
-getGlobalTeamConversation tid = do
+getGlobalTeamConversation lusr tid = do
+  void $ noteS @'ConvNotFound =<< E.getTeamMember tid (tUnqualified lusr) 
   conv <- noteS @'ConvNotFound =<< E.getGlobalTeamConversation tid
   pure $
     Public.GlobalTeamConversation

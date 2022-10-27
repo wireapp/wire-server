@@ -214,6 +214,7 @@ type ConversationAPI =
            "get-global-team-conversation"
            ( Summary "Get the global conversation for a given team ID"
                :> CanThrow 'ConvNotFound
+               :> ZLocalUser
                :> "teams"
                :> Capture "tid" TeamId
                :> "conversations"
