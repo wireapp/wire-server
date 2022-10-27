@@ -36,15 +36,11 @@ main = do
   s <- execParser (info (helper <*> settingsParser) desc)
   lgr <- initLogger
   brig <- initCas (setCasBrig s) (Log.clone (Just "cassandra-brig") lgr)
-  -- galley <- initCas (setCasGalley s) (Log.clone (Just "cassandra-galley") lgr)
-  -- spar <- initCas (setCasSpar s) (Log.clone (Just "cassandra-spar") lgr)
   let workLogger = Log.clone (Just "work") lgr
-  runCommand workLogger brig
+  case setHandlesFile s of
+    Nothing -> runCommand workLogger brig
+    Just f -> examineHandles workLogger brig f
   where
-    -- case setTeamId s of
-    --   Nothing -> runCommand workLogger brig galley spar
-    --   Just tid -> findMismatchesForTeam workLogger brig galley spar tid
-
     desc =
       header "scim-emails"
         <> progDesc "finds users for whom external-id is inconsistent with email or the user_keys table"

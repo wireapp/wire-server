@@ -31,6 +31,8 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Handle
 import Data.Id
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Imports
 import System.Logger
 import qualified System.Logger as Log
@@ -51,11 +53,31 @@ runCommand l brig = do
         )
       .| C.mapM_ (pooledMapConcurrentlyN_ 12 (\(handle, userId, claimTime) -> (checkUser l brig handle userId claimTime)))
 
+examineHandles :: Logger -> ClientState -> FilePath -> IO ()
+examineHandles l brig handlesFile = do
+  handles <- mapMaybe parseHandle . Text.lines <$> Text.readFile handlesFile
+  runConduit $
+    zipSources
+      (C.sourceList [(1 :: Int32) ..])
+      (C.sourceList handles)
+      .| C.mapM_
+        ( \(i, handle) -> do
+            when (i `mod` 100 == 0) $
+              Log.info l (Log.field "handlesProcesses" i)
+            checkHandle l brig handle
+        )
+
 pageSize :: Int32
 pageSize = 1000
 
 ----------------------------------------------------------------------------
 -- Queries
+
+getHandle :: Handle -> Client (Maybe (UserId, Writetime UserId))
+getHandle handle = retry x1 $ query1 cql (params LocalQuorum (Identity handle))
+  where
+    cql :: PrepQuery R (Identity Handle) (UserId, Writetime UserId)
+    cql = "SELECT user, writetime(user) from user_handle where handle = ?"
 
 getHandles :: ConduitM () [(Handle, UserId, Writetime UserId)] Client ()
 getHandles = paginateC cql (paramsP LocalQuorum () pageSize) x5
@@ -69,7 +91,14 @@ getUserDetails :: UserId -> Client (Maybe UserDetailsRow)
 getUserDetails uid = retry x1 $ query1 cql (params LocalQuorum (Identity uid))
   where
     cql :: PrepQuery R (Identity UserId) UserDetailsRow
-    cql = "SELECT status, writetime(status), handle, writetime(handle), team, writetime(team), managed_by, writetime(managed_by) from user where id = ?"
+    cql = "SELECT status, writetime(status), handle, writetime(handle), team, writetime(team), sso_id, writetime(sso_id), managed_by, writetime(managed_by) from user where id = ?"
+
+checkHandle :: Logger -> ClientState -> Handle -> IO ()
+checkHandle l brig handle = do
+  mUser <- runClient brig $ getHandle handle
+  case mUser of
+    Nothing -> Log.warn l (Log.msg (Log.val "No user found for handle") . Log.field "handle" (fromHandle handle))
+    Just (uid, claimTime) -> checkUser l brig handle uid claimTime
 
 checkUser :: Logger -> ClientState -> Handle -> UserId -> Writetime UserId -> IO ()
 checkUser l brig handle uid claimTime = do
