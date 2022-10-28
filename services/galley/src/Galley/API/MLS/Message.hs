@@ -529,7 +529,7 @@ data ProposalAction = ProposalAction
     paRemove :: ClientMap,
     -- The backend does not process external init proposals, but still it needs
     -- to know if a commit has one when processing external commits
-    paExternalInit :: Maybe ()
+    paExternalInit :: Any
   }
 
 instance Semigroup ProposalAction where
@@ -549,7 +549,7 @@ paRemoveClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalActio
 paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
 paExternalInitPresent :: ProposalAction
-paExternalInitPresent = mempty {paExternalInit = Just ()}
+paExternalInitPresent = mempty {paExternalInit = Any True}
 
 getCommitData ::
   ( HasProposalEffects r,
