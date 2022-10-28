@@ -116,6 +116,7 @@ initSMTP lg host port credentials connType = do
         Right con -> do
           pure con
 
+    destroy :: SMTP.SMTPConnection -> IO ()
     destroy c =
       (ensureSMTPConnectionTimeout . SMTP.gracefullyCloseSMTP) c
         >>= void . logResult lg ("Closing connection to " ++ unpack host)
@@ -138,6 +139,7 @@ logResult lg actionString res =
 sendMail :: (MonadIO m, MonadCatch m) => Logger -> SMTP -> Mail -> m ()
 sendMail lg s m = liftIO $ withResource (s ^. pool) sendMail'
   where
+    sendMail' :: SMTP.SMTPConnection -> IO ()
     sendMail' c = ensureSMTPConnectionTimeout (SMTP.sendMail m c) >>= handleTimeout
 
     handleTimeout :: MonadIO m => Either SMTPFailure a -> m ()
