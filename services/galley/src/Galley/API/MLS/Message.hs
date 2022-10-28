@@ -740,6 +740,9 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
 
     pure updates
   where
+    throwRemProposal =
+      throw . mlsProtocolError $
+        "The external commit must have at most one remove proposal"
     derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
     derefUser (Map.toList -> l) user = case l of
       [(u, s)] -> do
@@ -750,11 +753,11 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
         unless (cidQualifiedUser ci == user) $
           throwS @'MLSClientSenderUserMismatch
         pure (ci, ref)
-      _ -> throw . mlsProtocolError $ "The external commit must have at most one remove proposal"
+      _ -> throwRemProposal
     ensureSingleton :: Set a -> Sem r a
     ensureSingleton (Set.toList -> l) = case l of
       [e] -> pure e
-      _ -> throw . mlsProtocolError $ "The external commit must have at most one remove proposal"
+      _ -> throwRemProposal
 
 -- | Note: Use this only for KeyPackage that are already validated
 updateKeyPackageMapping ::
