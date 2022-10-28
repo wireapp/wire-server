@@ -19,7 +19,7 @@
 
 module Brig.SMTP where
 
-import qualified Control.Exception as CE (handle, throw)
+import qualified Control.Exception as CE (throw)
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Trans.Except
@@ -63,25 +63,32 @@ data SMTPPoolException = SMTPUnauthorized | SMTPConnectionTimeout
 
 instance Exception SMTPPoolException
 
-initSMTP :: Logger -> Text -> Maybe PortNumber -> Maybe (Username, Password) -> SMTPConnType -> IO SMTP
+initSMTP ::
+  Logger ->
+  Text ->
+  Maybe PortNumber ->
+  Maybe (Username, Password) ->
+  SMTPConnType ->
+  IO SMTP
 initSMTP lg host port credentials connType = do
   -- Try to initiate a connection and fail badly right away in case of bad auth
   -- otherwise config errors will be detected "too late"
   res <- runExceptT establishConnection
-  logResult lg ("Checking connection to " ++ unpack host ++ "on startup") res
+  logResult lg ("Checking test connection to " ++ unpack host ++ "on startup") res
   case res of
     Left _ ->
-      error "Failed to establish connection with SMTP server."
+      error "Failed to establish test connection with SMTP server."
     Right con ->
       either
-        (error "Failed to establish connection with SMTP server.")
+        (error "Failed to establish test connection with SMTP server.")
         (const (SMTP <$> createPool create destroy 1 5 5))
-        =<< ensureSMTPConnectionTimeout (SMTP.gracefullyCloseSMTP con)
+        =<< do
+          r <- ensureSMTPConnectionTimeout (SMTP.gracefullyCloseSMTP con)
+          logResult lg "Closing test connection on startup" r
+          pure r
   where
     liftSMTP :: IO a -> ExceptT SMTPFailure IO a
-    liftSMTP action =
-      ExceptT $
-        CE.handle (\e -> (pure . Left . CaughtException) e) $ ensureSMTPConnectionTimeout action
+    liftSMTP action = ExceptT $ ensureSMTPConnectionTimeout action
 
     establishConnection :: ExceptT SMTPFailure IO SMTP.SMTPConnection
     establishConnection = do
@@ -97,7 +104,9 @@ initSMTP lg host port credentials connType = do
           SMTP.connectSMTPSSLWithSettings (unpack host) $
             SMTP.defaultSettingsSMTPSSL {SMTP.sslPort = p}
       ok <- case credentials of
-        (Just (Username u, Password p)) -> liftSMTP $ SMTP.authenticate SMTP.LOGIN (unpack u) (unpack p) conn
+        (Just (Username u, Password p)) ->
+          liftSMTP $
+            SMTP.authenticate SMTP.LOGIN (unpack u) (unpack p) conn
         _ -> pure True
       if ok
         then pure conn
@@ -126,7 +135,10 @@ logResult :: MonadIO m => Logger -> String -> Either SMTPFailure c -> m ()
 logResult lg actionString res =
   case res of
     Left Unauthorized -> do
-      Logger.log lg Logger.Warn (msg $ concatToVal actionString "Failed to established connection, check your credentials.")
+      Logger.log
+        lg
+        Logger.Warn
+        (msg $ concatToVal actionString "Failed to established connection, check your credentials.")
     Left ConnectionTimeout -> do
       Logger.log lg Logger.Warn (msg $ concatToVal actionString "Connection timeout.")
     Left (CaughtException e) -> do
