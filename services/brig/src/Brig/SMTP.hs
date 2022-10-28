@@ -72,10 +72,11 @@ initSMTP lg host port credentials connType = do
   case res of
     Left _ ->
       error "Failed to establish connection with SMTP server."
-    Right con -> do
-      -- TODO: gracefullyCloseSMTP may throw
-      SMTP.gracefullyCloseSMTP con
-      SMTP <$> createPool create destroy 1 5 5
+    Right con ->
+      either
+        (error "Failed to establish connection with SMTP server.")
+        (const (SMTP <$> createPool create destroy 1 5 5))
+        =<< ensureSMTPConnectionTimeout (SMTP.gracefullyCloseSMTP con)
   where
     liftSMTP :: IO a -> ExceptT SMTPFailure IO a
     liftSMTP action =
@@ -136,6 +137,12 @@ logResult lg actionString res =
     concatToVal :: ToBytes s1 => s1 -> String -> Builder
     concatToVal a b = a +++ (" : " :: String) +++ b
 
+ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m) => m a -> m (Either SMTPFailure a)
+ensureSMTPConnectionTimeout action =
+  catch
+    (maybe (Left ConnectionTimeout) Right <$> timeout (15 :: Second) action)
+    (\(e :: SomeException) -> pure (Left (CaughtException e)))
+
 sendMail :: (MonadIO m, MonadCatch m) => Logger -> SMTP -> Mail -> m ()
 sendMail lg s m = liftIO $ withResource (s ^. pool) sendMail'
   where
@@ -146,9 +153,3 @@ sendMail lg s m = liftIO $ withResource (s ^. pool) sendMail'
     handleTimeout r =
       logResult lg "Sending mail" r
         >> either (const (CE.throw SMTPConnectionTimeout)) (const (pure ())) r
-
-ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m) => m a -> m (Either SMTPFailure a)
-ensureSMTPConnectionTimeout action =
-  catch
-    (maybe (Left ConnectionTimeout) Right <$> timeout (15 :: Second) action)
-    (\(e :: SomeException) -> pure (Left (CaughtException e)))
