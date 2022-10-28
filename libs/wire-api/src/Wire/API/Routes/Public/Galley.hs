@@ -1361,7 +1361,6 @@ type MLSMessagingAPI =
                :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
-               :> CanThrow 'MLSExternalCommitRemoveProposal
                :> CanThrow 'MLSKeyPackageRefNotFound
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
@@ -1371,8 +1370,6 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
-               :> CanThrow 'MLSMissingExternalInit
-               :> CanThrow 'MLSRemovalUserMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "messages"
@@ -1390,7 +1387,6 @@ type MLSMessagingAPI =
                :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
-               :> CanThrow 'MLSExternalCommitRemoveProposal
                :> CanThrow 'MLSKeyPackageRefNotFound
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
@@ -1400,8 +1396,6 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
-               :> CanThrow 'MLSMissingExternalInit
-               :> CanThrow 'MLSRemovalUserMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "messages"
@@ -1419,7 +1413,6 @@ type MLSMessagingAPI =
                :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
-               :> CanThrow 'MLSExternalCommitRemoveProposal
                :> CanThrow 'MLSKeyPackageRefNotFound
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
@@ -1430,8 +1423,6 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MLSWelcomeMismatch
-               :> CanThrow 'MLSMissingExternalInit
-               :> CanThrow 'MLSRemovalUserMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "commit-bundles"

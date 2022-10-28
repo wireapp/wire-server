@@ -103,10 +103,7 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSCommitMissingReferences,
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
-     ErrorS 'MLSGroupConversationMismatch,
-     ErrorS 'MLSMissingExternalInit,
-     ErrorS 'MLSRemovalUserMismatch,
-     ErrorS 'MLSExternalCommitRemoveProposal
+     ErrorS 'MLSGroupConversationMismatch
    ]
 
 type MLSBundleStaticErrors =
@@ -125,11 +122,8 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSExternalCommitRemoveProposal,
          ErrorS 'MLSGroupConversationMismatch,
-         ErrorS 'MLSMissingExternalInit,
          ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSRemovalUserMismatch,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
@@ -161,11 +155,8 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSExternalCommitRemoveProposal,
          ErrorS 'MLSGroupConversationMismatch,
-         ErrorS 'MLSMissingExternalInit,
          ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSRemovalUserMismatch,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
@@ -195,9 +186,6 @@ postMLSCommitBundle ::
          Error FederationError,
          Error InternalError,
          Error MLSProtocolError,
-         ErrorS 'MLSExternalCommitRemoveProposal,
-         ErrorS 'MLSMissingExternalInit,
-         ErrorS 'MLSRemovalUserMismatch,
          Input (Local ()),
          Input Opts,
          Input UTCTime,
@@ -228,9 +216,6 @@ postMLSCommitBundleFromLocalUser ::
       '[ BrigAccess,
          Error FederationError,
          Error InternalError,
-         ErrorS 'MLSExternalCommitRemoveProposal,
-         ErrorS 'MLSMissingExternalInit,
-         ErrorS 'MLSRemovalUserMismatch,
          Input (Local ()),
          Input Opts,
          Input UTCTime,
@@ -262,9 +247,6 @@ postMLSCommitBundleToLocalConv ::
          Error FederationError,
          Error InternalError,
          Error MLSProtocolError,
-         ErrorS 'MLSExternalCommitRemoveProposal,
-         ErrorS 'MLSMissingExternalInit,
-         ErrorS 'MLSRemovalUserMismatch,
          Input (Local ()),
          Input Opts,
          Input UTCTime,
@@ -375,11 +357,8 @@ postMLSMessage ::
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSExternalCommitRemoveProposal,
          ErrorS 'MLSGroupConversationMismatch,
-         ErrorS 'MLSMissingExternalInit,
          ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSRemovalUserMismatch,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
@@ -441,10 +420,7 @@ postMLSMessageToLocalConv ::
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSExternalCommitRemoveProposal,
-         ErrorS 'MLSMissingExternalInit,
          ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSRemovalUserMismatch,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
@@ -611,10 +587,7 @@ processCommit ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSExternalCommitRemoveProposal) r,
-    Member (ErrorS 'MLSMissingExternalInit) r,
     Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSRemovalUserMismatch) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
@@ -644,10 +617,7 @@ processCommitWithAction ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSExternalCommitRemoveProposal) r,
-    Member (ErrorS 'MLSMissingExternalInit) r,
     Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSRemovalUserMismatch) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
@@ -711,10 +681,12 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
           (_, Nothing) -> pure (pure (), action) -- ignore commits without update path
           (NewMemberSender, Just newKeyPackage) -> do
             -- this is an external commit
-            when (paExternalInit action == mempty) $
-              throwS @'MLSMissingExternalInit
-            unless (paAdd action == mempty) $
-              throwS @'MLSExternalCommitRemoveProposal
+            when (paExternalInit action == mempty) .
+              throw . mlsProtocolError $
+              "The external commit is missing an external init proposal"
+            unless (paAdd action == mempty) .
+              throw . mlsProtocolError $
+              "The external commit must not have add proposals"
 
             cid <- case kpIdentity (rmValue newKeyPackage) of
               Left e -> throw (mlsProtocolError $ "Failed to parse the client identity: " <> e)
@@ -729,8 +701,9 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
                 then pure Nothing
                 else do
                   (remCid, r) <- derefUser (paRemove action) qusr
-                  unless (cidQualifiedUser cid == cidQualifiedUser remCid) $
-                    throwS @'MLSRemovalUserMismatch
+                  unless (cidQualifiedUser cid == cidQualifiedUser remCid) .
+                    throw . mlsProtocolError $
+                    "The external commit attempts to remove a client from a user other than themselves"
                   pure (Just r)
 
             updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
@@ -774,11 +747,11 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
         unless (cidQualifiedUser ci == user) $
           throwS @'MLSClientSenderUserMismatch
         pure (ci, ref)
-      _ -> throwS @'MLSExternalCommitRemoveProposal
+      _ -> throw . mlsProtocolError $ "The external commit must have at most one remove proposal"
     ensureSingleton :: Set a -> Sem r a
     ensureSingleton (Set.toList -> l) = case l of
       [e] -> pure e
-      _ -> throwS @'MLSExternalCommitRemoveProposal
+      _ -> throw . mlsProtocolError $ "The external commit must have at most one remove proposal"
 
 -- | Note: Use this only for KeyPackage that are already validated
 updateKeyPackageMapping ::

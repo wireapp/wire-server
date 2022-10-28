@@ -83,9 +83,6 @@ data GalleyError
   | MLSClientSenderUserMismatch
   | MLSWelcomeMismatch
   | MLSMissingGroupInfo
-  | MLSMissingExternalInit
-  | MLSRemovalUserMismatch
-  | MLSExternalCommitRemoveProposal
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -208,12 +205,6 @@ type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 400 "mls-clie
 type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-mismatch" "The list of targets of a welcome message does not match the list of new clients in a group"
 
 type instance MapError 'MLSMissingGroupInfo = 'StaticError 404 "mls-missing-group-info" "The conversation has no group information"
-
-type instance MapError 'MLSMissingExternalInit = 'StaticError 400 "mls-missing-external-init" "The external commit is missing an external init proposal"
-
-type instance MapError 'MLSRemovalUserMismatch = 'StaticError 403 "mls-removal-user-mismatch" "The external commit attempts to remove a client from a user other than themselves"
-
-type instance MapError 'MLSExternalCommitRemoveProposal = 'StaticError 403 "mls-external-commit-proposals" "The external commit has to have at most one remove proposal"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 
