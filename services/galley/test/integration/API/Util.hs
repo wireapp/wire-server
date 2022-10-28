@@ -260,7 +260,7 @@ changeTeamStatus tid s = do
         . json (TeamStatusUpdate s Nothing)
     )
     !!! const 200
-      === statusCode
+    === statusCode
 
 createBindingTeamInternal :: HasCallStack => Text -> UserId -> TestM TeamId
 createBindingTeamInternal name owner = do
@@ -285,7 +285,8 @@ createBindingTeamInternalWithCurrency name owner cur = do
   tid <- createBindingTeamInternalNoActivate name owner
   _ <-
     put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur))
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
   pure tid
 
 getTeamInternal :: HasCallStack => TeamId -> TestM TeamData
@@ -320,6 +321,21 @@ getTeamMembersTruncated usr tid n = do
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr . queryItem "maxResults" (C.pack $ show n)) <!! const 200 === statusCode
   responseJsonError r
 
+getTeamMembersPaginated :: HasCallStack => UserId -> TeamId -> Int -> Maybe Text -> TestM TeamMembersPage
+getTeamMembersPaginated usr tid n mPs = do
+  g <- viewGalley
+  r <-
+    get
+      ( g
+          . paths ["teams", toByteString' tid, "members"]
+          . zUser usr
+          . queryItem "maxResults" (C.pack $ show n)
+          . maybe id (queryItem "pagingState" . cs) mPs
+      )
+      <!! const 200
+      === statusCode
+  responseJsonError r
+
 getTeamMembersInternalTruncated :: HasCallStack => TeamId -> Int -> TestM TeamMemberList
 getTeamMembersInternalTruncated tid n = do
   g <- viewGalley
@@ -330,7 +346,7 @@ getTeamMembersInternalTruncated tid n = do
           . queryItem "maxResults" (C.pack $ show n)
       )
       <!! const 200
-        === statusCode
+      === statusCode
   responseJsonError r
 
 bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [UserId] -> TestM TeamMemberList
@@ -344,7 +360,7 @@ bulkGetTeamMembers usr tid uids = do
           . json (UserIdList uids)
       )
       <!! const 200
-        === statusCode
+      === statusCode
   responseJsonError r
 
 bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [UserId] -> Int -> TestM ResponseLBS
@@ -379,7 +395,8 @@ addTeamMember usr tid muid mperms mmbinv = do
   g <- viewGalley
   let payload = json (mkNewTeamMember muid mperms mmbinv)
   post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" . payload)
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
 
 -- | FUTUREWORK: do not use this, it's broken!!  use 'addUserToTeam' instead!  https://wearezeta.atlassian.net/browse/SQSERVICES-471
 addTeamMemberInternal :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
@@ -446,7 +463,7 @@ makeOwner owner mem tid = do
         . json changeMember
     )
     !!! const 200
-      === statusCode
+    === statusCode
 
 acceptInviteBody :: Email -> InvitationCode -> RequestBody
 acceptInviteBody email code =
@@ -685,7 +702,8 @@ postConvWithRemoteUsers u n =
   fmap fst $
     withTempMockFederator (const ()) $
       postConvQualified u n {newConvName = setName (newConvName n)}
-        <!! const 201 === statusCode
+        <!! const 201
+        === statusCode
   where
     setName :: Within Text n m => Maybe (Range n m Text) -> Maybe (Range n m Text)
     setName Nothing = checked "federated gossip"
@@ -1351,7 +1369,8 @@ getTeamQueue :: HasCallStack => UserId -> Maybe NotificationId -> Maybe (Int, Bo
 getTeamQueue zusr msince msize onlyLast =
   parseEventList . responseJsonUnsafe
     <$> ( getTeamQueue' zusr msince (fst <$> msize) onlyLast
-            <!! const 200 === statusCode
+            <!! const 200
+            === statusCode
         )
   where
     parseEventList :: QueuedNotificationList -> [(NotificationId, UserId)]
@@ -1880,7 +1899,7 @@ connectWithRemoteUser self other = do
         . json req
     )
     !!! const 200
-      === statusCode
+    === statusCode
 
 -- | A copy of 'postConnection' from Brig integration tests.
 postConnection :: UserId -> UserId -> TestM ResponseLBS
@@ -2020,7 +2039,8 @@ randomClientWithCaps uid lk caps = do
           . queryItem "skip_reauth" "true"
           . json newClientBody
       )
-      <!! const rStatus === statusCode
+      <!! const rStatus
+      === statusCode
   client <- responseJsonError resp
   pure (clientId client)
   where
@@ -2098,7 +2118,8 @@ isUserDeleted u = do
   b <- viewBrig
   r <-
     get (b . paths ["i", "users", toByteString' u, "status"])
-      <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   case responseBody r of
     Nothing -> error $ "getStatus: failed to parse response: " ++ show r
     Just j -> do
@@ -2762,11 +2783,14 @@ createOne2OneConvWithRemote localUser remoteUser = do
             uooConvId = mConvId
           }
   ooConvId <-
-    fmap uuorConvId . responseJsonError
+    fmap uuorConvId
+      . responseJsonError
       =<< iUpsertOne2OneConversation (mkRequest LocalActor Nothing)
-        <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   iUpsertOne2OneConversation (mkRequest RemoteActor (Just ooConvId))
-    !!! const 200 === statusCode
+    !!! const 200
+    === statusCode
 
 generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
 generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.example.com")

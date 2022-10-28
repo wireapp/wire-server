@@ -24,13 +24,16 @@ where
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Attoparsec.ByteString as AB
 import qualified Data.ByteString as BS
+import Data.Either.Combinators (mapLeft)
 import Data.Json.Util (fromBase64Text, toBase64Text)
 import Data.Proxy
 import Data.Schema
+import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import GHC.TypeLits
 import Imports
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 
 -- | The state of a multi-table paginated query. It is made of a reference to
 -- the table currently being paginated, as well as an opaque token returned by
@@ -49,13 +52,19 @@ encodePagingState (MultiTablePagingState table state) =
    in BS.cons encodedTable encodedState
 
 parsePagingState :: PagingTable tables => ByteString -> Either String (MultiTablePagingState name tables)
-parsePagingState = AB.parseOnly conversationPagingStateParser
+parsePagingState = AB.parseOnly pagingStateParser
 
-conversationPagingStateParser :: PagingTable tables => AB.Parser (MultiTablePagingState name tables)
-conversationPagingStateParser = do
+pagingStateParser :: PagingTable tables => AB.Parser (MultiTablePagingState name tables)
+pagingStateParser = do
   table <- AB.anyWord8 >>= decodePagingTable
   state <- (AB.endOfInput $> Nothing) <|> (Just <$> AB.takeByteString <* AB.endOfInput)
   pure $ MultiTablePagingState table state
+
+instance PagingTable tables => ToHttpApiData (MultiTablePagingState name tables) where
+  toQueryParam = toBase64Text . encodePagingState
+
+instance PagingTable tables => FromHttpApiData (MultiTablePagingState name tables) where
+  parseQueryParam = mapLeft cs . (parsePagingState <=< fromBase64Text)
 
 -- | A class for values that can be encoded with a single byte. Used to add a
 -- byte of extra information to the paging state in order to recover the table

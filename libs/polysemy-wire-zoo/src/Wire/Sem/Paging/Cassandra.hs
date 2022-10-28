@@ -93,6 +93,8 @@ type instance E.Page InternalPaging a = InternalPage a
 
 type instance E.PagingBounds InternalPaging TeamMember = Range 1 HardTruncationLimit Int32
 
+type instance E.PagingBounds CassandraPaging TeamMember = Range 1 HardTruncationLimit Int32
+
 type instance E.PagingBounds InternalPaging TeamId = Range 1 100 Int32
 
 instance E.Paging InternalPaging where

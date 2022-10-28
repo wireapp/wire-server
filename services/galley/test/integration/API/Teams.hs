@@ -70,6 +70,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified Proto.TeamEvents as E
 import qualified Proto.TeamEvents_Fields as E
 import qualified SAML2.WebSSO.Types as SAML
+import Servant (ToHttpApiData (..))
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -82,6 +83,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Team
 import Wire.API.Internal.Notification hiding (target)
+import Wire.API.Routes.MultiTablePaging (MultiTablePage (mtpHasMore, mtpPagingState, mtpResults))
 import Wire.API.Team
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
@@ -110,7 +112,8 @@ tests s =
                 s
                 ("admins should be able to get a csv stream with their team (" <> show numMembers <> " members)")
                 (testListTeamMembersCsv numMembers),
-          test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated
+          test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated,
+          test s "pagination" testListTeamMembersPagination
         ],
       testGroup "List Team Members (by ids)" $
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimitByIds,
@@ -307,6 +310,30 @@ testListTeamMembersCsv numMembers = do
 
     newClient :: PC.LastPrekey -> C.NewClient
     newClient lpk = C.newClient C.PermanentClientType lpk
+
+testListTeamMembersPagination :: TestM ()
+testListTeamMembersPagination = do
+  (owner, tid, _) <- Util.createBindingTeamWithNMembers 18
+  allMembers <- Util.getTeamMembersPaginated owner tid 100 Nothing
+  liftIO $ do
+    let actualTeamSize = length (mtpResults . unTeamMembersPage $ allMembers)
+    let expectedTeamSize = 19
+    assertEqual ("expected team size of 19 (18 members + 1 owner), but got " <> show actualTeamSize) expectedTeamSize actualTeamSize
+  page1 <- Util.getTeamMembersPaginated owner tid 5 Nothing
+  check 1 5 True page1
+  page2 <- Util.getTeamMembersPaginated owner tid 5 (Just . toQueryParam . mtpPagingState . unTeamMembersPage $ page1)
+  check 2 5 True page2
+  page3 <- Util.getTeamMembersPaginated owner tid 5 (Just . toQueryParam . mtpPagingState . unTeamMembersPage $ page2)
+  check 3 5 True page3
+  page4 <- Util.getTeamMembersPaginated owner tid 5 (Just . toQueryParam . mtpPagingState . unTeamMembersPage $ page3)
+  check 4 4 False page4
+  where
+    check :: Int -> Int -> Bool -> TeamMembersPage -> TestM ()
+    check n expectedSize expectedHasMore tmp = liftIO $ do
+      let actualSize = length (mtpResults . unTeamMembersPage $ tmp)
+      assertEqual ("page " <> show n <> ": expected " <> show expectedSize <> " members, but got " <> show actualSize) expectedSize actualSize
+      let actualHasMore = mtpHasMore . unTeamMembersPage $ tmp
+      assertEqual ("page " <> show n <> " (hasMore): expected " <> show expectedHasMore <> ", but got" <> "") expectedHasMore actualHasMore
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
@@ -591,7 +618,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           . zConn "conn"
       )
       !!! const 400
-        === statusCode
+      === statusCode
     -- Deleting from a binding team without a password is forbidden
     delete
       ( g
@@ -627,7 +654,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
               . json (newTeamMemberDeleteData (Just $ Util.defPassword))
           )
           !!! const 202
-            === statusCode
+          === statusCode
       else do
         -- Deleting from a binding team without a password is fine if the owner is
         -- authenticated, but has none.
@@ -639,7 +666,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
               . json (newTeamMemberDeleteData Nothing)
           )
           !!! const 202
-            === statusCode
+          === statusCode
     checkTeamMemberLeave tid (mem1 ^. userId) wsOwner
     checkConvMemberLeaveEvent (Qualified cid1 localDomain) (Qualified (mem1 ^. userId) localDomain) wsMext
     assertQueue "team member leave" $ tUpdate 2 [ownerWithPassword, owner]
@@ -938,7 +965,7 @@ testDeleteBindingTeamSingleMember = do
           )
     )
     !!! const 202
-      === statusCode
+    === statusCode
   assertQueue "team member leave 1" $ tUpdate 1 [owner]
   -- Async things are hard...
   void $
@@ -955,7 +982,7 @@ testDeleteBindingTeamSingleMember = do
           . zConn "conn"
       )
       !!! const 202
-        === statusCode
+      === statusCode
     checkUserDeleteEvent owner wsOwner
 
     WS.assertNoEvent (1 # Second) [wsExtern]
@@ -1131,7 +1158,8 @@ getVerificationCode uid action = do
   brig <- viewBrig
   resp <-
     get (brig . paths ["i", "users", toByteString' uid, "verification-code", toByteString' action])
-      <!! const 200 === statusCode
+      <!! const 200
+      === statusCode
   pure $ responseJsonUnsafe @Code.Value resp
 
 testDeleteBindingTeam :: Bool -> TestM ()
@@ -1181,7 +1209,7 @@ testDeleteBindingTeam ownerHasPassword = do
           )
     )
     !!! const 202
-      === statusCode
+    === statusCode
   assertQueue "team member leave 1" $ tUpdate 4 [ownerWithPassword, owner]
   void . WS.bracketRN c [owner, mem1 ^. userId, mem2 ^. userId, extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
     delete
@@ -1198,7 +1226,7 @@ testDeleteBindingTeam ownerHasPassword = do
             )
       )
       !!! const 202
-        === statusCode
+      === statusCode
     checkUserDeleteEvent owner wsOwner
     checkUserDeleteEvent (mem1 ^. userId) wsMember1
     checkUserDeleteEvent (mem2 ^. userId) wsMember2
@@ -1243,7 +1271,8 @@ testDeleteTeamConv = do
   for_ members $ flip Util.assertConvMember cid2
   WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
     deleteTeamConv tid cid2 (member ^. userId)
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
 
     -- We no longer send duplicate conv deletion events
     -- i.e., as both a regular "conversation.delete" to all
@@ -1255,7 +1284,8 @@ testDeleteTeamConv = do
     WS.assertNoEvent timeout [wsOwner, wsMember]
 
     deleteTeamConv tid cid1 (member ^. userId)
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
     -- We no longer send duplicate conv deletion events
     -- i.e., as both a regular "conversation.delete" to all
     -- conversation members and as "team.conversation-delete"
@@ -1283,7 +1313,7 @@ testUpdateTeamIconValidation = do
               . json payload
           )
           !!! const expectedStatusCode
-            === statusCode
+          === statusCode
   let payloadWithInvalidIcon = object ["name" .= String "name", "icon" .= String "invalid"]
   update payloadWithInvalidIcon 400
   let payloadWithValidIcon =
@@ -1312,7 +1342,7 @@ testUpdateTeam = do
               . body (RequestBodyLBS payload)
           )
           !!! const code
-            === statusCode
+          === statusCode
 
   let bad = object ["name" .= T.replicate 100 "too large"]
   doPut (encode bad) 400
@@ -1414,7 +1444,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
               . json u
           )
           !!! const 200
-            === statusCode
+          === statusCode
         if expect
           then mapM_ (checkUserUpdateEvent target) wsListeners
           else WS.assertNoEvent (1 # Second) wsListeners
@@ -1432,7 +1462,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
               . json u
           )
           !!! const 200
-            === statusCode
+          === statusCode
         -- Due to the fact that the team is too large, we expect no events!
         if expect
           then checkTeamUpdateEvent tid u wsOrigin
@@ -1460,7 +1490,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
               . json (newTeamMemberDeleteData (Just $ Util.defPassword))
           )
           !!! const 202
-            === statusCode
+          === statusCode
         if expect
           then checkTeamMemberLeave tid victim wsOwner
           else WS.assertNoEvent (1 # Second) [wsOwner]
@@ -1479,7 +1509,8 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
               . zConn "conn"
               . json (newTeamDeleteData (Just Util.defPassword))
           )
-          !!! const 202 === statusCode
+          !!! const 202
+          === statusCode
         for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u wsExtern
         -- Ensure users are marked as deleted; since we already
         -- received the event, should _really_ be deleted
@@ -1549,7 +1580,8 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
           -- override galley settings while making a call to brig
           withoutIndexedBillingTeamMembers $
             post (galley . paths ["i", "teams", toByteString' team, "members"] . mem)
-              !!! const 200 === statusCode
+              !!! const 200
+              === statusCode
           let allBillingMembers = newBillingMemberId : billingMembers
           -- We don't make a call to brig to add member, hence the count of team is always 2
           assertQueue ("add " <> show n <> "th billing member: " <> show newBillingMemberId) $
@@ -1568,7 +1600,8 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   withoutIndexedBillingTeamMembers $ do
     g <- viewGalley
     post (g . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
-      !!! const 200 === statusCode
+      !!! const 200
+      === statusCode
   assertQueue ("add " <> show (fanoutLimit + 2) <> "th billing member: " <> show ownerFanoutPlusTwo) $
     \s maybeEvent ->
       case maybeEvent of
@@ -1853,7 +1886,8 @@ postCryptoBroadcastMessageReportMissingBody bcast = do
         _ -> queryItem "report_missing" (toByteString' alice)
       msg = [(alice, ac, "ciphertext0")]
   Util.postBroadcast qalice ac bcast {bReport = Just [bob], bMessage = msg, bReq = inquery}
-    !!! const 412 === statusCode
+    !!! const 412
+    === statusCode
 
 postCryptoBroadcastMessage2 :: Broadcast -> TestM ()
 postCryptoBroadcastMessage2 bcast = do

@@ -1669,7 +1669,16 @@ type TeamMemberAPI =
              ]
              "maxResults"
              (Range 1 HardTruncationLimit Int32)
-        :> Get '[JSON] TeamMemberListOptPerms
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description
+                 "optional, when not specified, the first page will be returned.\
+                 \Every returned page contains a paging_state, this should be supplied to retrieve the next page."
+             ]
+             "pagingState"
+             TeamMembersPagingState
+        :> Get '[JSON] TeamMembersPage
     )
     :<|> Named
            "get-team-member"
