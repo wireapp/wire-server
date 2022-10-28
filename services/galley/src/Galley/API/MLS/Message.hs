@@ -709,6 +709,13 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
                     $ "The external commit attempts to remove a client from a user other than themselves"
                   pure (Just r)
 
+            -- first perform checks and map the key package if valid
+            addKeyPackageRef
+              newRef
+              (cidQualifiedUser cid)
+              (ciClient cid)
+              (Data.convId <$> qUntagged lconv)
+            -- now it is safe to update the mapping without further checks
             updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
 
             pure (pure (), action {paRemove = mempty})
