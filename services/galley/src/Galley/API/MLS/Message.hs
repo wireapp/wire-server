@@ -681,12 +681,14 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
           (_, Nothing) -> pure (pure (), action) -- ignore commits without update path
           (NewMemberSender, Just newKeyPackage) -> do
             -- this is an external commit
-            when (paExternalInit action == mempty) .
-              throw . mlsProtocolError $
-              "The external commit is missing an external init proposal"
-            unless (paAdd action == mempty) .
-              throw . mlsProtocolError $
-              "The external commit must not have add proposals"
+            when (paExternalInit action == mempty)
+              . throw
+              . mlsProtocolError
+              $ "The external commit is missing an external init proposal"
+            unless (paAdd action == mempty)
+              . throw
+              . mlsProtocolError
+              $ "The external commit must not have add proposals"
 
             cid <- case kpIdentity (rmValue newKeyPackage) of
               Left e -> throw (mlsProtocolError $ "Failed to parse the client identity: " <> e)
@@ -701,9 +703,10 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
                 then pure Nothing
                 else do
                   (remCid, r) <- derefUser (paRemove action) qusr
-                  unless (cidQualifiedUser cid == cidQualifiedUser remCid) .
-                    throw . mlsProtocolError $
-                    "The external commit attempts to remove a client from a user other than themselves"
+                  unless (cidQualifiedUser cid == cidQualifiedUser remCid)
+                    . throw
+                    . mlsProtocolError
+                    $ "The external commit attempts to remove a client from a user other than themselves"
                   pure (Just r)
 
             updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
