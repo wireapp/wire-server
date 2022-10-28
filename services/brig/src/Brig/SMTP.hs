@@ -68,14 +68,10 @@ initSMTP lg host port credentials connType = do
   -- Try to initiate a connection and fail badly right away in case of bad auth
   -- otherwise config errors will be detected "too late"
   res <- runExceptT establishConnection
-  logResult res
+  logResult lg ("Checking connection to " ++ unpack host ++ "on startup") res
   case res of
-    Left Unauthorized ->
-      error "Failed to authenticate against the SMTP server"
-    Left ConnectionTimeout ->
-      error "Failed to connect to SMTP server. Connection timeout."
-    Left (CaughtException e) ->
-      error $ "Caught exception while trying to connect to SMTP server : " ++ show e
+    Left _ ->
+      error "Failed to establish connection with SMTP server."
     Right con -> do
       -- TODO: gracefullyCloseSMTP may throw
       SMTP.gracefullyCloseSMTP con
@@ -84,8 +80,7 @@ initSMTP lg host port credentials connType = do
     liftSMTP :: IO a -> ExceptT SMTPFailure IO a
     liftSMTP action =
       ExceptT $
-        CE.handle (\e -> (pure . Left . CaughtException) e) $
-          maybeToEither ConnectionTimeout <$> ensureSMTPConnectionTimeout lg action
+        CE.handle (\e -> (pure . Left . CaughtException) e) $ ensureSMTPConnectionTimeout action
 
     establishConnection :: ExceptT SMTPFailure IO SMTP.SMTPConnection
     establishConnection = do
@@ -110,7 +105,7 @@ initSMTP lg host port credentials connType = do
     create :: IO SMTP.SMTPConnection
     create = do
       res <- runExceptT establishConnection
-      logResult res
+      logResult lg "Creating connection for connection pool" res
       case res of
         Left Unauthorized -> do
           CE.throw SMTPUnauthorized
@@ -121,44 +116,44 @@ initSMTP lg host port credentials connType = do
         Right con -> do
           pure con
 
-    logResult :: MonadIO m => Either SMTPFailure SMTP.SMTPConnection -> m ()
-    logResult res =
-      case res of
-        Left Unauthorized -> do
-          Logger.log lg Logger.Warn (msg $ val "Failed to established connection, check your credentials to connect to: " +++ host)
-        Left ConnectionTimeout -> do
-          Logger.log lg Logger.Warn (msg $ (val "Failed to connect to : " +++ host) +++ val " . Connection timeout.")
-        Left (CaughtException e) -> do
-          Logger.log lg Logger.Warn (msg $ val "Caught exception while trying to connect to SMTP server : " +++ show e)
-        Right _ -> do
-          Logger.log lg Logger.Debug (msg $ val "Established connection to: " +++ host)
-
     destroy c = do
       Logger.log lg Logger.Debug (msg $ val "Closing connection to: " +++ host)
-      -- TODO: gracefullyCloseSMTP may throw
-      r <- ensureSMTPConnectionTimeout lg $ SMTP.gracefullyCloseSMTP c
-      if isJust r
+      r <- ensureSMTPConnectionTimeout $ SMTP.gracefullyCloseSMTP c
+      if isRight r
         then Logger.log lg Logger.Debug (msg $ val "Closed connection to: " +++ host)
         else Logger.log lg Logger.Debug (msg $ val "Closing connection to " +++ host +++ val " timed out")
+
+logResult :: MonadIO m => Logger -> String -> Either SMTPFailure c -> m ()
+logResult lg actionString res =
+  case res of
+    Left Unauthorized -> do
+      Logger.log lg Logger.Warn (msg $ concatToVal actionString "Failed to established connection, check your credentials.")
+    Left ConnectionTimeout -> do
+      Logger.log lg Logger.Warn (msg $ concatToVal actionString "Connection timeout.")
+    Left (CaughtException e) -> do
+      Logger.log lg Logger.Warn (msg $ concatToVal actionString ("Caught exception : " ++ show e))
+    Right _ -> do
+      Logger.log lg Logger.Debug (msg $ concatToVal actionString "Succeeded.")
+  where
+    concatToVal :: ToBytes s1 => s1 -> String -> Builder
+    concatToVal a b = a +++ (" : " :: String) +++ b
 
 sendMail :: (MonadIO m, MonadCatch m) => Logger -> SMTP -> Mail -> m ()
 sendMail lg s m = liftIO $ withResource (s ^. pool) sendMail'
   where
-    sendMail' c = ensureSMTPConnectionTimeout lg (SMTP.sendMail m c) >>= handleTimeout
-    handleTimeout r =
-      if isJust r
-        then do
-          Logger.log lg Logger.Debug (msg $ val "Sent mail")
-          pure ()
-        else do
-          Logger.log lg Logger.Debug (msg $ val "Sending mail timed out. Mail not sent.")
-          CE.throw SMTPConnectionTimeout
+    sendMail' c = ensureSMTPConnectionTimeout (SMTP.sendMail m c) >>= handleTimeout
 
-ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m) => Logger -> m a -> m (Maybe a)
-ensureSMTPConnectionTimeout lg action =
+    handleTimeout :: MonadIO m => Either SMTPFailure a -> m ()
+    handleTimeout r =
+      logResult lg "Sending mail" r
+        >> if isRight r
+          then do
+            pure ()
+          else do
+            CE.throw SMTPConnectionTimeout
+
+ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m) => m a -> m (Either SMTPFailure a)
+ensureSMTPConnectionTimeout action =
   catch
-    (timeout (15 :: Second) action)
-    ( \(e :: SomeException) ->
-        Logger.log lg Logger.Warn (msg $ val "Caught exception while trying to connect to SMTP server : " +++ show e)
-          >> pure Nothing
-    )
+    (maybe (Left ConnectionTimeout) Right <$> timeout (15 :: Second) action)
+    (\(e :: SomeException) -> pure (Left (CaughtException e)))
