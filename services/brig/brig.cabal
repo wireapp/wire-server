@@ -287,6 +287,8 @@ library
     , text                       >=0.11
     , text-icu-translit          >=0.1
     , time                       >=1.1
+    , time-out
+    , time-units
     , tinylog                    >=0.10
     , transformers               >=0.3
     , types-common               >=0.16
