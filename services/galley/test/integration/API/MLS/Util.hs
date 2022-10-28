@@ -259,7 +259,6 @@ mlscli qcid args mbstdin = do
   bd <- State.gets mlsBaseDir
   let cdir = bd </> cid2Str qcid
   liftIO $ do
-    -- Imports.setEnv "RUST_BACKTRACE" "full"
     spawn (proc "mls-test-cli" (["--store", cdir </> "store"] <> args)) mbstdin
 
 createWireClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
