@@ -46,9 +46,9 @@ import Brig.User.Auth.Cookie.Limit
 import qualified Brig.User.Auth.DB.Cookie as DB
 import qualified Brig.ZAuth as ZAuth
 import Cassandra
-import Control.Error.Util
+import Control.Error
 import Control.Lens (to, view)
-import Control.Monad.Trans.Maybe
+import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.List as List
@@ -108,9 +108,12 @@ nextCookie ::
   ) =>
   Cookie (ZAuth.Token u) ->
   Maybe ClientId ->
-  m (Maybe (Cookie (ZAuth.Token u)))
+  ExceptT ZAuth.Failure m (Maybe (Cookie (ZAuth.Token u)))
 nextCookie c mNewCid = runMaybeT $ do
   let mOldCid = ZAuth.userTokenClient (cookieValue c)
+  -- If both old and new client IDs are present, they must be equal
+  when (((/=) <$> mOldCid <*> mNewCid) == Just True) $
+    throwError ZAuth.Invalid
   -- Keep old client ID by default, but use new one if none was set.
   let mcid = mOldCid <|> mNewCid
 
@@ -124,7 +127,7 @@ nextCookie c mNewCid = runMaybeT $ do
   when (mcid == mOldCid) $ do
     guard (cookieType c == PersistentCookie)
     guard (diffUTCTime now created > renewAge)
-  lift $ do
+  lift . lift $ do
     c' <- runMaybeT $ do
       ck <- hoistMaybe $ cookieSucc c
       let uid = ZAuth.userTokenOf (cookieValue c)

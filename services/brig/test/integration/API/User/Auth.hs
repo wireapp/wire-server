@@ -994,7 +994,7 @@ testAccessWithClientId brig = do
         brig
         (userId u)
         (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
   r <-
     post
       ( unversioned
@@ -1062,7 +1062,7 @@ testAccessWithExistingClientId brig = do
         brig
         (userId u)
         (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
   now <- liftIO getCurrentTime
 
   -- access with client ID first
@@ -1106,24 +1106,15 @@ testAccessWithExistingClientId brig = do
           brig
           (userId u)
           (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
-        <!! const 201 === statusCode
-    r <-
-      post
-        ( unversioned
-            . brig
-            . path "/access"
-            . queryItem "client_id" (toByteString' (clientId cl2))
-            . cookie c2
-        )
-        <!! const 200 === statusCode
-    liftIO $ do
-      let ck = decodeCookie r
-          Just token = fromByteString (cookie_value ck)
-          atoken = decodeToken' @ZAuth.Access r
-      assertSanePersistentCookie @ZAuth.User ck
-      ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
-      assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
-      ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+          <!! const 201 === statusCode
+    post
+      ( unversioned
+          . brig
+          . path "/access"
+          . queryItem "client_id" (toByteString' (clientId cl2))
+          . cookie c2
+      )
+      !!! const 403 === statusCode
 
 testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do

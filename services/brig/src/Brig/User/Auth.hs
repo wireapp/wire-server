@@ -64,6 +64,7 @@ import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Control.Monad.Catch
+import Control.Monad.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (Handle)
 import Data.Id
@@ -261,7 +262,7 @@ renewAccess uts at mcid = do
   traverse_ (checkClientId uid) mcid
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
-  ck' <- lift $ nextCookie ck mcid
+  ck' <- nextCookie ck mcid
   at' <- lift $ newAccessToken (fromMaybe ck ck') at
   pure $ Access at' ck'
 
