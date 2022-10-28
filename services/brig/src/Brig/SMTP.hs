@@ -85,7 +85,7 @@ initSMTP lg host port credentials connType = do
     liftSMTP action =
       ExceptT $
         CE.handle (\e -> (pure . Left . CaughtException) e) $
-          maybeToEither ConnectionTimeout <$> ensureSMTPConnectionTimeout action
+          maybeToEither ConnectionTimeout <$> ensureSMTPConnectionTimeout lg action
 
     establishConnection :: ExceptT SMTPFailure IO SMTP.SMTPConnection
     establishConnection = do
@@ -136,7 +136,7 @@ initSMTP lg host port credentials connType = do
     destroy c = do
       Logger.log lg Logger.Debug (msg $ val "Closing connection to: " +++ host)
       -- TODO: gracefullyCloseSMTP may throw
-      r <- ensureSMTPConnectionTimeout $ SMTP.gracefullyCloseSMTP c
+      r <- ensureSMTPConnectionTimeout lg $ SMTP.gracefullyCloseSMTP c
       if isJust r
         then Logger.log lg Logger.Debug (msg $ val "Closed connection to: " +++ host)
         else Logger.log lg Logger.Debug (msg $ val "Closing connection to " +++ host +++ val " timed out")
@@ -144,7 +144,7 @@ initSMTP lg host port credentials connType = do
 sendMail :: (MonadIO m, MonadCatch m) => Logger -> SMTP -> Mail -> m ()
 sendMail lg s m = liftIO $ withResource (s ^. pool) sendMail'
   where
-    sendMail' c = ensureSMTPConnectionTimeout (SMTP.sendMail m c) >>= handleTimeout
+    sendMail' c = ensureSMTPConnectionTimeout lg (SMTP.sendMail m c) >>= handleTimeout
     handleTimeout r =
       if isJust r
         then do
@@ -154,6 +154,11 @@ sendMail lg s m = liftIO $ withResource (s ^. pool) sendMail'
           Logger.log lg Logger.Debug (msg $ val "Sending mail timed out. Mail not sent.")
           CE.throw SMTPConnectionTimeout
 
--- TODO: Timeout may throw
-ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m) => m a -> m (Maybe a)
-ensureSMTPConnectionTimeout action = timeout (15 :: Second) action
+ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m) => Logger -> m a -> m (Maybe a)
+ensureSMTPConnectionTimeout lg action =
+  catch
+    (timeout (15 :: Second) action)
+    ( \(e :: SomeException) ->
+        Logger.log lg Logger.Warn (msg $ val "Caught exception while trying to connect to SMTP server : " +++ show e)
+          >> pure Nothing
+    )
