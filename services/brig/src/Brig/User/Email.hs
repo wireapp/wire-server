@@ -42,6 +42,7 @@ import Brig.Types.Activation (ActivationPair)
 import Brig.Types.User (PasswordResetPair)
 import Brig.User.Template
 import Control.Lens (view)
+import Control.Monad.Catch
 import qualified Data.Code as Code
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.Range
@@ -55,6 +56,7 @@ import Wire.API.User.Password
 
 sendVerificationMail ::
   ( MonadIO m,
+    MonadCatch m,
     MonadReader Env m
   ) =>
   Email ->
@@ -69,7 +71,8 @@ sendVerificationMail to pair loc = do
 
 sendLoginVerificationMail ::
   ( MonadReader Env m,
-    MonadIO m
+    MonadIO m,
+    MonadCatch m
   ) =>
   Email ->
   Code.Value ->
@@ -82,6 +85,7 @@ sendLoginVerificationMail email code mbLocale = do
 
 sendCreateScimTokenVerificationMail ::
   ( MonadIO m,
+    MonadCatch m,
     MonadReader Env m
   ) =>
   Email ->
@@ -95,6 +99,7 @@ sendCreateScimTokenVerificationMail email code mbLocale = do
 
 sendTeamDeletionVerificationMail ::
   ( MonadIO m,
+    MonadCatch m,
     MonadReader Env m
   ) =>
   Email ->
@@ -108,6 +113,7 @@ sendTeamDeletionVerificationMail email code mbLocale = do
 
 sendActivationMail ::
   ( MonadIO m,
+    MonadCatch m,
     MonadReader Env m
   ) =>
   Email ->
@@ -129,6 +135,7 @@ sendActivationMail to name pair loc ident = do
 
 sendPasswordResetMail ::
   ( MonadIO m,
+    MonadCatch m,
     MonadReader Env m
   ) =>
   Email ->
@@ -143,6 +150,7 @@ sendPasswordResetMail to pair loc = do
 
 sendDeletionEmail ::
   ( MonadIO m,
+    MonadCatch m,
     MonadReader Env m
   ) =>
   Name ->
@@ -158,6 +166,7 @@ sendDeletionEmail name email key code locale = do
 
 sendNewClientEmail ::
   ( MonadIO m,
+    MonadCatch m,
     MonadReader Env m
   ) =>
   Name ->
@@ -172,6 +181,7 @@ sendNewClientEmail name email client locale = do
 
 sendTeamActivationMail ::
   ( MonadIO m,
+    MonadCatch m,
     MonadReader Env m
   ) =>
   Email ->
