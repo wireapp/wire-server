@@ -328,7 +328,6 @@ http {
     #
     # Swagger Resource Listing
     #
-
     location /api-docs {
         zauth off;
         default_type application/json;
@@ -343,10 +342,8 @@ http {
         }
         more_set_headers 'Access-Control-Allow-Origin: $http_origin';
     }
-    {{ end }}
 
     # Swagger UI
-
     location /swagger-ui {
         zauth  off;
         gzip   off;
@@ -358,6 +355,7 @@ http {
             image/png               png;
         }
     }
+    {{ end }}
 
     {{- if hasKey .Values.nginx_conf "deeplink" }}
     location ~* ^/deeplink.(json|html)$ {
