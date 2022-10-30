@@ -80,7 +80,7 @@ instance ToSchema Event where
         <*> _eventData .= fieldWithDocModifier "data" (description ?~ dataFieldDesc) schema
         <* eventType .= field "version" schema
     where
-      dataFieldDesc = "TODO: this part of the docs is lying; we're working on it!"
+      dataFieldDesc = "FUTUREWORK: this part of the docs is lying; we're working on it!"
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
@@ -164,7 +164,7 @@ data EventData
   | EdConvDelete ConvId
   deriving stock (Eq, Show, Generic)
 
--- TODO: this is outright wrong; see "Wire.API.Event.Conversation" on how to do this properly.
+-- FUTUREWORK: this is outright wrong; see "Wire.API.Event.Conversation" on how to do this properly.
 instance ToSchema EventData where
   schema =
     object "EventData" $
