@@ -31,15 +31,17 @@ the vector of keys in declaration order.
         zauth_key "secret3";
     }
 
-### $zauth_user, $zauth_connection
+### $zauth_user, $zauth_client, $zauth_connection
 
-These variables are replaced with the actual user/connection IDs of an
-access-token and set in upstream requests as headers "Z-User"/"Z-Connection".
+These variables are replaced with the actual user/client/connection IDs of an
+access-token and set in upstream requests as headers "Z-User" / "Z-Client" /
+"Z-Connection".
 
 *Example*:
 
     location /upstream {
         proxy_set_header "Z-User"       $zauth_user;
+        proxy_set_header "Z-Client"     $zauth_client;
         proxy_set_header "Z-Connection" $zauth_connection;
         proxy_pass       http://localhost:9000;
     }

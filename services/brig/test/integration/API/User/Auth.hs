@@ -37,7 +37,7 @@ import qualified Brig.ZAuth as ZAuth
 import qualified Cassandra as DB
 import Control.Lens (set, (^.))
 import Control.Retry
-import Data.Aeson as Aeson
+import Data.Aeson as Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -71,6 +71,7 @@ import qualified Wire.API.User.Auth as Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.API.User.Client
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -148,7 +149,10 @@ tests conf m z db b g n =
           test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
-          test m "suspend-inactive" (testSuspendInactiveUsers conf b)
+          test m "suspend-inactive" (testSuspendInactiveUsers conf b),
+          test m "client access" (testAccessWithClientId b),
+          test m "client access incorrect" (testAccessWithIncorrectClientId b),
+          test m "multiple client accesses" (testAccessWithExistingClientId b)
         ],
       testGroup
         "update /access/self/email"
@@ -178,7 +182,9 @@ randomAccessToken :: forall u a. ZAuth.TokenPair u a => ZAuth (ZAuth.Token a)
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
 randomUserToken :: ZAuth.UserTokenLike u => ZAuth (ZAuth.Token u)
-randomUserToken = liftIO UUID.nextRandom >>= ZAuth.newUserToken . Id
+randomUserToken = do
+  r <- Id <$> liftIO UUID.nextRandom
+  ZAuth.newUserToken r Nothing
 
 -------------------------------------------------------------------------------
 -- Nginz authentication tests (end-to-end sanity checks)
@@ -773,7 +779,7 @@ testInvalidCookie z b = do
   -- Expired
   user <- userId <$> randomUser b
   let f = set (ZAuth.userTTL (Proxy @u)) 0
-  t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user))
+  t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user Nothing))
   liftIO $ threadDelay 1000000
   post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
@@ -784,7 +790,7 @@ testInvalidCookie z b = do
 testInvalidToken :: ZAuth.Env -> Brig -> Http ()
 testInvalidToken z b = do
   user <- userId <$> randomUser b
-  t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.User user)
+  t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.User user Nothing)
 
   -- Syntactically invalid
   post (unversioned . b . path "/access" . queryItem "access_token" "xxx" . cookieRaw "zuid" t)
@@ -967,6 +973,148 @@ getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   -- Return non-expired cookie but removed from DB (because it was renewed)
   -- and a valid cookie
   pure (c, c')
+
+testAccessWithClientId :: Brig -> Http ()
+testAccessWithClientId brig = do
+  u <- randomUser brig
+  rs <-
+    login
+      brig
+      ( emailLogin
+          (fromJust (userEmail u))
+          defPassword
+          (Just "nexus1")
+      )
+      PersistentCookie
+      <!! const 200 === statusCode
+  let c = decodeCookie rs
+  cl <-
+    responseJsonError
+      =<< addClient
+        brig
+        (userId u)
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+        <!! const 201 === statusCode
+  r <-
+    post
+      ( unversioned
+          . brig
+          . path "/access"
+          . queryItem "client_id" (toByteString' (clientId cl))
+          . cookie c
+      )
+      <!! const 200 === statusCode
+  now <- liftIO getCurrentTime
+  liftIO $ do
+    let ck = decodeCookie r
+        Just token = fromByteString (cookie_value ck)
+        atoken = decodeToken' @ZAuth.Access r
+    assertSanePersistentCookie @ZAuth.User ck
+    ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+    assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
+    ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+
+testAccessWithIncorrectClientId :: Brig -> Http ()
+testAccessWithIncorrectClientId brig = do
+  u <- randomUser brig
+  rs <-
+    login
+      brig
+      ( emailLogin
+          (fromJust (userEmail u))
+          defPassword
+          (Just "nexus1")
+      )
+      PersistentCookie
+      <!! const 200 === statusCode
+  let c = decodeCookie rs
+  addClient
+    brig
+    (userId u)
+    (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+    !!! const 201 === statusCode
+  post
+    ( unversioned
+        . brig
+        . path "/access"
+        . queryItem "client_id" "beef"
+        . cookie c
+    )
+    !!! const 403 === statusCode
+
+testAccessWithExistingClientId :: Brig -> Http ()
+testAccessWithExistingClientId brig = do
+  u <- randomUser brig
+  rs <-
+    login
+      brig
+      ( emailLogin
+          (fromJust (userEmail u))
+          defPassword
+          (Just "nexus1")
+      )
+      PersistentCookie
+      <!! const 200 === statusCode
+  let c0 = decodeCookie rs
+  cl <-
+    responseJsonError
+      =<< addClient
+        brig
+        (userId u)
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+        <!! const 201 === statusCode
+  now <- liftIO getCurrentTime
+
+  -- access with client ID first
+  c1 <- do
+    r <-
+      post
+        ( unversioned
+            . brig
+            . path "/access"
+            . queryItem "client_id" (toByteString' (clientId cl))
+            . cookie c0
+        )
+        <!! const 200 === statusCode
+    pure (decodeCookie r)
+
+  -- now access again with no client ID
+  c2 <- do
+    r <-
+      post
+        ( unversioned
+            . brig
+            . path "/access"
+            . cookie c1
+        )
+        <!! const 200 === statusCode
+    liftIO $ do
+      let ck = decodeCookie r
+          Just token = fromByteString (cookie_value ck)
+          atoken = decodeToken' @ZAuth.Access r
+      assertSanePersistentCookie @ZAuth.User ck
+      ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+      assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
+      ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+    pure (decodeCookie r)
+
+  -- now access with a different client ID
+  do
+    cl2 <-
+      responseJsonError
+        =<< addClient
+          brig
+          (userId u)
+          (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+          <!! const 201 === statusCode
+    post
+      ( unversioned
+          . brig
+          . path "/access"
+          . queryItem "client_id" (toByteString' (clientId cl2))
+          . cookie c2
+      )
+      !!! const 403 === statusCode
 
 testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do

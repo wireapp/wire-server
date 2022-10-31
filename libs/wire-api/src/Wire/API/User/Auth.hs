@@ -68,7 +68,7 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Code as Code
 import Data.Handle (Handle)
-import Data.Id (UserId)
+import Data.Id
 import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.SOP

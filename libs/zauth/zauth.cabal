@@ -212,6 +212,7 @@ test-suite zauth-unit
     , tasty                  >=0.9
     , tasty-hunit            >=0.9
     , tasty-quickcheck       >=0.8
+    , text
     , uuid
     , zauth
 

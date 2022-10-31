@@ -97,46 +97,55 @@ withIndex k m = Create $ do
     error "withIndex: Key index out of range."
   local (const (e {keyIdx = k})) (zauth m)
 
-userToken :: Integer -> UUID -> Word32 -> Create (Token User)
-userToken dur usr rnd = do
+userToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token User)
+userToken dur usr cli rnd = do
   d <- expiry dur
-  newToken d U Nothing (mkUser usr rnd)
+  newToken d U Nothing (mkUser usr cli rnd)
 
-sessionToken :: Integer -> UUID -> Word32 -> Create (Token User)
-sessionToken dur usr rnd = do
+sessionToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token User)
+sessionToken dur usr cli rnd = do
   d <- expiry dur
-  newToken d U (Just S) (mkUser usr rnd)
+  newToken d U (Just S) (mkUser usr cli rnd)
 
--- | Create an access token taking a duration, userId and a (random) number that can be used as connection identifier
-accessToken :: Integer -> UUID -> Word64 -> Create (Token Access)
-accessToken dur usr con = do
+-- | Create an access token taking a duration, userId, clientId and a (random)
+-- number that can be used as connection identifier
+accessToken :: Integer -> UUID -> Maybe Text -> Word64 -> Create (Token Access)
+accessToken dur usr cid con = do
   d <- expiry dur
-  newToken d A Nothing (mkAccess usr con)
+  newToken d A Nothing (mkAccess usr cid con)
 
--- | Create an access token taking a duration and userId. Similar to 'accessToken', except that the connection identifier is randomly generated.
-accessToken1 :: Integer -> UUID -> Create (Token Access)
-accessToken1 dur usr = do
+-- | Create an access token taking a duration, userId and clientId.
+-- Similar to 'accessToken', except that the connection identifier is randomly
+-- generated.
+accessToken1 :: Integer -> UUID -> Maybe Text -> Create (Token Access)
+accessToken1 dur usr cid = do
   g <- Create $ asks randGen
   d <- liftIO $ asGenIO (uniform :: GenIO -> IO Word64) g
-  accessToken dur usr d
+  accessToken dur usr cid d
 
-legalHoldUserToken :: Integer -> UUID -> Word32 -> Create (Token LegalHoldUser)
-legalHoldUserToken dur usr rnd = do
+legalHoldUserToken :: Integer -> UUID -> Maybe Text -> Word32 -> Create (Token LegalHoldUser)
+legalHoldUserToken dur usr cli rnd = do
   d <- expiry dur
-  newToken d LU Nothing (mkLegalHoldUser usr rnd)
+  newToken d LU Nothing (mkLegalHoldUser usr cli rnd)
 
--- | Create a legal hold access token taking a duration, userId and a (random) number that can be used as connection identifier
-legalHoldAccessToken :: Integer -> UUID -> Word64 -> Create (Token LegalHoldAccess)
-legalHoldAccessToken dur usr con = do
+-- | Create a legal hold access token taking a duration, userId, clientId and a
+-- (random) number that can be used as connection identifier
+legalHoldAccessToken ::
+  Integer ->
+  UUID ->
+  Maybe Text ->
+  Word64 ->
+  Create (Token LegalHoldAccess)
+legalHoldAccessToken dur usr cid con = do
   d <- expiry dur
-  newToken d LA Nothing (mkLegalHoldAccess usr con)
+  newToken d LA Nothing (mkLegalHoldAccess usr cid con)
 
 -- | Create a legal hold access token taking a duration, userId. Similar to 'legalHoldAccessToken', except that the connection identifier is randomly generated.
-legalHoldAccessToken1 :: Integer -> UUID -> Create (Token LegalHoldAccess)
-legalHoldAccessToken1 dur usr = do
+legalHoldAccessToken1 :: Integer -> UUID -> Maybe Text -> Create (Token LegalHoldAccess)
+legalHoldAccessToken1 dur usr cid = do
   g <- Create $ asks randGen
   d <- liftIO $ asGenIO (uniform :: GenIO -> IO Word64) g
-  legalHoldAccessToken dur usr d
+  legalHoldAccessToken dur usr cid d
 
 botToken :: UUID -> UUID -> UUID -> Create (Token Bot)
 botToken pid bid cnv = newToken (-1) B Nothing (mkBot pid bid cnv)
