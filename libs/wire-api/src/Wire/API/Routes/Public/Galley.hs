@@ -1673,8 +1673,8 @@ type TeamMemberAPI =
              [ Optional,
                Strict,
                Description
-                 "optional, when not specified, the first page will be returned.\
-                 \Every returned page contains a paging_state, this should be supplied to retrieve the next page."
+                 "Optional, when not specified, the first page will be returned.\
+                 \Every returned page contains a `pagingState`, this should be supplied to retrieve the next page."
              ]
              "pagingState"
              TeamMembersPagingState
