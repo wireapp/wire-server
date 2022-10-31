@@ -115,7 +115,7 @@ initSMTP lg host port credentials connType = do
     create :: IO SMTP.SMTPConnection
     create = do
       res <- runExceptT establishConnection
-      logResult lg "Creating connection for connection pool" res
+      logResult lg "Creating connection for SMTP connection pool" res
       case res of
         Left Unauthorized -> do
           CE.throw SMTPUnauthorized
@@ -129,7 +129,7 @@ initSMTP lg host port credentials connType = do
     destroy :: SMTP.SMTPConnection -> IO ()
     destroy c =
       (ensureSMTPConnectionTimeout . SMTP.gracefullyCloseSMTP) c
-        >>= void . logResult lg ("Closing connection to " ++ unpack host)
+        >>= void . logResult lg ("Closing SMTP connection to " ++ unpack host)
 
 logResult :: MonadIO m => Logger -> String -> Either SMTPFailure c -> m ()
 logResult lg actionString res =
@@ -163,5 +163,5 @@ sendMail lg s m = liftIO $ withResource (s ^. pool) sendMail'
 
     handleTimeout :: MonadIO m => Either SMTPFailure a -> m ()
     handleTimeout r =
-      logResult lg "Sending mail" r
+      logResult lg "Sending mail via SMTP" r
         >> either (const (CE.throw SMTPConnectionTimeout)) (const (pure ())) r
