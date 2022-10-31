@@ -894,6 +894,8 @@ type ConversationAPI =
                     ()
            )
 
+-- TODO: create ticket that we want links into the source code on github from swagger docs.  just hte 'Named' string would already be quite helpful.
+
 type TeamConversationAPI =
   Named
     "get-team-conversation-roles"
@@ -951,6 +953,7 @@ type TeamAPI =
     "create-non-binding-team"
     ( Summary "Create a new non binding team"
         -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
+         -- TODO: take it out of some future version *now*
         :> ZUser
         :> ZConn
         :> CanThrow 'NotConnected

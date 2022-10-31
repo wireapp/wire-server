@@ -269,9 +269,8 @@ getTeamMember u tid = do
 
 -- | Calls 'Galley.API.uncheckedGetTeamMembersH'.
 --
--- | TODO: is now truncated.  this is (only) used for team suspension / unsuspension, which
--- means that only the first 2000 members of a team (according to some arbitrary order) will
--- be suspended, and the rest will remain active.
+-- TODO: is now truncated.  this is (only) used for team suspension / unsuspension, which
+-- means that only the first TODO: fix TODO :)
 getTeamMembers ::
   Members
     '[ Error ParseException,
