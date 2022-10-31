@@ -94,6 +94,7 @@ b.yaml
 telepresence.log
 
 /.ghci
+/.vim
 
 # local config
 .envrc.local
