@@ -65,7 +65,7 @@ export METADATA_FILE=...
 
 copy these two files to one of your spar instances:
 
-- `.../wire-server/deploy/services-demo/register_idp_internal.sh`
+- `.../wire-server/hack/bin/register_idp_internal.sh`
 - `${METADATA_FILE}`
 
 ...  and ssh into it.  then:

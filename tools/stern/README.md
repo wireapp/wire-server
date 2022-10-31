@@ -21,10 +21,9 @@ stern used to be run together with a separate docker image that carried the swag
 
 TODO: This section is under construction
 
-## How to run stern locally with the `services-demo`
+## How to run stern locally
 
-Follow the instruction in [`deploy/services-demo/README.md`](../../deploy/services-demo/README.md),
-using the `--run-backoffice` option, e.g. `deploy/sevices-demo/demo.sh --run-backoffice`.
+Start local services via `services/start-services-only.sh`
 
 Open `http://localhost:8091/backoffice/api/swagger-ui/` in a browser.
 (Legacy mode: when you now open `localhost:8080/swagger-ui` in a

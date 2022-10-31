@@ -135,7 +135,8 @@ module                  auth.so
 zrest_secret            {{ restund_zrest_secret }}
 ```
 
-Next, list out TURN IP and port in `deploy/services-demo/resources/turn/servers.txt`, and `deploy/services-demo/resources/turn/servers-v2.txt`, as given below:
+
+Next, list out TURN IP and port in `services/brig/test/resources/turn/servers.txt`, and `services/brig/test/resources/turn/servers-v2.txt`, as given below:
 `turn:<private-ip>:3478`
 Then run the command restund command and you'll get the live stun log in your terminal.
 

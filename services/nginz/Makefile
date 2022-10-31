@@ -89,9 +89,11 @@ $(DIST):
 NGINX_BUNDLE=nginx-$(NGINX_VERSION).tar.gz
 SWAGGER_BUNDLE=swagger-$(SWAGGER_VERSION).tar.gz
 
+.PHONY: integration-test/conf/nginz/zwagger-ui
 integration-test/conf/nginz/zwagger-ui: zwagger-ui/swagger-ui
 	cp -r "zwagger-ui/."  integration-test/conf/nginz/zwagger-ui/
 
+.PHONY: zwagger-ui/swagger-ui
 zwagger-ui/swagger-ui: $(SWAGGER_BUNDLE)
 	tar zxf $(SWAGGER_BUNDLE)
 	rm -rf zwagger-ui/swagger-ui

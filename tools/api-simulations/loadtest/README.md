@@ -72,7 +72,7 @@ You can create test users against a given `brig` by running the following
 command from the root of `wire-server`:
 
 ```bash
-./deploy/services-demo/create_test_user.sh 
+./hack/bin/create_test_user.sh 
 ```
 
 By default the script creates users on a `brig` running at `localhost:8082`;
@@ -81,5 +81,5 @@ but you may edit the script to point elsewhere if required.
 E.g. to create 100 users on a brig running at `localhost:8082` and generate a valid users file:
 
 ```shell
-./deploy/services-demo/create_test_user.sh -c -n 100 -h http://localhost:8082 > users.csv
+./hack/bin/create_test_user.sh -c -n 100 -h http://localhost:8082 > users.csv
 ```

@@ -39,7 +39,7 @@ NB: The nginz paths are interpreted as *prefixes*.  If you add a new end-point t
 The following needs to be done, as part of a PR adding endpoints or changing endpoint paths.
 
  - [ ] Update nginz config in helm: `charts/nginz/values.yaml`
- - [ ] Update nginz config in the demo: `deploy/services-demo/conf/nginz/nginx.conf`
+ - [ ] Update nginz config for the local integration tests: `services/nginz/integration-test/conf/nginz/nginx.conf`
 
 ### Helm configuration
 
@@ -79,7 +79,6 @@ If a PR adds new configuration options for say brig, the following files need to
 
 * [ ] The parser under `services/brig/src/Brig/Options.hs`
 * [ ] The integration test config: `services/brig/brig.integration.yaml`
-* [ ] The demo config: `deploy/services-demo/conf/brig.demo.yaml` and `deploy/services-demo/conf/brig.demo.yaml`
 * [ ] The charts: `charts/brig/templates/configmap.yaml`
 * [ ] The default values: `charts/brig/values.yaml`
 * [ ] The values files for CI: `hack/helm_vars/wire-server/values.yaml`

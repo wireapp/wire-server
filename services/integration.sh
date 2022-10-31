@@ -26,7 +26,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz"
+    pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz|stern"
     sleep 1
     kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
@@ -44,6 +44,7 @@ function check_prerequisites() {
       && [ ! -f "${TOP_LEVEL}/dist/cannon" ] \
       && [ ! -f "${TOP_LEVEL}/dist/gundeck" ] \
       && [ ! -f "${TOP_LEVEL}/dist/cargohold" ] \
+      && [ ! -f "${TOP_LEVEL}/dist/stern" ] \
       && [ ! -f "${TOP_LEVEL}/dist/spar" ]; then
         echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make' first?"; exit 1;
     fi
@@ -116,6 +117,7 @@ else
     run cargohold "" ${purpleish}
     run spar "" ${orange}
     run federator "" ${blue}
+    run stern "" ${yellow}
 fi
 
 function run_nginz() {
