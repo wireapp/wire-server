@@ -41,6 +41,7 @@ import Test.Tasty.HUnit
 import UnliftIO (withSystemTempDirectory)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
+import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Extension
@@ -48,7 +49,6 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
-import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
@@ -217,46 +217,10 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
       Nothing
 
 testParseGroupInfoBundle :: IO ()
-testParseGroupInfoBundle = withSystemTempDirectory "mls" $ \tmp -> do
-  qcid <- do
-    let c = newClientId 0x3ae58155
-    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
-    pure (userClientQid usr c)
-  void . liftIO $ spawn (cli qcid tmp ["init", qcid]) Nothing
-
-  qcid2 <- do
-    let c = newClientId 0x4ae58157
-    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
-    pure (userClientQid usr c)
-  void . liftIO $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
-  kp :: RawMLS KeyPackage <- liftIO $ decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
-  liftIO $ BS.writeFile (tmp </> qcid2) (rmRaw kp)
-
-  let groupFilename = "group"
-  let gid = GroupId "abcd"
-  createGroup tmp qcid groupFilename gid
-
-  void $
-    liftIO $
-      spawn
-        ( cli
-            qcid
-            tmp
-            [ "member",
-              "add",
-              "--group",
-              tmp </> groupFilename,
-              "--in-place",
-              tmp </> qcid2,
-              "--group-state-out",
-              tmp </> "group-info-bundle"
-            ]
-        )
-        Nothing
-
-  bundleBS <- BS.readFile (tmp </> "group-info-bundle")
-  case decodeMLS' @PublicGroupState bundleBS of
-    Left err -> assertFailure ("Failed parsing PublicGroupState: " <> T.unpack err)
+testParseGroupInfoBundle = do
+  bundle <- BS.readFile "test/resources/commit-bundle.1"
+  case deserializeCommitBundle bundle of
+    Left e -> assertFailure (T.unpack e)
     Right _ -> pure ()
 
 createGroup :: FilePath -> String -> String -> GroupId -> IO ()

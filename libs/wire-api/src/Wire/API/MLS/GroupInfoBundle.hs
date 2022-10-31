@@ -18,7 +18,9 @@
 module Wire.API.MLS.GroupInfoBundle where
 
 import Control.Lens (view, (.~))
+import Data.Hex
 import Data.ProtoLens (Message (defMessage))
+import Debug.Trace
 import Imports
 import qualified Proto.Mls
 import qualified Proto.Mls_Fields as Proto.Mls
@@ -62,7 +64,8 @@ data GroupInfoBundle = GroupInfoBundle
   deriving stock (Eq, Show, Generic)
 
 instance ConvertProtoLens Proto.Mls.GroupInfoBundle GroupInfoBundle where
-  fromProtolens protoBundle =
+  fromProtolens protoBundle = do
+    traceM . show . hex $ view Proto.Mls.groupInfo protoBundle
     protoLabel "GroupInfoBundle" $
       GroupInfoBundle
         <$> protoLabel "field group_info_type" (fromProtolens (view Proto.Mls.groupInfoType protoBundle))

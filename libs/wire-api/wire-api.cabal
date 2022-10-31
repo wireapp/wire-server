@@ -216,6 +216,7 @@ library
     , generics-sop
     , ghc-prim
     , hashable
+    , hex
     , hostname-validate
     , hscim
     , http-api-data
