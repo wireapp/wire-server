@@ -14,6 +14,7 @@
 , cacert
 , bashInteractive
 , openssl
+, openssl_1_1
 , lib
 , makeWrapper
 , writers
@@ -29,11 +30,7 @@ let
   };
 
   nginz = nginx.override {
-    # openssl = (openssl.overrideAttrs (oldAttrs: {
-    #   patches = oldAttrs.patches or [] ++ [
-    #     ./patch.patch
-    #   ];
-    # }));
+    openssl = openssl_1_1;
     modules = [
       nginzModules.vts
       nginzModules.moreheaders
