@@ -33,6 +33,7 @@ let
         sphinx-autobuild
         sphinx-multiversion
         sphinx_rtd_theme
+        sphinx_reredirects
         sphinxcontrib-fulltoc
         sphinxcontrib-kroki
       ]))
