@@ -377,7 +377,7 @@ execDelete u con c = do
   wrapClient $ Data.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
   queue <- view internalEvents
-  Queue.enqueue queue (Internal.DeleteClient c u con)
+  Queue.enqueue queue (Internal.DeleteClient (clientId c) u con)
 
 -- | Defensive measure when no prekey is found for a
 -- requested client: Ensure that the client does indeed

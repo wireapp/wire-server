@@ -45,7 +45,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis)
 import Data.LegalHold
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -440,7 +439,7 @@ testDisableLegalHoldForUser = withTeam $ \owner tid -> do
       assertEqual "method" "POST" (requestMethod req)
       assertEqual "path" (pathInfo req) ["legalhold", "remove"]
     assertNotification mws $ \case
-      Ev.ClientEvent (Ev.ClientRemoved _ clientId') -> clientId clientId' @?= someClientId
+      Ev.ClientEvent (Ev.ClientRemoved _ clientId') -> clientId' @?= someClientId
       _ -> assertBool "Unexpected event" False
     assertNotification mws $ \case
       Ev.UserEvent (Ev.UserLegalHoldDisabled uid) -> uid @?= member
@@ -1746,22 +1745,10 @@ instance FromJSON Ev.ClientEvent where
     tag :: Text <- o .: "type"
     case tag of
       "user.client-add" -> Ev.ClientAdded fakeuid <$> o .: "client"
-      "user.client-remove" -> Ev.ClientRemoved fakeuid <$> (makeFakeClient <$> (o .: "client" >>= withObject "id" (.: "id")))
+      "user.client-remove" -> Ev.ClientRemoved fakeuid <$> (o .: "client" >>= withObject "id" (.: "id"))
       x -> fail $ "Ev.ClientEvent: unsupported event type: " ++ show x
     where
       fakeuid = read @UserId "6980fb5e-ba64-11eb-a339-0b3625bf01be"
-      makeFakeClient cid =
-        Client
-          cid
-          PermanentClientType
-          (toUTCTimeMillis $ read "2021-05-23 09:39:15.937523809 UTC")
-          Nothing
-          Nothing
-          Nothing
-          Nothing
-          Nothing
-          (Client.ClientCapabilityList mempty)
-          mempty
 
 instance FromJSON Ev.ConnectionEvent where
   parseJSON = Aeson.withObject "ConnectionEvent" $ \o -> do

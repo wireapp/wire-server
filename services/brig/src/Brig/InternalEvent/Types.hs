@@ -23,10 +23,9 @@ where
 import BasePrelude
 import Data.Aeson
 import Data.Id
-import Wire.API.User.Client (Client)
 
 data InternalNotification
-  = DeleteClient !Client !UserId !(Maybe ConnId)
+  = DeleteClient !ClientId !UserId !(Maybe ConnId)
   | DeleteUser !UserId
   | DeleteService !ProviderId !ServiceId
   deriving (Eq, Show)
