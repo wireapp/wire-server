@@ -74,6 +74,7 @@ import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
 import Data.Range
 import Data.Schema
+import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -83,7 +84,7 @@ import Servant (FromHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), chooseInteger)
 import qualified Test.QuickCheck as QC
 import Text.Read (Read (..))
-import URI.ByteString hiding (Port)
+import URI.ByteString hiding (Port, portNumber)
 import qualified URI.ByteString.QQ as URI.QQ
 
 --------------------------------------------------------------------------------
@@ -91,6 +92,7 @@ import qualified URI.ByteString.QQ as URI.QQ
 
 newtype IpAddr = IpAddr {ipAddr :: IP}
   deriving stock (Eq, Ord, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema IpAddr)
 
 instance S.ToParamSchema IpAddr where
   toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
@@ -125,24 +127,22 @@ newtype Port = Port
   {portNumber :: Word16}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Real, Enum, Num, Integral, NFData, Arbitrary)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Port)
 
 instance Read Port where
   readsPrec n = map (first Port) . readsPrec n
 
-instance ToJSON IpAddr where
-  toJSON (IpAddr ip) = A.String (Text.pack $ show ip)
+instance ToSchema IpAddr where
+  schema = toText .= parsedText "IpAddr" fromText
+    where
+      toText :: IpAddr -> Text
+      toText = cs . toByteString
 
-instance FromJSON IpAddr where
-  parseJSON = A.withText "IpAddr" $ \txt ->
-    case readMaybe (Text.unpack txt) of
-      Nothing -> fail "Failed parsing IP address."
-      Just ip -> pure (IpAddr ip)
+      fromText :: Text -> Either String IpAddr
+      fromText = maybe (Left "Failed parsing IP address.") Right . fromByteString . cs
 
-instance ToJSON Port where
-  toJSON (Port p) = toJSON p
-
-instance FromJSON Port where
-  parseJSON = fmap Port . parseJSON
+instance ToSchema Port where
+  schema = Port <$> portNumber .= schema
 
 --------------------------------------------------------------------------------
 -- Location
@@ -158,8 +158,10 @@ instance ToSchema Location where
   schema =
     object "Location" $
       Location
-        <$> _latitude .= field "lat" genericToSchema
-        <*> _longitude .= field "lon" genericToSchema
+        <$> _latitude
+        .= field "lat" genericToSchema
+        <*> _longitude
+        .= field "lon" genericToSchema
 
 instance Show Location where
   show p =
@@ -273,7 +275,10 @@ instance ToSchema HttpsUrl where
   schema =
     (decodeUtf8 . toByteString')
       .= parsedText "HttpsUrl" (runParser parser . encodeUtf8)
-      & doc' . S.schema . S.example ?~ toJSON ("https://example.com" :: Text)
+      & doc'
+      . S.schema
+      . S.example
+      ?~ toJSON ("https://example.com" :: Text)
 
 instance Cql HttpsUrl where
   ctype = Tagged BlobColumn
@@ -319,7 +324,10 @@ instance ToSchema (Fingerprint Rsa) where
   schema =
     (decodeUtf8 . B64.encode . fingerprintBytes)
       .= parsedText "Fingerprint" (runParser p . encodeUtf8)
-      & doc' . S.schema . S.example ?~ toJSON ("ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8=" :: Text)
+      & doc'
+      . S.schema
+      . S.example
+      ?~ toJSON ("ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8=" :: Text)
     where
       p :: Chars.Parser (Fingerprint Rsa)
       p = do
@@ -353,7 +361,8 @@ instance Show PlainTextPassword where
 instance ToSchema PlainTextPassword where
   schema =
     PlainTextPassword
-      <$> fromPlainTextPassword .= untypedRangedSchema 6 1024 schema
+      <$> fromPlainTextPassword
+      .= untypedRangedSchema 6 1024 schema
 
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
