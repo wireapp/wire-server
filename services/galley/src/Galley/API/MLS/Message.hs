@@ -762,7 +762,6 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
   withCommitLock groupId epoch $ do
-    checkEpoch epoch (tUnqualified lconv)
     postponedKeyPackageRefUpdate <-
       if epoch == Epoch 0
         then do
@@ -1312,7 +1311,9 @@ withCommitLock gid epoch action =
           throwS @'MLSStaleMessage
     )
     (const $ releaseCommitLock gid epoch)
-    (const action)
+    $ \_ -> do
+      -- FUTUREWORK: fetch epoch again and check that is matches
+      action
   where
     ttl = fromIntegral (600 :: Int) -- 10 minutes
 
