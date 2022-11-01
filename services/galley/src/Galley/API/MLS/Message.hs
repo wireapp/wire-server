@@ -281,6 +281,7 @@ postMLSCommitBundleToLocalConv qusr conn bundle lcnv = do
                 /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
             )
             $ throwS @'MLSWelcomeMismatch
+        storeGroupInfoBundle lconv (cbGroupInfoBundle bundle)
         processCommitWithAction
           qusr
           senderClient
@@ -291,7 +292,6 @@ postMLSCommitBundleToLocalConv qusr conn bundle lcnv = do
           groupId
           action
           (msgSender msg)
-          (Just . cbGroupInfoBundle $ bundle)
           commit
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
@@ -608,7 +608,7 @@ processCommit ::
   Sem r [LocalConversationUpdate]
 processCommit qusr senderClient con lconv cm epoch sender commit = do
   (groupId, action) <- getCommitData lconv epoch commit
-  processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender Nothing commit
+  processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit
 
 processCommitWithAction ::
   forall r.
@@ -636,10 +636,9 @@ processCommitWithAction ::
   GroupId ->
   ProposalAction ->
   Sender 'MLSPlainText ->
-  Maybe GroupInfoBundle ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender mGIBundle commit = do
+processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
   let ttlSeconds :: Int = 600 -- 10 minutes
@@ -740,11 +739,6 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
     postponedKeyPackageRefUpdate
     -- increment epoch number
     setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
-    -- set the group info
-    for_ mGIBundle $
-      setPublicGroupState (Data.convId (tUnqualified lconv))
-        . toOpaquePublicGroupState
-        . gipGroupState
 
     pure updates
   where
@@ -1267,3 +1261,13 @@ withCommitLock gid epoch ttl action =
     )
     (const $ releaseCommitLock gid epoch)
     (const action)
+
+storeGroupInfoBundle ::
+  Member ConversationStore r =>
+  Local Data.Conversation ->
+  GroupInfoBundle ->
+  Sem r ()
+storeGroupInfoBundle lconv =
+  setPublicGroupState (Data.convId (tUnqualified lconv))
+    . toOpaquePublicGroupState
+    . gipGroupState
