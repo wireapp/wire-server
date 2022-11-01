@@ -610,6 +610,92 @@ processCommit qusr senderClient con lconv cm epoch sender commit = do
   (groupId, action) <- getCommitData lconv epoch commit
   processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit
 
+processExternalCommit ::
+  forall r.
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error MLSProtocolError,
+       ErrorS 'MLSStaleMessage,
+       ErrorS 'MLSClientSenderUserMismatch,
+       ErrorS 'MLSKeyPackageRefNotFound,
+       MemberStore,
+       Resource
+     ]
+    r =>
+  Qualified UserId ->
+  Local Data.Conversation ->
+  Epoch ->
+  GroupId ->
+  ProposalAction ->
+  Maybe UpdatePath ->
+  Sem r ()
+processExternalCommit qusr lconv epoch groupId action updatePath = withCommitLock groupId epoch $ do
+  newKeyPackage <-
+    upLeaf
+      <$> note
+        (mlsProtocolError "External commits need an update path")
+        updatePath
+  when (paExternalInit action == mempty) $
+    throw . mlsProtocolError $
+      "The external commit is missing an external init proposal"
+  unless (paAdd action == mempty) $
+    throw . mlsProtocolError $
+      "The external commit must not have add proposals"
+
+  cid <- case kpIdentity (rmValue newKeyPackage) of
+    Left e -> throw (mlsProtocolError $ "Failed to parse the client identity: " <> e)
+    Right v -> pure v
+  newRef <-
+    kpRef' newKeyPackage
+      & note (mlsProtocolError "An invalid key package in the update path")
+
+  -- check if there is a key package ref in the remove proposal
+  remRef <-
+    if Map.null (paRemove action)
+      then pure Nothing
+      else do
+        (remCid, r) <- derefUser (paRemove action) qusr
+        unless (cidQualifiedUser cid == cidQualifiedUser remCid)
+          . throw
+          . mlsProtocolError
+          $ "The external commit attempts to remove a client from a user other than themselves"
+        pure (Just r)
+
+  -- first perform checks and map the key package if valid
+  addKeyPackageRef
+    newRef
+    (cidQualifiedUser cid)
+    (ciClient cid)
+    (Data.convId <$> qUntagged lconv)
+  -- now it is safe to update the mapping without further checks
+  updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
+
+  -- FUTUREWORK: Resubmit backend-provided proposals when processing an
+  -- external commit.
+
+  -- increment epoch number
+  setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
+  where
+    derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
+    derefUser (Map.toList -> l) user = case l of
+      [(u, s)] -> do
+        unless (user == u) $
+          throwS @'MLSClientSenderUserMismatch
+        ref <- snd <$> ensureSingleton s
+        ci <- derefKeyPackage ref
+        unless (cidQualifiedUser ci == user) $
+          throwS @'MLSClientSenderUserMismatch
+        pure (ci, ref)
+      _ -> throwRemProposal
+    ensureSingleton :: Set a -> Sem r a
+    ensureSingleton (Set.toList -> l) = case l of
+      [e] -> pure e
+      _ -> throwRemProposal
+    throwRemProposal =
+      throw . mlsProtocolError $
+        "The external commit must have at most one remove proposal"
+
 processCommitWithAction ::
   forall r.
   ( HasProposalEffects r,
@@ -638,13 +724,46 @@ processCommitWithAction ::
   Sender 'MLSPlainText ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit = do
+processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit =
+  case sender of
+    MemberSender _ -> processInternalCommit qusr senderClient con lconv cm epoch groupId action sender commit
+    NewMemberSender -> processExternalCommit qusr lconv epoch groupId action (cPath commit) $> []
+    _ -> throw (mlsProtocolError "Unexpected sender")
+
+processInternalCommit ::
+  forall r.
+  ( HasProposalEffects r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Input (Local ())) r,
+    Member ProposalStore r,
+    Member BrigAccess r,
+    Member Resource r
+  ) =>
+  Qualified UserId ->
+  Maybe ClientId ->
+  Maybe ConnId ->
+  Local Data.Conversation ->
+  ClientMap ->
+  Epoch ->
+  GroupId ->
+  ProposalAction ->
+  Sender 'MLSPlainText ->
+  Commit ->
+  Sem r [LocalConversationUpdate]
+processInternalCommit qusr senderClient con lconv cm epoch groupId action sender commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
-  let ttlSeconds :: Int = 600 -- 10 minutes
-  withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
+  withCommitLock groupId epoch $ do
     checkEpoch epoch (tUnqualified lconv)
-    (postponedKeyPackageRefUpdate, actionWithUpdate) <-
+    postponedKeyPackageRefUpdate <-
       if epoch == Epoch 0
         then do
           -- this is a newly created conversation, and it should contain exactly one
@@ -670,70 +789,27 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
               throw (InternalErrorWithDescription "Unexpected creator client set")
             -- the sender of the first commit must be a member
             _ -> throw (mlsProtocolError "Unexpected sender")
-          pure $ (pure (), action) -- no key package ref update necessary
+          pure $ pure () -- no key package ref update necessary
         else case (sender, upLeaf <$> cPath commit) of
           (MemberSender senderRef, Just updatedKeyPackage) -> do
             updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
             -- postpone key package ref update until other checks/processing passed
             case senderClient of
-              Just cli -> pure (updateKeyPackageMapping lconv qusr cli (Just senderRef) updatedRef, action)
-              Nothing -> pure (pure (), action)
-          (_, Nothing) -> pure (pure (), action) -- ignore commits without update path
-          (NewMemberSender, Just newKeyPackage) -> do
-            -- this is an external commit
-            when (paExternalInit action == mempty)
-              . throw
-              . mlsProtocolError
-              $ "The external commit is missing an external init proposal"
-            unless (paAdd action == mempty)
-              . throw
-              . mlsProtocolError
-              $ "The external commit must not have add proposals"
-
-            cid <- case kpIdentity (rmValue newKeyPackage) of
-              Left e -> throw (mlsProtocolError $ "Failed to parse the client identity: " <> e)
-              Right v -> pure v
-            newRef <-
-              kpRef' newKeyPackage
-                & note (mlsProtocolError "An invalid key package in the update path")
-
-            -- check if there is a key package ref in the remove proposal
-            remRef <-
-              if Map.null (paRemove action)
-                then pure Nothing
-                else do
-                  (remCid, r) <- derefUser (paRemove action) qusr
-                  unless (cidQualifiedUser cid == cidQualifiedUser remCid)
-                    . throw
-                    . mlsProtocolError
-                    $ "The external commit attempts to remove a client from a user other than themselves"
-                  pure (Just r)
-
-            -- first perform checks and map the key package if valid
-            addKeyPackageRef
-              newRef
-              (cidQualifiedUser cid)
-              (ciClient cid)
-              (Data.convId <$> qUntagged lconv)
-            -- now it is safe to update the mapping without further checks
-            updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
-
-            pure (pure (), action {paRemove = mempty})
+              Just cli -> pure (updateKeyPackageMapping lconv qusr cli (Just senderRef) updatedRef)
+              Nothing -> pure (pure ())
+          (_, Nothing) -> pure (pure ()) -- ignore commits without update path
+          (NewMemberSender, _) -> pure (pure ()) -- TODO: move this case outside
           _ -> throw (mlsProtocolError "Unexpected sender")
 
-    -- FUTUREWORK: Resubmit backend-provided proposals when processing an
-    -- external commit.
-    --
     -- check all pending proposals are referenced in the commit. Skip the check
     -- if this is an external commit.
-    when (sender /= NewMemberSender) $ do
-      allPendingProposals <- getAllPendingProposals groupId epoch
-      let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
-      unless (all (`Set.member` referencedProposals) allPendingProposals) $
-        throwS @'MLSCommitMissingReferences
+    allPendingProposals <- getAllPendingProposals groupId epoch
+    let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
+    unless (all (`Set.member` referencedProposals) allPendingProposals) $
+      throwS @'MLSCommitMissingReferences
 
     -- process and execute proposals
-    updates <- executeProposalAction qusr con lconv cm actionWithUpdate
+    updates <- executeProposalAction qusr con lconv cm action
 
     -- update key package ref if necessary
     postponedKeyPackageRefUpdate
@@ -741,25 +817,6 @@ processCommitWithAction qusr senderClient con lconv cm epoch groupId action send
     setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
 
     pure updates
-  where
-    throwRemProposal =
-      throw . mlsProtocolError $
-        "The external commit must have at most one remove proposal"
-    derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
-    derefUser (Map.toList -> l) user = case l of
-      [(u, s)] -> do
-        unless (user == u) $
-          throwS @'MLSClientSenderUserMismatch
-        ref <- snd <$> ensureSingleton s
-        ci <- derefKeyPackage ref
-        unless (cidQualifiedUser ci == user) $
-          throwS @'MLSClientSenderUserMismatch
-        pure (ci, ref)
-      _ -> throwRemProposal
-    ensureSingleton :: Set a -> Sem r a
-    ensureSingleton (Set.toList -> l) = case l of
-      [e] -> pure e
-      _ -> throwRemProposal
 
 -- | Note: Use this only for KeyPackage that are already validated
 updateKeyPackageMapping ::
@@ -1250,10 +1307,9 @@ withCommitLock ::
   ) =>
   GroupId ->
   Epoch ->
-  NominalDiffTime ->
   Sem r a ->
   Sem r a
-withCommitLock gid epoch ttl action =
+withCommitLock gid epoch action =
   bracket
     ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
         when (lockAcquired == NotAcquired) $
@@ -1261,6 +1317,8 @@ withCommitLock gid epoch ttl action =
     )
     (const $ releaseCommitLock gid epoch)
     (const action)
+  where
+    ttl = fromIntegral (600 :: Int) -- 10 minutes
 
 storeGroupInfoBundle ::
   Member ConversationStore r =>
