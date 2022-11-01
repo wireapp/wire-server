@@ -15,8 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.Servant (mkNamedAPI, servantSitemap) where
+module Galley.API.Public.Servant (mkGalleyAPI, servantSitemap, GalleyHandler (..)) where
 
+import Data.Domain
 import Galley.API.Create
 import Galley.API.CustomBackend
 import Galley.API.LegalHold
@@ -29,168 +30,189 @@ import Galley.API.Update
 import Galley.App
 import Galley.Cassandra.TeamFeatures
 import Imports
+import Polysemy
+import Polysemy.Internal
+import Servant
+import Wire.API.Error
 import Wire.API.Routes.API
+import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
-servantSitemap :: API ServantAPI GalleyEffects
+newtype GalleyHandler a = GalleyHandler {unGalleyHandler :: ReaderT Env Handler a}
+
+type GalleyAPI api = APIH api GalleyHandler
+
+instance r ~ GalleyEffects => HandlerEffects GalleyHandler r where
+  interpretHandlerEffects = error "TODO: later"
+
+mkGalleyAPI ::
+  forall name api.
+  ( HasServer api '[Domain],
+    ServerEffects (DeclaredErrorEffects api) GalleyEffects
+  ) =>
+  ServerT api (Sem (Append (DeclaredErrorEffects api) GalleyEffects)) ->
+  GalleyAPI (Named name api)
+mkGalleyAPI = mkNamedAPI' @name @GalleyEffects @api
+
+servantSitemap :: GalleyAPI ServantAPI
 servantSitemap =
   conversations
-    <@> teamConversations
-    <@> messaging
-    <@> bot
-    <@> team
-    <@> features
-    <@> mls
-    <@> customBackend
-    <@> legalHold
-    <@> teamMember
+    <@+> teamConversations
+    <@+> messaging
+    <@+> bot
+    <@+> team
+    <@+> features
+    <@+> mls
+    <@+> customBackend
+    <@+> legalHold
+    <@+> teamMember
   where
     conversations =
-      mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
-        <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
-        <@> mkNamedAPI @"get-conversation" getConversation
-        <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
-        <@> mkNamedAPI @"get-group-info" getGroupInfo
-        <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
-        <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
-        <@> mkNamedAPI @"get-conversations" getConversations
-        <@> mkNamedAPI @"list-conversations-v1" listConversations
-        <@> mkNamedAPI @"list-conversations" listConversations
-        <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
-        <@> mkNamedAPI @"create-group-conversation" createGroupConversation
-        <@> mkNamedAPI @"create-self-conversation" createSelfConversation
-        <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
-        <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
-        <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
-        <@> mkNamedAPI @"add-members-to-conversation" addMembers
-        <@> mkNamedAPI @"join-conversation-by-id-unqualified" (joinConversationById @Cassandra)
-        <@> mkNamedAPI @"join-conversation-by-code-unqualified" (joinConversationByReusableCode @Cassandra)
-        <@> mkNamedAPI @"code-check" (checkReusableCode @Cassandra)
-        <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualified @Cassandra)
-        <@> mkNamedAPI @"get-conversation-guest-links-status" (getConversationGuestLinksStatus @Cassandra)
-        <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
-        <@> mkNamedAPI @"get-code" (getCode @Cassandra)
-        <@> mkNamedAPI @"member-typing-unqualified" isTypingUnqualified
-        <@> mkNamedAPI @"remove-member-unqualified" removeMemberUnqualified
-        <@> mkNamedAPI @"remove-member" removeMemberQualified
-        <@> mkNamedAPI @"update-other-member-unqualified" updateOtherMemberUnqualified
-        <@> mkNamedAPI @"update-other-member" updateOtherMember
-        <@> mkNamedAPI @"update-conversation-name-deprecated" updateUnqualifiedConversationName
-        <@> mkNamedAPI @"update-conversation-name-unqualified" updateUnqualifiedConversationName
-        <@> mkNamedAPI @"update-conversation-name" updateConversationName
-        <@> mkNamedAPI @"update-conversation-message-timer-unqualified" updateConversationMessageTimerUnqualified
-        <@> mkNamedAPI @"update-conversation-message-timer" updateConversationMessageTimer
-        <@> mkNamedAPI @"update-conversation-receipt-mode-unqualified" updateConversationReceiptModeUnqualified
-        <@> mkNamedAPI @"update-conversation-receipt-mode" updateConversationReceiptMode
-        <@> mkNamedAPI @"update-conversation-access-unqualified" updateConversationAccessUnqualified
-        <@> mkNamedAPI @"update-conversation-access" updateConversationAccess
-        <@> mkNamedAPI @"get-conversation-self-unqualified" getLocalSelf
-        <@> mkNamedAPI @"update-conversation-self-unqualified" updateUnqualifiedSelfMember
-        <@> mkNamedAPI @"update-conversation-self" updateSelfMember
+      mkGalleyAPI @"get-unqualified-conversation" getUnqualifiedConversation
+        <@+> mkGalleyAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
+        <@+> mkGalleyAPI @"get-conversation" getConversation
+        <@+> mkGalleyAPI @"get-conversation-roles" getConversationRoles
+        <@+> mkGalleyAPI @"get-group-info" getGroupInfo
+        <@+> mkGalleyAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
+        <@+> mkGalleyAPI @"list-conversation-ids" conversationIdsPageFrom
+        <@+> mkGalleyAPI @"get-conversations" getConversations
+        <@+> mkGalleyAPI @"list-conversations-v1" listConversations
+        <@+> mkGalleyAPI @"list-conversations" listConversations
+        <@+> mkGalleyAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
+        <@+> mkGalleyAPI @"create-group-conversation" createGroupConversation
+        <@+> mkGalleyAPI @"create-self-conversation" createSelfConversation
+        <@+> mkGalleyAPI @"create-one-to-one-conversation" createOne2OneConversation
+        <@+> mkGalleyAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
+        <@+> mkGalleyAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
+        <@+> mkGalleyAPI @"add-members-to-conversation" addMembers
+        <@+> mkGalleyAPI @"join-conversation-by-id-unqualified" (joinConversationById @Cassandra)
+        <@+> mkGalleyAPI @"join-conversation-by-code-unqualified" (joinConversationByReusableCode @Cassandra)
+        <@+> mkGalleyAPI @"code-check" (checkReusableCode @Cassandra)
+        <@+> mkGalleyAPI @"create-conversation-code-unqualified" (addCodeUnqualified @Cassandra)
+        <@+> mkGalleyAPI @"get-conversation-guest-links-status" (getConversationGuestLinksStatus @Cassandra)
+        <@+> mkGalleyAPI @"remove-code-unqualified" rmCodeUnqualified
+        <@+> mkGalleyAPI @"get-code" (getCode @Cassandra)
+        <@+> mkGalleyAPI @"member-typing-unqualified" isTypingUnqualified
+        <@+> mkGalleyAPI @"remove-member-unqualified" removeMemberUnqualified
+        <@+> mkGalleyAPI @"remove-member" removeMemberQualified
+        <@+> mkGalleyAPI @"update-other-member-unqualified" updateOtherMemberUnqualified
+        <@+> mkGalleyAPI @"update-other-member" updateOtherMember
+        <@+> mkGalleyAPI @"update-conversation-name-deprecated" updateUnqualifiedConversationName
+        <@+> mkGalleyAPI @"update-conversation-name-unqualified" updateUnqualifiedConversationName
+        <@+> mkGalleyAPI @"update-conversation-name" updateConversationName
+        <@+> mkGalleyAPI @"update-conversation-message-timer-unqualified" updateConversationMessageTimerUnqualified
+        <@+> mkGalleyAPI @"update-conversation-message-timer" updateConversationMessageTimer
+        <@+> mkGalleyAPI @"update-conversation-receipt-mode-unqualified" updateConversationReceiptModeUnqualified
+        <@+> mkGalleyAPI @"update-conversation-receipt-mode" updateConversationReceiptMode
+        <@+> mkGalleyAPI @"update-conversation-access-unqualified" updateConversationAccessUnqualified
+        <@+> mkGalleyAPI @"update-conversation-access" updateConversationAccess
+        <@+> mkGalleyAPI @"get-conversation-self-unqualified" getLocalSelf
+        <@+> mkGalleyAPI @"update-conversation-self-unqualified" updateUnqualifiedSelfMember
+        <@+> mkGalleyAPI @"update-conversation-self" updateSelfMember
 
-    teamConversations :: API TeamConversationAPI GalleyEffects
+    teamConversations :: GalleyAPI TeamConversationAPI
     teamConversations =
-      mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
-        <@> mkNamedAPI @"get-team-conversations" getTeamConversations
-        <@> mkNamedAPI @"get-team-conversation" getTeamConversation
-        <@> mkNamedAPI @"delete-team-conversation" deleteTeamConversation
+      mkGalleyAPI @"get-team-conversation-roles" getTeamConversationRoles
+        <@+> mkGalleyAPI @"get-team-conversations" getTeamConversations
+        <@+> mkGalleyAPI @"get-team-conversation" getTeamConversation
+        <@+> mkGalleyAPI @"delete-team-conversation" deleteTeamConversation
 
-    messaging :: API MessagingAPI GalleyEffects
+    messaging :: GalleyAPI MessagingAPI
     messaging =
-      mkNamedAPI @"post-otr-message-unqualified" postOtrMessageUnqualified
-        <@> mkNamedAPI @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
-        <@> mkNamedAPI @"post-proteus-message" postProteusMessage
-        <@> mkNamedAPI @"post-proteus-broadcast" postProteusBroadcast
+      mkGalleyAPI @"post-otr-message-unqualified" postOtrMessageUnqualified
+        <@+> mkGalleyAPI @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
+        <@+> mkGalleyAPI @"post-proteus-message" postProteusMessage
+        <@+> mkGalleyAPI @"post-proteus-broadcast" postProteusBroadcast
 
-    bot :: API BotAPI GalleyEffects
-    bot = mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified
+    bot :: GalleyAPI BotAPI
+    bot = mkGalleyAPI @"post-bot-message-unqualified" postBotMessageUnqualified
 
     team =
-      mkNamedAPI @"create-non-binding-team" createNonBindingTeamH
-        <@> mkNamedAPI @"update-team" updateTeamH
-        <@> mkNamedAPI @"get-teams" getManyTeams
-        <@> mkNamedAPI @"get-team" getTeamH
-        <@> mkNamedAPI @"delete-team" deleteTeam
+      mkGalleyAPI @"create-non-binding-team" createNonBindingTeamH
+        <@+> mkGalleyAPI @"update-team" updateTeamH
+        <@+> mkGalleyAPI @"get-teams" getManyTeams
+        <@+> mkGalleyAPI @"get-team" getTeamH
+        <@+> mkGalleyAPI @"delete-team" deleteTeam
 
-    features :: API FeatureAPI GalleyEffects
+    features :: GalleyAPI FeatureAPI
     features =
-      mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", LegalholdConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
-        <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility @Cassandra (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig))
-        <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", DigitalSignaturesConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", AppLockConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", AppLockConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", FileSharingConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", FileSharingConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", ConferenceCallingConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", SelfDeletingMessagesConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", SelfDeletingMessagesConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", GuestLinksConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", GuestLinksConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", SndFactorPasswordChallengeConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", MLSConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", MLSConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("get", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus @Cassandra . DoAuth)
-        <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
-        <@> mkNamedAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam @Cassandra)
-        <@> mkNamedAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", SSOConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", AppLockConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", FileSharingConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", GuestLinksConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) (getFeatureStatusForUser @Cassandra)
-        <@> mkNamedAPI @'("get-config", MLSConfig) (getFeatureStatusForUser @Cassandra)
+      mkGalleyAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", LegalholdConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @"get-search-visibility" getSearchVisibility
+        <@+> mkGalleyAPI @"set-search-visibility" (setSearchVisibility @Cassandra (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig))
+        <@+> mkGalleyAPI @'("get", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", DigitalSignaturesConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", AppLockConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", AppLockConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", FileSharingConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", FileSharingConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", ClassifiedDomainsConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", ConferenceCallingConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", SelfDeletingMessagesConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", SelfDeletingMessagesConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", GuestLinksConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", GuestLinksConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", SndFactorPasswordChallengeConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", MLSConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", MLSConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("get", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus @Cassandra . DoAuth)
+        <@+> mkGalleyAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
+        <@+> mkGalleyAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", SSOConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", SearchVisibilityAvailableConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", ValidateSAMLEmailsConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", DigitalSignaturesConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", AppLockConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", FileSharingConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", ClassifiedDomainsConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", ConferenceCallingConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", SelfDeletingMessagesConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", GuestLinksConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", SndFactorPasswordChallengeConfig) (getFeatureStatusForUser @Cassandra)
+        <@+> mkGalleyAPI @'("get-config", MLSConfig) (getFeatureStatusForUser @Cassandra)
 
-    mls :: API MLSAPI GalleyEffects
+    mls :: GalleyAPI MLSAPI
     mls =
-      mkNamedAPI @"mls-welcome-message" postMLSWelcomeFromLocalUser
-        <@> mkNamedAPI @"mls-message-v1" postMLSMessageFromLocalUserV1
-        <@> mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
-        <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
-        <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeys
+      mkGalleyAPI @"mls-welcome-message" postMLSWelcomeFromLocalUser
+        <@+> mkGalleyAPI @"mls-message-v1" postMLSMessageFromLocalUserV1
+        <@+> mkGalleyAPI @"mls-message" postMLSMessageFromLocalUser
+        <@+> mkGalleyAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
+        <@+> mkGalleyAPI @"mls-public-keys" getMLSPublicKeys
 
-    customBackend :: API CustomBackendAPI GalleyEffects
-    customBackend = mkNamedAPI @"get-custom-backend-by-domain" getCustomBackendByDomain
+    customBackend :: GalleyAPI CustomBackendAPI
+    customBackend = mkGalleyAPI @"get-custom-backend-by-domain" getCustomBackendByDomain
 
-    legalHold :: API LegalHoldAPI GalleyEffects
+    legalHold :: GalleyAPI LegalHoldAPI
     legalHold =
-      mkNamedAPI @"create-legal-hold-settings" (createSettings @Cassandra)
-        <@> mkNamedAPI @"get-legal-hold-settings" (getSettings @Cassandra)
-        <@> mkNamedAPI @"delete-legal-hold-settings" (removeSettingsInternalPaging @Cassandra)
-        <@> mkNamedAPI @"get-legal-hold" getUserStatus
-        <@> mkNamedAPI @"consent-to-legal-hold" grantConsent
-        <@> mkNamedAPI @"request-legal-hold-device" (requestDevice @Cassandra)
-        <@> mkNamedAPI @"disable-legal-hold-for-user" disableForUser
-        <@> mkNamedAPI @"approve-legal-hold-device" (approveDevice @Cassandra)
+      mkGalleyAPI @"create-legal-hold-settings" (createSettings @Cassandra)
+        <@+> mkGalleyAPI @"get-legal-hold-settings" (getSettings @Cassandra)
+        <@+> mkGalleyAPI @"delete-legal-hold-settings" (removeSettingsInternalPaging @Cassandra)
+        <@+> mkGalleyAPI @"get-legal-hold" getUserStatus
+        <@+> mkGalleyAPI @"consent-to-legal-hold" grantConsent
+        <@+> mkGalleyAPI @"request-legal-hold-device" (requestDevice @Cassandra)
+        <@+> mkGalleyAPI @"disable-legal-hold-for-user" disableForUser
+        <@+> mkGalleyAPI @"approve-legal-hold-device" (approveDevice @Cassandra)
 
-    teamMember :: API TeamMemberAPI GalleyEffects
+    teamMember :: GalleyAPI TeamMemberAPI
     teamMember =
-      mkNamedAPI @"get-team-members" getTeamMembers
-        <@> mkNamedAPI @"get-team-member" getTeamMember
-        <@> mkNamedAPI @"get-team-members-by-ids" bulkGetTeamMembers
-        <@> mkNamedAPI @"add-team-member" (addTeamMember @Cassandra)
-        <@> mkNamedAPI @"delete-team-member" deleteTeamMember
-        <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
-        <@> mkNamedAPI @"update-team-member" updateTeamMember
-        <@> mkNamedAPI @"get-team-members-csv" getTeamMembersCSV
+      mkGalleyAPI @"get-team-members" getTeamMembers
+        <@+> mkGalleyAPI @"get-team-member" getTeamMember
+        <@+> mkGalleyAPI @"get-team-members-by-ids" bulkGetTeamMembers
+        <@+> mkGalleyAPI @"add-team-member" (addTeamMember @Cassandra)
+        <@+> mkGalleyAPI @"delete-team-member" deleteTeamMember
+        <@+> mkGalleyAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
+        <@+> mkGalleyAPI @"update-team-member" updateTeamMember
+        <@+> mkGalleyAPI @"get-team-members-csv" getTeamMembersCSV
