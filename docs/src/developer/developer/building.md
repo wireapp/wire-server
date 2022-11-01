@@ -1,6 +1,6 @@
 # How to build wire-server
 
-As a prerequisiste install the [nix package manager](https://nixos.org/) and [direnv](https://direnv.net/).
+As a prerequisiste install the [nix package manager](https://nixos.org/) and [direnv](https://direnv.net/). Follow [these instructions](https://wire-server.cachix.org) to setup the Nix cache which will save you many hours of building.
 
 All following commands expect that you've entered the nix-provided build-environment by running `direnv allow`.
 
