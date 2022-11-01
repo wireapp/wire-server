@@ -726,7 +726,7 @@ processCommitWithAction ::
   Sem r [LocalConversationUpdate]
 processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit =
   case sender of
-    MemberSender _ -> processInternalCommit qusr senderClient con lconv cm epoch groupId action sender commit
+    MemberSender ref -> processInternalCommit qusr senderClient con lconv cm epoch groupId action ref commit
     NewMemberSender -> processExternalCommit qusr lconv epoch groupId action (cPath commit) $> []
     _ -> throw (mlsProtocolError "Unexpected sender")
 
@@ -755,10 +755,10 @@ processInternalCommit ::
   Epoch ->
   GroupId ->
   ProposalAction ->
-  Sender 'MLSPlainText ->
+  KeyPackageRef ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processInternalCommit qusr senderClient con lconv cm epoch groupId action sender commit = do
+processInternalCommit qusr senderClient con lconv cm epoch groupId action senderRef commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
   withCommitLock groupId epoch $ do
@@ -768,38 +768,34 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
         then do
           -- this is a newly created conversation, and it should contain exactly one
           -- client (the creator)
-          case (sender, self, cmAssocs cm) of
-            (MemberSender currentRef, Left lm, [(qu, (creatorClient, _))])
+          case (self, cmAssocs cm) of
+            (Left lm, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender
-                  senderRef <-
+                  senderRef' <-
                     maybe
-                      (pure currentRef)
+                      (pure senderRef)
                       ( note (mlsProtocolError "Could not compute key package ref")
                           . kpRef'
                           . upLeaf
                       )
                       $ cPath commit
                   -- register the creator client
-                  updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef
+                  updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef'
             -- remote clients cannot send the first commit
-            (_, Right _, _) -> throwS @'MLSStaleMessage
+            (Right _, _) -> throwS @'MLSStaleMessage
             -- uninitialised conversations should contain exactly one client
-            (MemberSender _, _, _) ->
+            (_, _) ->
               throw (InternalErrorWithDescription "Unexpected creator client set")
-            -- the sender of the first commit must be a member
-            _ -> throw (mlsProtocolError "Unexpected sender")
           pure $ pure () -- no key package ref update necessary
-        else case (sender, upLeaf <$> cPath commit) of
-          (MemberSender senderRef, Just updatedKeyPackage) -> do
+        else case upLeaf <$> cPath commit of
+          Just updatedKeyPackage -> do
             updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
             -- postpone key package ref update until other checks/processing passed
             case senderClient of
               Just cli -> pure (updateKeyPackageMapping lconv qusr cli (Just senderRef) updatedRef)
               Nothing -> pure (pure ())
-          (_, Nothing) -> pure (pure ()) -- ignore commits without update path
-          (NewMemberSender, _) -> pure (pure ()) -- TODO: move this case outside
-          _ -> throw (mlsProtocolError "Unexpected sender")
+          Nothing -> pure (pure ()) -- ignore commits without update path
 
     -- check all pending proposals are referenced in the commit. Skip the check
     -- if this is an external commit.
