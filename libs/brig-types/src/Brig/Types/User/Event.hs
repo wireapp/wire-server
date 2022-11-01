@@ -69,7 +69,7 @@ data PropertyEvent
 
 data ClientEvent
   = ClientAdded !UserId !Client
-  | ClientRemoved !UserId !Client
+  | ClientRemoved !UserId !ClientId
 
 data UserUpdatedData = UserUpdatedData
   { eupId :: !UserId,

@@ -634,11 +634,11 @@ toPushFormat (ClientEvent (ClientAdded _ c)) =
       [ "type" .= ("user.client-add" :: Text),
         "client" .= c
       ]
-toPushFormat (ClientEvent (ClientRemoved _ c)) =
+toPushFormat (ClientEvent (ClientRemoved _ clientId)) =
   Just $
     KeyMap.fromList
       [ "type" .= ("user.client-remove" :: Text),
-        "client" .= IdObject (clientId c)
+        "client" .= IdObject clientId
       ]
 toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
   let LegalHoldClientRequestedData targetUser lastPrekey' clientId = payload
