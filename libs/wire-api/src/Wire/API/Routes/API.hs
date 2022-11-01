@@ -17,13 +17,17 @@
 
 module Wire.API.Routes.API
   ( API,
+    APIH (..),
     hoistAPIHandler,
     hoistAPI,
     mkAPI,
     mkNamedAPI,
+    mkNamedAPI',
     (<@>),
+    (<@+>),
     ServerEffect (..),
     ServerEffects (..),
+    HandlerEffects (..),
     hoistServerWithDomain,
   )
 where
@@ -41,6 +45,9 @@ import Wire.API.Routes.Named
 -- | A Servant handler on a polysemy stack. This is used to help with type inference.
 newtype API api r = API {unAPI :: ServerT api (Sem r)}
 
+-- | This newtype is a trick to make the "type family" injective
+newtype APIH api m = APIH {unAPIH :: ServerT api m}
+
 -- | Convert a polysemy handler to an 'API' value.
 mkAPI ::
   forall r0 api.
@@ -48,6 +55,20 @@ mkAPI ::
   ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
   API api r0
 mkAPI h = API $ hoistServerWithDomain @api (interpretServerEffects @(DeclaredErrorEffects api) @r0) h
+
+mkAPI' ::
+  forall r0 m api.
+  ( HandlerEffects m r0,
+    HasServer api '[Domain],
+    ServerEffects (DeclaredErrorEffects api) r0
+  ) =>
+  ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
+  APIH api m
+mkAPI' h =
+  APIH $
+    hoistServerWithDomain @api
+      (interpretHandlerEffects @m . interpretServerEffects @(DeclaredErrorEffects api) @r0)
+      h
 
 -- | Convert a polysemy handler to a named 'API' value.
 mkNamedAPI ::
@@ -57,11 +78,26 @@ mkNamedAPI ::
   API (Named name api) r0
 mkNamedAPI = API . Named . unAPI . mkAPI @r0 @api
 
+mkNamedAPI' ::
+  forall name r0 api m.
+  ( HandlerEffects m r0,
+    HasServer api '[Domain],
+    ServerEffects (DeclaredErrorEffects api) r0
+  ) =>
+  ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
+  APIH (Named name api) m
+mkNamedAPI' = APIH . Named . unAPIH . mkAPI' @r0 @m @api
+
 -- | Combine APIs.
 (<@>) :: API api1 r -> API api2 r -> API (api1 :<|> api2) r
 (<@>) (API h1) (API h2) = API (h1 :<|> h2)
 
+(<@+>) :: APIH api1 m -> APIH api2 m -> APIH (api1 :<|> api2) m
+(<@+>) (APIH h1) (APIH h2) = APIH (h1 :<|> h2)
+
 infixr 3 <@>
+
+infixr 3 <@+>
 
 -- Servant needs a context type argument here that contains *at least* the
 -- context types required by all the HasServer instances. In reality, this should
@@ -109,3 +145,6 @@ instance (KnownError (MapError e), Member (Error DynError) r) => ServerEffect (E
 
 instance (KnownError (MapError e), Member (Error DynError) r) => ServerEffect (Error (Tagged e Text)) r where
   interpretServerEffect = mapError $ \msg -> (dynError @(MapError e)) {eMessage = unTagged msg}
+
+class HandlerEffects m r where
+  interpretHandlerEffects :: Sem r a -> m a
