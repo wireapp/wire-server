@@ -562,6 +562,7 @@ executable brig-integration
     , network
     , optparse-applicative
     , pem
+    , pipes
     , polysemy
     , polysemy-wire-zoo
     , postie                 >=0.6
