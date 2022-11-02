@@ -58,6 +58,7 @@ testSendMail lg = do
         @=? [(unpack . addressEmail) receiver]
       let mailContent = (rmContent . fromJust) mbMail
       elem ((unpack . toStrict) body) mailContent @? "Expected the SMTP server to receive the mail body."
+      elem ("Subject: " ++ unpack subject) mailContent @? "Expected the SMTP server to receive the mail subject."
   where
     receiver = Address Nothing "foo@example.com"
     sender = Address Nothing "bar@example.com"
@@ -92,8 +93,12 @@ withMailServer app action =
 data ReceivedMail = ReceivedMail
   { rmSender :: Postie.Address,
     rmReceipients :: [Postie.Address],
+    -- | Contains all data sent to the SMTP server for this mail. (Including
+    -- /From:/, /To:/, /Subject:/, ... lines.) I.e. `Postie.mailBody` is half of
+    -- a lie; it's way more.
     rmContent :: [String]
   }
+  deriving (Eq, Show)
 
 mailStoringApp :: IORef (Maybe ReceivedMail) -> Postie.Application
 mailStoringApp receivedMailRef mail = do
