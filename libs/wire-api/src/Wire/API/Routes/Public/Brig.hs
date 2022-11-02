@@ -1295,3 +1295,17 @@ type CallingAPI =
         :> "config"
         :> Get '[JSON] RTCConfiguration
     )
+    :<|> Named
+           "get-calls-config-v2"
+           ( Summary
+               "Retrieve all TURN server addresses and credentials. \
+               \Clients are expected to do a DNS lookup to resolve \
+               \the IP addresses of the given hostnames "
+               :> ZUser
+               :> ZConn
+               :> "calls"
+               :> "config"
+               :> "v2"
+               :> QueryParam' '[Optional, Strict, Description "Limit resulting list. Allowed values [1..10]"] "limit" (Range 1 10 Int)
+               :> Get '[JSON] RTCConfiguration
+           )

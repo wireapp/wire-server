@@ -18,8 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Calling.API
-  ( routesPublic,
-    getCallsConfig,
+  ( getCallsConfig,
+    getCallsConfigV2,
 
     -- * Exposed for testing purposes
     newConfig,
@@ -46,16 +46,10 @@ import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Misc (HttpsUrl)
 import Data.Range
-import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
-import Network.Wai (Response)
-import Network.Wai.Predicate hiding (and, result, setStatus, (#))
-import Network.Wai.Routing hiding (toList)
-import Network.Wai.Utilities hiding (code, message)
-import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Polysemy
 import qualified Polysemy.Error as Polysemy
@@ -65,28 +59,6 @@ import Wire.API.Call.Config (SFTServer)
 import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (srvTarget)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
-
-routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
-routesPublic = do
-  get "/calls/config/v2" (continue getCallsConfigV2H) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. header "Z-Connection"
-      .&. opt (query "limit")
-  document "GET" "getCallsConfigV2" $ do
-    Doc.summary
-      "Retrieve all TURN server addresses and credentials. \
-      \Clients are expected to do a DNS lookup to resolve \
-      \the IP addresses of the given hostnames "
-    Doc.parameter Doc.Query "limit" Doc.int32' $ do
-      Doc.description "Limit resulting list. Allowes values [1..10]"
-      Doc.optional
-    Doc.returns (Doc.ref Public.modelRtcConfiguration)
-    Doc.response 200 "RTCConfiguration" Doc.end
-
-getCallsConfigV2H :: JSON ::: UserId ::: ConnId ::: Maybe (Range 1 10 Int) -> (Handler r) Response
-getCallsConfigV2H (_ ::: uid ::: connid ::: limit) =
-  json <$> getCallsConfigV2 uid connid limit
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
 getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> (Handler r) Public.RTCConfiguration
@@ -108,7 +80,7 @@ getCallsConfigV2 _ _ limit = do
   handleNoTurnServers eitherConfig
 
 -- | Throws '500 Internal Server Error' when no turn servers are found. This is
--- done to keep backwards compatiblity, the previous code initialized an 'IORef'
+-- done to keep backwards compatibility, the previous code initialized an 'IORef'
 -- with an 'error' so reading the 'IORef' threw a 500.
 --
 -- FUTUREWORK: Making this a '404 Not Found' would be more idiomatic, but this
