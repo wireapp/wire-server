@@ -1062,7 +1062,7 @@ executeProposalAction qusr con lconv cm action = do
           -- FUTUREWORK: turn this error into a proper response
           throwS @'MLSClientMismatch
 
-  membersToRemove <- catMaybes <$> for removeUserClients (uncurry (checkRemoval lconv ss))
+  membersToRemove <- catMaybes <$> for removeUserClients (uncurry checkRemoval)
 
   -- add users to the conversation and send events
   addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
@@ -1083,25 +1083,19 @@ executeProposalAction qusr con lconv cm action = do
     -- This also filters out client removals for clients that don't exist anymore
     -- For these clients there is nothing left to do
     checkRemoval ::
-      Local x ->
-      SignatureSchemeTag ->
       Qualified UserId ->
       Set (ClientId, KeyPackageRef) ->
       Sem r (Maybe (Qualified UserId))
-    checkRemoval loc ss qtarget (Set.map fst -> clients) = do
-      allClients <- Set.map ciId <$> getMLSClients loc qtarget ss
-      let allClientsDontExist = Set.null (clients `Set.intersection` allClients)
-      if allClientsDontExist
-        then pure Nothing
-        else do
-          -- We only support removal of client for user. This is likely to change in the future.
-          -- See discussions here https://wearezeta.atlassian.net/wiki/spaces/CL/pages/612106259/Relax+constraint+between+users+and+clients+in+MLS+groups
-          when (clients /= allClients) $ do
-            -- FUTUREWORK: turn this error into a proper response
-            throwS @'MLSClientMismatch
-          when (qusr == qtarget) $
-            throwS @'MLSSelfRemovalNotAllowed
-          pure (Just qtarget)
+    checkRemoval qtarget (Set.map fst -> clients) = do
+      let clientsInConv = Set.map fst (Map.findWithDefault mempty qtarget cm)
+      -- We only support removal of client for user. This is likely to change in the future.
+      -- See discussions here https://wearezeta.atlassian.net/wiki/spaces/CL/pages/612106259/Relax+constraint+between+users+and+clients+in+MLS+groups
+      when (clients /= clientsInConv) $ do
+        -- FUTUREWORK: turn this error into a proper response
+        throwS @'MLSClientMismatch
+      when (qusr == qtarget) $
+        throwS @'MLSSelfRemovalNotAllowed
+      pure (Just qtarget)
 
     existingLocalMembers :: Set (Qualified UserId)
     existingLocalMembers =
