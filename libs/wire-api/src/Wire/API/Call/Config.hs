@@ -66,10 +66,6 @@ module Wire.API.Call.Config
     isTcp,
     isTls,
     limitServers,
-
-    -- * Swagger
-    modelRtcConfiguration,
-    modelRtcIceServer,
   )
 where
 
@@ -88,7 +84,6 @@ import Data.Misc (HttpsUrl (..), IpAddr (IpAddr), Port (..))
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
@@ -126,30 +121,18 @@ rtcConfiguration ::
   RTCConfiguration
 rtcConfiguration = RTCConfiguration
 
-modelRtcConfiguration :: Doc.Model
-modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
-  Doc.description "A subset of the WebRTC 'RTCConfiguration' dictionary"
-  Doc.property "ice_servers" (Doc.array (Doc.ref modelRtcIceServer)) $
-    Doc.description "Array of 'RTCIceServer' objects"
-  Doc.property "sft_servers" (Doc.array (Doc.ref modelRtcSftServer)) $
-    Doc.description "Array of 'SFTServer' objects (optional)"
-  Doc.property "ttl" Doc.int32' $
-    Doc.description "Number of seconds after which the configuration should be refreshed (advisory)"
-  Doc.property "sft_servers_all" (Doc.array (Doc.ref modelRtcSftServerUrl)) $
-    Doc.description "Array of all SFT servers"
-
 instance ToSchema RTCConfiguration where
   schema =
-    object "RTCConfiguration" $
+    objectWithDocModifier "RTCConfiguration" (description ?~ "A subset of the WebRTC 'RTCConfiguration' dictionary") $
       RTCConfiguration
         <$> _rtcConfIceServers
-        .= field "ice_servers" (nonEmptyArray schema)
+        .= fieldWithDocModifier "ice_servers" (description ?~ "Array of 'RTCIceServer' objects") (nonEmptyArray schema)
         <*> _rtcConfSftServers
-        .= maybe_ (optField "sft_servers" (nonEmptyArray schema))
+        .= maybe_ (optFieldWithDocModifier "sft_servers" (description ?~ "Array of 'SFTServer' objects (optional)") (nonEmptyArray schema))
         <*> _rtcConfTTL
-        .= field "ttl" schema
+        .= fieldWithDocModifier "ttl" (description ?~ "Number of seconds after which the configuration should be refreshed (advisory)") schema
         <*> _rtcConfSftServersAll
-        .= maybe_ (optField "sft_servers_all" (array schema))
+        .= maybe_ (optFieldWithDocModifier "sft_servers_all" (description ?~ "Array of all SFT servers") (array schema))
 
 --------------------------------------------------------------------------------
 -- SFTServer
@@ -163,10 +146,10 @@ newtype SFTServer = SFTServer
 
 instance ToSchema SFTServer where
   schema =
-    object "SftServer" $
+    objectWithDocModifier "SftServer" (description ?~ "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers") $
       SFTServer
         <$> (pure . _sftURL)
-        .= field "urls" (withParser (array schema) p)
+        .= fieldWithDocModifier "urls" (description ?~ "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'") (withParser (array schema) p)
     where
       p :: [HttpsUrl] -> A.Parser HttpsUrl
       p [url] = pure url
@@ -174,18 +157,6 @@ instance ToSchema SFTServer where
 
 sftServer :: HttpsUrl -> SFTServer
 sftServer = SFTServer
-
-modelRtcSftServer :: Doc.Model
-modelRtcSftServer = Doc.defineModel "RTC SFT Server" $ do
-  Doc.description "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers"
-  Doc.property "urls" (Doc.array Doc.string') $
-    Doc.description "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'"
-
-modelRtcSftServerUrl :: Doc.Model
-modelRtcSftServerUrl = Doc.defineModel "RTC SFT Server URL" $ do
-  Doc.description "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers"
-  Doc.property "urls" (Doc.array Doc.string') $
-    Doc.description "Array containing exactly one SFT server URL"
 
 --------------------------------------------------------------------------------
 -- RTCIceServer
@@ -205,26 +176,16 @@ data RTCIceServer = RTCIceServer
 rtcIceServer :: NonEmpty TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
 rtcIceServer = RTCIceServer
 
-modelRtcIceServer :: Doc.Model
-modelRtcIceServer = Doc.defineModel "RTCIceServer" $ do
-  Doc.description "A subset of the WebRTC 'RTCIceServer' object"
-  Doc.property "urls" (Doc.array Doc.string') $
-    Doc.description "Array of TURN server addresses of the form 'turn:<addr>:<port>'"
-  Doc.property "username" Doc.string' $
-    Doc.description "Username to use for authenticating against the given TURN servers"
-  Doc.property "credential" Doc.string' $
-    Doc.description "Password to use for authenticating against the given TURN servers"
-
 instance ToSchema RTCIceServer where
   schema =
-    object "RTCIceServer" $
+    objectWithDocModifier "RTCIceServer" (description ?~ "A subset of the WebRTC 'RTCIceServer' object") $
       RTCIceServer
         <$> _iceURLs
-        .= field "urls" (nonEmptyArray schema)
+        .= fieldWithDocModifier "urls" (description ?~ "Array of TURN server addresses of the form 'turn:<addr>:<port>'") (nonEmptyArray schema)
         <*> _iceUsername
-        .= field "username" schema
+        .= fieldWithDocModifier "username" (description ?~ "Username to use for authenticating against the given TURN servers") schema
         <*> _iceCredential
-        .= field "credential" schema
+        .= fieldWithDocModifier "credential" (description ?~ "Password to use for authenticating against the given TURN servers") schema
 
 --------------------------------------------------------------------------------
 -- TurnURI
