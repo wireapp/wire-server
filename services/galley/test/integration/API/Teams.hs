@@ -70,7 +70,6 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified Proto.TeamEvents as E
 import qualified Proto.TeamEvents_Fields as E
 import qualified SAML2.WebSSO.Types as SAML
-import Servant (ToHttpApiData (..))
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -83,7 +82,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Team
 import Wire.API.Internal.Notification hiding (target)
-import Wire.API.Routes.MultiTablePaging (MultiTablePage (mtpHasMore, mtpPagingState, mtpResults))
 import Wire.API.Team
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
@@ -316,23 +314,23 @@ testListTeamMembersPagination = do
   (owner, tid, _) <- Util.createBindingTeamWithNMembers 18
   allMembers <- Util.getTeamMembersPaginated owner tid 100 Nothing
   liftIO $ do
-    let actualTeamSize = length (mtpResults . unTeamMembersPage $ allMembers)
+    let actualTeamSize = length (rpResults allMembers)
     let expectedTeamSize = 19
     assertEqual ("expected team size of 19 (18 members + 1 owner), but got " <> show actualTeamSize) expectedTeamSize actualTeamSize
   page1 <- Util.getTeamMembersPaginated owner tid 5 Nothing
   check 1 5 True page1
-  page2 <- Util.getTeamMembersPaginated owner tid 5 (Just . toQueryParam . mtpPagingState . unTeamMembersPage $ page1)
+  page2 <- Util.getTeamMembersPaginated owner tid 5 (Just . rpPagingState $ page1)
   check 2 5 True page2
-  page3 <- Util.getTeamMembersPaginated owner tid 5 (Just . toQueryParam . mtpPagingState . unTeamMembersPage $ page2)
+  page3 <- Util.getTeamMembersPaginated owner tid 5 (Just . rpPagingState $ page2)
   check 3 5 True page3
-  page4 <- Util.getTeamMembersPaginated owner tid 5 (Just . toQueryParam . mtpPagingState . unTeamMembersPage $ page3)
+  page4 <- Util.getTeamMembersPaginated owner tid 5 (Just . rpPagingState $ page3)
   check 4 4 False page4
   where
-    check :: Int -> Int -> Bool -> TeamMembersPage -> TestM ()
-    check n expectedSize expectedHasMore tmp = liftIO $ do
-      let actualSize = length (mtpResults . unTeamMembersPage $ tmp)
+    check :: Int -> Int -> Bool -> ResultPage -> TestM ()
+    check n expectedSize expectedHasMore page = liftIO $ do
+      let actualSize = length (rpResults page)
       assertEqual ("page " <> show n <> ": expected " <> show expectedSize <> " members, but got " <> show actualSize) expectedSize actualSize
-      let actualHasMore = mtpHasMore . unTeamMembersPage $ tmp
+      let actualHasMore = rpHasMore page
       assertEqual ("page " <> show n <> " (hasMore): expected " <> show expectedHasMore <> ", but got" <> "") expectedHasMore actualHasMore
 
 testListTeamMembersTruncated :: TestM ()

@@ -32,6 +32,7 @@ import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
+import qualified Data.Aeson as A
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
@@ -321,7 +322,23 @@ getTeamMembersTruncated usr tid n = do
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr . queryItem "maxResults" (C.pack $ show n)) <!! const 200 === statusCode
   responseJsonError r
 
-getTeamMembersPaginated :: HasCallStack => UserId -> TeamId -> Int -> Maybe Text -> TestM TeamMembersPage
+data ResultPage = ResultPage
+  { rpResults :: [A.Value],
+    rpHasMore :: Bool,
+    rpPagingState :: Text
+  }
+
+instance FromJSON ResultPage where
+  parseJSON = withObject "ResultPage" $ \o ->
+    ResultPage
+      <$> o
+        .: "members"
+      <*> o
+        .: "hasMore"
+      <*> o
+        .: "pagingState"
+
+getTeamMembersPaginated :: HasCallStack => UserId -> TeamId -> Int -> Maybe Text -> TestM ResultPage
 getTeamMembersPaginated usr tid n mPs = do
   g <- viewGalley
   r <-
