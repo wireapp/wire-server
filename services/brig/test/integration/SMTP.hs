@@ -25,7 +25,8 @@ tests m lg =
       [ test m "should send mail" $ testSendMail lg,
         -- TODO: Needs better description string: Actually, the SMTP server
         -- refuses to accept this mail.
-        test m "should send no mail without receiver" $ testSendMailNoReceiver lg
+        test m "should send no mail without receiver" $ testSendMailNoReceiver lg,
+        test m "should throw when an SMTP transaction is aborted (SMTP error 554: 'Transaction failed')" $ testSendMailTransactionFailed lg
       ]
 
 -- TODO: Is Http the best Monad for this?
@@ -85,6 +86,29 @@ testSendMail lg = do
 toString :: B.ByteString -> String
 toString bs = C.foldr (:) [] bs
 
+testSendMailTransactionFailed :: Logger.Logger -> Bilge.Http ()
+testSendMailTransactionFailed lg = do
+  liftIO
+    . withMailServer mailRejectingApp
+    $ do
+      conPool <- initSMTP lg "localhost" (Just 4242) Nothing Plain
+      caughtException <-
+        handle @SomeException
+          (const (pure True))
+          (sendMail lg conPool mail >> pure False)
+      caughtException @? "Expected exception due to missing mail receiver."
+  where
+    receiver = Address Nothing "foo@example.com"
+    sender = Address Nothing "bar@example.com"
+    subject = "Some Subject"
+    body = "Some body"
+    mail =
+      simpleMail'
+        receiver
+        sender
+        subject
+        body
+
 withMailServer :: Postie.Application -> IO () -> IO ()
 withMailServer app action =
   bracket
@@ -113,3 +137,6 @@ mailStoringApp receivedMailRef mail = do
           }
   writeIORef receivedMailRef (Just receivedMail)
   pure Postie.Accepted
+
+mailRejectingApp :: Postie.Application
+mailRejectingApp = const (pure Postie.Rejected)
