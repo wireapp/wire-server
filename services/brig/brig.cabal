@@ -465,6 +465,7 @@ executable brig-integration
     Federation.Util
     Index.Create
     Main
+    SMTP
     Util
     Util.AWS
 
@@ -554,6 +555,7 @@ executable brig-integration
     , lens-aeson
     , metrics-wai
     , mime                   >=0.4
+    , mime-mail
     , MonadRandom            >=0.5
     , mtl
     , network
@@ -561,6 +563,7 @@ executable brig-integration
     , pem
     , polysemy
     , polysemy-wire-zoo
+    , postie                 >=0.6
     , process
     , proto-lens
     , QuickCheck
