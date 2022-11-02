@@ -1,3 +1,106 @@
+# [2022-11-02] (Chart Release 4.26.0)
+
+## Release notes
+
+
+* If you have not upgraded to [release 2021-03-21 (Chart Release 2.103.0)](https://github.com/wireapp/wire-server/releases/tag/v2021-03-21) yet, please do that now!
+
+  NB: we only support releases 6 months back, so this should not be an issue.  But in this particular case we are positive that things will break if you don't do an intermediate upgrade. (#2768)
+
+* Build docker images using nix derivations instead of Dockerfiles (#2331, #2771, #2772, #2775, #2776)
+
+* Upgrade team-settings version to 4.13.0-v0.31.5-0-4754212 (#2180)
+
+* Upgrade webapp version to 2022-10-12-production.0-v0.31.5-0-0cefecc (#2302)
+
+* The experimental wire-server-metrics helm chart has been removed.
+
+  These were mostly a wrapper around prometheus operator. It makes more sense to
+  refer to the upstream docs of Prometheus Operator or Grafana Agent Operator for
+  installation instead. (#2740)
+
+
+## API changes
+
+
+* Do not expose swagger-ui on prod systems (to minimize attack surface) (#2800)
+
+* Change mime type of body of /v3/mls/commit-bundles endpoint (#2773)
+
+* Stop rate-limiting asset-signed-url requests on /assets/.* (#2786)
+
+* The `/access` endpoint now takes an optional `client_id` query parameter. The first time it is provided, a new user token will be generated containing the given client ID. Successive invocations of `/access` will ignore the `client_id` parameter. Some endpoints can now potentially require a client ID as part of the access token. When trying to invoke them with an access token that does not contain a client ID, an authentication error will occur. (#2764)
+
+
+## Features
+
+
+* Introduce support for external commits in MLS (#2765)
+
+* The `GET /teams/{tid}/members` endpoint now supports pagination (#2802)
+
+
+## Bug fixes and other updates
+
+
+* Clients without any prekeys are not deleted completely (#2758)
+
+
+## Documentation
+
+
+* Fix copyright date on docs.wire.com (#2792)
+
+* Improve and cross-link documentation on SNS / push notifications. (#PR_NOT_FOUND)
+
+
+## Internal changes
+
+
+* Convert brig's auth endpoints to servant (#2750)
+
+* bump nginx-module-vts from v0.1.15 to v0.2.1 (#2793)
+
+* Remove deprecated table for storing scim external_ids.
+
+  Data has been migrated away in [release 2021-03-21 (Chart Release 2.103.0)](https://github.com/wireapp/wire-server/releases/tag/v2021-03-21) (see `/services/spar/migrate-data/src/Spar/DataMigration/V1_ExternalIds.hs`); last time it has been touched in production is before upgrade to [release 2021-03-23 (Chart Release 2.104.0)](https://github.com/wireapp/wire-server/releases/tag/v2021-03-23). (#2768)
+
+* Refactor some internal Scim user tests (#2762)
+
+* Reduce the payload size of internal `client.delete` event (#2807)
+
+* Bump servant-swagger-ui package. (#2747)
+
+* Increase charts/galley memory limit to 500M. (#2798)
+
+* Add RPC, ServiceRPC and GalleyProvider effects to brig (#2653)
+
+* Use locally build schema binaries for db migrations and execute them right before running integration tests. (#2791)
+
+* Rename the make targets from `db-migrate-package` and `db-reset-package` to `db-migrate` and `db-reset` and allow migrating and resetting all keyspaces. (#2791)
+
+* Add a Make target for ghci (#2749)
+
+* Upgrade nginz/nginx to 1.22.1 (#2777)
+
+* The dev environment provided by nix now contains all the haskell packages
+  compiled by nix. This could casue linker errors while compiling haskell code in
+  this repo. One way to get resolve them is to delete the 'dist-newstyle'
+  directory. (#2331)
+
+* Implemented a new intersperse combinator for Polysemy (#2767)
+
+* Add a Concurrency effect for Polysemy (#2748)
+
+* Don't fail client deletion when mls remove key is undefined (#2738)
+
+* Migrate stern to swagger2-ui (remaining backwards compatible with circulating backoffice images) (see also #2742 from last release) (#2744)
+
+* Gundeck push token API and notification API is migrated to Servant (#2769)
+
+* Delete `deploy/services-demo` directory (#2789)
+
+
 # [2022-10-04] (Chart Release 4.25.0)
 
 ## Release notes
