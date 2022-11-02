@@ -547,9 +547,9 @@ instance ToSchema DeprecatedMatchingResult where
       "DeprecatedMatchingResult"
       $ DeprecatedMatchingResult
         <$ const []
-        .= field "results" (array (null_ @SwaggerDoc))
+          .= field "results" (array (null_ @SwaggerDoc))
         <* const []
-        .= field "auto-connects" (array (null_ @SwaggerDoc))
+          .= field "auto-connects" (array (null_ @SwaggerDoc))
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse

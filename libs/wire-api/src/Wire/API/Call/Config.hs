@@ -126,13 +126,13 @@ instance ToSchema RTCConfiguration where
     objectWithDocModifier "RTCConfiguration" (description ?~ "A subset of the WebRTC 'RTCConfiguration' dictionary") $
       RTCConfiguration
         <$> _rtcConfIceServers
-        .= fieldWithDocModifier "ice_servers" (description ?~ "Array of 'RTCIceServer' objects") (nonEmptyArray schema)
+          .= fieldWithDocModifier "ice_servers" (description ?~ "Array of 'RTCIceServer' objects") (nonEmptyArray schema)
         <*> _rtcConfSftServers
-        .= maybe_ (optFieldWithDocModifier "sft_servers" (description ?~ "Array of 'SFTServer' objects (optional)") (nonEmptyArray schema))
+          .= maybe_ (optFieldWithDocModifier "sft_servers" (description ?~ "Array of 'SFTServer' objects (optional)") (nonEmptyArray schema))
         <*> _rtcConfTTL
-        .= fieldWithDocModifier "ttl" (description ?~ "Number of seconds after which the configuration should be refreshed (advisory)") schema
+          .= fieldWithDocModifier "ttl" (description ?~ "Number of seconds after which the configuration should be refreshed (advisory)") schema
         <*> _rtcConfSftServersAll
-        .= maybe_ (optFieldWithDocModifier "sft_servers_all" (description ?~ "Array of all SFT servers") (array schema))
+          .= maybe_ (optFieldWithDocModifier "sft_servers_all" (description ?~ "Array of all SFT servers") (array schema))
 
 --------------------------------------------------------------------------------
 -- SFTServer
@@ -149,7 +149,7 @@ instance ToSchema SFTServer where
     objectWithDocModifier "SftServer" (description ?~ "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers") $
       SFTServer
         <$> (pure . _sftURL)
-        .= fieldWithDocModifier "urls" (description ?~ "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'") (withParser (array schema) p)
+          .= fieldWithDocModifier "urls" (description ?~ "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'") (withParser (array schema) p)
     where
       p :: [HttpsUrl] -> A.Parser HttpsUrl
       p [url] = pure url
@@ -181,11 +181,11 @@ instance ToSchema RTCIceServer where
     objectWithDocModifier "RTCIceServer" (description ?~ "A subset of the WebRTC 'RTCIceServer' object") $
       RTCIceServer
         <$> _iceURLs
-        .= fieldWithDocModifier "urls" (description ?~ "Array of TURN server addresses of the form 'turn:<addr>:<port>'") (nonEmptyArray schema)
+          .= fieldWithDocModifier "urls" (description ?~ "Array of TURN server addresses of the form 'turn:<addr>:<port>'") (nonEmptyArray schema)
         <*> _iceUsername
-        .= fieldWithDocModifier "username" (description ?~ "Username to use for authenticating against the given TURN servers") schema
+          .= fieldWithDocModifier "username" (description ?~ "Username to use for authenticating against the given TURN servers") schema
         <*> _iceCredential
-        .= fieldWithDocModifier "credential" (description ?~ "Password to use for authenticating against the given TURN servers") schema
+          .= fieldWithDocModifier "credential" (description ?~ "Password to use for authenticating against the given TURN servers") schema
 
 --------------------------------------------------------------------------------
 -- TurnURI
@@ -302,9 +302,9 @@ turnHostSchema =
   object "TurnHost" $
     fromTagged
       <$> toTagged
-      .= bind
-        (fst .= field "tag" tagSchema)
-        (snd .= fieldOver _1 "contents" untaggedSchema)
+        .= bind
+          (fst .= field "tag" tagSchema)
+          (snd .= fieldOver _1 "contents" untaggedSchema)
   where
     toTagged :: TurnHost -> (TurnHostTag, TurnHost)
     toTagged d@(TurnHostIp _) = (TurnHostIpTag, d)

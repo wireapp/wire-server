@@ -159,9 +159,9 @@ instance ToSchema Location where
     object "Location" $
       Location
         <$> _latitude
-        .= field "lat" genericToSchema
+          .= field "lat" genericToSchema
         <*> _longitude
-        .= field "lon" genericToSchema
+          .= field "lon" genericToSchema
 
 instance Show Location where
   show p =
@@ -276,9 +276,9 @@ instance ToSchema HttpsUrl where
     (decodeUtf8 . toByteString')
       .= parsedText "HttpsUrl" (runParser parser . encodeUtf8)
       & doc'
-      . S.schema
-      . S.example
-      ?~ toJSON ("https://example.com" :: Text)
+        . S.schema
+        . S.example
+        ?~ toJSON ("https://example.com" :: Text)
 
 instance Cql HttpsUrl where
   ctype = Tagged BlobColumn
@@ -325,9 +325,9 @@ instance ToSchema (Fingerprint Rsa) where
     (decodeUtf8 . B64.encode . fingerprintBytes)
       .= parsedText "Fingerprint" (runParser p . encodeUtf8)
       & doc'
-      . S.schema
-      . S.example
-      ?~ toJSON ("ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8=" :: Text)
+        . S.schema
+        . S.example
+        ?~ toJSON ("ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8=" :: Text)
     where
       p :: Chars.Parser (Fingerprint Rsa)
       p = do
@@ -362,7 +362,7 @@ instance ToSchema PlainTextPassword where
   schema =
     PlainTextPassword
       <$> fromPlainTextPassword
-      .= untypedRangedSchema 6 1024 schema
+        .= untypedRangedSchema 6 1024 schema
 
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
