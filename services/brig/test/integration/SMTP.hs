@@ -23,6 +23,8 @@ tests m lg =
     testGroup
       "SMTP"
       [ test m "should send mail" $ testSendMail lg,
+        -- TODO: Needs better description string: Actually, the SMTP server
+        -- refuses to accept this mail.
         test m "should send no mail without receiver" $ testSendMailNoReceiver lg
       ]
 
