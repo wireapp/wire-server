@@ -28,6 +28,7 @@ hself: hsuper: {
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
   one-liner = hlib.doJailbreak hsuper.one-liner;
   type-errors = hlib.dontCheck hsuper.type-errors;
+  binary-parsers = hlib.doJailbreak hsuper.binary-parsers;
 
   # Some test seems to be broken
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
