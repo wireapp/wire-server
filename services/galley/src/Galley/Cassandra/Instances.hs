@@ -74,12 +74,14 @@ instance Cql Access where
   toCql InviteAccess = CqlInt 2
   toCql LinkAccess = CqlInt 3
   toCql CodeAccess = CqlInt 4
+  toCql SelfInviteAccess = CqlInt 5
 
   fromCql (CqlInt i) = case i of
     1 -> pure PrivateAccess
     2 -> pure InviteAccess
     3 -> pure LinkAccess
     4 -> pure CodeAccess
+    5 -> pure SelfInviteAccess
     n -> Left $ "Unexpected Access value: " ++ show n
   fromCql _ = Left "Access value: int expected"
 

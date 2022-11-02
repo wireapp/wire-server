@@ -453,6 +453,10 @@ data Access
     LinkAccess
   | -- | User can join knowing [changeable/revokable] code
     CodeAccess
+  | -- | In MLS the user can join the global team conversation with their
+    -- | clients via an external commit, thereby inviting their own clients to
+    -- | join.
+    SelfInviteAccess
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Access)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema Access

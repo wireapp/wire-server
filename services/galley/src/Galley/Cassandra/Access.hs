@@ -31,9 +31,7 @@ defAccess SelfConv (Just (Set [])) = [PrivateAccess]
 defAccess ConnectConv (Just (Set [])) = [PrivateAccess]
 defAccess One2OneConv (Just (Set [])) = [PrivateAccess]
 defAccess RegularConv (Just (Set [])) = defRegularConvAccess
-defAccess GlobalTeamConv Nothing = [PrivateAccess] -- TODO: See if it'd be best
--- to introduce a new data constructor for 'Access' that is suitable for MLS.
-defAccess GlobalTeamConv (Just (Set [])) = [PrivateAccess]
+defAccess GlobalTeamConv s = maybe [SelfInviteAccess] fromSet s
 defAccess _ (Just (Set (x : xs))) = x : xs
 
 privateOnly :: Set Access

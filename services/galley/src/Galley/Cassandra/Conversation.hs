@@ -206,7 +206,7 @@ createGlobalTeamConversation tid uid = do
             ConversationMetadata
               { cnvmType = GlobalTeamConv,
                 cnvmCreator = uid,
-                cnvmAccess = [LinkAccess],
+                cnvmAccess = [SelfInviteAccess],
                 cnvmAccessRoles = mempty,
                 cnvmName = Just "Global team conversation",
                 cnvmTeam = Just (tUnqualified tid),

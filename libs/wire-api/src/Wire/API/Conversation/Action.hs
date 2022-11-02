@@ -53,6 +53,7 @@ import Wire.Arbitrary (Arbitrary (..))
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
 type family ConversationAction (tag :: ConversationActionTag) :: * where
   ConversationAction 'ConversationJoinTag = ConversationJoin
+  ConversationAction 'ConversationSelfInviteTag = ()
   ConversationAction 'ConversationLeaveTag = ()
   ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
   ConversationAction 'ConversationDeleteTag = ()
@@ -83,6 +84,11 @@ instance ToJSON SomeConversationAction where
 
 conversationActionSchema :: forall tag. Sing tag -> ValueSchema NamedSwaggerDoc (ConversationAction tag)
 conversationActionSchema SConversationJoinTag = schema @ConversationJoin
+conversationActionSchema SConversationSelfInviteTag =
+  objectWithDocModifier
+    "ConversationSelfInvite"
+    (S.description ?~ "The action of some users joining the global team conversation")
+    $ pure ()
 conversationActionSchema SConversationLeaveTag =
   objectWithDocModifier
     "ConversationLeave"
@@ -150,6 +156,9 @@ conversationActionToEvent tag now quid qcnv action =
         SConversationJoinTag ->
           let ConversationJoin newMembers role = action
            in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
+        SConversationSelfInviteTag ->
+          -- this event will not be sent anyway so this is a dummy event
+          EdMembersJoin $ SimpleMembers []
         SConversationLeaveTag ->
           EdMembersLeave (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->
