@@ -89,10 +89,10 @@ mkDerivation {
   testHaskellDepends = [
     aeson base binary bloodhound brig-types bytestring containers
     data-timeout dns dns-util exceptions HsOpenSSL http-types imports
-    lens polysemy polysemy-wire-zoo retry servant-client-core
-    string-conversions tasty tasty-hunit tasty-quickcheck time tinylog
-    types-common unliftio uri-bytestring uuid wai-utilities wire-api
-    wire-api-federation
+    lens polysemy polysemy-wire-zoo QuickCheck retry
+    servant-client-core string-conversions tasty tasty-hunit
+    tasty-quickcheck time tinylog types-common unliftio uri-bytestring
+    uuid wai-utilities wire-api wire-api-federation
   ];
   description = "User Service";
   license = lib.licenses.agpl3Only;
