@@ -75,7 +75,7 @@ initSMTP lg host port credentials connType = do
   -- Try to initiate a connection and fail badly right away in case of bad auth
   -- otherwise config errors will be detected "too late"
   res <- runExceptT establishConnection
-  logResult lg ("Checking test connection to " ++ unpack host ++ "on startup") res
+  logResult lg ("Checking test connection to " ++ unpack host ++ " on startup") res
   case res of
     Left e ->
       error $ "Failed to establish test connection with SMTP server. " ++ show e
@@ -116,13 +116,13 @@ initSMTP lg host port credentials connType = do
     create :: IO SMTP.SMTPConnection
     create = do
       res <- runExceptT establishConnection
-      logResult lg "Creating connection for SMTP connection pool" res
+      logResult lg "Creating pooled SMTP connection" res
       handleError res
 
     destroy :: SMTP.SMTPConnection -> IO ()
     destroy c =
       (ensureSMTPConnectionTimeout . SMTP.gracefullyCloseSMTP) c
-        >>= void . logResult lg ("Closing SMTP connection to " ++ unpack host)
+        >>= void . logResult lg ("Closing pooled SMTP connection to " ++ unpack host)
 
 handleError :: MonadIO m => Either SMTPFailure a -> m a
 handleError = \case
