@@ -74,19 +74,6 @@ let
         wai-middleware-prometheus = "wai-middleware-prometheus";
       };
     };
-    servant = {
-      src = fetchgit {
-        url = "https://github.com/haskell-servant/servant.git";
-        rev = "75db4a5327d6d04ae2460bd5ffd008fe16197ba8";
-        sha256 = "0khgk0iqvamph57qp86ilravaw76qnjmg4kpliwfdzfyj9h44w0l";
-      };
-      packages = {
-        servant = "servant";
-        servant-client = "servant-client";
-        servant-client-core = "servant-client-core";
-        servant-server = "servant-server";
-      };
-    };
     hs-collectd = {
       src = fetchgit {
         url = "https://github.com/kim/hs-collectd";
