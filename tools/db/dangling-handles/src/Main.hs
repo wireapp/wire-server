@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- This file is part of the Wire Server implementation.
@@ -34,20 +35,24 @@ import Work
 main :: IO ()
 main = do
   s <- execParser (info (helper <*> settingsParser) desc)
-  lgr <- initLogger
+  lgr <- initLogger (setLogFile s)
   brig <- initCas (setCasBrig s) (Log.clone (Just "cassandra-brig") lgr)
   let workLogger = Log.clone (Just "work") lgr
   case setHandlesFile s of
     Nothing -> runCommand workLogger brig
     Just f -> examineHandles workLogger brig f
+  putStrLn $ "Done scanning, logs are at: " <> (setLogFile s)
+  putStrLn "Sleeping for 1 hour so logs can be extracted"
+  threadDelay 3600_000_000
+  putStrLn "Sleep compelete, logs will not be accessible anymore if this was running in a container!"
   where
     desc =
       header "scim-emails"
         <> progDesc "finds users for whom external-id is inconsistent with email or the user_keys table"
         <> fullDesc
-    initLogger =
+    initLogger f =
       Log.new
-        . Log.setOutput Log.StdOut
+        . Log.setOutput (Log.Path f)
         . Log.setBufSize 0
         . Log.setRenderer structuredJSONRenderer
         $ Log.defSettings

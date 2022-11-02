@@ -27,7 +27,8 @@ import Options.Applicative
 
 data Settings = Settings
   { setCasBrig :: CassandraSettings,
-    setHandlesFile :: Maybe FilePath
+    setHandlesFile :: Maybe FilePath,
+    setLogFile :: FilePath
   }
   deriving (Show)
 
@@ -43,12 +44,21 @@ settingsParser =
   Settings
     <$> cassandraSettingsParser "brig"
     <*> optional handlesFileParser
+    <*> logFileParser
 
 handlesFileParser :: Parser FilePath
 handlesFileParser =
   strOption
     ( long "handles-file"
         <> help "file containing list of handles separated by new lines"
+        <> metavar "FILEPATH"
+    )
+
+logFileParser :: Parser FilePath
+logFileParser =
+  strOption
+    ( long "log-file"
+        <> help "File to log output to"
         <> metavar "FILEPATH"
     )
 
