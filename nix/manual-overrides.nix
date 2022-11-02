@@ -27,6 +27,7 @@ hself: hsuper: {
   quickcheck-arbitrary-template = hlib.markUnbroken (hsuper.quickcheck-arbitrary-template);
   wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
   one-liner = hlib.doJailbreak hsuper.one-liner;
+  type-errors = hlib.dontCheck hsuper.type-errors;
 
   # Some test seems to be broken
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
