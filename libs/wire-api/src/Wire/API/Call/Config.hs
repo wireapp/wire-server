@@ -83,7 +83,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString)
 import qualified Data.ByteString.Conversion as BC
 import qualified Data.IP as IP
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (HttpsUrl (..), IpAddr (IpAddr), Port (..))
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -116,6 +116,7 @@ data RTCConfiguration = RTCConfiguration
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RTCConfiguration)
 
 rtcConfiguration ::
   NonEmpty RTCIceServer ->
@@ -137,27 +138,18 @@ modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
   Doc.property "sft_servers_all" (Doc.array (Doc.ref modelRtcSftServerUrl)) $
     Doc.description "Array of all SFT servers"
 
-instance A.ToJSON RTCConfiguration where
-  toJSON (RTCConfiguration srvs sfts ttl all_servers) =
-    A.object
-      ( [ "ice_servers" A..= srvs,
-          "ttl" A..= ttl
-        ]
-          <> ["sft_servers" A..= sfts | isJust sfts]
-          <> ["sft_servers_all" A..= all_servers | isJust all_servers]
-      )
-
-instance A.FromJSON RTCConfiguration where
-  parseJSON = A.withObject "RTCConfiguration" $ \o ->
-    RTCConfiguration
-      <$> o
-      A..: "ice_servers"
-      <*> o
-      A..:? "sft_servers"
-      <*> o
-      A..: "ttl"
-      <*> o
-      A..:? "sft_servers_all"
+instance ToSchema RTCConfiguration where
+  schema =
+    object "RTCConfiguration" $
+      RTCConfiguration
+        <$> _rtcConfIceServers
+        .= field "ice_servers" (nonEmptyArray schema)
+        <*> _rtcConfSftServers
+        .= maybe_ (optField "sft_servers" (nonEmptyArray schema))
+        <*> _rtcConfTTL
+        .= field "ttl" schema
+        <*> _rtcConfSftServersAll
+        .= maybe_ (optField "sft_servers_all" (array schema))
 
 --------------------------------------------------------------------------------
 -- SFTServer
@@ -167,18 +159,18 @@ newtype SFTServer = SFTServer
   }
   deriving stock (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform SFTServer)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema SFTServer)
 
-instance A.ToJSON SFTServer where
-  toJSON (SFTServer url) =
-    A.object
-      [ "urls" A..= [url]
-      ]
-
-instance A.FromJSON SFTServer where
-  parseJSON = A.withObject "SFTServer" $ \o ->
-    o A..: "urls" >>= \case
-      [url] -> pure $ SFTServer url
-      xs -> fail $ "SFTServer can only have exactly one URL, found " <> show (length xs)
+instance ToSchema SFTServer where
+  schema =
+    object "SftServer" $
+      SFTServer
+        <$> (pure . _sftURL)
+        .= field "urls" (withParser (array schema) p)
+    where
+      p :: [HttpsUrl] -> A.Parser HttpsUrl
+      p [url] = pure url
+      p xs = fail $ "SFTServer can only have exactly one URL, found " <> show (length xs)
 
 sftServer :: HttpsUrl -> SFTServer
 sftServer = SFTServer
@@ -228,18 +220,11 @@ instance ToSchema RTCIceServer where
     object "RTCIceServer" $
       RTCIceServer
         <$> _iceURLs
-        .= field "urls" nonEmptyListSchema
+        .= field "urls" (nonEmptyArray schema)
         <*> _iceUsername
         .= field "username" schema
         <*> _iceCredential
         .= field "credential" schema
-    where
-      nonEmptyListSchema :: (ToSchema a) => ValueSchema SwaggerDoc (NonEmpty a)
-      nonEmptyListSchema = toList .= withParser (array schema) p
-
-      p :: [a] -> A.Parser (NonEmpty a)
-      p [] = fail "URLs must not be empty"
-      p (x : xs) = pure (x :| xs)
 
 --------------------------------------------------------------------------------
 -- TurnURI

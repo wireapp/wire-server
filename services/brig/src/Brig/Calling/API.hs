@@ -19,6 +19,7 @@
 
 module Brig.Calling.API
   ( routesPublic,
+    getCallsConfig,
 
     -- * Exposed for testing purposes
     newConfig,
@@ -67,20 +68,6 @@ import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 
 routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
-  -- Deprecated endpoint, but still used by old clients.
-  -- See https://github.com/zinfra/backend-issues/issues/1616 for context
-  get "/calls/config" (continue getCallsConfigH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. header "Z-Connection"
-  document "GET" "getCallsConfig" $ do
-    Doc.deprecated
-    Doc.summary
-      "Retrieve TURN server addresses and credentials for \
-      \ IP addresses, scheme `turn` and transport `udp` only "
-    Doc.returns (Doc.ref Public.modelRtcConfiguration)
-    Doc.response 200 "RTCConfiguration" Doc.end
-
   get "/calls/config/v2" (continue getCallsConfigV2H) $
     accept "application" "json"
       .&. header "Z-User"
@@ -131,10 +118,6 @@ handleNoTurnServers (Right x) = pure x
 handleNoTurnServers (Left NoTurnServers) = do
   Log.err $ Log.msg (Log.val "Call config requested before TURN URIs could be discovered.")
   throwE $ StdError internalServerError
-
-getCallsConfigH :: JSON ::: UserId ::: ConnId -> (Handler r) Response
-getCallsConfigH (_ ::: uid ::: connid) =
-  json <$> getCallsConfig uid connid
 
 getCallsConfig :: UserId -> ConnId -> (Handler r) Public.RTCConfiguration
 getCallsConfig _ _ = do

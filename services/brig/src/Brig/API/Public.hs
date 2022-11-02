@@ -192,6 +192,7 @@ servantSitemap =
     :<|> userHandleAPI
     :<|> searchAPI
     :<|> authAPI
+    :<|> callingAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -308,6 +309,9 @@ servantSitemap =
         :<|> Named @"change-self-email" changeSelfEmailH
         :<|> Named @"list-cookies" listCookies
         :<|> Named @"remove-cookies" removeCookies
+
+    callingAPI :: ServerT CallingAPI (Handler r)
+    callingAPI = Named @"get-calls-config" Calling.getCallsConfig
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
