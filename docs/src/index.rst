@@ -26,9 +26,7 @@ This documentation may be expanded in the future to cover other aspects of Wire.
    Release notes <release-notes.rst>
    Administrator's Guide <how-to/index.rst>
    Understanding wire-server components <understand/index.rst>
-   Single-sign-on how-tos <how-to/single-sign-on/index.rst>
    Administrator's manual: single-sign-on and user provisioning <understand/single-sign-on/main.rst>
-   How to set up user provisioning with LDAP or SCIM <how-to/scim/index.rst>
    Client API documentation <understand/api-client-perspective/index.rst>
    Security responses <security-responses/index.rst>
    Notes for developers <developer/index.rst>
