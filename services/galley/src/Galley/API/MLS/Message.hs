@@ -1041,7 +1041,7 @@ executeProposalAction qusr con lconv cm action = do
       -- final set of clients in the conversation
       let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
       -- get list of mls clients from brig
-      clientInfo <- getMLSClients lconv qtarget ss
+      clientInfo <- getClientInfo lconv qtarget ss
       let allClients = Set.map ciId clientInfo
       let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
       -- We check the following condition:
@@ -1138,13 +1138,13 @@ executeProposalAction qusr con lconv cm action = do
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
 
-getMLSClients ::
+getClientInfo ::
   Members '[BrigAccess, FederatorAccess] r =>
   Local x ->
   Qualified UserId ->
   SignatureSchemeTag ->
   Sem r (Set ClientInfo)
-getMLSClients loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
+getClientInfo loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
 
 getRemoteMLSClients ::
   Member FederatorAccess r =>
