@@ -57,6 +57,7 @@ deriveJSON defaultOptions {constructorTagModifier = map toLower} ''SMTPConnType
 makeLenses ''SMTP
 
 data SMTPFailure = Unauthorized | ConnectionTimeout | CaughtException SomeException
+  deriving (Show)
 
 data SMTPPoolException = SMTPUnauthorized | SMTPConnectionTimeout
   deriving (Show)
@@ -76,8 +77,8 @@ initSMTP lg host port credentials connType = do
   res <- runExceptT establishConnection
   logResult lg ("Checking test connection to " ++ unpack host ++ "on startup") res
   case res of
-    Left _ ->
-      error "Failed to establish test connection with SMTP server."
+    Left e ->
+      error $ "Failed to establish test connection with SMTP server. " ++ show e
     Right con ->
       either
         (error "Failed to establish test connection with SMTP server.")
@@ -116,20 +117,19 @@ initSMTP lg host port credentials connType = do
     create = do
       res <- runExceptT establishConnection
       logResult lg "Creating connection for SMTP connection pool" res
-      case res of
-        Left Unauthorized -> do
-          CE.throw SMTPUnauthorized
-        Left ConnectionTimeout -> do
-          CE.throw SMTPConnectionTimeout
-        Left (CaughtException e) -> do
-          CE.throw e
-        Right con -> do
-          pure con
+      handleError res
 
     destroy :: SMTP.SMTPConnection -> IO ()
     destroy c =
       (ensureSMTPConnectionTimeout . SMTP.gracefullyCloseSMTP) c
         >>= void . logResult lg ("Closing SMTP connection to " ++ unpack host)
+
+handleError :: MonadIO m => Either SMTPFailure a -> m a
+handleError = \case
+  Left Unauthorized -> CE.throw SMTPUnauthorized
+  Left ConnectionTimeout -> CE.throw SMTPConnectionTimeout
+  Left (CaughtException e) -> CE.throw e
+  Right a -> pure a
 
 logResult :: MonadIO m => Logger -> String -> Either SMTPFailure c -> m ()
 logResult lg actionString res =
@@ -159,9 +159,9 @@ sendMail :: (MonadIO m, MonadCatch m) => Logger -> SMTP -> Mail -> m ()
 sendMail lg s m = liftIO $ withResource (s ^. pool) sendMail'
   where
     sendMail' :: SMTP.SMTPConnection -> IO ()
-    sendMail' c = ensureSMTPConnectionTimeout (SMTP.sendMail m c) >>= handleTimeout
+    sendMail' c = ensureSMTPConnectionTimeout (SMTP.sendMail m c) >>= handleError'
 
-    handleTimeout :: MonadIO m => Either SMTPFailure a -> m ()
-    handleTimeout r =
+    handleError' :: MonadIO m => Either SMTPFailure a -> m ()
+    handleError' r =
       logResult lg "Sending mail via SMTP" r
-        >> either (const (CE.throw SMTPConnectionTimeout)) (const (pure ())) r
+        >> (void . handleError) r

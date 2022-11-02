@@ -54,6 +54,7 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
+import qualified SMTP
 import System.Environment (withArgs)
 import qualified System.Environment.Blank as Blank
 import qualified System.Logger as Logger
@@ -150,35 +151,37 @@ runTests iConf brigOpts otherArgs = do
   federationEndpoints <- API.Federation.tests mg brigOpts b c fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
+  smtp <- SMTP.tests mg lg
 
   let versionApi = API.Version.tests mg brigOpts b
 
   let mlsApi = MLS.tests mg b brigOpts
 
-  withArgs otherArgs . defaultMain
-    $ testGroup
+  withArgs otherArgs . defaultMain $
+    testGroup
       "Brig API Integration"
-    $ [ testCase "sitemap" $
-          assertEqual
-            "inconcistent sitemap"
-            mempty
-            (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap @BrigCanonicalEffects @InternalPaging),
-        userApi,
-        providerApi,
-        searchApis,
-        teamApis,
-        turnApi,
-        metricsApi,
-        settingsApi,
-        createIndex,
-        userPendingActivation,
-        browseTeam,
-        federationEndpoints,
-        internalApi,
-        versionApi,
-        mlsApi
-      ]
-      <> [federationEnd2End | includeFederationTests]
+      $ [ testCase "sitemap" $
+            assertEqual
+              "inconcistent sitemap"
+              mempty
+              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap @BrigCanonicalEffects @InternalPaging),
+          userApi,
+          providerApi,
+          searchApis,
+          teamApis,
+          turnApi,
+          metricsApi,
+          settingsApi,
+          createIndex,
+          userPendingActivation,
+          browseTeam,
+          federationEndpoints,
+          internalApi,
+          versionApi,
+          mlsApi,
+          smtp
+        ]
+        <> [federationEnd2End | includeFederationTests]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 
