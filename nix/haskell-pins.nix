@@ -224,10 +224,6 @@ let
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
     };
-    partial-isomorphisms = {
-      version = "0.2.2.1";
-      sha256 = "sha256-TdsLB0ueaUUllLdvcGu3YNQXCfGRRk5WxP3deHEbHGI=";
-    };
     kind-generics = {
       version = "0.4.1.2";
       sha256 = "sha256-orDfC5+QXRlAMVaqAhT1Fo7Eh/AnobROWeliZqEAXZU=";
