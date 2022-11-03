@@ -270,7 +270,8 @@ federationServantErrorToWai (UnsupportedContentType mediaType res) =
   Wai.mkError
     unexpectedFederationResponseStatus
     "federation-unsupported-content-type"
-    ( "Content-type: " <> federationErrorContentType res
+    ( "Content-type: "
+        <> federationErrorContentType res
         <> ", Media-Type: "
         <> LT.pack (show mediaType)
     )

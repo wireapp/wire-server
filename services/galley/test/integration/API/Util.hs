@@ -32,6 +32,7 @@ import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
+import qualified Data.Aeson as A
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
@@ -131,7 +132,7 @@ import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User
-import Wire.API.User.Auth
+import Wire.API.User.Auth hiding (Access)
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Client.Prekey
@@ -255,11 +256,12 @@ changeTeamStatus :: HasCallStack => TeamId -> TeamStatus -> TestM ()
 changeTeamStatus tid s = do
   g <- viewGalley
   put
-    ( g . paths ["i", "teams", toByteString' tid, "status"]
+    ( g
+        . paths ["i", "teams", toByteString' tid, "status"]
         . json (TeamStatusUpdate s Nothing)
     )
     !!! const 200
-    === statusCode
+      === statusCode
 
 createBindingTeamInternal :: HasCallStack => Text -> UserId -> TestM TeamId
 createBindingTeamInternal name owner = do
@@ -284,7 +286,8 @@ createBindingTeamInternalWithCurrency name owner cur = do
   tid <- createBindingTeamInternalNoActivate name owner
   _ <-
     put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur))
-      !!! const 200 === statusCode
+      !!! const 200
+        === statusCode
   pure tid
 
 getTeamInternal :: HasCallStack => TeamId -> TestM TeamData
@@ -319,6 +322,37 @@ getTeamMembersTruncated usr tid n = do
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr . queryItem "maxResults" (C.pack $ show n)) <!! const 200 === statusCode
   responseJsonError r
 
+data ResultPage = ResultPage
+  { rpResults :: [A.Value],
+    rpHasMore :: Bool,
+    rpPagingState :: Text
+  }
+
+instance FromJSON ResultPage where
+  parseJSON = withObject "ResultPage" $ \o ->
+    ResultPage
+      <$> o
+        .: "members"
+      <*> o
+        .: "hasMore"
+      <*> o
+        .: "pagingState"
+
+getTeamMembersPaginated :: HasCallStack => UserId -> TeamId -> Int -> Maybe Text -> TestM ResultPage
+getTeamMembersPaginated usr tid n mPs = do
+  g <- viewGalley
+  r <-
+    get
+      ( g
+          . paths ["teams", toByteString' tid, "members"]
+          . zUser usr
+          . queryItem "maxResults" (C.pack $ show n)
+          . maybe id (queryItem "pagingState" . cs) mPs
+      )
+      <!! const 200
+        === statusCode
+  responseJsonError r
+
 getTeamMembersInternalTruncated :: HasCallStack => TeamId -> Int -> TestM TeamMemberList
 getTeamMembersInternalTruncated tid n = do
   g <- viewGalley
@@ -329,7 +363,7 @@ getTeamMembersInternalTruncated tid n = do
           . queryItem "maxResults" (C.pack $ show n)
       )
       <!! const 200
-      === statusCode
+        === statusCode
   responseJsonError r
 
 bulkGetTeamMembers :: HasCallStack => UserId -> TeamId -> [UserId] -> TestM TeamMemberList
@@ -343,7 +377,7 @@ bulkGetTeamMembers usr tid uids = do
           . json (UserIdList uids)
       )
       <!! const 200
-      === statusCode
+        === statusCode
   responseJsonError r
 
 bulkGetTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> [UserId] -> Int -> TestM ResponseLBS
@@ -378,7 +412,8 @@ addTeamMember usr tid muid mperms mmbinv = do
   g <- viewGalley
   let payload = json (mkNewTeamMember muid mperms mmbinv)
   post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" . payload)
-    !!! const 200 === statusCode
+    !!! const 200
+      === statusCode
 
 -- | FUTUREWORK: do not use this, it's broken!!  use 'addUserToTeam' instead!  https://wearezeta.atlassian.net/browse/SQSERVICES-471
 addTeamMemberInternal :: HasCallStack => TeamId -> UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TestM ()
@@ -419,7 +454,8 @@ addUserToTeamWithRole' role inviter tid = do
   inviteeCode <- getInvitationCode tid (inInvitation inv)
   r <-
     post
-      ( brig . path "/register"
+      ( brig
+          . path "/register"
           . contentJson
           . body (acceptInviteBody inviteeEmail inviteeCode)
       )
@@ -444,7 +480,7 @@ makeOwner owner mem tid = do
         . json changeMember
     )
     !!! const 200
-    === statusCode
+      === statusCode
 
 acceptInviteBody :: Email -> InvitationCode -> RequestBody
 acceptInviteBody email code =
@@ -683,7 +719,8 @@ postConvWithRemoteUsers u n =
   fmap fst $
     withTempMockFederator (const ()) $
       postConvQualified u n {newConvName = setName (newConvName n)}
-        <!! const 201 === statusCode
+        <!! const 201
+          === statusCode
   where
     setName :: Within Text n m => Maybe (Range n m Text) -> Maybe (Range n m Text)
     setName Nothing = checked "federated gossip"
@@ -892,7 +929,8 @@ postBroadcast lu c b = do
            in contentProtobuf . bytes m
   let name = case bAPI b of BroadcastQualified -> "proteus"; _ -> "otr"
   post $
-    g . bReq b
+    g
+      . bReq b
       . paths ["broadcast", name, "messages"]
       . zUser u
       . zConn "conn"
@@ -1348,17 +1386,18 @@ getTeamQueue :: HasCallStack => UserId -> Maybe NotificationId -> Maybe (Int, Bo
 getTeamQueue zusr msince msize onlyLast =
   parseEventList . responseJsonUnsafe
     <$> ( getTeamQueue' zusr msince (fst <$> msize) onlyLast
-            <!! const 200 === statusCode
+            <!! const 200
+              === statusCode
         )
   where
     parseEventList :: QueuedNotificationList -> [(NotificationId, UserId)]
     parseEventList qnl
       | isJust msize && qnl ^. queuedHasMore /= snd (fromJust msize) =
-        error $ "expected has_more: " <> show (snd $ fromJust msize) <> "; but found: " <> show (qnl ^. queuedHasMore)
+          error $ "expected has_more: " <> show (snd $ fromJust msize) <> "; but found: " <> show (qnl ^. queuedHasMore)
       | isJust (qnl ^. queuedTime) =
-        error $ "expected time: Nothing; but found: " <> show (qnl ^. queuedTime)
+          error $ "expected time: Nothing; but found: " <> show (qnl ^. queuedTime)
       | otherwise =
-        fmap (_2 %~ parseEvt) . mconcat . fmap parseEvts . view queuedNotifications $ qnl
+          fmap (_2 %~ parseEvt) . mconcat . fmap parseEvts . view queuedNotifications $ qnl
 
     parseEvts :: QueuedNotification -> [(NotificationId, Object)]
     parseEvts qn = (qn ^. queuedNotificationId,) <$> toList (qn ^. queuedNotificationPayload)
@@ -1375,7 +1414,8 @@ getTeamQueue' :: HasCallStack => UserId -> Maybe NotificationId -> Maybe Int -> 
 getTeamQueue' zusr msince msize onlyLast = do
   g <- viewGalley
   get
-    ( g . path "/teams/notifications"
+    ( g
+        . path "/teams/notifications"
         . zUser zusr
         . zConn "conn"
         . zType "access"
@@ -1412,7 +1452,8 @@ getFeatureStatusMulti :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureS
 getFeatureStatusMulti req = do
   g <- viewGalley
   post
-    ( g . paths ["i", "features-multi-teams", featureNameBS @cfg]
+    ( g
+        . paths ["i", "features-multi-teams", featureNameBS @cfg]
         . json req
     )
 
@@ -1875,7 +1916,7 @@ connectWithRemoteUser self other = do
         . json req
     )
     !!! const 200
-    === statusCode
+      === statusCode
 
 -- | A copy of 'postConnection' from Brig integration tests.
 postConnection :: UserId -> UserId -> TestM ResponseLBS
@@ -1946,7 +1987,8 @@ assertConnections u cstat = do
   let cstat' :: [ConnectionStatus]
       cstat' = fmap status . clConnections . fromMaybe (error "bad response") . responseJsonMaybe $ resp
   unless (all (`elem` cstat') cstat) $
-    error $ "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
+    error $
+      "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
   where
     status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
     listConnections brig usr = get $ brig . paths ["v1", "connections"] . zUser usr
@@ -2014,7 +2056,8 @@ randomClientWithCaps uid lk caps = do
           . queryItem "skip_reauth" "true"
           . json newClientBody
       )
-      <!! const rStatus === statusCode
+      <!! const rStatus
+        === statusCode
   client <- responseJsonError resp
   pure (clientId client)
   where
@@ -2092,7 +2135,8 @@ isUserDeleted u = do
   b <- viewBrig
   r <-
     get (b . paths ["i", "users", toByteString' u, "status"])
-      <!! const 200 === statusCode
+      <!! const 200
+        === statusCode
   case responseBody r of
     Nothing -> error $ "getStatus: failed to parse response: " ++ show r
     Just j -> do
@@ -2693,7 +2737,7 @@ checkTimeout = 3 # Second
 mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> FederatedRequest -> Maybe Value
 mockedFederatedBrigResponse users req
   | frComponent req == Brig =
-    Just . toJSON $ [mkProfile mem (Name name) | (mem, name) <- users]
+      Just . toJSON $ [mkProfile mem (Name name) | (mem, name) <- users]
   | otherwise = Nothing
 
 -- | Combine two mocked services such that for a given request a JSON response
@@ -2756,11 +2800,14 @@ createOne2OneConvWithRemote localUser remoteUser = do
             uooConvId = mConvId
           }
   ooConvId <-
-    fmap uuorConvId . responseJsonError
+    fmap uuorConvId
+      . responseJsonError
       =<< iUpsertOne2OneConversation (mkRequest LocalActor Nothing)
-      <!! const 200 === statusCode
+        <!! const 200
+          === statusCode
   iUpsertOne2OneConversation (mkRequest RemoteActor (Just ooConvId))
-    !!! const 200 === statusCode
+    !!! const 200
+      === statusCode
 
 generateRemoteAndConvId :: Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
 generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.example.com")

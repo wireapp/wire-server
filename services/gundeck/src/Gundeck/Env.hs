@@ -90,8 +90,8 @@ createEnv m o = do
       pure $ Just rAdd
 
   p <-
-    C.init $
-      C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
+    C.init
+      $ C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
         . C.setContacts (NE.head c) (NE.tail c)
         . C.setPortNumber (fromIntegral $ o ^. optCassandra . casEndpoint . epPort)
         . C.setKeyspace (Keyspace (o ^. optCassandra . casKeyspace))
@@ -102,7 +102,7 @@ createEnv m o = do
         . C.setResponseTimeout 10
         . C.setProtocolVersion C.V4
         . C.setPolicy (C.dcFilterPolicyIfConfigured l (o ^. optCassandra . casFilterNodesByDatacentre))
-        $ C.defSettings
+      $ C.defSettings
   a <- Aws.mkEnv l o n
   io <-
     mkAutoUpdate

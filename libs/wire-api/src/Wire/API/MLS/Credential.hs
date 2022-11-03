@@ -191,7 +191,8 @@ signaturePurposeFromName :: Text -> Either String SignaturePurpose
 signaturePurposeFromName name =
   note ("Unsupported signature purpose " <> T.unpack name)
     . getAlt
-    $ flip foldMap [minBound .. maxBound] $ \s ->
+    $ flip foldMap [minBound .. maxBound]
+    $ \s ->
       guard (signaturePurposeName s == name) $> s
 
 instance FromJSON SignaturePurpose where

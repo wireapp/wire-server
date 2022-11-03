@@ -45,7 +45,6 @@ where
 import Bilge
 import Brig.Types.Intra
 import Brig.Types.User
-import Brig.Types.User.Auth (SsoLogin (..))
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Code as Code
@@ -61,6 +60,8 @@ import Spar.Error
 import qualified System.Logger.Class as Log
 import Web.Cookie
 import Wire.API.User
+import Wire.API.User.Auth.ReAuth
+import Wire.API.User.Auth.Sso
 import Wire.API.User.RichInfo as RichInfo
 import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
@@ -323,11 +324,11 @@ checkHandleAvailable hnd = do
   let sCode = statusCode resp
   if
       | sCode == 200 -> -- handle exists
-        pure False
+          pure False
       | sCode == 404 -> -- handle not found
-        pure True
+          pure True
       | otherwise ->
-        rethrow "brig" resp
+          rethrow "brig" resp
 
 -- | Call brig to delete a user.
 -- If the user wasn't deleted completely before, another deletion attempt will be made.

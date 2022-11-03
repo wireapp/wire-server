@@ -72,4 +72,5 @@ If you are using macOS and you used `brew` to install openssl, the `Makefile` al
 
 ## How to run it
 
-Have a look at our demo config in [services demo](../../deploy/services-demo/conf/nginz)
+Have a look at our demo config in [./integration-test/conf/nginz/](./integration-test/conf/nginz/)
+

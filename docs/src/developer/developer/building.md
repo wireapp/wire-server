@@ -1,20 +1,11 @@
 # How to build wire-server
 
-As a prerequisiste install the [nix package manager](https://nixos.org/) and [direnv](https://direnv.net/).
+As a prerequisiste install the [nix package manager](https://nixos.org/) and [direnv](https://direnv.net/). Follow [these instructions](https://wire-server.cachix.org) to setup the Nix cache which will save you many hours of building.
 
 All following commands expect that you've entered the nix-provided build-environment by running `direnv allow`.
 
 
-1. Create a `.envrc.local` file with these contents
-
-```
-    export COMPILE_NGINX_USING_NIX=1
-    export WIRE_BUILD_WITH_CABAL=1
-```
-
-   and reload the direnv via `direnv reload`
-
-2. Create a `cabal.project.local`. This file is not included in wire-server because it disables optimization.
+1. Create a `cabal.project.local`. This file is not included in wire-server because it disables optimization.
 
 
    make cabal.project.local

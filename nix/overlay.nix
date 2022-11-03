@@ -53,8 +53,10 @@ in
 self: super: {
   cryptobox = self.callPackage ./pkgs/cryptobox { };
   zauth = self.callPackage ./pkgs/zauth { };
-  mls_test_cli = self.callPackage ./pkgs/mls_test_cli { };
-  rusty_jwt_tools = self.callPackage ./pkgs/rusty_jwt_tools { };
+  mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
+
+  # Named like this so cabal2nix can find it
+  rusty_jwt_tools_ffi = self.callPackage ./pkgs/rusty_jwt_tools_ffi { };
 
   nginxModules = super.nginxModules // {
     zauth = {
@@ -137,4 +139,8 @@ self: super: {
 
     inherit (super) stdenv fetchurl;
   };
+
+  # This is to match the ormolu version that ships with HLS.
+  # This doesn't compile with ghc8107 howerver, so we use ghc92
+  ormolu = super.haskell.lib.justStaticExecutables (super.haskell.lib.doJailbreak super.haskell.packages.ghc92.ormolu_0_5_0_1);
 }

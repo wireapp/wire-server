@@ -72,5 +72,5 @@ main = do
       includingOptions
         [ Option (Proxy :: Proxy ServiceConfigFile),
           Option (Proxy :: Proxy IntegrationConfigFile)
-        ] :
-      defaultIngredients
+        ]
+        : defaultIngredients

@@ -299,6 +299,7 @@ http {
 
         proxy_set_header   Z-Type         $zauth_type;
         proxy_set_header   Z-User         $zauth_user;
+        proxy_set_header   Z-Client       $zauth_client;
         proxy_set_header   Z-Connection   $zauth_connection;
         proxy_set_header   Z-Provider     $zauth_provider;
         proxy_set_header   Z-Bot          $zauth_bot;
@@ -328,7 +329,6 @@ http {
     #
     # Swagger Resource Listing
     #
-
     location /api-docs {
         zauth off;
         default_type application/json;
@@ -343,10 +343,8 @@ http {
         }
         more_set_headers 'Access-Control-Allow-Origin: $http_origin';
     }
-    {{ end }}
 
     # Swagger UI
-
     location /swagger-ui {
         zauth  off;
         gzip   off;
@@ -358,6 +356,7 @@ http {
             image/png               png;
         }
     }
+    {{ end }}
 
     {{- if hasKey .Values.nginx_conf "deeplink" }}
     location ~* ^/deeplink.(json|html)$ {

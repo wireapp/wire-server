@@ -48,6 +48,7 @@ Assuming your proxy can be reached from within Kubernetes at ``http://proxy:8080
 
 Depending on your setup, you may need to repeat this for the other services like ``brig`` as well.
 
+.. _pushsns:
 
 Enable push notifications using the public appstore / playstore mobile Wire clients
 -----------------------------------------------------------------------------------
@@ -57,18 +58,18 @@ Enable push notifications using the public appstore / playstore mobile Wire clie
 
 .. code:: yaml
 
-    "gundeck":
-      "config":
-        "aws":
-          "account": "<REDACTED>"
-          "arnEnv": "<REDACTED>"
-          "queueName": "<REDACTED>-gundeck-events"
-          "region": "<REDACTED>"
-          "snsEndpoint": "https://sns.<REDACTED>.amazonaws.com"
-          "sqsEndpoint": "https://sqs.<REDACTED>.amazonaws.com"
-      "secrets":
-        "awsKeyId": "<REDACTED>"
-        "awsSecretKey": "<REDACTED>"
+    gundeck:
+      config:
+        aws:
+          account: "<REDACTED>"
+          arnEnv: "<REDACTED>"
+          queueName: "<REDACTED>-gundeck-events"
+          region: "<REDACTED>"
+          snsEndpoint: "https://sns.<REDACTED>.amazonaws.com"
+          sqsEndpoint: "https://sqs.<REDACTED>.amazonaws.com"
+      secrets:
+        awsKeyId: "<REDACTED>"
+        awsSecretKey: "<REDACTED>"
 
 To make use of those, first test the credentials are correct, e.g. using the ``aws`` command-line tool (for more information on how to configure credentials, please refer to the `official docs <https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html#cli-configure-quickstart-precedence>`__):
 
@@ -118,6 +119,14 @@ Keys below ``gundeck.secrets`` belong into ``values/wire-server/secrets.yaml``:
 
 
 After making this change and applying it to gundeck (ensure gundeck pods have restarted to make use of the updated configuration - that should happen automatically), make sure to reset the push token on any mobile devices that you may have in use.
+
+Next, if you want, you can stop using the `fake-aws-sns` pods in case you ran them before:
+
+.. code:: yaml
+
+   # inside override values/fake-aws/values.yaml
+   fake-aws-sns:
+     enabled: false
 
 Controlling the speed of websocket draining during cannon pod replacement
 -------------------------------------------------------------------------
@@ -238,7 +247,7 @@ Brig has a server option for this:
 
 If `setRestrictUserCreation` is `true`, creating new personal users or new teams on your instance from outside your backend installation is impossible.  (If you want to be more technical: requests to `/register` that create a new personal account or a new team are answered with `403 forbidden`.)
 
-On instances with restricted user creation, the site operator with access to the internal REST API can still circumvent the restriction: just log into a brig service pod via ssh and follow the steps in https://github.com/wireapp/wire-server/blob/b9a84f9b654a69c9a296761b36c042dc993236d3/deploy/services-demo/create_test_team_admins.sh.
+On instances with restricted user creation, the site operator with access to the internal REST API can still circumvent the restriction: just log into a brig service pod via ssh and follow the steps in `hack/bin/create_test_team_admins.sh.`
 
 .. note::
     Once the creation of new users and teams has been disabled, it will still be possible to use the `team creation process <https://support.wire.com/hc/en-us/articles/115003858905-Create-a-team>`__ (enter the new team name, email, password, etc), but it will fail/refuse creation late in the creation process (after the «Create team» button is clicked).

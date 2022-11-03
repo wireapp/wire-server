@@ -70,7 +70,7 @@ testGetAssetAvailable isPublicAsset = do
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API
   let tok = view assetToken ast
@@ -117,7 +117,7 @@ testGetAssetWrongToken = do
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API with wrong (random) token
   tok <- randToken
@@ -149,7 +149,7 @@ testLargeAsset = do
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings (applicationOctetStream, bs)
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API
   let tok = view assetToken ast
@@ -181,7 +181,7 @@ testStreamAsset = do
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API
   let tok = view assetToken ast
@@ -225,7 +225,7 @@ testStreamAssetWrongToken = do
   ast :: Asset <-
     responseJsonError
       =<< uploadSimple (path "/assets/v3") uid settings bdy
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   -- Call get-asset federation API with wrong (random) token
   tok <- randToken

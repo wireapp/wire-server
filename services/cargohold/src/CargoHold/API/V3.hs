@@ -82,9 +82,10 @@ upload own bdy = do
   expires <- case V3.assetRetentionSeconds ret of
     Just n -> Just . addUTCTime n <$> liftIO getCurrentTime
     Nothing -> pure Nothing
-  pure $! V3.mkAsset key
-    & set V3.assetExpires expires
-    & set V3.assetToken tok
+  pure $!
+    V3.mkAsset key
+      & set V3.assetExpires expires
+      & set V3.assetToken tok
 
 renewToken :: V3.Principal -> V3.AssetKey -> Handler V3.AssetToken
 renewToken own key = do
@@ -142,7 +143,8 @@ sinkParser p = fmapL mkError <$> Conduit.sinkParserEither p
   where
     mkError = clientError . LT.pack . mkMsg
     mkMsg e =
-      "Expected: " ++ intercalate ", " (Conduit.errorContexts e)
+      "Expected: "
+        ++ intercalate ", " (Conduit.errorContexts e)
         ++ ", "
         ++ Conduit.errorMessage e
         ++ " at "
@@ -216,15 +218,15 @@ headers allowed = do
       pure []
     Just name
       | name `notElem` allowed ->
-        -- might also be a duplicate
-        fail $ "Unexpected header: " ++ show (CI.original name)
+          -- might also be a duplicate
+          fail $ "Unexpected header: " ++ show (CI.original name)
       | otherwise -> do
-        _ <- char ':'
-        skipSpace
-        value <- takeTill isEOL <?> "header value"
-        eol
-        -- we don't want to parse it again (this also ensures quick termination)
-        ((name, value) :) <$> headers (List.delete name allowed)
+          _ <- char ':'
+          skipSpace
+          value <- takeTill isEOL <?> "header value"
+          eol
+          -- we don't want to parse it again (this also ensures quick termination)
+          ((name, value) :) <$> headers (List.delete name allowed)
 
 eol :: Parser ()
 eol = endOfLine <?> "\r\n"

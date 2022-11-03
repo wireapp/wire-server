@@ -22,8 +22,14 @@ import Servant.API hiding (Header, WithStatus)
 import Wire.API.Team.Feature
 
 type InternalLegalHoldAPI =
-  "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
+  "i"
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "legalhold"
     :> Get '[JSON] (WithStatus LegalholdConfig)
-    :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
+    :<|> "i"
+      :> "teams"
+      :> Capture "tid" TeamId
+      :> "legalhold"
       :> ReqBody '[JSON] (WithStatusNoLock LegalholdConfig)
       :> Put '[] NoContent

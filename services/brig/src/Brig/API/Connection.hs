@@ -39,6 +39,8 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import qualified Brig.IO.Intra as Intra
 import Brig.Types.Connection
 import Brig.Types.User.Event
@@ -51,6 +53,7 @@ import Data.Qualified
 import Data.Range
 import qualified Data.UUID.V4 as UUID
 import Imports
+import Polysemy (Members)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
@@ -64,14 +67,15 @@ ensureIsActivated lusr = do
   active <- lift . wrapClient $ Data.isActivated (tUnqualified lusr)
   guard active
 
-ensureNotSameTeam :: Local UserId -> Local UserId -> (ConnectionM r) ()
+ensureNotSameTeam :: Members '[GalleyProvider] r => Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
-  selfTeam <- lift $ wrapHttp $ Intra.getTeamId (tUnqualified self)
-  targetTeam <- lift $ wrapHttp $ Intra.getTeamId (tUnqualified target)
+  selfTeam <- lift $ liftSem $ GalleyProvider.getTeamId (tUnqualified self)
+  targetTeam <- lift $ liftSem $ GalleyProvider.getTeamId (tUnqualified target)
   when (isJust selfTeam && selfTeam == targetTeam) $
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
+  Members '[GalleyProvider] r =>
   Local UserId ->
   ConnId ->
   Qualified UserId ->
@@ -91,6 +95,7 @@ createConnection self con target = do
     target
 
 createConnectionToLocalUser ::
+  Members '[GalleyProvider] r =>
   Local UserId ->
   ConnId ->
   Local UserId ->
@@ -178,15 +183,19 @@ createConnectionToLocalUser self conn target = do
 --
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
-checkLegalholdPolicyConflict :: UserId -> UserId -> ExceptT ConnectionError (AppT r) ()
+checkLegalholdPolicyConflict ::
+  Members '[GalleyProvider] r =>
+  UserId ->
+  UserId ->
+  ExceptT ConnectionError (AppT r) ()
 checkLegalholdPolicyConflict uid1 uid2 = do
   let catchProfileNotFound =
         -- Does not fit into 'ExceptT', so throw in '(AppT r)'.  Anyway at the time of writing
         -- this, users are guaranteed to exist when called from 'createConnectionToLocalUser'.
         maybe (throwM (errorToWai @'E.UserNotFound)) pure
 
-  status1 <- lift (wrapHttpClient $ getLegalHoldStatus uid1) >>= catchProfileNotFound
-  status2 <- lift (wrapHttpClient $ getLegalHoldStatus uid2) >>= catchProfileNotFound
+  status1 <- lift (getLegalHoldStatus uid1) >>= catchProfileNotFound
+  status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound
 
   let oneway s1 s2 = case (s1, s2) of
         (LH.UserLegalHoldNoConsent, LH.UserLegalHoldNoConsent) -> pure ()

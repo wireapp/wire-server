@@ -181,7 +181,8 @@ modelTeamList = Doc.defineModel "TeamList" $ do
 instance ToSchema TeamList where
   schema =
     object "TeamList" $
-      TeamList <$> _teamListTeams .= field "teams" (array schema)
+      TeamList
+        <$> _teamListTeams .= field "teams" (array schema)
         <*> _teamListHasMore .= field "has_more" schema
 
 --------------------------------------------------------------------------------

@@ -30,6 +30,9 @@ production.
 
 ### MLS private key paths
 
+Note: This developer documentation. Documentation for site operators can be found here:
+[Messaging Layer Security (MLS)](../../how-to/install/mls.md).
+
 The `mlsPrivateKeyPaths` field should contain a mapping from *purposes* and
 signature schemes to file paths of corresponding x509 private keys in PEM
 format.

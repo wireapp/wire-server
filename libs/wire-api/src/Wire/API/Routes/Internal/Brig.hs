@@ -22,6 +22,7 @@ module Wire.API.Routes.Internal.Brig
     MLSAPI,
     TeamsAPI,
     UserAPI,
+    AuthAPI,
     EJPDRequest,
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
@@ -44,8 +45,7 @@ import Data.Schema hiding (swaggerDoc)
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import qualified Data.Swagger as S
 import Imports hiding (head)
-import Servant hiding (Handler, JSON, WithStatus, addHeader, respond)
-import qualified Servant
+import Servant hiding (Handler, WithStatus, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
@@ -61,6 +61,10 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Team.Feature
 import Wire.API.User
+import Wire.API.User.Auth
+import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.ReAuth
+import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 
 type EJPDRequest =
@@ -152,7 +156,8 @@ type AccountAPI =
     )
     :<|> Named
            "createUserNoVerifySpar"
-           ( "users" :> "spar"
+           ( "users"
+               :> "spar"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
@@ -171,8 +176,8 @@ instance ToSchema NewKeyPackageRef where
     object "NewKeyPackageRef" $
       NewKeyPackageRef
         <$> nkprUserId .= field "user_id" schema
-          <*> nkprClientId .= field "client_id" schema
-          <*> nkprConversation .= field "conversation" schema
+        <*> nkprClientId .= field "client_id" schema
+        <*> nkprConversation .= field "conversation" schema
 
 data NewKeyPackage = NewKeyPackage
   { nkpConversation :: Qualified ConvId,
@@ -186,7 +191,7 @@ instance ToSchema NewKeyPackage where
     object "NewKeyPackage" $
       NewKeyPackage
         <$> nkpConversation .= field "conversation" schema
-          <*> nkpKeyPackage .= field "key_package" schema
+        <*> nkpKeyPackage .= field "key_package" schema
 
 data NewKeyPackageResult = NewKeyPackageResult
   { nkpresClientIdentity :: ClientIdentity,
@@ -200,11 +205,12 @@ instance ToSchema NewKeyPackageResult where
     object "NewKeyPackageResult" $
       NewKeyPackageResult
         <$> nkpresClientIdentity .= field "client_identity" schema
-          <*> nkpresKeyPackageRef .= field "key_package_ref" schema
+        <*> nkpresKeyPackageRef .= field "key_package_ref" schema
 
 type MLSAPI =
   "mls"
-    :> ( ( "key-packages" :> Capture "ref" KeyPackageRef
+    :> ( ( "key-packages"
+             :> Capture "ref" KeyPackageRef
              :> ( Named
                     "get-client-by-key-package-ref"
                     ( Summary "Resolve an MLS key package ref to a qualified client ID"
@@ -311,7 +317,14 @@ type GetVerificationCode =
 
 type API =
   "i"
-    :> (EJPD_API :<|> AccountAPI :<|> MLSAPI :<|> GetVerificationCode :<|> TeamsAPI :<|> UserAPI)
+    :> ( EJPD_API
+           :<|> AccountAPI
+           :<|> MLSAPI
+           :<|> GetVerificationCode
+           :<|> TeamsAPI
+           :<|> UserAPI
+           :<|> AuthAPI
+       )
 
 type TeamsAPI =
   Named
@@ -348,6 +361,36 @@ type GetDefaultLocale =
     :> "users"
     :> "locale"
     :> Get '[Servant.JSON] LocaleUpdate
+
+type AuthAPI =
+  Named
+    "legalhold-login"
+    ( "legalhold-login"
+        :> ReqBody '[JSON] LegalHoldLogin
+        :> MultiVerb1 'POST '[JSON] TokenResponse
+    )
+    :<|> Named
+           "sso-login"
+           ( "sso-login"
+               :> ReqBody '[JSON] SsoLogin
+               :> QueryParam' [Optional, Strict] "persist" Bool
+               :> MultiVerb1 'POST '[JSON] TokenResponse
+           )
+    :<|> Named
+           "login-code"
+           ( "users"
+               :> "login-code"
+               :> QueryParam' [Required, Strict] "phone" Phone
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Login code" PendingLoginCode)
+           )
+    :<|> Named
+           "reauthenticate"
+           ( "users"
+               :> Capture "uid" UserId
+               :> "reauthenticate"
+               :> ReqBody '[JSON] ReAuthUser
+               :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "OK")
+           )
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 

@@ -20,6 +20,7 @@ module Galley.Cassandra.Team
     interpretTeamMemberStoreToCassandra,
     interpretTeamListToCassandra,
     interpretInternalTeamListToCassandra,
+    interpretTeamMemberStoreToCassandraWithPaging,
   )
 where
 
@@ -129,6 +130,14 @@ interpretTeamMemberStoreToCassandra lh = interpret $ \case
       page <- teamMembersForPagination tid Nothing lim
       mkInternalPage page (newTeamMember' lh tid)
     Just ps -> ipNext ps
+
+interpretTeamMemberStoreToCassandraWithPaging ::
+  Members '[Embed IO, Input ClientState] r =>
+  FeatureLegalHold ->
+  Sem (TeamMemberStore CassandraPaging ': r) a ->
+  Sem r a
+interpretTeamMemberStoreToCassandraWithPaging lh = interpret $ \case
+  ListTeamMembers tid mps lim -> embedClient $ teamMembersPageFrom lh tid mps lim
 
 createTeam ::
   Maybe TeamId ->
@@ -436,3 +445,14 @@ teamMembersForPagination tid start (fromRange -> max) =
   case start of
     Just u -> paginate Cql.selectTeamMembersFrom (paramsP LocalQuorum (tid, u) max)
     Nothing -> paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity tid) max)
+
+teamMembersPageFrom ::
+  FeatureLegalHold ->
+  TeamId ->
+  Maybe PagingState ->
+  Range 1 HardTruncationLimit Int32 ->
+  Client (PageWithState TeamMember)
+teamMembersPageFrom lh tid pagingState (fromRange -> max) = do
+  page <- paginateWithState Cql.selectTeamMembers (paramsPagingState LocalQuorum (Identity tid) max pagingState)
+  members <- mapM (newTeamMember' lh tid) (pwsResults page)
+  pure $ PageWithState members (pwsState page)

@@ -24,13 +24,13 @@ module Galley.API.MLS.Removal
 where
 
 import Control.Comonad
-import Control.Lens (view)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
+import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
 import qualified Galley.Data.Conversation.Types as Data
@@ -43,10 +43,9 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
-import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -74,18 +73,21 @@ removeClientsWithClientMap lc cs cm qusr = do
   case Data.convProtocol (tUnqualified lc) of
     ProtocolProteus -> pure ()
     ProtocolMLS meta -> do
-      keyPair <- mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
-      (secKey, pubKey) <- note (InternalErrorWithDescription "backend removal key missing") $ keyPair
-      for_ cs $ \(_client, kpref) -> do
-        let proposal = mkRemoveProposal kpref
-            msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
-            msgEncoded = encodeMLS' msg
-        storeProposal
-          (cnvmlsGroupId meta)
-          (cnvmlsEpoch meta)
-          (proposalRef (cnvmlsCipherSuite meta) proposal)
-          proposal
-        propagateMessage qusr lc cm Nothing msgEncoded
+      mKeyPair <- getMLSRemovalKey
+      case mKeyPair of
+        Nothing -> do
+          warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
+        Just (secKey, pubKey) -> do
+          for_ cs $ \(_client, kpref) -> do
+            let proposal = mkRemoveProposal kpref
+                msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
+                msgEncoded = encodeMLS' msg
+            storeProposal
+              (cnvmlsGroupId meta)
+              (cnvmlsEpoch meta)
+              (proposalRef (cnvmlsCipherSuite meta) proposal)
+              proposal
+            propagateMessage qusr lc cm Nothing msgEncoded
 
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::

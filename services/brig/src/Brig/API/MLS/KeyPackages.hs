@@ -76,10 +76,9 @@ claimLocalKeyPackages qusr skipOwn target = do
   foldQualified
     target
     ( \lusr ->
-        wrapHttpClientE $
-          guardLegalhold
-            (ProtectedUser (tUnqualified lusr))
-            (mkUserClients [(tUnqualified target, clients)])
+        guardLegalhold
+          (ProtectedUser (tUnqualified lusr))
+          (mkUserClients [(tUnqualified target, clients)])
     )
     (\_ -> pure ())
     qusr
@@ -101,13 +100,13 @@ claimRemoteKeyPackages lusr target = do
   bundle <-
     withExceptT clientError
       . (handleFailure =<<)
-      $ withExceptT ClientFederationError $
-        runBrigFederatorClient (tDomain target) $
-          fedClient @'Brig @"claim-key-packages" $
-            ClaimKeyPackageRequest
-              { ckprClaimant = tUnqualified lusr,
-                ckprTarget = tUnqualified target
-              }
+      $ withExceptT ClientFederationError
+      $ runBrigFederatorClient (tDomain target)
+      $ fedClient @'Brig @"claim-key-packages"
+      $ ClaimKeyPackageRequest
+        { ckprClaimant = tUnqualified lusr,
+          ckprTarget = tUnqualified target
+        }
 
   -- validate and set up mappings for all claimed key packages
   for_ (kpbEntries bundle) $ \e -> do

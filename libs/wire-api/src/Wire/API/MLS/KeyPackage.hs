@@ -78,8 +78,9 @@ newtype KeyPackageData = KeyPackageData {kpData :: ByteString}
 instance ToSchema KeyPackageData where
   schema =
     (S.schema %~ addKeyPackageSwagger)
-      ( KeyPackageData <$> kpData
-          .= named "KeyPackage" base64Schema
+      ( KeyPackageData
+          <$> kpData
+            .= named "KeyPackage" base64Schema
       )
 
 instance Cql KeyPackageData where

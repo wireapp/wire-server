@@ -143,9 +143,9 @@ testObject_Asset_asset_19 :: Asset
 testObject_Asset_asset_19 =
   mkAsset (Qualified (AssetKeyV3 (Id (fromJust (UUID.fromString "00000021-0000-0062-0000-002a0000006b"))) AssetVolatile) (Domain "example.com"))
     & assetExpires
-    .~ fmap read Nothing
+      .~ fmap read Nothing
     & assetToken
-    ?~ AssetToken {assetTokenAscii = fromRight undefined (validate "4wm3D03aqvZ_0oKFtwXCYnSTC7m_z1E=")}
+      ?~ AssetToken {assetTokenAscii = fromRight undefined (validate "4wm3D03aqvZ_0oKFtwXCYnSTC7m_z1E=")}
 
 testObject_Asset_asset_20 :: Asset
 testObject_Asset_asset_20 =

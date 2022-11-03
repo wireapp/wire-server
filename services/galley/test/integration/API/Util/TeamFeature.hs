@@ -23,6 +23,7 @@ import Bilge
 import Control.Lens ((.~), (^?))
 import Control.Monad.Catch (MonadThrow)
 import Data.Aeson (FromJSON, Result (Success), ToJSON, Value, fromJSON)
+import qualified Data.Aeson.Key as Key
 import Data.Aeson.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
@@ -120,7 +121,7 @@ getFeatureConfig :: forall cfg m. (HasCallStack, MonadThrow m, HasGalley m, Mona
 getFeatureConfig uid = do
   galley <- viewGalley
   response :: Value <- responseJsonError =<< getAllFeatureConfigsWithGalley galley uid
-  let status = response ^? key (Public.featureName @cfg)
+  let status = response ^? key (Key.fromText (Public.featureName @cfg))
   maybe (error "getting all features failed") pure (status >>= fromResult . fromJSON)
   where
     fromResult :: Result a -> Maybe a

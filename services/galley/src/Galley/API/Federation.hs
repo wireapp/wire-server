@@ -630,9 +630,9 @@ sendMLSCommitBundle remoteDomain msr =
     $ do
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
-      bundle <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
+      bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.msrRawMessage msr))
       mapToGalleyError @MLSBundleStaticErrors $ do
-        let msg = rmValue (cbCommitMsg (rmValue bundle))
+        let msg = rmValue (cbCommitMsg bundle)
         qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
         when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
         F.MLSMessageResponseUpdates . map lcuUpdate
@@ -723,14 +723,14 @@ mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawW
   welcome <- either (throw . InternalErrorWithDescription . LT.fromStrict) pure $ decodeMLS' rawWelcome
   -- Extract only recipients local to this backend
   rcpts <-
-    fmap catMaybes $
-      traverse
+    fmap catMaybes
+      $ traverse
         ( fmap (fmap cidQualifiedClient . hush)
             . runError @(Tagged 'MLSKeyPackageRefNotFound ())
             . derefKeyPackage
             . gsNewMember
         )
-        $ welSecrets welcome
+      $ welSecrets welcome
   let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
   sendLocalWelcomes Nothing now rawWelcome lrcpts
   pure EmptyResponse

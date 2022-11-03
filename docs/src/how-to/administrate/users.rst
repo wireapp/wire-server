@@ -232,7 +232,7 @@ Then delete it:
 Mass-invite users to a team
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you need to invite members to a specific given team, you can use the ``create_team_members.sh`` Bash script, located `here <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh>`__.
+If you need to invite members to a specific given team, you can use the ``create_team_members.sh`` Bash script, located `here <https://github.com/wireapp/wire-server/blob/develop/hack/bin/create_team_members.sh>`__.
 
 This script does not create users or causes them to join a team by itself, instead, it sends invites to potential users via email, and when users accept the invitation, they create their account, set their password, and are added to the team as team members.
 
@@ -240,7 +240,7 @@ Input is a `CSV file <https://en.wikipedia.org/wiki/Comma-separated_values>`__, 
 
 You also need to specify the inviting admin user, the team, the URI for the Brig (`API <https://docs.wire.com/understand/federation/api.html?highlight=brig>`__) service (Host), and finally the input (CSV) file containing the users to invite.
 
-The exact format for the parameters passed to the script is `as follows <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L17>`__:
+The exact format for the parameters passed to the script is `as follows <https://github.com/wireapp/wire-server/blob/develop/hack/bin/create_team_members.sh#L17>`__:
 
 * ``-a <admin uuid>``: `User ID <https://docs.wire.com/understand/federation/api.html?highlight=user%20id#qualified-identifiers-and-names>`__ in `UUID format <https://en.wikipedia.org/wiki/Universally_unique_identifier>`__ of the inviting admin. For example ``9122e5de-b4fb-40fa-99ad-1b5d7d07bae5``.
 * ``-t <team uuid>``: ID of the inviting team, same format.
@@ -257,7 +257,7 @@ Note: the 'http://localhost:9999' implies you are running the 'kubectl port-forw
 .
 Once the script is run, invitations will be sent to each user in the file every second until all invitations have been sent.
 
-If you have a lot of invitations to send and this is too slow, you can speed things up by commenting `this line <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team_members.sh#L91>`__.
+If you have a lot of invitations to send and this is too slow, you can speed things up by commenting `this line <https://github.com/wireapp/wire-server/blob/develop/hack/bin/create_team_members.sh#L91>`__.
 
 
 How to obtain logs from an Android client to investigate issues
@@ -503,7 +503,7 @@ Create a team using the SCIM API
 
 If you need to create a team manually, maybe because team creation was blocked in the "teams" interface, follow this procedure:
 
-First download or locate this bash script: `wire-server/deploy/services-demo/create_test_team_scim.sh <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_test_team_scim.sh>`
+First download or locate this bash script: `wire-server/hack/bin/create_test_team_scim.sh <https://github.com/wireapp/wire-server/blob/develop/hack/bin/create_test_team_scim.sh>`
 
 Then, run it the following way:
 
@@ -572,7 +572,7 @@ Out of the JSON  output of this command, you should be able to extract:
 * A SCIM token (`token` value in the JSON).
 * A SCIM token ID (`id` value in the `info` value in the JSON)
 
-Equiped with those tokens, we move on to the next script, `wire-server/deploy/services-demo/create_team.sh <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team.sh>`
+Equiped with those tokens, we move on to the next script, `wire-server/hack/bin/create_team.sh <https://github.com/wireapp/wire-server/blob/develop/hack/bin/create_team.sh>`
 
 This script can be run the following way:
 

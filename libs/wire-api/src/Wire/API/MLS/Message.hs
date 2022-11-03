@@ -266,7 +266,7 @@ instance SerialiseMLS (Sender 'MLSPlainText) where
   serialiseMLS (PreconfiguredSender x) = do
     serialiseMLS PreconfiguredSenderTag
     put x
-  serialiseMLS NewMemberSender = serialiseMLS NewMemberSender
+  serialiseMLS NewMemberSender = serialiseMLS NewMemberSenderTag
 
 data family MessagePayload (tag :: WireFormatTag) :: *
 

@@ -1129,10 +1129,10 @@ removeMemberFromRemoteConv ::
   Sem r (Maybe Event)
 removeMemberFromRemoteConv cnv lusr victim
   | qUntagged lusr == victim = do
-    let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
-    let rpc = fedClient @'Galley @"leave-conversation" lc
-    (either handleError handleSuccess . leaveResponse =<<) $
-      E.runFederated cnv rpc
+      let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
+      let rpc = fedClient @'Galley @"leave-conversation" lc
+      (either handleError handleSuccess . leaveResponse =<<) $
+        E.runFederated cnv rpc
   | otherwise = throwS @('ActionDenied 'RemoveConversationMember)
   where
     handleError ::
@@ -1177,16 +1177,16 @@ removeMemberFromLocalConv ::
   Sem r (Maybe Event)
 removeMemberFromLocalConv lcnv lusr con victim
   | qUntagged lusr == victim =
-    fmap (fmap lcuEvent . hush)
-      . runError @NoChanges
-      . updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged lusr) con
-      $ ()
+      fmap (fmap lcuEvent . hush)
+        . runError @NoChanges
+        . updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged lusr) con
+        $ ()
   | otherwise =
-    fmap (fmap lcuEvent . hush)
-      . runError @NoChanges
-      . updateLocalConversation @'ConversationRemoveMembersTag lcnv (qUntagged lusr) con
-      . pure
-      $ victim
+      fmap (fmap lcuEvent . hush)
+        . runError @NoChanges
+        . updateLocalConversation @'ConversationRemoveMembersTag lcnv (qUntagged lusr) con
+        . pure
+        $ victim
 
 -- OTR
 
@@ -1269,7 +1269,7 @@ unqualifyEndpoint loc f ignoreMissing reportMissing message = do
             qualifiedNewOtrNativePush = newOtrNativePush message,
             qualifiedNewOtrTransient = newOtrTransient message,
             qualifiedNewOtrNativePriority = newOtrNativePriority message,
-            qualifiedNewOtrData = maybe mempty fromBase64TextLenient (newOtrData message),
+            qualifiedNewOtrData = foldMap fromBase64TextLenient (newOtrData message),
             qualifiedNewOtrClientMismatchStrategy = clientMismatchStrategy
           }
   unqualify (tDomain loc) <$> f qualifiedMessage

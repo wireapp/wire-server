@@ -96,7 +96,7 @@ pwResetError ResetPasswordMustDiffer = StdError (errorToWai @'E.ResetPasswordMus
 
 sendLoginCodeError :: SendLoginCodeError -> Error
 sendLoginCodeError (SendLoginInvalidPhone _) = StdError (errorToWai @'E.InvalidPhone)
-sendLoginCodeError SendLoginPasswordExists = StdError passwordExists
+sendLoginCodeError SendLoginPasswordExists = StdError (errorToWai @'E.PasswordExists)
 
 sendActCodeError :: SendActivationCodeError -> Error
 sendActCodeError (InvalidRecipient k) = StdError $ foldKey (const (errorToWai @'E.InvalidEmail)) (const (errorToWai @'E.InvalidPhone)) k
@@ -123,9 +123,9 @@ legalHoldLoginError (LegalHoldReAuthError e) = reauthError e
 
 loginError :: LoginError -> Error
 loginError LoginFailed = StdError (errorToWai @'E.BadCredentials)
-loginError LoginSuspended = StdError accountSuspended
-loginError LoginEphemeral = StdError accountEphemeral
-loginError LoginPendingActivation = StdError accountPending
+loginError LoginSuspended = StdError (errorToWai @'E.AccountSuspended)
+loginError LoginEphemeral = StdError (errorToWai @'E.AccountEphemeral)
+loginError LoginPendingActivation = StdError (errorToWai @'E.AccountPending)
 loginError (LoginThrottled wait) =
   RichError
     loginsTooFrequent
@@ -136,15 +136,15 @@ loginError (LoginBlocked wait) =
     tooManyFailedLogins
     ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
-loginError LoginCodeRequired = StdError loginCodeAuthenticationRequired
-loginError LoginCodeInvalid = StdError loginCodeAuthenticationFailed
+loginError LoginCodeRequired = StdError (errorToWai @'E.CodeAuthenticationRequired)
+loginError LoginCodeInvalid = StdError (errorToWai @'E.CodeAuthenticationFailed)
 
 authError :: AuthError -> Error
 authError AuthInvalidUser = StdError (errorToWai @'E.BadCredentials)
 authError AuthInvalidCredentials = StdError (errorToWai @'E.BadCredentials)
-authError AuthSuspended = StdError accountSuspended
-authError AuthEphemeral = StdError accountEphemeral
-authError AuthPendingInvitation = StdError accountPending
+authError AuthSuspended = StdError (errorToWai @'E.AccountSuspended)
+authError AuthEphemeral = StdError (errorToWai @'E.AccountEphemeral)
+authError AuthPendingInvitation = StdError (errorToWai @'E.AccountPending)
 
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError (errorToWai @'E.MissingAuth)
@@ -275,21 +275,6 @@ loginCodePending = Wai.mkError status403 "pending-login" "A login code is still 
 
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
-
-loginCodeAuthenticationFailed :: Wai.Error
-loginCodeAuthenticationFailed = Wai.mkError status403 "code-authentication-failed" "The login code is not valid."
-
-loginCodeAuthenticationRequired :: Wai.Error
-loginCodeAuthenticationRequired = Wai.mkError status403 "code-authentication-required" "A login verification code is required."
-
-accountPending :: Wai.Error
-accountPending = Wai.mkError status403 "pending-activation" "Account pending activation."
-
-accountSuspended :: Wai.Error
-accountSuspended = Wai.mkError status403 "suspended" "Account suspended."
-
-accountEphemeral :: Wai.Error
-accountEphemeral = Wai.mkError status403 "ephemeral" "Account is ephemeral."
 
 newPasswordMustDiffer :: Wai.Error
 newPasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For provider password change or reset, new and old password must be different."
@@ -433,7 +418,8 @@ customerExtensionBlockedDomain :: Domain -> Wai.Error
 customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable For Legal Reasons") "domain-blocked-for-registration" msg
   where
     msg =
-      "[Customer extension] the email domain " <> cs (show domain)
+      "[Customer extension] the email domain "
+        <> cs (show domain)
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
 

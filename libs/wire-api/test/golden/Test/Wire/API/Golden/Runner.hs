@@ -128,7 +128,8 @@ testFromJSONFailureWithMsg msg path = do
       Nothing -> pure ()
       Just m ->
         assertBool
-          ( failurePrefix <> " had a wrong failure: "
+          ( failurePrefix
+              <> " had a wrong failure: "
               <> show m
               <> " is not contained in "
               <> show err

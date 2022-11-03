@@ -103,14 +103,14 @@ newSettings (Server h p l m t) = do
   -- (Atomically) initialise the standard metrics, to avoid races.
   void $ gaugeGet (path "net.connections") m
   void $ counterGet (path "net.errors") m
-  pure $
-    setHost (fromString h)
+  pure
+    $ setHost (fromString h)
       . setPort (fromIntegral p)
       . setBeforeMainLoop logStart
       . setOnOpen (const $ connStart >> pure True)
       . setOnClose (const connEnd)
       . setTimeout (fromMaybe 300 t)
-      $ defaultSettings
+    $ defaultSettings
   where
     connStart = gaugeIncr (path "net.connections") m
     connEnd = gaugeDecr (path "net.connections") m
@@ -312,8 +312,8 @@ rethrow5xx logger app req k = app req k'
 -- an unnecessary wrapper.
 wrapError :: Status -> LByteString -> Wai.Error
 wrapError st body =
-  decode body
-    ?: Wai.mkError st "server-error" (cs body)
+  decode body ?:
+    Wai.mkError st "server-error" (cs body)
 
 -- | This flushes the response!  If you want to keep using the response, you need to construct
 -- a new one with a fresh body stream.

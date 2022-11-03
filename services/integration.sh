@@ -26,7 +26,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz"
+    pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz|stern"
     sleep 1
     kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
@@ -44,6 +44,7 @@ function check_prerequisites() {
       && [ ! -f "${TOP_LEVEL}/dist/cannon" ] \
       && [ ! -f "${TOP_LEVEL}/dist/gundeck" ] \
       && [ ! -f "${TOP_LEVEL}/dist/cargohold" ] \
+      && [ ! -f "${TOP_LEVEL}/dist/stern" ] \
       && [ ! -f "${TOP_LEVEL}/dist/spar" ]; then
         echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make' first?"; exit 1;
     fi
@@ -116,12 +117,13 @@ else
     run cargohold "" ${purpleish}
     run spar "" ${orange}
     run federator "" ${blue}
+    run stern "" ${yellow}
 fi
 
 function run_nginz() {
     colour=$1
 
-    if [[ $COMPILE_NGINX_USING_NIX -eq 1 ]]; then
+    if [[ ! ${COMPILE_NGINX_USING_NIX:-1} -eq 0 ]]; then
       # For nix we don't need LD_LIBRARY_PATH; we link against libzauth directly.
       nginz=$(nix-build "${TOP_LEVEL}/nix" -A pkgs.nginz --no-out-link )
       (cd ${NGINZ_WORK_DIR} && ${nginz}/bin/nginx -p ${NGINZ_WORK_DIR} -c ${NGINZ_WORK_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
@@ -135,7 +137,8 @@ function run_nginz() {
 }
 
 NGINZ_PORT=""
-if [[ $INTEGRATION_USE_NGINZ -eq 1 ]]; then
+
+if [[ ! ${INTEGRATION_USE_NGINZ:-1} -eq 0 ]]; then
     NGINZ_PORT=8080
     # Note: for integration tests involving nginz,
     # nginz and brig must share the same zauth public/private keys

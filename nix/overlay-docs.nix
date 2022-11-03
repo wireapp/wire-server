@@ -3,12 +3,13 @@ self: super: rec {
     packageOverrides = pself: psuper: {
       rst2pdf = pself.callPackage ./pkgs/python-docs/rst2pdf.nix { };
       sphinx-multiversion = pself.callPackage ./pkgs/python-docs/sphinx-multiversion.nix { };
+      sphinx_reredirects = pself.callPackage ./pkgs/python-docs/sphinx_reredirects.nix { };
       sphinxcontrib-kroki = pself.callPackage ./pkgs/python-docs/sphinxcontrib-kroki.nix { };
       svg2rlg = pself.callPackage ./pkgs/python-docs/svg2rlg.nix { };
     };
   });
 
-  mls_test_cli = self.callPackage ./pkgs/mls_test_cli { };
+  mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
 
   python3Packages = python3.pkgs;
 }

@@ -99,12 +99,12 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
         Left ex
           | Just (Http.HttpExceptionRequest _ (Http.StatusCodeException rs _)) <- fromException ex,
             Http.responseStatus rs == status410 -> do
-            Log.debug $
-              field "provider" (toByteString (s ^. serviceRefProvider))
-                ~~ field "service" (toByteString (s ^. serviceRefId))
-                ~~ field "bot" (toByteString (botMemId b))
-                ~~ msg (val "External bot gone")
-            pure (b : gone)
+              Log.debug $
+                field "provider" (toByteString (s ^. serviceRefProvider))
+                  ~~ field "service" (toByteString (s ^. serviceRefId))
+                  ~~ field "bot" (toByteString (botMemId b))
+                  ~~ msg (val "External bot gone")
+              pure (b : gone)
         Left ex -> do
           Log.info $
             field "provider" (toByteString (s ^. serviceRefProvider))
@@ -119,22 +119,22 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
 deliver1 :: Service -> BotMember -> Event -> App ()
 deliver1 s bm e
   | s ^. serviceEnabled = do
-    let t = toByteString' (s ^. serviceToken)
-    let u = s ^. serviceUrl
-    let b = botMemId bm
-    let HttpsUrl url = u
-    recovering x3 httpHandlers $
-      const $
-        sendMessage (s ^. serviceFingerprints) $
-          method POST
-            . maybe id host (urlHost u)
-            . maybe (port 443) port (urlPort u)
-            . paths [url ^. pathL, "bots", toByteString' b, "messages"]
-            . header "Authorization" ("Bearer " <> t)
-            . json e
-            . timeout 5000
-            . secure
-            . expect2xx
+      let t = toByteString' (s ^. serviceToken)
+      let u = s ^. serviceUrl
+      let b = botMemId bm
+      let HttpsUrl url = u
+      recovering x3 httpHandlers $
+        const $
+          sendMessage (s ^. serviceFingerprints) $
+            method POST
+              . maybe id host (urlHost u)
+              . maybe (port 443) port (urlPort u)
+              . paths [url ^. pathL, "bots", toByteString' b, "messages"]
+              . header "Authorization" ("Bearer " <> t)
+              . json e
+              . timeout 5000
+              . secure
+              . expect2xx
   | otherwise = pure ()
 
 urlHost :: HttpsUrl -> Maybe ByteString

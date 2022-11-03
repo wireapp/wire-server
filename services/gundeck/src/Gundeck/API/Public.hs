@@ -16,185 +16,40 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Gundeck.API.Public
-  ( sitemap,
-    apiDocs,
+  ( servantSitemap,
   )
 where
 
-import Control.Lens ((^.))
 import Data.Id
 import Data.Range
-import Data.Swagger.Build.Api hiding (Response, def, min)
-import qualified Data.Swagger.Build.Api as Swagger
-import Data.Text.Encoding (decodeLatin1)
-import qualified Data.Text.Encoding as Text
 import Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
-import Gundeck.API.Error
 import Gundeck.Monad
 import qualified Gundeck.Notification as Notification
+import qualified Gundeck.Notification.Data as Data
 import qualified Gundeck.Push as Push
 import Imports
-import Network.HTTP.Types
-import Network.Wai
-import Network.Wai.Predicate hiding (setStatus)
-import Network.Wai.Routing hiding (route)
-import Network.Wai.Utilities
-import Network.Wai.Utilities.Swagger
-import Wire.API.Notification (NotificationId)
+import Servant (HasServer (..), (:<|>) (..))
 import qualified Wire.API.Notification as Public
-import qualified Wire.API.Push.Token as Public
-import qualified Wire.API.Swagger as Public.Swagger
+import Wire.API.Routes.Named (Named (Named))
+import Wire.API.Routes.Public.Gundeck
 
-sitemap :: Routes ApiBuilder Gundeck ()
-sitemap = do
-  -- Push API -----------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Servant API
 
-  post "/push/tokens" (continue addTokenH) $
-    header "Z-User"
-      .&. header "Z-Connection"
-      .&. jsonRequest @Public.PushToken
-      .&. accept "application" "json"
-  document "POST" "registerPushToken" $ do
-    summary "Register a native push token"
-    body (ref Public.modelPushToken) $
-      description "JSON body"
-    returns (ref Public.modelPushToken)
-    response 201 "Push token registered" end
-    response 404 "App does not exist" end
+servantSitemap :: ServerT GundeckAPI Gundeck
+servantSitemap = pushAPI :<|> notificationAPI
+  where
+    pushAPI =
+      Named @"register-push-token" Push.addToken
+        :<|> Named @"delete-push-token" Push.deleteToken
+        :<|> Named @"get-push-tokens" Push.listTokens
 
-  delete "/push/tokens/:pid" (continue deleteTokenH) $
-    header "Z-User"
-      .&. param "pid"
-      .&. accept "application" "json"
-  document "DELETE" "unregisterPushToken" $ do
-    summary "Unregister a native push token"
-    parameter Path "pid" bytes' $
-      description "The push token to delete"
-    response 204 "Push token unregistered" end
-    response 404 "Push token does not exist" end
-
-  get "/push/tokens" (continue listTokensH) $
-    header "Z-User"
-      .&. accept "application" "json"
-  document "GET" "getPushTokens" $ do
-    summary "List the user's registered push tokens."
-    returns (ref Public.modelPushTokenList)
-    response 200 "Object containing list of push tokens" end
-
-  -- Notification API --------------------------------------------------------
-
-  get "/notifications" (continue paginateH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. opt (query "since")
-      .&. opt (query "client")
-      .&. def (unsafeRange 1000) (query "size")
-  document "GET" "fetchNotifications" $ do
-    summary "Fetch notifications"
-    parameter Query "since" bytes' $ do
-      optional
-      description "Only return notifications more recent than this."
-    parameter Query "client" bytes' $ do
-      optional
-      description "Only return notifications targeted at the given client."
-    parameter Query "size" (int32 (Swagger.def 1000)) $ do
-      optional
-      description "Maximum number of notifications to return."
-    returns (ref Public.modelNotificationList)
-    response 200 "Notification list" end
-    errorResponse' notificationNotFound Public.modelNotificationList
-
-  get "/notifications/:id" (continue getByIdH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "id"
-      .&. opt (query "client")
-  document "GET" "getNotification" $ do
-    summary "Fetch a notification by ID."
-    parameter Query "id" bytes' $
-      description "Notification ID"
-    parameter Query "client" bytes' $ do
-      optional
-      description "Only return notifications targeted at the given client."
-    returns (ref Public.modelNotification)
-    response 200 "Notification found" end
-    errorResponse notificationNotFound
-
-  get "/notifications/last" (continue getLastH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. opt (query "client")
-  document "GET" "getLastNotification" $ do
-    summary "Fetch the last notification."
-    parameter Query "client" bytes' $ do
-      optional
-      description "Only return the last notification targeted at the given client."
-    returns (ref Public.modelNotification)
-    response 200 "Notification found" end
-    errorResponse notificationNotFound
-
-apiDocs :: Routes ApiBuilder Gundeck ()
-apiDocs = do
-  get "/push/api-docs" (continue docsH) $
-    query "base_url" .&. accept "application" "json"
-
-type JSON = Media "application" "json"
-
-docsH :: ByteString ::: JSON -> Gundeck Response
-docsH (url ::: _) =
-  let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models sitemap
-   in pure $ json doc
-
-addTokenH :: UserId ::: ConnId ::: JsonRequest Public.PushToken ::: JSON -> Gundeck Response
-addTokenH (uid ::: cid ::: req ::: _) = do
-  newtok <- fromJsonBody req
-  handleAddTokenResponse <$> Push.addToken uid cid newtok
-
-handleAddTokenResponse :: Push.AddTokenResponse -> Response
-handleAddTokenResponse = \case
-  Push.AddTokenSuccess newtok -> success newtok
-  Push.AddTokenNoBudget -> snsThreadBudgetReached
-  Push.AddTokenNotFound -> notFound
-  Push.AddTokenInvalid -> invalidToken
-  Push.AddTokenTooLong -> tokenTooLong
-  Push.AddTokenMetadataTooLong -> metadataTooLong
-
-success :: Public.PushToken -> Response
-success t =
-  let loc = Text.encodeUtf8 . Public.tokenText $ t ^. Public.token
-   in json t & setStatus status201 & addHeader hLocation loc
-
-invalidToken :: Response
-invalidToken =
-  json (mkError status400 "invalid-token" "Invalid push token")
-    & setStatus status404
-
-snsThreadBudgetReached :: Response
-snsThreadBudgetReached =
-  json (mkError status400 "sns-thread-budget-reached" "Too many concurrent calls to SNS; is SNS down?")
-    & setStatus status413
-
-tokenTooLong :: Response
-tokenTooLong =
-  json (mkError status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")
-    & setStatus status413
-
-metadataTooLong :: Response
-metadataTooLong =
-  json (mkError status400 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048")
-    & setStatus status413
-
-notFound :: Response
-notFound = empty & setStatus status404
-
-deleteTokenH :: UserId ::: Public.Token ::: JSON -> Gundeck Response
-deleteTokenH (uid ::: tok ::: _) =
-  setStatus status204 empty <$ Push.deleteToken uid tok
-
-listTokensH :: UserId ::: JSON -> Gundeck Response
-listTokensH (uid ::: _) =
-  setStatus status200 . json @Public.PushTokenList <$> Push.listTokens uid
+    notificationAPI =
+      Named @"get-notification-by-id" Data.fetchId
+        :<|> Named @"get-last-notification" Data.fetchLast
+        :<|> Named @"get-notifications@v2" paginateUntilV2
+        :<|> Named @"get-notifications" paginate
 
 -- | Returns a list of notifications for given 'uid'
 --
@@ -228,28 +83,39 @@ listTokensH (uid ::: _) =
 --
 -- (arianvp): I am not sure why it is convenient for clients to distinct
 -- between these two cases.
-paginateH :: JSON ::: UserId ::: Maybe ByteString ::: Maybe ClientId ::: Range 100 10000 Int32 -> Gundeck Response
-paginateH (_ ::: uid ::: sinceRaw ::: clt ::: size) = do
-  Notification.PaginateResult gap page <- Notification.paginate uid (join since) clt size
-  pure . updStatus gap . json $ (page :: Public.QueuedNotificationList)
+paginateUntilV2 ::
+  UserId ->
+  Maybe Public.RawNotificationId ->
+  Maybe ClientId ->
+  Maybe (Range 100 10000 Int32) ->
+  Gundeck Public.GetNotificationsResponse
+paginateUntilV2 uid mbSince mbClient mbSize = do
+  let size = fromMaybe (unsafeRange 1000) mbSize
+  Notification.PaginateResult gap page <- Notification.paginate uid (join since) mbClient size
+  pure $
+    if gap
+      then Public.GetNotificationsWithStatusNotFound page
+      else case since of
+        Just (Just _) -> Public.GetNotificationsSuccess page
+        Nothing -> Public.GetNotificationsSuccess page
+        Just Nothing -> Public.GetNotificationsWithStatusNotFound page
   where
-    since :: Maybe (Maybe NotificationId)
-    since = parseUUID <$> sinceRaw
-    parseUUID :: ByteString -> Maybe NotificationId
-    parseUUID = UUID.fromASCIIBytes >=> isV1UUID >=> pure . Id
+    since :: Maybe (Maybe Public.NotificationId)
+    since = parseUUID <$> mbSince
+
+    parseUUID :: Public.RawNotificationId -> Maybe Public.NotificationId
+    parseUUID = (UUID.fromASCIIBytes . Public.unRawNotificationId) >=> isV1UUID >=> pure . Id
+
     isV1UUID :: UUID -> Maybe UUID
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
-    updStatus :: Bool -> Response -> Response
-    updStatus True = setStatus status404
-    updStatus False = case since of
-      Just (Just _) -> id
-      Nothing -> id
-      Just Nothing -> setStatus status404
 
-getByIdH :: JSON ::: UserId ::: NotificationId ::: Maybe ClientId -> Gundeck Response
-getByIdH (_ ::: uid ::: nid ::: cid) =
-  json @Public.QueuedNotification <$> Notification.getById uid nid cid
-
-getLastH :: JSON ::: UserId ::: Maybe ClientId -> Gundeck Response
-getLastH (_ ::: uid ::: cid) =
-  json @Public.QueuedNotification <$> Notification.getLast uid cid
+paginate ::
+  UserId ->
+  Maybe Public.NotificationId ->
+  Maybe ClientId ->
+  Maybe (Range 100 10000 Int32) ->
+  Gundeck (Maybe Public.QueuedNotificationList)
+paginate uid mbSince mbClient mbSize = do
+  let size = fromMaybe (unsafeRange 1000) mbSize
+  Notification.PaginateResult gap page <- Notification.paginate uid mbSince mbClient size
+  pure $ if gap then Nothing else Just page

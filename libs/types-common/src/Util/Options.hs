@@ -138,7 +138,8 @@ getOptions desc pars defaultPath = do
     -- Config doesn't exist but at least we have a CLI options parser
     (False, Just p) -> do
       hPutStrLn stderr $
-        "Config file at " ++ path
+        "Config file at "
+          ++ path
           ++ " does not exist, falling back to command-line arguments. \n"
       execParser (info (helper <*> p) mkDesc)
     -- No config, no parser :(
@@ -159,7 +160,9 @@ parseConfigPath defaultPath desc = do
     pathParser :: Parser String
     pathParser =
       strOption $
-        long "config-file" <> short 'c' <> help "Config file to load"
+        long "config-file"
+          <> short 'c'
+          <> help "Config file to load"
           <> showDefault
           <> value defaultPath
 

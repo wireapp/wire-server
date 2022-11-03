@@ -33,13 +33,12 @@ mapfile -t SHELL_FILES_TO_LINT < <(
         grep -v "services/spar/test-scim-suite/run.sh" |
         grep -v "services/brig/federation-tests.sh" |
         grep -v "services/integration.sh" |
-        grep -v "deploy/services-demo/create_test_team_members.sh" |
-        grep -v "deploy/services-demo/demo.sh" |
-        grep -v "deploy/services-demo/create_test_team_scim.sh" |
-        grep -v "deploy/services-demo/create_test_user.sh" |
-        grep -v "deploy/services-demo/create_team_members.sh" |
-        grep -v "deploy/services-demo/register_idp_internal.sh" |
-        grep -v "deploy/services-demo/create_test_team_admins.sh" |
+        grep -v "hack/bin/create_test_team_members.sh" |
+        grep -v "hack/bin/create_test_team_scim.sh" |
+        grep -v "hack/bin/create_test_user.sh" |
+        grep -v "hack/bin/create_team_members.sh" |
+        grep -v "hack/bin/register_idp_internal.sh" |
+        grep -v "hack/bin/create_test_team_admins.sh" |
         grep -v "deploy/dockerephemeral/init.sh" |
         grep -v "tools/nginz_disco/nginz_disco.sh" |
         grep -v "tools/rebase-onto-formatter.sh" |

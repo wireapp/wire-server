@@ -66,7 +66,6 @@ import Network.HTTP.Client.OpenSSL
 import Network.Wai.Utilities (Error (..))
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
 
@@ -120,9 +119,9 @@ initHttpManager s3Compat =
   where
     dropContentLengthHeaderIfChunked req
       | ("content-encoding", "aws-chunked") `elem` requestHeaders req =
-        modifyRequestHeaders (filter ((/= "content-length") . fst)) req
+          modifyRequestHeaders (filter ((/= "content-length") . fst)) req
       | otherwise =
-        req
+          req
     modifyRequestHeaders f req =
       req {requestHeaders = f (requestHeaders req)}
 
@@ -132,7 +131,7 @@ initSSLContext = do
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL_OP_NO_SSLv3
   SSL.contextSetCiphers ctx "HIGH"
-  SSL.contextLoadSystemCerts ctx
+  SSL.contextSetDefaultVerifyPaths ctx
   SSL.contextSetVerificationMode ctx $
     SSL.VerifyPeer True True Nothing
   pure ctx

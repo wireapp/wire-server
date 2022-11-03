@@ -429,7 +429,8 @@ testCreateUserNoEmailNoPassword brig = do
   Just code <- do
     sendLoginCode brig p LoginCodeSMS False !!! const 200 === statusCode
     getPhoneLoginCode brig p
-  initiateEmailUpdateLogin brig e (SmsLogin p code Nothing) uid !!! (const 202 === statusCode)
+  initiateEmailUpdateLogin brig e (SmsLogin (SmsLoginData p code Nothing)) uid
+    !!! (const 202 === statusCode)
 
 -- The testCreateUserConflict test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -743,7 +744,7 @@ testMultipleUsersUnqualified brig = do
       Set.fromList
         . map (field "name" &&& field "email")
         <$> responseJsonMaybe r
-    field :: FromJSON a => Text -> Value -> Maybe a
+    field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
 testMultipleUsers :: Brig -> Http ()
@@ -774,7 +775,7 @@ testMultipleUsers brig = do
       Set.fromList
         . map (field "name" &&& field "email")
         <$> responseJsonMaybe r
-    field :: FromJSON a => Text -> Value -> Maybe a
+    field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
 testCreateUserAnonExpiry :: Brig -> Http ()
@@ -818,7 +819,7 @@ testCreateUserAnonExpiry b = do
     expire r = field "expires_at" =<< responseJsonMaybe r
     deleted :: ResponseLBS -> Maybe Bool
     deleted r = field "deleted" =<< responseJsonMaybe r
-    field :: FromJSON a => Text -> Value -> Maybe a
+    field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
 testUserUpdate :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
@@ -1089,7 +1090,10 @@ testPasswordChange brig = do
   put (brig . path "/self/password" . contentJson . zUser uid . body pwChange)
     !!! const 200 === statusCode
   -- login with new password
-  login brig (PasswordLogin (LoginByEmail email) newPass Nothing Nothing) PersistentCookie
+  login
+    brig
+    (PasswordLogin (PasswordLoginData (LoginByEmail email) newPass Nothing Nothing))
+    PersistentCookie
     !!! const 200 === statusCode
   -- try to change the password to itself should fail
   put (brig . path "/self/password" . contentJson . zUser uid . body pwChange')
@@ -1611,28 +1615,29 @@ testTooManyMembersForLegalhold opts brig = do
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail
   inv <-
-    responseJsonError =<< postInvitation brig tid owner invite
-      <!! statusCode === const 201
+    responseJsonError
+      =<< postInvitation brig tid owner invite
+        <!! statusCode === const 201
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   let mockGalley (ReceivedRequest mth pth _body)
         | mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"] =
-          pure . Wai.responseLBS HTTP.status403 mempty $
-            encode
-              ( Wai.mkError
-                  HTTP.status403
-                  "too-many-members-for-legalhold"
-                  "cannot add more members to team when legalhold service is enabled."
-              )
+            pure . Wai.responseLBS HTTP.status403 mempty $
+              encode
+                ( Wai.mkError
+                    HTTP.status403
+                    "too-many-members-for-legalhold"
+                    "cannot add more members to team when legalhold service is enabled."
+                )
         | mth == "GET"
             && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
-          pure . Wai.responseLBS HTTP.status200 mempty $
-            encode
-              ( withStatus
-                  FeatureStatusDisabled
-                  LockStatusLocked
-                  ExposeInvitationURLsToTeamAdminConfig
-                  FeatureTTLUnlimited
-              )
+            pure . Wai.responseLBS HTTP.status200 mempty $
+              encode
+                ( withStatus
+                    FeatureStatusDisabled
+                    LockStatusLocked
+                    ExposeInvitationURLsToTeamAdminConfig
+                    FeatureTTLUnlimited
+                )
         | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
 
   void . withMockedGalley opts mockGalley $ do

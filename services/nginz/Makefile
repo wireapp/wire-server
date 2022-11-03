@@ -1,7 +1,7 @@
 LANG           := en_US.UTF-8
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.20.2
+NGINX_VERSION   = 1.22.1
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
 SHELL          := /usr/bin/env bash
@@ -89,9 +89,11 @@ $(DIST):
 NGINX_BUNDLE=nginx-$(NGINX_VERSION).tar.gz
 SWAGGER_BUNDLE=swagger-$(SWAGGER_VERSION).tar.gz
 
+.PHONY: integration-test/conf/nginz/zwagger-ui
 integration-test/conf/nginz/zwagger-ui: zwagger-ui/swagger-ui
 	cp -r "zwagger-ui/."  integration-test/conf/nginz/zwagger-ui/
 
+.PHONY: zwagger-ui/swagger-ui
 zwagger-ui/swagger-ui: $(SWAGGER_BUNDLE)
 	tar zxf $(SWAGGER_BUNDLE)
 	rm -rf zwagger-ui/swagger-ui

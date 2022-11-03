@@ -185,14 +185,15 @@ instance Show Locale where
   show = Text.unpack . locToText
 
 locToText :: Locale -> Text
-locToText (Locale l c) = lan2Text l <> maybe mempty (("-" <>) . con2Text) c
+locToText (Locale l c) = lan2Text l <> foldMap (("-" <>) . con2Text) c
 
 parseLocale :: Text -> Maybe Locale
 parseLocale = hush . parseOnly localeParser
   where
     localeParser :: Parser Locale
     localeParser =
-      Locale <$> (languageParser <?> "Language code")
+      Locale
+        <$> (languageParser <?> "Language code")
         <*> (optional (char '-' *> countryParser) <?> "Country code")
 
 --------------------------------------------------------------------------------

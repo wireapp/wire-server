@@ -103,13 +103,13 @@ runCommand l = \case
     initES esURI mgr =
       ES.mkBHEnv (toESServer esURI) mgr
     initDb cas =
-      C.init $
-        C.setLogger (C.mkLogger l)
+      C.init
+        $ C.setLogger (C.mkLogger l)
           . C.setContacts (view cHost cas) []
           . C.setPortNumber (fromIntegral (view cPort cas))
           . C.setKeyspace (view cKeyspace cas)
           . C.setProtocolVersion C.V4
-          $ C.defSettings
+        $ C.defSettings
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do

@@ -42,16 +42,18 @@ tests p opts brig =
 testVersion :: Brig -> Http ()
 testVersion brig = do
   vinfo <-
-    responseJsonError =<< get (brig . path "/api-version")
-      <!! const 200 === statusCode
+    responseJsonError
+      =<< get (brig . path "/api-version")
+        <!! const 200 === statusCode
   liftIO $
     vinfoSupported vinfo @?= supportedVersions \\ developmentVersions
 
 testVersionV1 :: Brig -> Http ()
 testVersionV1 brig = do
   vinfo <-
-    responseJsonError =<< get (apiVersion "v1" . brig . path "api-version")
-      <!! const 200 === statusCode
+    responseJsonError
+      =<< get (apiVersion "v1" . brig . path "api-version")
+        <!! const 200 === statusCode
   liftIO $
     vinfoSupported vinfo @?= supportedVersions \\ developmentVersions
 
@@ -60,24 +62,27 @@ testDevVersion opts brig = withSettingsOverrides
   (opts & optionSettings . enableDevelopmentVersions ?~ True)
   $ do
     vinfo <-
-      responseJsonError =<< get (brig . path "/api-version")
-        <!! const 200 === statusCode
+      responseJsonError
+        =<< get (brig . path "/api-version")
+          <!! const 200 === statusCode
     liftIO $
       vinfoSupported vinfo @?= supportedVersions
 
 testUnsupportedVersion :: Brig -> Http ()
 testUnsupportedVersion brig = do
   e <-
-    responseJsonError =<< get (apiVersion "v500" . brig . path "api-version")
-      <!! const 404 === statusCode
+    responseJsonError
+      =<< get (apiVersion "v500" . brig . path "api-version")
+        <!! const 404 === statusCode
   liftIO $ Wai.label e @?= "unsupported-version"
 
 testFederationDomain :: Opts -> Brig -> Http ()
 testFederationDomain opts brig = do
   let domain = setFederationDomain (optSettings opts)
   vinfo <-
-    responseJsonError =<< get (brig . path "/api-version")
-      <!! const 200 === statusCode
+    responseJsonError
+      =<< get (brig . path "/api-version")
+        <!! const 200 === statusCode
   liftIO $ do
     vinfoFederation vinfo @?= True
     vinfoDomain vinfo @?= domain

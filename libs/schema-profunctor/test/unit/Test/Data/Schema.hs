@@ -298,7 +298,8 @@ testRefField =
   testCase "Reference in a field" $ do
     let (defs, _) = S.runDeclare (S.declareSchemaRef (Proxy @Named)) mempty
     assertBool "Referenced schema should be declared" $
-      not . nullOf (ix "Name") $ defs
+      not . nullOf (ix "Name") $
+        defs
 
 testRmClientWrong :: TestTree
 testRmClientWrong =
@@ -511,10 +512,11 @@ instance ToSchema Tag where
 instance ToSchema TaggedObject where
   schema =
     object "TaggedObject" $
-      uncurry TO <$> (toTag &&& toObj)
-        .= bind
-          (fst .= field "tag" schema)
-          (snd .= fieldOver _1 "obj" (objectOver _1 "UntaggedObject" untaggedSchema))
+      uncurry TO
+        <$> (toTag &&& toObj)
+          .= bind
+            (fst .= field "tag" schema)
+            (snd .= fieldOver _1 "obj" (objectOver _1 "UntaggedObject" untaggedSchema))
     where
       untaggedSchema = dispatch $ \case
         Tag1 -> tag _Obj1 (field "tag1_data" schema)
@@ -601,10 +603,11 @@ tagSchema =
 detailSchema :: ValueSchema NamedSwaggerDoc Detail
 detailSchema =
   object "Detail" $
-    fromTagged <$> toTagged
-      .= bind
-        (fst .= field "tag" tagSchema)
-        (snd .= fieldOver _1 "value" untaggedSchema)
+    fromTagged
+      <$> toTagged
+        .= bind
+          (fst .= field "tag" tagSchema)
+          (snd .= fieldOver _1 "value" untaggedSchema)
   where
     toTagged :: Detail -> (DetailTag, Detail)
     toTagged d@(Name _) = (NameTag, d)

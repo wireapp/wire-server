@@ -74,8 +74,8 @@ signedURL :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
 signedURL (CloudFront base kid ttl clock sign) path = liftIO $ do
   time <- (+ ttl) . round <$> clock
   sig <- sign (toStrict (toLazyByteString (policy url time)))
-  pure
-    $! url
+  pure $!
+    url
       { uriQuery =
           Query
             [ ("Expires", toByteString' time),
@@ -86,7 +86,8 @@ signedURL (CloudFront base kid ttl clock sign) path = liftIO $ do
   where
     url = base {uriPath = "/" <> toByteString' path}
     policy r t =
-      "{\"Statement\":[{\"Resource\":\"" <> serializeURIRef r
+      "{\"Statement\":[{\"Resource\":\""
+        <> serializeURIRef r
         <> "\",\
            \\"Condition\":{\
            \\"DateLessThan\":{\

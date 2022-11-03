@@ -39,7 +39,6 @@ import Imports
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (timeout)
-import Wire.API.User.Client (clientId)
 
 -- | Handle an internal event.
 --
@@ -58,9 +57,9 @@ onEvent ::
   InternalNotification ->
   m ()
 onEvent n = handleTimeout $ case n of
-  DeleteClient c uid mcon -> do
-    rmClient uid (clientId c)
-    Intra.onClientEvent uid mcon (ClientRemoved uid c)
+  DeleteClient clientId uid mcon -> do
+    rmClient uid clientId
+    Intra.onClientEvent uid mcon (ClientRemoved uid clientId)
   DeleteUser uid -> do
     Log.info $
       msg (val "Processing user delete event")

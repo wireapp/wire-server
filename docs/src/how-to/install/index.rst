@@ -18,6 +18,7 @@ Installing wire-server
    (production) How to see centralized logs for wire-server <logging.rst>
    (production) Other configuration options <configuration-options.rst>
    Server and team feature settings <team-feature-settings.md>
+   Messaging Layer Security (MLS) <mls.md>
    Web app settings <web-app-settings.md>
    sft
    restund

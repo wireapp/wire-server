@@ -89,6 +89,7 @@ module Wire.API.User
     ChangeHandleError (..),
     ChangeHandleResponses,
     NameUpdate (..),
+    ChangeEmailResponse (..),
 
     -- * Account Deletion
     DeleteUser (..),
@@ -500,13 +501,13 @@ instance ToSchema NewUserPublic where
 validateNewUserPublic :: NewUser -> Either String NewUserPublic
 validateNewUserPublic nu
   | isJust (newUserSSOId nu) =
-    Left "SSO-managed users are not allowed here."
+      Left "SSO-managed users are not allowed here."
   | isJust (newUserUUID nu) =
-    Left "it is not allowed to provide a UUID for the users here."
+      Left "it is not allowed to provide a UUID for the users here."
   | newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire] =
-    Left "only managed-by-Wire users can be created here."
+      Left "only managed-by-Wire users can be created here."
   | otherwise =
-    Right (NewUserPublic nu)
+      Right (NewUserPublic nu)
 
 -- | A user is Ephemeral if she has neither email, phone, nor sso credentials and is not
 -- created via scim.  Ephemeral users can be deleted after expires_in or sessionTokenTimeout
@@ -1269,6 +1270,21 @@ instance ToJSON NameUpdate where
 instance FromJSON NameUpdate where
   parseJSON = A.withObject "name-update" $ \o ->
     NameUpdate <$> o A..: "name"
+
+data ChangeEmailResponse
+  = ChangeEmailResponseIdempotent
+  | ChangeEmailResponseNeedsActivation
+
+instance
+  AsUnion
+    '[Respond 202 desc1 (), Respond 204 desc2 ()]
+    ChangeEmailResponse
+  where
+  toUnion ChangeEmailResponseIdempotent = S (Z (I ()))
+  toUnion ChangeEmailResponseNeedsActivation = Z (I ())
+  fromUnion (Z (I ())) = ChangeEmailResponseNeedsActivation
+  fromUnion (S (Z (I ()))) = ChangeEmailResponseIdempotent
+  fromUnion (S (S x)) = case x of {}
 
 -----------------------------------------------------------------------------
 -- Account Deletion

@@ -108,8 +108,8 @@ assertEq :: (Show a, Eq a, Monad m) => String -> a -> a -> PropertyM m ()
 assertEq m a b
   | a == b = pure ()
   | otherwise =
-    fail $
-      "assertEq: " ++ m ++ ": " ++ show a ++ " =/= " ++ show b
+      fail $
+        "assertEq: " ++ m ++ ": " ++ show a ++ " =/= " ++ show b
 
 samples :: Int -> Gen a -> IO [a]
 samples n (MkGen f) = do

@@ -46,13 +46,13 @@ data LegalHoldService = LegalHoldService
 
 instance ToJSON LegalHoldService where
   toJSON s =
-    object $
-      "team_id" .= legalHoldServiceTeam s
-        # "base_url" .= legalHoldServiceUrl s
-        # "fingerprint" .= legalHoldServiceFingerprint s
-        # "auth_token" .= legalHoldServiceToken s
-        # "public_key" .= legalHoldServiceKey s
-        # []
+    object
+      $ "team_id" .= legalHoldServiceTeam s
+      # "base_url" .= legalHoldServiceUrl s
+      # "fingerprint" .= legalHoldServiceFingerprint s
+      # "auth_token" .= legalHoldServiceToken s
+      # "public_key" .= legalHoldServiceKey s
+      # []
 
 instance FromJSON LegalHoldService where
   parseJSON = withObject "LegalHoldService" $ \o ->
@@ -85,7 +85,7 @@ instance FromJSON LegalHoldClientRequest where
 
 instance ToJSON LegalHoldClientRequest where
   toJSON (LegalHoldClientRequest requester lastPrekey') =
-    object $
-      "requester" .= requester
-        # "last_prekey" .= lastPrekey'
-        # []
+    object
+      $ "requester" .= requester
+      # "last_prekey" .= lastPrekey'
+      # []

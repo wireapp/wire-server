@@ -69,13 +69,17 @@ testObject_RTCConfiguration_user_1 =
                  turnURI SchemeTurns (TurnHostName "123") (read "0") Nothing
                ]
         )
-        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "y" & tuVersion .~ 0 & tuKeyindex .~ 2
+        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "y"
+            & tuVersion .~ 0
+            & tuKeyindex .~ 2
             & tuT .~ '\990111'
         )
         (fromRight undefined (validate "KA=="))
         :| [ rtcIceServer
                (turnURI SchemeTurns (TurnHostIp (IpAddr (read "11.115.71.116"))) (read "0") (Just TransportTCP) :| [])
-               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "g9l" & tuVersion .~ 1 & tuKeyindex .~ 1
+               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "g9l"
+                   & tuVersion .~ 1
+                   & tuKeyindex .~ 1
                    & tuT .~ 'F'
                )
                (fromRight undefined (validate "vg==")),
@@ -85,7 +89,9 @@ testObject_RTCConfiguration_user_1 =
                         turnURI SchemeTurns (TurnHostIp (IpAddr (read "146.223.237.161"))) (read "0") (Just TransportTCP)
                       ]
                )
-               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "vkw" & tuVersion .~ 2 & tuKeyindex .~ 2
+               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "vkw"
+                   & tuVersion .~ 2
+                   & tuKeyindex .~ 2
                    & tuT .~ 'O'
                )
                (fromRight undefined (validate "1Q==")),
@@ -95,7 +101,9 @@ testObject_RTCConfiguration_user_1 =
                         turnURI SchemeTurns (TurnHostIp (IpAddr (read "30.151.133.158"))) (read "1") (Just TransportTCP)
                       ]
                )
-               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "qv" & tuVersion .~ 0 & tuKeyindex .~ 2
+               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "qv"
+                   & tuVersion .~ 0
+                   & tuKeyindex .~ 2
                    & tuT .~ 'F'
                )
                (fromRight undefined (validate "/w==")),
@@ -103,7 +111,9 @@ testObject_RTCConfiguration_user_1 =
                ( turnURI SchemeTurns (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Just TransportTCP)
                    :| [turnURI SchemeTurn (TurnHostIp (IpAddr (read "212.204.103.144"))) (read "1") (Just TransportTCP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "b" & tuVersion .~ 3 & tuKeyindex .~ 1
+               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "b"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 1
                    & tuT .~ '\40387'
                )
                (fromRight undefined (validate "TQ==")),
@@ -111,7 +121,9 @@ testObject_RTCConfiguration_user_1 =
                ( turnURI SchemeTurn (TurnHostIp (IpAddr (read "36.138.227.130"))) (read "0") Nothing
                    :| [turnURI SchemeTurns (TurnHostName "a-c") (read "0") (Just TransportTCP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 3.000000000000) "1j" & tuVersion .~ 3 & tuKeyindex .~ 1
+               ( turnUsername (secondsToNominalDiffTime 3.000000000000) "1j"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 1
                    & tuT .~ '6'
                )
                (fromRight undefined (validate "1CM=")),
@@ -119,7 +131,9 @@ testObject_RTCConfiguration_user_1 =
                ( turnURI SchemeTurn (TurnHostIp (IpAddr (read "39.3.236.143"))) (read "0") (Just TransportUDP)
                    :| [turnURI SchemeTurns (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "1") (Just TransportTCP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 0.000000000000) "v" & tuVersion .~ 2 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 0.000000000000) "v"
+                   & tuVersion .~ 2
+                   & tuKeyindex .~ 0
                    & tuT .~ 'D'
                )
                (fromRight undefined (validate "xVY=")),
@@ -129,7 +143,9 @@ testObject_RTCConfiguration_user_1 =
                         turnURI SchemeTurns (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Just TransportUDP)
                       ]
                )
-               ( turnUsername (secondsToNominalDiffTime 3.000000000000) "i3" & tuVersion .~ 3 & tuKeyindex .~ 1
+               ( turnUsername (secondsToNominalDiffTime 3.000000000000) "i3"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 1
                    & tuT .~ '\DLE'
                )
                (fromRight undefined (validate "9g=="))
@@ -149,19 +165,25 @@ testObject_RTCConfiguration_user_2 =
                  turnURI SchemeTurns (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Just TransportUDP)
                ]
         )
-        ( turnUsername (secondsToNominalDiffTime 3.000000000000) "i3u" & tuVersion .~ 0 & tuKeyindex .~ 1
+        ( turnUsername (secondsToNominalDiffTime 3.000000000000) "i3u"
+            & tuVersion .~ 0
+            & tuKeyindex .~ 1
             & tuT .~ 'I'
         )
         (fromRight undefined (validate "2w=="))
         :| [ rtcIceServer
                (turnURI SchemeTurn (TurnHostName "a-c") (read "1") Nothing :| [])
-               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "x" & tuVersion .~ 3 & tuKeyindex .~ 1
+               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "x"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 1
                    & tuT .~ 'z'
                )
                (fromRight undefined (validate "VA==")),
              rtcIceServer
                (turnURI SchemeTurn (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "1") Nothing :| [])
-               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "2" & tuVersion .~ 1 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "2"
+                   & tuVersion .~ 1
+                   & tuKeyindex .~ 0
                    & tuT .~ '('
                )
                (fromRight undefined (validate "4A==")),
@@ -171,7 +193,9 @@ testObject_RTCConfiguration_user_2 =
                         turnURI SchemeTurns (TurnHostIp (IpAddr (read "172.9.22.21"))) (read "0") (Just TransportUDP)
                       ]
                )
-               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "vp" & tuVersion .~ 3 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "vp"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 0
                    & tuT .~ '\DC2'
                )
                (fromRight undefined (validate "")),
@@ -179,19 +203,25 @@ testObject_RTCConfiguration_user_2 =
                ( turnURI SchemeTurns (TurnHostIp (IpAddr (read "37.46.50.11"))) (read "0") (Just TransportTCP)
                    :| [turnURI SchemeTurns (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Just TransportTCP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "4h4" & tuVersion .~ 1 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "4h4"
+                   & tuVersion .~ 1
+                   & tuKeyindex .~ 0
                    & tuT .~ '\1100995'
                )
                (fromRight undefined (validate "Mw==")),
              rtcIceServer
                (turnURI SchemeTurn (TurnHostName "123") (read "1") (Just TransportTCP) :| [])
-               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "c9l" & tuVersion .~ 3 & tuKeyindex .~ 2
+               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "c9l"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 2
                    & tuT .~ 'w'
                )
                (fromRight undefined (validate "")),
              rtcIceServer
                (turnURI SchemeTurn (TurnHostIp (IpAddr (read "137.180.116.174"))) (read "0") (Just TransportUDP) :| [])
-               ( turnUsername (secondsToNominalDiffTime 3.000000000000) "h8e" & tuVersion .~ 1 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 3.000000000000) "h8e"
+                   & tuVersion .~ 1
+                   & tuKeyindex .~ 0
                    & tuT .~ '\1070826'
                )
                (fromRight undefined (validate "")),
@@ -202,13 +232,17 @@ testObject_RTCConfiguration_user_2 =
                         turnURI SchemeTurn (TurnHostIp (IpAddr (read "102.41.143.12"))) (read "0") Nothing
                       ]
                )
-               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "cr" & tuVersion .~ 1 & tuKeyindex .~ 1
+               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "cr"
+                   & tuVersion .~ 1
+                   & tuKeyindex .~ 1
                    & tuT .~ '\v'
                )
                (fromRight undefined (validate "")),
              rtcIceServer
                (turnURI SchemeTurn (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "1") (Just TransportUDP) :| [])
-               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "ol0" & tuVersion .~ 3 & tuKeyindex .~ 2
+               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "ol0"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 2
                    & tuT .~ '.'
                )
                (fromRight undefined (validate "")),
@@ -216,7 +250,9 @@ testObject_RTCConfiguration_user_2 =
                ( turnURI SchemeTurns (TurnHostName "a-c") (read "0") (Just TransportUDP)
                    :| [turnURI SchemeTurns (TurnHostName "123") (read "0") (Just TransportTCP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "a" & tuVersion .~ 3 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "a"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 0
                    & tuT .~ '"'
                )
                (fromRight undefined (validate ""))
@@ -306,13 +342,17 @@ testObject_RTCConfiguration_user_3 =
                  turnURI SchemeTurn (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Just TransportTCP)
                ]
         )
-        ( turnUsername (secondsToNominalDiffTime 0.000000000000) "m2s" & tuVersion .~ 2 & tuKeyindex .~ 0
+        ( turnUsername (secondsToNominalDiffTime 0.000000000000) "m2s"
+            & tuVersion .~ 2
+            & tuKeyindex .~ 0
             & tuT .~ '\f'
         )
         (fromRight undefined (validate ""))
         :| [ rtcIceServer
                (turnURI SchemeTurn (TurnHostIp (IpAddr (read "113.127.226.211"))) (read "1") Nothing :| [])
-               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "2b" & tuVersion .~ 0 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "2b"
+                   & tuVersion .~ 0
+                   & tuKeyindex .~ 0
                    & tuT .~ '\37292'
                )
                (fromRight undefined (validate "")),
@@ -320,7 +360,9 @@ testObject_RTCConfiguration_user_3 =
                ( turnURI SchemeTurn (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Just TransportUDP)
                    :| [turnURI SchemeTurn (TurnHostIp (IpAddr (read "222.209.199.151"))) (read "0") (Just TransportUDP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 0.000000000000) "w" & tuVersion .~ 1 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 0.000000000000) "w"
+                   & tuVersion .~ 1
+                   & tuKeyindex .~ 0
                    & tuT .~ '-'
                )
                (fromRight undefined (validate "Sjk=")),
@@ -328,7 +370,9 @@ testObject_RTCConfiguration_user_3 =
                ( turnURI SchemeTurn (TurnHostIp (IpAddr (read "33.214.122.255"))) (read "0") (Just TransportUDP)
                    :| [turnURI SchemeTurns (TurnHostName "007.com") (read "1") (Just TransportTCP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "py" & tuVersion .~ 1 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "py"
+                   & tuVersion .~ 1
+                   & tuKeyindex .~ 0
                    & tuT .~ '#'
                )
                (fromRight undefined (validate "awA=")),
@@ -336,7 +380,9 @@ testObject_RTCConfiguration_user_3 =
                ( turnURI SchemeTurns (TurnHostIp (IpAddr (read "72.84.227.18"))) (read "0") (Just TransportUDP)
                    :| [turnURI SchemeTurn (TurnHostName "007.com") (read "0") (Just TransportTCP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "l1f" & tuVersion .~ 2 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "l1f"
+                   & tuVersion .~ 2
+                   & tuKeyindex .~ 0
                    & tuT .~ '$'
                )
                (fromRight undefined (validate "jw==")),
@@ -347,7 +393,9 @@ testObject_RTCConfiguration_user_3 =
                         turnURI SchemeTurn (TurnHostName "007.com") (read "0") (Just TransportTCP)
                       ]
                )
-               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "kke" & tuVersion .~ 2 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 2.000000000000) "kke"
+                   & tuVersion .~ 2
+                   & tuKeyindex .~ 0
                    & tuT .~ '{'
                )
                (fromRight undefined (validate "hQ==")),
@@ -357,7 +405,9 @@ testObject_RTCConfiguration_user_3 =
                         turnURI SchemeTurn (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") Nothing
                       ]
                )
-               ( turnUsername (secondsToNominalDiffTime 0.000000000000) "8" & tuVersion .~ 2 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 0.000000000000) "8"
+                   & tuVersion .~ 2
+                   & tuKeyindex .~ 0
                    & tuT .~ 'Z'
                )
                (fromRight undefined (validate "mHw=")),
@@ -365,7 +415,9 @@ testObject_RTCConfiguration_user_3 =
                ( turnURI SchemeTurn (TurnHostIp (IpAddr (read "148.8.193.103"))) (read "1") Nothing
                    :| [turnURI SchemeTurns (TurnHostName "host.name") (read "0") (Just TransportUDP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "shf" & tuVersion .~ 2 & tuKeyindex .~ 1
+               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "shf"
+                   & tuVersion .~ 2
+                   & tuKeyindex .~ 1
                    & tuT .~ '^'
                )
                (fromRight undefined (validate "")),
@@ -373,13 +425,17 @@ testObject_RTCConfiguration_user_3 =
                ( turnURI SchemeTurns (TurnHostName "host.name") (read "1") (Just TransportTCP)
                    :| [turnURI SchemeTurn (TurnHostIp (IpAddr (read "159.246.220.178"))) (read "1") (Just TransportTCP)]
                )
-               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "x5" & tuVersion .~ 3 & tuKeyindex .~ 0
+               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "x5"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 0
                    & tuT .~ 'd'
                )
                (fromRight undefined (validate "FU0=")),
              rtcIceServer
                (turnURI SchemeTurns (TurnHostName "007.com") (read "0") (Just TransportTCP) :| [])
-               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "v" & tuVersion .~ 2 & tuKeyindex .~ 2
+               ( turnUsername (secondsToNominalDiffTime 4.000000000000) "v"
+                   & tuVersion .~ 2
+                   & tuKeyindex .~ 2
                    & tuT .~ 'q'
                )
                (fromRight undefined (validate "1Q==")),
@@ -390,7 +446,9 @@ testObject_RTCConfiguration_user_3 =
                         turnURI SchemeTurns (TurnHostName "123") (read "0") Nothing
                       ]
                )
-               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "8" & tuVersion .~ 3 & tuKeyindex .~ 1
+               ( turnUsername (secondsToNominalDiffTime 1.000000000000) "8"
+                   & tuVersion .~ 3
+                   & tuKeyindex .~ 1
                    & tuT .~ '\b'
                )
                (fromRight undefined (validate ""))
@@ -430,7 +488,9 @@ testObject_RTCConfiguration_user_4 =
                  turnURI SchemeTurn (TurnHostName "host.name") (read "1") (Just TransportTCP)
                ]
         )
-        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "tj" & tuVersion .~ 0 & tuKeyindex .~ 0
+        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "tj"
+            & tuVersion .~ 0
+            & tuKeyindex .~ 0
             & tuT .~ '\1011805'
         )
         (fromRight undefined (validate ""))
@@ -623,7 +683,9 @@ testObject_RTCConfiguration_user_5 =
                  turnURI SchemeTurn (TurnHostName "host.name") (read "1") (Just TransportTCP)
                ]
         )
-        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "tj" & tuVersion .~ 0 & tuKeyindex .~ 0
+        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "tj"
+            & tuVersion .~ 0
+            & tuKeyindex .~ 0
             & tuT .~ '\1011805'
         )
         (fromRight undefined (validate ""))
@@ -663,7 +725,9 @@ testObject_RTCConfiguration_user_6 =
                  turnURI SchemeTurn (TurnHostName "host.name") (read "1") (Just TransportTCP)
                ]
         )
-        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "tj" & tuVersion .~ 0 & tuKeyindex .~ 0
+        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "tj"
+            & tuVersion .~ 0
+            & tuKeyindex .~ 0
             & tuT .~ '\1011805'
         )
         (fromRight undefined (validate ""))
@@ -683,7 +747,9 @@ testObject_RTCConfiguration_user_7 =
                  turnURI SchemeTurn (TurnHostName "host.name") (read "1") (Just TransportTCP)
                ]
         )
-        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "tj" & tuVersion .~ 0 & tuKeyindex .~ 0
+        ( turnUsername (secondsToNominalDiffTime 2.000000000000) "tj"
+            & tuVersion .~ 0
+            & tuKeyindex .~ 0
             & tuT .~ '\1011805'
         )
         (fromRight undefined (validate ""))

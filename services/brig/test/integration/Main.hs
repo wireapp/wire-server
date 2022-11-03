@@ -155,30 +155,30 @@ runTests iConf brigOpts otherArgs = do
 
   let mlsApi = MLS.tests mg b brigOpts
 
-  withArgs otherArgs . defaultMain $
-    testGroup
+  withArgs otherArgs . defaultMain
+    $ testGroup
       "Brig API Integration"
-      $ [ testCase "sitemap" $
-            assertEqual
-              "inconcistent sitemap"
-              mempty
-              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap @BrigCanonicalEffects @InternalPaging),
-          userApi,
-          providerApi,
-          searchApis,
-          teamApis,
-          turnApi,
-          metricsApi,
-          settingsApi,
-          createIndex,
-          userPendingActivation,
-          browseTeam,
-          federationEndpoints,
-          internalApi,
-          versionApi,
-          mlsApi
-        ]
-        <> [federationEnd2End | includeFederationTests]
+    $ [ testCase "sitemap" $
+          assertEqual
+            "inconcistent sitemap"
+            mempty
+            (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap @BrigCanonicalEffects @InternalPaging),
+        userApi,
+        providerApi,
+        searchApis,
+        teamApis,
+        turnApi,
+        metricsApi,
+        settingsApi,
+        createIndex,
+        userPendingActivation,
+        browseTeam,
+        federationEndpoints,
+        internalApi,
+        versionApi,
+        mlsApi
+      ]
+      <> [federationEnd2End | includeFederationTests]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 

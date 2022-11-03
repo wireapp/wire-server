@@ -80,6 +80,7 @@ import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Mul
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.API.User
+import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.RichInfo

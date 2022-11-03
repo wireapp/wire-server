@@ -23,6 +23,7 @@ where
 import Imports
 import qualified Test.Brig.Calling
 import qualified Test.Brig.Calling.Internal
+import qualified Test.Brig.InternalNotification
 import qualified Test.Brig.MLS
 import qualified Test.Brig.Roundtrip
 import qualified Test.Brig.User.Search.Index.Types
@@ -37,5 +38,6 @@ main =
         Test.Brig.Calling.tests,
         Test.Brig.Calling.Internal.tests,
         Test.Brig.Roundtrip.tests,
-        Test.Brig.MLS.tests
+        Test.Brig.MLS.tests,
+        Test.Brig.InternalNotification.tests
       ]

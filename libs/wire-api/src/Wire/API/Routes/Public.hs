@@ -21,6 +21,7 @@
 module Wire.API.Routes.Public
   ( -- * nginz combinators
     ZUser,
+    ZClient,
     ZLocalUser,
     ZConn,
     ZOptUser,
@@ -73,6 +74,7 @@ data ZType
     ZAuthUser
   | -- | Same as 'ZAuthUser', but return a 'Local UserId' using the domain in the context
     ZLocalAuthUser
+  | ZAuthClient
   | -- | Get a 'ConnId' from the Z-Conn header
     ZAuthConn
   | ZAuthBot
@@ -107,6 +109,13 @@ instance IsZType 'ZAuthUser ctx where
   type ZHeader 'ZAuthUser = "Z-User"
   type ZParam 'ZAuthUser = UserId
   type ZQualifiedParam 'ZAuthUser = UserId
+
+  qualifyZParam _ = id
+
+instance IsZType 'ZAuthClient ctx where
+  type ZHeader 'ZAuthClient = "Z-Client"
+  type ZParam 'ZAuthClient = ClientId
+  type ZQualifiedParam 'ZAuthClient = ClientId
 
   qualifyZParam _ = id
 
@@ -157,6 +166,8 @@ type InternalAuth ztype opts =
 type ZLocalUser = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts
 
 type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts
+
+type ZClient = ZAuthServant 'ZAuthClient InternalAuthDefOpts
 
 type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts
 
@@ -222,13 +233,13 @@ instance
       checkType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
         (Just t, value)
           | value /= Just t ->
-            delayedFail
-              ServerError
-                { errHTTPCode = 403,
-                  errReasonPhrase = "Access denied",
-                  errBody = "",
-                  errHeaders = []
-                }
+              delayedFail
+                ServerError
+                  { errHTTPCode = 403,
+                    errReasonPhrase = "Access denied",
+                    errBody = "",
+                    errHeaders = []
+                  }
         _ -> pure ()
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s

@@ -159,7 +159,8 @@ validateDomain (Just encodedCertificate) unparsedDomain = do
   hostnames <- srvTargetDomain <$$> discoverAllFederatorsWithError targetDomain
   let validationErrors = (\h -> validateDomainName (B8.unpack h) certificate) <$> hostnames
   unless (any null validationErrors) $
-    throw $ AuthenticationFailure validationErrors
+    throw $
+      AuthenticationFailure validationErrors
 
   pure targetDomain
 

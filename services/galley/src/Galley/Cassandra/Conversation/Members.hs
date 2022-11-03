@@ -288,13 +288,13 @@ updateOtherMemberLocalConv lcid quid omu =
   do
     let addQuery r
           | tDomain lcid == qDomain quid =
-            addPrepQuery
-              Cql.updateMemberConvRoleName
-              (r, tUnqualified lcid, qUnqualified quid)
+              addPrepQuery
+                Cql.updateMemberConvRoleName
+                (r, tUnqualified lcid, qUnqualified quid)
           | otherwise =
-            addPrepQuery
-              Cql.updateRemoteMemberConvRoleName
-              (r, tUnqualified lcid, qDomain quid, qUnqualified quid)
+              addPrepQuery
+                Cql.updateRemoteMemberConvRoleName
+                (r, tUnqualified lcid, qDomain quid, qUnqualified quid)
     retry x5 . batch $ do
       setType BatchUnLogged
       setConsistency LocalQuorum

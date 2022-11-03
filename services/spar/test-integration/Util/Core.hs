@@ -343,7 +343,8 @@ getUserBrig :: HasCallStack => UserId -> TestSpar (Maybe User)
 getUserBrig uid = do
   env <- ask
   let req =
-        (env ^. teBrig) . path "/self"
+        (env ^. teBrig)
+          . path "/self"
           . header "Z-User" (toByteString' uid)
   resp <- call $ get req
   case statusCode resp of
@@ -414,12 +415,13 @@ inviteAndRegisterUser brig u tid inviteeEmail = do
   Just inviteeCode <- getInvitationCode tid (TeamInvitation.inInvitation inv)
   rspInvitee <-
     post
-      ( brig . path "/register"
+      ( brig
+          . path "/register"
           . contentJson
           . body (accept' inviteeEmail inviteeCode)
       )
       <!! const 201
-      === statusCode
+        === statusCode
   let Just invitee = responseJsonMaybe rspInvitee
   unless (Just tid == userTeam invitee) $ error "Team ID in registration and team table do not match"
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)

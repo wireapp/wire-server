@@ -87,25 +87,25 @@ data GroupSite tag route = GroupSite
     gsGetGroup ::
       route
         :- Capture "id" (GroupId tag)
-        :> Get '[SCIM] (StoredGroup tag),
+          :> Get '[SCIM] (StoredGroup tag),
     gsPostGroup ::
       route
         :- ReqBody '[SCIM] Group
-        :> PostCreated '[SCIM] (StoredGroup tag),
+          :> PostCreated '[SCIM] (StoredGroup tag),
     gsPutGroup ::
       route
         :- Capture "id" (GroupId tag)
-        :> ReqBody '[SCIM] Group
-        :> Put '[SCIM] (StoredGroup tag),
+          :> ReqBody '[SCIM] Group
+          :> Put '[SCIM] (StoredGroup tag),
     gsPatchGroup ::
       route
         :- Capture "id" (GroupId tag)
-        :> ReqBody '[SCIM] Aeson.Value
-        :> Patch '[SCIM] (StoredGroup tag),
+          :> ReqBody '[SCIM] Aeson.Value
+          :> Patch '[SCIM] (StoredGroup tag),
     gsDeleteGroup ::
       route
         :- Capture "id" (GroupId tag)
-        :> DeleteNoContent
+          :> DeleteNoContent
   }
   deriving (Generic)
 

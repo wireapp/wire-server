@@ -33,7 +33,6 @@ import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
 import Brig.Types.Intra
-import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Concurrent.Async
 import Control.Exception (throw)
@@ -71,6 +70,7 @@ import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import qualified Data.ZAuth.Token as ZAuth
 import qualified Federator.MockServer as Mock
 import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
@@ -116,6 +116,8 @@ import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth
+import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.VersionInfo
@@ -515,7 +517,7 @@ legalHoldLogin b l t =
 decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
-decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.AccessToken
+decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
 decodeToken = decodeToken'
 
 decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe LByteString) -> ZAuth.Token a
@@ -806,7 +808,8 @@ getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m Acc
 getStatus brig u =
   (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJsonUnsafe @Value)
     <$> get
-      ( brig . paths ["i", "users", toByteString' u, "status"]
+      ( brig
+          . paths ["i", "users", toByteString' u, "status"]
           . expect2xx
       )
 
@@ -820,12 +823,13 @@ setStatus :: Brig -> UserId -> AccountStatus -> Http ()
 setStatus brig u s =
   let js = RequestBodyLBS . encode $ AccountStatusUpdate s
    in put
-        ( brig . paths ["i", "users", toByteString' u, "status"]
+        ( brig
+            . paths ["i", "users", toByteString' u, "status"]
             . contentJson
             . body js
         )
         !!! const 200
-        === statusCode
+          === statusCode
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -905,7 +909,7 @@ defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
 emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login
-emailLogin e pw cl = PasswordLogin (LoginByEmail e) pw cl Nothing
+emailLogin e pw cl = PasswordLogin (PasswordLoginData (LoginByEmail e) pw cl Nothing)
 
 somePrekeys :: [Prekey]
 somePrekeys =
@@ -1089,10 +1093,6 @@ aFewTimes
       (\_ -> pure . not . good)
       (const action)
 
--- see also: `aFewTimes`.  we should really clean this up.
-eventually :: (MonadIO m, MonadMask m) => m a -> m a
-eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
-
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
 assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
@@ -1234,7 +1234,8 @@ instance Servant.RunClient WaiTestFedClient where
             Nothing -> HTTP.statusIsSuccessful status
             Just ex -> status `elem` ex
     unless statusIsSuccess $
-      unWaiTestFedClient $ throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
+      unWaiTestFedClient $
+        throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
     pure servantResponse
   throwClientError = liftIO . throw
 
@@ -1254,7 +1255,8 @@ fromServantRequest domain r =
       -- Content-Type and Accept are specified by requestBody and requestAccept
       headers =
         filter (\(h, _) -> h /= "Accept" && h /= "Content-Type") $
-          toList $ Servant.requestHeaders r
+          toList $
+            Servant.requestHeaders r
       acceptHdr
         | null hs = Nothing
         | otherwise = Just ("Accept", renderHeader hs)

@@ -318,8 +318,8 @@ postBroadcast lusr con msg = runError $ do
 
     mapError @LegalholdConflicts @(MessageNotSent MessageSendingStatus)
       (const MessageNotSentLegalhold)
-      $ runLocalInput lusr $
-        guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
+      $ runLocalInput lusr
+      $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
     throw $ MessageNotSentClientMissing otrResult
 
   failedToSend <-
@@ -333,6 +333,13 @@ postBroadcast lusr con msg = runError $ do
       validMessages
   pure otrResult {mssFailedToSend = failedToSend}
   where
+    maybeFetchLimitedTeamMemberList ::
+      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
+      Int ->
+      TeamId ->
+      [UserId] ->
+      Map UserId (Map ClientId ByteString) ->
+      Sem r [TeamMember]
     maybeFetchLimitedTeamMemberList limit tid localUserIdsInFilter rcps = do
       let localUserIdsInRcps = Map.keys rcps
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
@@ -527,16 +534,18 @@ sendLocalMessages ::
   Sem r (Set (UserId, ClientId))
 sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMessages = do
   let events =
-        localMessages & reindexed (first (qualifyAs loc)) itraversed
-          %@~ newMessageEvent
-            qcnv
-            sender
-            senderClient
-            (mmData metadata)
-            now
+        localMessages
+          & reindexed (first (qualifyAs loc)) itraversed
+            %@~ newMessageEvent
+              qcnv
+              sender
+              senderClient
+              (mmData metadata)
+              now
       pushes =
-        events & itraversed
-          %@~ newMessagePush loc botMap mconn metadata
+        events
+          & itraversed
+            %@~ newMessagePush loc botMap mconn metadata
   runMessagePush @t loc qcnv (pushes ^. traversed)
   pure mempty
 

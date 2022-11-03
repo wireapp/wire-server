@@ -73,7 +73,7 @@ Make sure (while connected via ssh) your Cassandra installation is doing well wi
 
 or (in newer versions)
 
-    nodetool ::FFFF:127.0.0.1 status
+    nodetool -h ::FFFF:127.0.0.1 status
 
 You should see a list of nodes like this:
 

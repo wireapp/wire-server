@@ -53,7 +53,8 @@ migrate l es cas galleyEndpoint = do
     logAndThrowAgain :: forall a. SomeException -> IO a
     logAndThrowAgain e = do
       runWithLogger l $
-        Log.err $ Log.msg (Log.val "Migration failed with exception") . Log.field "exception" (show e)
+        Log.err $
+          Log.msg (Log.val "Migration failed with exception") . Log.field "exception" (show e)
       throwM e
 
 -- | Increase this number any time you want to force reindexing.
@@ -86,13 +87,13 @@ mkEnv l es cas galleyEndpoint = do
     <*> pure galleyEndpoint
   where
     initCassandra =
-      C.init $
-        C.setLogger (C.mkLogger l)
+      C.init
+        $ C.setLogger (C.mkLogger l)
           . C.setContacts (view Opts.cHost cas) []
           . C.setPortNumber (fromIntegral (view Opts.cPort cas))
           . C.setKeyspace (view Opts.cKeyspace cas)
           . C.setProtocolVersion C.V4
-          $ C.defSettings
+        $ C.defSettings
     initLogger = pure l
 
 createMigrationsIndexIfNotPresent :: (MonadThrow m, ES.MonadBH m, Log.MonadLogger m) => m ()

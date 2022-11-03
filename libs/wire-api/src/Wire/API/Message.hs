@@ -295,7 +295,8 @@ mkQualifiedOtrPayload sender entries dat strat =
       }
   where
     mkRecipients =
-      QualifiedOtrRecipients . QualifiedUserClientMap
+      QualifiedOtrRecipients
+        . QualifiedUserClientMap
         . foldr
           ( \(Qualified u d, c, t) ->
               Map.insertWith
@@ -376,7 +377,8 @@ modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
 
 protoToOtrRecipients :: [Proto.UserEntry] -> OtrRecipients
 protoToOtrRecipients =
-  OtrRecipients . UserClientMap
+  OtrRecipients
+    . UserClientMap
     . foldl' userEntries mempty
   where
     userEntries :: Map UserId (Map ClientId Text) -> Proto.UserEntry -> Map UserId (Map ClientId Text)
@@ -542,7 +544,10 @@ data ClientMismatch = ClientMismatch
 instance Arbitrary ClientMismatch where
   arbitrary =
     ClientMismatch
-      <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
 
 modelClientMismatch :: Doc.Model
 modelClientMismatch = Doc.defineModel "ClientMismatch" $ do

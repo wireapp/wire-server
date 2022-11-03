@@ -225,9 +225,12 @@ sendMail m = do
       -- documented in the cases of SES, we can only handle the errors
       -- after the fact.
       AWS.ServiceError se
-        | se ^. AWS.serviceStatus == status400
-            && "Invalid domain name" `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceCode) ->
-          throwM SESInvalidDomain
+        | se
+            ^. AWS.serviceStatus
+            == status400
+            && "Invalid domain name"
+            `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceCode) ->
+            throwM SESInvalidDomain
       _ -> throwM (GeneralError x)
 
 --------------------------------------------------------------------------------

@@ -142,9 +142,9 @@ instance ParseMLS ReInit where
   parseMLS =
     ReInit
       <$> parseMLS
-        <*> parseMLS
-        <*> parseMLS
-        <*> parseMLSVector @Word32 parseMLS
+      <*> parseMLS
+      <*> parseMLS
+      <*> parseMLSVector @Word32 parseMLS
 
 data MessageRange = MessageRange
   { mrSender :: KeyPackageRef,

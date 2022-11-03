@@ -36,8 +36,9 @@ import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Email (mkEmailKey)
-import qualified Brig.IO.Intra as RPC
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options (Settings (..))
 import qualified Brig.Options as Opt
@@ -76,6 +77,7 @@ import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
+import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -91,6 +93,7 @@ import qualified OpenSSL.EVP.PKey as SSL
 import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import OpenSSL.Random (randBytes)
+import Polysemy
 import qualified Ssl.Util as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -120,8 +123,11 @@ import Wire.API.User.Client
 import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
+import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 
-routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
+routesPublic ::
+  Members '[GalleyProvider, Concurrency 'Unsafe] r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
 
@@ -132,12 +138,12 @@ routesPublic = do
   get "/provider/activate" (continue activateAccountKeyH) $
     accept "application" "json"
       .&> query "key"
-      .&. query "code"
+        .&. query "code"
 
   get "/provider/approve" (continue approveAccountKeyH) $
     accept "application" "json"
       .&> query "key"
-      .&. query "code"
+        .&. query "code"
 
   post "/provider/login" (continue loginH) $
     jsonRequest @Public.ProviderLogin
@@ -152,26 +158,26 @@ routesPublic = do
 
   -- Provider API ------------------------------------------------------------
 
-  delete "/provider" (continue $ wrapHttpClientE <$> deleteAccountH) $
+  delete "/provider" (continue deleteAccountH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.DeleteProvider
+        .&. jsonRequest @Public.DeleteProvider
 
   put "/provider" (continue updateAccountProfileH) $
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.UpdateProvider
+        .&. jsonRequest @Public.UpdateProvider
 
   put "/provider/email" (continue updateAccountEmailH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.EmailUpdate
+        .&. jsonRequest @Public.EmailUpdate
 
   put "/provider/password" (continue updateAccountPasswordH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.PasswordChange
+        .&. jsonRequest @Public.PasswordChange
 
   get "/provider" (continue getAccountH) $
     accept "application" "json"
@@ -182,7 +188,7 @@ routesPublic = do
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
-      .&. jsonRequest @Public.NewService
+        .&. jsonRequest @Public.NewService
 
   get "/provider/services" (continue listServicesH) $
     accept "application" "json"
@@ -193,19 +199,19 @@ routesPublic = do
     accept "application" "json"
       .&> zauth ZAuthProvider
       .&> zauthProviderId
-      .&. capture "sid"
+        .&. capture "sid"
 
   put "/provider/services/:sid" (continue updateServiceH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. capture "sid"
-      .&. jsonRequest @Public.UpdateService
+        .&. capture "sid"
+        .&. jsonRequest @Public.UpdateService
 
   put "/provider/services/:sid/connection" (continue updateServiceConnH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. capture "sid"
-      .&. jsonRequest @Public.UpdateServiceConn
+        .&. capture "sid"
+        .&. jsonRequest @Public.UpdateServiceConn
 
   -- TODO
   --     post "/provider/services/:sid/token" (continue genServiceTokenH) $
@@ -215,8 +221,8 @@ routesPublic = do
   delete "/provider/services/:sid" (continue deleteServiceH) $
     zauth ZAuthProvider
       .&> zauthProviderId
-      .&. capture "sid"
-      .&. jsonRequest @Public.DeleteService
+        .&. capture "sid"
+        .&. jsonRequest @Public.DeleteService
 
   -- User API ----------------------------------------------------------------
 
@@ -234,14 +240,14 @@ routesPublic = do
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> capture "pid"
-      .&. capture "sid"
+        .&. capture "sid"
 
   get "/services" (continue searchServiceProfilesH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> opt (query "tags")
-      .&. opt (query "start")
-      .&. def (unsafeRange 20) (query "size")
+        .&. opt (query "start")
+        .&. def (unsafeRange 20) (query "size")
 
   get "/services/tags" (continue getServiceTagListH) $
     accept "application" "json"
@@ -250,33 +256,33 @@ routesPublic = do
   get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfilesH) $
     accept "application" "json"
       .&> zauthUserId
-      .&. capture "tid"
-      .&. opt (query "prefix")
-      .&. def True (query "filter_disabled")
-      .&. def (unsafeRange 20) (query "size")
+        .&. capture "tid"
+        .&. opt (query "prefix")
+        .&. def True (query "filter_disabled")
+        .&. def (unsafeRange 20) (query "size")
 
   post "/teams/:tid/services/whitelist" (continue updateServiceWhitelistH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. jsonRequest @Public.UpdateServiceWhitelist
+        .&. zauthConnId
+        .&. capture "tid"
+        .&. jsonRequest @Public.UpdateServiceWhitelist
 
   post "/conversations/:cnv/bots" (continue addBotH) $
     accept "application" "json"
       .&> zauth ZAuthAccess
       .&> zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. jsonRequest @Public.AddBot
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. jsonRequest @Public.AddBot
 
   delete "/conversations/:cnv/bots/:bot" (continue removeBotH) $
     zauth ZAuthAccess
       .&> zauthUserId
-      .&. zauthConnId
-      .&. capture "cnv"
-      .&. capture "bot"
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. capture "bot"
 
   -- Bot API -----------------------------------------------------------------
 
@@ -288,7 +294,7 @@ routesPublic = do
   delete "/bot/self" (continue botDeleteSelfH) $
     zauth ZAuthBot
       .&> zauthBotId
-      .&. zauthConvId
+        .&. zauthConvId
 
   get "/bot/client/prekeys" (continue botListPrekeysH) $
     accept "application" "json"
@@ -298,7 +304,7 @@ routesPublic = do
   post "/bot/client/prekeys" (continue botUpdatePrekeysH) $
     zauth ZAuthBot
       .&> zauthBotId
-      .&. jsonRequest @Public.UpdateBotPrekeys
+        .&. jsonRequest @Public.UpdateBotPrekeys
 
   get "/bot/client" (continue botGetClientH) $
     contentType "application" "json"
@@ -320,7 +326,7 @@ routesPublic = do
       .&> zauth ZAuthBot
       .&> capture "uid"
 
-routesInternal :: Routes a (Handler r) ()
+routesInternal :: Members '[GalleyProvider] r => Routes a (Handler r) ()
 routesInternal = do
   get "/i/provider/activation-code" (continue getActivationCodeH) $
     accept "application" "json"
@@ -329,9 +335,9 @@ routesInternal = do
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccountH :: JsonRequest Public.NewProvider -> (Handler r) Response
+newAccountH :: Members '[GalleyProvider] r => JsonRequest Public.NewProvider -> (Handler r) Response
 newAccountH req = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   setStatus status201 . json <$> (newAccount =<< parseJsonBody req)
 
 newAccount :: Public.NewProvider -> (Handler r) Public.NewProviderResponse
@@ -366,9 +372,9 @@ newAccount new = do
   lift $ sendActivationMail name email key val False
   pure $ Public.NewProviderResponse pid newPass
 
-activateAccountKeyH :: Code.Key ::: Code.Value -> (Handler r) Response
+activateAccountKeyH :: Members '[GalleyProvider] r => Code.Key ::: Code.Value -> (Handler r) Response
 activateAccountKeyH (key ::: val) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   maybe (setStatus status204 empty) json <$> activateAccountKey key val
 
 activateAccountKey :: Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
@@ -393,9 +399,9 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH :: Public.Email -> (Handler r) Response
+getActivationCodeH :: Members '[GalleyProvider] r => Public.Email -> (Handler r) Response
 getActivationCodeH e = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   json <$> getActivationCode e
 
 getActivationCode :: Public.Email -> (Handler r) FoundActivationCode
@@ -414,9 +420,9 @@ instance ToJSON FoundActivationCode where
     toJSON $
       Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
-approveAccountKeyH :: Code.Key ::: Code.Value -> (Handler r) Response
+approveAccountKeyH :: Members '[GalleyProvider] r => Code.Key ::: Code.Value -> (Handler r) Response
 approveAccountKeyH (key ::: val) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   empty <$ approveAccountKey key val
 
 approveAccountKey :: Code.Key -> Code.Value -> (Handler r) ()
@@ -429,13 +435,13 @@ approveAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
     _ -> throwStd (errorToWai @'E.InvalidCode)
 
-loginH :: JsonRequest Public.ProviderLogin -> (Handler r) Response
+loginH :: Members '[GalleyProvider] r => JsonRequest Public.ProviderLogin -> (Handler r) Response
 loginH req = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   tok <- login =<< parseJsonBody req
   setProviderCookie tok empty
 
-login :: Public.ProviderLogin -> (Handler r) ZAuth.ProviderToken
+login :: Public.ProviderLogin -> Handler r (ZAuth.Token ZAuth.Provider)
 login l = do
   pid <- wrapClientE (DB.lookupKey (mkEmailKey (providerLoginEmail l))) >>= maybeBadCredentials
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
@@ -443,9 +449,9 @@ login l = do
     throwStd (errorToWai @'E.BadCredentials)
   ZAuth.newProviderToken pid
 
-beginPasswordResetH :: JsonRequest Public.PasswordReset -> (Handler r) Response
+beginPasswordResetH :: Members '[GalleyProvider] r => JsonRequest Public.PasswordReset -> (Handler r) Response
 beginPasswordResetH req = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
 beginPasswordReset :: Public.PasswordReset -> (Handler r) ()
@@ -465,9 +471,9 @@ beginPasswordReset (Public.PasswordReset target) = do
   tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
 
-completePasswordResetH :: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
+completePasswordResetH :: Members '[GalleyProvider] r => JsonRequest Public.CompletePasswordReset -> (Handler r) Response
 completePasswordResetH req = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   empty <$ (completePasswordReset =<< parseJsonBody req)
 
 completePasswordReset :: Public.CompletePasswordReset -> (Handler r) ()
@@ -486,9 +492,9 @@ completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
 --------------------------------------------------------------------------------
 -- Provider API
 
-getAccountH :: ProviderId -> (Handler r) Response
+getAccountH :: Members '[GalleyProvider] r => ProviderId -> (Handler r) Response
 getAccountH pid = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   getAccount pid <&> \case
     Just p -> json p
     Nothing -> setStatus status404 empty
@@ -496,9 +502,9 @@ getAccountH pid = do
 getAccount :: ProviderId -> (Handler r) (Maybe Public.Provider)
 getAccount = wrapClientE . DB.lookupAccount
 
-updateAccountProfileH :: ProviderId ::: JsonRequest Public.UpdateProvider -> (Handler r) Response
+updateAccountProfileH :: Members '[GalleyProvider] r => ProviderId ::: JsonRequest Public.UpdateProvider -> (Handler r) Response
 updateAccountProfileH (pid ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   empty <$ (updateAccountProfile pid =<< parseJsonBody req)
 
 updateAccountProfile :: ProviderId -> Public.UpdateProvider -> (Handler r) ()
@@ -511,9 +517,9 @@ updateAccountProfile pid upd = do
       (updateProviderUrl upd)
       (updateProviderDescr upd)
 
-updateAccountEmailH :: ProviderId ::: JsonRequest Public.EmailUpdate -> (Handler r) Response
+updateAccountEmailH :: Members '[GalleyProvider] r => ProviderId ::: JsonRequest Public.EmailUpdate -> (Handler r) Response
 updateAccountEmailH (pid ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   setStatus status202 empty <$ (updateAccountEmail pid =<< parseJsonBody req)
 
 updateAccountEmail :: ProviderId -> Public.EmailUpdate -> (Handler r) ()
@@ -534,9 +540,9 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
   tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
 
-updateAccountPasswordH :: ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response
+updateAccountPasswordH :: Members '[GalleyProvider] r => ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response
 updateAccountPasswordH (pid ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   empty <$ (updateAccountPassword pid =<< parseJsonBody req)
 
 updateAccountPassword :: ProviderId -> Public.PasswordChange -> (Handler r) ()
@@ -548,9 +554,9 @@ updateAccountPassword pid upd = do
     throwStd newPasswordMustDiffer
   wrapClientE $ DB.updateAccountPassword pid (cpNewPassword upd)
 
-addServiceH :: ProviderId ::: JsonRequest Public.NewService -> (Handler r) Response
+addServiceH :: Members '[GalleyProvider] r => ProviderId ::: JsonRequest Public.NewService -> (Handler r) Response
 addServiceH (pid ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   setStatus status201 . json <$> (addService pid =<< parseJsonBody req)
 
 addService :: ProviderId -> Public.NewService -> (Handler r) Public.NewServiceResponse
@@ -569,26 +575,26 @@ addService pid new = do
   let rstoken = maybe (Just token) (const Nothing) (newServiceToken new)
   pure $ Public.NewServiceResponse sid rstoken
 
-listServicesH :: ProviderId -> (Handler r) Response
+listServicesH :: Members '[GalleyProvider] r => ProviderId -> (Handler r) Response
 listServicesH pid = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   json <$> listServices pid
 
 listServices :: ProviderId -> (Handler r) [Public.Service]
 listServices = wrapClientE . DB.listServices
 
-getServiceH :: ProviderId ::: ServiceId -> (Handler r) Response
+getServiceH :: Members '[GalleyProvider] r => ProviderId ::: ServiceId -> (Handler r) Response
 getServiceH (pid ::: sid) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   json <$> getService pid sid
 
 getService :: ProviderId -> ServiceId -> (Handler r) Public.Service
 getService pid sid =
   wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
 
-updateServiceH :: ProviderId ::: ServiceId ::: JsonRequest Public.UpdateService -> (Handler r) Response
+updateServiceH :: Members '[GalleyProvider] r => ProviderId ::: ServiceId ::: JsonRequest Public.UpdateService -> (Handler r) Response
 updateServiceH (pid ::: sid ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   empty <$ (updateService pid sid =<< parseJsonBody req)
 
 updateService :: ProviderId -> ServiceId -> Public.UpdateService -> (Handler r) ()
@@ -619,9 +625,9 @@ updateService pid sid upd = do
       tagsChange
       (serviceEnabled svc)
 
-updateServiceConnH :: ProviderId ::: ServiceId ::: JsonRequest Public.UpdateServiceConn -> (Handler r) Response
+updateServiceConnH :: Members '[GalleyProvider] r => ProviderId ::: ServiceId ::: JsonRequest Public.UpdateServiceConn -> (Handler r) Response
 updateServiceConnH (pid ::: sid ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   empty <$ (updateServiceConn pid sid =<< parseJsonBody req)
 
 updateServiceConn :: ProviderId -> ServiceId -> Public.UpdateServiceConn -> (Handler r) ()
@@ -660,14 +666,14 @@ updateServiceConn pid sid upd = do
 
 -- TODO: Send informational email to provider.
 
--- | The endpoint that is called to delete a service.
+-- | Members '[GalleyProvider] r => The endpoint that is called to delete a service.
 --
 -- Since deleting a service can be costly, it just marks the service as
 -- disabled and then creates an event that will, when processed, actually
 -- delete the service. See 'finishDeleteService'.
-deleteServiceH :: ProviderId ::: ServiceId ::: JsonRequest Public.DeleteService -> (Handler r) Response
+deleteServiceH :: Members '[GalleyProvider] r => ProviderId ::: ServiceId ::: JsonRequest Public.DeleteService -> (Handler r) Response
 deleteServiceH (pid ::: sid ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   setStatus status202 empty <$ (deleteService pid sid =<< parseJsonBody req)
 
 -- | The endpoint that is called to delete a service.
@@ -713,18 +719,17 @@ finishDeleteService pid sid = do
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
 deleteAccountH ::
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    MonadClient m,
-    HasRequestId m,
-    MonadLogger m
-  ) =>
+  Members '[GalleyProvider] r =>
   ProviderId ::: JsonRequest Public.DeleteProvider ->
-  ExceptT Error m Response
+  ExceptT Error (AppT r) Response
 deleteAccountH (pid ::: req) = do
   guardSecondFactorDisabled Nothing
-  empty <$ (deleteAccount pid =<< parseJsonBody req)
+  empty
+    <$ mapExceptT
+      wrapHttpClient
+      ( deleteAccount pid
+          =<< parseJsonBody req
+      )
 
 deleteAccount ::
   ( MonadReader Env m,
@@ -755,35 +760,35 @@ deleteAccount pid del = do
 --------------------------------------------------------------------------------
 -- User API
 
-getProviderProfileH :: ProviderId -> (Handler r) Response
+getProviderProfileH :: Members '[GalleyProvider] r => ProviderId -> (Handler r) Response
 getProviderProfileH pid = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   json <$> getProviderProfile pid
 
 getProviderProfile :: ProviderId -> (Handler r) Public.ProviderProfile
 getProviderProfile pid =
   wrapClientE (DB.lookupAccountProfile pid) >>= maybeProviderNotFound
 
-listServiceProfilesH :: ProviderId -> (Handler r) Response
+listServiceProfilesH :: Members '[GalleyProvider] r => ProviderId -> (Handler r) Response
 listServiceProfilesH pid = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   json <$> listServiceProfiles pid
 
 listServiceProfiles :: ProviderId -> (Handler r) [Public.ServiceProfile]
 listServiceProfiles = wrapClientE . DB.listServiceProfiles
 
-getServiceProfileH :: ProviderId ::: ServiceId -> (Handler r) Response
+getServiceProfileH :: Members '[GalleyProvider] r => ProviderId ::: ServiceId -> (Handler r) Response
 getServiceProfileH (pid ::: sid) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   json <$> getServiceProfile pid sid
 
 getServiceProfile :: ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
 getServiceProfile pid sid =
   wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
 
-searchServiceProfilesH :: Maybe (Public.QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> (Handler r) Response
+searchServiceProfilesH :: Members '[GalleyProvider] r => Maybe (Public.QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> (Handler r) Response
 searchServiceProfilesH (qt ::: start ::: size) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   json <$> searchServiceProfiles qt start size
 
 -- TODO: in order to actually make it possible for clients to implement
@@ -800,10 +805,11 @@ searchServiceProfiles Nothing Nothing _ = do
   throwStd $ badRequest "At least `tags` or `start` must be provided."
 
 searchTeamServiceProfilesH ::
+  Members '[GalleyProvider] r =>
   UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32 ->
   (Handler r) Response
 searchTeamServiceProfilesH (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just uid)
+  guardSecondFactorDisabled (Just uid)
   json <$> searchTeamServiceProfiles uid tid prefix filterDisabled size
 
 -- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
@@ -824,9 +830,9 @@ searchTeamServiceProfiles uid tid prefix filterDisabled size = do
   -- Get search results
   wrapClientE $ DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
 
-getServiceTagListH :: () -> (Handler r) Response
+getServiceTagListH :: Members '[GalleyProvider] r => () -> (Handler r) Response
 getServiceTagListH () = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   json <$> getServiceTagList ()
 
 getServiceTagList :: () -> Monad m => m Public.ServiceTagList
@@ -834,9 +840,9 @@ getServiceTagList () = pure (Public.ServiceTagList allTags)
   where
     allTags = [(minBound :: Public.ServiceTag) ..]
 
-updateServiceWhitelistH :: UserId ::: ConnId ::: TeamId ::: JsonRequest Public.UpdateServiceWhitelist -> (Handler r) Response
+updateServiceWhitelistH :: Members '[GalleyProvider] r => UserId ::: ConnId ::: TeamId ::: JsonRequest Public.UpdateServiceWhitelist -> (Handler r) Response
 updateServiceWhitelistH (uid ::: con ::: tid ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just uid)
+  guardSecondFactorDisabled (Just uid)
   resp <- updateServiceWhitelist uid con tid =<< parseJsonBody req
   let status = case resp of
         UpdateServiceWhitelistRespChanged -> status200
@@ -847,7 +853,7 @@ data UpdateServiceWhitelistResp
   = UpdateServiceWhitelistRespChanged
   | UpdateServiceWhitelistRespUnchanged
 
-updateServiceWhitelist :: UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
+updateServiceWhitelist :: Members '[GalleyProvider] r => UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
@@ -866,32 +872,32 @@ updateServiceWhitelist uid con tid upd = do
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
       -- conversations
-      lift $
-        fmap
+      lift
+        $ fmap
           wrapHttpClient
           runConduit
-          $ User.lookupServiceUsersForTeam pid sid tid
-            .| C.mapM_
-              ( pooledMapConcurrentlyN_
-                  16
-                  ( uncurry (deleteBot uid (Just con))
-                  )
-              )
+        $ User.lookupServiceUsersForTeam pid sid tid
+          .| C.mapM_
+            ( pooledMapConcurrentlyN_
+                16
+                ( uncurry (deleteBot uid (Just con))
+                )
+            )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
 
-addBotH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot -> (Handler r) Response
+addBotH :: Members '[GalleyProvider] r => UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot -> (Handler r) Response
 addBotH (zuid ::: zcon ::: cid ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just zuid)
+  guardSecondFactorDisabled (Just zuid)
   setStatus status201 . json <$> (addBot zuid zcon cid =<< parseJsonBody req)
 
-addBot :: UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
+addBot :: Members '[GalleyProvider] r => UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
 addBot zuid zcon cid add = do
   zusr <- lift (wrapClient $ User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
   let pid = addBotProvider add
   let sid = addBotService add
   -- Get the conversation and check preconditions
-  cnv <- lift (wrapHttp $ RPC.getConv zuid cid) >>= maybeConvNotFound
+  cnv <- lift (liftSem $ GalleyProvider.getConv zuid cid) >>= maybeConvNotFound
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
     throwStd invalidConv
@@ -959,15 +965,15 @@ addBot zuid zcon cid add = do
         Public.rsAddBotEvent = ev
       }
 
-removeBotH :: UserId ::: ConnId ::: ConvId ::: BotId -> (Handler r) Response
+removeBotH :: Members '[GalleyProvider] r => UserId ::: ConnId ::: ConvId ::: BotId -> (Handler r) Response
 removeBotH (zusr ::: zcon ::: cid ::: bid) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just zusr)
+  guardSecondFactorDisabled (Just zusr)
   maybe (setStatus status204 empty) json <$> removeBot zusr zcon cid bid
 
-removeBot :: UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
+removeBot :: Members '[GalleyProvider] r => UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
   -- Get the conversation and check preconditions
-  cnv <- lift (wrapHttp $ RPC.getConv zusr cid) >>= maybeConvNotFound
+  cnv <- lift (liftSem $ GalleyProvider.getConv zusr cid) >>= maybeConvNotFound
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
     throwStd invalidConv
@@ -982,9 +988,9 @@ removeBot zusr zcon cid bid = do
 --------------------------------------------------------------------------------
 -- Bot API
 
-botGetSelfH :: BotId -> (Handler r) Response
+botGetSelfH :: Members '[GalleyProvider] r => BotId -> (Handler r) Response
 botGetSelfH bot = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bot))
+  guardSecondFactorDisabled (Just (botUserId bot))
   json <$> botGetSelf bot
 
 botGetSelf :: BotId -> (Handler r) Public.UserProfile
@@ -992,18 +998,18 @@ botGetSelf bot = do
   p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
   maybe (throwStd (errorToWai @'E.UserNotFound)) (pure . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
-botGetClientH :: BotId -> (Handler r) Response
+botGetClientH :: Members '[GalleyProvider] r => BotId -> (Handler r) Response
 botGetClientH bot = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bot))
+  guardSecondFactorDisabled (Just (botUserId bot))
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . json) =<< lift (botGetClient bot)
 
 botGetClient :: BotId -> (AppT r) (Maybe Public.Client)
 botGetClient bot =
   listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
 
-botListPrekeysH :: BotId -> (Handler r) Response
+botListPrekeysH :: Members '[GalleyProvider] r => BotId -> (Handler r) Response
 botListPrekeysH bot = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bot))
+  guardSecondFactorDisabled (Just (botUserId bot))
   json <$> botListPrekeys bot
 
 botListPrekeys :: BotId -> (Handler r) [Public.PrekeyId]
@@ -1013,9 +1019,9 @@ botListPrekeys bot = do
     Nothing -> pure []
     Just ci -> lift (wrapClient $ User.lookupPrekeyIds (botUserId bot) ci)
 
-botUpdatePrekeysH :: BotId ::: JsonRequest Public.UpdateBotPrekeys -> (Handler r) Response
+botUpdatePrekeysH :: Members '[GalleyProvider] r => BotId ::: JsonRequest Public.UpdateBotPrekeys -> (Handler r) Response
 botUpdatePrekeysH (bot ::: req) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bot))
+  guardSecondFactorDisabled (Just (botUserId bot))
   empty <$ (botUpdatePrekeys bot =<< parseJsonBody req)
 
 botUpdatePrekeys :: BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
@@ -1027,21 +1033,27 @@ botUpdatePrekeys bot upd = do
       let pks = updateBotPrekeyList upd
       wrapClientE (User.updatePrekeys (botUserId bot) (clientId c) pks) !>> clientDataError
 
-botClaimUsersPrekeysH :: JsonRequest Public.UserClients -> (Handler r) Response
+botClaimUsersPrekeysH ::
+  Members '[GalleyProvider, Concurrency 'Unsafe] r =>
+  JsonRequest Public.UserClients ->
+  Handler r Response
 botClaimUsersPrekeysH req = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
+  guardSecondFactorDisabled Nothing
   json <$> (botClaimUsersPrekeys =<< parseJsonBody req)
 
-botClaimUsersPrekeys :: Public.UserClients -> (Handler r) Public.UserClientPrekeyMap
+botClaimUsersPrekeys ::
+  Members '[Concurrency 'Unsafe] r =>
+  Public.UserClients ->
+  Handler r Public.UserClientPrekeyMap
 botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
-botListUserProfilesH :: List UserId -> (Handler r) Response
+botListUserProfilesH :: Members '[GalleyProvider] r => List UserId -> (Handler r) Response
 botListUserProfilesH uids = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing -- should we check all user ids?
+  guardSecondFactorDisabled Nothing -- should we check all user ids?
   json <$> botListUserProfiles uids
 
 botListUserProfiles :: List UserId -> (Handler r) [Public.BotUserView]
@@ -1049,9 +1061,9 @@ botListUserProfiles uids = do
   us <- lift . wrapClient $ User.lookupUsers NoPendingInvitations (fromList uids)
   pure (map mkBotUserView us)
 
-botGetUserClientsH :: UserId -> (Handler r) Response
+botGetUserClientsH :: Members '[GalleyProvider] r => UserId -> (Handler r) Response
 botGetUserClientsH uid = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just uid)
+  guardSecondFactorDisabled (Just uid)
   json <$> lift (botGetUserClients uid)
 
 botGetUserClients :: UserId -> (AppT r) [Public.PubClient]
@@ -1060,14 +1072,14 @@ botGetUserClients uid =
   where
     pubClient c = Public.PubClient (clientId c) (clientClass c)
 
-botDeleteSelfH :: BotId ::: ConvId -> (Handler r) Response
+botDeleteSelfH :: Members '[GalleyProvider] r => BotId ::: ConvId -> (Handler r) Response
 botDeleteSelfH (bid ::: cid) = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bid))
+  guardSecondFactorDisabled (Just (botUserId bid))
   empty <$ botDeleteSelf bid cid
 
-botDeleteSelf :: BotId -> ConvId -> (Handler r) ()
+botDeleteSelf :: Members '[GalleyProvider] r => BotId -> ConvId -> (Handler r) ()
 botDeleteSelf bid cid = do
-  mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bid))
+  guardSecondFactorDisabled (Just (botUserId bid))
   bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
   _ <- maybeInvalidBot (userService =<< bot)
   _ <- lift $ wrapHttpClient $ deleteBot (botUserId bid) Nothing bid cid
@@ -1079,17 +1091,11 @@ botDeleteSelf bid cid = do
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.
 -- (This is a workaround until we have 2FA for those end-points as well.)
 guardSecondFactorDisabled ::
-  ( MonadLogger m,
-    MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
+  Members '[GalleyProvider] r =>
   Maybe UserId ->
-  ExceptT Error m ()
+  ExceptT Error (AppT r) ()
 guardSecondFactorDisabled mbUserId = do
-  enabled <- lift $ (==) Feature.FeatureStatusEnabled . Feature.wsStatus . Feature.afcSndFactorPasswordChallenge <$> RPC.getAllFeatureConfigsForUser mbUserId
+  enabled <- lift $ liftSem $ (==) Feature.FeatureStatusEnabled . Feature.wsStatus . Feature.afcSndFactorPasswordChallenge <$> GalleyProvider.getAllFeatureConfigsForUser mbUserId
   when enabled $ throwStd accessDenied
 
 minRsaKeySize :: Int
@@ -1164,7 +1170,7 @@ mkBotUserView u =
       Ext.botUserViewTeam = userTeam u
     }
 
-setProviderCookie :: ZAuth.ProviderToken -> Response -> (Handler r) Response
+setProviderCookie :: ZAuth.Token ZAuth.Provider -> Response -> (Handler r) Response
 setProviderCookie t r = do
   s <- view settings
   let hdr = toByteString' (Cookie.renderSetCookie (cookie s))

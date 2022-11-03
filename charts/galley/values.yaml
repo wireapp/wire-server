@@ -14,7 +14,7 @@ resources:
     memory: "100Mi"
     cpu: "100m"
   limits:
-    memory: "200Mi"
+    memory: "500Mi"
 config:
   logLevel: Info
   logFormat: StructuredJSON

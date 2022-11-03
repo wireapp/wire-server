@@ -16,6 +16,7 @@ library
     Wire.API.Asset
     Wire.API.Call.Config
     Wire.API.Connection
+    Wire.API.ConverProtoLens
     Wire.API.Conversation
     Wire.API.Conversation.Action
     Wire.API.Conversation.Action.Tag
@@ -32,6 +33,7 @@ library
     Wire.API.Error.Cargohold
     Wire.API.Error.Empty
     Wire.API.Error.Galley
+    Wire.API.Error.Gundeck
     Wire.API.Event.Conversation
     Wire.API.Event.FeatureConfig
     Wire.API.Event.Team
@@ -68,7 +70,9 @@ library
     Wire.API.RawJson
     Wire.API.Routes.API
     Wire.API.Routes.AssetBody
+    Wire.API.Routes.Bearer
     Wire.API.Routes.ClientAlgebra
+    Wire.API.Routes.Cookies
     Wire.API.Routes.CSV
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
@@ -87,6 +91,7 @@ library
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
     Wire.API.Routes.Public.Galley
+    Wire.API.Routes.Public.Gundeck
     Wire.API.Routes.Public.Spar
     Wire.API.Routes.Public.Util
     Wire.API.Routes.QualifiedCapture
@@ -111,6 +116,9 @@ library
     Wire.API.User
     Wire.API.User.Activation
     Wire.API.User.Auth
+    Wire.API.User.Auth.LegalHold
+    Wire.API.User.Auth.ReAuth
+    Wire.API.User.Auth.Sso
     Wire.API.User.Auth2
     Wire.API.User.Client
     Wire.API.User.Client.DPoPAccessToken
@@ -263,6 +271,7 @@ library
     , websockets
     , wire-message-proto-lens
     , x509
+    , zauth
 
   default-language:   Haskell2010
 
@@ -508,6 +517,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
+    Test.Wire.API.Golden.Manual.Token
     Test.Wire.API.Golden.Manual.UserClientPrekeyMap
     Test.Wire.API.Golden.Manual.UserIdList
     Test.Wire.API.Golden.Protobuf

@@ -214,8 +214,14 @@ mod tests {
     const ACCESS_TOKEN: &'static str =
         "aEPOxMwUriGEv2qc7Pb672ygy-6VeJ-8VrX3jmwalZr7xygU4izyCWxiT7IXfybnNGIsk1FQPb0RRVPx1s2UCw==.v=1.k=1.d=1466770783.t=a.l=.u=6562d941-4f40-4db4-b96e-56a06d71c2c3.c=11019722839397809329";
 
+    const ACCESS_TOKEN_CLIENT_ID: &'static str =
+        "aEPOxMwUriGEv2qc7Pb672ygy-6VeJ-8VrX3jmwalZr7xygU4izyCWxiT7IXfybnNGIsk1FQPb0RRVPx1s2UCw==.v=1.k=1.d=1466770783.t=a.l=.u=6562d941-4f40-4db4-b96e-56a06d71c2c3.c=11019722839397809329.i=deadbeef";
+
     const USER_TOKEN: &'static str =
         "vpJs7PEgwtsuzGlMY0-Vqs22s8o9ZDlp7wJrPmhCgIfg0NoTAxvxq5OtknabLMfNTEW9amn5tyeUM7tbFZABBA==.v=1.k=1.d=1466770905.t=u.l=.u=6562d941-4f40-4db4-b96e-56a06d71c2c3.r=4feacc";
+
+    const USER_TOKEN_CLIENT_ID: &'static str =
+        "vpJs7PEgwtsuzGlMY0-Vqs22s8o9ZDlp7wJrPmhCgIfg0NoTAxvxq5OtknabLMfNTEW9amn5tyeUM7tbFZABBA==.v=1.k=1.d=1466770905.t=u.l=.u=6562d941-4f40-4db4-b96e-56a06d71c2c3.r=4feacc.i=deadbeef";
 
     const BOT_TOKEN: &'static str =
         "-cEsTNb68hb-By81MZd5fF6NMDVzR_emkV_HfOnIdZTXsoeRRRZA7hmv9y2uLUNWDifNd-B8u0AjiAT_2rzUDg==.v=1.k=1.d=-1.t=b.l=.p=cd57deb3-bab6-46fd-be28-a3d48ef2c6b7.b=b46833f9-ec2a-4c4a-8304-1a367f849467.c=ae3d1b9e-e47c-4e10-a751-e99a64ada74b";
@@ -246,6 +252,20 @@ mod tests {
     }
 
     #[test]
+    fn parse_access_client_id() {
+        let t = Token::parse(ACCESS_TOKEN_CLIENT_ID).unwrap();
+        assert_eq!(t.signature.to_bytes(), "aEPOxMwUriGEv2qc7Pb672ygy-6VeJ-8VrX3jmwalZr7xygU4izyCWxiT7IXfybnNGIsk1FQPb0RRVPx1s2UCw==".from_base64().unwrap()[..]);
+        assert_eq!(t.version, 1);
+        assert_eq!(t.key_idx, 1);
+        assert_eq!(t.timestamp, 1466770783);
+        assert_eq!(t.token_tag, None);
+        assert_eq!(t.token_type, TokenType::Access);
+        assert_eq!(t.lookup('u'), Some("6562d941-4f40-4db4-b96e-56a06d71c2c3"));
+        assert_eq!(t.lookup('c'), Some("11019722839397809329"));
+        assert_eq!(t.lookup('i'), Some("deadbeef"));
+    }
+
+    #[test]
     fn parse_user() {
         let t = Token::parse(USER_TOKEN).unwrap();
         assert_eq!(t.signature.to_bytes(), "vpJs7PEgwtsuzGlMY0-Vqs22s8o9ZDlp7wJrPmhCgIfg0NoTAxvxq5OtknabLMfNTEW9amn5tyeUM7tbFZABBA==".from_base64().unwrap()[..]);
@@ -256,6 +276,20 @@ mod tests {
         assert_eq!(t.token_type, TokenType::User);
         assert_eq!(t.lookup('u'), Some("6562d941-4f40-4db4-b96e-56a06d71c2c3"));
         assert_eq!(t.lookup('r'), Some("4feacc"))
+    }
+
+    #[test]
+    fn parse_user_client_id() {
+        let t = Token::parse(USER_TOKEN_CLIENT_ID).unwrap();
+        assert_eq!(t.signature.to_bytes(), "vpJs7PEgwtsuzGlMY0-Vqs22s8o9ZDlp7wJrPmhCgIfg0NoTAxvxq5OtknabLMfNTEW9amn5tyeUM7tbFZABBA==".from_base64().unwrap()[..]);
+        assert_eq!(t.version, 1);
+        assert_eq!(t.key_idx, 1);
+        assert_eq!(t.timestamp, 1466770905);
+        assert_eq!(t.token_tag, None);
+        assert_eq!(t.token_type, TokenType::User);
+        assert_eq!(t.lookup('u'), Some("6562d941-4f40-4db4-b96e-56a06d71c2c3"));
+        assert_eq!(t.lookup('r'), Some("4feacc"));
+        assert_eq!(t.lookup('i'), Some("deadbeef"));
     }
 
     #[test]

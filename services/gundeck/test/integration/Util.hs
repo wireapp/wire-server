@@ -14,7 +14,7 @@ import Gundeck.Env (createEnv)
 import Gundeck.Options
 import Gundeck.Run (mkApp)
 import Imports
-import Network.Socket
+import Network.Socket hiding (openSocket)
 import Network.Socket.ByteString (recv, sendAll)
 import Network.Wai.Utilities.MockServer (withMockServer)
 import TestSetup

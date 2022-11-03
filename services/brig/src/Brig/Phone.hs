@@ -206,17 +206,17 @@ validatePhone :: (MonadClient m, MonadReader Env m) => Phone -> m (Maybe Phone)
 validatePhone (Phone p)
   | isTestPhone p = pure (Just (Phone p))
   | otherwise = do
-    c <- view twilioCreds
-    m <- view httpManager
-    r <-
-      liftIO . try @_ @Twilio.ErrorResponse $
-        recovering x3 httpHandlers $
-          const $
-            Twilio.lookupPhone c m p LookupNoDetail Nothing
-    case r of
-      Right x -> pure (Just (Phone (Twilio.lookupE164 x)))
-      Left e | Twilio.errStatus e == 404 -> pure Nothing
-      Left e -> throwM e
+      c <- view twilioCreds
+      m <- view httpManager
+      r <-
+        liftIO . try @_ @Twilio.ErrorResponse $
+          recovering x3 httpHandlers $
+            const $
+              Twilio.lookupPhone c m p LookupNoDetail Nothing
+      case r of
+        Right x -> pure (Just (Phone (Twilio.lookupE164 x)))
+        Left e | Twilio.errStatus e == 404 -> pure Nothing
+        Left e -> throwM e
 
 isTestPhone :: Text -> Bool
 isTestPhone = Text.isPrefixOf "+0"

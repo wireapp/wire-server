@@ -85,6 +85,7 @@ instance FromText (Id a) where
   fromText =
     Parser.parseOnly $
       Parser.take 36 >>= \txt ->
-        txt & Text.encodeUtf8
+        txt
+          & Text.encodeUtf8
           & Uuid.fromASCIIBytes
           & maybe (fail "Invalid UUID") (pure . Id)

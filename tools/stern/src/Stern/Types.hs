@@ -25,36 +25,48 @@
 
 module Stern.Types where
 
+import Control.Lens ((?~))
 import Data.Aeson
-import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Json.Util
+import Data.Proxy
 import Data.Range
+import qualified Data.Schema as S
+import qualified Data.Swagger as Swagger
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra (TeamData)
 import Imports
+import Servant.API
 import Wire.API.Properties
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 
 newtype TeamMemberInfo = TeamMemberInfo {tm :: TeamMember}
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamMemberInfo
 
-instance ToJSON TeamMemberInfo where
-  toJSON (TeamMemberInfo m) =
-    case teamMemberJson (const True) m of
-      Object o ->
-        Object $
-          KeyMap.insert "can_update_billing" (Bool (hasPermission m SetBilling)) $
-            KeyMap.insert "can_view_billing" (Bool (hasPermission m GetBilling)) $
-              o
-      other ->
-        error $ "toJSON TeamMemberInfo: not an object: " <> show (encode other)
+instance S.ToSchema TeamMemberInfo where
+  schema =
+    S.object "TeamMemberInfo" $
+      TeamMemberInfo
+        <$> tm S..= teamMemberObjectSchema
+        <* ((`hasPermission` SetBilling) . tm) S..= S.field "can_update_billing" S.schema
+        <* ((`hasPermission` GetBilling) . tm) S..= S.field "can_view_billing" S.schema
 
 data TeamInfo = TeamInfo
   { tiData :: TeamData,
     tiMembers :: [TeamMemberInfo]
   }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamInfo
+
+instance S.ToSchema TeamInfo where
+  schema =
+    S.object "TeamInfo" $
+      TeamInfo
+        <$> tiData S..= S.field "info" S.schema
+        <*> tiMembers S..= S.field "members" (S.array S.schema)
 
 data TeamAdminInfo = TeamAdminInfo
   { taData :: TeamData,
@@ -62,6 +74,17 @@ data TeamAdminInfo = TeamAdminInfo
     taAdmins :: [TeamMemberInfo],
     taMembers :: Int
   }
+  deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamAdminInfo
+
+instance S.ToSchema TeamAdminInfo where
+  schema =
+    S.object "TeamAdminInfo" $
+      TeamAdminInfo
+        <$> taData S..= S.field "data" S.schema
+        <*> taOwners S..= S.field "owners" (S.array S.schema)
+        <*> taAdmins S..= S.field "admins" (S.array S.schema)
+        <*> taMembers S..= S.field "total_members" S.schema
 
 toAdminInfo :: TeamInfo -> TeamAdminInfo
 toAdminInfo (TeamInfo d members) =
@@ -78,22 +101,6 @@ isOwner m = hasPermission m SetBilling
 
 isAdmin :: TeamMember -> Bool
 isAdmin m = hasPermission m AddTeamMember && not (hasPermission m SetBilling)
-
-instance ToJSON TeamInfo where
-  toJSON (TeamInfo d m) =
-    object
-      [ "info" .= d,
-        "members" .= m
-      ]
-
-instance ToJSON TeamAdminInfo where
-  toJSON (TeamAdminInfo d o a m) =
-    object
-      [ "info" .= d,
-        "owners" .= o,
-        "admins" .= a,
-        "total_members" .= m
-      ]
 
 newtype UserProperties = UserProperties
   { unUserProperties :: Map PropertyKey Value
@@ -116,6 +123,13 @@ newtype ConsentLog = ConsentLog
   }
   deriving (Eq, Show, ToJSON, FromJSON)
 
+instance Swagger.ToSchema ConsentLog where
+  declareNamedSchema _ =
+    pure . Swagger.NamedSchema (Just "ConsentLog") $
+      mempty
+        & Swagger.type_ ?~ Swagger.SwaggerObject
+        & Swagger.description ?~ "(object structure is not specified in this schema)"
+
 newtype ConsentValue = ConsentValue
   { unConsentValue :: Object
   }
@@ -126,8 +140,44 @@ newtype MarketoResult = MarketoResult
   }
   deriving (Eq, Show, ToJSON, FromJSON)
 
+data ConsentLogAndMarketo = ConsentLogAndMarketo
+  { clamConsentLog :: ConsentLog,
+    clamMarketo :: MarketoResult
+  }
+  deriving (Eq, Show)
+
+deriveJSON toJSONFieldName ''ConsentLogAndMarketo
+
+instance Swagger.ToSchema ConsentLogAndMarketo where
+  declareNamedSchema _ =
+    pure . Swagger.NamedSchema (Just "ConsentLogAndMarketo") $
+      mempty
+        & Swagger.type_ ?~ Swagger.SwaggerObject
+        & Swagger.description ?~ "(object structure is not specified in this schema)"
+
+newtype UserMetaInfo = UserMetaInfo
+  { unUserMetaInfo :: Object
+  }
+  deriving (Eq, Show, ToJSON, FromJSON)
+
+instance Swagger.ToSchema UserMetaInfo where
+  declareNamedSchema _ =
+    pure . Swagger.NamedSchema (Just "UserMetaInfo") $
+      mempty
+        & Swagger.type_ ?~ Swagger.SwaggerObject
+        & Swagger.description ?~ "(object structure is not specified in this schema)"
+
 newtype InvoiceId = InvoiceId {unInvoiceId :: Text}
   deriving (Eq, Show, ToByteString, FromByteString, ToJSON, FromJSON)
+
+instance Swagger.ToParamSchema InvoiceId where
+  toParamSchema _ = Swagger.toParamSchema (Proxy @Text)
+
+instance FromHttpApiData InvoiceId where
+  parseUrlPiece = fmap InvoiceId . parseUrlPiece
+
+instance ToHttpApiData InvoiceId where
+  toUrlPiece (InvoiceId t) = toUrlPiece t
 
 data TeamBillingInfo = TeamBillingInfo
   { tbiFirstname :: Text,
@@ -140,8 +190,20 @@ data TeamBillingInfo = TeamBillingInfo
     tbiState :: Maybe Text
   }
   deriving (Eq, Show)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamBillingInfo
 
-deriveJSON toJSONFieldName ''TeamBillingInfo
+instance S.ToSchema TeamBillingInfo where
+  schema =
+    S.object "TeamBillingInfo" $
+      TeamBillingInfo
+        <$> tbiFirstname S..= S.field "firstname" S.schema
+        <*> tbiLastname S..= S.field "lastname" S.schema
+        <*> tbiStreet S..= S.field "street" S.schema
+        <*> tbiZip S..= S.field "zip" S.schema
+        <*> tbiCity S..= S.field "city" S.schema
+        <*> tbiCountry S..= S.field "country" S.schema
+        <*> tbiCompany S..= S.maybe_ (S.optField "company" S.schema)
+        <*> tbiState S..= S.maybe_ (S.optField "state" S.schema)
 
 data TeamBillingInfoUpdate = TeamBillingInfoUpdate
   { tbiuFirstname :: Maybe (Range 1 256 Text),
@@ -154,5 +216,19 @@ data TeamBillingInfoUpdate = TeamBillingInfoUpdate
     tbiuState :: Maybe (Range 1 256 Text)
   }
   deriving (Eq, Show)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamBillingInfoUpdate
 
-deriveJSON toJSONFieldName ''TeamBillingInfoUpdate
+instance S.ToSchema TeamBillingInfoUpdate where
+  schema =
+    S.object "TeamBillingInfoUpdate" $
+      TeamBillingInfoUpdate
+        <$> tbiuFirstname S..= tbiuField "firstname"
+        <*> tbiuLastname S..= tbiuField "lastname"
+        <*> tbiuStreet S..= tbiuField "street"
+        <*> tbiuZip S..= tbiuField "zip"
+        <*> tbiuCity S..= tbiuField "city"
+        <*> tbiuCountry S..= tbiuField "country"
+        <*> tbiuCompany S..= tbiuField "company"
+        <*> tbiuState S..= tbiuField "state"
+    where
+      tbiuField fnm = S.maybe_ (S.optField fnm S.schema)

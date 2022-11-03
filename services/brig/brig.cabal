@@ -18,6 +18,7 @@ library
   -- cabal-fmt: expand src
   exposed-modules:
     Brig.API
+    Brig.API.Auth
     Brig.API.Client
     Brig.API.Connection
     Brig.API.Connection.Remote
@@ -62,10 +63,16 @@ library
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Delay
+    Brig.Effects.GalleyProvider
+    Brig.Effects.GalleyProvider.RPC
     Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
     Brig.Effects.PublicKeyBundle
+    Brig.Effects.RPC
+    Brig.Effects.RPC.IO
+    Brig.Effects.ServiceRPC
+    Brig.Effects.ServiceRPC.IO
     Brig.Effects.SFT
     Brig.Effects.UserPendingActivationStore
     Brig.Effects.UserPendingActivationStore.Cassandra
@@ -103,7 +110,6 @@ library
     Brig.Team.Util
     Brig.Template
     Brig.Unique
-    Brig.User.API.Auth
     Brig.User.API.Handle
     Brig.User.API.Search
     Brig.User.Auth
@@ -572,7 +578,6 @@ executable brig-integration
     , temporary              >=1.2.1
     , text
     , time                   >=1.5
-    , timeout
     , tinylog
     , transformers
     , types-common           >=0.3
@@ -735,6 +740,7 @@ test-suite brig-tests
     Test.Brig.Calling
     Test.Brig.Calling.Internal
     Test.Brig.Effects.Delay
+    Test.Brig.InternalNotification
     Test.Brig.MLS
     Test.Brig.Roundtrip
     Test.Brig.User.Search.Index.Types
@@ -804,6 +810,7 @@ test-suite brig-tests
     , lens
     , polysemy
     , polysemy-wire-zoo
+    , QuickCheck
     , retry
     , servant-client-core
     , string-conversions

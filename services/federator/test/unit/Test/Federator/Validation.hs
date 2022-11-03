@@ -155,7 +155,8 @@ validateDomainCertMissing :: TestTree
 validateDomainCertMissing =
   testCase "should fail if no client certificate is provided" $ do
     res <-
-      runM . runError
+      runM
+        . runError
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
@@ -168,7 +169,8 @@ validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
   testCase "should fail if the client certificate is invalid" $ do
     res <-
-      runM . runError
+      runM
+        . runError
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
@@ -186,7 +188,8 @@ validateDomainCertWrongDomain =
   testCase "should fail if the client certificate has a wrong domain" $ do
     exampleCert <- BS.readFile "test/resources/unit/localhost.example.com.pem"
     res <-
-      runM . runError
+      runM
+        . runError
         . assertNoError @DiscoveryFailure
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
@@ -250,7 +253,8 @@ validateDomainDiscoveryFailed =
   testCase "should fail if discovery fails" $ do
     exampleCert <- BS.readFile "test/resources/unit/example.com.pem"
     res <-
-      runM . runError
+      runM
+        . runError
         . assertNoError @ValidationError
         . mockDiscoveryFailure
         . runInputConst noClientCertSettings

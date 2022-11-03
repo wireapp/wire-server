@@ -73,7 +73,8 @@ data Permissions = Permissions
 permissionsSchema :: ValueSchemaP NamedSwaggerDoc Permissions (Set Perm, Set Perm)
 permissionsSchema =
   object "Permissions" $
-    (,) <$> (permsToInt . _self) .= field "self" (intToPerms <$> schema)
+    (,)
+      <$> (permsToInt . _self) .= field "self" (intToPerms <$> schema)
       <*> (permsToInt . _copy) .= field "copy" (intToPerms <$> schema)
 
 instance ToSchema Permissions where

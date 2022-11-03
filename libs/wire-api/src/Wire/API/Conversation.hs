@@ -174,7 +174,8 @@ accessRolesSchemaOpt = toOutput .= accessRolesSchemaTuple `withParser` validate
 
 accessRolesSchemaTuple :: ObjectSchema SwaggerDoc (Maybe AccessRoleLegacy, Maybe (Set AccessRoleV2))
 accessRolesSchemaTuple =
-  (,) <$> fst .= optFieldWithDocModifier "access_role" (description ?~ "Deprecated, please use access_role_v2") (maybeWithDefault A.Null schema)
+  (,)
+    <$> fst .= optFieldWithDocModifier "access_role" (description ?~ "Deprecated, please use access_role_v2") (maybeWithDefault A.Null schema)
     <*> snd .= optFieldWithDocModifier "access_role_v2" (description ?~ desc) (maybeWithDefault A.Null $ set schema)
   where
     desc = "This field is optional. If it is not present, the default will be `[team_member, non_team_member, service]`. Please note that an empty list is not allowed when creating a new conversation."

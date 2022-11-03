@@ -95,7 +95,7 @@ expectEmailVisible Opt.EmailVisibleToSelf = \case
     DifferentTeam -> False
     NoTeam -> False
 
-jsonField :: FromJSON a => Text -> Value -> Maybe a
+jsonField :: FromJSON a => Key -> Value -> Maybe a
 jsonField f u = u ^? key f >>= maybeFromJSON
 
 testUsersEmailVisibleIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()

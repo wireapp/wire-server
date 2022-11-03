@@ -38,6 +38,7 @@ import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Default
+import Data.Domain (Domain (..))
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
@@ -87,6 +88,7 @@ tests _cl _at opts p db b c g =
       test p "post /users/list-prekeys" $ testMultiUserGetPrekeysQualified b opts,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /users/list-clients/v2 - 200" $ testListClientsBulkV2 opts b,
+      test p "post /users/list-prekeys - clients without prekeys" $ testClientsWithoutPrekeys b c db opts,
       test p "post /clients - 201 (pwd)" $ testAddGetClient def {addWithPassword = True} b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient def {addWithPassword = False} b c,
       testGroup
@@ -134,7 +136,9 @@ testAddGetClientVerificationCode db brig galley = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
-  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+  checkLoginSucceeds $
+    PasswordLogin $
+      PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
   c <- addClient' codeValue
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
@@ -195,7 +199,9 @@ testAddGetClientCodeExpired db brig galley = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
-  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+  checkLoginSucceeds $
+    PasswordLogin $
+      PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
   threadDelay $ (5 * 1000000) + 600000
   addClient' codeValue !!! do
@@ -398,6 +404,94 @@ testListClientsBulk opts brig = do
     !!! do
       const 200 === statusCode
       const (Just expectedResponse) === responseJsonMaybe
+
+testClientsWithoutPrekeys :: Brig -> Cannon -> DB.ClientState -> Opt.Opts -> Http ()
+testClientsWithoutPrekeys brig cannon db opts = do
+  uid1 <- userId <$> randomUser brig
+  let (pk11, lk11) = (somePrekeys !! 0, someLastPrekeys !! 0)
+  c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
+  let (pk12, lk12) = (somePrekeys !! 1, someLastPrekeys !! 1)
+  c12 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
+
+  -- Simulating loss of all prekeys from c11 (due e.g. DB problems, business
+  -- logic prevents this from happening)
+  let removeClientKeys :: DB.PrepQuery DB.W (UserId, ClientId) ()
+      removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
+  liftIO $
+    DB.runClient db $
+      DB.write removeClientKeys (DB.params DB.LocalQuorum (uid1, clientId c11))
+
+  uid2 <- userId <$> randomUser brig
+
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+
+  let userClients =
+        QualifiedUserClients $
+          Map.singleton domain $
+            Map.singleton uid1 $
+              Set.fromList [clientId c11, clientId c12]
+
+  WS.bracketR cannon uid1 $ \ws -> do
+    getClient brig uid1 (clientId c11) !!! do
+      const 200 === statusCode
+
+    post
+      ( brig
+          . paths ["users", "list-prekeys"]
+          . contentJson
+          . body (RequestBodyLBS $ encode userClients)
+          . zUser uid2
+      )
+      !!! do
+        const 200 === statusCode
+        const
+          ( Right $
+              expectedClientMap
+                domain
+                uid1
+                [ (clientId c11, Nothing),
+                  (clientId c12, Just pk12)
+                ]
+          )
+          === responseJsonEither
+
+    getClient brig uid1 (clientId c11) !!! do
+      const 404 === statusCode
+
+    liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
+      let ob = Object $ List1.head (ntfPayload n)
+      ob ^? key "type" . _String
+        @?= Just "user.client-remove"
+      fmap ClientId (ob ^? key "client" . key "id" . _String)
+        @?= Just (clientId c11)
+
+  post
+    ( brig
+        . paths ["users", "list-prekeys"]
+        . contentJson
+        . body (RequestBodyLBS $ encode userClients)
+        . zUser uid2
+    )
+    !!! do
+      const 200 === statusCode
+      const
+        ( Right $
+            expectedClientMap
+              domain
+              uid1
+              [ (clientId c11, Nothing),
+                (clientId c12, Just (unpackLastPrekey lk12))
+              ]
+        )
+        === responseJsonEither
+  where
+    expectedClientMap :: Domain -> UserId -> [(ClientId, Maybe Prekey)] -> QualifiedUserClientPrekeyMap
+    expectedClientMap domain u xs =
+      mkQualifiedUserClientPrekeyMap $
+        Map.singleton domain $
+          mkUserClientPrekeyMap $
+            Map.singleton u $
+              Map.fromList xs
 
 testListClientsBulkV2 :: Opt.Opts -> Brig -> Http ()
 testListClientsBulkV2 opts brig = do
@@ -611,7 +705,8 @@ testRemoveClient hasPwd brig cannon = do
   -- Permanent client with attached cookie
   when hasPwd $ do
     login brig (defEmailLogin email) PersistentCookie
-      !!! const 200 === statusCode
+      !!! const 200
+        === statusCode
     numCookies <- countCookies brig uid defCookieLabel
     liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
@@ -621,7 +716,8 @@ testRemoveClient hasPwd brig cannon = do
   -- Success
   WS.bracketR cannon uid $ \ws -> do
     deleteClient brig uid (clientId c) (if hasPwd then Just defPasswordText else Nothing)
-      !!! const 200 === statusCode
+      !!! const 200
+        === statusCode
     void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
@@ -657,13 +753,15 @@ testRemoveClientShortPwd brig = do
   let Just email = userEmail u
   -- Permanent client with attached cookie
   login brig (defEmailLogin email) PersistentCookie
-    !!! const 200 === statusCode
+    !!! const 200
+      === statusCode
   numCookies <- countCookies brig uid defCookieLabel
   liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
   resp <-
     deleteClient brig uid (clientId c) (Just "a")
-      <!! const 400 === statusCode
+      <!! const 400
+        === statusCode
   err :: Object <- responseJsonError resp
   liftIO $ do
     (err ^. at "code") @?= Just (Number 400)
@@ -691,13 +789,15 @@ testRemoveClientIncorrectPwd brig = do
   let Just email = userEmail u
   -- Permanent client with attached cookie
   login brig (defEmailLogin email) PersistentCookie
-    !!! const 200 === statusCode
+    !!! const 200
+      === statusCode
   numCookies <- countCookies brig uid defCookieLabel
   liftIO $ Just 1 @=? numCookies
   c <- responseJsonError =<< addClient brig uid (client PermanentClientType (someLastPrekeys !! 10))
   resp <-
     deleteClient brig uid (clientId c) (Just "abcdef")
-      <!! const 403 === statusCode
+      <!! const 403
+        === statusCode
   err :: Object <- responseJsonError resp
   liftIO $ do
     (err ^. at "code") @?= Just (Number 403)
@@ -743,7 +843,7 @@ testUpdateClient opts brig = do
         . body (RequestBodyLBS $ encode update)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   get (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid) !!! do
     const 200 === statusCode
     const (Just $ ClientPrekey (clientId c) newPrekey) === responseJsonMaybe
@@ -782,7 +882,7 @@ testUpdateClient opts brig = do
         . body (RequestBodyLBS $ encode update')
     )
     !!! const 200
-    === statusCode
+      === statusCode
 
   -- check if label is still present
   getClient brig uid (clientId c) !!! do
@@ -830,7 +930,7 @@ testUpdateClient opts brig = do
             <$> ( get
                     (apiVersion "v1" . brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)] . zUser uid)
                     <!! const 200
-                    === statusCode
+                      === statusCode
                 )
 
         checkClientPrekeys :: HasCallStack => Prekey -> Http ()
@@ -859,7 +959,8 @@ testUpdateClient opts brig = do
                 updateClientLabel = Just label
               }
       )
-      !!! const 200 === statusCode
+      !!! const 200
+        === statusCode
     checkClientLabel
     put
       ( brig
@@ -867,7 +968,8 @@ testUpdateClient opts brig = do
           . zUser uid
           . json defUpdateClient {updateClientCapabilities = caps}
       )
-      !!! const 200 === statusCode
+      !!! const 200
+        === statusCode
     checkClientLabel
     checkClientPrekeys prekey
     checkClientPrekeys (unpackLastPrekey lastprekey)
@@ -897,7 +999,9 @@ testMissingClient brig = do
     -- This is unfortunate, but fixing this breaks clients.
     const Nothing === responseBody
     const ["text/plain;charset=utf-8"]
-      === map snd . filter ((== "Content-Type") . fst) . responseHeaders
+      === map snd
+        . filter ((== "Content-Type") . fst)
+        . responseHeaders
 
 -- The testAddMultipleTemporary test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -1035,7 +1139,8 @@ testCan'tDeleteLegalHoldClient brig = do
   let lk = head someLastPrekeys
   resp <-
     addClientInternal brig uid (defNewClient LegalHoldClientType [pk] lk)
-      <!! const 201 === statusCode
+      <!! const 201
+        === statusCode
   lhClientId <- clientId <$> responseJsonError resp
   deleteClient brig uid lhClientId Nothing !!! const 400 === statusCode
 

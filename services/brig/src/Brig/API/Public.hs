@@ -22,11 +22,12 @@ module Brig.API.Public
   ( sitemap,
     apiDocs,
     servantSitemap,
-    swaggerDocsAPI,
-    SwaggerDocsAPI,
+    docsAPI,
+    DocsAPI,
   )
 where
 
+import Brig.API.Auth
 import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
@@ -48,11 +49,12 @@ import qualified Brig.Data.UserKey as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -60,7 +62,6 @@ import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
-import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Handle as Handle
 import Brig.User.API.Search (teamUserSearch)
 import qualified Brig.User.API.Search as Search
@@ -76,7 +77,7 @@ import Data.Aeson hiding (json)
 import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
+import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
@@ -117,6 +118,7 @@ import Wire.API.Routes.Public.Brig
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
+import qualified Wire.API.Routes.Public.Gundeck as GundeckAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
@@ -136,12 +138,16 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
+import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
 
-swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI (Just V3) =
+docsAPI :: Servant.Server DocsAPI
+docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas
+
+versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
+versionedSwaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -149,30 +155,46 @@ swaggerDocsAPI (Just V3) =
         <> SparAPI.swaggerDoc
         <> CargoholdAPI.swaggerDoc
         <> CannonAPI.swaggerDoc
+        <> GundeckAPI.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
       & cleanupSwagger
-swaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
-swaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
-swaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
-swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
+versionedSwaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
+versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
+versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
+versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
   forall r p.
   Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore,
-       UserPendingActivationStore p,
-       PasswordResetStore,
+    '[ BlacklistPhonePrefixStore,
+       BlacklistStore,
        CodeStore,
+       Concurrency 'Unsafe,
+       Concurrency 'Unsafe,
+       GalleyProvider,
        JwtTools,
+       Now,
+       PasswordResetStore,
        PublicKeyBundle,
-       Now
+       UserPendingActivationStore p
      ]
     r =>
   ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI :<|> searchAPI
+servantSitemap =
+  userAPI
+    :<|> selfAPI
+    :<|> accountAPI
+    :<|> clientAPI
+    :<|> prekeyAPI
+    :<|> userClientAPI
+    :<|> connectionAPI
+    :<|> propertiesAPI
+    :<|> mlsAPI
+    :<|> userHandleAPI
+    :<|> searchAPI
+    :<|> authAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -280,6 +302,16 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
     searchAPI =
       Named @"browse-team" teamUserSearch
 
+    authAPI :: ServerT AuthAPI (Handler r)
+    authAPI =
+      Named @"access" accessH
+        :<|> Named @"send-login-code" sendLoginCode
+        :<|> Named @"login" login
+        :<|> Named @"logout" logoutH
+        :<|> Named @"change-self-email" changeSelfEmailH
+        :<|> Named @"list-cookies" listCookies
+        :<|> Named @"remove-cookies" removeCookies
+
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
 -- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
@@ -289,26 +321,29 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 
 sitemap ::
   Members
-    '[ CodeStore,
-       PasswordResetStore,
+    '[ BlacklistPhonePrefixStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore
+       CodeStore,
+       Concurrency 'Unsafe,
+       GalleyProvider,
+       PasswordResetStore
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Provider.routesPublic
-  Auth.routesPublic
   Team.routesPublic
   Calling.routesPublic
 
 apiDocs ::
   forall r.
   Members
-    '[ CodeStore,
-       PasswordResetStore,
+    '[ BlacklistPhonePrefixStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore
+       CodeStore,
+       Concurrency 'Unsafe,
+       GalleyProvider,
+       PasswordResetStore
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
@@ -388,7 +423,7 @@ getPrekeyUnqualifiedH zusr user client = do
 
 getPrekeyH :: UserId -> Qualified UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyH zusr (Qualified user domain) client = do
-  mPrekey <- wrapHttpClientE $ API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
+  mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
 getPrekeyBundleUnqualifiedH :: UserId -> UserId -> (Handler r) Public.PrekeyBundle
@@ -400,14 +435,22 @@ getPrekeyBundleH :: UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundl
 getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> (Handler r) Public.UserClientPrekeyMap
+getMultiUserPrekeyBundleUnqualifiedH ::
+  Members '[Concurrency 'Unsafe] r =>
+  UserId ->
+  Public.UserClients ->
+  Handler r Public.UserClientPrekeyMap
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
-getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> (Handler r) Public.QualifiedUserClientPrekeyMap
+getMultiUserPrekeyBundleH ::
+  Members '[Concurrency 'Unsafe] r =>
+  UserId ->
+  Public.QualifiedUserClients ->
+  (Handler r) Public.QualifiedUserClientPrekeyMap
 getMultiUserPrekeyBundleH zusr qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =
@@ -418,13 +461,23 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
     throwStd (errorToWai @'E.TooManyClients)
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
-addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> (Handler r) NewClientResponse
+addClient ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Maybe IpAddr ->
+  Public.NewClient ->
+  (Handler r) NewClientResponse
 addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new
-    !>> clientError
+  clientResponse
+    <$> API.addClient usr (Just con) (ipAddr <$> ip) new
+      !>> clientError
   where
     clientResponse :: Public.Client -> NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
@@ -522,6 +575,7 @@ createAccessToken method uid cid proof = do
 createUser ::
   Members
     '[ BlacklistStore,
+       GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>
@@ -569,10 +623,10 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     Auth.toWebCookie =<< case acc of
       UserAccount _ Ephemeral ->
         lift . wrapHttpClient $
-          Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
+          Auth.newCookie @ZAuth.User userId Nothing Public.SessionCookie newUserLabel
       UserAccount _ _ ->
         lift . wrapHttpClient $
-          Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
+          Auth.newCookie @ZAuth.User userId Nothing Public.PersistentCookie newUserLabel
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where
@@ -581,9 +635,9 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
         let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
-        sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
+          sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
       | otherwise =
-        sendActivationMail e u p l Nothing
+          sendActivationMail e u p l Nothing
 
     sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
@@ -600,18 +654,41 @@ getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorToWai @'E.UserNotFound)
 
-getUserUnqualifiedH :: UserId -> UserId -> (Handler r) (Maybe Public.UserProfile)
+getUserUnqualifiedH ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  UserId ->
+  (Handler r) (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
   getUser self (Qualified uid domain)
 
-getUser :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserProfile)
+getUser ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  Qualified UserId ->
+  (Handler r) (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
   lself <- qualifyLocal self
-  wrapHttpClientE $ API.lookupProfile lself qualifiedUserId !>> fedError
+  API.lookupProfile lself qualifiedUserId !>> fedError
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
-listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> (Handler r) [Public.UserProfile]
+listUsersByUnqualifiedIdsOrHandles ::
+  Members
+    '[ GalleyProvider,
+       Concurrency 'Unsafe
+     ]
+    r =>
+  UserId ->
+  Maybe (CommaSeparatedList UserId) ->
+  Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
+  (Handler r) [Public.UserProfile]
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
@@ -627,7 +704,16 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
        in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> (Handler r) [Public.UserProfile]
+listUsersByIdsOrHandles ::
+  forall r.
+  Members
+    '[ GalleyProvider,
+       Concurrency 'Unsafe
+     ]
+    r =>
+  UserId ->
+  Public.ListUsersQuery ->
+  (Handler r) [Public.UserProfile]
 listUsersByIdsOrHandles self q = do
   lself <- qualifyLocal self
   foundUsers <- case q of
@@ -647,7 +733,7 @@ listUsersByIdsOrHandles self q = do
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
-    byIds lself uids = wrapHttpClientE (API.lookupProfiles lself uids) !>> fedError
+    byIds lself uids = API.lookupProfiles lself uids !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
@@ -713,7 +799,14 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- compatibility, whereas the corresponding qualified endpoint (implemented by
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
-getHandleInfoUnqualifiedH :: UserId -> Handle -> (Handler r) (Maybe Public.UserHandleInfo)
+getHandleInfoUnqualifiedH ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  Handle ->
+  (Handler r) (Maybe Public.UserHandleInfo)
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
   Public.UserHandleInfo . Public.profileQualifiedId
@@ -748,7 +841,8 @@ completePasswordReset req = do
 sendActivationCode ::
   Members
     '[ BlacklistStore,
-       BlacklistPhonePrefixStore
+       BlacklistPhonePrefixStore,
+       GalleyProvider
      ]
     r =>
   Public.SendActivationCode ->
@@ -771,15 +865,32 @@ customerExtensionCheckBlockedDomains email = do
         pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
       Right domain ->
         when (domain `elem` blockedDomains) $
-          throwM $ customerExtensionBlockedDomain domain
+          throwM $
+            customerExtensionBlockedDomain domain
 
-createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+createConnectionUnqualified ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Public.ConnectionRequest ->
+  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnectionUnqualified self conn cr = do
   lself <- qualifyLocal self
   target <- qualifyLocal (Public.crUser cr)
   API.createConnection lself conn (qUntagged target) !>> connError
 
-createConnection :: UserId -> ConnId -> Qualified UserId -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Qualified UserId ->
+  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnection self conn target = do
   lself <- qualifyLocal self
   API.createConnection lself conn target !>> connError
@@ -855,6 +966,10 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
@@ -864,7 +979,17 @@ deleteSelfUser u body =
 verifyDeleteUser :: Public.VerifyDeleteUser -> Handler r ()
 verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 
-updateUserEmail :: Member BlacklistStore r => UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
+updateUserEmail ::
+  forall r.
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  UserId ->
+  UserId ->
+  Public.EmailUpdate ->
+  (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
@@ -882,32 +1007,52 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
       where
         check = runMaybeT $ do
           teamId <- hoistMaybe maybeTeamId
-          teamMember <- MaybeT $ lift $ wrapHttp $ Intra.getTeamMember zuserId teamId
+          teamMember <- MaybeT $ lift $ liftSem $ GalleyProvider.getTeamMember zuserId teamId
           pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation
 
-activate :: Public.ActivationKey -> Public.ActivationCode -> (Handler r) ActivationRespWithStatus
+activate ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Public.ActivationKey ->
+  Public.ActivationCode ->
+  (Handler r) ActivationRespWithStatus
 activate k c = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
   activateKey activationRequest
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKey :: Public.Activate -> (Handler r) ActivationRespWithStatus
+activateKey ::
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Public.Activate ->
+  (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
   | dryrun = do
-    wrapClientE (API.preverify tgt code) !>> actError
-    pure ActivationRespDryRun
+      wrapClientE (API.preverify tgt code) !>> actError
+      pure ActivationRespDryRun
   | otherwise = do
-    result <- API.activate tgt code Nothing !>> actError
-    pure $ case result of
-      ActivationSuccess ident x -> respond ident x
-      ActivationPass -> ActivationRespPass
+      result <- API.activate tgt code Nothing !>> actError
+      pure $ case result of
+        ActivationSuccess ident x -> respond ident x
+        ActivationPass -> ActivationRespPass
   where
     respond (Just ident) x = ActivationResp $ Public.ActivationResponse ident x
     respond Nothing _ = ActivationRespSuccessNoIdent
 
-sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()
+sendVerificationCode ::
+  forall r.
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Public.SendVerificationCode ->
+  (Handler r) ()
 sendVerificationCode req = do
   let email = Public.svcEmail req
   let action = Public.svcAction req
@@ -942,7 +1087,7 @@ sendVerificationCode req = do
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
     getFeatureStatus mbAccount = do
-      mbStatusEnabled <- lift $ wrapHttp $ Intra.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
+      mbStatusEnabled <- lift $ liftSem $ GalleyProvider.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
 -- Deprecated

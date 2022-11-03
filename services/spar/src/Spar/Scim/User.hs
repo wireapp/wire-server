@@ -64,7 +64,8 @@ import Network.URI (URI, parseURI)
 import Polysemy
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
-import Spar.App (getUserByUrefUnsafe, getUserIdByScimExternalId, validateEmail, validateEmailIfExists)
+import Spar.App (getUserByUrefUnsafe, getUserIdByScimExternalId)
+import qualified Spar.App
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Scim.Auth ()
 import Spar.Scim.Types (normalizeLikeStored)
@@ -145,11 +146,11 @@ instance
         case filter' of
           Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
             | Scim.isUserSchema schema -> do
-              x <- runMaybeT $ case attrName of
-                "username" -> scimFindUserByHandle mIdpConfig stiTeam val
-                "externalid" -> scimFindUserByEmail mIdpConfig stiTeam val
-                _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
-              pure $ Scim.fromList (toList x)
+                x <- runMaybeT $ case attrName of
+                  "username" -> scimFindUserByHandle mIdpConfig stiTeam val
+                  "externalid" -> scimFindUserByEmail mIdpConfig stiTeam val
+                  _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
+                pure $ Scim.fromList (toList x)
             | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
           _ -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Operation not supported")
 
@@ -481,11 +482,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       createValidScimUserSpar stiTeam buid storedUser veid
 
       -- If applicable, trigger email validation procedure on brig.
-      lift $
-        ST.runValidExternalIdEither
-          (validateEmailIfExists buid)
-          (\_ -> pure () {- nothing to do; user is sent an invitation that validates the address implicitly -})
-          veid
+      lift $ Spar.App.validateEmail (Just stiTeam) buid `mapM_` veidEmail veid
 
       -- TODO: suspension via scim is brittle, and may leave active users behind: if we don't
       -- reach the following line due to a crash, the user will be active.

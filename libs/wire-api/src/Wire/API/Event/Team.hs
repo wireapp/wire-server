@@ -44,12 +44,15 @@ module Wire.API.Event.Team
   )
 where
 
-import Control.Lens (makeLenses)
-import Data.Aeson
+import Control.Lens (makeLenses, (?~))
+import Data.Aeson hiding (object, (.=))
+import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (Parser)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time (UTCTime)
 import Imports
@@ -68,67 +71,36 @@ data Event = Event
   }
   deriving stock (Eq, Show, Generic)
 
+instance ToSchema Event where
+  schema =
+    object "Event" $
+      Event
+        <$> _eventTeam .= field "team" schema
+        <*> _eventTime .= field "time" utcTimeSchema
+        <*> _eventData .= fieldWithDocModifier "data" (description ?~ dataFieldDesc) schema
+        <* eventType .= field "version" schema
+    where
+      dataFieldDesc = "FUTUREWORK: this part of the docs is lying; we're working on it!"
+
+instance S.ToSchema Event where
+  declareNamedSchema = schemaToSwagger
+
 eventType :: Event -> EventType
 eventType = eventDataType . _eventData
 
 newEvent :: TeamId -> UTCTime -> EventData -> Event
 newEvent = Event
 
-modelEvent :: Doc.Model
-modelEvent = Doc.defineModel "TeamEvent" $ do
-  Doc.description "team event data"
-  Doc.property "type" typeEventType $
-    Doc.description "event type"
-  Doc.property "team" Doc.bytes' $
-    Doc.description "team ID"
-  Doc.property "time" Doc.dateTime' $
-    Doc.description "date and time this event occurred"
-  -- This doesn't really seem to work in swagger-ui.
-  -- The children/subTypes are not displayed.
-  Doc.children
-    "type"
-    [ modelMemberEvent,
-      modelConvEvent,
-      modelUpdateEvent
-    ]
-
-modelMemberEvent :: Doc.Model
-modelMemberEvent = Doc.defineModel "TeamMemberEvent" $ do
-  Doc.description "team member event"
-  Doc.property "data" (Doc.ref modelMemberData) $ Doc.description "member data"
-
-modelMemberData :: Doc.Model
-modelMemberData =
-  Doc.defineModel "MemberData" $
-    Doc.property "user" Doc.bytes' $
-      Doc.description "user ID"
-
-modelConvEvent :: Doc.Model
-modelConvEvent = Doc.defineModel "TeamConversationEvent" $ do
-  Doc.description "team conversation event"
-  Doc.property "data" (Doc.ref modelConversationData) $ Doc.description "conversation data"
-
-modelConversationData :: Doc.Model
-modelConversationData =
-  Doc.defineModel "ConversationData" $
-    Doc.property "conv" Doc.bytes' $
-      Doc.description "conversation ID"
-
-modelUpdateEvent :: Doc.Model
-modelUpdateEvent = Doc.defineModel "TeamUpdateEvent" $ do
-  Doc.description "team update event"
-  Doc.property "data" (Doc.ref modelUpdateData) $ Doc.description "update data"
-
 instance ToJSON Event where
-  toJSON = Object . toJSONObject
+  toJSON = A.Object . toJSONObject
 
 instance ToJSONObject Event where
   toJSONObject e =
     KeyMap.fromList
-      [ "type" .= eventType e,
-        "team" .= _eventTeam e,
-        "time" .= _eventTime e,
-        "data" .= _eventData e
+      [ "type" A..= eventType e,
+        "team" A..= _eventTeam e,
+        "time" A..= _eventTime e,
+        "data" A..= _eventData e
       ]
 
 instance FromJSON Event where
@@ -162,40 +134,21 @@ data EventType
   | ConvDelete
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EventType)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
 
-typeEventType :: Doc.DataType
-typeEventType =
-  Doc.string $
-    Doc.enum
-      [ "team.create",
-        "team.delete",
-        "team.update",
-        "team.member-join",
-        "team.member-leave",
-        "team.conversation-create",
-        "team.conversation-delete"
-      ]
-
-instance ToJSON EventType where
-  toJSON TeamCreate = String "team.create"
-  toJSON TeamDelete = String "team.delete"
-  toJSON TeamUpdate = String "team.update"
-  toJSON MemberJoin = String "team.member-join"
-  toJSON MemberUpdate = String "team.member-update"
-  toJSON MemberLeave = String "team.member-leave"
-  toJSON ConvCreate = String "team.conversation-create"
-  toJSON ConvDelete = String "team.conversation-delete"
-
-instance FromJSON EventType where
-  parseJSON (String "team.create") = pure TeamCreate
-  parseJSON (String "team.delete") = pure TeamDelete
-  parseJSON (String "team.update") = pure TeamUpdate
-  parseJSON (String "team.member-join") = pure MemberJoin
-  parseJSON (String "team.member-update") = pure MemberUpdate
-  parseJSON (String "team.member-leave") = pure MemberLeave
-  parseJSON (String "team.conversation-create") = pure ConvCreate
-  parseJSON (String "team.conversation-delete") = pure ConvDelete
-  parseJSON other = fail $ "Unknown event type: " <> show other
+instance ToSchema EventType where
+  schema =
+    enum @Text "EventType" $
+      mconcat
+        [ element "team.create" TeamCreate,
+          element "team.delete" TeamDelete,
+          element "team.update" TeamUpdate,
+          element "team.member-join" MemberJoin,
+          element "team.member-leave" MemberLeave,
+          element "team.member-update" MemberUpdate,
+          element "team.conversation-create" ConvCreate,
+          element "team.conversation-delete" ConvDelete
+        ]
 
 --------------------------------------------------------------------------------
 -- EventData
@@ -211,18 +164,25 @@ data EventData
   | EdConvDelete ConvId
   deriving stock (Eq, Show, Generic)
 
+-- FUTUREWORK: this is outright wrong; see "Wire.API.Event.Conversation" on how to do this properly.
+instance ToSchema EventData where
+  schema =
+    object "EventData" $
+      EdTeamCreate
+        <$> (undefined :: EventData -> Team) .= field "team" schema
+
 instance ToJSON EventData where
   toJSON (EdTeamCreate tem) = toJSON tem
   toJSON EdTeamDelete = Null
-  toJSON (EdMemberJoin usr) = object ["user" .= usr]
+  toJSON (EdMemberJoin usr) = A.object ["user" A..= usr]
   toJSON (EdMemberUpdate usr mPerm) =
-    object $
-      "user" .= usr
-        # "permissions" .= mPerm
+    A.object $
+      "user" A..= usr
+        # "permissions" A..= mPerm
         # []
-  toJSON (EdMemberLeave usr) = object ["user" .= usr]
-  toJSON (EdConvCreate cnv) = object ["conv" .= cnv]
-  toJSON (EdConvDelete cnv) = object ["conv" .= cnv]
+  toJSON (EdMemberLeave usr) = A.object ["user" A..= usr]
+  toJSON (EdConvCreate cnv) = A.object ["conv" A..= cnv]
+  toJSON (EdConvDelete cnv) = A.object ["conv" A..= cnv]
   toJSON (EdTeamUpdate upd) = toJSON upd
 
 eventDataType :: EventData -> EventType
@@ -275,3 +235,65 @@ genEventData = \case
   ConvDelete -> EdConvDelete <$> arbitrary
 
 makeLenses ''Event
+
+----------------------------------------------------------------------
+-- swagger1.2 stuff, to be removed in
+-- https://wearezeta.atlassian.net/browse/SQSERVICES-1096
+
+typeEventType :: Doc.DataType
+typeEventType =
+  Doc.string $
+    Doc.enum
+      [ "team.create",
+        "team.delete",
+        "team.update",
+        "team.member-join",
+        "team.member-leave",
+        "team.conversation-create",
+        "team.conversation-delete"
+      ]
+
+modelEvent :: Doc.Model
+modelEvent = Doc.defineModel "TeamEvent" $ do
+  Doc.description "team event data"
+  Doc.property "type" typeEventType $
+    Doc.description "event type"
+  Doc.property "team" Doc.bytes' $
+    Doc.description "team ID"
+  Doc.property "time" Doc.dateTime' $
+    Doc.description "date and time this event occurred"
+  -- This doesn't really seem to work in swagger-ui.
+  -- The children/subTypes are not displayed.
+  Doc.children
+    "type"
+    [ modelMemberEvent,
+      modelConvEvent,
+      modelUpdateEvent
+    ]
+
+modelMemberEvent :: Doc.Model
+modelMemberEvent = Doc.defineModel "TeamMemberEvent" $ do
+  Doc.description "team member event"
+  Doc.property "data" (Doc.ref modelMemberData) $ Doc.description "member data"
+
+modelMemberData :: Doc.Model
+modelMemberData =
+  Doc.defineModel "MemberData" $
+    Doc.property "user" Doc.bytes' $
+      Doc.description "user ID"
+
+modelConvEvent :: Doc.Model
+modelConvEvent = Doc.defineModel "TeamConversationEvent" $ do
+  Doc.description "team conversation event"
+  Doc.property "data" (Doc.ref modelConversationData) $ Doc.description "conversation data"
+
+modelConversationData :: Doc.Model
+modelConversationData =
+  Doc.defineModel "ConversationData" $
+    Doc.property "conv" Doc.bytes' $
+      Doc.description "conversation ID"
+
+modelUpdateEvent :: Doc.Model
+modelUpdateEvent = Doc.defineModel "TeamUpdateEvent" $ do
+  Doc.description "team update event"
+  Doc.property "data" (Doc.ref modelUpdateData) $ Doc.description "update data"

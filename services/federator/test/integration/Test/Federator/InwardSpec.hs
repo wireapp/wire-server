@@ -73,8 +73,9 @@ spec env =
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
         bdy <-
-          responseJsonError =<< inwardCall "/federation/brig/get-user-by-handle" (encode hdl)
-            <!! const 200 === statusCode
+          responseJsonError
+            =<< inwardCall "/federation/brig/get-user-by-handle" (encode hdl)
+              <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
@@ -82,7 +83,8 @@ spec env =
     -- This test is covered by the unit tests 'validateDomainCertWrongDomain' because
     -- the domain matching is checked on certificate validation.
     it "shouldRejectMissmatchingOriginDomainInward" $
-      runTestFederator env $ pure ()
+      runTestFederator env $
+        pure ()
     -- @END
 
     it "should be able to call cargohold" $
@@ -96,8 +98,9 @@ spec env =
     it "should return 404 'no-endpoint' response from Brig" $
       runTestFederator env $ do
         err <-
-          responseJsonError =<< inwardCall "/federation/brig/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
-            <!! const 404 === statusCode
+          responseJsonError
+            =<< inwardCall "/federation/brig/this-endpoint-does-not-exist" (encode Aeson.emptyObject)
+              <!! const 404 === statusCode
         liftIO $ E.label err `shouldBe` "no-endpoint"
 
     -- Note: most tests for forbidden endpoints are in the unit tests of ExternalService

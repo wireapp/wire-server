@@ -679,9 +679,10 @@ mockOldSimpleWebPush notif tgts _senderid mconnid connWhitelist = do
           else targetClients %~ filter ((`elem` connWhitelist) . fakeConnId)
       emptyMeansFullHack :: NotificationTarget -> NotificationTarget
       emptyMeansFullHack tgt =
-        tgt & targetClients %~ \case
-          [] -> clientIdsOfUser env (tgt ^. targetUser)
-          same@(_ : _) -> same
+        tgt
+          & targetClients %~ \case
+            [] -> clientIdsOfUser env (tgt ^. targetUser)
+            same@(_ : _) -> same
   forM_ clients $ \(userid, clientid) -> do
     msWSQueue %= deliver (userid, clientid) (ntfPayload notif)
   pure $ uncurry fakePresence <$> clients

@@ -79,10 +79,10 @@ instance FromJSON SnsNotification where
     where
       parseApns t n =
         let apn = decodeStrict' (T.encodeUtf8 n)
-         in maybe mempty (pure . SnsNotification t . SnsApnsData) apn
+         in foldMap (pure . SnsNotification t . SnsApnsData) apn
       parseGcm n =
         let gcm = decodeStrict' (T.encodeUtf8 n)
-         in maybe mempty (pure . SnsNotification GCM . SnsGcmData) gcm
+         in foldMap (pure . SnsNotification GCM . SnsGcmData) gcm
 
 data SnsData
   = SnsGcmData !GcmData
@@ -102,7 +102,8 @@ data GcmData = GcmData
 
 instance FromJSON GcmData where
   parseJSON = withObject "GcmData" $ \o ->
-    GcmData <$> o .: "priority"
+    GcmData
+      <$> o .: "priority"
       <*> o .: "data"
 
 data ApnsData = ApnsData
@@ -113,7 +114,8 @@ data ApnsData = ApnsData
 
 instance FromJSON ApnsData where
   parseJSON = withObject "ApnsData" $ \o ->
-    ApnsData <$> o .: "aps"
+    ApnsData
+      <$> o .: "aps"
       <*> o .: "data"
 
 newtype Bundle = NoticeBundle NotificationId

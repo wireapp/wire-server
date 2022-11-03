@@ -14,14 +14,22 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 import datetime
-
+import requests
 
 # -- Project information -----------------------------------------------------
 
 project = 'Wire'
-today_date = datetime.date.today()
-copyright = f'{today_date.year}, Wire'
 author = 'Wire Swiss GmbH'
+# Since nix has an old timestamp it operates under for reproducability, get
+# current date from the internet.
+try:
+    r = requests.get("https://worldtimeapi.org/api/timezone/Europe/Berlin").json()
+    today_year = r['datetime'][:4]
+    # the first commit of wire-docs was in 2019.
+    copyright = f'2019 - {today_year}, ' + author
+except:
+    print("Error in getting online date, fallback to potentially out-of-date year")
+    copyright = f'2019 - 2022, Wire Swiss GmbH'
 version = '0.0.4'
 # the 'release' variable is used in latex-based PDF generation
 release = version
@@ -36,7 +44,8 @@ extensions = [
     'sphinxcontrib.kroki',
     "myst_parser",
     'rst2pdf.pdfbuilder',
-    'sphinx_multiversion'
+    'sphinx_multiversion',
+    'sphinx_reredirects',
 ]
 
 # Grouping the document tree into PDF files. List of tuples
@@ -114,3 +123,11 @@ smv_prefer_remote_refs = True
 
 # As per https://myst-parser.readthedocs.io/en/latest/syntax/optional.html?highlight=anchor#auto-generated-header-anchors
 myst_heading_anchors = 4
+
+redirects = {
+        "security-responses/log4shell": "2021-12-15_log4shell.html",
+        "security-responses/cve-2021-44521": "2022-02-21_cve-2021-44521.html",
+        "security-responses/2022-05_website_outage": "2022-05-23_website_outage.html",
+        "how-to/single-sign-on/index": "../../understand/single-sign-on/main.html#setting-up-sso-externally",
+        "how-to/scim/index": "../../understand/single-sign-on/main.html#user-provisioning",
+}

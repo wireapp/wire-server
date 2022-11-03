@@ -265,25 +265,25 @@ mkFailureResponse status domain path body
   -- client, since it is always due to a server issue, so we map it to a 500
   -- error.
   | HTTP.statusCode status == 403 =
-    Wai.mkError
-      HTTP.status500
-      "federation-local-error"
-      ( "Local federator failure: "
-          <> LText.decodeUtf8With Text.lenientDecode body
-      )
+      Wai.mkError
+        HTTP.status500
+        "federation-local-error"
+        ( "Local federator failure: "
+            <> LText.decodeUtf8With Text.lenientDecode body
+        )
   -- Any other error is interpreted as a correctly formatted wai error, and
   -- returned to the client.
   | otherwise =
-    (fromMaybe defaultError (Aeson.decode body))
-      { Wai.errorData =
-          Just
-            Wai.FederationErrorData
-              { Wai.federrDomain = domain,
-                Wai.federrPath =
-                  "/federation"
-                    <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
-              }
-      }
+      (fromMaybe defaultError (Aeson.decode body))
+        { Wai.errorData =
+            Just
+              Wai.FederationErrorData
+                { Wai.federrDomain = domain,
+                  Wai.federrPath =
+                    "/federation"
+                      <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict path)
+                }
+        }
   where
     defaultError =
       Wai.mkError

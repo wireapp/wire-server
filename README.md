@@ -87,11 +87,12 @@ See the `Makefile`s and `Dockerfile`s, as well as [build/ubuntu/README.md](build
 
 #### 2. Use nix-provided build environment 
 
-This is suitable only for local development and testing. See [build instructions](./docs/developer/building.md) in the developer documentation.
+This is suitable only for local development and testing. See [build instructions](./docs/src/developer/developer/building.md) in the developer documentation.
 
 ## How to install and run `wire-server`
 
 You have two options:
 
 * Option 1. (recommended) Install wire-server on kubernetes using the configuration and instructions provided in [wire-server-deploy](https://github.com/wireapp/wire-server-deploy). This is the best option to run it on a server and recommended if you want to self-host wire-server.
-* Option 2. Compile everything in this repo, then you can use the [docker-compose based demo](deploy/services-demo/README.md). This option is intended as a way to try out wire-server on your local development machine and is less suited when you want to install wire-server on a server.
+
+* Option 2. Compile everything in this repo, then you can use the `services/start-services-only.sh`. This option is intended as a way to try out wire-server on your local development machine and not suited for production.

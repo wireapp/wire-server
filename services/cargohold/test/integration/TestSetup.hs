@@ -174,8 +174,8 @@ runFederationClient action = do
               let req' = defaultMakeClientRequest burl req
                in req'
                     { requestHeaders =
-                        (originDomainHeaderName, toByteString' domain) :
-                        requestHeaders req'
+                        (originDomainHeaderName, toByteString' domain)
+                          : requestHeaders req'
                     }
           }
 

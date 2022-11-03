@@ -52,8 +52,3 @@ A: Ensure that your certificate is _valid_ and has _not expired_; trying to serv
 
 * the `apiVersion` of all resources based on cert-manager's CRDs, namely `./templates/issuer.yaml` and 
   `./templates/certificate.yaml`, has to be changed to `cert-manager.io/v1alpha3`
-
-
-### Monitoring
-
-__FUTUREWORK:__ When `wire-server-metrics` is ready, expiration & renewal should be integrated into monitoring.

@@ -60,7 +60,8 @@ data Notification = Notification
 
 instance FromJSON Notification where
   parseJSON = withObject "notification" $ \o ->
-    Notification <$> o .: "id"
+    Notification
+      <$> o .: "id"
       <*> o .:? "transient" .!= False
       <*> o .: "payload"
 
@@ -88,7 +89,8 @@ target u = NotificationTarget u []
 
 instance FromJSON NotificationTarget where
   parseJSON = withObject "NotificationTarget" $ \o ->
-    NotificationTarget <$> o .: "user"
+    NotificationTarget
+      <$> o .: "user"
       <*> o .: "clients"
 
 instance ToJSON NotificationTarget where

@@ -78,6 +78,8 @@ module Brig.App
     wrapHttp,
     HttpClientIO (..),
     liftSem,
+    lowerAppT,
+    temporaryGetEnv,
   )
 where
 
@@ -133,7 +135,6 @@ import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy
 import Polysemy.Final
 import qualified Ropes.Nexmo as Nexmo
@@ -234,8 +235,8 @@ newEnv o = do
     Just True -> Just <$> newMVar ()
     _ -> pure Nothing
   kpLock <- newMVar ()
-  pure
-    $! Env
+  pure $!
+    Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
         _gundeck = mkEndpoint $ Opt.gundeck o,
@@ -337,7 +338,7 @@ initHttpManager = do
   SSL.contextSetCiphers ctx "HIGH"
   SSL.contextSetVerificationMode ctx $
     SSL.VerifyPeer True True Nothing
-  SSL.contextLoadSystemCerts ctx
+  SSL.contextSetDefaultVerifyPaths ctx
   -- Unfortunately, there are quite some AWS services we talk to
   -- (e.g. SES, Dynamo) that still only support TLSv1.
   -- Ideally: SSL.contextAddOption ctx SSL_OP_NO_TLSv1
@@ -367,7 +368,7 @@ initExtGetManager = do
   -- We use public key pinning with service providers and want to
   -- support self-signed certificates as well, hence 'VerifyNone'.
   SSL.contextSetVerificationMode ctx SSL.VerifyNone
-  SSL.contextLoadSystemCerts ctx
+  SSL.contextSetDefaultVerifyPaths ctx
   mgr <-
     newManager
       (opensslManagerSettings (pure ctx)) -- see Note [SSL context]
@@ -390,8 +391,8 @@ initCassandra o g = do
       (Cas.initialContactsDisco "cassandra_brig" . unpack)
       (Opt.discoUrl o)
   p <-
-    Cas.init $
-      Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
+    Cas.init
+      $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
         . Cas.setContacts (NE.head c) (NE.tail c)
         . Cas.setPortNumber (fromIntegral (Opt.cassandra o ^. casEndpoint . epPort))
         . Cas.setKeyspace (Keyspace (Opt.cassandra o ^. casKeyspace))
@@ -401,7 +402,7 @@ initCassandra o g = do
         . Cas.setResponseTimeout 10
         . Cas.setProtocolVersion Cas.V4
         . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. casFilterNodesByDatacentre))
-        $ Cas.defSettings
+      $ Cas.defSettings
   runClient p $ versionCheck schemaVersion
   pure p
 
@@ -437,6 +438,12 @@ newtype AppT r a = AppT
       Monoid
     )
     via (Ap (AppT r) a)
+
+lowerAppT :: Member (Final IO) r => Env -> AppT r a -> Sem r a
+lowerAppT env = flip runReaderT env . unAppT
+
+temporaryGetEnv :: AppT r Env
+temporaryGetEnv = AppT ask
 
 instance Functor (AppT r) where
   fmap fab (AppT x0) = AppT $ fmap fab x0
@@ -489,7 +496,8 @@ instance MonadLogger (AppT r) where
     AppT $
       lift $
         embedFinal @IO $
-          Log.log g l $ field "request" (unRequestId r) ~~ m
+          Log.log g l $
+            field "request" (unRequestId r) ~~ m
 
 instance MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)

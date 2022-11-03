@@ -76,10 +76,14 @@ instance AsWai RemoteError where
     federationRemoteResponseError status
 
   waiErrorDescription (RemoteError tgt e) =
-    "Error while connecting to " <> displayTarget tgt <> ": "
+    "Error while connecting to "
+      <> displayTarget tgt
+      <> ": "
       <> Text.pack (displayException e)
   waiErrorDescription (RemoteErrorResponse tgt status body) =
-    "Federator at " <> displayTarget tgt <> " failed with status code "
+    "Federator at "
+      <> displayTarget tgt
+      <> " failed with status code "
       <> Text.pack (show (HTTP.statusCode status))
       <> ": "
       <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict body)

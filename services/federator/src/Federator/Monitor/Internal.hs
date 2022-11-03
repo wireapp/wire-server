@@ -126,14 +126,14 @@ delMonitor ::
   (Members '[TinyLog, Embed IO] r) =>
   Monitor ->
   Sem r ()
-delMonitor monitor = Polysemy.resourceToIO $
-  Polysemy.bracket
+delMonitor monitor = Polysemy.resourceToIO
+  $ Polysemy.bracket
     (takeMVar (monLock monitor))
     (putMVar (monLock monitor))
     . const
-    $ do
-      watches <- readIORef (monWatches monitor)
-      traverse_ stop watches
+  $ do
+    watches <- readIORef (monWatches monitor)
+    traverse_ stop watches
   where
     stop (wd, _) = do
       -- ignore exceptions when removing watches

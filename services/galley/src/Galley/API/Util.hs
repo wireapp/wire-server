@@ -19,7 +19,6 @@
 
 module Galley.API.Util where
 
-import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
@@ -79,6 +78,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
 import qualified Wire.API.User as User
+import Wire.API.User.Auth.ReAuth
 
 type JSON = Media "application" "json"
 
@@ -90,7 +90,8 @@ ensureAccessRole ::
 ensureAccessRole roles users = do
   when (Set.null roles) $ throwS @'ConvAccessDenied
   unless (NonTeamMemberAccessRole `Set.member` roles) $
-    when (any (isNothing . snd) users) $ throwS @'NotATeamMember
+    when (any (isNothing . snd) users) $
+      throwS @'NotATeamMember
   unless (Set.fromList [GuestAccessRole, ServiceAccessRole] `Set.isSubsetOf` roles) $ do
     activated <- lookupActivatedUsers (fst <$> users)
     let guestsExist = length activated /= length users
@@ -291,7 +292,8 @@ acceptOne2One lusr conv conn = do
       [_, _] -> throwS @'ConvNotFound
       _ -> do
         when (length mems > 2) $
-          throw . BadConvState $ cid
+          throw . BadConvState $
+            cid
         now <- input
         mm <- createMember lcid lusr
         let e = memberJoinEvent lusr (qUntagged lcid) now mm []
@@ -534,10 +536,10 @@ getConversationAndMemberWithError usr lcnv = do
 canDeleteMember :: TeamMember -> TeamMember -> Bool
 canDeleteMember deleter deletee
   | getRole deletee == RoleOwner =
-    getRole deleter == RoleOwner -- owners can only be deleted by another owner
-      && (deleter ^. userId /= deletee ^. userId) -- owner cannot delete itself
+      getRole deleter == RoleOwner -- owners can only be deleted by another owner
+        && (deleter ^. userId /= deletee ^. userId) -- owner cannot delete itself
   | otherwise =
-    True
+      True
   where
     -- (team members having no role is an internal error, but we don't want to deal with that
     -- here, so we pick a reasonable default.)

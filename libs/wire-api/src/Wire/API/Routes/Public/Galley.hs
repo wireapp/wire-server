@@ -1427,7 +1427,7 @@ type MLSMessagingAPI =
                :> CanThrow MLSProposalFailure
                :> "commit-bundles"
                :> ZConn
-               :> ReqBody '[MLS] (RawMLS CommitBundle)
+               :> ReqBody '[CommitBundleMimeType] CommitBundle
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
            )
     :<|> Named
@@ -1669,7 +1669,16 @@ type TeamMemberAPI =
              ]
              "maxResults"
              (Range 1 HardTruncationLimit Int32)
-        :> Get '[JSON] TeamMemberListOptPerms
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description
+                 "Optional, when not specified, the first page will be returned.\
+                 \Every returned page contains a `pagingState`, this should be supplied to retrieve the next page."
+             ]
+             "pagingState"
+             TeamMembersPagingState
+        :> Get '[JSON] TeamMembersPage
     )
     :<|> Named
            "get-team-member"

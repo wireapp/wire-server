@@ -100,7 +100,8 @@ one2OneConvId a b = case compareDomains a b of
             ]
         x = hash c
         result =
-          U.toUUID . U.mk @U.V5
+          U.toUUID
+            . U.mk @U.V5
             . fromMaybe UUID.nil
             -- fromByteString only returns 'Nothing' when the input is not
             -- exactly 16 bytes long, here this should not be a case since

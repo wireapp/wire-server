@@ -188,11 +188,12 @@ testSearchRestrictions opts brig = do
   refreshIndex brig
 
   let opts' =
-        opts & Opt.optionSettings . Opt.federationDomainConfigs
-          ?~ [ Opt.FederationDomainConfig domainNoSearch NoSearch,
-               Opt.FederationDomainConfig domainExactHandle ExactHandleSearch,
-               Opt.FederationDomainConfig domainFullSearch FullSearch
-             ]
+        opts
+          & Opt.optionSettings . Opt.federationDomainConfigs
+            ?~ [ Opt.FederationDomainConfig domainNoSearch NoSearch,
+                 Opt.FederationDomainConfig domainExactHandle ExactHandleSearch,
+                 Opt.FederationDomainConfig domainFullSearch FullSearch
+               ]
 
   let expectSearch domain squery expectedUsers expectedSearchPolicy = do
         searchResponse <-
@@ -222,11 +223,12 @@ testGetUserByHandleRestrictions opts brig = do
   refreshIndex brig
 
   let opts' =
-        opts & Opt.optionSettings . Opt.federationDomainConfigs
-          ?~ [ Opt.FederationDomainConfig domainNoSearch NoSearch,
-               Opt.FederationDomainConfig domainExactHandle ExactHandleSearch,
-               Opt.FederationDomainConfig domainFullSearch FullSearch
-             ]
+        opts
+          & Opt.optionSettings . Opt.federationDomainConfigs
+            ?~ [ Opt.FederationDomainConfig domainNoSearch NoSearch,
+                 Opt.FederationDomainConfig domainExactHandle ExactHandleSearch,
+                 Opt.FederationDomainConfig domainFullSearch FullSearch
+               ]
 
   let expectSearch domain expectedUser = do
         maybeUserProfile <-
@@ -434,7 +436,7 @@ testClaimKeyPackages brig fedBrigClient = do
     cid <-
       responseJsonError
         =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
-        <!! const 200 === statusCode
+          <!! const 200 === statusCode
     liftIO $ do
       ciDomain cid @?= qDomain bob
       ciUser cid @?= qUnqualified bob

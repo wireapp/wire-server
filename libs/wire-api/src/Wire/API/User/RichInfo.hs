@@ -249,14 +249,14 @@ instance Semigroup RichInfoAssocList where
 
 instance ToSchema RichInfoAssocList where
   schema =
-    object "RichInfoAssocList" $
-      withParser
+    object "RichInfoAssocList"
+      $ withParser
         ( (,)
             <$> const (0 :: Int) .= field "version" schema
             <*> unRichInfoAssocList .= field "fields" (array schema)
         )
-        $ \(version, fields) ->
-          mkRichInfoAssocList <$> validateRichInfoAssocList version fields
+      $ \(version, fields) ->
+        mkRichInfoAssocList <$> validateRichInfoAssocList version fields
 
 richInfoAssocListFromObject :: A.Object -> Aeson.Parser [RichField]
 richInfoAssocListFromObject richinfoObj = do

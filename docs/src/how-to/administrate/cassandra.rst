@@ -19,7 +19,7 @@ or if you are running a newer version of wire-server (altough it should be backw
 
 .. code:: sh 
 
-  ssh <ip of cassandra node> /opt/cassandra/bin/nodetool ::FFFF:127.0.0.1 status
+  ssh <ip of cassandra node> /opt/cassandra/bin/nodetool -h ::FFFF:127.0.0.1 status
 
 You should see a list of nodes like this:
 
@@ -55,7 +55,7 @@ For maintenance you may need to restart the cluster.
 
 On each server one by one:
 
-1. check your cluster is healthy: ``nodetool status`` or ``nodetool ::FFFF:127.0.0.1 status`` (in newer versions)
+1. check your cluster is healthy: ``nodetool status`` or ``nodetool -h ::FFFF:127.0.0.1 status`` (in newer versions)
 2. ``nodetool drain && systemctl stop cassandra`` (to stop accepting writes and flush data to disk; then stop the process)
 3. do any operation you need, if any
 4. Start the cassandra daemon process: ``systemctl start cassandra``

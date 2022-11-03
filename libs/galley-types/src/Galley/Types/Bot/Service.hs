@@ -53,7 +53,8 @@ newService ref url tok fps = Service ref url tok fps True
 
 instance FromJSON Service where
   parseJSON = withObject "Service" $ \o ->
-    Service <$> o .: "ref"
+    Service
+      <$> o .: "ref"
       <*> o .: "base_url"
       <*> o .: "auth_token"
       <*> o .: "fingerprints"

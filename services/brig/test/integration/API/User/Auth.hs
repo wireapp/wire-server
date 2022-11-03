@@ -32,13 +32,12 @@ import Bilge.Assert hiding (assert)
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opts
 import Brig.Types.Intra
-import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
 import qualified Cassandra as DB
 import Control.Lens (set, (^.))
 import Control.Retry
-import Data.Aeson as Aeson
+import Data.Aeson as Aeson hiding (json)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -69,6 +68,10 @@ import Wire.API.User
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth
 import qualified Wire.API.User.Auth as Auth
+import Wire.API.User.Auth.LegalHold
+import Wire.API.User.Auth.ReAuth
+import Wire.API.User.Auth.Sso
+import Wire.API.User.Client
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -138,7 +141,7 @@ tests conf m z db b g n =
         "refresh /access"
         [ test m "invalid-cookie" (testInvalidCookie @ZAuth.User z b),
           test m "invalid-cookie legalhold" (testInvalidCookie @ZAuth.LegalHoldUser z b),
-          test m "invalid-token" (testInvalidToken b),
+          test m "invalid-token" (testInvalidToken z b),
           test m "missing-cookie" (testMissingCookie @ZAuth.User @ZAuth.Access z b),
           test m "missing-cookie legalhold" (testMissingCookie @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess z b),
           test m "unknown-cookie" (testUnknownCookie @ZAuth.User z b),
@@ -146,7 +149,10 @@ tests conf m z db b g n =
           test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
-          test m "suspend-inactive" (testSuspendInactiveUsers conf b)
+          test m "suspend-inactive" (testSuspendInactiveUsers conf b),
+          test m "client access" (testAccessWithClientId b),
+          test m "client access incorrect" (testAccessWithIncorrectClientId b),
+          test m "multiple client accesses" (testAccessWithExistingClientId b)
         ],
       testGroup
         "update /access/self/email"
@@ -176,7 +182,9 @@ randomAccessToken :: forall u a. ZAuth.TokenPair u a => ZAuth (ZAuth.Token a)
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
 randomUserToken :: ZAuth.UserTokenLike u => ZAuth (ZAuth.Token u)
-randomUserToken = liftIO UUID.nextRandom >>= ZAuth.newUserToken . Id
+randomUserToken = do
+  r <- Id <$> liftIO UUID.nextRandom
+  ZAuth.newUserToken r Nothing
 
 -------------------------------------------------------------------------------
 -- Nginz authentication tests (end-to-end sanity checks)
@@ -335,7 +343,7 @@ testPhoneLogin brig = do
   case code of
     Nothing -> liftIO $ assertFailure "missing login code"
     Just c ->
-      login brig (SmsLogin p c Nothing) PersistentCookie
+      login brig (SmsLogin (SmsLoginData p c Nothing)) PersistentCookie
         !!! const 200 === statusCode
 
 testHandleLogin :: Brig -> Http ()
@@ -345,7 +353,7 @@ testHandleLogin brig = do
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser usr . zConn "c" . Http.body update)
     !!! const 200 === statusCode
-  let l = PasswordLogin (LoginByHandle (Handle hdl)) defPassword Nothing Nothing
+  let l = PasswordLogin (PasswordLoginData (LoginByHandle (Handle hdl)) defPassword Nothing Nothing)
   login brig l PersistentCookie !!! const 200 === statusCode
 
 -- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
@@ -398,7 +406,13 @@ testLoginVerify6DigitEmailCodeSuccess brig galley db = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   key <- Code.mkKey (Code.ForEmail email)
   Just vcode <- Util.lookupCode db key Code.AccountLogin
-  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
+  checkLoginSucceeds $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just $ Code.codeValue vcode)
 
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: Brig -> Galley -> Opts.Opts -> DB.ClientState -> Http ()
 testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
@@ -426,8 +440,20 @@ testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
   void $ retryWhileN 10 ((==) 429 . statusCode) $ Util.generateVerificationCode' brig (Public.SendVerificationCode Public.Login email)
   mostRecentCode <- getCodeFromDb
 
-  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue fstCode)
-  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue mostRecentCode)
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just $ Code.codeValue fstCode)
+  checkLoginSucceeds $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just $ Code.codeValue mostRecentCode)
 
 -- @SF.Channel @TSFI.RESTfulAPI @S2
 --
@@ -445,7 +471,13 @@ testLoginVerify6DigitWrongCodeFails brig galley = do
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
-  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just wrongCode)
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just wrongCode)
 
 -- @END
 
@@ -464,7 +496,13 @@ testLoginVerify6DigitMissingCodeFails brig galley = do
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) Nothing
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        Nothing
 
 -- @END
 
@@ -487,7 +525,13 @@ testLoginVerify6DigitExpiredCodeFails brig galley db = do
   Just vcode <- Util.lookupCode db key Code.AccountLogin
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
   threadDelay $ (5 * 1000000) + 600000
-  checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just $ Code.codeValue vcode)
 
 -- @END
 
@@ -500,11 +544,19 @@ testLoginFailure brig = do
   Just email <- userEmail <$> randomUser brig
   -- login with wrong password
   let badpw = PlainTextPassword "wrongpassword"
-  login brig (PasswordLogin (LoginByEmail email) badpw Nothing Nothing) PersistentCookie
+  login
+    brig
+    (PasswordLogin (PasswordLoginData (LoginByEmail email) badpw Nothing Nothing))
+    PersistentCookie
     !!! const 403 === statusCode
   -- login with wrong / non-existent email
   let badmail = Email "wrong" "wire.com"
-  login brig (PasswordLogin (LoginByEmail badmail) defPassword Nothing Nothing) PersistentCookie
+  login
+    brig
+    ( PasswordLogin
+        (PasswordLoginData (LoginByEmail badmail) defPassword Nothing Nothing)
+    )
+    PersistentCookie
     !!! const 403 === statusCode
 
 -- @END
@@ -727,7 +779,7 @@ testInvalidCookie z b = do
   -- Expired
   user <- userId <$> randomUser b
   let f = set (ZAuth.userTTL (Proxy @u)) 0
-  t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user))
+  t <- toByteString' <$> runZAuth z (ZAuth.localSettings f (ZAuth.newUserToken @u user Nothing))
   liftIO $ threadDelay 1000000
   post (unversioned . b . path "/access" . cookieRaw "zuid" t) !!! do
     const 403 === statusCode
@@ -735,12 +787,15 @@ testInvalidCookie z b = do
 
 -- @END
 
-testInvalidToken :: Brig -> Http ()
-testInvalidToken b = do
+testInvalidToken :: ZAuth.Env -> Brig -> Http ()
+testInvalidToken z b = do
+  user <- userId <$> randomUser b
+  t <- toByteString' <$> runZAuth z (ZAuth.newUserToken @ZAuth.User user Nothing)
+
   -- Syntactically invalid
-  post (unversioned . b . path "/access" . queryItem "access_token" "xxx")
+  post (unversioned . b . path "/access" . queryItem "access_token" "xxx" . cookieRaw "zuid" t)
     !!! errResponse
-  post (unversioned . b . path "/access" . header "Authorization" "Bearer xxx")
+  post (unversioned . b . path "/access" . header "Authorization" "Bearer xxx" . cookieRaw "zuid" t)
     !!! errResponse
   where
     errResponse = do
@@ -816,7 +871,7 @@ testAccessSelfEmailAllowed nginz brig withCookie = do
           . header "Authorization" ("Bearer " <> toByteString' tok)
 
   put (req . Bilge.json ())
-    !!! const (if withCookie then 400 else 403) === statusCode
+    !!! const 400 === statusCode
 
   put (req . Bilge.json (EmailUpdate email))
     !!! const (if withCookie then 204 else 403) === statusCode
@@ -824,11 +879,11 @@ testAccessSelfEmailAllowed nginz brig withCookie = do
 -- this test duplicates some of 'initiateEmailUpdateLogin' intentionally.
 testAccessSelfEmailDenied :: ZAuth.Env -> Nginz -> Brig -> Bool -> Http ()
 testAccessSelfEmailDenied zenv nginz brig withCookie = do
+  usr <- randomUser brig
+  let Just email = userEmail usr
   mbCky <-
     if withCookie
       then do
-        usr <- randomUser brig
-        let Just email = userEmail usr
         rsp <-
           login nginz (emailLogin email defPassword (Just "nexus1")) PersistentCookie
             <!! const 200 === statusCode
@@ -841,15 +896,15 @@ testAccessSelfEmailDenied zenv nginz brig withCookie = do
         unversioned
           . nginz
           . path "/access/self/email"
-          . Bilge.json ()
+          . Bilge.json (EmailUpdate email)
           . maybe id cookie mbCky
 
   put req
     !!! errResponse "invalid-credentials" "Missing access token"
   put (req . header "Authorization" "xxx")
-    !!! errResponse "invalid-credentials" "Missing access token"
+    !!! errResponse "invalid-credentials" "Invalid authorization scheme"
   put (req . header "Authorization" "Bearer xxx")
-    !!! errResponse "client-error" "invalid: Invalid access token"
+    !!! errResponse "client-error" "Failed reading: Invalid access token"
   put (req . header "Authorization" ("Bearer " <> toByteString' tok))
     !!! errResponse "invalid-credentials" "Invalid token"
   where
@@ -918,6 +973,148 @@ getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   -- Return non-expired cookie but removed from DB (because it was renewed)
   -- and a valid cookie
   pure (c, c')
+
+testAccessWithClientId :: Brig -> Http ()
+testAccessWithClientId brig = do
+  u <- randomUser brig
+  rs <-
+    login
+      brig
+      ( emailLogin
+          (fromJust (userEmail u))
+          defPassword
+          (Just "nexus1")
+      )
+      PersistentCookie
+      <!! const 200 === statusCode
+  let c = decodeCookie rs
+  cl <-
+    responseJsonError
+      =<< addClient
+        brig
+        (userId u)
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+        <!! const 201 === statusCode
+  r <-
+    post
+      ( unversioned
+          . brig
+          . path "/access"
+          . queryItem "client_id" (toByteString' (clientId cl))
+          . cookie c
+      )
+      <!! const 200 === statusCode
+  now <- liftIO getCurrentTime
+  liftIO $ do
+    let ck = decodeCookie r
+        Just token = fromByteString (cookie_value ck)
+        atoken = decodeToken' @ZAuth.Access r
+    assertSanePersistentCookie @ZAuth.User ck
+    ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+    assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
+    ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+
+testAccessWithIncorrectClientId :: Brig -> Http ()
+testAccessWithIncorrectClientId brig = do
+  u <- randomUser brig
+  rs <-
+    login
+      brig
+      ( emailLogin
+          (fromJust (userEmail u))
+          defPassword
+          (Just "nexus1")
+      )
+      PersistentCookie
+      <!! const 200 === statusCode
+  let c = decodeCookie rs
+  addClient
+    brig
+    (userId u)
+    (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+    !!! const 201 === statusCode
+  post
+    ( unversioned
+        . brig
+        . path "/access"
+        . queryItem "client_id" "beef"
+        . cookie c
+    )
+    !!! const 403 === statusCode
+
+testAccessWithExistingClientId :: Brig -> Http ()
+testAccessWithExistingClientId brig = do
+  u <- randomUser brig
+  rs <-
+    login
+      brig
+      ( emailLogin
+          (fromJust (userEmail u))
+          defPassword
+          (Just "nexus1")
+      )
+      PersistentCookie
+      <!! const 200 === statusCode
+  let c0 = decodeCookie rs
+  cl <-
+    responseJsonError
+      =<< addClient
+        brig
+        (userId u)
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+        <!! const 201 === statusCode
+  now <- liftIO getCurrentTime
+
+  -- access with client ID first
+  c1 <- do
+    r <-
+      post
+        ( unversioned
+            . brig
+            . path "/access"
+            . queryItem "client_id" (toByteString' (clientId cl))
+            . cookie c0
+        )
+        <!! const 200 === statusCode
+    pure (decodeCookie r)
+
+  -- now access again with no client ID
+  c2 <- do
+    r <-
+      post
+        ( unversioned
+            . brig
+            . path "/access"
+            . cookie c1
+        )
+        <!! const 200 === statusCode
+    liftIO $ do
+      let ck = decodeCookie r
+          Just token = fromByteString (cookie_value ck)
+          atoken = decodeToken' @ZAuth.Access r
+      assertSanePersistentCookie @ZAuth.User ck
+      ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+      assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
+      ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+    pure (decodeCookie r)
+
+  -- now access with a different client ID
+  do
+    cl2 <-
+      responseJsonError
+        =<< addClient
+          brig
+          (userId u)
+          (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
+          <!! const 201 === statusCode
+    post
+      ( unversioned
+          . brig
+          . path "/access"
+          . queryItem "client_id" (toByteString' (clientId cl2))
+          . cookie c2
+      )
+      !!! const 403 === statusCode
 
 testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do
@@ -1007,13 +1204,14 @@ testRemoveCookiesByLabel b = do
   liftIO $ ["nexus1", "nexus2", "nexus3"] @=? sort _cookies
   let rem1 = encode $ remJson defPassword (Just ["nexus1"]) Nothing
   post
-    ( b . path "/cookies/remove"
+    ( b
+        . path "/cookies/remove"
         . content "application/json"
         . lbytes rem1
         . zUser (userId u)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   _cookies <- mapMaybe cookieLabel <$> listCookies b (userId u)
   liftIO $ ["nexus2", "nexus3"] @=? sort _cookies
   let rem2 = encode $ remJson defPassword Nothing Nothing
@@ -1025,7 +1223,7 @@ testRemoveCookiesByLabel b = do
         . zUser (userId u)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   listCookies b (userId u) >>= liftIO . ([] @=?) . mapMaybe cookieLabel
 
 testRemoveCookiesByLabelAndId :: Brig -> Http ()
@@ -1048,7 +1246,7 @@ testRemoveCookiesByLabelAndId b = do
         . zUser (userId u)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   -- Check the remaining cookie
   let lbl = cookieLabel c4
   listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
@@ -1163,7 +1361,8 @@ listCookiesWithLabel :: HasCallStack => Brig -> UserId -> [CookieLabel] -> Http 
 listCookiesWithLabel b u l = do
   rs <-
     get
-      ( b . path "/cookies"
+      ( b
+          . path "/cookies"
           . queryItem "labels" labels
           . header "Z-User" (toByteString' u)
       )

@@ -62,7 +62,7 @@ tests =
       testCase "key package ref" testKeyPackageRef,
       testCase "validate message signature" testVerifyMLSPlainTextWithKey,
       testCase "create signed remove proposal" testRemoveProposalMessageSignature,
-      testCase "parse GroupInfoBundle" testParseGroupInfoBundle
+      testCase "parse GroupInfoBundle" testParseGroupInfoBundle -- TODO: remove this also
     ]
 
 testParseKeyPackage :: IO ()
@@ -165,10 +165,10 @@ testVerifyMLSPlainTextWithKey = do
     _ -> error "Expected ProposalMessage"
 
   let pubkey = bcSignatureKey . kpCredential . rmValue $ kp
-  liftIO $
-    assertBool
+  liftIO
+    $ assertBool
       "message signature verification failed"
-      $ verifyMessageSignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 msg pubkey
+    $ verifyMessageSignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 msg pubkey
 
 testRemoveProposalMessageSignature :: IO ()
 testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do

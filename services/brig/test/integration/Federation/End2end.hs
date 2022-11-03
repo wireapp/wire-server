@@ -290,7 +290,8 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
 
   let invite = InviteQualified (userQualifiedId bob :| []) roleNameWireAdmin
   post
-    ( apiVersion "v1" . galley1
+    ( apiVersion "v1"
+        . galley1
         . paths ["conversations", (toByteString' . qUnqualified) convId, "members", "v2"]
         . zUser (userId alice)
         . zConn "conn"
@@ -326,7 +327,7 @@ testRemoveRemoteUserFromLocalConv brig1 galley1 brig2 galley2 = do
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< createConversation galley1 (userId alice) [bobId]
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   aliceConvBeforeDelete :: Conversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvBeforeDelete)) @?= [bobId]
@@ -368,7 +369,7 @@ leaveRemoteConversation brig1 galley1 brig2 galley2 = do
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< createConversation galley1 (userId alice) [bobId]
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   aliceConvBeforeDelete :: Conversation <- responseJsonUnsafe <$> getConversationQualified galley1 (userId alice) convId
   liftIO $ map omQualifiedId (cmOthers (cnvMembers aliceConvBeforeDelete)) @?= [bobId]
@@ -409,7 +410,7 @@ testRemoteUsersInNewConv brig1 galley1 brig2 galley2 = do
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   -- test GET /conversations/:backend1Domain/:cnv
   testQualifiedGetConversation galley1 "galley1" alice bob convId
@@ -459,11 +460,11 @@ testListConversations brig1 brig2 galley1 galley2 = do
   cnv1 <-
     responseJsonError
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
   cnv2 <-
     responseJsonError
       =<< createConversation galley2 (userId bob) [userQualifiedId alice]
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   --  Expect both group conversations containing alice and bob
   --  to pop up for alice (on galley1)
@@ -526,7 +527,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
   convId <-
     fmap (qUnqualified . cnvQualifiedId) . responseJsonError
       =<< createConversation galley2 (userId bob) [userQualifiedId alice]
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   -- send a message from bob at domain 2 to alice at domain 1
   let qconvId = Qualified convId (qDomain (userQualifiedId bob))
@@ -574,14 +575,14 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
   aliceClient <-
     fmap clientId . responseJsonError
       =<< addClient brig1 (userId alice) (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   -- create bob user and client on domain 2
   bob <- randomUser brig2
   bobClient <-
     fmap clientId . responseJsonError
       =<< addClient brig2 (userId bob) (defNewClient PermanentClientType [] (someLastPrekeys !! 1))
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
 
@@ -589,7 +590,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
   convId <-
     fmap (qUnqualified . cnvQualifiedId) . responseJsonError
       =<< createConversation galley1 (userId alice) [userQualifiedId bob]
-      <!! const 201 === statusCode
+        <!! const 201 === statusCode
 
   -- send a message from bob at domain 2 to alice at domain 1
   let qconvId = Qualified convId (qDomain (userQualifiedId alice))
@@ -788,7 +789,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
     conv <-
       responseJsonError
         =<< createMLSConversation galley2 (userId bob) bobClient
-        <!! const 201 === statusCode
+          <!! const 201 === statusCode
     groupId <- case cnvProtocol conv of
       ProtocolMLS p -> pure (unGroupId (cnvmlsGroupId p))
       ProtocolProteus -> liftIO $ assertFailure "Expected MLS conversation"

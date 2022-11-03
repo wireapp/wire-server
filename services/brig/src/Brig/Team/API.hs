@@ -31,9 +31,10 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Email as Email
-import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
 import qualified Brig.Team.DB as DB
@@ -62,7 +63,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
-import Polysemy (Member, Members)
+import Polysemy (Members)
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
@@ -80,7 +81,13 @@ import qualified Wire.API.Team.Size as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
 
-routesPublic :: Member BlacklistStore r => Routes Doc.ApiBuilder (Handler r) ()
+routesPublic ::
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   post "/teams/:tid/invitations" (continue createInvitationPublicH) $
     accept "application" "json"
@@ -193,6 +200,7 @@ routesPublic = do
 routesInternal ::
   Members
     '[ BlacklistStore,
+       GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>
@@ -223,10 +231,10 @@ routesInternal = do
     accept "application" "json"
       .&. jsonRequest @NewUserScimInvitation
 
-teamSizePublicH :: JSON ::: UserId ::: TeamId -> (Handler r) Response
+teamSizePublicH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId -> (Handler r) Response
 teamSizePublicH (_ ::: uid ::: tid) = json <$> teamSizePublic uid tid
 
-teamSizePublic :: UserId -> TeamId -> (Handler r) TeamSize
+teamSizePublic :: Members '[GalleyProvider] r => UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do
   ensurePermissions uid tid [AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
   teamSize tid
@@ -252,7 +260,14 @@ newtype FoundInvitationCode = FoundInvitationCode InvitationCode
 instance ToJSON FoundInvitationCode where
   toJSON (FoundInvitationCode c) = object ["code" .= c]
 
-createInvitationPublicH :: Member BlacklistStore r => JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> (Handler r) Response
+createInvitationPublicH ::
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest ->
+  (Handler r) Response
 createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
   body <- parseJsonBody req
   newInv <- createInvitationPublic uid tid body
@@ -268,7 +283,16 @@ data CreateInvitationInviter = CreateInvitationInviter
   }
   deriving (Eq, Show)
 
-createInvitationPublic :: Member BlacklistStore r => UserId -> TeamId -> Public.InvitationRequest -> Handler r Public.Invitation
+createInvitationPublic ::
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  UserId ->
+  TeamId ->
+  Public.InvitationRequest ->
+  Handler r Public.Invitation
 createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe defaultRole . irRole $ body
   inviter <- do
@@ -291,6 +315,7 @@ createInvitationPublic uid tid body = do
 createInvitationViaScimH ::
   Members
     '[ BlacklistStore,
+       GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>
@@ -303,6 +328,7 @@ createInvitationViaScimH (_ ::: req) = do
 createInvitationViaScim ::
   Members
     '[ BlacklistStore,
+       GalleyProvider,
        UserPendingActivationStore p
      ]
     r =>
@@ -345,7 +371,18 @@ logInvitationRequest context action =
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
-createInvitation' :: Member BlacklistStore r => TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler r (Public.Invitation, Public.InvitationCode)
+createInvitation' ::
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  TeamId ->
+  Public.Role ->
+  Maybe UserId ->
+  Email ->
+  Public.InvitationRequest ->
+  Handler r (Public.Invitation, Public.InvitationCode)
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
@@ -378,7 +415,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   let locale = irLocale body
   let inviteeName = irInviteeName body
-  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
 
   lift $ do
     iid <- liftIO DB.mkInvitationId
@@ -399,37 +436,37 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
           timeout
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
-deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
+deleteInvitationH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
 deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
   empty <$ deleteInvitation uid tid iid
 
-deleteInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) ()
+deleteInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   lift $ wrapClient $ DB.deleteInvitation tid iid
 
-listInvitationsH :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> (Handler r) Response
+listInvitationsH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> (Handler r) Response
 listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
   json <$> listInvitations uid tid start size
 
-listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
+listInvitations :: Members '[GalleyProvider] r => UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
 listInvitations uid tid start size = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
   rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start size
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
-getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
+getInvitationH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
 getInvitationH (_ ::: uid ::: tid ::: iid) = do
   inv <- getInvitation uid tid iid
   pure $ case inv of
     Just i -> json i
     Nothing -> setStatus status404 empty
 
-getInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
+getInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  showInvitationUrl <- lift $ wrapHttp $ Intra.getTeamExposeInvitationURLsToTeamAdmin tid
+  showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
   lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
 
 getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
@@ -461,34 +498,44 @@ getInvitationByEmail email = do
   inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
-suspendTeamH :: JSON ::: TeamId -> (Handler r) Response
+suspendTeamH :: Members '[GalleyProvider] r => JSON ::: TeamId -> (Handler r) Response
 suspendTeamH (_ ::: tid) = do
   empty <$ suspendTeam tid
 
-suspendTeam :: TeamId -> (Handler r) ()
+suspendTeam :: Members '[GalleyProvider] r => TeamId -> (Handler r) ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
   lift $ wrapClient $ DB.deleteInvitations tid
-  lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Suspended Nothing
+  lift $ liftSem $ GalleyProvider.changeTeamStatus tid Team.Suspended Nothing
 
-unsuspendTeamH :: JSON ::: TeamId -> (Handler r) Response
+unsuspendTeamH ::
+  Members '[GalleyProvider] r =>
+  JSON ::: TeamId ->
+  (Handler r) Response
 unsuspendTeamH (_ ::: tid) = do
   empty <$ unsuspendTeam tid
 
-unsuspendTeam :: TeamId -> (Handler r) ()
+unsuspendTeam ::
+  Members '[GalleyProvider] r =>
+  TeamId ->
+  (Handler r) ()
 unsuspendTeam tid = do
   changeTeamAccountStatuses tid Active
-  lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Active Nothing
+  lift $ liftSem $ GalleyProvider.changeTeamStatus tid Team.Active Nothing
 
 -------------------------------------------------------------------------------
 -- Internal
 
-changeTeamAccountStatuses :: TeamId -> AccountStatus -> (Handler r) ()
+changeTeamAccountStatuses ::
+  Members '[GalleyProvider] r =>
+  TeamId ->
+  AccountStatus ->
+  (Handler r) ()
 changeTeamAccountStatuses tid s = do
-  team <- Team.tdTeam <$> lift (wrapHttp $ Intra.getTeam tid)
+  team <- Team.tdTeam <$> lift (liftSem $ GalleyProvider.getTeam tid)
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
+  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> liftSem (GalleyProvider.getTeamMembers tid))
   wrapHttpClientE (API.changeAccountStatus uids s) !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs

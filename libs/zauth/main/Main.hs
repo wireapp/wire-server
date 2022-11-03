@@ -82,23 +82,23 @@ go CreateSession o = do
   let u = uuid . head $ o ^. dat
   case fromByteString ((o ^. dat) !! 1) of
     Nothing -> error "invalid random int"
-    Just rn -> runCreate' o $ toByteString <$> sessionToken (o ^. dur) u rn
+    Just rn -> runCreate' o $ toByteString <$> sessionToken (o ^. dur) u Nothing rn
 go CreateUser o = do
   when (length (o ^. dat) /= 2) $
     error "invalid --data, must have 2 elements"
   let u = uuid . head $ o ^. dat
   case fromByteString ((o ^. dat) !! 1) of
     Nothing -> error "invalid random int"
-    Just rn -> runCreate' o $ toByteString <$> userToken (o ^. dur) u rn
+    Just rn -> runCreate' o $ toByteString <$> userToken (o ^. dur) u Nothing rn
 go CreateAccess o = do
   when (null (o ^. dat)) $
     error "invalid --data, must have 1 or 2 elements"
   let u = uuid . head $ o ^. dat
   case length (o ^. dat) of
-    1 -> runCreate' o $ toByteString <$> accessToken1 (o ^. dur) u
+    1 -> runCreate' o $ toByteString <$> accessToken1 (o ^. dur) u Nothing
     2 -> case fromByteString ((o ^. dat) !! 1) of
       Nothing -> error "invalid connection"
-      Just c -> runCreate' o $ toByteString <$> accessToken (o ^. dur) u c
+      Just c -> runCreate' o $ toByteString <$> accessToken (o ^. dur) u Nothing c
     _ -> error "invalid --data, must have 1 or 2 elements"
 go CreateBot o = do
   when (length (o ^. dat) /= 3) $

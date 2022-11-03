@@ -48,7 +48,7 @@ instance ToSchema GroupId where
   schema =
     GroupId
       <$> unGroupId
-      .= named "GroupId" (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))
+        .= named "GroupId" (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))
 
 -- | Return the group ID associated to a conversation ID. Note that is not
 -- assumed to be stable over time or even consistent among different backends.

@@ -46,6 +46,7 @@ import Data.Qualified
 import Data.Range (unsafeRange)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
+import qualified Data.ZAuth.Token as ZAuth
 import Federation.Util (withTempMockFederator)
 import Federator.MockServer (FederatedRequest (..))
 import GHC.TypeLits (KnownSymbol)
@@ -113,7 +114,7 @@ setRandomHandle brig user = do
         . body (RequestBodyLBS . encode $ HandleUpdate h)
     )
     !!! const 200
-    === statusCode
+      === statusCode
   pure user {userHandle = Just (Handle h)}
 
 -- Note: This actually _will_ send out an email, so we ensure that the email
@@ -184,7 +185,7 @@ initiateEmailUpdateLogin brig email loginCreds uid = do
     pure (decodeCookie rsp, decodeToken rsp)
   initiateEmailUpdateCreds brig email (cky, tok) uid
 
-initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.AccessToken) -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
+initiateEmailUpdateCreds :: Brig -> Email -> (Bilge.Cookie, Brig.ZAuth.Token ZAuth.Access) -> UserId -> (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
 initiateEmailUpdateCreds brig email (cky, tok) uid = do
   put $
     unversioned
@@ -356,7 +357,7 @@ countCookies brig u label = do
           . header "Z-User" (toByteString' u)
       )
       <!! const 200
-      === statusCode
+        === statusCode
   pure $ Vec.length <$> (preview (key "cookies" . _Array) =<< responseJsonMaybe @Value r)
 
 assertConnections :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> [ConnectionStatus] -> m ()
@@ -463,7 +464,7 @@ uploadAsset c usr sts dat = do
         . lbytes (toLazyByteString mpb)
     )
     <!! const 201
-    === statusCode
+      === statusCode
 
 downloadAsset ::
   (MonadIO m, MonadHttp m) =>

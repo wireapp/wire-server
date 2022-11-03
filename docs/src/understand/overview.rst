@@ -83,7 +83,7 @@ Pods with an HTTP API:
 * ``galley``: `Conversations and Teams API Service <https://docs.wire.com/understand/api-client-perspective/index.html>`__. Data is stored in cassandra. Uses ``gundeck`` to send notifications to users.
 * ``nginz``: Public API Reverse Proxy (Nginx with custom libzauth module). A modified copy of nginx, compiled with a specific set of upstream extra modules, and one important additional module zauth_nginx_module. Responsible for user authentication validation. Forwards traffic to all other API services (except federator)
 * ``spar``: `Single Sign On (SSO) <https://en.wikipedia.org/wiki/Single_sign-on>`__ and `SCIM <https://en.wikipedia.org/wiki/System_for_Cross-domain_Identity_Management>`__. Stores data in cassandra.
-* ``gundeck``: Push Notification Hub (WebSocket/mobile push notifications). Uses redis as a temporary data store for websocket presences. Uses a fork of redis (rediz) in production. Uses Amazon SNS and SQS.
+* ``gundeck``: Push Notification Hub (WebSocket/mobile push notifications). Uses redis as a temporary data store for websocket presences. Uses Amazon SNS and SQS.
 * ``federator``: `Connects different wire installations together <https://docs.wire.com/understand/federation/index.html>`__. Wire Federation, once implemented, aims to allow multiple Wire-server backends to federate with each other. That means that a user 1 registered on backend A and a user 2 registered on backend B should be able to interact with each other as if they belonged to the same backend.
 
 Supporting pods and data storage:

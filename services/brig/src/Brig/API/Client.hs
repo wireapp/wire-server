@@ -46,14 +46,14 @@ module Brig.API.Client
   )
 where
 
-import Bilge.IO
-import Bilge.RPC
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
 import qualified Brig.Data.Client as Data
 import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
+import Brig.Effects.GalleyProvider (GalleyProvider)
+import qualified Brig.Effects.GalleyProvider as GalleyProvider
 import Brig.Effects.JwtTools (JwtTools)
 import qualified Brig.Effects.JwtTools as JwtTools
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -74,7 +74,6 @@ import Brig.User.Email
 import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
-import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain (Domain)
@@ -90,11 +89,10 @@ import Data.String.Conversions (cs)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
-import Polysemy (Member)
+import Polysemy (Member, Members)
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
-import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential (ClientIdentity (..))
@@ -107,6 +105,7 @@ import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
 
@@ -146,6 +145,7 @@ lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
+  Members '[GalleyProvider] r =>
   UserId ->
   Maybe ConnId ->
   Maybe IP ->
@@ -156,6 +156,8 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
+  forall r.
+  Members '[GalleyProvider] r =>
   Data.ReAuthPolicy ->
   UserId ->
   Maybe ConnId ->
@@ -164,7 +166,7 @@ addClientWithReAuthPolicy ::
   ExceptT ClientError (AppT r) Client
 addClientWithReAuthPolicy policy u con ip new = do
   acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) pure
-  wrapHttpClientE $ verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
+  verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
   loc <- maybe (pure Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
@@ -183,9 +185,8 @@ addClientWithReAuthPolicy policy u con ip new = do
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
-    wrapHttp $ do
-      Intra.newClient u (clientId clt)
-      Intra.onClientEvent u con (ClientAdded u clt)
+    liftSem $ GalleyProvider.newClient u (clientId clt)
+    wrapHttp $ Intra.onClientEvent u con (ClientAdded u clt)
     when (clientType clt == LegalHoldClientType) $ wrapHttpClient $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
       for_ (userEmail usr) $
@@ -196,16 +197,9 @@ addClientWithReAuthPolicy policy u con ip new = do
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
     verifyCode ::
-      ( MonadReader Env m,
-        MonadMask m,
-        MonadHttp m,
-        HasRequestId m,
-        Log.MonadLogger m,
-        MonadClient m
-      ) =>
       Maybe Code.Value ->
       UserId ->
-      ExceptT ClientError m ()
+      ExceptT ClientError (AppT r) ()
     verifyCode mbCode userId =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
@@ -244,40 +238,26 @@ rmClient u con clt pw =
       lift $ execDelete u (Just con) client
 
 claimPrekey ::
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    Log.MonadLogger m,
-    MonadClient m
-  ) =>
   LegalholdProtectee ->
   UserId ->
   Domain ->
   ClientId ->
-  ExceptT ClientError m (Maybe ClientPrekey)
+  ExceptT ClientError (AppT r) (Maybe ClientPrekey)
 claimPrekey protectee u d c = do
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekey protectee u c
-    else claimRemotePrekey (Qualified u d) c
+    else wrapClientE $ claimRemotePrekey (Qualified u d) c
 
 claimLocalPrekey ::
-  ( MonadClient m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    Log.MonadLogger m
-  ) =>
   LegalholdProtectee ->
   UserId ->
   ClientId ->
-  ExceptT ClientError m (Maybe ClientPrekey)
+  ExceptT ClientError (AppT r) (Maybe ClientPrekey)
 claimLocalPrekey protectee user client = do
   guardLegalhold protectee (mkUserClients [(user, [client])])
   lift $ do
-    prekey <- Data.claimPrekey user client
+    prekey <- wrapHttpClient $ Data.claimPrekey user client
     when (isNothing prekey) (noPrekeys user client)
     pure prekey
 
@@ -301,14 +281,19 @@ claimPrekeyBundle protectee domain uid = do
 claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
   clients <- map clientId <$> lift (wrapClient (Data.lookupClients u))
-  mapExceptT wrapHttp $ guardLegalhold protectee (mkUserClients [(u, clients)])
+  guardLegalhold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (wrapHttp . Data.claimPrekey u) clients)
 
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimRemotePrekeyBundle quser = do
   Federation.claimPrekeyBundle quser !>> ClientFederationError
 
-claimMultiPrekeyBundles :: LegalholdProtectee -> QualifiedUserClients -> ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
+claimMultiPrekeyBundles ::
+  forall r.
+  Members '[Concurrency 'Unsafe] r =>
+  LegalholdProtectee ->
+  QualifiedUserClients ->
+  ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles protectee quc = do
   loc <- qualifyLocal ()
   let (locals, remotes) =
@@ -344,11 +329,13 @@ claimMultiPrekeyBundles protectee quc = do
         <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
 
 claimLocalMultiPrekeyBundles ::
+  forall r.
+  Members '[Concurrency 'Unsafe] r =>
   LegalholdProtectee ->
   UserClients ->
   ExceptT ClientError (AppT r) UserClientPrekeyMap
 claimLocalMultiPrekeyBundles protectee userClients = do
-  mapExceptT wrapHttp $ guardLegalhold protectee userClients
+  guardLegalhold protectee userClients
   lift
     . fmap mkUserClientPrekeyMap
     . foldMap (getChunk . Map.fromList)
@@ -358,34 +345,27 @@ claimLocalMultiPrekeyBundles protectee userClients = do
     $ userClients
   where
     getChunk :: Map UserId (Set ClientId) -> AppT r (Map UserId (Map ClientId (Maybe Prekey)))
-    getChunk =
-      wrapHttpClient . runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
+    getChunk m = do
+      e <- ask
+      AppT $
+        lift $
+          Map.fromListWith (<>)
+            <$> unsafePooledMapConcurrentlyN
+              16
+              (\(u, cids) -> (u,) <$> lowerAppT e (getUserKeys u cids))
+              (Map.toList m)
     getUserKeys ::
-      ( MonadClient m,
-        Log.MonadLogger m,
-        MonadMask m,
-        MonadReader Env m,
-        MonadHttp m,
-        HasRequestId m
-      ) =>
       UserId ->
       Set ClientId ->
-      m (Map ClientId (Maybe Prekey))
+      (AppT r) (Map ClientId (Maybe Prekey))
     getUserKeys u =
       sequenceA . Map.fromSet (getClientKeys u)
     getClientKeys ::
-      ( MonadClient m,
-        Log.MonadLogger m,
-        MonadMask m,
-        MonadReader Env m,
-        MonadHttp m,
-        HasRequestId m
-      ) =>
       UserId ->
       ClientId ->
-      m (Maybe Prekey)
+      (AppT r) (Maybe Prekey)
     getClientKeys u c = do
-      key <- fmap prekeyData <$> Data.claimPrekey u c
+      key <- fmap prekeyData <$> wrapHttpClient (Data.claimPrekey u c)
       when (isNothing key) $ noPrekeys u c
       pure key
 
@@ -397,7 +377,7 @@ execDelete u con c = do
   wrapClient $ Data.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
   queue <- view internalEvents
-  Queue.enqueue queue (Internal.DeleteClient c u con)
+  Queue.enqueue queue (Internal.DeleteClient (clientId c) u con)
 
 -- | Defensive measure when no prekey is found for a
 -- requested client: Ensure that the client does indeed
@@ -405,28 +385,23 @@ execDelete u con c = do
 -- thus repairing any inconsistencies related to distributed
 -- (and possibly duplicated) client data.
 noPrekeys ::
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    Log.MonadLogger m,
-    MonadClient m
-  ) =>
   UserId ->
   ClientId ->
-  m ()
+  (AppT r) ()
 noPrekeys u c = do
-  Log.info $
-    field "user" (toByteString u)
-      ~~ field "client" (toByteString c)
-      ~~ msg (val "No prekey found. Ensuring client does not exist.")
-  Intra.rmClient u c
-  client <- Data.lookupClient u c
-  for_ client $ \_ ->
-    Log.err $
-      field "user" (toByteString u)
-        ~~ field "client" (toByteString c)
-        ~~ msg (val "Client exists without prekeys.")
+  mclient <- wrapClient $ Data.lookupClient u c
+  case mclient of
+    Nothing -> do
+      Log.warn $
+        field "user" (toByteString u)
+          ~~ field "client" (toByteString c)
+          ~~ msg (val "No prekey found. Client is missing, so doing nothing.")
+    Just client -> do
+      Log.warn $
+        field "user" (toByteString u)
+          ~~ field "client" (toByteString c)
+          ~~ msg (val "No prekey found. Deleting client.")
+      execDelete u Nothing client
 
 pubClient :: Client -> PubClient
 pubClient c =

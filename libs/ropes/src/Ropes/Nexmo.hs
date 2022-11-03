@@ -78,7 +78,8 @@ data Credentials = Credentials
 
 instance FromJSON Credentials where
   parseJSON = withObject "credentials" $ \o ->
-    Credentials <$> o .: "key"
+    Credentials
+      <$> o .: "key"
       <*> o .: "secret"
 
 -- * SMS related
@@ -135,7 +136,8 @@ instance Exception MessageErrorResponse
 
 instance FromJSON MessageErrorResponse where
   parseJSON = withObject "message-error-response" $ \o ->
-    MessageErrorResponse <$> o .: "status"
+    MessageErrorResponse
+      <$> o .: "status"
       <*> o .:? "error-text"
 
 newtype ParseError = ParseError String
@@ -225,7 +227,8 @@ instance Exception CallErrorResponse
 
 instance FromJSON CallErrorResponse where
   parseJSON = withObject "call-error-response" $ \o ->
-    CallErrorResponse <$> o .: "status"
+    CallErrorResponse
+      <$> o .: "status"
       <*> o .:? "error-text"
 
 -- * Internal call parsers

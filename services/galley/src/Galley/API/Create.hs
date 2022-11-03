@@ -41,9 +41,11 @@ import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
+import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Util
+import Galley.App (Env)
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
@@ -95,6 +97,7 @@ createGroupConversation ::
        ErrorS 'MissingLegalholdConsent,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input Opts,
        Input UTCTime,
        LegalHoldStore,
@@ -111,6 +114,15 @@ createGroupConversation lusr conn newConv = do
   let tinfo = newConvTeam newConv
   checkCreateConvPermissions lusr newConv tinfo allUsers
   ensureNoLegalholdConflicts allUsers
+
+  case newConvProtocol newConv of
+    ProtocolMLSTag -> do
+      haveKey <- isJust <$> getMLSRemovalKey
+      unless haveKey $
+        -- We fail here to notify users early about this misconfiguration
+        throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
+    ProtocolProteusTag -> pure ()
+
   lcnv <- traverse (const E.createConversationId) lusr
   conv <- E.createConversation lcnv nc
 
@@ -462,20 +474,20 @@ createConnectConversation lusr conn j = do
                       else pure conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
-        let lcnv = qualifyAs lusr (Data.convId conv)
-        n' <- case n of
-          Just x -> do
-            E.setConversationName (Data.convId conv) x
-            pure . Just $ fromRange x
-          Nothing -> pure $ Data.convName conv
-        t <- input
-        let e = Event (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
-        for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
-          E.push1 $
-            p
-              & pushRoute .~ RouteDirect
-              & pushConn .~ conn
-        pure $ Data.convSetName n' conv
+          let lcnv = qualifyAs lusr (Data.convId conv)
+          n' <- case n of
+            Just x -> do
+              E.setConversationName (Data.convId conv) x
+              pure . Just $ fromRange x
+            Nothing -> pure $ Data.convName conv
+          t <- input
+          let e = Event (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
+          for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
+            E.push1 $
+              p
+                & pushRoute .~ RouteDirect
+                & pushConn .~ conn
+          pure $ Data.convSetName n' conv
       | otherwise = pure conv
 
 --------------------------------------------------------------------------------
