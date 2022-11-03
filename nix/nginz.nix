@@ -71,6 +71,7 @@ let
       which
       coreutils
       nginxFakeNss
+      nginz # so preStop lifecycle hook in cannon can nginx -c … quit
     ];
     config = {
       Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginzWithReloader}/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf" ];
