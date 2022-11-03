@@ -20,10 +20,13 @@
 module Brig.SMTP
   ( sendMail,
     initSMTP,
+    sendMail',
+    initSMTP',
     SMTPConnType (..),
     SMTP (..),
     Username (..),
     Password (..),
+    SMTPPoolException (..),
   )
 where
 
@@ -68,10 +71,16 @@ data SMTPFailure = Unauthorized | ConnectionTimeout | CaughtException SomeExcept
   deriving (Show)
 
 data SMTPPoolException = SMTPUnauthorized | SMTPConnectionTimeout
-  deriving (Show)
+  deriving (Eq, Show)
 
 instance Exception SMTPPoolException
 
+-- | Initiate the `SMTP` connection pool
+--
+-- Throws exceptions when the SMTP server is unreachable, authentication fails,
+-- a timeout happens and on every other network failure.
+--
+-- `defaultTimeoutDuration` is used as timeout duration for all actions.
 initSMTP ::
   Logger ->
   Text ->
@@ -79,7 +88,22 @@ initSMTP ::
   Maybe (Username, Password) ->
   SMTPConnType ->
   IO SMTP
-initSMTP lg host port credentials connType = do
+initSMTP = initSMTP' defaultTimeoutDuration
+
+-- | `initSMTP` with configurable timeout duration
+--
+-- This is mostly useful for testing. (We don't want to waste the amount of
+-- `defaultTimeoutDuration` in tests with waiting.)
+initSMTP' ::
+  (TimeUnit t) =>
+  t ->
+  Logger ->
+  Text ->
+  Maybe PortNumber ->
+  Maybe (Username, Password) ->
+  SMTPConnType ->
+  IO SMTP
+initSMTP' timeoutDuration lg host port credentials connType = do
   -- Try to initiate a connection and fail badly right away in case of bad auth
   -- otherwise config errors will be detected "too late"
   res <- runExceptT establishConnection
@@ -92,12 +116,12 @@ initSMTP lg host port credentials connType = do
         (error "Failed to establish test connection with SMTP server.")
         (const (SMTP <$> createPool create destroy 1 5 5))
         =<< do
-          r <- ensureSMTPConnectionTimeout (SMTP.gracefullyCloseSMTP con)
+          r <- ensureSMTPConnectionTimeout timeoutDuration (SMTP.gracefullyCloseSMTP con)
           logResult lg "Closing test connection on startup" r
           pure r
   where
     liftSMTP :: IO a -> ExceptT SMTPFailure IO a
-    liftSMTP action = ExceptT $ ensureSMTPConnectionTimeout action
+    liftSMTP action = ExceptT $ ensureSMTPConnectionTimeout timeoutDuration action
 
     establishConnection :: ExceptT SMTPFailure IO SMTP.SMTPConnection
     establishConnection = do
@@ -129,7 +153,7 @@ initSMTP lg host port credentials connType = do
 
     destroy :: SMTP.SMTPConnection -> IO ()
     destroy c =
-      (ensureSMTPConnectionTimeout . SMTP.gracefullyCloseSMTP) c
+      (ensureSMTPConnectionTimeout timeoutDuration . SMTP.gracefullyCloseSMTP) c
         >>= void . logResult lg ("Closing pooled SMTP connection to " ++ unpack host)
 
 handleError :: MonadIO m => Either SMTPFailure a -> m a
@@ -157,17 +181,36 @@ logResult lg actionString res =
     concatToVal :: ToBytes s1 => s1 -> String -> Builder
     concatToVal a b = a +++ (" : " :: String) +++ b
 
-ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m) => m a -> m (Either SMTPFailure a)
-ensureSMTPConnectionTimeout action =
+-- | Default timeout for all actions
+--
+-- It's arguable if this shouldn't become a configuration setting in future.
+defaultTimeoutDuration :: Second
+defaultTimeoutDuration = 15 :: Second
+
+ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> m a -> m (Either SMTPFailure a)
+ensureSMTPConnectionTimeout timeoutDuration action =
   catch
-    (maybe (Left ConnectionTimeout) Right <$> timeout (15 :: Second) action)
+    (maybe (Left ConnectionTimeout) Right <$> timeout timeoutDuration action)
     (\(e :: SomeException) -> pure (Left (CaughtException e)))
 
+-- | Send a `Mail` via an existing `SMTP` connection pool
+--
+-- Throws exceptions when the SMTP server is unreachable, authentication fails,
+-- a timeout happens and on every other network failure.
+--
+-- `defaultTimeoutDuration` is used as timeout duration for all actions.
 sendMail :: (MonadIO m, MonadCatch m) => Logger -> SMTP -> Mail -> m ()
-sendMail lg s m = liftIO $ withResource (s ^. pool) sendMail'
+sendMail = sendMail' defaultTimeoutDuration
+
+-- | `sendMail` with configurable timeout duration
+--
+-- This is mostly useful for testing. (We don't want to waste the amount of
+-- `defaultTimeoutDuration` in tests with waiting.)
+sendMail' :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
+sendMail' timeoutDuration lg s m = liftIO $ withResource (s ^. pool) sendMail''
   where
-    sendMail' :: SMTP.SMTPConnection -> IO ()
-    sendMail' c = ensureSMTPConnectionTimeout (SMTP.sendMail m c) >>= handleError'
+    sendMail'' :: SMTP.SMTPConnection -> IO ()
+    sendMail'' c = ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c) >>= handleError'
 
     handleError' :: MonadIO m => Either SMTPFailure a -> m ()
     handleError' r =

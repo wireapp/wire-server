@@ -7,16 +7,17 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C
 import Data.Text (unpack)
 import Data.Text.Lazy (fromStrict)
+import Data.Time.Units
 import Imports
 import Network.Mail.Mime
 import qualified Network.Mail.Postie as Postie
+import Network.Socket
 import qualified Pipes.Prelude
 import qualified System.Logger as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 
--- TODO: Is IO needed here?
 tests :: Bilge.Manager -> Logger.Logger -> TestTree
 tests m lg =
   testGroup
@@ -25,41 +26,75 @@ tests m lg =
       test m "should throw exception when SMTP server refuses to send mail (mail without receiver)" $ testSendMailNoReceiver lg,
       test m "should throw when an SMTP transaction is aborted (SMTP error 554: 'Transaction failed')" $ testSendMailTransactionFailed lg,
       test m "should throw an error when the connection cannot be initiated on startup" $ testSendMailFailingConnectionOnStartup lg,
-      test m "should throw when the server cannot be reached on sending" $ testSendMailFailingConnectionOnSend lg
+      test m "should throw when the server cannot be reached on sending" $ testSendMailFailingConnectionOnSend lg,
+      test m "should throw when sending times out" $ testSendMailTimeout lg,
+      test m "should throw an error the initiation times out" $ testSendMailTimeoutOnStartup lg
     ]
+
+-- TODO: Assert all exceptions on their type (not only they exist)
+testSendMailTimeoutOnStartup :: Logger.Logger -> Bilge.Http ()
+testSendMailTimeoutOnStartup lg = do
+  let port = 4242
+  mbException <-
+    liftIO $
+      everDelayingTCPServer port $
+        handle @ErrorCall
+          (\e -> pure (Just e))
+          (initSMTP' (500 :: Millisecond) lg "localhost" (Just port) Nothing Plain >> pure Nothing)
+  liftIO $ isJust mbException @? "Expected exception (SMTP server action timed out.)"
+
+testSendMailTimeout :: Logger.Logger -> Bilge.Http ()
+testSendMailTimeout lg = do
+  let port = 4243
+  mbException <-
+    liftIO $
+      withMailServer port (delayingApp (3 :: Second)) $
+        do
+          conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
+          handle @SMTPPoolException
+            (\e -> pure (Just e))
+            (sendMail' (500 :: Millisecond) lg conPool someTestMail >> pure Nothing)
+  liftIO $ isJust mbException @? "Expected exception (SMTP server action timed out.)"
+  liftIO $ mbException @?= Just SMTPConnectionTimeout
 
 testSendMailFailingConnectionOnSend :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnSend lg = do
+  let port = 4244
   receivedMailRef <- liftIO $ newIORef Nothing
   conPool <-
     liftIO $
       withMailServer
+        port
         (mailStoringApp receivedMailRef)
-        (initSMTP lg "localhost" (Just 4242) Nothing Plain)
+        (initSMTP lg "localhost" (Just port) Nothing Plain)
   caughtException <-
     liftIO $
       handle @SomeException
         (const (pure True))
         (sendMail lg conPool someTestMail >> pure False)
   liftIO $ caughtException @? "Expected exception (SMTP server unreachable.)"
+  mbMail <- liftIO $ readIORef receivedMailRef
+  liftIO $ isNothing mbMail @? "No mail expected (if there is one, the test setup is broken.)"
 
 testSendMailFailingConnectionOnStartup :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnStartup lg = do
+  let port = 4245
   caughtError <-
     liftIO $
       handle @ErrorCall
         (const (pure True))
-        (initSMTP lg "localhost" (Just 4242) Nothing Plain >> pure False)
+        (initSMTP lg "localhost" (Just port) Nothing Plain >> pure False)
   liftIO $ caughtError @? "Expected error (SMTP server unreachable.)"
 
 -- TODO: Is Http the best Monad for this?
 testSendMailNoReceiver :: Logger.Logger -> Bilge.Http ()
 testSendMailNoReceiver lg = do
+  let port = 4246
   receivedMailRef <- liftIO $ newIORef Nothing
   liftIO
-    . withMailServer (mailStoringApp receivedMailRef)
+    . withMailServer port (mailStoringApp receivedMailRef)
     $ do
-      conPool <- initSMTP lg "localhost" (Just 4242) Nothing Plain
+      conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
       caughtException <-
         handle @SomeException
           (const (pure True))
@@ -68,11 +103,12 @@ testSendMailNoReceiver lg = do
 
 testSendMail :: Logger.Logger -> Bilge.Http ()
 testSendMail lg = do
+  let port = 4247
   receivedMailRef <- liftIO $ newIORef Nothing
   liftIO
-    . withMailServer (mailStoringApp receivedMailRef)
+    . withMailServer port (mailStoringApp receivedMailRef)
     $ do
-      conPool <- initSMTP lg "localhost" (Just 4242) Nothing Plain
+      conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
       sendMail lg conPool someTestMail
       mbMail <-
         retryWhileN 3 isJust $ do
@@ -121,10 +157,11 @@ toString bs = C.foldr (:) [] bs
 
 testSendMailTransactionFailed :: Logger.Logger -> Bilge.Http ()
 testSendMailTransactionFailed lg = do
+  let port = 4248
   liftIO
-    . withMailServer mailRejectingApp
+    . withMailServer port mailRejectingApp
     $ do
-      conPool <- initSMTP lg "localhost" (Just 4242) Nothing Plain
+      conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
       caughtException <-
         handle @SomeException
           (const (pure True))
@@ -142,12 +179,14 @@ testSendMailTransactionFailed lg = do
         subject
         body
 
-withMailServer :: Postie.Application -> IO a -> IO a
-withMailServer app action =
+withMailServer :: PortNumber -> Postie.Application -> IO a -> IO a
+withMailServer port app action = do
   bracket
-    (forkIO $ Postie.run 4242 app)
+    (forkIO $ Postie.run (portNumberToInt port) app)
     killThread
     (const action)
+  where
+    portNumberToInt = fromInteger . toInteger
 
 data ReceivedMail = ReceivedMail
   { rmSender :: Postie.Address,
@@ -173,3 +212,34 @@ mailStoringApp receivedMailRef mail = do
 
 mailRejectingApp :: Postie.Application
 mailRejectingApp = const (pure Postie.Rejected)
+
+mailAcceptingApp :: Postie.Application
+mailAcceptingApp = const (pure Postie.Accepted)
+
+delayingApp :: (TimeUnit t) => t -> Postie.Application
+delayingApp delay =
+  const
+    ( (threadDelay . fromInteger . toMicroseconds) delay
+        >> pure Postie.Accepted
+    )
+
+everDelayingTCPServer :: PortNumber -> IO a -> IO a
+everDelayingTCPServer port action = withSocketsDo $ do
+  addr <- resolve
+  bracket (open addr) close (const action)
+  where
+    portString :: String
+    portString = (show . toInteger) port
+    resolve = do
+      let hints =
+            defaultHints
+              { addrFlags = [AI_PASSIVE],
+                addrSocketType = Stream
+              }
+      head <$> getAddrInfo (Just hints) Nothing (Just portString)
+    open addr = bracketOnError (openSocket addr) close $ \sock -> do
+      setSocketOption sock ReuseAddr 1
+      withFdSocket sock setCloseOnExecIfNeeded
+      bind sock $ addrAddress addr
+      listen sock 1024
+      pure sock
