@@ -76,9 +76,6 @@ let
     config = {
       Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginzWithReloader}/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf" ];
       Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
-      ExposedPorts = {
-        "80/tcp" = { };
-      };
     };
   };
 in
