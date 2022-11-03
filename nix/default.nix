@@ -22,7 +22,7 @@ let
 
   wireServer = import ./wire-server.nix pkgs;
   nginz = pkgs.callPackage ./nginz.nix { };
-  nginz-disco = pkgs.callPackage ./nginz.nix { };
+  nginz-disco = pkgs.callPackage ./nginz-disco.nix { };
 
   # packages necessary to build wire-server docs
   docsPkgs = [

@@ -2,6 +2,7 @@
 , dockerTools
 , gnugrep
 , coreutils
+, which
 , dumb-init
 , bashInteractive
 , lib
@@ -25,12 +26,13 @@ let
     '';
   };
 
-  nginz-disco-image = dockerTools.buildLayeredImage {
+  nginz-disco-image = dockerTools.streamLayeredImage {
     name = "quay.io/wire/nginz_disco";
     maxLayers = 10;
     contents = [
       bashInteractive
       coreutils
+      which
     ];
     config = {
       Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginz-disco}/bin/nginz_disco.sh" ];

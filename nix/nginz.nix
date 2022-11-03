@@ -8,6 +8,7 @@
 , runCommand
 , gnugrep
 , coreutils
+, which
 , nginx
 , inotify-tools
 , dumb-init
@@ -80,13 +81,14 @@ let
     ];
   };
 
-  nginzImage = dockerTools.buildLayeredImage {
+  nginzImage = dockerTools.streamLayeredImage {
     name = "quay.io/wire/nginz";
     maxLayers = 10;
     contents = [
       cacert
       bashInteractive
       gnugrep
+      which
       coreutils
       nginxFakeNss
     ];
