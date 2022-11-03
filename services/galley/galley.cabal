@@ -42,7 +42,17 @@ library
     Galley.API.MLS.Welcome
     Galley.API.One2One
     Galley.API.Public
+    Galley.API.Public.Bot
+    Galley.API.Public.Conversation
+    Galley.API.Public.CustomBackend
+    Galley.API.Public.Feature
+    Galley.API.Public.LegalHold
+    Galley.API.Public.Messaging
+    Galley.API.Public.MLS
     Galley.API.Public.Servant
+    Galley.API.Public.Team
+    Galley.API.Public.TeamConversation
+    Galley.API.Public.TeamMember
     Galley.API.Push
     Galley.API.Query
     Galley.API.Teams
