@@ -740,6 +740,7 @@ test-suite brig-tests
     Test.Brig.Calling
     Test.Brig.Calling.Internal
     Test.Brig.Effects.Delay
+    Test.Brig.InternalNotification
     Test.Brig.MLS
     Test.Brig.Roundtrip
     Test.Brig.User.Search.Index.Types
@@ -809,6 +810,7 @@ test-suite brig-tests
     , lens
     , polysemy
     , polysemy-wire-zoo
+    , QuickCheck
     , retry
     , servant-client-core
     , string-conversions
