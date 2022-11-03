@@ -26,7 +26,6 @@ import qualified Data.Attoparsec.ByteString as AB
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64.URL as Base64Url
 import Data.Either.Combinators (mapLeft)
-import Data.Json.Util (fromBase64Text, toBase64Text)
 import Data.Proxy
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -78,7 +77,7 @@ class PagingTable t where
 
 instance (PagingTable tables, KnownSymbol name) => ToSchema (MultiTablePagingState name tables) where
   schema =
-    (toBase64Text . encodePagingState)
+    (Text.decodeUtf8 . Base64Url.encode . encodePagingState)
       .= parsedText
         (Text.pack (symbolVal (Proxy @name)) <> "_PagingState")
-        (parsePagingState <=< fromBase64Text)
+        (parsePagingState <=< (Base64Url.decode . Text.encodeUtf8))
