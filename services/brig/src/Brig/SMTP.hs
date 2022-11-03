@@ -108,9 +108,12 @@ initSMTP' timeoutDuration lg host port credentials connType = do
   -- otherwise config errors will be detected "too late"
   res <- runExceptT establishConnection
   logResult lg ("Checking test connection to " ++ unpack host ++ " on startup") res
+  -- Ensure that the logs are written: In case of failure, the errors thrown
+  -- below will kill the app (which could otherwise leave the logs unwritten).
+  flush lg
   case res of
     Left e ->
-      error $ "Failed to establish test connection with SMTP server. " ++ show e
+      error $ "Failed to establish test connection with SMTP server: " ++ show e
     Right con ->
       either
         (error "Failed to establish test connection with SMTP server.")
@@ -149,15 +152,15 @@ initSMTP' timeoutDuration lg host port credentials connType = do
     create = do
       res <- runExceptT establishConnection
       logResult lg "Creating pooled SMTP connection" res
-      handleError res
+      throwOnLeft res
 
     destroy :: SMTP.SMTPConnection -> IO ()
     destroy c =
       (ensureSMTPConnectionTimeout timeoutDuration . SMTP.gracefullyCloseSMTP) c
         >>= void . logResult lg ("Closing pooled SMTP connection to " ++ unpack host)
 
-handleError :: MonadIO m => Either SMTPFailure a -> m a
-handleError = \case
+throwOnLeft :: MonadIO m => Either SMTPFailure a -> m a
+throwOnLeft = \case
   Left Unauthorized -> CE.throw SMTPUnauthorized
   Left ConnectionTimeout -> CE.throw SMTPConnectionTimeout
   Left (CaughtException e) -> CE.throw e
@@ -184,6 +187,9 @@ logResult lg actionString res =
 -- | Default timeout for all actions
 --
 -- It's arguable if this shouldn't become a configuration setting in future.
+-- It's an almost obscenely long duration, as we just want to make sure SMTP
+-- servers / network components aren't playing tricks to us. Other cases should
+-- be handled by the network libraries themselves.
 defaultTimeoutDuration :: Second
 defaultTimeoutDuration = 15 :: Second
 
@@ -210,9 +216,9 @@ sendMail' :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> Logger -> SMTP -> Mai
 sendMail' timeoutDuration lg s m = liftIO $ withResource (s ^. pool) sendMail''
   where
     sendMail'' :: SMTP.SMTPConnection -> IO ()
-    sendMail'' c = ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c) >>= handleError'
+    sendMail'' c = ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c) >>= handleError
 
-    handleError' :: MonadIO m => Either SMTPFailure a -> m ()
-    handleError' r =
+    handleError :: MonadIO m => Either SMTPFailure a -> m ()
+    handleError r =
       logResult lg "Sending mail via SMTP" r
-        >> (void . handleError) r
+        >> (void . throwOnLeft) r
