@@ -151,11 +151,10 @@ runTests iConf brigOpts otherArgs = do
   federationEndpoints <- API.Federation.tests mg brigOpts b c fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
-  smtp <- SMTP.tests mg lg
 
-  let versionApi = API.Version.tests mg brigOpts b
-
-  let mlsApi = MLS.tests mg b brigOpts
+  let smtp = SMTP.tests mg lg
+      versionApi = API.Version.tests mg brigOpts b
+      mlsApi = MLS.tests mg b brigOpts
 
   withArgs otherArgs . defaultMain
     $ testGroup
