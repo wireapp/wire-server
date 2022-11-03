@@ -17,17 +17,16 @@ import Test.Tasty.HUnit
 import Util
 
 -- TODO: Is IO needed here?
-tests :: Bilge.Manager -> Logger.Logger -> IO TestTree
+tests :: Bilge.Manager -> Logger.Logger -> TestTree
 tests m lg =
-  pure $
-    testGroup
-      "SMTP"
-      [ test m "should send mail" $ testSendMail lg,
-        test m "should throw exception when SMTP server refuses to send mail (mail without receiver)" $ testSendMailNoReceiver lg,
-        test m "should throw when an SMTP transaction is aborted (SMTP error 554: 'Transaction failed')" $ testSendMailTransactionFailed lg,
-        test m "should throw an error when the connection cannot be initiated on startup" $ testSendMailFailingConnectionOnStartup lg,
-        test m "should throw when the server cannot be reached on sending" $ testSendMailFailingConnectionOnSend lg
-      ]
+  testGroup
+    "SMTP"
+    [ test m "should send mail" $ testSendMail lg,
+      test m "should throw exception when SMTP server refuses to send mail (mail without receiver)" $ testSendMailNoReceiver lg,
+      test m "should throw when an SMTP transaction is aborted (SMTP error 554: 'Transaction failed')" $ testSendMailTransactionFailed lg,
+      test m "should throw an error when the connection cannot be initiated on startup" $ testSendMailFailingConnectionOnStartup lg,
+      test m "should throw when the server cannot be reached on sending" $ testSendMailFailingConnectionOnSend lg
+    ]
 
 testSendMailFailingConnectionOnSend :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnSend lg = do
