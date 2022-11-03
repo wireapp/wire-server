@@ -1,7 +1,4 @@
-{ nginxModules
-, pkg-config
-, callPackage
-, stdenv
+{ stdenv
 , symlinkJoin
 , dockerTools
 , writeTextDir
@@ -9,7 +6,6 @@
 , gnugrep
 , coreutils
 , which
-, nginx
 , inotify-tools
 , dumb-init
 , cacert
@@ -19,27 +15,11 @@
 , lib
 , makeWrapper
 , writers
+, nginz
 }:
 let
-  zauth = callPackage ./pkgs/zauth { };
 
-  nginzModules = nginxModules // {
-    zauth = {
-      src = ../services/nginz/third_party/nginx-zauth-module;
-      inputs = [ pkg-config zauth ];
-    };
-  };
-
-  nginz = nginx.override {
-    openssl = openssl_1_1;
-    modules = [
-      nginzModules.vts
-      nginzModules.moreheaders
-      nginzModules.zauth
-    ];
-  };
-
-  reload-script = stdenv.mkDerivation {
+  nginzWithReloader = stdenv.mkDerivation {
     name = "reload-script";
     src = (writers.writeBash "nginz_reload.sh" ../services/nginz/nginz_reload.sh);
     phases = "installPhase";
@@ -93,7 +73,7 @@ let
       nginxFakeNss
     ];
     config = {
-      Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${reload-script}/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf" ];
+      Entrypoint = [ "${dumb-init}/bin/dumb-init" "--" "${nginzWithReloader}/bin/nginz_reload.sh" "-g" "daemon off;" "-c" "/etc/wire/nginz/conf/nginx.conf" ];
       Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt" ];
       ExposedPorts = {
         "80/tcp" = { };
