@@ -28,7 +28,7 @@ import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
 import qualified Brig.API.Internal as IAPI
-import Brig.API.Public (SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
+import Brig.API.Public (DocsAPI, docsAPI, servantSitemap)
 import qualified Brig.API.User as API
 import Brig.AWS (amazonkaEnv, sesQueue)
 import qualified Brig.AWS as AWS
@@ -139,7 +139,7 @@ mkApp o = do
        in Servant.serveWithContext
             (Proxy @ServantCombinedAPI)
             (customFormatters :. localDomain :. Servant.EmptyContext)
-            ( swaggerDocsAPI
+            ( docsAPI
                 :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
                 :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
@@ -148,7 +148,7 @@ mkApp o = do
             )
 
 type ServantCombinedAPI =
-  ( SwaggerDocsAPI
+  ( DocsAPI
       :<|> BrigAPI
       :<|> IAPI.API
       :<|> FederationAPI

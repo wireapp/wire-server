@@ -22,8 +22,8 @@ module Brig.API.Public
   ( sitemap,
     apiDocs,
     servantSitemap,
-    swaggerDocsAPI,
-    SwaggerDocsAPI,
+    docsAPI,
+    DocsAPI,
   )
 where
 
@@ -143,8 +143,11 @@ import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
 
-swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI (Just V3) =
+docsAPI :: Servant.Server DocsAPI
+docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas
+
+versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
+versionedSwaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -157,10 +160,10 @@ swaggerDocsAPI (Just V3) =
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
       & cleanupSwagger
-swaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
-swaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
-swaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
-swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
+versionedSwaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
+versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
+versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
+versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
   forall r p.
