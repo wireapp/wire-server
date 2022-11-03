@@ -27,6 +27,7 @@ module Galley.API.MLS.Message
 where
 
 import Control.Comonad
+import Control.Error.Util (hush)
 import Control.Lens (preview, to)
 import Data.Id
 import Data.Json.Util
@@ -1027,7 +1028,25 @@ executeProposalAction qusr con lconv cm action = do
   cs <- preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) (tUnqualified lconv) & noteS @'ConvNotFound
   let ss = csSignatureScheme cs
       newUserClients = Map.assocs (paAdd action)
-      removeUserClients = Map.assocs (paRemove action)
+
+  -- Note [client removal]
+  -- We support two types of removals:
+  --  1. when a user is removed from a group, all their clients have to be removed
+  --  2. when a client is deleted, that particular client (but not necessarily
+  --     other clients of the same user), has to be removed.
+  --
+  -- Type 2 requires no special processing on the backend, so here we filter
+  -- out all removals of that type, so that further checks and processing can
+  -- be applied only to type 1 removals.
+  removedUsers <- mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
+    \(qtarget, Set.map fst -> clients) -> runError @() $ do
+      -- fetch clients from brig
+      clientInfo <- Set.map ciId <$> getClientInfo lconv qtarget ss
+      -- if the clients being removed don't exist, consider this as a removal of
+      -- type 2, and skip it
+      when (Set.null (clientInfo `Set.intersection` clients)) $
+        throw ()
+      pure (qtarget, clients)
 
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
   foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
@@ -1041,7 +1060,7 @@ executeProposalAction qusr con lconv cm action = do
       -- final set of clients in the conversation
       let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
       -- get list of mls clients from brig
-      clientInfo <- getMLSClients lconv qtarget ss
+      clientInfo <- getClientInfo lconv qtarget ss
       let allClients = Set.map ciId clientInfo
       let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
       -- We check the following condition:
@@ -1062,7 +1081,7 @@ executeProposalAction qusr con lconv cm action = do
           -- FUTUREWORK: turn this error into a proper response
           throwS @'MLSClientMismatch
 
-  membersToRemove <- catMaybes <$> for removeUserClients (uncurry (checkRemoval lconv ss))
+  membersToRemove <- catMaybes <$> for removedUsers (uncurry checkRemoval)
 
   -- add users to the conversation and send events
   addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
@@ -1074,34 +1093,25 @@ executeProposalAction qusr con lconv cm action = do
   -- remove users from the conversation and send events
   removeEvents <- foldMap removeMembers (nonEmpty membersToRemove)
 
-  -- remove clients in the conversation state
-  for_ removeUserClients $ \(qtarget, clients) -> do
+  -- Remove clients from the conversation state. This includes client removals
+  -- of all types (see Note [client removal]).
+  for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
     removeMLSClients (fmap convId lconv) qtarget (Set.map fst clients)
 
   pure (addEvents <> removeEvents)
   where
-    -- This also filters out client removals for clients that don't exist anymore
-    -- For these clients there is nothing left to do
     checkRemoval ::
-      Local x ->
-      SignatureSchemeTag ->
       Qualified UserId ->
-      Set (ClientId, KeyPackageRef) ->
+      Set ClientId ->
       Sem r (Maybe (Qualified UserId))
-    checkRemoval loc ss qtarget (Set.map fst -> clients) = do
-      allClients <- Set.map ciId <$> getMLSClients loc qtarget ss
-      let allClientsDontExist = Set.null (clients `Set.intersection` allClients)
-      if allClientsDontExist
-        then pure Nothing
-        else do
-          -- We only support removal of client for user. This is likely to change in the future.
-          -- See discussions here https://wearezeta.atlassian.net/wiki/spaces/CL/pages/612106259/Relax+constraint+between+users+and+clients+in+MLS+groups
-          when (clients /= allClients) $ do
-            -- FUTUREWORK: turn this error into a proper response
-            throwS @'MLSClientMismatch
-          when (qusr == qtarget) $
-            throwS @'MLSSelfRemovalNotAllowed
-          pure (Just qtarget)
+    checkRemoval qtarget clients = do
+      let clientsInConv = Set.map fst (Map.findWithDefault mempty qtarget cm)
+      when (clients /= clientsInConv) $ do
+        -- FUTUREWORK: turn this error into a proper response
+        throwS @'MLSClientMismatch
+      when (qusr == qtarget) $
+        throwS @'MLSSelfRemovalNotAllowed
+      pure (Just qtarget)
 
     existingLocalMembers :: Set (Qualified UserId)
     existingLocalMembers =
@@ -1144,13 +1154,13 @@ executeProposalAction qusr con lconv cm action = do
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
 
-getMLSClients ::
+getClientInfo ::
   Members '[BrigAccess, FederatorAccess] r =>
   Local x ->
   Qualified UserId ->
   SignatureSchemeTag ->
   Sem r (Set ClientInfo)
-getMLSClients loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
+getClientInfo loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
 
 getRemoteMLSClients ::
   Member FederatorAccess r =>

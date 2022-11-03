@@ -768,6 +768,7 @@ testAdminRemovesUserFromConv = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
   (qcnv, events) <- runMLSTest $ do
     [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    void $ createWireClient bob -- also create one extra non-MLS client
     traverse_ uploadNewKeyPackage [bob1, bob2]
     (_, qcnv) <- setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
