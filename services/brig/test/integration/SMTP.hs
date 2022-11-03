@@ -6,7 +6,7 @@ import Control.Exception
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C
 import Data.Text (unpack)
-import Data.Text.Lazy (toStrict)
+import Data.Text.Lazy (fromStrict)
 import Imports
 import Network.Mail.Mime
 import qualified Network.Mail.Postie as Postie
@@ -26,8 +26,34 @@ tests m lg =
         -- TODO: Needs better description string: Actually, the SMTP server
         -- refuses to accept this mail.
         test m "should send no mail without receiver" $ testSendMailNoReceiver lg,
-        test m "should throw when an SMTP transaction is aborted (SMTP error 554: 'Transaction failed')" $ testSendMailTransactionFailed lg
+        test m "should throw when an SMTP transaction is aborted (SMTP error 554: 'Transaction failed')" $ testSendMailTransactionFailed lg,
+        test m "should throw an error when the connection cannot be initiated on startup" $ testSendMailFailingConnectionOnStartup lg,
+        test m "should throw when the server cannot be reached on sending" $ testSendMailFailingConnectionOnSend lg
       ]
+
+testSendMailFailingConnectionOnSend :: Logger.Logger -> Bilge.Http ()
+testSendMailFailingConnectionOnSend lg = do
+  receivedMailRef <- liftIO $ newIORef Nothing
+  conPool <-
+    liftIO $
+      withMailServer
+        (mailStoringApp receivedMailRef)
+        (initSMTP lg "localhost" (Just 4242) Nothing Plain)
+  caughtException <-
+    liftIO $
+      handle @SomeException
+        (const (pure True))
+        (sendMail lg conPool someTestMail >> pure False)
+  liftIO $ caughtException @? "Expected exception (SMTP server unreachable.)"
+
+testSendMailFailingConnectionOnStartup :: Logger.Logger -> Bilge.Http ()
+testSendMailFailingConnectionOnStartup lg = do
+  caughtError <-
+    liftIO $
+      handle @ErrorCall
+        (const (pure True))
+        (initSMTP lg "localhost" (Just 4242) Nothing Plain >> pure False)
+  liftIO $ caughtError @? "Expected error (SMTP server unreachable.)"
 
 -- TODO: Is Http the best Monad for this?
 testSendMailNoReceiver :: Logger.Logger -> Bilge.Http ()
@@ -50,29 +76,19 @@ testSendMail lg = do
     . withMailServer (mailStoringApp receivedMailRef)
     $ do
       conPool <- initSMTP lg "localhost" (Just 4242) Nothing Plain
-      sendMail lg conPool mail
+      sendMail lg conPool someTestMail
       mbMail <-
         retryWhileN 3 isJust $ do
           readIORef receivedMailRef
       isJust mbMail @? "Expected to receive mail"
       postieAddressAsString . rmSender <$> mbMail
-        @=? (Just . unpack . addressEmail) sender
+        @=? (Just . unpack . addressEmail) someTestSender
       postieAddressAsString <$> (concat . maybeToList) (rmReceipients <$> mbMail)
-        @=? [(unpack . addressEmail) receiver]
+        @=? [(unpack . addressEmail) someTestReceiver]
       let mailContent = (rmContent . fromJust) mbMail
-      elem ((unpack . toStrict) body) mailContent @? "Expected the SMTP server to receive the mail body."
-      elem ("Subject: " ++ unpack subject) mailContent @? "Expected the SMTP server to receive the mail subject."
+      elem (unpack someTestBody) mailContent @? "Expected the SMTP server to receive the mail body."
+      elem ("Subject: " ++ unpack someTestSubject) mailContent @? "Expected the SMTP server to receive the mail subject."
   where
-    receiver = Address Nothing "foo@example.com"
-    sender = Address Nothing "bar@example.com"
-    subject = "Some Subject"
-    body = "Some body"
-    mail =
-      simpleMail'
-        receiver
-        sender
-        subject
-        body
     postieAddressAsString :: Postie.Address -> String
     postieAddressAsString addr =
       toString
@@ -82,6 +98,26 @@ testSendMail lg = do
               Postie.addressDomain addr
             ]
         )
+
+someTestReceiver :: Address
+someTestReceiver = Address Nothing "foo@example.com"
+
+someTestSender :: Address
+someTestSender = Address Nothing "bar@example.com"
+
+someTestSubject :: Text
+someTestSubject = "Some Subject"
+
+someTestBody :: Text
+someTestBody = "Some body"
+
+someTestMail :: Mail
+someTestMail =
+  simpleMail'
+    someTestReceiver
+    someTestSender
+    someTestSubject
+    (fromStrict someTestBody)
 
 toString :: B.ByteString -> String
 toString bs = C.foldr (:) [] bs
@@ -109,7 +145,7 @@ testSendMailTransactionFailed lg = do
         subject
         body
 
-withMailServer :: Postie.Application -> IO () -> IO ()
+withMailServer :: Postie.Application -> IO a -> IO a
 withMailServer app action =
   bracket
     (forkIO $ Postie.run 4242 app)
