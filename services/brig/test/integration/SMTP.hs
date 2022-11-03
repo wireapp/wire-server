@@ -31,7 +31,6 @@ tests m lg =
       test m "should throw an error the initiation times out" $ testSendMailTimeoutOnStartup lg
     ]
 
--- TODO: Assert all exceptions on their type (not only they exist)
 testSendMailTimeoutOnStartup :: Logger.Logger -> Bilge.Http ()
 testSendMailTimeoutOnStartup lg = do
   let port = 4242
@@ -86,7 +85,6 @@ testSendMailFailingConnectionOnStartup lg = do
         (initSMTP lg "localhost" (Just port) Nothing Plain >> pure False)
   liftIO $ caughtError @? "Expected error (SMTP server unreachable.)"
 
--- TODO: Is Http the best Monad for this?
 testSendMailNoReceiver :: Logger.Logger -> Bilge.Http ()
 testSendMailNoReceiver lg = do
   let port = 4246
