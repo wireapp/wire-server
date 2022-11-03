@@ -211,26 +211,7 @@ testInvitationUrl opts brig = do
   (inviter, tid) <- createUserWithTeam brig
   invite <- stdInvitationRequest <$> randomEmail
 
-  -- Mock the feature API because exposeInvitationURLsToTeamAdmin depends on
-  -- static configuration that cannot be changed at runtime.
-  let mockGalley (ReceivedRequest mth pth _body)
-        | mth == "GET"
-            && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
-          pure . Wai.responseLBS HTTP.status200 mempty $
-            encode
-              ( withStatus
-                  FeatureStatusEnabled
-                  LockStatusUnlocked
-                  ExposeInvitationURLsToTeamAdminConfig
-                  FeatureTTLUnlimited
-              )
-        | mth == "GET"
-            && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =
-          pure . Wai.responseLBS HTTP.status200 mempty $
-            encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
-        | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
-
-  void . withMockedGalley opts mockGalley $ do
+  void . withMockedGalley opts (invitationUrlGalleyMock FeatureStatusEnabled tid inviter) $ do
     resp <-
       postInvitation brig tid inviter invite
         <!! (const 201 === statusCode)
@@ -251,6 +232,31 @@ getQueryParam name r = do
   url <- inInviteeUrl inv
   (lookup name . queryPairs . uriQuery) url
 
+-- | Mock the feature API because exposeInvitationURLsToTeamAdmin depends on
+-- static configuration that cannot be changed at runtime.
+invitationUrlGalleyMock ::
+  FeatureStatus ->
+  TeamId ->
+  UserId ->
+  ReceivedRequest ->
+  MockT IO Wai.Response
+invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth _body)
+  | mth == "GET"
+      && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
+      pure . Wai.responseLBS HTTP.status200 mempty $
+        encode
+          ( withStatus
+              featureStatus
+              LockStatusUnlocked
+              ExposeInvitationURLsToTeamAdminConfig
+              FeatureTTLUnlimited
+          )
+  | mth == "GET"
+      && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =
+      pure . Wai.responseLBS HTTP.status200 mempty $
+        encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
+  | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
+
 -- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
 -- inlined into Brig.
 testNoInvitationUrl :: Opt.Opts -> Brig -> Http ()
@@ -258,26 +264,7 @@ testNoInvitationUrl opts brig = do
   (inviter, tid) <- createUserWithTeam brig
   invite <- stdInvitationRequest <$> randomEmail
 
-  -- Mock the feature API because exposeInvitationURLsToTeamAdmin depends on
-  -- static configuration that cannot be changed at runtime.
-  let mockGalley (ReceivedRequest mth pth _body)
-        | mth == "GET"
-            && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
-          pure . Wai.responseLBS HTTP.status200 mempty $
-            encode
-              ( withStatus
-                  FeatureStatusDisabled
-                  LockStatusUnlocked
-                  ExposeInvitationURLsToTeamAdminConfig
-                  FeatureTTLUnlimited
-              )
-        | mth == "GET"
-            && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =
-          pure . Wai.responseLBS HTTP.status200 mempty $
-            encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
-        | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
-
-  void . withMockedGalley opts mockGalley $ do
+  void . withMockedGalley opts (invitationUrlGalleyMock FeatureStatusDisabled tid inviter) $ do
     resp <-
       postInvitation brig tid inviter invite
         <!! (const 201 === statusCode)
