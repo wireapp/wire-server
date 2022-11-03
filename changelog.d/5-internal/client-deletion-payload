@@ -1,1 +1,0 @@
-Reduce the payload size of internal `client.delete` event (#2807, #2816)

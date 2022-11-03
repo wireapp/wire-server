@@ -1,1 +1,0 @@
-The `GET /teams/{tid}/members` endpoint now supports pagination
