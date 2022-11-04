@@ -42,9 +42,10 @@ import GHC.Generics (Rep)
 import Generic.Random (listOf', (:+) ((:+)))
 import qualified Generic.Random as Generic
 import Imports
+import Network.Socket (PortNumber)
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import qualified Test.QuickCheck.Arbitrary as QC
-import Test.QuickCheck.Gen (Gen (MkGen))
+import Test.QuickCheck.Gen (Gen (MkGen), chooseBoundedIntegral)
 import Test.QuickCheck.Instances ()
 import Test.QuickCheck.Random
 
@@ -120,3 +121,6 @@ generateExample :: Arbitrary a => a
 generateExample =
   let (MkGen f) = arbitrary
    in f (mkQCGen 42) 42
+
+instance Arbitrary PortNumber where
+  arbitrary = chooseBoundedIntegral (minBound :: PortNumber, maxBound :: PortNumber)
