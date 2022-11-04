@@ -188,7 +188,7 @@ tests s =
       testGroup
         "Self conversation"
         [ test s "create a self conversation" testSelfConversation,
-          test s "attempt to add another user to a conversation" (pure ())
+          test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser
         ]
     ]
 
@@ -2095,4 +2095,19 @@ testSelfConversation = do
       void $ sendAndConsumeCommit commit
       WS.assertMatchN_ (5 # Second) wss $
         wsAssertMLSWelcome alice welcome
+      WS.assertNoEvent (1 # WS.Second) wss
+
+testSelfConversationOtherUser :: TestM ()
+testSelfConversationOtherUser = do
+  users@[_alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ uploadNewKeyPackage bob1
+    void $ setupMLSSelfGroup alice1
+    commit <- createAddCommit alice1 [bob]
+    mlsBracket [alice1, bob1] $ \wss -> do
+      postMessage (ciUser (mpSender commit)) (mpMessage commit)
+        !!! do
+          const 403 === statusCode
+          const (Just "invalid-op") === fmap Wai.label . responseJsonError
       WS.assertNoEvent (1 # WS.Second) wss
