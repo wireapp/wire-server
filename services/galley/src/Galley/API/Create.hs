@@ -246,7 +246,7 @@ createMLSSelfConversation lusr clientId = do
                 ncProtocol = ProtocolMLSTag
               }
       conv <- E.createConversation lcnv nc
-      -- TODO: remove this. we are planning to remove the need for a nullKeyPackageRef
+      -- FUTUREWORK: remove this. we are planning to remove the need for a nullKeyPackageRef
       E.addMLSClients lcnv (qUntagged lusr) (Set.singleton (clientId, nullKeyPackageRef))
       conversationCreated lusr conv
 
