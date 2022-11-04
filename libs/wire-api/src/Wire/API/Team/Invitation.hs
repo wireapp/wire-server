@@ -21,6 +21,7 @@ module Wire.API.Team.Invitation
   ( InvitationRequest (..),
     Invitation (..),
     InvitationList (..),
+    InvitationLocation (..),
 
     -- * Swagger
     modelTeamInvitation,
@@ -29,11 +30,17 @@ module Wire.API.Team.Invitation
   )
 where
 
-import Data.Aeson
+import Control.Lens ((?~))
+import qualified Data.Aeson as A
+import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
+import Data.Schema
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Text.Encoding as TE
 import Imports
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import URI.ByteString
 import Wire.API.Team.Role (Role, defaultRole, typeRole)
 import Wire.API.User.Identity (Email, Phone)
@@ -52,6 +59,7 @@ data InvitationRequest = InvitationRequest
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema InvitationRequest)
 
 modelTeamInvitationRequest :: Doc.Model
 modelTeamInvitationRequest = Doc.defineModel "TeamInvitationRequest" $ do
@@ -73,24 +81,20 @@ modelTeamInvitationRequest = Doc.defineModel "TeamInvitationRequest" $ do
   Doc.property "inviter_name" Doc.string' $
     Doc.description "DEPRECATED - WILL BE IGNORED IN FAVOR OF REQ AUTH DATA - Name of the inviter (1 - 128 characters)."
 
-instance ToJSON InvitationRequest where
-  toJSON i =
-    object
-      [ "locale" .= irLocale i,
-        "role" .= irRole i,
-        "name" .= irInviteeName i,
-        "email" .= irInviteeEmail i,
-        "phone" .= irInviteePhone i
-      ]
-
-instance FromJSON InvitationRequest where
-  parseJSON = withObject "invitation-request" $ \o ->
-    InvitationRequest
-      <$> o .:? "locale"
-      <*> o .:? "role"
-      <*> o .:? "name"
-      <*> o .: "email"
-      <*> o .:? "phone"
+instance ToSchema InvitationRequest where
+  schema =
+    objectWithDocModifier "InvitationRequest" (description ?~ "A request to join a team on Wire.") $
+      InvitationRequest
+        <$> irLocale
+          .= optFieldWithDocModifier "locale" (description ?~ "Locale to use for the invitation.") (maybeWithDefault A.Null schema)
+        <*> irRole
+          .= optFieldWithDocModifier "role" (description ?~ "Role of the invitee (invited user).") (maybeWithDefault A.Null schema)
+        <*> irInviteeName
+          .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters).") (maybeWithDefault A.Null schema)
+        <*> irInviteeEmail
+          .= fieldWithDocModifier "email" (description ?~ "Email of the invitee.") schema
+        <*> irInviteePhone
+          .= optFieldWithDocModifier "phone" (description ?~ "Phone number of the invitee, in the E.164 format.") (maybeWithDefault A.Null schema)
 
 --------------------------------------------------------------------------------
 -- Invitation
@@ -110,6 +114,7 @@ data Invitation = Invitation
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invitation)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema Invitation)
 
 -- | (This is *not* the swagger model for the 'TeamInvitation' type (which does not exist),
 -- but for the use of 'Invitation' under @/teams/{tid}/invitations@.)
@@ -140,33 +145,50 @@ modelTeamInvitation = Doc.defineModel "TeamInvitation" $ do
     Doc.description "URL of the invitation link to be sent to the invitee"
     Doc.optional
 
-instance ToJSON Invitation where
-  toJSON i =
-    object
-      [ "team" .= inTeam i,
-        "role" .= inRole i,
-        "id" .= inInvitation i,
-        "created_at" .= inCreatedAt i,
-        "created_by" .= inCreatedBy i,
-        "email" .= inInviteeEmail i,
-        "name" .= inInviteeName i,
-        "phone" .= inInviteePhone i,
-        "url" .= inInviteeUrl i
-      ]
+instance ToSchema Invitation where
+  schema =
+    objectWithDocModifier "Invitation" (description ?~ "An invitation to join a team on Wire") $
+      Invitation
+        <$> inTeam
+          .= fieldWithDocModifier "team" (description ?~ "Team ID of the inviting team") schema
+        <*> inRole
+          -- clients, when leaving "role" empty, can leave the default role choice to us
+          .= (fromMaybe defaultRole <$> optFieldWithDocModifier "role" (description ?~ "Role of the invited user") schema)
+        <*> inInvitation
+          .= fieldWithDocModifier "id" (description ?~ "UUID used to refer the invitation") schema
+        <*> inCreatedAt
+          .= fieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation") schema
+        <*> inCreatedBy
+          .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user") (maybeWithDefault A.Null schema)
+        <*> inInviteeEmail
+          .= fieldWithDocModifier "email" (description ?~ "Email of the invitee") schema
+        <*> inInviteeName
+          .= optFieldWithDocModifier "name" (description ?~ "Name of the invitee (1 - 128 characters)") (maybeWithDefault A.Null schema)
+        <*> inInviteePhone
+          .= optFieldWithDocModifier "phone" (description ?~ "Phone number of the invitee, in the E.164 format") (maybeWithDefault A.Null schema)
+        <*> (fmap (TE.decodeUtf8 . serializeURIRef') . inInviteeUrl)
+          .= optFieldWithDocModifier "url" (description ?~ "URL of the invitation link to be sent to the invitee") (maybeWithDefault A.Null urlSchema)
+    where
+      urlSchema = parsedText "URIRef Absolute" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8)
 
-instance FromJSON Invitation where
-  parseJSON = withObject "invitation" $ \o ->
-    Invitation
-      <$> o .: "team"
-      -- clients, when leaving "role" empty, can leave the default role choice to us
-      <*> o .:? "role" .!= defaultRole
-      <*> o .: "id"
-      <*> o .: "created_at"
-      <*> o .:? "created_by"
-      <*> o .: "email"
-      <*> o .:? "name"
-      <*> o .:? "phone"
-      <*> o .:? "url"
+newtype InvitationLocation = InvitationLocation
+  { unInvitationLocation :: ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance S.ToParamSchema InvitationLocation where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.SwaggerString
+      & S.format ?~ "url"
+
+instance FromHttpApiData InvitationLocation where
+  parseUrlPiece = parseHeader . TE.encodeUtf8
+  parseHeader = pure . InvitationLocation
+
+instance ToHttpApiData InvitationLocation where
+  toUrlPiece = TE.decodeUtf8 . toHeader
+  toHeader = unInvitationLocation
 
 --------------------------------------------------------------------------------
 -- InvitationList
@@ -177,6 +199,7 @@ data InvitationList = InvitationList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationList)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema InvitationList)
 
 modelTeamInvitationList :: Doc.Model
 modelTeamInvitationList = Doc.defineModel "TeamInvitationList" $ do
@@ -185,15 +208,11 @@ modelTeamInvitationList = Doc.defineModel "TeamInvitationList" $ do
   Doc.property "has_more" Doc.bool' $
     Doc.description "Indicator that the server has more invitations than returned."
 
-instance ToJSON InvitationList where
-  toJSON (InvitationList l m) =
-    object
-      [ "invitations" .= l,
-        "has_more" .= m
-      ]
-
-instance FromJSON InvitationList where
-  parseJSON = withObject "InvitationList" $ \o ->
-    InvitationList
-      <$> o .: "invitations"
-      <*> o .: "has_more"
+instance ToSchema InvitationList where
+  schema =
+    objectWithDocModifier "InvitationList" (description ?~ "A list of sent team invitations.") $
+      InvitationList
+        <$> ilInvitations
+          .= field "invitations" (array schema)
+        <*> ilHasMore
+          .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more invitations than returned.") schema

@@ -196,6 +196,7 @@ servantSitemap =
     :<|> searchAPI
     :<|> authAPI
     :<|> callingAPI
+    :<|> Team.servantAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =

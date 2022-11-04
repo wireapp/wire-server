@@ -18,6 +18,7 @@
 module Brig.Team.API
   ( routesPublic,
     routesInternal,
+    servantAPI,
   )
 where
 
@@ -47,7 +48,7 @@ import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson hiding (json)
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import qualified Data.List1 as List1
 import Data.Range
@@ -64,11 +65,14 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy (Members)
+import Servant hiding (Handler, JSON, addHeader)
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public.Brig
 import Wire.API.Team
 import Wire.API.Team.Invitation
 import qualified Wire.API.Team.Invitation as Public
@@ -81,6 +85,15 @@ import qualified Wire.API.Team.Size as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
 
+servantAPI ::
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  ServerT TeamsAPI (Handler r)
+servantAPI = Named @"send-team-invitation" createInvitationPublicH
+
 routesPublic ::
   Members
     '[ BlacklistStore,
@@ -89,28 +102,6 @@ routesPublic ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
-  post "/teams/:tid/invitations" (continue createInvitationPublicH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-      .&. jsonRequest @Public.InvitationRequest
-  document "POST" "sendTeamInvitation" $ do
-    Doc.summary "Create and send a new team invitation."
-    Doc.notes
-      "Invitations are sent by email. The maximum allowed number of \
-      \pending team invitations is equal to the team size."
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.body (Doc.ref Public.modelTeamInvitationRequest) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelTeamInvitation)
-    Doc.response 201 "Invitation was created and sent." Doc.end
-    Doc.errorResponse noEmail
-    Doc.errorResponse (errorToWai @'E.NoIdentity)
-    Doc.errorResponse (errorToWai @'E.InvalidEmail)
-    Doc.errorResponse (errorToWai @'E.BlacklistedEmail)
-    Doc.errorResponse (errorToWai @'E.TooManyTeamInvitations)
-
   get "/teams/:tid/invitations" (continue listInvitationsH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -266,16 +257,17 @@ createInvitationPublicH ::
        GalleyProvider
      ]
     r =>
-  JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest ->
-  (Handler r) Response
-createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
-  body <- parseJsonBody req
-  newInv <- createInvitationPublic uid tid body
-  pure . setStatus status201 . loc (inInvitation newInv) . json $ newInv
+  UserId ->
+  TeamId ->
+  Public.InvitationRequest ->
+  Handler r (Public.Invitation, Public.InvitationLocation)
+createInvitationPublicH uid tid body = do
+  inv <- createInvitationPublic uid tid body
+  pure (inv, loc inv)
   where
-    loc iid =
-      addHeader "Location" $
-        "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' iid
+    loc :: Invitation -> InvitationLocation
+    loc inv =
+      InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' (inInvitation inv)
 
 data CreateInvitationInviter = CreateInvitationInviter
   { inviterUid :: UserId,
@@ -298,7 +290,7 @@ createInvitationPublic uid tid body = do
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
     idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) pure =<< lift (fetchUserIdentity uid)
-    from <- maybe (throwStd noEmail) pure (emailIdentity idt)
+    from <- maybe (throwStd (errorToWai @'E.NoEmail)) pure (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
 

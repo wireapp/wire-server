@@ -57,6 +57,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.Team.Invitation
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
 import Wire.API.User.Auth
@@ -83,6 +84,7 @@ type BrigAPI =
     :<|> SearchAPI
     :<|> AuthAPI
     :<|> CallingAPI
+    :<|> TeamsAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
@@ -1309,3 +1311,33 @@ type CallingAPI =
                :> QueryParam' '[Optional, Strict, Description "Limit resulting list. Allowed values [1..10]"] "limit" (Range 1 10 Int)
                :> Get '[JSON] RTCConfiguration
            )
+
+-- Teams API -----------------------------------------------------
+
+type TeamsAPI =
+  Named
+    "send-team-invitation"
+    ( Summary "Create and send a new team invitation."
+        :> Description
+             "Invitations are sent by email. The maximum allowed number of \
+             \pending team invitations is equal to the team size."
+        :> CanThrow 'NoEmail
+        :> CanThrow 'NoIdentity
+        :> CanThrow 'InvalidEmail
+        :> CanThrow 'BlacklistedEmail
+        :> CanThrow 'TooManyTeamInvitations
+        :> CanThrow 'InsufficientTeamPermissions
+        :> ZUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "invitations"
+        :> ReqBody '[JSON] InvitationRequest
+        :> MultiVerb1
+             'POST
+             '[JSON]
+             ( WithHeaders
+                 '[Header "Location" InvitationLocation]
+                 (Invitation, InvitationLocation)
+                 (Respond 201 "Invitation was created and sent." Invitation)
+             )
+    )
