@@ -8,6 +8,8 @@ import qualified Data.ByteString.Char8 as C
 import Data.Text (unpack)
 import Data.Text.Lazy (fromStrict)
 import Data.Time.Units
+import Foreign.C.Error (Errno (..), eCONNREFUSED)
+import GHC.IO.Exception (ioe_errno)
 import Imports
 import Network.Mail.Mime
 import qualified Network.Mail.Postie as Postie
@@ -233,4 +235,22 @@ everDelayingTCPServer port action = withSocketsDo $ do
       pure sock
 
 randomPortNumber :: MonadIO m => m PortNumber
-randomPortNumber = liftIO $ generate arbitrary
+randomPortNumber = do
+  candidate <- liftIO $ generate (arbitrary `suchThat` (> 1024))
+  portOpen <- liftIO $ isPortOpen candidate
+  if portOpen
+    then randomPortNumber
+    else pure candidate
+
+isPortOpen :: PortNumber -> IO Bool
+isPortOpen port = do
+  let sockAddr = SockAddrInet port (tupleToHostAddress (127, 0, 0, 1))
+      tcpProtocolNumber = 6
+  bracket (socket AF_INET Stream tcpProtocolNumber) close' $ \sock -> do
+    res <- try $ connect sock sockAddr
+    case res of
+      Right () -> pure True
+      Left e ->
+        if (Errno <$> ioe_errno e) == Just eCONNREFUSED
+          then pure False
+          else throwIO e
