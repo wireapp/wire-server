@@ -116,7 +116,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
       error $ "Failed to establish test connection with SMTP server: " ++ show e
     Right con ->
       either
-        (error "Failed to establish test connection with SMTP server.")
+        (error "Failed to close test connection with SMTP server.")
         (const (SMTP <$> createPool create destroy 1 5 5))
         =<< do
           r <- ensureSMTPConnectionTimeout timeoutDuration (SMTP.gracefullyCloseSMTP con)
@@ -151,7 +151,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
     create :: IO SMTP.SMTPConnection
     create = do
       res <- runExceptT establishConnection
-      logResult lg "Creating pooled SMTP connection" res
+      logResult lg ("Creating pooled SMTP connection to " ++ unpack host) res
       throwOnLeft res
 
     destroy :: SMTP.SMTPConnection -> IO ()
@@ -173,7 +173,7 @@ logResult lg actionString res =
       Logger.log
         lg
         Logger.Warn
-        (msg $ concatToVal actionString "Failed to established connection, check your credentials.")
+        (msg $ concatToVal actionString "Failed to establish connection, check your credentials.")
     Left ConnectionTimeout -> do
       Logger.log lg Logger.Warn (msg $ concatToVal actionString "Connection timeout.")
     Left (CaughtException e) -> do
