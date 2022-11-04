@@ -49,7 +49,7 @@ import Test.Hspec (expectationFailure)
 import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
-import Test.Tasty.HUnit (assertFailure, (@?=))
+import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 import TestHelpers (eventually, test)
 import TestSetup
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag, ProtocolProteusTag))
@@ -503,7 +503,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       getFeatureConfig expectedStatus expectedTtl = eventually $ do
         actual <- Util.getFeatureConfig @cfg member
         liftIO $ Public.wsStatus actual @?= expectedStatus
-        liftIO $ Public.wsTTL actual @?= expectedTtl
+        liftIO $ checkTtl (Public.wsTTL actual) expectedTtl
 
       getFlagInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getFlagInternal expected = eventually $ do
@@ -536,6 +536,16 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
                 Just (FeatureTTLSeconds i) -> i <= upper
           unless check $ error ("expected ttl <= " <> show upper <> ", got " <> show storedTTL)
 
+      checkTtl :: FeatureTTL -> FeatureTTL -> IO ()
+      checkTtl (FeatureTTLSeconds actualTtl) (FeatureTTLSeconds expectedTtl) =
+        assertBool
+          ("expected the actual TTL to be greater than 0 and less or equal to " <> show expectedTtl <> ", but it was " <> show actualTtl)
+          (actualTtl > 0 && actualTtl <= expectedTtl)
+      checkTtl FeatureTTLUnlimited FeatureTTLUnlimited = pure ()
+      checkTtl FeatureTTLUnlimited _ = assertFailure "expected the actual TTL to be unlimited, but it was limited"
+      checkTtl _ FeatureTTLUnlimited = assertFailure "expected the actual TTL to be limited, but it was unlimited"
+
+      toMicros :: Word -> Int
       toMicros secs = fromIntegral secs * 1000000
 
   assertFlagForbidden $ getTeamFeatureFlag @cfg nonMember tid
@@ -552,7 +562,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   -- Setting should work
   setFlagInternal otherValue ttl
   getFlag otherValue
-  getFeatureConfig otherValue ttl
+  getFeatureConfig otherValue ttl -- XXXXX
   getFlagInternal otherValue
 
   case (ttl, ttlAfter) of
@@ -745,17 +755,20 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
       setFlagWithGalley :: Public.FeatureStatus -> TestM ()
       setFlagWithGalley statusValue =
         putTeamFeatureFlagWithGalley @cfg galley owner tid (Public.WithStatusNoLock statusValue (Public.trivialConfig @cfg) Public.FeatureTTLUnlimited)
-          !!! statusCode === const 200
+          !!! statusCode
+            === const 200
 
       assertSetStatusForbidden :: Public.FeatureStatus -> TestM ()
       assertSetStatusForbidden statusValue =
         putTeamFeatureFlagWithGalley @cfg galley owner tid (Public.WithStatusNoLock statusValue (Public.trivialConfig @cfg) Public.FeatureTTLUnlimited)
-          !!! statusCode === const 409
+          !!! statusCode
+            === const 409
 
       setLockStatus :: Public.LockStatus -> TestM ()
       setLockStatus lockStatus =
         Util.setLockStatusInternal @cfg galley tid lockStatus
-          !!! statusCode === const 200
+          !!! statusCode
+            === const 200
 
   assertFlagForbidden $ getTeamFeatureFlag @cfg nonMember tid
 
@@ -838,7 +851,8 @@ testSelfDeletingMessages = do
             galley
             tid
             (settingWithoutLockStatus stat tout)
-          !!! statusCode === const expectedStatusCode
+          !!! statusCode
+            === const expectedStatusCode
 
       -- internal, public (/team/:tid/features), and team-agnostic (/feature-configs).
       checkGet :: HasCallStack => FeatureStatus -> Int32 -> Public.LockStatus -> TestM ()
@@ -856,7 +870,8 @@ testSelfDeletingMessages = do
       checkSetLockStatus status =
         do
           Util.setLockStatusInternal @Public.SelfDeletingMessagesConfig galley tid status
-          !!! statusCode === const 200
+          !!! statusCode
+            === const 200
 
   -- test that the default lock status comes from `galley.yaml`.
   -- use this to change `galley.integration.yaml` locally and manually test that conf file
@@ -971,7 +986,8 @@ testAllFeatures = do
   galley <- viewGalley
   -- this sets the guest links config to its default value thereby creating a row for the team in galley.team_features
   putTeamFeatureFlagInternal @Public.GuestLinksConfig galley tid (Public.WithStatusNoLock FeatureStatusEnabled Public.GuestLinksConfig Public.FeatureTTLUnlimited)
-    !!! statusCode === const 200
+    !!! statusCode
+      === const 200
   getAllTeamFeatures member tid !!! do
     statusCode === const 200
     responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by default in galley -}))
@@ -1060,7 +1076,8 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
 
   r <-
     getFeatureStatusMulti @Public.SearchVisibilityInboundConfig (Multi.TeamFeatureNoConfigMultiRequest [team1, team2])
-      <!! statusCode === const 200
+      <!! statusCode
+        === const 200
 
   Multi.TeamFeatureNoConfigMultiResponse teamsStatuses :: Multi.TeamFeatureNoConfigMultiResponse Public.SearchVisibilityInboundConfig <- responseJsonError r
 
@@ -1103,7 +1120,8 @@ testMLS = do
       setForTeam :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
       setForTeam wsnl =
         putTeamFeatureFlagWithGalley @MLSConfig galley owner tid wsnl
-          !!! statusCode === const 200
+          !!! statusCode
+            === const 200
 
       setForTeamInternal :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
       setForTeamInternal wsnl =
