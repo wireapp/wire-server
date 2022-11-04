@@ -182,7 +182,7 @@ tests s =
       testGroup
         "CommitBundle"
         [ test s "add user with a commit bundle" testAddUserWithBundle,
-          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoveConvWithBundle,
+          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle,
           test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
         ]
     ]
@@ -1993,8 +1993,8 @@ testDeleteMLSConv = do
     deleteTeamConv tid (qUnqualified qcnv) aliceUnq
       !!! statusCode === const 200
 
-testAddUserToRemoveConvWithBundle :: TestM ()
-testAddUserToRemoveConvWithBundle = do
+testAddUserToRemoteConvWithBundle :: TestM ()
+testAddUserToRemoteConvWithBundle = do
   let aliceDomain = Domain "faraway.example.com"
   [alice, bob, charlie] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing, Nothing]
 
