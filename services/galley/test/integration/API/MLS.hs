@@ -188,7 +188,8 @@ tests s =
       testGroup
         "Self conversation"
         [ test s "create a self conversation" testSelfConversation,
-          test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser
+          test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser,
+          test s "attempt to leave fails" testSelfConversationLeave
         ]
     ]
 
@@ -2110,4 +2111,20 @@ testSelfConversationOtherUser = do
         !!! do
           const 403 === statusCode
           const (Just "invalid-op") === fmap Wai.label . responseJsonError
+      WS.assertNoEvent (1 # WS.Second) wss
+
+testSelfConversationLeave :: TestM ()
+testSelfConversationLeave = do
+  alice <- randomQualifiedUser
+  runMLSTest $ do
+    clients@(creator : others) <- traverse createMLSClient (replicate 3 alice)
+    traverse_ uploadNewKeyPackage others
+    (_, qcnv) <- setupMLSSelfGroup creator
+    void $ createAddCommit creator [alice] >>= sendAndConsumeCommit
+    mlsBracket clients $ \wss -> do
+      liftTest $
+        deleteMemberQualified (qUnqualified alice) alice qcnv
+          !!! do
+            const 403 === statusCode
+            const (Just "invalid-op") === fmap Wai.label . responseJsonError
       WS.assertNoEvent (1 # WS.Second) wss
