@@ -14,6 +14,7 @@ import qualified Network.Mail.Postie as Postie
 import Network.Socket
 import qualified Pipes.Prelude
 import qualified System.Logger as Logger
+import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -31,9 +32,12 @@ tests m lg =
       test m "should throw an error the initiation times out" $ testSendMailTimeoutOnStartup lg
     ]
 
+randomPortNumber :: MonadIO m => m PortNumber
+randomPortNumber = liftIO $ generate arbitrary
+
 testSendMailTimeoutOnStartup :: Logger.Logger -> Bilge.Http ()
 testSendMailTimeoutOnStartup lg = do
-  let port = 4242
+  port <- randomPortNumber
   mbException <-
     liftIO $
       everDelayingTCPServer port $
@@ -44,7 +48,7 @@ testSendMailTimeoutOnStartup lg = do
 
 testSendMailTimeout :: Logger.Logger -> Bilge.Http ()
 testSendMailTimeout lg = do
-  let port = 4243
+  port <- randomPortNumber
   mbException <-
     liftIO $
       withMailServer port (delayingApp (3 :: Second)) $
@@ -58,7 +62,7 @@ testSendMailTimeout lg = do
 
 testSendMailFailingConnectionOnSend :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnSend lg = do
-  let port = 4244
+  port <- randomPortNumber
   receivedMailRef <- liftIO $ newIORef Nothing
   conPool <-
     liftIO $
@@ -77,7 +81,7 @@ testSendMailFailingConnectionOnSend lg = do
 
 testSendMailFailingConnectionOnStartup :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnStartup lg = do
-  let port = 4245
+  port <- randomPortNumber
   caughtError <-
     liftIO $
       handle @ErrorCall
@@ -87,7 +91,7 @@ testSendMailFailingConnectionOnStartup lg = do
 
 testSendMailNoReceiver :: Logger.Logger -> Bilge.Http ()
 testSendMailNoReceiver lg = do
-  let port = 4246
+  port <- randomPortNumber
   receivedMailRef <- liftIO $ newIORef Nothing
   liftIO
     . withMailServer port (mailStoringApp receivedMailRef)
@@ -101,7 +105,7 @@ testSendMailNoReceiver lg = do
 
 testSendMail :: Logger.Logger -> Bilge.Http ()
 testSendMail lg = do
-  let port = 4247
+  port <- randomPortNumber
   receivedMailRef <- liftIO $ newIORef Nothing
   liftIO
     . withMailServer port (mailStoringApp receivedMailRef)
@@ -155,7 +159,7 @@ toString bs = C.foldr (:) [] bs
 
 testSendMailTransactionFailed :: Logger.Logger -> Bilge.Http ()
 testSendMailTransactionFailed lg = do
-  let port = 4248
+  port <- randomPortNumber
   liftIO
     . withMailServer port mailRejectingApp
     $ do
