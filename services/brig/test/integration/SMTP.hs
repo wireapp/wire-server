@@ -167,19 +167,8 @@ testSendMailTransactionFailed lg = do
       caughtException <-
         handle @SomeException
           (const (pure True))
-          (sendMail lg conPool mail >> pure False)
+          (sendMail lg conPool someTestMail >> pure False)
       caughtException @? "Expected exception due to missing mail receiver."
-  where
-    receiver = Address Nothing "foo@example.com"
-    sender = Address Nothing "bar@example.com"
-    subject = "Some Subject"
-    body = "Some body"
-    mail =
-      simpleMail'
-        receiver
-        sender
-        subject
-        body
 
 withMailServer :: PortNumber -> Postie.Application -> IO a -> IO a
 withMailServer port app action = do
