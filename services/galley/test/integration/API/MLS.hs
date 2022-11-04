@@ -184,6 +184,11 @@ tests s =
         [ test s "add user with a commit bundle" testAddUserWithBundle,
           test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle,
           test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
+        ],
+      testGroup
+        "Self conversation"
+        [ test s "create a self conversation" testSelfConversation,
+          test s "attempt to add another user to a conversation" (pure ())
         ]
     ]
 
@@ -2076,3 +2081,18 @@ testRemoteUserPostsCommitBundle = do
         MLSMessageResponseError MLSUnsupportedProposal <- runFedClient @"send-mls-commit-bundle" fedGalleyClient (Domain bobDomain) msr
 
         pure ()
+
+testSelfConversation :: TestM ()
+testSelfConversation = do
+  alice <- randomQualifiedUser
+  runMLSTest $ do
+    creator : others <- traverse createMLSClient (replicate 3 alice)
+    traverse_ uploadNewKeyPackage others
+    void $ setupMLSSelfGroup creator
+    commit <- createAddCommit creator [alice]
+    welcome <- assertJust (mpWelcome commit)
+    mlsBracket others $ \wss -> do
+      void $ sendAndConsumeCommit commit
+      WS.assertMatchN_ (5 # Second) wss $
+        wsAssertMLSWelcome alice welcome
+      WS.assertNoEvent (1 # WS.Second) wss

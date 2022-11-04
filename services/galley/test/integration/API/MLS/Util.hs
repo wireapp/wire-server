@@ -392,25 +392,49 @@ setGroupState cid state = do
   fp <- nextGroupFile cid
   liftIO $ BS.writeFile fp state
 
--- | Create conversation and corresponding group.
-setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
-setupMLSGroup creator = do
+-- | Create a conversation from a provided action and then create a
+-- corresponding group.
+setupMLSGroupWithConv ::
+  HasCallStack =>
+  MLSTest Conversation ->
+  ClientIdentity ->
+  MLSTest (GroupId, Qualified ConvId)
+setupMLSGroupWithConv convAction creator = do
   ownDomain <- liftTest viewFederationDomain
   liftIO $ assertEqual "creator is not local" (ciDomain creator) ownDomain
-  conv <-
-    responseJsonError
-      =<< liftTest
-        ( postConvQualified
-            (ciUser creator)
-            (defNewMLSConv (ciClient creator))
-        )
-        <!! const 201 === statusCode
+  conv <- convAction
   let groupId =
         fromJust
           (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
 
   createGroup creator groupId
   pure (groupId, cnvQualifiedId conv)
+
+-- | Create conversation and corresponding group.
+setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupMLSGroup creator = setupMLSGroupWithConv action creator
+  where
+    action =
+      responseJsonError
+        =<< liftTest
+          ( postConvQualified
+              (ciUser creator)
+              (defNewMLSConv (ciClient creator))
+          )
+          <!! const 201 === statusCode
+
+-- | Create self-conversation and corresponding group.
+setupMLSSelfGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
+  where
+    action =
+      responseJsonError
+        =<< liftTest
+          ( putSelfConv
+              (ciUser creator)
+              (ciClient creator)
+          )
+          <!! const 201 === statusCode
 
 createGroup :: ClientIdentity -> GroupId -> MLSTest ()
 createGroup cid gid = do
@@ -999,3 +1023,17 @@ getGroupInfo sender qcnv = do
         . zUser sender
         . zConn "conn"
     )
+
+putSelfConv ::
+  UserId ->
+  ClientId ->
+  TestM ResponseLBS
+putSelfConv u c = do
+  g <- viewGalley
+  put $
+    g
+      . paths ["/conversations", "mls-self"]
+      . zUser u
+      . zClient c
+      . zConn "conn"
+      . zType "access"

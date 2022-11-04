@@ -1833,6 +1833,9 @@ zUser = header "Z-User" . toByteString'
 zBot :: UserId -> Request -> Request
 zBot = header "Z-Bot" . toByteString'
 
+zClient :: ClientId -> Request -> Request
+zClient = header "Z-Client" . toByteString'
+
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
