@@ -539,8 +539,8 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       checkTtl :: FeatureTTL -> FeatureTTL -> IO ()
       checkTtl (FeatureTTLSeconds actualTtl) (FeatureTTLSeconds expectedTtl) =
         assertBool
-          ("expected the actual TTL to be greater than 0 and less or equal to " <> show expectedTtl <> ", but it was " <> show actualTtl)
-          (actualTtl > 0 && actualTtl <= expectedTtl)
+          ("expected the actual TTL to be greater than 0 and equal to or no more than 2 seconds less than " <> show expectedTtl <> ", but it was " <> show actualTtl)
+          (actualTtl > 0 && actualTtl <= expectedTtl && abs (actualTtl - expectedTtl) <= 2)
       checkTtl FeatureTTLUnlimited FeatureTTLUnlimited = pure ()
       checkTtl FeatureTTLUnlimited _ = assertFailure "expected the actual TTL to be unlimited, but it was limited"
       checkTtl _ FeatureTTLUnlimited = assertFailure "expected the actual TTL to be limited, but it was unlimited"
