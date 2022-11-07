@@ -36,6 +36,7 @@ import Data.Singletons
 import qualified Data.Text as T
 import Data.Time
 import Galley.API.Error
+import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
@@ -63,6 +64,7 @@ import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
@@ -74,6 +76,8 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
 import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
@@ -837,6 +841,13 @@ ensureMemberLimit old new = do
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
   when (length old + length new > maxSize) $
     throwS @'TooManyMembers
+
+conversationExisted ::
+  Members '[Error InternalError, P.TinyLog] r =>
+  Local UserId ->
+  Data.Conversation ->
+  Sem r ConversationResponse
+conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
 
 --------------------------------------------------------------------------------
 -- Handling remote errors

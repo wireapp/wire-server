@@ -182,8 +182,14 @@ tests s =
       testGroup
         "CommitBundle"
         [ test s "add user with a commit bundle" testAddUserWithBundle,
-          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoveConvWithBundle,
+          test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle,
           test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
+        ],
+      testGroup
+        "Self conversation"
+        [ test s "create a self conversation" testSelfConversation,
+          test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser,
+          test s "attempt to leave fails" testSelfConversationLeave
         ]
     ]
 
@@ -1993,8 +1999,8 @@ testDeleteMLSConv = do
     deleteTeamConv tid (qUnqualified qcnv) aliceUnq
       !!! statusCode === const 200
 
-testAddUserToRemoveConvWithBundle :: TestM ()
-testAddUserToRemoveConvWithBundle = do
+testAddUserToRemoteConvWithBundle :: TestM ()
+testAddUserToRemoteConvWithBundle = do
   let aliceDomain = Domain "faraway.example.com"
   [alice, bob, charlie] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing, Nothing]
 
@@ -2076,3 +2082,49 @@ testRemoteUserPostsCommitBundle = do
         MLSMessageResponseError MLSUnsupportedProposal <- runFedClient @"send-mls-commit-bundle" fedGalleyClient (Domain bobDomain) msr
 
         pure ()
+
+testSelfConversation :: TestM ()
+testSelfConversation = do
+  alice <- randomQualifiedUser
+  runMLSTest $ do
+    creator : others <- traverse createMLSClient (replicate 3 alice)
+    traverse_ uploadNewKeyPackage others
+    void $ setupMLSSelfGroup creator
+    commit <- createAddCommit creator [alice]
+    welcome <- assertJust (mpWelcome commit)
+    mlsBracket others $ \wss -> do
+      void $ sendAndConsumeCommit commit
+      WS.assertMatchN_ (5 # Second) wss $
+        wsAssertMLSWelcome alice welcome
+      WS.assertNoEvent (1 # WS.Second) wss
+
+testSelfConversationOtherUser :: TestM ()
+testSelfConversationOtherUser = do
+  users@[_alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ uploadNewKeyPackage bob1
+    void $ setupMLSSelfGroup alice1
+    commit <- createAddCommit alice1 [bob]
+    mlsBracket [alice1, bob1] $ \wss -> do
+      postMessage (ciUser (mpSender commit)) (mpMessage commit)
+        !!! do
+          const 403 === statusCode
+          const (Just "invalid-op") === fmap Wai.label . responseJsonError
+      WS.assertNoEvent (1 # WS.Second) wss
+
+testSelfConversationLeave :: TestM ()
+testSelfConversationLeave = do
+  alice <- randomQualifiedUser
+  runMLSTest $ do
+    clients@(creator : others) <- traverse createMLSClient (replicate 3 alice)
+    traverse_ uploadNewKeyPackage others
+    (_, qcnv) <- setupMLSSelfGroup creator
+    void $ createAddCommit creator [alice] >>= sendAndConsumeCommit
+    mlsBracket clients $ \wss -> do
+      liftTest $
+        deleteMemberQualified (qUnqualified alice) alice qcnv
+          !!! do
+            const 403 === statusCode
+            const (Just "invalid-op") === fmap Wai.label . responseJsonError
+      WS.assertNoEvent (1 # WS.Second) wss

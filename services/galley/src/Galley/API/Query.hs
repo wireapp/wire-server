@@ -90,10 +90,9 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
-import Wire.API.Conversation (Access (CodeAccess), Conversation, ConversationCoverView (..), ConversationList (ConversationList), ConversationMetadata, convHasMore, convList)
+import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
