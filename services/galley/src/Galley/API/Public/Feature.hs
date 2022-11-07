@@ -23,7 +23,7 @@ import Galley.App
 import Galley.Cassandra.TeamFeatures
 import Imports
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Team.Feature
 
 featureAPI :: API FeatureAPI GalleyEffects

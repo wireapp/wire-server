@@ -20,7 +20,7 @@ module Galley.API.Public.Bot where
 import Galley.API.Update
 import Galley.App
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Bot
 
 botAPI :: API BotAPI GalleyEffects
 botAPI = mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified

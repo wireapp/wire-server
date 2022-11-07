@@ -24,7 +24,7 @@ import Galley.API.Update
 import Galley.App
 import Galley.Cassandra.TeamFeatures
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Conversation
 
 conversationAPI :: API ConversationAPI GalleyEffects
 conversationAPI =

@@ -15,16 +15,32 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.Messaging where
+module Wire.API.Routes.Public.Galley.Bot where
 
-import Galley.API.Update
-import Galley.App
-import Wire.API.Routes.API
+import Servant hiding (WithStatus)
+import Servant.Swagger.Internal.Orphans ()
+import Wire.API.Error
+import Wire.API.Error.Galley
+import Wire.API.Message
+import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Messaging
 
-messagingAPI :: API MessagingAPI GalleyEffects
-messagingAPI =
-  mkNamedAPI @"post-otr-message-unqualified" postOtrMessageUnqualified
-    <@> mkNamedAPI @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
-    <@> mkNamedAPI @"post-proteus-message" postProteusMessage
-    <@> mkNamedAPI @"post-proteus-broadcast" postProteusBroadcast
+type BotAPI =
+  Named
+    "post-bot-message-unqualified"
+    ( ZBot
+        :> ZConversation
+        :> CanThrow 'ConvNotFound
+        :> "bot"
+        :> "messages"
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
+        :> ReqBody '[JSON] NewOtrMessage
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses ClientMismatch)
+             (PostOtrResponse ClientMismatch)
+    )

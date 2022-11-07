@@ -20,7 +20,7 @@ module Galley.API.Public.TeamConversation where
 import Galley.API.Teams
 import Galley.App
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.TeamConversation
 
 teamConversationAPI :: API TeamConversationAPI GalleyEffects
 teamConversationAPI =

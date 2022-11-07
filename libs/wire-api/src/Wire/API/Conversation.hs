@@ -104,9 +104,9 @@ import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
-import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range (Range, fromRange, rangedSchema)
+import Data.SOP
 import Data.Schema
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
@@ -121,6 +121,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
@@ -949,3 +950,10 @@ namespaceMLSSelfConv :: UUID.UUID
 namespaceMLSSelfConv =
   -- a V5 uuid created with the nil namespace
   fromJust . UUID.fromString $ "3eac2a2c-3850-510b-bd08-8a98e80dd4d9"
+
+--------------------------------------------------------------------------------
+-- MultiVerb instances
+
+instance AsHeaders '[ConvId] Conversation Conversation where
+  toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
+  fromHeaders = snd

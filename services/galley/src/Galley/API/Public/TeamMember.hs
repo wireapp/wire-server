@@ -21,7 +21,7 @@ import Galley.API.Teams
 import Galley.App
 import Galley.Cassandra.TeamFeatures
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.TeamMember
 
 teamMemberAPI :: API TeamMemberAPI GalleyEffects
 teamMemberAPI =

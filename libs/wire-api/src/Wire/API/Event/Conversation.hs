@@ -73,6 +73,7 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
+import Data.SOP
 import Data.Schema
 import qualified Data.Swagger as S
 import Data.Time
@@ -83,6 +84,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..))
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..))
+import Wire.API.Routes.MultiVerb
 import Wire.API.User (QualifiedUserIdList (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -413,3 +415,17 @@ instance ToJSON Event where
 
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
+
+--------------------------------------------------------------------------------
+-- MultiVerb instances
+
+instance
+  (ResponseType r1 ~ ConversationCode, ResponseType r2 ~ Event) =>
+  AsUnion '[r1, r2] AddCodeResult
+  where
+  toUnion (CodeAlreadyExisted c) = Z (I c)
+  toUnion (CodeAdded e) = S (Z (I e))
+
+  fromUnion (Z (I c)) = CodeAlreadyExisted c
+  fromUnion (S (Z (I e))) = CodeAdded e
+  fromUnion (S (S x)) = case x of {}

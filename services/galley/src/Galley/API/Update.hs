@@ -128,7 +128,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Provider.Service (ServiceRef)
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature hiding (setStatus)

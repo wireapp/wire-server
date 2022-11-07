@@ -15,12 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.CustomBackend where
+module Wire.API.Routes.Public.Galley.CustomBackend where
 
-import Galley.API.CustomBackend
-import Galley.App
-import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley.CustomBackend
+import Data.Domain
+import Servant hiding (WithStatus)
+import Servant.Swagger.Internal.Orphans ()
+import Wire.API.CustomBackend
+import Wire.API.Error
+import Wire.API.Error.Galley
+import Wire.API.Routes.Named
 
-customBackendAPI :: API CustomBackendAPI GalleyEffects
-customBackendAPI = mkNamedAPI @"get-custom-backend-by-domain" getCustomBackendByDomain
+type CustomBackendAPI =
+  Named
+    "get-custom-backend-by-domain"
+    ( Summary "Shows information about custom backends related to a given email domain"
+        :> CanThrow 'CustomBackendNotFound
+        :> "custom-backend"
+        :> "by-domain"
+        :> Capture' '[Description "URL-encoded email domain"] "domain" Domain
+        :> Get '[JSON] CustomBackend
+    )

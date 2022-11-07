@@ -20,7 +20,7 @@ module Galley.API.Public.MLS where
 import Galley.API.MLS
 import Galley.App
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.MLS
 
 mlsAPI :: API MLSAPI GalleyEffects
 mlsAPI =

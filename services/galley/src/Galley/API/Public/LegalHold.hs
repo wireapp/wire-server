@@ -21,7 +21,7 @@ import Galley.API.LegalHold
 import Galley.App
 import Galley.Cassandra.TeamFeatures
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.LegalHold
 
 legalHoldAPI :: API LegalHoldAPI GalleyEffects
 legalHoldAPI =

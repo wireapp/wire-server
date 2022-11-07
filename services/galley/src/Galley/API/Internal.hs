@@ -103,7 +103,8 @@ import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Conversation
+import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member

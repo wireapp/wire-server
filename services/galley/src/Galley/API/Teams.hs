@@ -135,14 +135,14 @@ import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
 import qualified Wire.API.Team as Public
 import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Feature
-import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberOptPerms, TeamMembersPage (..), TeamMembersPagingState, hardTruncationLimit, invitation, nPermissions, nUserId, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMemberPagingState, teamMembers, tmdAuthPassword, userId)
+import Wire.API.Team.Member
 import qualified Wire.API.Team.Member as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
 import Wire.API.Team.Role
