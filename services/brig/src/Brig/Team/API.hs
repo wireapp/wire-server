@@ -92,7 +92,9 @@ servantAPI ::
      ]
     r =>
   ServerT TeamsAPI (Handler r)
-servantAPI = Named @"send-team-invitation" createInvitationPublicH
+servantAPI =
+  Named @"send-team-invitation" createInvitationPublicH
+    :<|> Named @"get-team-invitations" listInvitations
 
 routesPublic ::
   Members
@@ -102,25 +104,6 @@ routesPublic ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
-  get "/teams/:tid/invitations" (continue listInvitationsH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-      .&. opt (query "start")
-      .&. def (unsafeRange 100) (query "size")
-  document "GET" "listTeamInvitations" $ do
-    Doc.summary "List the sent team invitations"
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.parameter Doc.Query "start" Doc.string' $ do
-      Doc.description "Invitation id to start from (ascending)."
-      Doc.optional
-    Doc.parameter Doc.Query "size" Doc.int32' $ do
-      Doc.description "Number of results to return (default 100, max 500)."
-      Doc.optional
-    Doc.returns (Doc.ref Public.modelTeamInvitationList)
-    Doc.response 200 "List of sent invitations" Doc.end
-
   get "/teams/:tid/invitations/:iid" (continue getInvitationH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -437,15 +420,11 @@ deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   lift $ wrapClient $ DB.deleteInvitation tid iid
 
-listInvitationsH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> (Handler r) Response
-listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
-  json <$> listInvitations uid tid start size
-
-listInvitations :: Members '[GalleyProvider] r => UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
-listInvitations uid tid start size = do
+listInvitations :: Members '[GalleyProvider] r => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
+listInvitations uid tid start mSize = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
-  rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start size
+  rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start (fromMaybe (unsafeRange 100) mSize)
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitationH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response

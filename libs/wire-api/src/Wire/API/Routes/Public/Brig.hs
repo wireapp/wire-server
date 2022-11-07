@@ -1341,3 +1341,18 @@ type TeamsAPI =
                  (Respond 201 "Invitation was created and sent." Invitation)
              )
     )
+    :<|> Named
+           "get-team-invitations"
+           ( Summary "List the sent team invitations"
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> QueryParam' '[Optional, Strict, Description "Invitation id to start from (ascending)."] "start" InvitationId
+               :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)."] "size" (Range 1 500 Int32)
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "List of sent invitations" InvitationList)
+           )
