@@ -1,0 +1,1 @@
+Nix-created docker images: add some debugging tools in the containers, and add 'make build-image-<packagename>' for convenience
