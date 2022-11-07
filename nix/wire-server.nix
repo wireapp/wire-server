@@ -123,7 +123,6 @@ let lib = pkgs.lib;
       ];
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf mls-test-cli;
-      openssl = openssl_1_1;
     });
 
     executables = hself: hsuper:
