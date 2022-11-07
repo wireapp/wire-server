@@ -66,23 +66,24 @@ module Wire.API.Call.Config
     isTcp,
     isTls,
     limitServers,
-
-    -- * Swagger
-    modelRtcConfiguration,
-    modelRtcIceServer,
   )
 where
 
 import Control.Applicative (optional)
-import Control.Lens hiding ((.=))
-import Data.Aeson hiding ((<?>))
-import Data.Attoparsec.Text hiding (parse)
+import Control.Lens hiding (element, enum, (.=))
+import qualified Data.Aeson as A hiding ((<?>))
+import qualified Data.Aeson.Types as A
+import Data.Attoparsec.Text hiding (Parser, parse)
+import qualified Data.Attoparsec.Text as Text
 import Data.ByteString.Builder
+import Data.ByteString.Conversion (toByteString)
 import qualified Data.ByteString.Conversion as BC
 import qualified Data.IP as IP
 import Data.List.NonEmpty (NonEmpty)
 import Data.Misc (HttpsUrl (..), IpAddr (IpAddr), Port (..))
-import qualified Data.Swagger.Build.Api as Doc
+import Data.Schema
+import Data.String.Conversions (cs)
+import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
@@ -110,6 +111,7 @@ data RTCConfiguration = RTCConfiguration
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RTCConfiguration)
 
 rtcConfiguration ::
   NonEmpty RTCIceServer ->
@@ -119,35 +121,18 @@ rtcConfiguration ::
   RTCConfiguration
 rtcConfiguration = RTCConfiguration
 
-modelRtcConfiguration :: Doc.Model
-modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
-  Doc.description "A subset of the WebRTC 'RTCConfiguration' dictionary"
-  Doc.property "ice_servers" (Doc.array (Doc.ref modelRtcIceServer)) $
-    Doc.description "Array of 'RTCIceServer' objects"
-  Doc.property "sft_servers" (Doc.array (Doc.ref modelRtcSftServer)) $
-    Doc.description "Array of 'SFTServer' objects (optional)"
-  Doc.property "ttl" Doc.int32' $
-    Doc.description "Number of seconds after which the configuration should be refreshed (advisory)"
-  Doc.property "sft_servers_all" (Doc.array (Doc.ref modelRtcSftServerUrl)) $
-    Doc.description "Array of all SFT servers"
-
-instance ToJSON RTCConfiguration where
-  toJSON (RTCConfiguration srvs sfts ttl all_servers) =
-    object
-      ( [ "ice_servers" .= srvs,
-          "ttl" .= ttl
-        ]
-          <> ["sft_servers" .= sfts | isJust sfts]
-          <> ["sft_servers_all" .= all_servers | isJust all_servers]
-      )
-
-instance FromJSON RTCConfiguration where
-  parseJSON = withObject "RTCConfiguration" $ \o ->
-    RTCConfiguration
-      <$> o .: "ice_servers"
-      <*> o .:? "sft_servers"
-      <*> o .: "ttl"
-      <*> o .:? "sft_servers_all"
+instance ToSchema RTCConfiguration where
+  schema =
+    objectWithDocModifier "RTCConfiguration" (description ?~ "A subset of the WebRTC 'RTCConfiguration' dictionary") $
+      RTCConfiguration
+        <$> _rtcConfIceServers
+          .= fieldWithDocModifier "ice_servers" (description ?~ "Array of 'RTCIceServer' objects") (nonEmptyArray schema)
+        <*> _rtcConfSftServers
+          .= maybe_ (optFieldWithDocModifier "sft_servers" (description ?~ "Array of 'SFTServer' objects (optional)") (nonEmptyArray schema))
+        <*> _rtcConfTTL
+          .= fieldWithDocModifier "ttl" (description ?~ "Number of seconds after which the configuration should be refreshed (advisory)") schema
+        <*> _rtcConfSftServersAll
+          .= maybe_ (optFieldWithDocModifier "sft_servers_all" (description ?~ "Array of all SFT servers") (array schema))
 
 --------------------------------------------------------------------------------
 -- SFTServer
@@ -157,33 +142,21 @@ newtype SFTServer = SFTServer
   }
   deriving stock (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform SFTServer)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema SFTServer)
 
-instance ToJSON SFTServer where
-  toJSON (SFTServer url) =
-    object
-      [ "urls" .= [url]
-      ]
-
-instance FromJSON SFTServer where
-  parseJSON = withObject "SFTServer" $ \o ->
-    o .: "urls" >>= \case
-      [url] -> pure $ SFTServer url
-      xs -> fail $ "SFTServer can only have exactly one URL, found " <> show (length xs)
+instance ToSchema SFTServer where
+  schema =
+    objectWithDocModifier "SftServer" (description ?~ "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers") $
+      SFTServer
+        <$> (pure . _sftURL)
+          .= fieldWithDocModifier "urls" (description ?~ "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'") (withParser (array schema) p)
+    where
+      p :: [HttpsUrl] -> A.Parser HttpsUrl
+      p [url] = pure url
+      p xs = fail $ "SFTServer can only have exactly one URL, found " <> show (length xs)
 
 sftServer :: HttpsUrl -> SFTServer
 sftServer = SFTServer
-
-modelRtcSftServer :: Doc.Model
-modelRtcSftServer = Doc.defineModel "RTC SFT Server" $ do
-  Doc.description "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers"
-  Doc.property "urls" (Doc.array Doc.string') $
-    Doc.description "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'"
-
-modelRtcSftServerUrl :: Doc.Model
-modelRtcSftServerUrl = Doc.defineModel "RTC SFT Server URL" $ do
-  Doc.description "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers"
-  Doc.property "urls" (Doc.array Doc.string') $
-    Doc.description "Array containing exactly one SFT server URL"
 
 --------------------------------------------------------------------------------
 -- RTCIceServer
@@ -198,31 +171,21 @@ data RTCIceServer = RTCIceServer
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCIceServer)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RTCIceServer)
 
 rtcIceServer :: NonEmpty TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
 rtcIceServer = RTCIceServer
 
-modelRtcIceServer :: Doc.Model
-modelRtcIceServer = Doc.defineModel "RTCIceServer" $ do
-  Doc.description "A subset of the WebRTC 'RTCIceServer' object"
-  Doc.property "urls" (Doc.array Doc.string') $
-    Doc.description "Array of TURN server addresses of the form 'turn:<addr>:<port>'"
-  Doc.property "username" Doc.string' $
-    Doc.description "Username to use for authenticating against the given TURN servers"
-  Doc.property "credential" Doc.string' $
-    Doc.description "Password to use for authenticating against the given TURN servers"
-
-instance ToJSON RTCIceServer where
-  toJSON (RTCIceServer urls name cred) =
-    object
-      [ "urls" .= urls,
-        "username" .= name,
-        "credential" .= cred
-      ]
-
-instance FromJSON RTCIceServer where
-  parseJSON = withObject "RTCIceServer" $ \o ->
-    RTCIceServer <$> o .: "urls" <*> o .: "username" <*> o .: "credential"
+instance ToSchema RTCIceServer where
+  schema =
+    objectWithDocModifier "RTCIceServer" (description ?~ "A subset of the WebRTC 'RTCIceServer' object") $
+      RTCIceServer
+        <$> _iceURLs
+          .= fieldWithDocModifier "urls" (description ?~ "Array of TURN server addresses of the form 'turn:<addr>:<port>'") (nonEmptyArray schema)
+        <*> _iceUsername
+          .= fieldWithDocModifier "username" (description ?~ "Username to use for authenticating against the given TURN servers") schema
+        <*> _iceCredential
+          .= fieldWithDocModifier "credential" (description ?~ "Password to use for authenticating against the given TURN servers") schema
 
 --------------------------------------------------------------------------------
 -- TurnURI
@@ -244,6 +207,10 @@ data TurnURI = TurnURI
     _turiTransport :: Maybe Transport
   }
   deriving stock (Eq, Show, Ord, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TurnURI)
+
+instance ToSchema TurnURI where
+  schema = (cs . toByteString) .= parsedText "TurnURI" parseTurnURI
 
 turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
@@ -277,12 +244,6 @@ parseTurnURI = parseOnly (parser <* endOfInput)
       Just ok -> pure ok
       Nothing -> fail (err ++ " failed when parsing: " ++ show x)
 
-instance ToJSON TurnURI where
-  toJSON = String . TE.decodeUtf8 . BC.toByteString'
-
-instance FromJSON TurnURI where
-  parseJSON = withText "TurnURI" $ either fail pure . parseTurnURI
-
 instance Arbitrary TurnURI where
   arbitrary = (getGenericUniform <$> arbitrary) `QC.suchThat` (not . isIPv6)
     where
@@ -295,6 +256,7 @@ data Scheme
   | SchemeTurns
   deriving stock (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform Scheme)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Scheme)
 
 instance BC.ToByteString Scheme where
   builder SchemeTurn = "turn"
@@ -307,19 +269,63 @@ instance BC.FromByteString Scheme where
       "turns" -> pure SchemeTurns
       _ -> fail $ "Invalid turn scheme: " ++ show t
 
-instance ToJSON Scheme where
-  toJSON = String . TE.decodeUtf8 . BC.toByteString'
-
-instance FromJSON Scheme where
-  parseJSON =
-    withText "Scheme" $
-      either fail pure . BC.runParser BC.parser . TE.encodeUtf8
+instance ToSchema Scheme where
+  schema =
+    enum @Text "Scheme" $
+      mconcat
+        [ element "turn" SchemeTurn,
+          element "turns" SchemeTurns
+        ]
 
 data TurnHost
   = TurnHostIp IpAddr
   | TurnHostName Text
   deriving stock (Eq, Show, Ord, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TurnHost)
+
+instance ToSchema TurnHost where
+  schema = turnHostSchema
+
+data TurnHostTag = TurnHostIpTag | TurnHostNameTag
+  deriving (Eq, Enum, Bounded)
+
+tagSchema :: ValueSchema NamedSwaggerDoc TurnHostTag
+tagSchema =
+  enum @Text "TurnHostTag" $
+    mconcat
+      [ element "TurnHostIp" TurnHostIpTag,
+        element "TurnHostName" TurnHostNameTag
+      ]
+
+turnHostSchema :: ValueSchema NamedSwaggerDoc TurnHost
+turnHostSchema =
+  object "TurnHost" $
+    fromTagged
+      <$> toTagged
+        .= bind
+          (fst .= field "tag" tagSchema)
+          (snd .= fieldOver _1 "contents" untaggedSchema)
+  where
+    toTagged :: TurnHost -> (TurnHostTag, TurnHost)
+    toTagged d@(TurnHostIp _) = (TurnHostIpTag, d)
+    toTagged d@(TurnHostName _) = (TurnHostNameTag, d)
+
+    fromTagged :: (TurnHostTag, TurnHost) -> TurnHost
+    fromTagged = snd
+
+    untaggedSchema = dispatch $ \case
+      TurnHostIpTag -> tag _TurnHostIp (unnamed schema)
+      TurnHostNameTag -> tag _TurnHostName (unnamed schema)
+
+    _TurnHostIp :: Prism' TurnHost IpAddr
+    _TurnHostIp = prism' TurnHostIp $ \case
+      TurnHostIp a -> Just a
+      _ -> Nothing
+
+    _TurnHostName :: Prism' TurnHost Text
+    _TurnHostName = prism' TurnHostName $ \case
+      TurnHostName b -> Just b
+      _ -> Nothing
 
 instance BC.FromByteString TurnHost where
   parser = BC.parser >>= maybe (fail "Invalid turn host") pure . parseTurnHost
@@ -362,6 +368,7 @@ data Transport
   | TransportTCP
   deriving stock (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform Transport)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema Transport)
 
 instance BC.ToByteString Transport where
   builder TransportUDP = "udp"
@@ -374,13 +381,13 @@ instance BC.FromByteString Transport where
       "tcp" -> pure TransportTCP
       _ -> fail $ "Invalid turn transport: " ++ show t
 
-instance ToJSON Transport where
-  toJSON = String . TE.decodeUtf8 . BC.toByteString'
-
-instance FromJSON Transport where
-  parseJSON =
-    withText "Transport" $
-      either fail pure . BC.runParser BC.parser . TE.encodeUtf8
+instance ToSchema Transport where
+  schema =
+    enum @Text "Transport" $
+      mconcat
+        [ element "udp" TransportUDP,
+          element "tcp" TransportTCP
+        ]
 
 --------------------------------------------------------------------------------
 -- TurnUsername
@@ -397,6 +404,7 @@ data TurnUsername = TurnUsername
     _tuRandom :: Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TurnUsername)
 
 -- note that the random value is not checked for well-formedness
 turnUsername :: POSIXTime -> Text -> TurnUsername
@@ -409,13 +417,14 @@ turnUsername expires rnd =
       _tuRandom = rnd
     }
 
-instance ToJSON TurnUsername where
-  toJSON = String . view utf8 . BC.toByteString'
+instance ToSchema TurnUsername where
+  schema = toText .= parsedText "" fromText
+    where
+      fromText :: Text -> Either String TurnUsername
+      fromText = parseOnly (parseTurnUsername <* endOfInput)
 
-instance FromJSON TurnUsername where
-  parseJSON =
-    withText "TurnUsername" $
-      either fail pure . parseOnly (parseTurnUsername <* endOfInput)
+      toText :: TurnUsername -> Text
+      toText = cs . toByteString
 
 instance BC.ToByteString TurnUsername where
   builder tu =
@@ -430,7 +439,7 @@ instance BC.ToByteString TurnUsername where
       <> shortByteString ".r="
       <> byteString (view (re utf8) (_tuRandom tu))
 
-parseTurnUsername :: Parser TurnUsername
+parseTurnUsername :: Text.Parser TurnUsername
 parseTurnUsername =
   TurnUsername
     <$> (string "d=" *> fmap (fromIntegral :: Word64 -> POSIXTime) decimal)
