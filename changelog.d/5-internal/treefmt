@@ -1,0 +1,1 @@
+Use treefmt to ensure consistent formatting of .nix files, use for shellcheck too (#2831)

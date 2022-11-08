@@ -108,7 +108,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all shellcheck check-local-nix-derivations
+lint-all: formatc hlint-check-all check-local-nix-derivations treefmt
 
 .PHONY: hlint-check-all
 hlint-check-all:
@@ -171,9 +171,9 @@ add-license:
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
-.PHONY: shellcheck
-shellcheck:
-	./hack/bin/shellcheck.sh
+.PHONY: treefmt
+treefmt:
+	treefmt
 
 #################################
 ## docker targets
