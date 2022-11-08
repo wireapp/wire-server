@@ -10,8 +10,6 @@
 , dumb-init
 , cacert
 , bashInteractive
-, openssl
-, openssl_1_1
 , lib
 , makeWrapper
 , writers

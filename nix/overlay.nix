@@ -67,7 +67,6 @@ self: super: {
   };
 
   nginz = super.nginx.override {
-    openssl = super.openssl_1_1;
     modules = [
       self.nginxModules.vts
       self.nginxModules.moreheaders
