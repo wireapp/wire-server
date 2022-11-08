@@ -19,7 +19,7 @@ jobs:
          signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
      - name: Install treefmt and nixpkgs-fmt (without pulling in all of dev-env)
-       run: nix-env -if nix/default.nix -iA pkgs.treefmt pkgs.nixpkgs-fmt
+       run: nix-env -if nix/default.nix -iA pkgs.treefmt pkgs.nixpkgs-fmt pkgs.shellcheck
      - name: Run treefmt
        run: treefmt
 
