@@ -1,0 +1,5 @@
+[formatter.nix]
+command = "nixpkgs-fmt"
+includes = ["*.nix"]
+excludes = [
+]
