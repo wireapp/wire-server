@@ -1,1 +1,0 @@
-Do not expose swagger-ui on prod systems (to minimize attack surface)

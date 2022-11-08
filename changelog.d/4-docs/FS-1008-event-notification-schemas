@@ -1,1 +1,0 @@
-tentatively allow `GET /api/event-notification-schemas` for json schemas of server-initiated events (missing pieces tracked in https://wearezeta.atlassian.net/browse/FS-1008)
