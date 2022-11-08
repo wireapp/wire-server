@@ -63,8 +63,6 @@
 
 * Convert brig's auth endpoints to servant (#2750)
 
-* bump nginx-module-vts from v0.1.15 to v0.2.1 (#2793)
-
 * Remove deprecated table for storing scim external_ids.
 
   Data has been migrated away in [release 2021-03-21 (Chart Release 2.103.0)](https://github.com/wireapp/wire-server/releases/tag/v2021-03-21) (see `/services/spar/migrate-data/src/Spar/DataMigration/V1_ExternalIds.hs`); last time it has been touched in production is before upgrade to [release 2021-03-23 (Chart Release 2.104.0)](https://github.com/wireapp/wire-server/releases/tag/v2021-03-23). (#2768)
