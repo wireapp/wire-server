@@ -27,6 +27,39 @@ if [[ "${DOCKER_USER+x}" != "" ]]; then
     credsArgs="--dest-creds=$DOCKER_USER:$DOCKER_PASSWORD"
 fi
 
+# Retry a command with exponential backoff
+# quay.io sometimes rate-limits us, so try again.
+# Also, skopeo's retry logic doesn't properly work, look here if you want to see very badly written go code:
+# https://github.com/containers/skopeo/blob/869d496f185cc086f22d6bbb79bb57ac3a415617/vendor/github.com/containers/common/pkg/retry/retry.go#L52-L113
+function retry {
+    local maxAttempts=$1
+    local secondsDelay=1
+    local attemptCount=1
+    local output=
+    shift 1
+
+    while [ $attemptCount -le "$maxAttempts" ]; do
+        output=$("$@")
+        local status=$?
+
+        if [ $status -eq 0 ]; then
+            break
+        fi
+
+        if [ $attemptCount -lt "$maxAttempts" ]; then
+            echo "Command [$*] failed after attempt $attemptCount of $maxAttempts. Retrying in $secondsDelay second(s)." >&2
+            sleep $secondsDelay
+        elif [ $attemptCount -eq "$maxAttempts" ]; then
+            echo "Command [$*] failed after $attemptCount attempt(s)" >&2
+            return $status
+        fi
+        attemptCount=$((attemptCount + 1))
+        secondsDelay=$((secondsDelay * 2))
+    done
+
+    echo "$output"
+}
+
 tmp_link_store=$(mktemp -d)
 # Using dockerTools.streamLayeredImage outputs an executable which prints the
 # image tar on stdout when executed. This is done so we don't store large images
@@ -42,4 +75,4 @@ image_file="$tmp_link_store/image"
 repo=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
 printf "*** Uploading $image_file to %s:%s\n" "$repo" "$DOCKER_TAG"
 # shellcheck disable=SC2086
-skopeo --insecure-policy copy --retry-times 5 $credsArgs "docker-archive://$image_file" "docker://$repo:$DOCKER_TAG"
+retry 5 skopeo --insecure-policy copy --retry-times 5 $credsArgs "docker-archive://$image_file" "docker://$repo:$DOCKER_TAG"
