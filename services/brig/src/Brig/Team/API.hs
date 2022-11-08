@@ -63,7 +63,6 @@ import Network.Wai.Predicate hiding (and, result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
-import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy (Members)
 import Servant hiding (Handler, JSON, addHeader)
 import System.Logger (Msg)
@@ -97,6 +96,7 @@ servantAPI =
     :<|> Named @"get-team-invitations" listInvitations
     :<|> Named @"get-team-invitation" getInvitation
     :<|> Named @"delete-team-invitation" deleteInvitation
+    :<|> Named @"get-team-invitation-info" getInvitationByCode
 
 routesPublic ::
   Members
@@ -106,17 +106,6 @@ routesPublic ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
-  get "/teams/invitations/info" (continue getInvitationByCodeH) $
-    accept "application" "json"
-      .&. query "code"
-  document "GET" "getInvitationInfo" $ do
-    Doc.summary "Get invitation info given a code."
-    Doc.parameter Doc.Query "code" Doc.bytes' $
-      Doc.description "Invitation code"
-    Doc.returns (Doc.ref Public.modelTeamInvitation)
-    Doc.response 200 "Invitation successful." Doc.end
-    Doc.errorResponse (errorToWai @'E.InvalidInvitationCode)
-
   -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
   head "/teams/invitations/by-email" (continue headInvitationByEmailH) $
     accept "application" "json"
@@ -403,10 +392,6 @@ getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
   lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
-
-getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
-getInvitationByCodeH (_ ::: c) = do
-  json <$> getInvitationByCode c
 
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
