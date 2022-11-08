@@ -89,6 +89,7 @@ tests conf m n b c g aws = do
       "team"
       [ testGroup "invitation" $
           [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b,
+            test m "get /teams/:tid/invitations/:iid - 200" $ testGetInvitation b,
             test m "post /teams/:tid/invitations - invitation url" $ testInvitationUrl conf b,
             test m "post /teams/:tid/invitations - no invitation url" $ testNoInvitationUrl conf b,
             test m "post /teams/:tid/invitations - email lookup" $ testInvitationEmailLookup b,
@@ -208,6 +209,14 @@ assertInvitationResponseInvariants invReq inv = do
   irInviteeName invReq @=? inInviteeName inv
   irInviteePhone invReq @=? inInviteePhone inv
   irInviteeEmail invReq @=? inInviteeEmail inv
+
+testGetInvitation :: Brig -> Http ()
+testGetInvitation brig = do
+  (inviter, tid) <- createUserWithTeam brig
+  invite <- stdInvitationRequest <$> randomEmail
+  inv1 <- responseJsonError =<< postInvitation brig tid inviter invite <!! do const 201 === statusCode
+  inv2 <- responseJsonError =<< getInvitation brig tid (inInvitation inv1) inviter <!! do const 200 === statusCode
+  liftIO $ inv1 @=? inv2
 
 -- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
 -- inlined into Brig.
@@ -472,7 +481,7 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
         inv <- responseJsonError =<< postInvitation brig tid inviter invite
         let invmeta = Just (inviter, inCreatedAt inv)
         Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-        Just invitation <- getInvitation brig inviteeCode
+        Just invitation <- getInvitationInfo brig inviteeCode
         rsp2 <-
           post
             ( brig
@@ -747,7 +756,7 @@ testInvitationInfo brig = do
   let invite = stdInvitationRequest email
   inv <- responseJsonError =<< postInvitation brig tid uid invite
   Just invCode <- getInvitationCode brig tid (inInvitation inv)
-  Just invitation <- getInvitation brig invCode
+  Just invitation <- getInvitationInfo brig invCode
   liftIO $ assertEqual "Invitations differ" inv invitation
 
 testInvitationInfoBadCode :: Brig -> Http ()

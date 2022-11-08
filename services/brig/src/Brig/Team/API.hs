@@ -95,6 +95,7 @@ servantAPI ::
 servantAPI =
   Named @"send-team-invitation" createInvitationPublicH
     :<|> Named @"get-team-invitations" listInvitations
+    :<|> Named @"get-team-invitation" getInvitation
 
 routesPublic ::
   Members
@@ -104,20 +105,6 @@ routesPublic ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
-  get "/teams/:tid/invitations/:iid" (continue getInvitationH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-      .&. capture "iid"
-  document "GET" "getInvitation" $ do
-    Doc.summary "Get a pending team invitation by ID."
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.parameter Doc.Path "id" Doc.bytes' $
-      Doc.description "Team Invitation ID"
-    Doc.returns (Doc.ref Public.modelTeamInvitation)
-    Doc.response 200 "Invitation" Doc.end
-
   delete "/teams/:tid/invitations/:iid" (continue deleteInvitationH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -426,13 +413,6 @@ listInvitations uid tid start mSize = do
   showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
   rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start (fromMaybe (unsafeRange 100) mSize)
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
-
-getInvitationH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
-getInvitationH (_ ::: uid ::: tid ::: iid) = do
-  inv <- getInvitation uid tid iid
-  pure $ case inv of
-    Just i -> json i
-    Nothing -> setStatus status404 empty
 
 getInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do

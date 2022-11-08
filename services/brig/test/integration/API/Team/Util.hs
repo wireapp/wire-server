@@ -92,7 +92,8 @@ createPopulatedBindingTeamWithNames brig names = do
     inv <-
       responseJsonError
         =<< postInvitation brig tid (userId inviter) invite
-          <!! statusCode === const 201
+          <!! statusCode
+            === const 201
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <-
       post
@@ -101,7 +102,8 @@ createPopulatedBindingTeamWithNames brig names = do
             . contentJson
             . body (acceptWithName name inviteeEmail inviteeCode)
         )
-        <!! const 201 === statusCode
+        <!! const 201
+          === statusCode
     let invitee :: User = responseJsonUnsafe rsp2
     do
       let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
@@ -182,7 +184,8 @@ inviteAndRegisterUser u tid brig = do
   inv <-
     responseJsonError
       =<< postInvitation brig tid u invite
-        <!! statusCode === const 201
+        <!! statusCode
+          === const 201
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rspInvitee <-
     post
@@ -350,14 +353,18 @@ register' e t c brig =
           )
     )
 
-getInvitation :: Brig -> InvitationCode -> (MonadIO m, MonadHttp m) => m (Maybe Invitation)
-getInvitation brig c = do
+getInvitationInfo :: Brig -> InvitationCode -> (MonadIO m, MonadHttp m) => m (Maybe Invitation)
+getInvitationInfo brig c = do
   r <-
     get $
       brig
         . path "/teams/invitations/info"
         . queryItem "code" (toByteString' c)
   pure . decode . fromMaybe "" $ responseBody r
+
+getInvitation :: Brig -> TeamId -> InvitationId -> UserId -> Http ResponseLBS
+getInvitation brig tid iid uid =
+  get (brig . paths ["teams", toByteString' tid, "invitations", toByteString' iid] . zUser uid)
 
 postInvitation ::
   (MonadIO m, MonadHttp m, HasCallStack) =>
