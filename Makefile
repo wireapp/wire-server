@@ -178,6 +178,16 @@ shellcheck:
 #################################
 ## docker targets
 
+.PHONY: build-image-%
+build-image-%:
+	nix-build ./nix -A wireServer.imagesNoDocs.$(*) && \
+	./result | docker load | tee /tmp/imageName-$(*) && \
+	imageName=$$(grep quay.io /tmp/imageName-$(*) | awk '{print $$3}') && \
+	echo 'You can run your image locally using' && \
+	echo "  docker run -it --entrypoint bash $$imageName" && \
+	echo 'or upload it using' && \
+	echo "  docker push $$imageName"
+
 .PHONY: upload-images
 upload-images:
 	./hack/bin/upload-images.sh imagesNoDocs

@@ -194,6 +194,20 @@ let lib = pkgs.lib;
       galley-integration= [pkgs.mls-test-cli];
     };
 
+    # useful to poke around a container during a 'kubectl exec'
+    debugUtils = with pkgs; [
+      bashInteractive
+      gnugrep
+      coreutils
+      dig
+      curl
+      less
+      gnutar
+      gzip
+      openssl
+      which
+    ];
+
     images = localMods@{enableOptimization, enableDocs, enableTests}:
       attrsets.mapAttrs (execName: drv:
         pkgs.dockerTools.streamLayeredImage {
@@ -202,12 +216,10 @@ let lib = pkgs.lib;
           contents = [
             pkgs.cacert
             pkgs.iana-etc
-            pkgs.coreutils
-            pkgs.bashInteractive
             pkgs.dumb-init
             drv
             tmpDir
-          ] ++ pkgs.lib.optionals (builtins.hasAttr execName extraContents) (builtins.getAttr execName extraContents);
+          ] ++ debugUtils ++ pkgs.lib.optionals (builtins.hasAttr execName extraContents) (builtins.getAttr execName extraContents);
           # Any mkdir running in this step won't actually make it to the image,
           # hence we use the tmpDir derivation in the contents
           fakeRootCommands = ''
