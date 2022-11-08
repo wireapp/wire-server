@@ -1,6 +1,3 @@
-[submodule "services/nginz/third_party/headers-more-nginx-module"]
-	path = services/nginz/third_party/headers-more-nginx-module
-	url = https://github.com/openresty/headers-more-nginx-module.git 
 [submodule "libs/wire-message-proto-lens/generic-message-proto"]
 	path = libs/wire-message-proto-lens/generic-message-proto
 	url = https://github.com/wireapp/generic-message-proto
