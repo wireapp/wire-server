@@ -96,6 +96,7 @@ servantAPI =
   Named @"send-team-invitation" createInvitationPublicH
     :<|> Named @"get-team-invitations" listInvitations
     :<|> Named @"get-team-invitation" getInvitation
+    :<|> Named @"delete-team-invitation" deleteInvitation
 
 routesPublic ::
   Members
@@ -105,19 +106,6 @@ routesPublic ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
-  delete "/teams/:tid/invitations/:iid" (continue deleteInvitationH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-      .&. capture "iid"
-  document "DELETE" "deleteInvitation" $ do
-    Doc.summary "Delete a pending invitation by ID."
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.parameter Doc.Path "iid" Doc.bytes' $
-      Doc.description "Team Invitation ID"
-    Doc.response 200 "Invitation deleted." Doc.end
-
   get "/teams/invitations/info" (continue getInvitationByCodeH) $
     accept "application" "json"
       .&. query "code"
@@ -397,10 +385,6 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
           inviteePhone
           timeout
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
-
-deleteInvitationH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
-deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
-  empty <$ deleteInvitation uid tid iid
 
 deleteInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do

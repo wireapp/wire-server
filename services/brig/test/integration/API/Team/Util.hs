@@ -366,6 +366,10 @@ getInvitation :: Brig -> TeamId -> InvitationId -> UserId -> Http ResponseLBS
 getInvitation brig tid iid uid =
   get (brig . paths ["teams", toByteString' tid, "invitations", toByteString' iid] . zUser uid)
 
+deleteInvitation :: Brig -> TeamId -> InvitationId -> UserId -> Http ()
+deleteInvitation brig tid iid uid =
+  delete (brig . paths ["teams", toByteString' tid, "invitations", toByteString' iid] . zUser uid) !!! const 200 === statusCode
+
 postInvitation ::
   (MonadIO m, MonadHttp m, HasCallStack) =>
   Brig ->

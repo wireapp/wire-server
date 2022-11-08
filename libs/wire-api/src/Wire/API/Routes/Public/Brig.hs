@@ -1373,3 +1373,14 @@ type TeamsAPI =
                      ]
                     (Maybe Invitation)
            )
+    :<|> Named
+           "delete-team-invitation"
+           ( Summary "Delete a pending team invitation by ID."
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> Capture "iid" InvitationId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Invitation deleted")
+           )

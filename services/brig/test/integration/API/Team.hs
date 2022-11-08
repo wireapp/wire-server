@@ -90,6 +90,7 @@ tests conf m n b c g aws = do
       [ testGroup "invitation" $
           [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b,
             test m "get /teams/:tid/invitations/:iid - 200" $ testGetInvitation b,
+            test m "delete /teams/:tid/invitations/:iid - 200" $ testDeleteInvitation b,
             test m "post /teams/:tid/invitations - invitation url" $ testInvitationUrl conf b,
             test m "post /teams/:tid/invitations - no invitation url" $ testNoInvitationUrl conf b,
             test m "post /teams/:tid/invitations - email lookup" $ testInvitationEmailLookup b,
@@ -217,6 +218,14 @@ testGetInvitation brig = do
   inv1 <- responseJsonError =<< postInvitation brig tid inviter invite <!! do const 201 === statusCode
   inv2 <- responseJsonError =<< getInvitation brig tid (inInvitation inv1) inviter <!! do const 200 === statusCode
   liftIO $ inv1 @=? inv2
+
+testDeleteInvitation :: Brig -> Http ()
+testDeleteInvitation brig = do
+  (inviter, tid) <- createUserWithTeam brig
+  invite <- stdInvitationRequest <$> randomEmail
+  iid <- inInvitation <$> (responseJsonError =<< postInvitation brig tid inviter invite <!! do const 201 === statusCode)
+  deleteInvitation brig tid iid inviter
+  getInvitation brig tid iid inviter !!! do const 404 === statusCode
 
 -- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
 -- inlined into Brig.
