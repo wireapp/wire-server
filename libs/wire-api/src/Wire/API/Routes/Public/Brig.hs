@@ -1397,3 +1397,17 @@ type TeamsAPI =
                     '[JSON]
                     (Respond 200 "Invitation info" Invitation)
            )
+    -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
+    :<|> Named
+           "head-team-invitations"
+           ( Summary "Check if there is an invitation pending given an email address."
+               :> "teams"
+               :> "invitations"
+               :> "by-email"
+               :> QueryParam' '[Required, Strict, Description "Email address"] "email" Email
+               :> MultiVerb
+                    'HEAD
+                    '[JSON]
+                    HeadInvitationsResponses
+                    HeadInvitationByEmailResult
+           )

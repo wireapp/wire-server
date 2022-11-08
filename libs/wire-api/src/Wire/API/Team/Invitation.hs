@@ -22,6 +22,8 @@ module Wire.API.Team.Invitation
     Invitation (..),
     InvitationList (..),
     InvitationLocation (..),
+    HeadInvitationByEmailResult (..),
+    HeadInvitationsResponses,
   )
 where
 
@@ -30,12 +32,16 @@ import qualified Data.Aeson as A
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
+import Data.SOP
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text.Encoding as TE
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import URI.ByteString
+import Wire.API.Error
+import Wire.API.Error.Brig
+import Wire.API.Routes.MultiVerb
 import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User.Identity (Email, Phone)
 import Wire.API.User.Profile (Locale, Name)
@@ -134,6 +140,27 @@ instance FromHttpApiData InvitationLocation where
 instance ToHttpApiData InvitationLocation where
   toUrlPiece = TE.decodeUtf8 . toHeader
   toHeader = unInvitationLocation
+
+data HeadInvitationByEmailResult
+  = InvitationByEmail
+  | InvitationByEmailNotFound
+  | InvitationByEmailMoreThanOne
+
+type HeadInvitationsResponses =
+  '[ ErrorResponse 'PendingInvitationNotFound,
+     ErrorResponse 'ConflictingInvitations,
+     RespondEmpty 200 "Pending invitation exists."
+   ]
+
+instance AsUnion HeadInvitationsResponses HeadInvitationByEmailResult where
+  toUnion InvitationByEmailNotFound = Z (I (dynError @(MapError 'PendingInvitationNotFound)))
+  toUnion InvitationByEmailMoreThanOne = S (Z (I (dynError @(MapError 'ConflictingInvitations))))
+  toUnion InvitationByEmail = S (S (Z (I ())))
+
+  fromUnion (Z (I _)) = InvitationByEmailNotFound
+  fromUnion (S (Z (I _))) = InvitationByEmailMoreThanOne
+  fromUnion (S (S (Z (I ())))) = InvitationByEmail
+  fromUnion (S (S (S x))) = case x of {}
 
 --------------------------------------------------------------------------------
 -- InvitationList

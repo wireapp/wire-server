@@ -77,6 +77,8 @@ data BrigError
   | ResetPasswordMustDiffer
   | NoEmail
   | NotificationNotFound
+  | PendingInvitationNotFound
+  | ConflictingInvitations
 
 instance KnownError (MapError e) => IsSwaggerError (e :: BrigError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -223,3 +225,7 @@ type instance MapError 'ResetPasswordMustDiffer = 'StaticError 409 "password-mus
 type instance MapError 'NoEmail = 'StaticError 403 "no-email" "This operation requires the user to have a verified email address."
 
 type instance MapError 'NotificationNotFound = 'StaticError 404 "not-found" "Notification not found."
+
+type instance MapError 'PendingInvitationNotFound = 'StaticError 404 "not-found" "No pending invitations exists."
+
+type instance MapError 'ConflictingInvitations = 'StaticError 409 "conflicting-invitations" "Multiple conflicting invitations to different teams exists."

@@ -97,6 +97,7 @@ servantAPI =
     :<|> Named @"get-team-invitation" getInvitation
     :<|> Named @"delete-team-invitation" deleteInvitation
     :<|> Named @"get-team-invitation-info" getInvitationByCode
+    :<|> Named @"head-team-invitations" headInvitationByEmail
 
 routesPublic ::
   Members
@@ -106,19 +107,6 @@ routesPublic ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
-  -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
-  head "/teams/invitations/by-email" (continue headInvitationByEmailH) $
-    accept "application" "json"
-      .&. query "email"
-
-  document "HEAD" "headInvitationPending" $ do
-    Doc.summary "Check if there is an invitation pending given an email address."
-    Doc.parameter Doc.Query "email" Doc.bytes' $
-      Doc.description "Email address"
-    Doc.response 200 "Pending invitation exists." Doc.end
-    Doc.response 404 "No pending invitations exists." Doc.end
-    Doc.response 409 "Multiple conflicting invitations to different teams exists." Doc.end
-
   get "/teams/:tid/size" (continue teamSizePublicH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -398,13 +386,14 @@ getInvitationByCode c = do
   inv <- lift . wrapClient $ DB.lookupInvitationByCode HideInvitationUrl c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
 
-headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
-headInvitationByEmailH (_ ::: e) = do
-  inv <- lift $ wrapClient $ DB.lookupInvitationInfoByEmail e
-  pure $ case inv of
-    DB.InvitationByEmail _ -> setStatus status200 empty
-    DB.InvitationByEmailNotFound -> setStatus status404 empty
-    DB.InvitationByEmailMoreThanOne -> setStatus status409 empty
+headInvitationByEmail :: Email -> (Handler r) Public.HeadInvitationByEmailResult
+headInvitationByEmail e = do
+  lift $
+    wrapClient $
+      DB.lookupInvitationInfoByEmail e <&> \case
+        DB.InvitationByEmail _ -> Public.InvitationByEmail
+        DB.InvitationByEmailNotFound -> Public.InvitationByEmailNotFound
+        DB.InvitationByEmailMoreThanOne -> Public.InvitationByEmailMoreThanOne
 
 -- | FUTUREWORK: This should also respond with status 409 in case of
 -- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
