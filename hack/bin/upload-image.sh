@@ -17,8 +17,8 @@ readonly DOCKER_TAG=${DOCKER_TAG:?"Please set the DOCKER_TAG env variable"}
 readonly usage="USAGE: $0 <image_attr>"
 readonly IMAGE_ATTR=${1:?$usage}
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &>/dev/null && pwd)
 readonly SCRIPT_DIR ROOT_DIR
 
 credsArgs=""
@@ -38,8 +38,8 @@ tmp_link_store=$(mktemp -d)
 image_stream_file="$tmp_link_store/image_stream"
 nix -v --show-trace -L build -f "$ROOT_DIR/nix" "$IMAGE_ATTR" -o "$image_stream_file"
 image_file="$tmp_link_store/image"
-"$image_stream_file" > "$image_file"
+"$image_stream_file" >"$image_file"
 repo=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
-printf "*** Uploading $image_file to %s:%s" "$repo" "$DOCKER_TAG"
+printf "*** Uploading $image_file to %s:%s\n" "$repo" "$DOCKER_TAG"
 # shellcheck disable=SC2086
 skopeo --insecure-policy copy --retry-times 5 $credsArgs "docker-archive://$image_file" "docker://$repo:$DOCKER_TAG"

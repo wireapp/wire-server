@@ -37,6 +37,8 @@ http {
   types_hash_max_size 2048;
   map_hash_bucket_size 128;
 
+  variables_hash_bucket_size 256;
+
   server_names_hash_bucket_size 64;
   server_name_in_redirect off;
 
