@@ -285,8 +285,10 @@ let lib = pkgs.lib;
       pkgs.hlint
       pkgs.jq
       pkgs.kubectl
+      pkgs.nixpkgs-fmt
       pkgs.ormolu
       pkgs.shellcheck
+      pkgs.treefmt
       (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
     ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
       pkgs.skopeo
