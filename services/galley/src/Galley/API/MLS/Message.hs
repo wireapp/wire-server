@@ -136,14 +136,15 @@ postMLSMessageFromLocalUserV1 ::
       r
   ) =>
   Local UserId ->
+  Maybe ClientId ->
   ConnId ->
   RawMLS SomeMessage ->
   Sem r [Event]
-postMLSMessageFromLocalUserV1 lusr conn smsg = case rmValue smsg of
+postMLSMessageFromLocalUserV1 lusr mc conn smsg = case rmValue smsg of
   SomeMessage _ msg -> do
     qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
     map lcuEvent
-      <$> postMLSMessage lusr (qUntagged lusr) qcnv (Just conn) smsg
+      <$> postMLSMessage lusr (qUntagged lusr) mc qcnv (Just conn) smsg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -169,13 +170,14 @@ postMLSMessageFromLocalUser ::
       r
   ) =>
   Local UserId ->
+  Maybe ClientId ->
   ConnId ->
   RawMLS SomeMessage ->
   Sem r MLSMessageSendingStatus
-postMLSMessageFromLocalUser lusr conn msg = do
+postMLSMessageFromLocalUser lusr mc conn msg = do
   -- FUTUREWORK: Inline the body of 'postMLSMessageFromLocalUserV1' once version
   -- V1 is dropped
-  events <- postMLSMessageFromLocalUserV1 lusr conn msg
+  events <- postMLSMessageFromLocalUserV1 lusr mc conn msg
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t
 
@@ -199,14 +201,15 @@ postMLSCommitBundle ::
   ) =>
   Local x ->
   Qualified UserId ->
+  Maybe ClientId ->
   Qualified ConvId ->
   Maybe ConnId ->
   CommitBundle ->
   Sem r [LocalConversationUpdate]
-postMLSCommitBundle loc qusr qcnv conn rawBundle =
+postMLSCommitBundle loc qusr mc qcnv conn rawBundle =
   foldQualified
     loc
-    (postMLSCommitBundleToLocalConv qusr conn rawBundle)
+    (postMLSCommitBundleToLocalConv qusr mc conn rawBundle)
     (postMLSCommitBundleToRemoteConv loc qusr conn rawBundle)
     qcnv
 
@@ -228,15 +231,16 @@ postMLSCommitBundleFromLocalUser ::
       r
   ) =>
   Local UserId ->
+  Maybe ClientId ->
   ConnId ->
   CommitBundle ->
   Sem r MLSMessageSendingStatus
-postMLSCommitBundleFromLocalUser lusr conn bundle = do
+postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
   let msg = rmValue (cbCommitMsg bundle)
   qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
   events <-
     map lcuEvent
-      <$> postMLSCommitBundle lusr (qUntagged lusr) qcnv (Just conn) bundle
+      <$> postMLSCommitBundle lusr (qUntagged lusr) mc qcnv (Just conn) bundle
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t
 
@@ -258,17 +262,18 @@ postMLSCommitBundleToLocalConv ::
       r
   ) =>
   Qualified UserId ->
+  Maybe ClientId ->
   Maybe ConnId ->
   CommitBundle ->
   Local ConvId ->
   Sem r [LocalConversationUpdate]
-postMLSCommitBundleToLocalConv qusr conn bundle lcnv = do
+postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
   let lconv = qualifyAs lcnv conv
   cm <- lookupMLSClients lcnv
 
-  senderClient <- fmap ciClient <$> getSenderClient qusr SMLSPlainText msg
+  senderClient <- fmap ciClient <$> getSenderIdentity qusr mc SMLSPlainText msg
 
   events <- case msgPayload msg of
     CommitMessage commit ->
@@ -372,17 +377,18 @@ postMLSMessage ::
   ) =>
   Local x ->
   Qualified UserId ->
+  Maybe ClientId ->
   Qualified ConvId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Sem r [LocalConversationUpdate]
-postMLSMessage loc qusr qcnv con smsg = case rmValue smsg of
+postMLSMessage loc qusr mc qcnv con smsg = case rmValue smsg of
   SomeMessage tag msg -> do
-    mcid <- fmap ciClient <$> getSenderClient qusr tag msg
+    mSender <- fmap ciClient <$> getSenderIdentity qusr mc tag msg
     foldQualified
       loc
-      (postMLSMessageToLocalConv qusr mcid con smsg)
-      (postMLSMessageToRemoteConv loc qusr mcid con smsg)
+      (postMLSMessageToLocalConv qusr mSender con smsg)
+      (postMLSMessageToRemoteConv loc qusr mSender con smsg)
       qcnv
 
 -- Check that the MLS client who created the message belongs to the user who
@@ -400,7 +406,7 @@ getSenderClient ::
   Qualified UserId ->
   SWireFormatTag tag ->
   Message tag ->
-  Sem r (Maybe ClientIdentity)
+  Sem r (Maybe ClientId)
 getSenderClient _ SMLSCipherText _ = pure Nothing
 getSenderClient _ _ msg | msgEpoch msg == Epoch 0 = pure Nothing
 getSenderClient qusr SMLSPlainText msg = case msgSender msg of
@@ -410,7 +416,30 @@ getSenderClient qusr SMLSPlainText msg = case msgSender msg of
     cid <- derefKeyPackage ref
     when (fmap fst (cidQualifiedClient cid) /= qusr) $
       throwS @'MLSClientSenderUserMismatch
-    pure (Just cid)
+    pure (Just (ciClient cid))
+
+-- FUTUREWORK: once we can assume that the Z-Client header is present (i.e.
+-- when v2 is dropped), remove the Maybe in the return type.
+getSenderIdentity ::
+  ( Members
+      '[ ErrorS 'MLSKeyPackageRefNotFound,
+         ErrorS 'MLSClientSenderUserMismatch,
+         BrigAccess
+       ]
+      r
+  ) =>
+  Qualified UserId ->
+  Maybe ClientId ->
+  SWireFormatTag tag ->
+  Message tag ->
+  Sem r (Maybe ClientIdentity)
+getSenderIdentity qusr mc fmt msg = do
+  mSender <- getSenderClient qusr fmt msg
+  -- At this point, mc is the client ID of the request, while mSender is the
+  -- one contained in the message. We throw an error if the two don't match.
+  when (((==) <$> mc <*> mSender) == Just False) $
+    throwS @'MLSClientSenderUserMismatch
+  pure (mkClientIdentity qusr <$> mSender)
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
@@ -796,8 +825,7 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
               Nothing -> pure (pure ())
           Nothing -> pure (pure ()) -- ignore commits without update path
 
-    -- check all pending proposals are referenced in the commit. Skip the check
-    -- if this is an external commit.
+    -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposals groupId epoch
     let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
     unless (all (`Set.member` referencedProposals) allPendingProposals) $
