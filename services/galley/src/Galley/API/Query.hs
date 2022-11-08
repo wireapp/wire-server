@@ -50,6 +50,7 @@ module Galley.API.Query
     ensureGuestLinksEnabled,
     getConversationGuestLinksStatus,
     ensureConvAdmin,
+    getMLSSelfConversation,
   )
 where
 
@@ -66,9 +67,12 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Galley.API.Error
+import Galley.API.MLS.Keys
+import Galley.API.Mapping
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import qualified Galley.Data.Conversation as Data
+import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
@@ -77,9 +81,12 @@ import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
+import Galley.Types.ToUserRole
+import Galley.Types.UserList
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -93,6 +100,7 @@ import qualified System.Logger.Class as Logger
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
@@ -604,6 +612,48 @@ getConversationGuestLinksFeatureStatus mbTid = do
       mbConfigNoLock <- TeamFeatures.getFeatureConfig @db (Proxy @GuestLinksConfig) tid
       mbLockStatus <- TeamFeatures.getFeatureLockStatus @db (Proxy @GuestLinksConfig) tid
       pure $ computeFeatureConfigForTeamUser mbConfigNoLock mbLockStatus defaultStatus
+
+-- | Get an MLS self conversation. In case it does not exist, it is partially
+-- created in the database. The part that is not written is the epoch number;
+-- the number is inserted only upon the first commit. With this we avoid race
+-- conditions where two clients concurrently try to create or update the self
+-- conversation, where the only thing that can be updated is bumping the epoch
+-- number.
+getMLSSelfConversation ::
+  forall r.
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       P.TinyLog,
+       Input Env
+     ]
+    r =>
+  Local UserId ->
+  Sem r Conversation
+getMLSSelfConversation lusr = do
+  let selfConvId = mlsSelfConvId usr
+  mconv <- E.getConversation selfConvId
+  cnv <- maybe create pure mconv
+  conversationView lusr cnv
+  where
+    usr = tUnqualified lusr
+    create :: Sem r Data.Conversation
+    create = do
+      unlessM (isJust <$> getMLSRemovalKey) $
+        throw (InternalErrorWithDescription noKeyMsg)
+      let nc =
+            Data.NewConversation
+              { ncMetadata =
+                  (defConversationMetadata usr)
+                    { cnvmType = SelfConv
+                    },
+                ncUsers = ulFromLocals [toUserRole usr],
+                ncProtocol = ProtocolMLSTag
+              }
+      E.createMLSSelfConversation lusr nc
+    noKeyMsg =
+      "No backend removal key is configured (See 'mlsPrivateKeyPaths'"
+        <> "in galley's config). Refusing to create MLS conversation."
 
 -------------------------------------------------------------------------------
 -- Helpers

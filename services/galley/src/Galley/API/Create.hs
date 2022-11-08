@@ -25,7 +25,6 @@
 module Galley.API.Create
   ( createGroupConversation,
     createProteusSelfConversation,
-    createMLSSelfConversation,
     createOne2OneConversation,
     createConnectConversation,
   )
@@ -213,42 +212,6 @@ createProteusSelfConversation lusr = do
               }
       c <- E.createConversation lcnv nc
       conversationCreated lusr c
-
-createMLSSelfConversation ::
-  forall r.
-  Members
-    '[ ConversationStore,
-       Error InternalError,
-       MemberStore,
-       P.TinyLog,
-       Input Env
-     ]
-    r =>
-  Local UserId ->
-  ClientId ->
-  Sem r ConversationResponse
-createMLSSelfConversation lusr clientId = do
-  let selfConvId = mlsSelfConvId <$> lusr
-  mconv <- E.getConversation (tUnqualified selfConvId)
-  maybe (create selfConvId) (conversationExisted lusr) mconv
-  where
-    create :: Local ConvId -> Sem r ConversationResponse
-    create lcnv = do
-      unlessM (isJust <$> getMLSRemovalKey) $
-        throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
-      let nc =
-            NewConversation
-              { ncMetadata =
-                  (defConversationMetadata (tUnqualified lusr))
-                    { cnvmType = SelfConv
-                    },
-                ncUsers = ulFromLocals [toUserRole (tUnqualified lusr)],
-                ncProtocol = ProtocolMLSTag
-              }
-      conv <- E.createConversation lcnv nc
-      -- FUTUREWORK: remove this. we are planning to remove the need for a nullKeyPackageRef
-      E.addMLSClients lcnv (qUntagged lusr) (Set.singleton (clientId, nullKeyPackageRef))
-      conversationCreated lusr conv
 
 createOne2OneConversation ::
   forall r.

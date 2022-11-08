@@ -25,6 +25,7 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
 import qualified Data.Text.Lazy as LT
+import Galley.Cassandra.Instances ()
 import Galley.Data.Scope
 import Galley.Types.Teams.Intra
 import Imports
@@ -208,6 +209,31 @@ isConvDeleted = "select deleted from conversation where conv = ?"
 
 insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRoleV2, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ()
 insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+insertMLSSelfConv ::
+  PrepQuery
+    W
+    ( ConvId,
+      ConvType,
+      UserId,
+      C.Set Access,
+      C.Set AccessRoleV2,
+      Maybe Text,
+      Maybe TeamId,
+      Maybe Milliseconds,
+      Maybe ReceiptMode,
+      Maybe GroupId,
+      Maybe CipherSuiteTag
+    )
+    ()
+insertMLSSelfConv =
+  fromString $
+    "insert into conversation (conv, type, creator, access, \
+    \ access_roles_v2, name, team, message_timer, receipt_mode,\
+    \ protocol, group_id, cipher_suite) values \
+    \ (?, ?, ?, ?, ?, ?, ?, ?, ?, "
+      <> show (fromEnum ProtocolMLSTag)
+      <> ", ?, ?)"
 
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRoleV2, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"

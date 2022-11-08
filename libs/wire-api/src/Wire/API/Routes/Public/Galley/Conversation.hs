@@ -275,13 +275,19 @@ type ConversationAPI =
                :> ConversationVerb
            )
     :<|> Named
-           "create-mls-self-conversation"
-           ( Summary "Create the user's MLS self-conversation"
+           "get-mls-self-conversation"
+           ( Summary "Get the user's MLS self-conversation"
                :> ZLocalUser
                :> "conversations"
                :> "mls-self"
-               :> ZClient
-               :> ConversationPutVerb
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( Respond
+                        200
+                        "The MLS self-conversastion"
+                        Conversation
+                    )
            )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members

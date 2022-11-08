@@ -430,11 +430,8 @@ setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
     action =
       responseJsonError
         =<< liftTest
-          ( putSelfConv
-              (ciUser creator)
-              (ciClient creator)
-          )
-          <!! const 201 === statusCode
+          (getSelfConv (ciUser creator))
+          <!! const 200 === statusCode
 
 createGroup :: ClientIdentity -> GroupId -> MLSTest ()
 createGroup cid gid = do
@@ -1024,16 +1021,14 @@ getGroupInfo sender qcnv = do
         . zConn "conn"
     )
 
-putSelfConv ::
+getSelfConv ::
   UserId ->
-  ClientId ->
   TestM ResponseLBS
-putSelfConv u c = do
+getSelfConv u = do
   g <- viewGalley
-  put $
+  get $
     g
       . paths ["/conversations", "mls-self"]
       . zUser u
-      . zClient c
       . zConn "conn"
       . zType "access"
