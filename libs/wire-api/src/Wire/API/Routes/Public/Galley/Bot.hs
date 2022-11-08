@@ -1,6 +1,3 @@
-{-# LANGUAGE DerivingVia #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,35 +15,32 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.Public.Galley where
+module Wire.API.Routes.Public.Galley.Bot where
 
-import Data.SOP
-import qualified Data.Swagger as Swagger
 import Servant hiding (WithStatus)
-import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Routes.Public.Galley.Bot
-import Wire.API.Routes.Public.Galley.Conversation
-import Wire.API.Routes.Public.Galley.CustomBackend
-import Wire.API.Routes.Public.Galley.Feature
-import Wire.API.Routes.Public.Galley.LegalHold
-import Wire.API.Routes.Public.Galley.MLS
+import Wire.API.Error
+import Wire.API.Error.Galley
+import Wire.API.Message
+import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Messaging
-import Wire.API.Routes.Public.Galley.Team
-import Wire.API.Routes.Public.Galley.TeamConversation
-import Wire.API.Routes.Public.Galley.TeamMember
 
-type ServantAPI =
-  ConversationAPI
-    :<|> TeamConversationAPI
-    :<|> MessagingAPI
-    :<|> BotAPI
-    :<|> TeamAPI
-    :<|> FeatureAPI
-    :<|> MLSAPI
-    :<|> CustomBackendAPI
-    :<|> LegalHoldAPI
-    :<|> TeamMemberAPI
-
-swaggerDoc :: Swagger.Swagger
-swaggerDoc = toSwagger (Proxy @ServantAPI)
+type BotAPI =
+  Named
+    "post-bot-message-unqualified"
+    ( ZBot
+        :> ZConversation
+        :> CanThrow 'ConvNotFound
+        :> "bot"
+        :> "messages"
+        :> QueryParam "ignore_missing" IgnoreMissing
+        :> QueryParam "report_missing" ReportMissing
+        :> ReqBody '[JSON] NewOtrMessage
+        :> MultiVerb
+             'POST
+             '[Servant.JSON]
+             (PostOtrResponses ClientMismatch)
+             (PostOtrResponse ClientMismatch)
+    )

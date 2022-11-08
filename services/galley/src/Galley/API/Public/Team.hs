@@ -15,31 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.Servant (mkNamedAPI, servantSitemap) where
+module Galley.API.Public.Team where
 
-import Galley.API.Public.Bot
-import Galley.API.Public.Conversation
-import Galley.API.Public.CustomBackend
-import Galley.API.Public.Feature
-import Galley.API.Public.LegalHold
-import Galley.API.Public.MLS
-import Galley.API.Public.Messaging
-import Galley.API.Public.Team
-import Galley.API.Public.TeamConversation
-import Galley.API.Public.TeamMember
+import Galley.API.Teams
 import Galley.App
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Team
 
-servantSitemap :: API ServantAPI GalleyEffects
-servantSitemap =
-  conversationAPI
-    <@> teamConversationAPI
-    <@> messagingAPI
-    <@> botAPI
-    <@> teamAPI
-    <@> featureAPI
-    <@> mlsAPI
-    <@> customBackendAPI
-    <@> legalHoldAPI
-    <@> teamMemberAPI
+teamAPI :: API TeamAPI GalleyEffects
+teamAPI =
+  mkNamedAPI @"create-non-binding-team" createNonBindingTeamH
+    <@> mkNamedAPI @"update-team" updateTeamH
+    <@> mkNamedAPI @"get-teams" getManyTeams
+    <@> mkNamedAPI @"get-team" getTeamH
+    <@> mkNamedAPI @"delete-team" deleteTeam

@@ -15,31 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.Servant (mkNamedAPI, servantSitemap) where
+module Galley.API.Public.MLS where
 
-import Galley.API.Public.Bot
-import Galley.API.Public.Conversation
-import Galley.API.Public.CustomBackend
-import Galley.API.Public.Feature
-import Galley.API.Public.LegalHold
-import Galley.API.Public.MLS
-import Galley.API.Public.Messaging
-import Galley.API.Public.Team
-import Galley.API.Public.TeamConversation
-import Galley.API.Public.TeamMember
+import Galley.API.MLS
 import Galley.App
 import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.MLS
 
-servantSitemap :: API ServantAPI GalleyEffects
-servantSitemap =
-  conversationAPI
-    <@> teamConversationAPI
-    <@> messagingAPI
-    <@> botAPI
-    <@> teamAPI
-    <@> featureAPI
-    <@> mlsAPI
-    <@> customBackendAPI
-    <@> legalHoldAPI
-    <@> teamMemberAPI
+mlsAPI :: API MLSAPI GalleyEffects
+mlsAPI =
+  mkNamedAPI @"mls-welcome-message" postMLSWelcomeFromLocalUser
+    <@> mkNamedAPI @"mls-message-v1" postMLSMessageFromLocalUserV1
+    <@> mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
+    <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
+    <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeys

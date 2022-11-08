@@ -79,7 +79,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client

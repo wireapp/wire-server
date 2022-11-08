@@ -74,7 +74,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Routes.Public.Galley (DisableLegalHoldForUserResponse (..), GrantConsentResult (..), RequestDeviceResult (..))
+import Wire.API.Routes.Public.Galley.LegalHold
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold
 import qualified Wire.API.Team.LegalHold as Public
