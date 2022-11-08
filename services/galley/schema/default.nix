@@ -1,5 +1,12 @@
-{ mkDerivation, base, filepath, imports, lib, optparse-applicative
-, shelly, system-filepath, text
+{ mkDerivation
+, base
+, filepath
+, imports
+, lib
+, optparse-applicative
+, shelly
+, system-filepath
+, text
 }:
 mkDerivation {
   pname = "makedeb";
@@ -8,7 +15,12 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    base filepath imports optparse-applicative shelly system-filepath
+    base
+    filepath
+    imports
+    optparse-applicative
+    shelly
+    system-filepath
     text
   ];
   executableHaskellDepends = [ base imports optparse-applicative ];
