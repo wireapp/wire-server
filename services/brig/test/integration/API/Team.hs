@@ -127,26 +127,37 @@ tests conf m n b c g aws = do
             test m "get /i/teams/:tid/is-team-owner/:uid" $ testSSOIsTeamOwner b g,
             test m "2FA disabled for SSO user" $ test2FaDisabledForSsoUser b g
           ],
-        testGroup "size" $ [test m "get /i/teams/:tid/size" $ testTeamSize b]
+        testGroup "size" $
+          [ test m "get /i/teams/:tid/size" $ testTeamSizeInternal b,
+            test m "get /teams/:tid/size" $ testTeamSizePublic b
+          ]
       ]
 
-testTeamSize :: Brig -> Http ()
-testTeamSize brig = do
-  (tid, _, _) <- createPopulatedBindingTeam brig 10
+testTeamSizeInternal :: Brig -> Http ()
+testTeamSizeInternal brig = do
+  testTeamSize brig (\tid _ -> brig . paths ["i", "teams", toByteString' tid, "size"])
+
+testTeamSizePublic :: Brig -> Http ()
+testTeamSizePublic brig = do
+  testTeamSize brig (\tid uid -> brig . paths ["teams", toByteString' tid, "size"] . zUser uid)
+
+testTeamSize :: Brig -> (TeamId -> UserId -> Request -> Request) -> Http ()
+testTeamSize brig req = do
+  (tid, owner, _) <- createPopulatedBindingTeam brig 10
   SearchUtil.refreshIndex brig
   -- 10 Team Members and an admin
   let expectedSize = 11
-  assertSize tid expectedSize
+  assertSize tid owner expectedSize
 
   -- Even suspended teams should report correct size
   suspendTeam brig tid !!! const 200 === statusCode
   SearchUtil.refreshIndex brig
-  assertSize tid expectedSize
+  assertSize tid owner expectedSize
   where
-    assertSize :: HasCallStack => TeamId -> Natural -> Http ()
-    assertSize tid expectedSize =
+    assertSize :: HasCallStack => TeamId -> UserId -> Natural -> Http ()
+    assertSize tid uid expectedSize =
       void $
-        get (brig . paths ["i", "teams", toByteString' tid, "size"]) <!! do
+        get (req tid uid) <!! do
           const 200 === statusCode
           (const . Right $ TeamSize expectedSize) === responseJsonEither
 

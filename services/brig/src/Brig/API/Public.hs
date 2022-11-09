@@ -339,7 +339,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Provider.routesPublic
-  Team.routesPublic
 
 apiDocs ::
   forall r.

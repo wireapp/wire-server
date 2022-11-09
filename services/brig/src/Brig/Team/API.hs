@@ -16,9 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Team.API
-  ( routesPublic,
+  ( servantAPI,
     routesInternal,
-    servantAPI,
   )
 where
 
@@ -53,7 +52,6 @@ import Data.Id
 import qualified Data.List1 as List1
 import Data.Range
 import Data.String.Conversions (cs)
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports hiding (head)
@@ -62,7 +60,6 @@ import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
-import Network.Wai.Utilities.Swagger (document)
 import Polysemy (Members)
 import Servant hiding (Handler, JSON, addHeader)
 import System.Logger (Msg)
@@ -80,7 +77,6 @@ import qualified Wire.API.Team.Member as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Role
 import qualified Wire.API.Team.Role as Public
-import qualified Wire.API.Team.Size as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
 
@@ -98,30 +94,7 @@ servantAPI =
     :<|> Named @"delete-team-invitation" deleteInvitation
     :<|> Named @"get-team-invitation-info" getInvitationByCode
     :<|> Named @"head-team-invitations" headInvitationByEmail
-
-routesPublic ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider
-     ]
-    r =>
-  Routes Doc.ApiBuilder (Handler r) ()
-routesPublic = do
-  get "/teams/:tid/size" (continue teamSizePublicH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-
-  document "GET" "teamSize" $ do
-    Doc.summary
-      "Returns the number of team members as an integer.  \
-      \Can be out of sync by roughly the `refresh_interval` \
-      \of the ES index."
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.returns (Doc.ref Public.modelTeamSize)
-    Doc.response 200 "Invitation successful." Doc.end
-    Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
+    :<|> Named @"get-team-size" teamSizePublic
 
 routesInternal ::
   Members
@@ -156,9 +129,6 @@ routesInternal = do
   post "/i/teams/:tid/invitations" (continue createInvitationViaScimH) $
     accept "application" "json"
       .&. jsonRequest @NewUserScimInvitation
-
-teamSizePublicH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId -> (Handler r) Response
-teamSizePublicH (_ ::: uid ::: tid) = json <$> teamSizePublic uid tid
 
 teamSizePublic :: Members '[GalleyProvider] r => UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do

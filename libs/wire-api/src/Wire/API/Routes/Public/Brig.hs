@@ -58,6 +58,7 @@ import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
 import Wire.API.Team.Invitation
+import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
 import Wire.API.User.Auth
@@ -1410,4 +1411,20 @@ type TeamsAPI =
                     '[JSON]
                     HeadInvitationsResponses
                     HeadInvitationByEmailResult
+           )
+    :<|> Named
+           "get-team-size"
+           ( Summary
+               "Returns the number of team members as an integer.  \
+               \Can be out of sync by roughly the `refresh_interval` \
+               \of the ES index."
+               :> CanThrow 'InvalidInvitationCode
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "size"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "Number of team members" TeamSize)
            )
