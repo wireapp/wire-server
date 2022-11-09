@@ -27,7 +27,6 @@ import Options.Applicative
 
 data Settings = Settings
   { setCasBrig :: CassandraSettings,
-    setHandlesFile :: Maybe FilePath,
     setIncosistenciesFile :: FilePath
   }
   deriving (Show)
@@ -39,11 +38,28 @@ data CassandraSettings = CassandraSettings
   }
   deriving (Show)
 
+data Command
+  = DanglingHandles (Maybe FilePath)
+  | HandleLessUsers
+
+optionsParser :: Parser (Command, Settings)
+optionsParser = (,) <$> commandParser <*> settingsParser
+
+commandParser :: Parser Command
+commandParser =
+  subparser $
+    danglingHandlesCommand <> handleLessUsersCommand
+
+danglingHandlesCommand :: Mod CommandFields Command
+danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional handlesFileParser) (progDesc "find handle which shouldn't be claimed"))
+
+handleLessUsersCommand :: Mod CommandFields Command
+handleLessUsersCommand = command "handle-less-users" (info (pure HandleLessUsers) (progDesc "find users which have a handle in the user table but not in the user_handle table"))
+
 settingsParser :: Parser Settings
 settingsParser =
   Settings
     <$> cassandraSettingsParser "brig"
-    <*> optional handlesFileParser
     <*> inconsistenciesFileParser
 
 handlesFileParser :: Parser FilePath

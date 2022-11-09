@@ -12,9 +12,10 @@ build-type:    Simple
 executable dangling-handles
   main-is:            Main.hs
   other-modules:
+    DanglingHandles
+    HandleLessUsers
     Options
     Paths_dangling_handles
-    Work
 
   hs-source-dirs:     src
   default-extensions:

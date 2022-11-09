@@ -25,29 +25,35 @@ where
 
 import Cassandra as C
 import Cassandra.Settings as C
+import qualified DanglingHandles
+import qualified HandleLessUsers
 import Imports
 import Options as O
 import Options.Applicative
 import qualified System.Logger as Log
 import System.Logger.Extended (structuredJSONRenderer)
-import Work
 
 main :: IO ()
 main = do
-  s <- execParser (info (helper <*> settingsParser) desc)
+  (cmd, s) <- execParser (info (helper <*> optionsParser) desc)
   lgr <- initLogger
   brig <- initCas (setCasBrig s) (Log.clone (Just "cassandra-brig") lgr)
   let workLogger = Log.clone (Just "work") lgr
-  case setHandlesFile s of
-    Nothing -> runCommand workLogger brig (setIncosistenciesFile s)
-    Just f -> examineHandles workLogger brig f (setIncosistenciesFile s)
+      outputFile = setIncosistenciesFile s
+  case cmd of
+    DanglingHandles Nothing ->
+      DanglingHandles.runCommand workLogger brig outputFile
+    DanglingHandles (Just handlesFile) ->
+      DanglingHandles.examineHandles workLogger brig handlesFile outputFile
+    HandleLessUsers ->
+      HandleLessUsers.runCommand workLogger brig outputFile
   Log.info lgr $ Log.msg (Log.val "Done scanning, sleeping for 4 hours so logs can be extracted") . Log.field "file" (setIncosistenciesFile s)
   threadDelay (4 * 60 * 60 * 1_000_000)
   Log.info lgr $ Log.msg (Log.val "Sleep compelete, logs will not be accessible anymore if this was running in a container!")
   where
     desc =
-      header "scim-emails"
-        <> progDesc "finds users for whom external-id is inconsistent with email or the user_keys table"
+      header "db-inconsistencies"
+        <> progDesc "finds inconsistencies in the DB"
         <> fullDesc
     initLogger =
       Log.new
