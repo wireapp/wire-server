@@ -52,12 +52,12 @@ runCommand l brig inconsistenciesFile = do
               Log.info l (Log.field "userIds" (show ((i - 1) * pageSize + fromIntegral (length userHandles))))
               pure userHandles
           )
-        .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(handle, userId, claimTime) -> checkUser brig handle userId claimTime))
+        .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(handle, userId, claimTime) -> checkUser l brig handle userId claimTime False))
         .| C.map (BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
-examineHandles :: Logger -> ClientState -> FilePath -> FilePath -> IO ()
-examineHandles l brig handlesFile errorsFile = do
+examineHandles :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
+examineHandles l brig handlesFile errorsFile fixClaim = do
   handles <- mapMaybe parseHandle . Text.lines <$> Text.readFile handlesFile
   runResourceT $
     runConduit $
@@ -68,7 +68,7 @@ examineHandles l brig handlesFile errorsFile = do
           ( \(i, handle) -> do
               when (i `mod` 100 == 0) $
                 Log.info l (Log.field "handlesProcesses" i)
-              liftIO $ checkHandle l brig handle
+              liftIO $ checkHandle l brig handle fixClaim
           )
         .| C.map ((<> "\n") . cs . Aeson.encode)
         .| sinkFile errorsFile
@@ -120,23 +120,33 @@ getUserDetails uid = retry x1 $ query1 cql (params LocalQuorum (Identity uid))
     cql :: PrepQuery R (Identity UserId) UserDetailsRow
     cql = "SELECT status, writetime(status), handle, writetime(handle) from user where id = ?"
 
-checkHandle :: Logger -> ClientState -> Handle -> IO (Maybe HandleInfo)
-checkHandle l brig handle = do
+checkHandle :: Logger -> ClientState -> Handle -> Bool -> IO (Maybe HandleInfo)
+checkHandle l brig handle fixHandle = do
   mUser <- runClient brig $ getHandle handle
   case mUser of
     Nothing -> do
       Log.warn l (Log.msg (Log.val "No user found for handle") . Log.field "handle" (fromHandle handle))
       pure Nothing
-    Just (uid, claimTime) -> checkUser brig handle uid claimTime
+    Just (uid, claimTime) -> checkUser l brig handle uid claimTime fixHandle
 
-checkUser :: ClientState -> Handle -> UserId -> Writetime UserId -> IO (Maybe HandleInfo)
-checkUser brig claimedHandle userId handleClaimTime = do
+freeHandle :: Logger -> Handle -> Client ()
+freeHandle l handle = do
+  Log.info l $ Log.msg (Log.val "Freeing handle") . Log.field "handle" (fromHandle handle)
+  retry x5 $ write handleDelete (params LocalQuorum (Identity handle))
+  where
+    handleDelete :: PrepQuery W (Identity Handle) ()
+    handleDelete = "DELETE FROM user_handle WHERE handle = ?"
+
+checkUser :: Logger -> ClientState -> Handle -> UserId -> Writetime UserId -> Bool -> IO (Maybe HandleInfo)
+checkUser l brig claimedHandle userId handleClaimTime fixClaim = do
   maybeDetails <- runClient brig $ getUserDetails userId
   case maybeDetails of
-    Nothing ->
+    Nothing -> do
       let status = Nothing
           userHandle = Nothing
-       in pure . Just $ HandleInfo {..}
+      when fixClaim $
+        runClient brig $ freeHandle l claimedHandle
+      pure . Just $ HandleInfo {..}
     Just (mStatus, mStatusWriteTime, mHandle, mHandleWriteTime) -> do
       let status = WithWritetime <$> mStatus <*> mStatusWriteTime
           userHandle = WithWritetime <$> mHandle <*> mHandleWriteTime
@@ -146,5 +156,8 @@ checkUser brig claimedHandle userId handleClaimTime = do
             _ -> False
           handleError = mHandle /= Just claimedHandle
       if statusError || handleError
-        then pure . Just $ HandleInfo {..}
+        then do
+          when fixClaim $
+            runClient brig $ freeHandle l claimedHandle
+          pure . Just $ HandleInfo {..}
         else pure Nothing

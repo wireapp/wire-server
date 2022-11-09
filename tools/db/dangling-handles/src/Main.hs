@@ -43,8 +43,8 @@ main = do
   case cmd of
     DanglingHandles Nothing ->
       DanglingHandles.runCommand workLogger brig outputFile
-    DanglingHandles (Just handlesFile) ->
-      DanglingHandles.examineHandles workLogger brig handlesFile outputFile
+    DanglingHandles (Just (handlesFile, fixClaims)) ->
+      DanglingHandles.examineHandles workLogger brig handlesFile outputFile fixClaims
     HandleLessUsers ->
       HandleLessUsers.runCommand workLogger brig outputFile
   Log.info lgr $ Log.msg (Log.val "Done scanning, sleeping for 4 hours so logs can be extracted") . Log.field "file" (setIncosistenciesFile s)

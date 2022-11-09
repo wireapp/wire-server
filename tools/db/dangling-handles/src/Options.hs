@@ -39,7 +39,7 @@ data CassandraSettings = CassandraSettings
   deriving (Show)
 
 data Command
-  = DanglingHandles (Maybe FilePath)
+  = DanglingHandles (Maybe (FilePath, Bool))
   | HandleLessUsers
 
 optionsParser :: Parser (Command, Settings)
@@ -51,7 +51,7 @@ commandParser =
     danglingHandlesCommand <> handleLessUsersCommand
 
 danglingHandlesCommand :: Mod CommandFields Command
-danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional handlesFileParser) (progDesc "find handle which shouldn't be claimed"))
+danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional limitedHandlesParser) (progDesc "find handle which shouldn't be claimed"))
 
 handleLessUsersCommand :: Mod CommandFields Command
 handleLessUsersCommand = command "handle-less-users" (info (pure HandleLessUsers) (progDesc "find users which have a handle in the user table but not in the user_handle table"))
@@ -62,12 +62,23 @@ settingsParser =
     <$> cassandraSettingsParser "brig"
     <*> inconsistenciesFileParser
 
+limitedHandlesParser :: Parser (FilePath, Bool)
+limitedHandlesParser =
+  (,) <$> handlesFileParser <*> fixClaimParser
+
 handlesFileParser :: Parser FilePath
 handlesFileParser =
   strOption
     ( long "handles-file"
         <> help "file containing list of handles separated by new lines"
         <> metavar "FILEPATH"
+    )
+
+fixClaimParser :: Parser Bool
+fixClaimParser =
+  switch
+    ( long "fix-claims"
+        <> help "Automatically free dangling handles"
     )
 
 inconsistenciesFileParser :: Parser FilePath
