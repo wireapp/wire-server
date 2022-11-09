@@ -68,6 +68,7 @@ executable dangling-handles
     , base
     , brig
     , brig-types
+    , bytestring
     , case-insensitive
     , cassandra-util
     , conduit

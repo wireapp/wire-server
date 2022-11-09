@@ -1,7 +1,6 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -27,48 +26,76 @@ import Brig.Types.Intra
 import Cassandra
 import Cassandra.Util
 import Conduit
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Handle
 import Data.Id
+import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Imports
 import System.Logger
 import qualified System.Logger as Log
 import UnliftIO.Async
-import Wire.API.User.Identity
-import Wire.API.User.Profile
 
-runCommand :: Logger -> ClientState -> IO ()
-runCommand l brig = do
-  runConduit $
-    zipSources
-      (C.sourceList [(1 :: Int32) ..])
-      (transPipe (runClient brig) getHandles)
-      .| C.mapM
-        ( \(i, userHandles) -> do
-            Log.info l (Log.field "userIds" (show ((i - 1) * pageSize + fromIntegral (length userHandles))))
-            pure userHandles
-        )
-      .| C.mapM_ (pooledMapConcurrentlyN_ 12 (\(handle, userId, claimTime) -> (checkUser l brig handle userId claimTime)))
+runCommand :: Logger -> ClientState -> FilePath -> IO ()
+runCommand l brig inconsistenciesFile = do
+  runResourceT $
+    runConduit $
+      zipSources
+        (C.sourceList [(1 :: Int32) ..])
+        (transPipe (runClient brig) getHandles)
+        .| C.mapM
+          ( \(i, userHandles) -> do
+              Log.info l (Log.field "userIds" (show ((i - 1) * pageSize + fromIntegral (length userHandles))))
+              pure userHandles
+          )
+        .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(handle, userId, claimTime) -> checkUser brig handle userId claimTime))
+        .| C.map (BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
+        .| sinkFile inconsistenciesFile
 
-examineHandles :: Logger -> ClientState -> FilePath -> IO ()
-examineHandles l brig handlesFile = do
+examineHandles :: Logger -> ClientState -> FilePath -> FilePath -> IO ()
+examineHandles l brig handlesFile errorsFile = do
   handles <- mapMaybe parseHandle . Text.lines <$> Text.readFile handlesFile
-  runConduit $
-    zipSources
-      (C.sourceList [(1 :: Int32) ..])
-      (C.sourceList handles)
-      .| C.mapM_
-        ( \(i, handle) -> do
-            when (i `mod` 100 == 0) $
-              Log.info l (Log.field "handlesProcesses" i)
-            checkHandle l brig handle
-        )
+  runResourceT $
+    runConduit $
+      zipSources
+        (C.sourceList [(1 :: Int32) ..])
+        (C.sourceList handles)
+        .| C.mapM
+          ( \(i, handle) -> do
+              when (i `mod` 100 == 0) $
+                Log.info l (Log.field "handlesProcesses" i)
+              liftIO $ checkHandle l brig handle
+          )
+        .| C.map ((<> "\n") . cs . Aeson.encode)
+        .| sinkFile errorsFile
 
 pageSize :: Int32
 pageSize = 1000
+
+data HandleInfo = HandleInfo
+  { -- | Handle in the user_handle table
+    claimedHandle :: Handle,
+    userId :: UserId,
+    handleClaimTime :: Writetime Handle,
+    status :: Maybe (WithWritetime AccountStatus),
+    -- | Handle in the user table
+    userHandle :: Maybe (WithWritetime Handle)
+  }
+  deriving (Generic)
+
+instance Aeson.ToJSON HandleInfo
+
+data WithWritetime a = WithWritetime
+  { value :: a,
+    writetime :: Writetime a
+  }
+  deriving (Generic)
+
+instance Aeson.ToJSON a => Aeson.ToJSON (WithWritetime a)
 
 ----------------------------------------------------------------------------
 -- Queries
@@ -85,60 +112,39 @@ getHandles = paginateC cql (paramsP LocalQuorum () pageSize) x5
     cql :: PrepQuery R () (Handle, UserId, Writetime UserId)
     cql = "SELECT handle, user, writetime(user) from user_handle"
 
-type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Handle, Maybe (Writetime Handle), Maybe TeamId, Maybe (Writetime TeamId), Maybe UserSSOId, Maybe (Writetime UserSSOId), Maybe ManagedBy, Maybe (Writetime ManagedBy))
+type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Handle, Maybe (Writetime Handle))
 
 getUserDetails :: UserId -> Client (Maybe UserDetailsRow)
 getUserDetails uid = retry x1 $ query1 cql (params LocalQuorum (Identity uid))
   where
     cql :: PrepQuery R (Identity UserId) UserDetailsRow
-    cql = "SELECT status, writetime(status), handle, writetime(handle), team, writetime(team), sso_id, writetime(sso_id), managed_by, writetime(managed_by) from user where id = ?"
+    cql = "SELECT status, writetime(status), handle, writetime(handle) from user where id = ?"
 
-checkHandle :: Logger -> ClientState -> Handle -> IO ()
+checkHandle :: Logger -> ClientState -> Handle -> IO (Maybe HandleInfo)
 checkHandle l brig handle = do
   mUser <- runClient brig $ getHandle handle
   case mUser of
-    Nothing -> Log.warn l (Log.msg (Log.val "No user found for handle") . Log.field "handle" (fromHandle handle))
-    Just (uid, claimTime) -> checkUser l brig handle uid claimTime
+    Nothing -> do
+      Log.warn l (Log.msg (Log.val "No user found for handle") . Log.field "handle" (fromHandle handle))
+      pure Nothing
+    Just (uid, claimTime) -> checkUser brig handle uid claimTime
 
-checkUser :: Logger -> ClientState -> Handle -> UserId -> Writetime UserId -> IO ()
-checkUser l brig handle uid claimTime = do
-  let userLog = Log.field "user" (idToText uid)
-      handleLog = Log.field "handle" (fromHandle handle)
-      claimTimeLog = Log.field "handleClaimTime" (show (writeTimeToUTC claimTime))
-  maybeDetails <- runClient brig $ getUserDetails uid
+checkUser :: ClientState -> Handle -> UserId -> Writetime UserId -> IO (Maybe HandleInfo)
+checkUser brig claimedHandle userId handleClaimTime = do
+  maybeDetails <- runClient brig $ getUserDetails userId
   case maybeDetails of
     Nothing ->
-      Log.warn l (Log.msg (Log.val "No information found") . userLog . handleLog . claimTimeLog)
-    Just (mStatus, mStatusWriteTime, mHandle, mHandleWriteTime, mTeam, mTeamWriteTime, mSSOId, mSSOIdWriteTime, mManagedBy, mManagedByWriteTime) -> do
-      let teamLog = logMaybeWithWritetime "team" (idToText <$> mTeam) mTeamWriteTime
-          statusLog = logMaybeWithWritetime "status" (show <$> mStatus) mStatusWriteTime
-          userHandleLog = logMaybeWithWritetime "user.handle" (fromHandle <$> mHandle) mHandleWriteTime
-          ssoLog = logMaybeWithWritetime "ssoId" (show <$> mSSOId) mSSOIdWriteTime
-          managedByLog = logMaybeWithWritetime "managedBy" (show <$> mManagedBy) mManagedByWriteTime
-          allFields = userLog . handleLog . teamLog . statusLog . userHandleLog . claimTimeLog . ssoLog . managedByLog
+      let status = Nothing
+          userHandle = Nothing
+       in pure . Just $ HandleInfo {..}
+    Just (mStatus, mStatusWriteTime, mHandle, mHandleWriteTime) -> do
+      let status = WithWritetime <$> mStatus <*> mStatusWriteTime
+          userHandle = WithWritetime <$> mHandle <*> mHandleWriteTime
           statusError = case mStatus of
-            Nothing ->
-              Just $ Log.field "statusError" (Log.val "No user status found")
-            Just Deleted ->
-              Just $ Log.field "statusError" (Log.val "Handle found for deleted user")
-            _ -> Nothing
-          handleError = case mHandle of
-            Nothing ->
-              Just $ Log.field "handleError" (Log.val "user.handle is null")
-            Just userHandle ->
-              if userHandle /= handle
-                then Just $ Log.field "handleError" (Log.val "user.handle is not same as claimed handle")
-                else Nothing
-      case catMaybes [statusError, handleError] of
-        [] -> pure ()
-        msgs -> do
-          Log.warn l $ (foldr (.) id msgs) . allFields
-
-logMaybe :: ToBytes a => ByteString -> Maybe a -> Msg -> Msg
-logMaybe _ Nothing = id
-logMaybe fieldName (Just x) = Log.field fieldName x
-
-logMaybeWithWritetime :: ToBytes a => ByteString -> Maybe a -> Maybe (Writetime b) -> Msg -> Msg
-logMaybeWithWritetime fieldName x t =
-  logMaybe fieldName x
-    . logMaybe (fieldName <> "-writetime") (show . writeTimeToUTC <$> t)
+            Nothing -> True
+            Just Deleted -> True
+            _ -> False
+          handleError = mHandle /= Just claimedHandle
+      if statusError || handleError
+        then pure . Just $ HandleInfo {..}
+        else pure Nothing

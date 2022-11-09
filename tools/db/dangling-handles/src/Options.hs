@@ -28,7 +28,7 @@ import Options.Applicative
 data Settings = Settings
   { setCasBrig :: CassandraSettings,
     setHandlesFile :: Maybe FilePath,
-    setLogFile :: FilePath
+    setIncosistenciesFile :: FilePath
   }
   deriving (Show)
 
@@ -44,7 +44,7 @@ settingsParser =
   Settings
     <$> cassandraSettingsParser "brig"
     <*> optional handlesFileParser
-    <*> logFileParser
+    <*> inconsistenciesFileParser
 
 handlesFileParser :: Parser FilePath
 handlesFileParser =
@@ -54,11 +54,11 @@ handlesFileParser =
         <> metavar "FILEPATH"
     )
 
-logFileParser :: Parser FilePath
-logFileParser =
+inconsistenciesFileParser :: Parser FilePath
+inconsistenciesFileParser =
   strOption
-    ( long "log-file"
-        <> help "File to log output to"
+    ( long "inconsistencies-file"
+        <> help "File to output the found inconsistencies"
         <> metavar "FILEPATH"
     )
 
