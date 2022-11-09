@@ -27,17 +27,22 @@ spec:
     image: <image-in-your-personal-docker-repo>
     imagePullPolicy: Always
     args:
+    - handle-less-users
     - --cassandra-host-brig
     - brig-brig-eks-service.databases
     - --cassandra-keyspace-brig
     - brig
-    - --log-file
-    - /dangling-handles.log
+    - --inconsistencies-file
+    - /inconsistencies.log
 ```
 
-4. Wait for the process to finish. Go into the container and `tail -f /dangling-handles.log`. Once it stops, it can be assumed that the script finished and is waiting in case someone wants to copy the logs out.
+4. Wait for the process to finish. Watch logs, it will say something like "sleeping for 4 hours" and then close all connections to cassandra.
 
 5. Copy the logs using `kubectl cp`
+
+```
+kubectl cp dangling-handles:/inconsistencies.log inconsistencies.log
+```
 
 6. **IMPORTANT:** Delete the pod.
 
@@ -45,6 +50,5 @@ spec:
 
 ```bash
 cat <log-file> |
-    jq -c -r 'select (.handle)' |
-    jq -r '(map(keys) | add | unique | map(select(. != "msgs")) ) as $cols | map(. as $row | $cols | map($row[.])) as $rows | $cols, $rows[] | @csv' > dangling-handles.csv
+    jq -r '[.userId, .status.value, .status.writetime, .userHandle.value, .userHandle.writetime, .handleClaimUser.value, .handleClaimUser.writetime] | @csv' >! handle-less-users.csv
 ```
