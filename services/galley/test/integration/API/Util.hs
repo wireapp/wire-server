@@ -2859,6 +2859,14 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
 
+wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Epoch -> Notification -> IO ByteString
+wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
+  bs <- wsAssertBackendRemoveProposal fromUser convId kpref n
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @(Message 'MLSPlainText) bs
+  let tbs = rmValue . msgTBS $ msg
+  tbsMsgEpoch tbs @?= epoch
+  pure bs
+
 wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
 wsAssertBackendRemoveProposal fromUser convId kpref n = do
   let e = List1.head (WS.unpackPayload n)

@@ -19,6 +19,7 @@
 
 module Wire.API.MLS.Proposal where
 
+import Cassandra
 import Control.Arrow
 import Control.Lens (makePrisms)
 import Data.Binary
@@ -191,3 +192,23 @@ instance ParseMLS ProposalRef where
   parseMLS = ProposalRef <$> getByteString 16
 
 makePrisms ''ProposalOrRef
+
+data ProposalOrigin
+  = ProposalOriginClient
+  | ProposalOriginBackend
+  deriving (Eq)
+
+instance Cql ProposalOrigin where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . originToInt
+  fromCql (CqlInt i) = intToOrigin i
+  fromCql _ = Left "intToOrigin: unexptected data"
+
+originToInt :: ProposalOrigin -> Int32
+originToInt ProposalOriginClient = 0
+originToInt ProposalOriginBackend = 1
+
+intToOrigin :: Int32 -> Either String ProposalOrigin
+intToOrigin 0 = pure ProposalOriginClient
+intToOrigin 1 = pure ProposalOriginBackend
+intToOrigin _ = Left "intToOrigin: unexptected int constant"
