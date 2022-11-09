@@ -35,24 +35,23 @@ import Work
 main :: IO ()
 main = do
   s <- execParser (info (helper <*> settingsParser) desc)
-  lgr <- initLogger (setLogFile s)
+  lgr <- initLogger
   brig <- initCas (setCasBrig s) (Log.clone (Just "cassandra-brig") lgr)
   let workLogger = Log.clone (Just "work") lgr
   case setHandlesFile s of
-    Nothing -> runCommand workLogger brig
-    Just f -> examineHandles workLogger brig f
-  putStrLn $ "Done scanning, logs are at: " <> (setLogFile s)
-  putStrLn "Sleeping for 1 hour so logs can be extracted"
-  threadDelay 3600_000_000
-  putStrLn "Sleep compelete, logs will not be accessible anymore if this was running in a container!"
+    Nothing -> runCommand workLogger brig (setIncosistenciesFile s)
+    Just f -> examineHandles workLogger brig f (setIncosistenciesFile s)
+  Log.info lgr $ Log.msg (Log.val "Done scanning, sleeping for 4 hours so logs can be extracted") . Log.field "file" (setIncosistenciesFile s)
+  threadDelay (4 * 60 * 60 * 1_000_000)
+  Log.info lgr $ Log.msg (Log.val "Sleep compelete, logs will not be accessible anymore if this was running in a container!")
   where
     desc =
       header "scim-emails"
         <> progDesc "finds users for whom external-id is inconsistent with email or the user_keys table"
         <> fullDesc
-    initLogger f =
+    initLogger =
       Log.new
-        . Log.setOutput (Log.Path f)
+        . Log.setOutput Log.StdOut
         . Log.setBufSize 0
         . Log.setRenderer structuredJSONRenderer
         $ Log.defSettings
