@@ -70,6 +70,7 @@ executable scim-emails
     , base
     , brig
     , brig-types
+    , case-insensitive
     , cassandra-util
     , conduit
     , containers
@@ -79,15 +80,14 @@ executable scim-emails
     , imports
     , lens
     , optparse-applicative
+    , saml2-web-sso
     , string-conversions
     , text
     , time
     , tinylog
     , types-common
+    , uri-bytestring
     , uuid
     , wire-api
-    , saml2-web-sso
-    , case-insensitive
-    , uri-bytestring
 
   default-language:   Haskell2010
