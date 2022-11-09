@@ -161,7 +161,7 @@ import Data.Maybe
 import Data.Monoid hiding (First (..), Last (..))
 import Data.Ord
 -- conflicts with Options.Applicative.Option (should we care?)
-import Data.Semigroup hiding (Option, diff, option)
+import Data.Semigroup hiding (diff)
 import Data.Set (Set)
 import Data.String
 import Data.Text (Text)
