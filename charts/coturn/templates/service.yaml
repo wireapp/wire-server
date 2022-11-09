@@ -25,6 +25,11 @@ spec:
       port: {{ .Values.coturnTurnTlsListenPort }}
       targetPort: coturn-tls
     {{- end }}
+    {{- if .Values.federation.enabled }}
+    - name: coturn-federation
+      port: {{ .Values.federation.listenPort }}
+      targetPort: coturn-federation
+    {{- end }}
     - name: status-http
       port: {{ .Values.coturnMetricsListenPort }}
       targetPort: status-http

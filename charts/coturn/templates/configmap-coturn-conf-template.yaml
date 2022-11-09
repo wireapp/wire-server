@@ -38,6 +38,13 @@ data:
     log-file=stdout
     verbose
 
+    {{- if .Values.federation.enabled }}
+    federation-listening-ip=__COTURN_EXT_IP__
+    federation-listening-port={{ .Values.federation.listenPort }}
+    # FUTUREWORK: enable DTLS support
+    federation-no-dtls
+    {{- end }}
+
     ## access control settings.
     # the address ranges listed here are reserved for special use according
     # to the iana registries for special-purposes ipv4 and ipv6 addresses. note

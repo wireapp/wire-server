@@ -133,6 +133,11 @@ spec:
               containerPort: {{ .Values.coturnTurnTlsListenPort }}
               protocol: TCP
             {{- end }}
+            {{- if .Values.federation.enabled }}
+            - name: coturn-federation
+              containerPort: {{ .Values.federation.listenPort }}
+              protocol: UDP
+            {{- end }}
             - name: status-http
               containerPort: {{ .Values.coturnMetricsListenPort }}
               protocol: TCP

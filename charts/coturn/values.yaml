@@ -40,6 +40,11 @@ metrics:
   serviceMonitor:
     enabled: false
 
+# FUTUREWORK: add DTLS federation support.
+federation:
+  enabled: false
+  listenPort: 9191
+
 # This chart optionally supports waiting for traffic to drain from coturn
 # before pods are terminated. Warning: coturn does not have any way to steer
 # incoming client traffic away from itself on its own, so this functionality
