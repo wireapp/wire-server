@@ -3,7 +3,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports -Wno-unused-local-binds -Wno-unused-matches #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -86,7 +86,6 @@ import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.Team.Role (Role (RoleExternalPartner, RoleMember), defaultRole)
 import Wire.API.User hiding (scimExternalId)
-import Wire.API.User.Auth
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo
@@ -203,10 +202,9 @@ specImportToScimFromSAML =
 
 specImportToScimFromInvitation :: SpecWith TestEnv
 specImportToScimFromInvitation =
-  focus $
-    describe "Create with TM invitation; then re-provision with SCIM" $ do
-      check False
-      check True
+  describe "Create with TM invitation; then re-provision with SCIM" $ do
+    check False
+    check True
   where
     createTeam :: HasCallStack => TestSpar (UserId, TeamId)
     createTeam = do
@@ -221,6 +219,14 @@ specImportToScimFromInvitation =
       let memberIdInvited = userId memberInvited
           emailInvited = fromMaybe (error "must have email") (userEmail memberInvited)
       pure (memberIdInvited, emailInvited)
+
+    addSamlIdP :: HasCallStack => UserId -> TestSpar (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds)
+    addSamlIdP userid = do
+      env <- ask
+      apiVersion <- view teWireIdPAPIVersion
+      SAML.SampleIdP idpmeta privkey _ _ <- makeSampleIdPMetadata
+      idp <- call $ callIdpCreate apiVersion (env ^. teSpar) (Just userid) idpmeta
+      pure (idp, privkey)
 
     reProvisionWithScim ::
       HasCallStack =>
@@ -257,16 +263,13 @@ specImportToScimFromInvitation =
           <!! const 200 === statusCode
       pure $ responseJsonUnsafe resp
 
-    signIn :: HasCallStack => Email -> TestSpar ()
-    signIn email = do
-      brig <- view teBrig
-      void . call . post $
-        brig
-          . path "/login"
-          . contentJson
-          . (queryItem "persist" "true")
-          . json (PasswordLogin (LoginByEmail email) defPassword Nothing Nothing)
-          . expect2xx
+    signInWithSaml :: HasCallStack => (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds) -> Email -> UserId -> TestSpar ()
+    signInWithSaml (idp, privCreds) email userid = do
+      let uref = SAML.UserRef tenant subj
+          subj = emailToSAMLNameID email
+          tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
+      mbUid <- createViaSaml idp privCreds uref
+      liftIO $ mbUid `shouldBe` Just userid
 
     checkCsvDownload ::
       HasCallStack =>
@@ -312,12 +315,10 @@ specImportToScimFromInvitation =
     check changeHandle = it (show changeHandle) $ do
       (ownerid, teamid) <- createTeam
       (userid, email) <- invite ownerid teamid
-      signIn email
-      storedusr <- reProvisionWithScim changeHandle Nothing teamid userid email
-
-      -- TODO: reprovision with changed email, and then let email validation email expire.  (do we even support this?  does bund use it?)
-
-      signIn email
+      (idp, privcreds) <- addSamlIdP ownerid
+      storedusr <- reProvisionWithScim changeHandle (Just idp) teamid userid email
+      signInWithSaml (idp, privcreds) email userid
+      checkCsvDownload ownerid teamid idp storedusr
 
 findUserByEmail :: ScimToken -> Email -> TestSpar (Scim.UserC.StoredUser SparTag)
 findUserByEmail tok email = do
