@@ -44,6 +44,7 @@ import Brig.App
 import Brig.Budget
 import qualified Brig.Code as Code
 import qualified Brig.Data.Activation as Data
+import Brig.Data.Client
 import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
@@ -63,6 +64,7 @@ import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Control.Monad.Catch
+import Control.Monad.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (Handle)
 import Data.Id
@@ -253,12 +255,14 @@ renewAccess ::
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
+  Maybe ClientId ->
   ExceptT ZAuth.Failure m (Access u)
-renewAccess uts at = do
+renewAccess uts at mcid = do
   (uid, ck) <- validateTokens uts at
+  traverse_ (checkClientId uid) mcid
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
-  ck' <- lift $ nextCookie ck
+  ck' <- nextCookie ck mcid
   at' <- lift $ newAccessToken (fromMaybe ck ck') at
   pure $ Access at' ck'
 
@@ -485,3 +489,7 @@ assertLegalHoldEnabled tid = do
   case wsStatus stat of
     FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     FeatureStatusEnabled -> pure ()
+
+checkClientId :: MonadClient m => UserId -> ClientId -> ExceptT ZAuth.Failure m ()
+checkClientId uid cid =
+  lookupClient uid cid >>= maybe (throwE ZAuth.Invalid) (const (pure ()))

@@ -40,9 +40,10 @@ import Polysemy.Input
 import qualified UnliftIO
 
 updateClient :: Bool -> UserId -> ClientId -> Client ()
-updateClient add usr cls = do
+updateClient add usr cid = do
+  -- add or remove client
   let q = if add then Cql.addMemberClient else Cql.rmMemberClient
-  retry x5 $ write (q cls) (params LocalQuorum (Identity usr))
+  retry x5 $ write (q cid) (params LocalQuorum (Identity usr))
 
 -- Do, at most, 16 parallel lookups of up to 128 users each
 lookupClients :: [UserId] -> Client Clients

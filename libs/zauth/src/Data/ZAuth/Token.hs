@@ -41,6 +41,7 @@ module Data.ZAuth.Token
     -- * Access body
     Access,
     userId,
+    clientId,
     connection,
     mkAccess,
 
@@ -127,6 +128,7 @@ data Header = Header
 
 data Access = Access
   { _userId :: !UUID,
+    _clientId :: Maybe Text,
     -- | 'ConnId' is derived from this.
     _connection :: !Word64
   }
@@ -240,7 +242,7 @@ mkToken = Token
 mkHeader :: Int -> Int -> Integer -> Type -> Maybe Tag -> Header
 mkHeader = Header
 
-mkAccess :: UUID -> Word64 -> Access
+mkAccess :: UUID -> Maybe Text -> Word64 -> Access
 mkAccess = Access
 
 mkUser :: UUID -> Maybe Text -> Word32 -> User
@@ -252,8 +254,8 @@ mkBot = Bot
 mkProvider :: UUID -> Provider
 mkProvider = Provider
 
-mkLegalHoldAccess :: UUID -> Word64 -> LegalHoldAccess
-mkLegalHoldAccess uid cid = LegalHoldAccess $ Access uid cid
+mkLegalHoldAccess :: UUID -> Maybe Text -> Word64 -> LegalHoldAccess
+mkLegalHoldAccess uid clt con = LegalHoldAccess $ Access uid clt con
 
 mkLegalHoldUser :: UUID -> Maybe Text -> Word32 -> LegalHoldUser
 mkLegalHoldUser uid cid r = LegalHoldUser $ User uid cid r
@@ -297,13 +299,14 @@ readAccessBody :: Properties -> Maybe Access
 readAccessBody t =
   Access
     <$> (lookup "u" t >>= fromLazyASCIIBytes)
+    <*> pure (lookup "i" t >>= fromByteString')
     <*> (lookup "c" t >>= fromByteString')
 
 readUserBody :: Properties -> Maybe User
 readUserBody t =
   User
     <$> (lookup "u" t >>= fromLazyASCIIBytes)
-    <*> pure (lookup "c" t >>= fromByteString')
+    <*> pure (lookup "i" t >>= fromByteString')
     <*> (lookup "r" t >>= fmap fromHex . fromByteString')
 
 readBotBody :: Properties -> Maybe Bot
@@ -349,6 +352,7 @@ writeHeader t =
 instance ToByteString Access where
   builder t =
     field "u" (toLazyASCIIBytes $ t ^. userId)
+      <> foldMap (\c -> dot <> field "i" c) (t ^. clientId)
       <> dot
       <> field "c" (t ^. connection)
 
@@ -357,8 +361,7 @@ instance ToByteString User where
     field "u" (toLazyASCIIBytes $ t ^. user)
       <> dot
       <> field "r" (Hex (t ^. rand))
-      <> dot
-      <> foldMap (field "cl") (t ^. client)
+      <> foldMap (\c -> dot <> field "i" c) (t ^. client)
 
 instance ToByteString Bot where
   builder t =
@@ -374,6 +377,7 @@ instance ToByteString Provider where
 instance ToByteString LegalHoldAccess where
   builder t =
     field "u" (toLazyASCIIBytes $ t ^. legalHoldAccess . userId)
+      <> foldMap (\c -> dot <> field "i" c) (t ^. legalHoldAccess . clientId)
       <> dot
       <> field "c" (t ^. legalHoldAccess . connection)
 
@@ -382,6 +386,7 @@ instance ToByteString LegalHoldUser where
     field "u" (toLazyASCIIBytes $ t ^. legalHoldUser . user)
       <> dot
       <> field "r" (Hex (t ^. legalHoldUser . rand))
+      <> foldMap (\c -> dot <> field "i" c) (t ^. legalHoldUser . client)
 
 instance ToByteString Type where
   builder A = char8 'a'

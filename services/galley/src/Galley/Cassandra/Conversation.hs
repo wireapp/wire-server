@@ -191,6 +191,61 @@ getConversation conv = do
       <*> UnliftIO.wait cdata
   runMaybeT $ conversationGC =<< maybe mzero pure mbConv
 
+getGlobalTeamConversation :: TeamId -> Client (Maybe Conversation)
+getGlobalTeamConversation tid =
+  (\c -> c {convLocalMembers = [], convRemoteMembers = []})
+    <$$> getConversation (globalTeamConv tid)
+
+createGlobalTeamConversation ::
+  Local TeamId ->
+  UserId ->
+  Client Conversation
+createGlobalTeamConversation tid uid = do
+  let lconv = qualifyAs tid (globalTeamConv $ tUnqualified tid)
+      meta =
+        ConversationMetadata
+          { cnvmType = GlobalTeamConv,
+            cnvmCreator = uid,
+            cnvmAccess = [SelfInviteAccess],
+            cnvmAccessRoles = mempty,
+            cnvmName = Just "Global team conversation",
+            cnvmTeam = Just (tUnqualified tid),
+            cnvmMessageTimer = Nothing,
+            cnvmReceiptMode = Nothing
+          }
+      gid = convToGroupId lconv
+      cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+      proto =
+        ProtocolMLS
+          ( ConversationMLSData
+              gid
+              (Epoch 0)
+              cs
+          )
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery
+      Cql.insertGlobalTeamConv
+      ( tUnqualified lconv,
+        Cql.Set (cnvmAccess meta),
+        cnvmName meta,
+        cnvmTeam meta,
+        Just gid,
+        Just cs
+      )
+    addPrepQuery Cql.insertTeamConv (tUnqualified tid, tUnqualified lconv)
+    addPrepQuery Cql.insertGroupId (gid, tUnqualified lconv, tDomain lconv)
+  pure
+    Conversation
+      { convId = tUnqualified lconv,
+        convLocalMembers = mempty,
+        convRemoteMembers = mempty,
+        convDeleted = False,
+        convMetadata = meta,
+        convProtocol = proto
+      }
+
 -- | "Garbage collect" a 'Conversation', i.e. if the conversation is
 -- marked as deleted, actually remove it from the database and return
 -- 'Nothing'.
@@ -315,6 +370,8 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateConversationId -> Id <$> embed nextRandom
   CreateConversation loc nc -> embedClient $ createConversation loc nc
   GetConversation cid -> embedClient $ getConversation cid
+  GetGlobalTeamConversation tid -> embedClient $ getGlobalTeamConversation tid
+  CreateGlobalTeamConversation tid uid -> embedClient $ createGlobalTeamConversation tid uid
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid

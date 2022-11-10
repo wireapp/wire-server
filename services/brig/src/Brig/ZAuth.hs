@@ -69,8 +69,9 @@ module Brig.ZAuth
 
     -- * Token Inspection
     accessTokenOf,
+    accessTokenClient,
     userTokenOf,
-    clientTokenOf,
+    userTokenClient,
     legalHoldAccessTokenOf,
     legalHoldUserTokenOf,
     userTokenRand,
@@ -236,22 +237,25 @@ instance TokenPair LegalHoldUser LegalHoldAccess where
 
 class (FromByteString (Token a), ToByteString a) => AccessTokenLike a where
   accessTokenOf :: Token a -> UserId
+  accessTokenClient :: Token a -> Maybe ClientId
   renewAccessToken :: MonadZAuth m => Token a -> m (Token a)
   settingsTTL :: Proxy a -> Lens' Settings Integer
 
 instance AccessTokenLike Access where
   accessTokenOf = accessTokenOf'
+  accessTokenClient = accessTokenClient'
   renewAccessToken = renewAccessToken'
   settingsTTL _ = accessTokenTimeout . accessTokenTimeoutSeconds
 
 instance AccessTokenLike LegalHoldAccess where
   accessTokenOf = legalHoldAccessTokenOf
+  accessTokenClient = legalHoldAccessTokenClient
   renewAccessToken = renewLegalHoldAccessToken
   settingsTTL _ = legalHoldAccessTokenTimeout . legalHoldAccessTokenTimeoutSeconds
 
 class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
   userTokenOf :: Token u -> UserId
-  clientTokenOf :: Token u -> Maybe ClientId
+  userTokenClient :: Token u -> Maybe ClientId
   mkSomeToken :: Token u -> Auth.SomeUserToken
   mkUserToken :: MonadZAuth m => UserId -> Maybe ClientId -> Word32 -> UTCTime -> m (Token u)
   userTokenRand :: Token u -> Word32
@@ -263,7 +267,7 @@ class (FromByteString (Token u), ToByteString u) => UserTokenLike u where
 instance UserTokenLike User where
   mkUserToken = mkUserToken'
   userTokenOf = userTokenOf'
-  clientTokenOf = clientTokenOf'
+  userTokenClient = userTokenClient'
   mkSomeToken = Auth.PlainUserToken
   userTokenRand = userTokenRand'
   newUserToken = newUserToken'
@@ -274,7 +278,7 @@ instance UserTokenLike User where
 instance UserTokenLike LegalHoldUser where
   mkUserToken = mkLegalHoldUserToken
   userTokenOf = legalHoldUserTokenOf
-  clientTokenOf = legalHoldClientTokenOf
+  userTokenClient = legalHoldClientTokenOf
   mkSomeToken = Auth.LHUserToken
   userTokenRand = legalHoldUserTokenRand
   newUserToken = newLegalHoldUserToken
@@ -313,7 +317,7 @@ newAccessToken' xt = liftZAuth $ do
   liftIO $
     ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
       let AccessTokenTimeout ttl = z ^. settings . accessTokenTimeout
-       in ZC.accessToken1 ttl (xt ^. body . user)
+       in ZC.accessToken1 ttl (xt ^. body . user) (xt ^. body . client)
 
 renewAccessToken' :: MonadZAuth m => Token Access -> m (Token Access)
 renewAccessToken' old = liftZAuth $ do
@@ -376,7 +380,10 @@ newLegalHoldAccessToken xt = liftZAuth $ do
   liftIO $
     ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
       let LegalHoldAccessTokenTimeout ttl = z ^. settings . legalHoldAccessTokenTimeout
-       in ZC.legalHoldAccessToken1 ttl (xt ^. body . legalHoldUser . user)
+       in ZC.legalHoldAccessToken1
+            ttl
+            (xt ^. body . legalHoldUser . user)
+            (xt ^. body . legalHoldUser . client)
 
 renewLegalHoldAccessToken :: MonadZAuth m => Token LegalHoldAccess -> m (Token LegalHoldAccess)
 renewLegalHoldAccessToken old = liftZAuth $ do
@@ -397,14 +404,20 @@ validateToken t = liftZAuth $ do
 accessTokenOf' :: Token Access -> UserId
 accessTokenOf' t = Id (t ^. body . userId)
 
+accessTokenClient' :: Token Access -> Maybe ClientId
+accessTokenClient' t = fmap ClientId (t ^. body . clientId)
+
 userTokenOf' :: Token User -> UserId
 userTokenOf' t = Id (t ^. body . user)
 
-clientTokenOf' :: Token User -> Maybe ClientId
-clientTokenOf' t = fmap ClientId (t ^. body . client)
+userTokenClient' :: Token User -> Maybe ClientId
+userTokenClient' t = fmap ClientId (t ^. body . client)
 
 legalHoldAccessTokenOf :: Token LegalHoldAccess -> UserId
 legalHoldAccessTokenOf t = Id (t ^. body . legalHoldAccess . userId)
+
+legalHoldAccessTokenClient :: Token LegalHoldAccess -> Maybe ClientId
+legalHoldAccessTokenClient t = fmap ClientId (t ^. body . legalHoldAccess . clientId)
 
 legalHoldUserTokenOf :: Token LegalHoldUser -> UserId
 legalHoldUserTokenOf t = Id (t ^. body . legalHoldUser . user)

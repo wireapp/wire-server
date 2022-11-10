@@ -117,6 +117,7 @@ type GalleyEffects1 =
      TeamNotificationStore,
      TeamStore,
      TeamMemberStore InternalPaging,
+     TeamMemberStore CassandraPaging,
      ListItems CassandraPaging ConvId,
      ListItems CassandraPaging (Remote ConvId),
      ListItems LegacyPaging ConvId,

@@ -110,7 +110,8 @@ tests s =
                 s
                 ("admins should be able to get a csv stream with their team (" <> show numMembers <> " members)")
                 (testListTeamMembersCsv numMembers),
-          test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated
+          test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated,
+          test s "pagination" testListTeamMembersPagination
         ],
       testGroup "List Team Members (by ids)" $
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimitByIds,
@@ -170,7 +171,7 @@ tests s =
                   [ test s "message" (postCryptoBroadcastMessage bcast),
                     test s "filtered only, too large team" (postCryptoBroadcastMessageFilteredTooLargeTeam bcast),
                     test s "report missing in body" (postCryptoBroadcastMessageReportMissingBody bcast),
-                    test s "redundant/missing" (postCryptoBroadcastMessage2 bcast),
+                    test s "redundant or missing" (postCryptoBroadcastMessage2 bcast),
                     test s "no-team" (postCryptoBroadcastMessageNoTeam bcast),
                     test s "100 (or max conns)" (postCryptoBroadcastMessage100OrMaxConns bcast)
                   ]
@@ -191,16 +192,17 @@ testCreateTeam = do
 testGetTeams :: TestM ()
 testGetTeams = do
   owner <- Util.randomUser
-  Util.getTeams owner [] >>= checkTeamList Nothing
+  let getTeams' = Util.getTeams owner
+  getTeams' [] >>= checkTeamList Nothing
   tid <- Util.createBindingTeamInternal "foo" owner <* assertQueue "create team" tActivate
   wrongTid <- (Util.randomUser >>= Util.createBindingTeamInternal "foobar") <* assertQueue "create team" tActivate
-  Util.getTeams owner [] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("size", Just "1")] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("ids", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("ids", Just $ toByteString' tid <> "," <> toByteString' wrongTid)] >>= checkTeamList (Just tid)
+  getTeams' [] >>= checkTeamList (Just tid)
+  getTeams' [("size", Just "1")] >>= checkTeamList (Just tid)
+  getTeams' [("ids", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
+  getTeams' [("ids", Just $ toByteString' tid <> "," <> toByteString' wrongTid)] >>= checkTeamList (Just tid)
   -- these two queries do not yield responses that are equivalent to the old wai route API
-  Util.getTeams owner [("ids", Just $ toByteString' wrongTid)] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("start", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
+  getTeams' [("ids", Just $ toByteString' wrongTid)] >>= checkTeamList (Just tid)
+  getTeams' [("start", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
   where
     checkTeamList :: Maybe TeamId -> TeamList -> TestM ()
     checkTeamList mbTid tl = liftIO $ do
@@ -307,6 +309,30 @@ testListTeamMembersCsv numMembers = do
 
     newClient :: PC.LastPrekey -> C.NewClient
     newClient lpk = C.newClient C.PermanentClientType lpk
+
+testListTeamMembersPagination :: TestM ()
+testListTeamMembersPagination = do
+  (owner, tid, _) <- Util.createBindingTeamWithNMembers 18
+  allMembers <- Util.getTeamMembersPaginated owner tid 100 Nothing
+  liftIO $ do
+    let actualTeamSize = length (rpResults allMembers)
+    let expectedTeamSize = 19
+    assertEqual ("expected team size of 19 (18 members + 1 owner), but got " <> show actualTeamSize) expectedTeamSize actualTeamSize
+  page1 <- Util.getTeamMembersPaginated owner tid 5 Nothing
+  check 1 5 True page1
+  page2 <- Util.getTeamMembersPaginated owner tid 5 (Just . rpPagingState $ page1)
+  check 2 5 True page2
+  page3 <- Util.getTeamMembersPaginated owner tid 5 (Just . rpPagingState $ page2)
+  check 3 5 True page3
+  page4 <- Util.getTeamMembersPaginated owner tid 5 (Just . rpPagingState $ page3)
+  check 4 4 False page4
+  where
+    check :: Int -> Int -> Bool -> ResultPage -> TestM ()
+    check n expectedSize expectedHasMore page = liftIO $ do
+      let actualSize = length (rpResults page)
+      assertEqual ("page " <> show n <> ": expected " <> show expectedSize <> " members, but got " <> show actualSize) expectedSize actualSize
+      let actualHasMore = rpHasMore page
+      assertEqual ("page " <> show n <> " (hasMore): expected " <> show expectedHasMore <> ", but got" <> "") expectedHasMore actualHasMore
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
@@ -1131,7 +1157,8 @@ getVerificationCode uid action = do
   brig <- viewBrig
   resp <-
     get (brig . paths ["i", "users", toByteString' uid, "verification-code", toByteString' action])
-      <!! const 200 === statusCode
+      <!! const 200
+        === statusCode
   pure $ responseJsonUnsafe @Code.Value resp
 
 testDeleteBindingTeam :: Bool -> TestM ()
@@ -1243,7 +1270,8 @@ testDeleteTeamConv = do
   for_ members $ flip Util.assertConvMember cid2
   WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
     deleteTeamConv tid cid2 (member ^. userId)
-      !!! const 200 === statusCode
+      !!! const 200
+        === statusCode
 
     -- We no longer send duplicate conv deletion events
     -- i.e., as both a regular "conversation.delete" to all
@@ -1255,7 +1283,8 @@ testDeleteTeamConv = do
     WS.assertNoEvent timeout [wsOwner, wsMember]
 
     deleteTeamConv tid cid1 (member ^. userId)
-      !!! const 200 === statusCode
+      !!! const 200
+        === statusCode
     -- We no longer send duplicate conv deletion events
     -- i.e., as both a regular "conversation.delete" to all
     -- conversation members and as "team.conversation-delete"
@@ -1479,7 +1508,8 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
               . zConn "conn"
               . json (newTeamDeleteData (Just Util.defPassword))
           )
-          !!! const 202 === statusCode
+          !!! const 202
+            === statusCode
         for_ (owner : otherRealUsersInTeam) $ \u -> checkUserDeleteEvent u wsExtern
         -- Ensure users are marked as deleted; since we already
         -- received the event, should _really_ be deleted
@@ -1549,7 +1579,8 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
           -- override galley settings while making a call to brig
           withoutIndexedBillingTeamMembers $
             post (galley . paths ["i", "teams", toByteString' team, "members"] . mem)
-              !!! const 200 === statusCode
+              !!! const 200
+                === statusCode
           let allBillingMembers = newBillingMemberId : billingMembers
           -- We don't make a call to brig to add member, hence the count of team is always 2
           assertQueue ("add " <> show n <> "th billing member: " <> show newBillingMemberId) $
@@ -1568,7 +1599,8 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   withoutIndexedBillingTeamMembers $ do
     g <- viewGalley
     post (g . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
-      !!! const 200 === statusCode
+      !!! const 200
+        === statusCode
   assertQueue ("add " <> show (fanoutLimit + 2) <> "th billing member: " <> show ownerFanoutPlusTwo) $
     \s maybeEvent ->
       case maybeEvent of
@@ -1853,7 +1885,8 @@ postCryptoBroadcastMessageReportMissingBody bcast = do
         _ -> queryItem "report_missing" (toByteString' alice)
       msg = [(alice, ac, "ciphertext0")]
   Util.postBroadcast qalice ac bcast {bReport = Just [bob], bMessage = msg, bReq = inquery}
-    !!! const 412 === statusCode
+    !!! const 412
+      === statusCode
 
 postCryptoBroadcastMessage2 :: Broadcast -> TestM ()
 postCryptoBroadcastMessage2 bcast = do

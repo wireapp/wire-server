@@ -103,7 +103,8 @@ import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Conversation
+import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -302,7 +303,7 @@ type ITeamsAPIBase =
   Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
     :<|> Named
            "create-binding-team"
-           ( ZUser
+           ( ZLocalUser
                :> ReqBody '[Servant.JSON] BindingNewTeam
                :> MultiVerb1
                     'PUT
@@ -690,28 +691,30 @@ rmUser lusr conn = do
       let qUser = qUntagged lusr
       cc <- getConversations ids
       now <- input
-      pp <- for cc $ \c -> case Data.convType c of
-        SelfConv -> pure Nothing
-        One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
-        RegularConv
-          | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+      let deleteIfNeeded c =
+            when (tUnqualified lusr `isMember` Data.convLocalMembers c) $ do
               runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
               deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
-              let e =
-                    Event
-                      (qUntagged (qualifyAs lusr (Data.convId c)))
-                      (qUntagged lusr)
-                      now
-                      (EdMembersLeave (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-              pure $
-                Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
-                  <&> set Intra.pushConn conn
-                    . set Intra.pushRoute Intra.RouteDirect
-          | otherwise -> pure Nothing
+          fireEvent c =
+            let e =
+                  Event
+                    (qUntagged (qualifyAs lusr (Data.convId c)))
+                    (qUntagged lusr)
+                    now
+                    (EdMembersLeave (QualifiedUserIdList [qUser]))
+             in pure $
+                  Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
+                    <&> set Intra.pushConn conn
+                      . set Intra.pushRoute Intra.RouteDirect
+      pp <- for cc $ \c -> case Data.convType c of
+        SelfConv -> pure Nothing
+        One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        RegularConv -> deleteIfNeeded c >> fireEvent c
+        GlobalTeamConv -> deleteIfNeeded c >> pure Nothing
 
       for_
         (maybeList1 (catMaybes pp))

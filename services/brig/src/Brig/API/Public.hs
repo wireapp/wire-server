@@ -22,8 +22,8 @@ module Brig.API.Public
   ( sitemap,
     apiDocs,
     servantSitemap,
-    swaggerDocsAPI,
-    SwaggerDocsAPI,
+    docsAPI,
+    DocsAPI,
   )
 where
 
@@ -113,7 +113,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
-import Wire.API.Routes.Named
+import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
@@ -143,8 +143,11 @@ import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
 
-swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI (Just V3) =
+docsAPI :: Servant.Server DocsAPI
+docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas
+
+versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
+versionedSwaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -157,10 +160,10 @@ swaggerDocsAPI (Just V3) =
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
       & cleanupSwagger
-swaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
-swaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
-swaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
-swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
+versionedSwaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
+versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
+versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
+versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
   forall r p.
@@ -192,6 +195,7 @@ servantSitemap =
     :<|> userHandleAPI
     :<|> searchAPI
     :<|> authAPI
+    :<|> callingAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -309,6 +313,11 @@ servantSitemap =
         :<|> Named @"list-cookies" listCookies
         :<|> Named @"remove-cookies" removeCookies
 
+    callingAPI :: ServerT CallingAPI (Handler r)
+    callingAPI =
+      Named @"get-calls-config" Calling.getCallsConfig
+        :<|> Named @"get-calls-config-v2" Calling.getCallsConfigV2
+
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
 -- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
@@ -330,7 +339,6 @@ sitemap ::
 sitemap = do
   Provider.routesPublic
   Team.routesPublic
-  Calling.routesPublic
 
 apiDocs ::
   forall r.

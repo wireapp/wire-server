@@ -1,0 +1,21 @@
+{
+  "client": {
+    "capabilities": {
+      "capabilities": []
+    },
+    "class": "legalhold",
+    "cookie": "\u0015",
+    "id": "1",
+    "location": {
+      "lat": 0.9096436047476794,
+      "lon": -0.8385084418257278
+    },
+    "mls_public_keys": {},
+    "model": "𝖫\u0013𧬲",
+    "time": "1864-05-07T01:21:11.519Z",
+    "type": "temporary"
+  },
+  "connection": null,
+  "type": "client.delete",
+  "user": "00001af5-0000-716d-0000-357a000065c2"
+}

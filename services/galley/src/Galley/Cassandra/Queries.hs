@@ -209,6 +209,9 @@ isConvDeleted = "select deleted from conversation where conv = ?"
 insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRoleV2, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ()
 insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
+insertGlobalTeamConv :: PrepQuery W (ConvId, C.Set Access, Maybe Text, Maybe TeamId, Maybe GroupId, Maybe CipherSuiteTag) ()
+insertGlobalTeamConv = "insert into conversation (conv, type, access, name, team, group_id, cipher_suite) values (?, 4, ?, ?, ?, ?, ?)"
+
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRoleV2, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
 

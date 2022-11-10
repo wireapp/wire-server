@@ -54,7 +54,7 @@
 # 1. Update version number.
 # 2. Make the 'sha256' blank string.
 # 3. Run step 3. from how to add a git pin.
-{lib, fetchgit}: hself: hsuper:
+{ lib, fetchgit }: hself: hsuper:
 let
   gitPins = {
     HaskellNet-SSL = {
@@ -70,21 +70,8 @@ let
         rev = "2e3282e5fb27ba8d989c271a0a989823fad7ec43";
         sha256 = "0vfzysn9sgpxymfvpahxrp74fczgjnw3kgknj6zk0473qk85488f";
       };
-      packages =  {
-        wai-middleware-prometheus = "wai-middleware-prometheus";
-      };
-    };
-    servant = {
-      src = fetchgit {
-        url = "https://github.com/haskell-servant/servant.git";
-        rev = "75db4a5327d6d04ae2460bd5ffd008fe16197ba8";
-        sha256 = "0khgk0iqvamph57qp86ilravaw76qnjmg4kpliwfdzfyj9h44w0l";
-      };
       packages = {
-        servant = "servant";
-        servant-client = "servant-client";
-        servant-client-core = "servant-client-core";
-        servant-server = "servant-server";
+        wai-middleware-prometheus = "wai-middleware-prometheus";
       };
     };
     hs-collectd = {
@@ -102,7 +89,8 @@ let
       };
       packages = {
         x509-store = "x509-store";
-      };};
+      };
+    };
     amazonka = {
       src = fetchgit {
         url = "https://github.com/wireapp/amazonka";
@@ -120,7 +108,8 @@ let
         amazonka-sqs = "lib/services/amazonka-sqs";
         amazonka-sso = "lib/services/amazonka-sso";
         amazonka-sts = "lib/services/amazonka-sts";
-      };};
+      };
+    };
     bloodhound = {
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";
@@ -167,7 +156,8 @@ let
         http-client-openssl = "http-client-openssl";
         http-client-tls = "http-client-tls";
         http-conduit = "http-conduit";
-      };};
+      };
+    };
     http2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/http2";
@@ -242,24 +232,39 @@ let
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
-    let subpathArg = if subpath == null
-                     then ""
-                     else "--subpath='${subpath}'";
-    in hself.callCabal2nixWithOptions name src "${subpathArg}" {};
+    let
+      subpathArg =
+        if subpath == null
+        then ""
+        else "--subpath='${subpath}'";
+    in
+    hself.callCabal2nixWithOptions name src "${subpathArg}" { };
   # [[AtrrSet]]
-  gitPackages = lib.attrsets.mapAttrsToList (name: pin:
-    let packages = if pin?packages
-                   then pin.packages
-                   else { "${name}" = null;};
-    in lib.attrsets.mapAttrsToList (name: subpath:
-      {"${name}" = mkGitDrv name pin.src subpath;}
-    ) packages
-  ) gitPins;
+  gitPackages = lib.attrsets.mapAttrsToList
+    (name: pin:
+      let
+        packages =
+          if pin?packages
+          then pin.packages
+          else { "${name}" = null; };
+      in
+      lib.attrsets.mapAttrsToList
+        (name: subpath:
+          { "${name}" = mkGitDrv name pin.src subpath; }
+        )
+        packages
+    )
+    gitPins;
   # AttrSet
-  hackagePackages = lib.attrsets.mapAttrs (pkg: {version, sha256}:
-    hself.callHackageDirect {
-      ver = version;
-      inherit pkg sha256;
-    } {}
-  ) hackagePins;
-in lib.lists.foldr (a: b: a // b) hackagePackages (lib.lists.flatten gitPackages)
+  hackagePackages = lib.attrsets.mapAttrs
+    (pkg: { version, sha256 }:
+      hself.callHackageDirect
+        {
+          ver = version;
+          inherit pkg sha256;
+        }
+        { }
+    )
+    hackagePins;
+in
+lib.lists.foldr (a: b: a // b) hackagePackages (lib.lists.flatten gitPackages)

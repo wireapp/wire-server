@@ -1,0 +1,1 @@
+Added global conversation type and GET endpoint (`GET /teams/:tid/conversations/global`).

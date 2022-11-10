@@ -35,6 +35,7 @@ import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64.URL as B64U
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Hex
 import Data.Id
@@ -259,7 +260,8 @@ mlscli :: HasCallStack => ClientIdentity -> [String] -> Maybe ByteString -> MLST
 mlscli qcid args mbstdin = do
   bd <- State.gets mlsBaseDir
   let cdir = bd </> cid2Str qcid
-  liftIO $ spawn (proc "mls-test-cli" (["--store", cdir </> "store"] <> args)) mbstdin
+  liftIO $ do
+    spawn (proc "mls-test-cli" (["--store", cdir </> "store"] <> args)) mbstdin
 
 createWireClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
 createWireClient qusr = do
@@ -390,25 +392,49 @@ setGroupState cid state = do
   fp <- nextGroupFile cid
   liftIO $ BS.writeFile fp state
 
--- | Create conversation and corresponding group.
-setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
-setupMLSGroup creator = do
+-- | Create a conversation from a provided action and then create a
+-- corresponding group.
+setupMLSGroupWithConv ::
+  HasCallStack =>
+  MLSTest Conversation ->
+  ClientIdentity ->
+  MLSTest (GroupId, Qualified ConvId)
+setupMLSGroupWithConv convAction creator = do
   ownDomain <- liftTest viewFederationDomain
   liftIO $ assertEqual "creator is not local" (ciDomain creator) ownDomain
-  conv <-
-    responseJsonError
-      =<< liftTest
-        ( postConvQualified
-            (ciUser creator)
-            (defNewMLSConv (ciClient creator))
-        )
-        <!! const 201 === statusCode
+  conv <- convAction
   let groupId =
         fromJust
           (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
 
   createGroup creator groupId
   pure (groupId, cnvQualifiedId conv)
+
+-- | Create conversation and corresponding group.
+setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupMLSGroup creator = setupMLSGroupWithConv action creator
+  where
+    action =
+      responseJsonError
+        =<< liftTest
+          ( postConvQualified
+              (ciUser creator)
+              (defNewMLSConv (ciClient creator))
+          )
+          <!! const 201 === statusCode
+
+-- | Create self-conversation and corresponding group.
+setupMLSSelfGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
+  where
+    action =
+      responseJsonError
+        =<< liftTest
+          ( putSelfConv
+              (ciUser creator)
+              (ciClient creator)
+          )
+          <!! const 201 === statusCode
 
 createGroup :: ClientIdentity -> GroupId -> MLSTest ()
 createGroup cid gid = do
@@ -512,6 +538,50 @@ createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTe
 createAddCommit cid users = do
   kps <- concat <$> traverse (bundleKeyPackages <=< claimKeyPackages cid) users
   createAddCommitWithKeyPackages cid kps
+
+createExternalCommit ::
+  HasCallStack =>
+  ClientIdentity ->
+  Maybe ByteString ->
+  Qualified ConvId ->
+  MLSTest MessagePackage
+createExternalCommit qcid mpgs qcnv = do
+  bd <- State.gets mlsBaseDir
+  gNew <- nextGroupFile qcid
+  pgsFile <- liftIO $ emptyTempFile bd "pgs"
+  pgs <- case mpgs of
+    Nothing ->
+      LBS.toStrict . fromJust . responseBody
+        <$> getGroupInfo (ciUser qcid) qcnv
+    Just v -> pure v
+  commit <-
+    mlscli
+      qcid
+      [ "external-commit",
+        "--group-state-in",
+        "-",
+        "--group-state-out",
+        pgsFile,
+        "--group-out",
+        gNew
+      ]
+      (Just pgs)
+
+  State.modify $ \mls ->
+    mls
+      { mlsNewMembers = Set.singleton qcid -- This might be a different client
+      -- than those that have been in the
+      -- group from before.
+      }
+
+  newPgs <- liftIO $ BS.readFile pgsFile
+  pure $
+    MessagePackage
+      { mpSender = qcid,
+        mpMessage = commit,
+        mpWelcome = Nothing,
+        mpPublicGroupState = Just newPgs
+      }
 
 createAddProposals :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest [MessagePackage]
 createAddProposals cid users = do
@@ -953,3 +1023,17 @@ getGroupInfo sender qcnv = do
         . zUser sender
         . zConn "conn"
     )
+
+putSelfConv ::
+  UserId ->
+  ClientId ->
+  TestM ResponseLBS
+putSelfConv u c = do
+  g <- viewGalley
+  put $
+    g
+      . paths ["/conversations", "mls-self"]
+      . zUser u
+      . zClient c
+      . zConn "conn"
+      . zType "access"

@@ -15,11 +15,11 @@ rustPlatform.buildRustPackage rec {
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    sha256 = "sha256-xYL9KNcirCARb1Rp41einOpq0ut5adlqMIAEiwYXkzg=";
-    rev = "d46624fb49c900facc8853fa86e3ecf51fd0dcdb";
+    sha256 = "sha256-/XQ/9oQTPkRqgMzDGRm+Oh9jgkdeDM1vRJ6/wEf2+bY=";
+    rev = "c6f80be2839ac1ed2894e96044541d1c3cf6ecdf";
   };
   doCheck = false;
-  cargoSha256 = "sha256-FGFyS/tLlD+3JQX7vkKq4nW+WQI1FFnpugzfFBi/eQE=";
+  cargoSha256 = "sha256-AlZrxa7f5JwxxrzFBgeFSaYU6QttsUpfLYfq1HzsdbE=";
   cargoDepsHook = ''
     mkdir -p mls-test-cli-${version}-vendor.tar.gz/ring/.git
   '';

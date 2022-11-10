@@ -48,6 +48,7 @@ library
     Wire.API.MLS.Credential
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
+    Wire.API.MLS.GlobalTeamConversation
     Wire.API.MLS.Group
     Wire.API.MLS.GroupInfoBundle
     Wire.API.MLS.KeyPackage
@@ -91,6 +92,16 @@ library
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
     Wire.API.Routes.Public.Galley
+    Wire.API.Routes.Public.Galley.Bot
+    Wire.API.Routes.Public.Galley.Conversation
+    Wire.API.Routes.Public.Galley.CustomBackend
+    Wire.API.Routes.Public.Galley.Feature
+    Wire.API.Routes.Public.Galley.LegalHold
+    Wire.API.Routes.Public.Galley.Messaging
+    Wire.API.Routes.Public.Galley.MLS
+    Wire.API.Routes.Public.Galley.Team
+    Wire.API.Routes.Public.Galley.TeamConversation
+    Wire.API.Routes.Public.Galley.TeamMember
     Wire.API.Routes.Public.Gundeck
     Wire.API.Routes.Public.Spar
     Wire.API.Routes.Public.Util

@@ -22,11 +22,11 @@ where
 
 import BasePrelude
 import Data.Aeson
+import Data.Aeson.Types
 import Data.Id
-import Wire.API.User.Client (Client)
 
 data InternalNotification
-  = DeleteClient !Client !UserId !(Maybe ConnId)
+  = DeleteClient !ClientId !UserId !(Maybe ConnId)
   | DeleteUser !UserId
   | DeleteService !ProviderId !ServiceId
   deriving (Eq, Show)
@@ -53,9 +53,14 @@ instance FromJSON InternalNotification where
   parseJSON = withObject "InternalNotification" $ \o -> do
     t <- o .: "type"
     case (t :: InternalNotificationType) of
-      ClientDeletion -> DeleteClient <$> o .: "client" <*> o .: "user" <*> o .: "connection"
+      ClientDeletion -> DeleteClient <$> (adaptOldFormat =<< (o .: "client")) <*> o .: "user" <*> o .: "connection"
       UserDeletion -> DeleteUser <$> o .: "user"
       ServiceDeletion -> DeleteService <$> o .: "provider" <*> o .: "service"
+    where
+      adaptOldFormat :: Value -> Parser ClientId
+      adaptOldFormat (Object ob) = ob .: "id"
+      adaptOldFormat v@(String _) = parseJSON v
+      adaptOldFormat _ = fail "adaptOld: "
 
 instance ToJSON InternalNotification where
   toJSON (DeleteClient c uid con) =

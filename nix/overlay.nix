@@ -30,10 +30,11 @@ let
       src =
         if stdenv.isDarwin
         then
-          fetchurl {
-            url = darwinAmd64Url;
-            sha256 = darwinAmd64Sha256;
-          }
+          fetchurl
+            {
+              url = darwinAmd64Url;
+              sha256 = darwinAmd64Sha256;
+            }
         else
           fetchurl {
             url = linuxAmd64Url;

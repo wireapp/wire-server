@@ -44,7 +44,8 @@ extensions = [
     'sphinxcontrib.kroki',
     "myst_parser",
     'rst2pdf.pdfbuilder',
-    'sphinx_multiversion'
+    'sphinx_multiversion',
+    'sphinx_reredirects',
 ]
 
 # Grouping the document tree into PDF files. List of tuples
@@ -122,3 +123,11 @@ smv_prefer_remote_refs = True
 
 # As per https://myst-parser.readthedocs.io/en/latest/syntax/optional.html?highlight=anchor#auto-generated-header-anchors
 myst_heading_anchors = 4
+
+redirects = {
+        "security-responses/log4shell": "2021-12-15_log4shell.html",
+        "security-responses/cve-2021-44521": "2022-02-21_cve-2021-44521.html",
+        "security-responses/2022-05_website_outage": "2022-05-23_website_outage.html",
+        "how-to/single-sign-on/index": "../../understand/single-sign-on/main.html#setting-up-sso-externally",
+        "how-to/scim/index": "../../understand/single-sign-on/main.html#user-provisioning",
+}

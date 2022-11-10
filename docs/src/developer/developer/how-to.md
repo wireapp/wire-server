@@ -8,14 +8,14 @@ Terminal 1:
 * Set up backing services: `./deploy/dockerephemeral/run.sh`
 
 Terminal 2:
-* Compile all services: `make services`
+* Compile all services: `make c`
   * Note that you have to [import the public signing keys for nginx](https://github.com/wireapp/wire-server/blob/develop/services/nginz/README.md#common-problems-while-compiling) to be able to build nginz
 * Run services including nginz: `./services/start-services-only.sh`. If you don't want to run nginz set `INTEGRATION_USE_NGINZ=0`.
 
 Open your browser at:
 
 - http://localhost:8080/api/swagger-ui for the swagger 2.0 endpoints (in development as of Feb 2021 - more endpoints will be added here as time goes on)
-- http://localhost:8080/swagger-ui/ for the old swagger 1.2 API (old swagger, endpoints will disappear from here (and become available in the previous link) as time progresses)
+- http://localhost:8080/swagger-ui/ for the old swagger 1.2 API (old swagger, endpoints will disappear from here (and become available in the previous link) as time progresses). Run `make -C services/nginz integration-test/conf/nginz/zwagger-ui` once to get JS libraries needed (they are not included in the repo).
 
 Swagger json (for swagger 2.0 endpoints) is available under http://localhost:8080/api/swagger.json
 
@@ -108,10 +108,10 @@ FUTUREWORK: this process is in development (update this section after it's confi
 
 ##### (i) Build images
 
-1. Ensure `buildah` is available on your system.
-2. Compile the image using `make buildah-docker`. This will try to upload the
-   images into a `kind` cluster. If you'd prefer uploading images to quay.io,
-   you can run it with `make buildah-docker BUILDAH_PUSH=1 BUILDAH_KIND_LOAD=0`
+(FUTUREWORK: implement a convenient shortcut to build images without actually uploading them also)
+```
+make upload-images-dev
+```
 
 ##### (ii) Run tests in kind
 
@@ -120,7 +120,6 @@ FUTUREWORK: this process is in development (update this section after it's confi
 2. Run tests using `make kind-integration-test`.
 3. Run end2end integration tests: `make kind-integration-e2e`.
 
-NOTE: debug this process further as some images (e.g. nginz) are missing from the default buildah steps.
 * Implement re-tagging development tags as your user tag?
 
 #### 2.4 Deploy your local code to a kubernetes cluster
@@ -138,9 +137,7 @@ make kube-integration-setup
 Then build and push the `brig` image by running
 
 ```
-export DOCKER_TAG_LOCAL_BUILD=$USER
-hack/bin/buildah-compile.sh all
-DOCKER_TAG=$DOCKER_TAG_LOCAL_BUILD EXECUTABLES=brig BUILDAH_PUSH=1 ./hack/bin/buildah-make-images.sh
+#FUTUREWORK
 ```
 
 To update the release with brig's local image run

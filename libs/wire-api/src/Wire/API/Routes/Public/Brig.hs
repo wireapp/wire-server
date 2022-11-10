@@ -41,6 +41,7 @@ import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
+import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Error
 import Wire.API.Error.Brig
@@ -67,6 +68,27 @@ import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, Password
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
+
+type BrigAPI =
+  UserAPI
+    :<|> SelfAPI
+    :<|> AccountAPI
+    :<|> ClientAPI
+    :<|> PrekeyAPI
+    :<|> UserClientAPI
+    :<|> ConnectionAPI
+    :<|> PropertiesAPI
+    :<|> MLSAPI
+    :<|> UserHandleAPI
+    :<|> SearchAPI
+    :<|> AuthAPI
+    :<|> CallingAPI
+
+brigSwagger :: Swagger
+brigSwagger = toSwagger (Proxy @BrigAPI)
+
+-------------------------------------------------------------------------------
+-- User API
 
 type MaxUsersForListClientsBulk = 500
 
@@ -524,8 +546,10 @@ instance ToSchema DeprecatedMatchingResult where
     object
       "DeprecatedMatchingResult"
       $ DeprecatedMatchingResult
-        <$ const [] .= field "results" (array (null_ @SwaggerDoc))
-        <* const [] .= field "auto-connects" (array (null_ @SwaggerDoc))
+        <$ const []
+          .= field "results" (array (null_ @SwaggerDoc))
+        <* const []
+          .= field "auto-connects" (array (null_ @SwaggerDoc))
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse
@@ -1151,9 +1175,10 @@ type AuthAPI =
              \ Every other combination is invalid.\
              \ Access tokens can be given as query parameter or authorisation\
              \ header, with the latter being preferred."
+        :> QueryParam "client_id" ClientId
         :> Cookies '["zuid" ::: SomeUserToken]
-        :> CanThrow 'BadCredentials
         :> Bearer SomeAccessToken
+        :> CanThrow 'BadCredentials
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
@@ -1253,19 +1278,34 @@ type AuthAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Cookies revoked")
            )
 
-type BrigAPI =
-  UserAPI
-    :<|> SelfAPI
-    :<|> AccountAPI
-    :<|> ClientAPI
-    :<|> PrekeyAPI
-    :<|> UserClientAPI
-    :<|> ConnectionAPI
-    :<|> PropertiesAPI
-    :<|> MLSAPI
-    :<|> UserHandleAPI
-    :<|> SearchAPI
-    :<|> AuthAPI
+-------------------------------------------------------------------------------
+-- Calling API
 
-brigSwagger :: Swagger
-brigSwagger = toSwagger (Proxy @BrigAPI)
+type CallingAPI =
+  -- Deprecated endpoint, but still used by old clients.
+  -- See https://github.com/zinfra/backend-issues/issues/1616 for context
+  Named
+    "get-calls-config"
+    ( Summary
+        "[deprecated] Retrieve TURN server addresses and credentials for \
+        \ IP addresses, scheme `turn` and transport `udp` only"
+        :> ZUser
+        :> ZConn
+        :> "calls"
+        :> "config"
+        :> Get '[JSON] RTCConfiguration
+    )
+    :<|> Named
+           "get-calls-config-v2"
+           ( Summary
+               "Retrieve all TURN server addresses and credentials. \
+               \Clients are expected to do a DNS lookup to resolve \
+               \the IP addresses of the given hostnames "
+               :> ZUser
+               :> ZConn
+               :> "calls"
+               :> "config"
+               :> "v2"
+               :> QueryParam' '[Optional, Strict, Description "Limit resulting list. Allowed values [1..10]"] "limit" (Range 1 10 Int)
+               :> Get '[JSON] RTCConfiguration
+           )

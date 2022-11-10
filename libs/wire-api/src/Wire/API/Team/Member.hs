@@ -36,6 +36,9 @@ module Wire.API.Team.Member
     -- * TeamMemberList
     TeamMemberList,
     TeamMemberListOptPerms,
+    TeamMembersPage (..),
+    TeamMembersPagingState,
+    teamMemberPagingState,
     newTeamMemberList,
     teamMembers,
     teamMemberListType,
@@ -61,17 +64,23 @@ module Wire.API.Team.Member
   )
 where
 
+import Cassandra (PageWithState (..))
+import qualified Cassandra as C
 import Control.Lens (Lens, Lens', makeLenses, (%~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..))
+import qualified Data.ByteString.Lazy as LBS
 import Data.Id (UserId)
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Schema
+import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger.Schema as S
 import GHC.TypeLits
 import Imports
+import Wire.API.Routes.MultiTablePaging (MultiTablePage (..))
+import Wire.API.Routes.MultiTablePaging.State
 import Wire.API.Team.Permission (Permissions)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -139,8 +148,10 @@ instance ToSchema TeamMember where
 teamMemberObjectSchema :: ObjectSchema SwaggerDoc TeamMember
 teamMemberObjectSchema =
   TeamMember
-    <$> _newTeamMember .= newTeamMemberSchema
-    <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optFieldWithDocModifier "legalhold_status" (description ?~ lhDesc) schema)
+    <$> _newTeamMember
+      .= newTeamMemberSchema
+    <*> _legalHoldStatus
+      .= (fromMaybe defUserLegalHoldStatus <$> optFieldWithDocModifier "legalhold_status" (description ?~ lhDesc) schema)
 
 instance ToSchema (TeamMember' 'Optional) where
   schema =
@@ -148,11 +159,15 @@ instance ToSchema (TeamMember' 'Optional) where
       TeamMember
         <$> _newTeamMember
           .= ( NewTeamMember
-                 <$> _nUserId .= fieldWithDocModifier "user" (description ?~ "user ID") schema
-                 <*> _nPermissions .= maybe_ (optFieldWithDocModifier "permissions" (description ?~ permissionsDesc) schema)
-                 <*> _nInvitation .= invitedSchema'
+                 <$> _nUserId
+                   .= fieldWithDocModifier "user" (description ?~ "user ID") schema
+                 <*> _nPermissions
+                   .= maybe_ (optFieldWithDocModifier "permissions" (description ?~ permissionsDesc) schema)
+                 <*> _nInvitation
+                   .= invitedSchema'
              )
-        <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optFieldWithDocModifier "legalhold_status" (description ?~ lhDesc) schema)
+        <*> _legalHoldStatus
+          .= (fromMaybe defUserLegalHoldStatus <$> optFieldWithDocModifier "legalhold_status" (description ?~ lhDesc) schema)
     where
       permissionsDesc =
         "The permissions this user has in the given team \
@@ -167,6 +182,45 @@ setPerm False = const Nothing
 
 --------------------------------------------------------------------------------
 -- TeamMemberList
+
+data TeamMembersTable = TeamMembersTable
+  deriving (Eq, Show, Generic)
+
+instance PagingTable TeamMembersTable where
+  encodePagingTable TeamMembersTable = 0
+
+  decodePagingTable 0 = pure TeamMembersTable
+  decodePagingTable x = fail $ "Expected 0 while parsing TeamMembersTable, got: " <> show x
+
+type TeamMembersPagingName = "TeamMembers"
+
+type TeamMembersPage' = MultiTablePage TeamMembersPagingName "members" TeamMembersTable TeamMemberOptPerms
+
+newtype TeamMembersPage = TeamMembersPage {unTeamMembersPage :: TeamMembersPage'}
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamMembersPage)
+
+instance ToSchema TeamMembersPage where
+  schema =
+    object "TeamMembersPage" $
+      TeamMembersPage
+        <$> unTeamMembersPage
+          .= ( MultiTablePage
+                 <$> mtpResults
+                   .= field "members" (array schema)
+                 <*> mtpHasMore
+                   .= field "hasMore" schema
+                 <*> mtpPagingState
+                   .= field "pagingState" schema
+             )
+
+type TeamMembersPagingState = MultiTablePagingState TeamMembersPagingName TeamMembersTable
+
+teamMemberPagingState :: PageWithState TeamMember -> TeamMembersPagingState
+teamMemberPagingState p = MultiTablePagingState TeamMembersTable (LBS.toStrict . C.unPagingState <$> pwsState p)
+
+instance ToParamSchema TeamMembersPagingState where
+  toParamSchema _ = toParamSchema (Proxy @Text)
 
 type TeamMemberList = TeamMemberList' 'Required
 
@@ -211,8 +265,10 @@ instance ToSchema (TeamMember' tag) => ToSchema (TeamMemberList' tag) where
   schema =
     objectWithDocModifier "TeamMemberList" (description ?~ "list of team member") $
       TeamMemberList
-        <$> _teamMembers .= fieldWithDocModifier "members" (description ?~ "the array of team members") (array schema)
-        <*> _teamMemberListType .= fieldWithDocModifier "hasMore" (description ?~ "true if 'members' doesn't contain all team members") schema
+        <$> _teamMembers
+          .= fieldWithDocModifier "members" (description ?~ "the array of team members") (array schema)
+        <*> _teamMemberListType
+          .= fieldWithDocModifier "hasMore" (description ?~ "true if 'members' doesn't contain all team members") schema
 
 type HardTruncationLimit = (2000 :: Nat)
 
@@ -301,15 +357,20 @@ deriving via (GenericUniform (NewTeamMember' 'Optional)) instance Arbitrary (New
 newTeamMemberSchema :: ObjectSchema SwaggerDoc NewTeamMember
 newTeamMemberSchema =
   NewTeamMember
-    <$> _nUserId .= field "user" schema
-    <*> _nPermissions .= field "permissions" schema
-    <*> _nInvitation .= invitedSchema'
+    <$> _nUserId
+      .= field "user" schema
+    <*> _nPermissions
+      .= field "permissions" schema
+    <*> _nInvitation
+      .= invitedSchema'
 
 invitedSchema :: ObjectSchemaP SwaggerDoc (Maybe (UserId, UTCTimeMillis)) (Maybe UserId, Maybe UTCTimeMillis)
 invitedSchema =
   (,)
-    <$> fmap fst .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user.  Requires created_at.") (maybeWithDefault Null schema)
-    <*> fmap snd .= optFieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation.  Requires created_by.") (maybeWithDefault Null schema)
+    <$> fmap fst
+      .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user.  Requires created_at.") (maybeWithDefault Null schema)
+    <*> fmap snd
+      .= optFieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation.  Requires created_by.") (maybeWithDefault Null schema)
 
 invitedSchema' :: ObjectSchema SwaggerDoc (Maybe (UserId, UTCTimeMillis))
 invitedSchema' = withParser invitedSchema $ \(invby, invat) ->

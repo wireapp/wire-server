@@ -14,9 +14,7 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws 
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
 CHARTS_RELEASE        := wire-server redis-ephemeral redis-cluster databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn inbucket
-BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
-BUILDAH_KIND_LOAD     ?= 1
 
 package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
@@ -110,7 +108,7 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all shellcheck check-local-nix-derivations
+lint-all: formatc hlint-check-all check-local-nix-derivations treefmt
 
 .PHONY: hlint-check-all
 hlint-check-all:
@@ -173,12 +171,22 @@ add-license:
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
-.PHONY: shellcheck
-shellcheck:
-	./hack/bin/shellcheck.sh
+.PHONY: treefmt
+treefmt:
+	treefmt
 
 #################################
 ## docker targets
+
+.PHONY: build-image-%
+build-image-%:
+	nix-build ./nix -A wireServer.imagesNoDocs.$(*) && \
+	./result | docker load | tee /tmp/imageName-$(*) && \
+	imageName=$$(grep quay.io /tmp/imageName-$(*) | awk '{print $$3}') && \
+	echo 'You can run your image locally using' && \
+	echo "  docker run -it --entrypoint bash $$imageName" && \
+	echo 'or upload it using' && \
+	echo "  docker push $$imageName"
 
 .PHONY: upload-images
 upload-images:
@@ -408,24 +416,6 @@ upload-charts: charts-release
 .PHONY: echo-release-charts
 echo-release-charts:
 	@echo ${CHARTS_RELEASE}
-
-.PHONY: buildah-docker
-buildah-docker: buildah-docker-nginz
-	./hack/bin/buildah-compile.sh all
-	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images.sh
-
-.PHONY: buildah-docker-nginz
-buildah-docker-nginz:
-	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images-nginz.sh
-
-.PHONY: buildah-docker-%
-buildah-docker-%:
-	./hack/bin/buildah-compile.sh $(*)
-	BUILDAH_PUSH=${BUILDAH_PUSH} EXECUTABLES=$(*) KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD} ./hack/bin/buildah-make-images.sh
-
-.PHONY: buildah-clean
-buildah-clean:
-	./hack/bin/buildah-clean.sh
 
 .PHONY: kind-cluster
 kind-cluster:

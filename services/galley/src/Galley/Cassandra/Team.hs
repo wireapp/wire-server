@@ -14,12 +14,14 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE LambdaCase #-}
 
 module Galley.Cassandra.Team
   ( interpretTeamStoreToCassandra,
     interpretTeamMemberStoreToCassandra,
     interpretTeamListToCassandra,
     interpretInternalTeamListToCassandra,
+    interpretTeamMemberStoreToCassandraWithPaging,
   )
 where
 
@@ -130,6 +132,14 @@ interpretTeamMemberStoreToCassandra lh = interpret $ \case
       mkInternalPage page (newTeamMember' lh tid)
     Just ps -> ipNext ps
 
+interpretTeamMemberStoreToCassandraWithPaging ::
+  Members '[Embed IO, Input ClientState] r =>
+  FeatureLegalHold ->
+  Sem (TeamMemberStore CassandraPaging ': r) a ->
+  Sem r a
+interpretTeamMemberStoreToCassandraWithPaging lh = interpret $ \case
+  ListTeamMembers tid mps lim -> embedClient $ teamMembersPageFrom lh tid mps lim
+
 createTeam ::
   Maybe TeamId ->
   UserId ->
@@ -148,23 +158,23 @@ createTeam t uid (fromRange -> n) i k b = do
 
 listBillingTeamMembers :: TeamId -> Client [UserId]
 listBillingTeamMembers tid =
-  fmap runIdentity
-    <$> retry x1 (query Cql.listBillingTeamMembers (params LocalQuorum (Identity tid)))
+  runIdentity
+    <$$> retry x1 (query Cql.listBillingTeamMembers (params LocalQuorum (Identity tid)))
 
 getTeamName :: TeamId -> Client (Maybe Text)
 getTeamName tid =
-  fmap runIdentity
-    <$> retry x1 (query1 Cql.selectTeamName (params LocalQuorum (Identity tid)))
+  runIdentity
+    <$$> retry x1 (query1 Cql.selectTeamName (params LocalQuorum (Identity tid)))
 
 teamConversation :: TeamId -> ConvId -> Client (Maybe TeamConversation)
 teamConversation t c =
-  fmap (newTeamConversation . runIdentity)
-    <$> retry x1 (query1 Cql.selectTeamConv (params LocalQuorum (t, c)))
+  newTeamConversation . runIdentity
+    <$$> retry x1 (query1 Cql.selectTeamConv (params LocalQuorum (t, c)))
 
 getTeamConversations :: TeamId -> Client [TeamConversation]
 getTeamConversations t =
-  map (newTeamConversation . runIdentity)
-    <$> retry x1 (query Cql.selectTeamConvs (params LocalQuorum (Identity t)))
+  newTeamConversation . runIdentity
+    <$$> retry x1 (query Cql.selectTeamConvs (params LocalQuorum (Identity t)))
 
 teamIdsFrom :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Client (ResultSet TeamId)
 teamIdsFrom usr range (fromRange -> max) =
@@ -176,7 +186,7 @@ teamIdsFrom usr range (fromRange -> max) =
 
 teamIdsForPagination :: UserId -> Maybe TeamId -> Range 1 100 Int32 -> Client (Page TeamId)
 teamIdsForPagination usr range (fromRange -> max) =
-  fmap runIdentity <$> case range of
+  runIdentity <$$> case range of
     Just c -> paginate Cql.selectUserTeamsFrom (paramsP LocalQuorum (usr, c) max)
     Nothing -> paginate Cql.selectUserTeams (paramsP LocalQuorum (Identity usr) max)
 
@@ -436,3 +446,14 @@ teamMembersForPagination tid start (fromRange -> max) =
   case start of
     Just u -> paginate Cql.selectTeamMembersFrom (paramsP LocalQuorum (tid, u) max)
     Nothing -> paginate Cql.selectTeamMembers (paramsP LocalQuorum (Identity tid) max)
+
+teamMembersPageFrom ::
+  FeatureLegalHold ->
+  TeamId ->
+  Maybe PagingState ->
+  Range 1 HardTruncationLimit Int32 ->
+  Client (PageWithState TeamMember)
+teamMembersPageFrom lh tid pagingState (fromRange -> max) = do
+  page <- paginateWithState Cql.selectTeamMembers (paramsPagingState LocalQuorum (Identity tid) max pagingState)
+  members <- mapM (newTeamMember' lh tid) (pwsResults page)
+  pure $ PageWithState members (pwsState page)

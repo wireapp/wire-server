@@ -117,8 +117,8 @@ testSignAndVerify p = do
 testRandDevIds :: Create ()
 testRandDevIds = do
   u <- liftIO nextRandom
-  t1 <- view body <$> accessToken1 defDuration u
-  t2 <- view body <$> accessToken1 defDuration u
+  t1 <- view body <$> accessToken1 defDuration u Nothing
+  t2 <- view body <$> accessToken1 defDuration u Nothing
   liftIO $ assertBool "unexpected: Same device ID." (t1 ^. connection /= t2 ^. connection)
 
 -- Helpers:

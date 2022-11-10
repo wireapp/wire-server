@@ -60,10 +60,13 @@ where
 
 import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
+import Cassandra (PageWithState (pwsResults), pwsHasMore)
+import qualified Cassandra as C
 import Control.Lens
 import Data.ByteString.Builder (lazyByteString)
 import Data.ByteString.Conversion (List, toByteString)
 import qualified Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.CaseInsensitive as CI
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
 import qualified Data.Handle as Handle
@@ -131,14 +134,15 @@ import Wire.API.Event.Team
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
 import qualified Wire.API.Notification as Public
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
+import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
 import qualified Wire.API.Team as Public
 import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Feature
-import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberOptPerms, hardTruncationLimit, invitation, nPermissions, nUserId, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMembers, tmdAuthPassword, userId)
+import Wire.API.Team.Member
 import qualified Wire.API.Team.Member as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
 import Wire.API.Team.Role
@@ -215,21 +219,25 @@ lookupTeam zusr tid = do
     else pure Nothing
 
 createNonBindingTeamH ::
-  forall r.
-  ( Member BrigAccess r,
-    Member (ErrorS 'UserBindingExists) r,
-    Member (ErrorS 'NotConnected) r,
-    Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    Member P.TinyLog r,
-    Member TeamStore r,
-    Member WaiRoutes r
-  ) =>
-  UserId ->
+  Members
+    '[ ConversationStore,
+       ErrorS 'NotConnected,
+       ErrorS 'UserBindingExists,
+       GundeckAccess,
+       Input UTCTime,
+       MemberStore,
+       P.TinyLog,
+       TeamStore,
+       WaiRoutes,
+       BrigAccess
+     ]
+    r =>
+  Local UserId ->
   ConnId ->
   Public.NonBindingNewTeam ->
   Sem r TeamId
-createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
+createNonBindingTeamH lusr zcon (Public.NonBindingNewTeam body) = do
+  let zusr = tUnqualified lusr
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
         filter ((zusr /=) . view userId)
@@ -250,15 +258,24 @@ createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
       (body ^. newTeamIconKey)
       NonBinding
   finishCreateTeam team owner others (Just zcon)
-  pure (team ^. teamId)
+  let tid = team ^. teamId
+  pure tid
 
 createBindingTeam ::
-  Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
+  Members
+    '[ GundeckAccess,
+       Input UTCTime,
+       MemberStore,
+       TeamStore,
+       ConversationStore
+     ]
+    r =>
   TeamId ->
-  UserId ->
+  Local UserId ->
   BindingNewTeam ->
   Sem r TeamId
-createBindingTeam tid zusr (BindingNewTeam body) = do
+createBindingTeam tid lusr (BindingNewTeam body) = do
+  let zusr = tUnqualified lusr
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
@@ -485,16 +502,26 @@ getTeamConversationRoles zusr tid = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 getTeamMembers ::
-  Members '[ErrorS 'NotATeamMember, TeamStore] r =>
+  Members '[ErrorS 'NotATeamMember, TeamStore, TeamMemberStore CassandraPaging] r =>
   Local UserId ->
   TeamId ->
   Maybe (Range 1 Public.HardTruncationLimit Int32) ->
-  Sem r TeamMemberListOptPerms
-getTeamMembers lzusr tid mbMaxResults = do
-  m <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
-  memberList <- E.getTeamMembersWithLimit tid (fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults)
-  let withPerms = (m `canSeePermsOf`)
-  pure $ setOptionalPermsMany withPerms memberList
+  Maybe TeamMembersPagingState ->
+  Sem r TeamMembersPage
+getTeamMembers lzusr tid mbMaxResults mbPagingState = do
+  member <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
+  let mState = C.PagingState . LBS.fromStrict <$> (mbPagingState >>= mtpsState)
+  let mLimit = fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults
+  E.listTeamMembers @CassandraPaging tid mState mLimit <&> toTeamMembersPage member
+  where
+    toTeamMembersPage :: TeamMember -> C.PageWithState TeamMember -> TeamMembersPage
+    toTeamMembersPage member p =
+      let withPerms = (member `canSeePermsOf`)
+       in TeamMembersPage $
+            MultiTablePage
+              (map (setOptionalPerms withPerms) $ pwsResults p)
+              (pwsHasMore p)
+              (teamMemberPagingState p)
 
 outputToStreamingBody :: Member (Final IO) r => Sem (Output LByteString ': r) () -> Sem r StreamingBody
 outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
