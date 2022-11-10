@@ -53,7 +53,7 @@ runCommand l brig inconsistenciesFile = do
               pure userHandles
           )
         .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(handle, userId, claimTime) -> checkUser l brig handle userId claimTime False))
-        .| C.map (BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
+        .| C.map ((<> "\n") . BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
 examineHandles :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
