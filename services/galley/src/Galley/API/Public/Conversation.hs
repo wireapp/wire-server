@@ -42,9 +42,12 @@ conversationAPI =
     <@> mkNamedAPI @"list-conversations-v1" listConversations
     <@> mkNamedAPI @"list-conversations" listConversations
     <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
+    <@> mkNamedAPI @"create-group-conversation@v2" createGroupConversation
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation
+    <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
+    <@> mkNamedAPI @"create-one-to-one-conversation@v2" createOne2OneConversation
     <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
@@ -69,6 +72,7 @@ conversationAPI =
     <@> mkNamedAPI @"update-conversation-receipt-mode-unqualified" updateConversationReceiptModeUnqualified
     <@> mkNamedAPI @"update-conversation-receipt-mode" updateConversationReceiptMode
     <@> mkNamedAPI @"update-conversation-access-unqualified" updateConversationAccessUnqualified
+    <@> mkNamedAPI @"update-conversation-access@v2" updateConversationAccess
     <@> mkNamedAPI @"update-conversation-access" updateConversationAccess
     <@> mkNamedAPI @"get-conversation-self-unqualified" getLocalSelf
     <@> mkNamedAPI @"update-conversation-self-unqualified" updateUnqualifiedSelfMember

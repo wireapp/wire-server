@@ -440,7 +440,7 @@ instance ToSchema ConversationsResponse where
           "ConversationsResponse"
           (description ?~ "Response object for getting metadata of a list of conversations")
           $ ConversationsResponse
-            <$> crFound .= field "found" (array schema)
+            <$> crFound .= field "found" (array (conversationSchema accessRolesSchemaV2))
             <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
             <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
 
@@ -884,12 +884,20 @@ data ConversationAccessData = ConversationAccessData
   deriving (Arbitrary) via (GenericUniform ConversationAccessData)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationAccessData
 
+conversationAccessDataSchema ::
+  ObjectSchema SwaggerDoc (Set AccessRole) ->
+  ValueSchema NamedSwaggerDoc ConversationAccessData
+conversationAccessDataSchema sch =
+  object "ConversationAccessData" $
+    ConversationAccessData
+      <$> cupAccess .= field "access" (set schema)
+      <*> cupAccessRoles .= sch
+
 instance ToSchema ConversationAccessData where
-  schema =
-    object "ConversationAccessData" $
-      ConversationAccessData
-        <$> cupAccess .= field "access" (set schema)
-        <*> cupAccessRoles .= accessRolesSchema
+  schema = conversationAccessDataSchema accessRolesSchema
+
+instance ToSchema (Versioned 'V2 ConversationAccessData) where
+  schema = Versioned <$> unVersioned .= conversationAccessDataSchema accessRolesSchemaV2
 
 modelConversationAccessData :: Doc.Model
 modelConversationAccessData = Doc.defineModel "ConversationAccessData" $ do
