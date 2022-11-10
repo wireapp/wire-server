@@ -41,6 +41,7 @@ data CassandraSettings = CassandraSettings
 data Command
   = DanglingHandles (Maybe (FilePath, Bool))
   | HandleLessUsers
+  | DanglingUserKeys
 
 optionsParser :: Parser (Command, Settings)
 optionsParser = (,) <$> commandParser <*> settingsParser
@@ -48,10 +49,13 @@ optionsParser = (,) <$> commandParser <*> settingsParser
 commandParser :: Parser Command
 commandParser =
   subparser $
-    danglingHandlesCommand <> handleLessUsersCommand
+    danglingHandlesCommand <> handleLessUsersCommand <> danglingKeysCommand
 
 danglingHandlesCommand :: Mod CommandFields Command
 danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional limitedHandlesParser) (progDesc "find handle which shouldn't be claimed"))
+
+danglingKeysCommand :: Mod CommandFields Command
+danglingKeysCommand = command "dangling-keys" (info (pure DanglingUserKeys) (progDesc "find keys which shouldn't be there"))
 
 handleLessUsersCommand :: Mod CommandFields Command
 handleLessUsersCommand = command "handle-less-users" (info (pure HandleLessUsers) (progDesc "find users which have a handle in the user table but not in the user_handle table"))

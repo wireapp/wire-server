@@ -32,16 +32,15 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
-import Data.Handle
 import Data.Id
 import Data.String.Conversions (cs)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
 import Imports
 import System.Logger
 import qualified System.Logger as Log
 import UnliftIO.Async
-import Wire.API.User
+import Wire.API.User hiding (userEmail, userPhone)
+import Brig.Email (EmailKey(..), mkEmailKey)
+import Brig.Phone (PhoneKey(..), mkPhoneKey)
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do
@@ -49,48 +48,48 @@ runCommand l brig inconsistenciesFile = do
     runConduit $
       zipSources
         (C.sourceList [(1 :: Int32) ..])
-        (transPipe (runClient brig) getHandles)
+        (transPipe (runClient brig) getKeys)
         .| C.mapM
-          ( \(i, userHandles) -> do
-              Log.info l (Log.field "keys" (show ((i - 1) * pageSize + fromIntegral (length userHandles))))
-              pure userHandles
+          ( \(i, userKeys) -> do
+              Log.info l (Log.field "keys" (show ((i - 1) * pageSize + fromIntegral (length userKeys))))
+              pure userKeys
           )
-        .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(handle, userId, claimTime) -> checkUser l brig handle userId claimTime False))
-        .| C.map (BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
+        .| C.mapM (liftIO . pooledMapConcurrentlyN 48 (\(key, userId, claimTime) -> checkUser l brig key userId claimTime False))
+        .| C.map ((<> "\n") . BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
-examineHandles :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
-examineHandles l brig handlesFile errorsFile fixClaim = do
-  handles <- mapMaybe parseHandle . Text.lines <$> Text.readFile handlesFile
-  runResourceT $
-    runConduit $
-      zipSources
-        (C.sourceList [(1 :: Int32) ..])
-        (C.sourceList handles)
-        .| C.mapM
-          ( \(i, handle) -> do
-              when (i `mod` 100 == 0) $
-                Log.info l (Log.field "handlesProcesses" i)
-              liftIO $ checkHandle l brig handle fixClaim
-          )
-        .| C.map ((<> "\n") . cs . Aeson.encode)
-        .| sinkFile errorsFile
+-- examineKeys :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
+-- examineKeys l brig keysFile errorsFile repairData = do
+--   keys <- mapMaybe parseHandle . Text.lines <$> Text.readFile keysFile
+--   runResourceT $
+--     runConduit $
+--       zipSources
+--         (C.sourceList [(1 :: Int32) ..])
+--         (C.sourceList keys)
+--         .| C.mapM
+--           ( \(i, key) -> do
+--               when (i `mod` 100 == 0) $
+--                 Log.info l (Log.field "keysProcesses" i)
+--               liftIO $ checkKey l brig key repairData
+--           )
+--         .| C.map ((<> "\n") . cs . Aeson.encode)
+--         .| sinkFile errorsFile
 
 pageSize :: Int32
 pageSize = 1000
 
-data HandleInfo = HandleInfo
+data Inconsistency = Inconsistency
   { -- | Handle in the user_handle table
-    claimedHandle :: Handle,
+    key :: UserKey,
     userId :: UserId,
-    handleClaimTime :: Writetime Handle,
+    time :: Writetime UserId,
     status :: Maybe (WithWritetime AccountStatus),
-    -- | Handle in the user table
-    userHandle :: Maybe (WithWritetime Handle)
+    userEmail :: Maybe (WithWritetime Email),
+    userPhone :: Maybe (WithWritetime Phone)
   }
   deriving (Generic)
 
-instance Aeson.ToJSON HandleInfo
+instance Aeson.ToJSON Inconsistency
 
 data WithWritetime a = WithWritetime
   { value :: a,
@@ -103,23 +102,17 @@ instance Aeson.ToJSON a => Aeson.ToJSON (WithWritetime a)
 ----------------------------------------------------------------------------
 -- Queries
 
-getHandle :: Handle -> Client (Maybe (UserId, Writetime UserId))
-getHandle handle = retry x1 $ query1 cql (params LocalQuorum (Identity handle))
-  where
-    cql :: PrepQuery R (Identity Handle) (UserId, Writetime UserId)
-    cql = "SELECT user, writetime(user) from user_handle where handle = ?"
-
-getHandles :: ConduitM () [(Handle, UserId, Writetime UserId)] Client ()
-getHandles = paginateC cql (paramsP LocalQuorum () pageSize) x5
-  where
-    cql :: PrepQuery R () (Handle, UserId, Writetime UserId)
-    cql = "SELECT handle, user, writetime(user) from user_handle"
+-- getKey :: UserKey -> Client (Maybe (UserId, Writetime UserId))
+-- getKey key = retry x1 $ query1 cql (params LocalQuorum (Identity key))
+--   where
+--     cql :: PrepQuery R (Identity UserKey) (UserId, Writetime UserId)
+--     cql = "SELECT user, writetime(user) from user_keys where key = ?"
 
 getKeys :: ConduitM () [(UserKey, UserId, Writetime UserId)] Client ()
 getKeys = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
     cql :: PrepQuery R () (UserKey, UserId, Writetime UserId)
-    cql = "SELECT handle, user, writetime(user) from user_handle"
+    cql = "SELECT key, user, writetime(user) from user_keys"
 
 instance Cql UserKey where
   ctype = Tagged TextColumn
@@ -133,54 +126,62 @@ instance Cql UserKey where
 
   toCql k = toCql $ keyText k
 
-type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Handle, Maybe (Writetime Handle))
+instance Aeson.ToJSON UserKey where
+  toJSON = Aeson.toJSON . keyText
+
+type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Email, Maybe (Writetime Email), Maybe Phone, Maybe (Writetime Phone))
 
 getUserDetails :: UserId -> Client (Maybe UserDetailsRow)
 getUserDetails uid = retry x1 $ query1 cql (params LocalQuorum (Identity uid))
   where
     cql :: PrepQuery R (Identity UserId) UserDetailsRow
-    cql = "SELECT status, writetime(status), handle, writetime(handle) from user where id = ?"
+    cql = "SELECT status, writetime(status), email, writetime(email), phone, writetime(phone) from user where id = ?"
 
-checkHandle :: Logger -> ClientState -> Handle -> Bool -> IO (Maybe HandleInfo)
-checkHandle l brig handle fixHandle = do
-  mUser <- runClient brig $ getHandle handle
-  case mUser of
-    Nothing -> do
-      Log.warn l (Log.msg (Log.val "No user found for handle") . Log.field "handle" (fromHandle handle))
-      pure Nothing
-    Just (uid, claimTime) -> checkUser l brig handle uid claimTime fixHandle
+-- checkKey :: Logger -> ClientState -> UserKey -> Bool -> IO (Maybe HandleInfo)
+-- checkKey l brig key repairData = do
+--   mUser <- runClient brig $ getKey key
+--   case mUser of
+--     Nothing -> do
+--       Log.warn l (Log.msg (Log.val "No user found for key") . Log.field "key" (keyText key))
+--       pure Nothing
+--     Just (uid, claimTime) -> checkUser l brig key uid claimTime repairData
 
-freeHandle :: Logger -> Handle -> Client ()
-freeHandle l handle = do
-  Log.info l $ Log.msg (Log.val "Freeing handle") . Log.field "handle" (fromHandle handle)
-  retry x5 $ write handleDelete (params LocalQuorum (Identity handle))
-  where
-    handleDelete :: PrepQuery W (Identity Handle) ()
-    handleDelete = "DELETE FROM user_handle WHERE handle = ?"
+-- freeHandle :: Logger -> Handle -> Client ()
+-- freeHandle l handle = do
+--   Log.info l $ Log.msg (Log.val "Freeing handle") . Log.field "handle" (fromHandle handle)
+--   retry x5 $ write handleDelete (params LocalQuorum (Identity handle))
+--   where
+--     handleDelete :: PrepQuery W (Identity Handle) ()
+--     handleDelete = "DELETE FROM user_handle WHERE handle = ?"
 
-checkUser :: Logger -> ClientState -> Handle -> UserId -> Writetime UserId -> Bool -> IO (Maybe HandleInfo)
-checkUser l brig claimedHandle userId handleClaimTime fixClaim = do
+checkUser :: Logger -> ClientState -> UserKey -> UserId -> Writetime UserId -> Bool -> IO (Maybe Inconsistency)
+checkUser _l brig key userId time _repairData = do
   maybeDetails <- runClient brig $ getUserDetails userId
   case maybeDetails of
     Nothing -> do
       let status = Nothing
-          userHandle = Nothing
-      when fixClaim $
-        runClient brig $
-          freeHandle l claimedHandle
-      pure . Just $ HandleInfo {..}
-    Just (mStatus, mStatusWriteTime, mHandle, mHandleWriteTime) -> do
+          userEmail = Nothing
+          userPhone = Nothing
+      -- when repairData $
+      --   runClient brig $
+      --     freeKey l key
+      pure . Just $ Inconsistency {..}
+    Just (mStatus, mStatusWriteTime, mEmail, mEmailWriteTime, mPhone, mPhoneWriteTime) -> do
       let status = WithWritetime <$> mStatus <*> mStatusWriteTime
-          userHandle = WithWritetime <$> mHandle <*> mHandleWriteTime
+          userEmail = WithWritetime <$> mEmail <*> mEmailWriteTime
+          userPhone = WithWritetime <$> mPhone <*> mPhoneWriteTime
           statusError = case mStatus of
             Nothing -> True
             Just Deleted -> True
             _ -> False
-          handleError = mHandle /= Just claimedHandle
-      if statusError || handleError
+          compareEmail e = (emailKeyUniq . mkEmailKey <$> mEmail) /= Just (fromEmail e)
+          comparePhone p = (phoneKeyUniq . mkPhoneKey <$> mPhone) /= Just (fromPhone p)
+          keyError = foldKey compareEmail comparePhone key
+      if statusError || keyError
         then do
-          when fixClaim $
-            runClient brig $
-              freeHandle l claimedHandle
-          pure . Just $ HandleInfo {..}
+          -- when repairData $
+          --   runClient brig $
+          --     freeKey l key
+          pure . Just $ Inconsistency {..}
         else pure Nothing
+
