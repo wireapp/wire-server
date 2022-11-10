@@ -49,7 +49,7 @@ packages:
   , tools/db/move-team/
   , tools/db/repair-handles/
   , tools/db/scim-emails/
-  , tools/db/dangling-handles/
+  , tools/db/inconsistencies/
   , tools/rex/
   , tools/stern/
 
