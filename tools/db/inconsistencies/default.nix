@@ -32,7 +32,7 @@
 , wire-api
 }:
 mkDerivation {
-  pname = "dangling-handles";
+  pname = "inconsistencies";
   version = "1.0.0";
   src = gitignoreSource ./.;
   isLibrary = false;
@@ -66,5 +66,5 @@ mkDerivation {
   ];
   description = "Find handles which belong to deleted users";
   license = lib.licenses.agpl3Only;
-  mainProgram = "dangling-handles";
+  mainProgram = "inconsistencies";
 }

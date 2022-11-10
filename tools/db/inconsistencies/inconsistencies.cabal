@@ -1,5 +1,5 @@
 cabal-version: 1.12
-name:          dangling-handles
+name:          inconsistencies
 version:       1.0.0
 synopsis:      Find handles which belong to deleted users.
 category:      Network
@@ -9,13 +9,13 @@ copyright:     (c) 2020 Wire Swiss GmbH
 license:       AGPL-3
 build-type:    Simple
 
-executable dangling-handles
+executable inconsistencies
   main-is:            Main.hs
   other-modules:
     DanglingHandles
     HandleLessUsers
     Options
-    Paths_dangling_handles
+    Paths_inconsistencies
 
   hs-source-dirs:     src
   default-extensions:

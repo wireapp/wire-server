@@ -3,27 +3,28 @@
 1. Build image
 
 ```
-make build-image-dangling-handles
+make build-image-inconsistencies
 ```
 2. Push image
 
 ```
 docker tag <image-built-in-step1> <image-in-your-personal-docker-repo>
+docker push <image-in-your-personal-docker-repo>
 ```
 
-3. Run it in K8s using this pod yaml **Update image field appropriately**:
+3. Run it in K8s using this pod yaml **Update image field and args appropriately**:
 
 ```yaml
 apiVersion: v1
 kind: Pod
 metadata:
-  name: dangling-handles
+  name: inconsistencies
   labels:
-    app: dangling-handles
+    app: inconsistencies
 spec:
   restartPolicy: Never
   containers:
-  - name: dangling-handles
+  - name: inconsistencies
     image: <image-in-your-personal-docker-repo>
     imagePullPolicy: Always
     args:
@@ -41,7 +42,7 @@ spec:
 5. Copy the logs using `kubectl cp`
 
 ```
-kubectl cp dangling-handles:/inconsistencies.log inconsistencies.log
+kubectl cp inconsistencies:/inconsistencies.log inconsistencies.log
 ```
 
 6. **IMPORTANT:** Delete the pod.
