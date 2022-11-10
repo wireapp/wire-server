@@ -596,7 +596,7 @@ createTeamConvAccess ::
   [UserId] ->
   Maybe Text ->
   Maybe (Set Access) ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   Maybe RoleName ->
   TestM ConvId
@@ -610,7 +610,7 @@ createTeamConvAccessRaw ::
   [UserId] ->
   Maybe Text ->
   Maybe (Set Access) ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   Maybe RoleName ->
   TestM ResponseLBS
@@ -648,7 +648,7 @@ createMLSTeamConv ::
   UserList UserId ->
   Maybe Text ->
   Maybe (Set Access) ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   Maybe RoleName ->
   m (Local ConvId)
@@ -715,7 +715,7 @@ postConv ::
   [UserId] ->
   Maybe Text ->
   [Access] ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
@@ -761,7 +761,7 @@ postConvWithRemoteUsers u n =
     setName Nothing = checked "federated gossip"
     setName x = x
 
-postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
+postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- viewGalley
   let conv =
@@ -794,7 +794,7 @@ postConvWithRole ::
   [UserId] ->
   Maybe Text ->
   [Access] ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   RoleName ->
   TestM ResponseLBS
@@ -810,7 +810,7 @@ postConvWithRole u members name access arole timer role =
         newConvUsersRole = role
       }
 
-postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
+postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- viewGalley
   let conv =

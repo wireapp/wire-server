@@ -89,7 +89,7 @@ type JSON = Media "application" "json"
 
 ensureAccessRole ::
   Members '[BrigAccess, ErrorS 'NotATeamMember, ErrorS 'ConvAccessDenied] r =>
-  Set Public.AccessRoleV2 ->
+  Set Public.AccessRole ->
   [(UserId, Maybe TeamMember)] ->
   Sem r ()
 ensureAccessRole roles users = do

@@ -81,7 +81,7 @@ convTeam = cnvmTeam . convMetadata
 convAccess :: Conversation -> [Access]
 convAccess = cnvmAccess . convMetadata
 
-convAccessRoles :: Conversation -> Set AccessRoleV2
+convAccessRoles :: Conversation -> Set AccessRole
 convAccessRoles = cnvmAccessRoles . convMetadata
 
 convAccessData :: Conversation -> ConversationAccessData
@@ -102,8 +102,8 @@ convSetName n c = c {convMetadata = (convMetadata c) {cnvmName = n}}
 defRegularConvAccess :: [Access]
 defRegularConvAccess = [InviteAccess]
 
-parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Set AccessRoleV2) -> Maybe (Set AccessRoleV2)
-parseAccessRoles mbLegacy mbV2 = mbV2 <|> fromAccessRoleLegacy <$> mbLegacy
+parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Set AccessRole) -> Maybe (Set AccessRole)
+parseAccessRoles mbLegacy mbAccess = mbAccess <|> fromAccessRoleLegacy <$> mbLegacy
 
 convMessageTimer :: Conversation -> Maybe Milliseconds
 convMessageTimer = cnvmMessageTimer . convMetadata

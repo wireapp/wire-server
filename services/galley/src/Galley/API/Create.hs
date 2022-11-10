@@ -583,7 +583,7 @@ toUUIDs a b = do
   b' <- U.fromUUID (toUUID b) & note InvalidUUID4
   pure (a', b')
 
-accessRoles :: NewConv -> Set AccessRoleV2
+accessRoles :: NewConv -> Set AccessRole
 accessRoles b = fromMaybe Data.defRole (newConvAccessRoles b)
 
 access :: NewConv -> [Access]

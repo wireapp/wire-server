@@ -101,7 +101,7 @@ instance Cql AccessRoleLegacy where
     n -> Left $ "Unexpected AccessRole value: " ++ show n
   fromCql _ = Left "AccessRole value: int expected"
 
-instance Cql AccessRoleV2 where
+instance Cql AccessRole where
   ctype = Tagged IntColumn
 
   toCql = \case

@@ -206,7 +206,7 @@ selectConv ::
       Maybe UserId,
       Maybe (C.Set Access),
       Maybe AccessRoleLegacy,
-      Maybe (C.Set AccessRoleV2),
+      Maybe (C.Set AccessRole),
       Maybe Text,
       Maybe TeamId,
       Maybe Bool,
@@ -239,7 +239,7 @@ selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRoleV2, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ()
+insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ()
 insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 insertMLSSelfConv ::
@@ -249,7 +249,7 @@ insertMLSSelfConv ::
       ConvType,
       UserId,
       C.Set Access,
-      C.Set AccessRoleV2,
+      C.Set AccessRole,
       Maybe Text,
       Maybe TeamId,
       Maybe Milliseconds,
@@ -273,7 +273,7 @@ insertGlobalTeamConv = "insert into conversation (conv, type, access, name, team
 setGlobalTeamConvCreator :: PrepQuery W (UserId, ConvId) ()
 setGlobalTeamConvCreator = "update conversation set creator = ? where conv = ?"
 
-updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRoleV2, ConvId) ()
+updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRole, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
 
 updateConvReceiptMode :: PrepQuery W (ReceiptMode, ConvId) ()

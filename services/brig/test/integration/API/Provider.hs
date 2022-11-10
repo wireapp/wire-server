@@ -1363,7 +1363,7 @@ createConv ::
 createConv = createConvWithAccessRoles Nothing
 
 createConvWithAccessRoles ::
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Galley ->
   UserId ->
   [UserId] ->
@@ -1445,7 +1445,7 @@ updateConversationAccess ::
   UserId ->
   ConvId ->
   [Access] ->
-  Set AccessRoleV2 ->
+  Set AccessRole ->
   Http ResponseLBS
 updateConversationAccess galley uid cid access role =
   put $
