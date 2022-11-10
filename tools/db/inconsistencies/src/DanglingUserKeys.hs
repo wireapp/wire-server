@@ -24,6 +24,8 @@ module DanglingUserKeys where
 
 import Brig.Data.Instances ()
 import Brig.Data.UserKey
+import Brig.Email (EmailKey (..), mkEmailKey)
+import Brig.Phone (PhoneKey (..), mkPhoneKey)
 import Brig.Types.Intra
 import Cassandra
 import Cassandra.Util
@@ -39,8 +41,6 @@ import System.Logger
 import qualified System.Logger as Log
 import UnliftIO.Async
 import Wire.API.User hiding (userEmail, userPhone)
-import Brig.Email (EmailKey(..), mkEmailKey)
-import Brig.Phone (PhoneKey(..), mkPhoneKey)
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do
@@ -184,4 +184,3 @@ checkUser _l brig key userId time _repairData = do
           --     freeKey l key
           pure . Just $ Inconsistency {..}
         else pure Nothing
-

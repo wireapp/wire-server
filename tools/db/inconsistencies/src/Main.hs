@@ -26,13 +26,13 @@ where
 import Cassandra as C
 import Cassandra.Settings as C
 import qualified DanglingHandles
+import qualified DanglingUserKeys
 import qualified HandleLessUsers
 import Imports
 import Options as O
 import Options.Applicative
 import qualified System.Logger as Log
 import System.Logger.Extended (structuredJSONRenderer)
-import qualified DanglingUserKeys
 
 main :: IO ()
 main = do
