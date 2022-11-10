@@ -550,6 +550,7 @@ CREATE TABLE galley_test.mls_proposal_refs (
     group_id blob,
     epoch bigint,
     ref blob,
+    origin int,
     proposal blob,
     PRIMARY KEY (group_id, epoch, ref)
 ) WITH CLUSTERING ORDER BY (epoch ASC, ref ASC)
