@@ -13,6 +13,7 @@ executable inconsistencies
   main-is:            Main.hs
   other-modules:
     DanglingHandles
+    DanglingUserKeys
     HandleLessUsers
     Options
     Paths_inconsistencies
