@@ -38,6 +38,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature
 
 type ConversationResponse = ResponseForExistedCreated Conversation
@@ -51,11 +52,11 @@ type ConversationVerb =
     '[ WithHeaders
          ConversationHeaders
          Conversation
-         (Respond 200 "Conversation existed" Conversation),
+         (VersionedRespond 'V2 200 "Conversation existed" Conversation),
        WithHeaders
          ConversationHeaders
          Conversation
-         (Respond 201 "Conversation created" Conversation)
+         (VersionedRespond 'V2 201 "Conversation created" Conversation)
      ]
     ConversationResponse
 
@@ -232,7 +233,15 @@ type ConversationAPI =
                     ]
                     "size"
                     (Range 1 500 Int32)
-               :> Get '[Servant.JSON] (ConversationList Conversation)
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( VersionedRespond
+                        'V2
+                        200
+                        "List of local conversations"
+                        (ConversationList Conversation)
+                    )
            )
     :<|> Named
            "list-conversations-v1"
@@ -285,7 +294,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "conversations"
-               :> ReqBody '[Servant.JSON] NewConv
+               :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     :<|> Named
@@ -330,7 +339,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> ReqBody '[Servant.JSON] NewConv
+               :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     -- This endpoint can lead to the following events being sent:

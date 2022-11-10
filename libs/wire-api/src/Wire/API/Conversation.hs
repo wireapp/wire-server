@@ -96,7 +96,7 @@ module Wire.API.Conversation
 where
 
 import Control.Applicative
-import Control.Lens (at, (?~))
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
@@ -123,6 +123,8 @@ import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
@@ -159,7 +161,10 @@ defConversationMetadata creator =
     }
 
 accessRolesSchema :: ObjectSchema SwaggerDoc (Set AccessRoleV2)
-accessRolesSchema = toOutput .= accessRolesSchemaTuple `withParser` validate
+accessRolesSchema = field "access_role" (set schema)
+
+accessRolesSchemaV2 :: ObjectSchema SwaggerDoc (Set AccessRoleV2)
+accessRolesSchemaV2 = toOutput .= accessRolesSchemaTuple `withParser` validate
   where
     toOutput accessRoles = (Just $ toAccessRoleLegacy accessRoles, Just accessRoles)
     validate =
@@ -168,8 +173,8 @@ accessRolesSchema = toOutput .= accessRolesSchemaTuple `withParser` validate
         (Just legacy, Nothing) -> pure $ fromAccessRoleLegacy legacy
         (Nothing, Nothing) -> fail "access_role|access_role_v2"
 
-accessRolesSchemaOpt :: ObjectSchema SwaggerDoc (Maybe (Set AccessRoleV2))
-accessRolesSchemaOpt = toOutput .= accessRolesSchemaTuple `withParser` validate
+accessRolesSchemaOptV2 :: ObjectSchema SwaggerDoc (Maybe (Set AccessRoleV2))
+accessRolesSchemaOptV2 = toOutput .= accessRolesSchemaTuple `withParser` validate
   where
     toOutput accessRoles = (toAccessRoleLegacy <$> accessRoles, accessRoles)
     validate =
@@ -186,8 +191,10 @@ accessRolesSchemaTuple =
   where
     desc = "This field is optional. If it is not present, the default will be `[team_member, non_team_member, service]`. Please note that an empty list is not allowed when creating a new conversation."
 
-conversationMetadataObjectSchema :: ObjectSchema SwaggerDoc ConversationMetadata
-conversationMetadataObjectSchema =
+conversationMetadataObjectSchema ::
+  ObjectSchema SwaggerDoc (Set AccessRoleV2) ->
+  ObjectSchema SwaggerDoc ConversationMetadata
+conversationMetadataObjectSchema sch =
   ConversationMetadata
     <$> cnvmType .= field "type" schema
     <*> cnvmCreator
@@ -196,7 +203,7 @@ conversationMetadataObjectSchema =
         (description ?~ "The creator's user ID")
         schema
     <*> cnvmAccess .= field "access" (array schema)
-    <*> cnvmAccessRoles .= accessRolesSchema
+    <*> cnvmAccessRoles .= sch
     <*> cnvmName .= optField "name" (maybeWithDefault A.Null schema)
     <* const ("0.0" :: Text) .= optional (field "last_event" schema)
     <* const ("1970-01-01T00:00:00.000Z" :: Text)
@@ -210,7 +217,15 @@ conversationMetadataObjectSchema =
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
 
 instance ToSchema ConversationMetadata where
-  schema = object "ConversationMetadata" conversationMetadataObjectSchema
+  schema = object "ConversationMetadata" (conversationMetadataObjectSchema accessRolesSchema)
+
+instance ToSchema (Versioned 'V2 ConversationMetadata) where
+  schema =
+    Versioned
+      <$> unVersioned
+        .= object
+          "ConversationMetadata"
+          (conversationMetadataObjectSchema accessRolesSchemaV2)
 
 -- | Public-facing conversation type. Represents information that a
 -- particular user is allowed to see.
@@ -254,17 +269,25 @@ cnvReceiptMode :: Conversation -> Maybe ReceiptMode
 cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 
 instance ToSchema Conversation where
-  schema =
-    objectWithDocModifier
-      "Conversation"
-      (description ?~ "A conversation object as returned from the server")
-      $ Conversation
-        <$> cnvQualifiedId .= field "qualified_id" schema
-        <* (qUnqualified . cnvQualifiedId)
-          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-        <*> cnvMetadata .= conversationMetadataObjectSchema
-        <*> cnvMembers .= field "members" schema
-        <*> cnvProtocol .= protocolSchema
+  schema = conversationSchema accessRolesSchema
+
+instance ToSchema (Versioned 'V2 Conversation) where
+  schema = Versioned <$> unVersioned .= conversationSchema accessRolesSchemaV2
+
+conversationSchema ::
+  ObjectSchema SwaggerDoc (Set AccessRoleV2) ->
+  ValueSchema NamedSwaggerDoc Conversation
+conversationSchema sch =
+  objectWithDocModifier
+    "Conversation"
+    (description ?~ "A conversation object as returned from the server")
+    $ Conversation
+      <$> cnvQualifiedId .= field "qualified_id" schema
+      <* (qUnqualified . cnvQualifiedId)
+        .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+      <*> cnvMetadata .= conversationMetadataObjectSchema sch
+      <*> cnvMembers .= field "members" schema
+      <*> cnvProtocol .= protocolSchema
 
 modelConversation :: Doc.Model
 modelConversation = Doc.defineModel "Conversation" $ do
@@ -330,6 +353,7 @@ data ConversationList a = ConversationList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (ConversationList a))
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema (ConversationList a)
 
 class ConversationListItem a where
   convListItemName :: Proxy a -> Text
@@ -340,35 +364,31 @@ instance ConversationListItem ConvId where
 instance ConversationListItem Conversation where
   convListItemName _ = "conversations"
 
-instance ConversationListItem (Qualified ConvId) where
-  convListItemName _ = "qualified Conversation IDs"
+instance (ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
+  schema = conversationListSchema schema
 
-instance (ConversationListItem a, S.ToSchema a) => S.ToSchema (ConversationList a) where
-  declareNamedSchema _ = do
-    listSchema <- S.declareSchemaRef (Proxy @[a])
-    pure $
-      S.NamedSchema (Just "ConversationList") $
-        mempty
-          & description ?~ "Object holding a list of " <> convListItemName (Proxy @a)
-          & S.properties . at "conversations" ?~ listSchema
-          & S.properties . at "has_more"
-            ?~ S.Inline
-              ( S.toSchema (Proxy @Bool)
-                  & description ?~ "Indicator that the server has more conversations than returned"
-              )
+instance ToSchema (Versioned 'V2 (ConversationList Conversation)) where
+  schema =
+    Versioned
+      <$> unVersioned
+        .= conversationListSchema (conversationSchema accessRolesSchemaV2)
 
-instance ToJSON a => ToJSON (ConversationList a) where
-  toJSON (ConversationList l m) =
-    A.object
-      [ "conversations" A..= l,
-        "has_more" A..= m
-      ]
-
-instance FromJSON a => FromJSON (ConversationList a) where
-  parseJSON = A.withObject "conversation-list" $ \o ->
-    ConversationList
-      <$> o A..: "conversations"
-      <*> o A..: "has_more"
+conversationListSchema ::
+  forall a.
+  ConversationListItem a =>
+  ValueSchema NamedSwaggerDoc a ->
+  ValueSchema NamedSwaggerDoc (ConversationList a)
+conversationListSchema sch =
+  objectWithDocModifier
+    "ConversationList"
+    (description ?~ "Object holding a list of " <> convListItemName (Proxy @a))
+    $ ConversationList
+      <$> convList .= field "conversations" (array sch)
+      <*> convHasMore
+        .= fieldWithDocModifier
+          "has_more"
+          (description ?~ "Indicator that the server has more conversations than returned")
+          schema
 
 type ConversationPagingName = "ConversationIds"
 
@@ -550,9 +570,12 @@ instance ToSchema AccessRoleV2 where
     where
       desc =
         "Which users/services can join conversations.\
-        \This replaces the deprecated field `access_role`\
-        \and allows for a more fine grained configuration of access roles\
-        \in particular a separation of guest and services access."
+        \ This replaces legacy access roles and allows a more fine grained\
+        \ configuration of access roles, and in particular a separation of\
+        \ guest and services access.\n\nThis field is optional. If it is not\
+        \ present, the default will be `[team_member, non_team_member, service]`.\
+        \ Please note that an empty list is not allowed when creating a new\
+        \ conversation."
 
 instance ToSchema AccessRoleLegacy where
   schema =
@@ -673,64 +696,74 @@ data NewConv = NewConv
 
 instance ToSchema NewConv where
   schema =
-    objectWithDocModifier
-      "NewConv"
-      (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
-      $ NewConv
-        <$> newConvUsers
-          .= ( fieldWithDocModifier
-                 "users"
-                 (description ?~ usersDesc)
-                 (array schema)
-                 <|> pure []
-             )
-        <*> newConvQualifiedUsers
-          .= ( fieldWithDocModifier
-                 "qualified_users"
-                 (description ?~ qualifiedUsersDesc)
-                 (array schema)
-                 <|> pure []
-             )
-        <*> newConvName .= maybe_ (optField "name" schema)
-        <*> (Set.toList . newConvAccess)
-          .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
-        <*> newConvAccessRoles .= accessRolesSchemaOpt
-        <*> newConvTeam
-          .= maybe_
-            ( optFieldWithDocModifier
-                "team"
-                (description ?~ "Team information of this conversation")
-                schema
-            )
-        <*> newConvMessageTimer
-          .= maybe_
-            ( optFieldWithDocModifier
-                "message_timer"
-                (description ?~ "Per-conversation message timer")
-                schema
-            )
-        <*> newConvReceiptMode .= maybe_ (optField "receipt_mode" schema)
-        <*> newConvUsersRole
-          .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
-                 <|> pure roleNameWireAdmin
-             )
-        <*> newConvProtocol .= protocolTagSchema
-        <*> newConvCreatorClient .= maybe_ (optField "creator_client" schema)
-    where
-      usersDesc =
-        "List of user IDs (excluding the requestor) to be \
-        \part of this conversation (deprecated)"
-      qualifiedUsersDesc =
-        "List of qualified user IDs (excluding the requestor) \
-        \to be part of this conversation"
-      usersRoleDesc :: Text
-      usersRoleDesc =
-        cs $
-          "The conversation permissions the users \
-          \added in this request should have. \
-          \Optional, defaults to '"
-            <> show roleNameWireAdmin
-            <> "' if unset."
+    newConvSchema $
+      maybe_ (optField "access_roles" (set schema))
+
+instance ToSchema (Versioned 'V2 NewConv) where
+  schema = Versioned <$> unVersioned .= newConvSchema accessRolesSchemaOptV2
+
+newConvSchema ::
+  ObjectSchema SwaggerDoc (Maybe (Set AccessRoleV2)) ->
+  ValueSchema NamedSwaggerDoc NewConv
+newConvSchema sch =
+  objectWithDocModifier
+    "NewConv"
+    (description ?~ "JSON object to create a new conversation. When using 'qualified_users' (preferred), you can omit 'users'")
+    $ NewConv
+      <$> newConvUsers
+        .= ( fieldWithDocModifier
+               "users"
+               (description ?~ usersDesc)
+               (array schema)
+               <|> pure []
+           )
+      <*> newConvQualifiedUsers
+        .= ( fieldWithDocModifier
+               "qualified_users"
+               (description ?~ qualifiedUsersDesc)
+               (array schema)
+               <|> pure []
+           )
+      <*> newConvName .= maybe_ (optField "name" schema)
+      <*> (Set.toList . newConvAccess)
+        .= (fromMaybe mempty <$> optField "access" (Set.fromList <$> array schema))
+      <*> newConvAccessRoles .= sch
+      <*> newConvTeam
+        .= maybe_
+          ( optFieldWithDocModifier
+              "team"
+              (description ?~ "Team information of this conversation")
+              schema
+          )
+      <*> newConvMessageTimer
+        .= maybe_
+          ( optFieldWithDocModifier
+              "message_timer"
+              (description ?~ "Per-conversation message timer")
+              schema
+          )
+      <*> newConvReceiptMode .= maybe_ (optField "receipt_mode" schema)
+      <*> newConvUsersRole
+        .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
+               <|> pure roleNameWireAdmin
+           )
+      <*> newConvProtocol .= protocolTagSchema
+      <*> newConvCreatorClient .= maybe_ (optField "creator_client" schema)
+  where
+    usersDesc =
+      "List of user IDs (excluding the requestor) to be \
+      \part of this conversation (deprecated)"
+    qualifiedUsersDesc =
+      "List of qualified user IDs (excluding the requestor) \
+      \to be part of this conversation"
+    usersRoleDesc :: Text
+    usersRoleDesc =
+      cs $
+        "The conversation permissions the users \
+        \added in this request should have. \
+        \Optional, defaults to '"
+          <> show roleNameWireAdmin
+          <> "' if unset."
 
 newtype ConvTeamInfo = ConvTeamInfo
   { cnvTeamId :: TeamId
