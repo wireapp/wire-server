@@ -29,6 +29,7 @@ hself: hsuper: {
   one-liner = hlib.doJailbreak hsuper.one-liner;
   type-errors = hlib.dontCheck hsuper.type-errors;
   binary-parsers = hlib.doJailbreak hsuper.binary-parsers;
+  generic-data = hsuper.generic-data_1_0_0_0;
 
   # Some test seems to be broken
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
