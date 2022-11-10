@@ -145,7 +145,8 @@ checkUser l brig claimedHandle userId handleClaimTime fixClaim = do
       let status = Nothing
           userHandle = Nothing
       when fixClaim $
-        runClient brig $ freeHandle l claimedHandle
+        runClient brig $
+          freeHandle l claimedHandle
       pure . Just $ HandleInfo {..}
     Just (mStatus, mStatusWriteTime, mHandle, mHandleWriteTime) -> do
       let status = WithWritetime <$> mStatus <*> mStatusWriteTime
@@ -158,6 +159,7 @@ checkUser l brig claimedHandle userId handleClaimTime fixClaim = do
       if statusError || handleError
         then do
           when fixClaim $
-            runClient brig $ freeHandle l claimedHandle
+            runClient brig $
+              freeHandle l claimedHandle
           pure . Just $ HandleInfo {..}
         else pure Nothing
