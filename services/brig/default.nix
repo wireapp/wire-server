@@ -85,9 +85,11 @@
 , network-conduit-tls
 , optparse-applicative
 , pem
+, pipes
 , polysemy
 , polysemy-plugin
 , polysemy-wire-zoo
+, postie
 , process
 , proto-lens
 , QuickCheck
@@ -130,6 +132,8 @@
 , text
 , text-icu-translit
 , time
+, time-out
+, time-units
 , tinylog
 , transformers
 , types-common
@@ -267,6 +271,8 @@ mkDerivation {
     text
     text-icu-translit
     time
+    time-out
+    time-units
     tinylog
     transformers
     types-common
@@ -329,13 +335,16 @@ mkDerivation {
     lens-aeson
     metrics-wai
     mime
+    mime-mail
     MonadRandom
     mtl
     network
     optparse-applicative
     pem
+    pipes
     polysemy
     polysemy-wire-zoo
+    postie
     process
     proto-lens
     QuickCheck
@@ -356,6 +365,7 @@ mkDerivation {
     temporary
     text
     time
+    time-units
     tinylog
     transformers
     types-common
