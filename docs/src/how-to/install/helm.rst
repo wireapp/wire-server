@@ -6,6 +6,8 @@ Installing wire-server (demo) components using helm
 Introduction
 -----------------
 
+Note: This is a note.
+
 The following will install a demo version of all the wire-server components including the databases. This setup is not recommended in production but will get you started.
 
 Demo version means
