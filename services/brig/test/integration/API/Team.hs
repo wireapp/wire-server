@@ -179,8 +179,7 @@ testUpdateEvents brig cannon = do
           . contentJson
           . body (accept inviteeEmail inviteeCode)
       )
-      <!! const 201
-        === statusCode
+      <!! const 201 === statusCode
   let Just bob = userId <$> responseJsonMaybe rsp2
   -- ensure Alice and Bob are not connected
   void $ getConnection brig bob alice <!! const 404 === statusCode
@@ -195,8 +194,7 @@ testUpdateEvents brig cannon = do
   -- Update profile & receive notification
   WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
     put (brig . path "/self" . contentJson . zUser alice . zConn "c" . body update)
-      !!! const 200
-        === statusCode
+      !!! const 200 === statusCode
     liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
 
 testInvitationEmail :: Brig -> Http ()
@@ -355,8 +353,7 @@ testInvitationEmailLookupNginz brig nginz = do
 headInvitationByEmail :: (Request -> Request) -> Email -> Int -> Http ()
 headInvitationByEmail service email expectedCode =
   Bilge.head (service . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
-    !!! const expectedCode
-      === statusCode
+    !!! const expectedCode === statusCode
 
 testInvitationTooManyPending :: Brig -> TeamSizeLimit -> Http ()
 testInvitationTooManyPending brig (TeamSizeLimit limit) = do
@@ -380,8 +377,7 @@ registerInvite brig tid inv invemail = do
           . contentJson
           . body (accept invemail inviteeCode)
       )
-      <!! const 201
-        === statusCode
+      <!! const 201 === statusCode
   let Just invitee = userId <$> responseJsonMaybe rsp
   pure invitee
 
@@ -509,8 +505,7 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
                 . contentJson
                 . body (acceptFn inviteeCode)
             )
-            <!! const 201
-              === statusCode
+            <!! const 201 === statusCode
         let Just (invitee, Just email2) = (userId &&& userEmail) <$> responseJsonMaybe rsp2
         let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
         liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
@@ -527,8 +522,7 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
   conns <-
     responseJsonError
       =<< listConnections brig invitee
-        <!! const 200
-          === statusCode
+        <!! const 200 === statusCode
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
   pure (responseJsonMaybe rsp2, invitation)
 
@@ -610,8 +604,7 @@ testTeamNoPassword brig = do
                 ]
           )
     )
-    !!! const 400
-      === statusCode
+    !!! const 400 === statusCode
   -- And so do any other binding team members
   code <- liftIO $ InvitationCode . Ascii.encodeBase64Url <$> randomBytes 24
   post
@@ -627,8 +620,7 @@ testTeamNoPassword brig = do
                 ]
           )
     )
-    !!! const 400
-      === statusCode
+    !!! const 400 === statusCode
 
 testInvitationCodeExists :: Brig -> Http ()
 testInvitationCodeExists brig = do
@@ -639,8 +631,7 @@ testInvitationCodeExists brig = do
   let Just invId = inInvitation <$> responseJsonMaybe rsp
   Just invCode <- getInvitationCode brig tid invId
   post (brig . path "/register" . contentJson . body (accept email invCode))
-    !!! const 201
-      === statusCode
+    !!! const 201 === statusCode
   post (brig . path "/register" . contentJson . body (accept email invCode)) !!! do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
@@ -784,8 +775,7 @@ testInvitationInfoBadCode brig = do
   -- The code contains non-ASCII characters after url-decoding
   let icode = "8z6JVcO1o4o%C2%BF9kFeb4Y3N-BmhIjH6b33"
   get (brig . path ("/teams/invitations/info?code=" <> icode))
-    !!! const 400
-      === statusCode
+    !!! const 400 === statusCode
 
 testInvitationInfoExpired :: Brig -> Opt.Timeout -> Http ()
 testInvitationInfoExpired brig timeout = do
@@ -828,8 +818,7 @@ testSuspendTeam brig = do
           . contentJson
           . body (accept inviteeEmail inviteeCode)
       )
-      <!! const 201
-        === statusCode
+      <!! const 201 === statusCode
   let Just (invitee, Just email) = (userId &&& userEmail) <$> responseJsonMaybe rsp2
   -- invite invitee2 (don't register)
   let invite2 = stdInvitationRequest inviteeEmail2
@@ -928,11 +917,9 @@ testCreateUserInternalSSO brig galley = do
   let ssoid = UserSSOId mkSimpleSampleUref
   -- creating users requires both sso_id and team_id
   postUser' True False "dummy" True False (Just ssoid) Nothing brig
-    !!! const 400
-      === statusCode
+    !!! const 400 === statusCode
   postUser' True False "dummy" True False Nothing (Just teamid) brig
-    !!! const 400
-      === statusCode
+    !!! const 400 === statusCode
   -- creating user with sso_id, team_id is ok
   resp <-
     postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
@@ -963,8 +950,7 @@ testDeleteUserSSO brig galley = do
       mkuser withemail =
         responseJsonMaybe
           <$> ( postUser "dummy" withemail False (Just ssoid) (Just tid) brig
-                  <!! const 201
-                    === statusCode
+                  <!! const 201 === statusCode
               )
   -- create and delete sso user (with email)
   Just (userId -> user1) <- mkuser True
@@ -997,8 +983,7 @@ test2FaDisabledForSsoUser brig galley = do
   let Just uid = userId <$> responseJsonMaybe createUserResp
   let verificationCode = Nothing
   addClient brig uid (defNewClientWithVerificationCode verificationCode PermanentClientType [head somePrekeys] (head someLastPrekeys))
-    !!! const 201
-      === statusCode
+    !!! const 201 === statusCode
 
 -- TODO:
 -- add sso service.  (we'll need a name for that now.)

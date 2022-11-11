@@ -92,8 +92,7 @@ createPopulatedBindingTeamWithNames brig names = do
     inv <-
       responseJsonError
         =<< postInvitation brig tid (userId inviter) invite
-          <!! statusCode
-            === const 201
+          <!! statusCode === const 201
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <-
       post
@@ -102,8 +101,7 @@ createPopulatedBindingTeamWithNames brig names = do
             . contentJson
             . body (acceptWithName name inviteeEmail inviteeCode)
         )
-        <!! const 201
-          === statusCode
+        <!! const 201 === statusCode
     let invitee :: User = responseJsonUnsafe rsp2
     do
       let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
@@ -184,8 +182,7 @@ inviteAndRegisterUser u tid brig = do
   inv <-
     responseJsonError
       =<< postInvitation brig tid u invite
-        <!! statusCode
-          === const 201
+        <!! statusCode === const 201
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rspInvitee <-
     post
