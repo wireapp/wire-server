@@ -57,6 +57,8 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.Team.Invitation
+import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
 import Wire.API.User.Auth
@@ -83,6 +85,7 @@ type BrigAPI =
     :<|> SearchAPI
     :<|> AuthAPI
     :<|> CallingAPI
+    :<|> TeamsAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
@@ -1308,4 +1311,120 @@ type CallingAPI =
                :> "v2"
                :> QueryParam' '[Optional, Strict, Description "Limit resulting list. Allowed values [1..10]"] "limit" (Range 1 10 Int)
                :> Get '[JSON] RTCConfiguration
+           )
+
+-- Teams API -----------------------------------------------------
+
+type TeamsAPI =
+  Named
+    "send-team-invitation"
+    ( Summary "Create and send a new team invitation."
+        :> Description
+             "Invitations are sent by email. The maximum allowed number of \
+             \pending team invitations is equal to the team size."
+        :> CanThrow 'NoEmail
+        :> CanThrow 'NoIdentity
+        :> CanThrow 'InvalidEmail
+        :> CanThrow 'BlacklistedEmail
+        :> CanThrow 'TooManyTeamInvitations
+        :> CanThrow 'InsufficientTeamPermissions
+        :> ZUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "invitations"
+        :> ReqBody '[JSON] InvitationRequest
+        :> MultiVerb1
+             'POST
+             '[JSON]
+             ( WithHeaders
+                 '[Header "Location" InvitationLocation]
+                 (Invitation, InvitationLocation)
+                 (Respond 201 "Invitation was created and sent." Invitation)
+             )
+    )
+    :<|> Named
+           "get-team-invitations"
+           ( Summary "List the sent team invitations"
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> QueryParam' '[Optional, Strict, Description "Invitation id to start from (ascending)."] "start" InvitationId
+               :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)."] "size" (Range 1 500 Int32)
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "List of sent invitations" InvitationList)
+           )
+    :<|> Named
+           "get-team-invitation"
+           ( Summary "Get a pending team invitation by ID."
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> Capture "iid" InvitationId
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ ErrorResponse 'NotificationNotFound,
+                       Respond 200 "Invitation" Invitation
+                     ]
+                    (Maybe Invitation)
+           )
+    :<|> Named
+           "delete-team-invitation"
+           ( Summary "Delete a pending team invitation by ID."
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> Capture "iid" InvitationId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Invitation deleted")
+           )
+    :<|> Named
+           "get-team-invitation-info"
+           ( Summary "Get invitation info given a code."
+               :> CanThrow 'InvalidInvitationCode
+               :> "teams"
+               :> "invitations"
+               :> "info"
+               :> QueryParam' '[Required, Strict, Description "Invitation code"] "code" InvitationCode
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "Invitation info" Invitation)
+           )
+    -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
+    :<|> Named
+           "head-team-invitations"
+           ( Summary "Check if there is an invitation pending given an email address."
+               :> "teams"
+               :> "invitations"
+               :> "by-email"
+               :> QueryParam' '[Required, Strict, Description "Email address"] "email" Email
+               :> MultiVerb
+                    'HEAD
+                    '[JSON]
+                    HeadInvitationsResponses
+                    HeadInvitationByEmailResult
+           )
+    :<|> Named
+           "get-team-size"
+           ( Summary
+               "Returns the number of team members as an integer.  \
+               \Can be out of sync by roughly the `refresh_interval` \
+               \of the ES index."
+               :> CanThrow 'InvalidInvitationCode
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "size"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "Number of team members" TeamSize)
            )
