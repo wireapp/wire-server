@@ -78,8 +78,10 @@ executable inconsistencies
     , extended
     , galley-types
     , http-client
+    , HsOpenSSL
     , imports
     , lens
+    , multihash
     , optparse-applicative
     , saml2-web-sso
     , string-conversions

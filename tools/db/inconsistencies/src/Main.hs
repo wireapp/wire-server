@@ -48,8 +48,10 @@ main = do
       DanglingHandles.examineHandles workLogger brig handlesFile outputFile fixClaims
     HandleLessUsers ->
       HandleLessUsers.runCommand workLogger brig outputFile
-    DanglingUserKeys ->
+    DanglingUserKeys Nothing ->
       DanglingUserKeys.runCommand workLogger brig outputFile
+    DanglingUserKeys (Just (inputFile, repairData)) ->
+      DanglingUserKeys.runRepair workLogger brig inputFile outputFile repairData
   Log.info lgr $ Log.msg (Log.val "Done scanning, sleeping for 4 hours so logs can be extracted") . Log.field "file" (setIncosistenciesFile s)
   threadDelay (4 * 60 * 60 * 1_000_000)
   Log.info lgr $ Log.msg (Log.val "Sleep compelete, logs will not be accessible anymore if this was running in a container!")

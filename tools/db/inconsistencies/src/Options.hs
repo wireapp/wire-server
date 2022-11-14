@@ -41,7 +41,7 @@ data CassandraSettings = CassandraSettings
 data Command
   = DanglingHandles (Maybe (FilePath, Bool))
   | HandleLessUsers
-  | DanglingUserKeys
+  | DanglingUserKeys (Maybe (FilePath, Bool))
 
 optionsParser :: Parser (Command, Settings)
 optionsParser = (,) <$> commandParser <*> settingsParser
@@ -52,10 +52,10 @@ commandParser =
     danglingHandlesCommand <> handleLessUsersCommand <> danglingKeysCommand
 
 danglingHandlesCommand :: Mod CommandFields Command
-danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional limitedHandlesParser) (progDesc "find handle which shouldn't be claimed"))
+danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional (inputFileRepairParser "handles")) (progDesc "find handle which shouldn't be claimed"))
 
 danglingKeysCommand :: Mod CommandFields Command
-danglingKeysCommand = command "dangling-keys" (info (pure DanglingUserKeys) (progDesc "find keys which shouldn't be there"))
+danglingKeysCommand = command "dangling-keys" (info ( DanglingUserKeys <$> optional (inputFileRepairParser "keys")) (progDesc "find keys which shouldn't be there"))
 
 handleLessUsersCommand :: Mod CommandFields Command
 handleLessUsersCommand = command "handle-less-users" (info (pure HandleLessUsers) (progDesc "find users which have a handle in the user table but not in the user_handle table"))
@@ -66,23 +66,23 @@ settingsParser =
     <$> cassandraSettingsParser "brig"
     <*> inconsistenciesFileParser
 
-limitedHandlesParser :: Parser (FilePath, Bool)
-limitedHandlesParser =
-  (,) <$> handlesFileParser <*> fixClaimParser
+inputFileRepairParser :: String -> Parser (FilePath, Bool)
+inputFileRepairParser s =
+  (,) <$> inputFileParser s <*> repairDataParser
 
-handlesFileParser :: Parser FilePath
-handlesFileParser =
+inputFileParser :: String -> Parser FilePath
+inputFileParser s =
   strOption
-    ( long "handles-file"
-        <> help "file containing list of handles separated by new lines"
+    ( long "input-file"
+        <> help ("file containing list of " <> s <> " separated by new lines")
         <> metavar "FILEPATH"
     )
 
-fixClaimParser :: Parser Bool
-fixClaimParser =
+repairDataParser :: Parser Bool
+repairDataParser =
   switch
-    ( long "fix-claims"
-        <> help "Automatically free dangling handles"
+    ( long "repair-data"
+        <> help "Automatically repair data"
     )
 
 inconsistenciesFileParser :: Parser FilePath

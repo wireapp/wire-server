@@ -23,9 +23,11 @@
 module DanglingUserKeys where
 
 import Brig.Data.Instances ()
+import qualified Data.Multihash.Digest as MH
 import Brig.Data.UserKey
 import Brig.Email (EmailKey (..), mkEmailKey)
 import Brig.Phone (PhoneKey (..), mkPhoneKey)
+import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Brig.Types.Intra
 import Cassandra
 import Cassandra.Util
@@ -41,6 +43,11 @@ import System.Logger
 import qualified System.Logger as Log
 import UnliftIO.Async
 import Wire.API.User hiding (userEmail, userPhone)
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
+import qualified Data.Text.Encoding as T
+import qualified Data.ByteString as B
+import Data.ByteString.Lazy (toStrict)
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do
@@ -58,22 +65,23 @@ runCommand l brig inconsistenciesFile = do
         .| C.map ((<> "\n") . BS.intercalate "\n" . map (cs . Aeson.encode) . catMaybes)
         .| sinkFile inconsistenciesFile
 
--- examineKeys :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
--- examineKeys l brig keysFile errorsFile repairData = do
---   keys <- mapMaybe parseHandle . Text.lines <$> Text.readFile keysFile
---   runResourceT $
---     runConduit $
---       zipSources
---         (C.sourceList [(1 :: Int32) ..])
---         (C.sourceList keys)
---         .| C.mapM
---           ( \(i, key) -> do
---               when (i `mod` 100 == 0) $
---                 Log.info l (Log.field "keysProcesses" i)
---               liftIO $ checkKey l brig key repairData
---           )
---         .| C.map ((<> "\n") . cs . Aeson.encode)
---         .| sinkFile errorsFile
+runRepair :: Logger -> ClientState -> FilePath -> FilePath -> Bool -> IO ()
+runRepair l brig inputFile outputFile repairData = do
+  keys <- mapMaybe parseKey . Text.lines <$> Text.readFile inputFile
+  runResourceT $
+    runConduit $
+      zipSources
+        (C.sourceList [(1 :: Int32) ..])
+        (C.sourceList keys)
+        .| C.mapM
+          ( \(i, key) -> do
+              when (i `mod` 100 == 0) $
+                Log.info l (Log.field "keysProcesses" i)
+              liftIO $ checkKey l brig key repairData
+          )
+        .| C.map ((<> "\n") . cs . Aeson.encode)
+        .| sinkFile outputFile
+
 
 pageSize :: Int32
 pageSize = 1000
@@ -102,11 +110,11 @@ instance Aeson.ToJSON a => Aeson.ToJSON (WithWritetime a)
 ----------------------------------------------------------------------------
 -- Queries
 
--- getKey :: UserKey -> Client (Maybe (UserId, Writetime UserId))
--- getKey key = retry x1 $ query1 cql (params LocalQuorum (Identity key))
---   where
---     cql :: PrepQuery R (Identity UserKey) (UserId, Writetime UserId)
---     cql = "SELECT user, writetime(user) from user_keys where key = ?"
+getKey :: UserKey -> Client (Maybe (UserId, Writetime UserId))
+getKey key = retry x1 $ query1 cql (params LocalQuorum (Identity key))
+  where
+    cql :: PrepQuery R (Identity UserKey) (UserId, Writetime UserId)
+    cql = "SELECT user, writetime(user) from user_keys where key = ?"
 
 getKeys :: ConduitM () [(UserKey, UserId, Writetime UserId)] Client ()
 getKeys = paginateC cql (paramsP LocalQuorum () pageSize) x5
@@ -114,14 +122,16 @@ getKeys = paginateC cql (paramsP LocalQuorum () pageSize) x5
     cql :: PrepQuery R () (UserKey, UserId, Writetime UserId)
     cql = "SELECT key, user, writetime(user) from user_keys"
 
+parseKey :: Text -> Maybe UserKey
+parseKey t = (userEmailKey <$> parseEmail t) <|> (userPhoneKey <$> parsePhone t)
+
 instance Cql UserKey where
   ctype = Tagged TextColumn
 
   fromCql (CqlText t) =
     maybe
       (Left $ "invalid userkey: " <> show t)
-      Right
-      ((userEmailKey <$> parseEmail t) <|> (userPhoneKey <$> parsePhone t))
+      Right (parseKey t)
   fromCql _ = Left "userkey: expected text"
 
   toCql k = toCql $ keyText k
@@ -137,25 +147,53 @@ getUserDetails uid = retry x1 $ query1 cql (params LocalQuorum (Identity uid))
     cql :: PrepQuery R (Identity UserId) UserDetailsRow
     cql = "SELECT status, writetime(status), email, writetime(email), phone, writetime(phone) from user where id = ?"
 
--- checkKey :: Logger -> ClientState -> UserKey -> Bool -> IO (Maybe HandleInfo)
--- checkKey l brig key repairData = do
---   mUser <- runClient brig $ getKey key
---   case mUser of
---     Nothing -> do
---       Log.warn l (Log.msg (Log.val "No user found for key") . Log.field "key" (keyText key))
---       pure Nothing
---     Just (uid, claimTime) -> checkUser l brig key uid claimTime repairData
+checkKey :: Logger -> ClientState -> UserKey -> Bool -> IO (Maybe Inconsistency)
+checkKey l brig key repairData = do
+  mUser <- runClient brig $ getKey key
+  case mUser of
+    Nothing -> do
+      Log.warn l (Log.msg (Log.val "No user found for key") . Log.field "key" (keyText key))
+      pure Nothing
+    Just (uid, writeTime) -> checkUser l brig key uid writeTime repairData
 
--- freeHandle :: Logger -> Handle -> Client ()
--- freeHandle l handle = do
---   Log.info l $ Log.msg (Log.val "Freeing handle") . Log.field "handle" (fromHandle handle)
---   retry x5 $ write handleDelete (params LocalQuorum (Identity handle))
---   where
---     handleDelete :: PrepQuery W (Identity Handle) ()
---     handleDelete = "DELETE FROM user_handle WHERE handle = ?"
+-- mostly copied from Brig to not need a Brig Env/ReaderT
+freeUserKey :: Logger -> UserKey -> Client ()
+freeUserKey l k = do
+  Log.info l $ Log.msg (Log.val "Freeing key") . Log.field "key" (keyText k)
+  hk <- liftIO $ hashKey k
+  retry x5 $ write deleteHashed (params LocalQuorum (Identity hk))
+  retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
+  where
+    keyDelete :: PrepQuery W (Identity Text) ()
+    keyDelete = "DELETE FROM user_keys WHERE key = ?"
 
+    hashKey :: UserKey -> IO UserKeyHash
+    hashKey uk = do
+      Just d <- getDigestByName "SHA256"
+      let d' = digestBS d $ T.encodeUtf8 (keyText uk)
+      pure . UserKeyHash $
+        MH.MultihashDigest MH.SHA256 (B.length d') d'
+
+    deleteHashed :: PrepQuery W (Identity UserKeyHash) ()
+    deleteHashed = "DELETE FROM user_keys_hash WHERE key = ?"
+
+newtype UserKeyHash = UserKeyHash MH.MultihashDigest
+instance Cql UserKeyHash where
+  ctype = Tagged BlobColumn
+
+  fromCql (CqlBlob lbs) = case MH.decode (toStrict lbs) of
+    Left e -> Left ("userkeyhash: " ++ e)
+    Right h -> pure $ UserKeyHash h
+  fromCql _ = Left "userkeyhash: expected blob"
+
+  toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
+
+
+-- inconsistent data cases:
+-- - 1. user deleted in users table, data left in user_keys -> delete records in user_keys
+-- - 2. ... TODO
 checkUser :: Logger -> ClientState -> UserKey -> UserId -> Writetime UserId -> Bool -> IO (Maybe Inconsistency)
-checkUser _l brig key userId time _repairData = do
+checkUser l brig key userId time repairData = do
   maybeDetails <- runClient brig $ getUserDetails userId
   case maybeDetails of
     Nothing -> do
@@ -170,6 +208,9 @@ checkUser _l brig key userId time _repairData = do
       let status = WithWritetime <$> mStatus <*> mStatusWriteTime
           userEmail = WithWritetime <$> mEmail <*> mEmailWriteTime
           userPhone = WithWritetime <$> mPhone <*> mPhoneWriteTime
+          userDeletedError = case mStatus of
+            Just Deleted -> True
+            _ -> False
           statusError = case mStatus of
             Nothing -> True
             Just Deleted -> True
@@ -177,6 +218,8 @@ checkUser _l brig key userId time _repairData = do
           compareEmail e = (emailKeyUniq . mkEmailKey <$> mEmail) /= Just (fromEmail e)
           comparePhone p = (phoneKeyUniq . mkPhoneKey <$> mPhone) /= Just (fromPhone p)
           keyError = foldKey compareEmail comparePhone key
+      when (userDeletedError && repairData) $ -- inconsistency 1
+        runClient brig $ freeUserKey l key
       if statusError || keyError
         then do
           -- when repairData $

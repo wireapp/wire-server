@@ -48,6 +48,9 @@ runCommand l brig galley spar = do
     zipSources
       (C.sourceList [(1 :: Int32) ..])
       (transPipe (runClient spar) getSCIMTeams)
+      -- find all SCIM enabled teams, (guess: SCIM doing something wrong?)
+      -- user with given email inside user table also has an entry in user_keys
+      -- logs mismatches
       .| C.mapM
         ( \(i, tids) -> do
             Log.info l (Log.field "teams" (show ((i - 1) * pageSize + fromIntegral (length tids))))
