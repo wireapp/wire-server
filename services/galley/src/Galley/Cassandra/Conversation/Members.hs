@@ -370,26 +370,26 @@ removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victim
     setConsistency LocalQuorum
     for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
 
-addMLSClients :: Local ConvId -> Qualified UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
-addMLSClients lcnv (Qualified usr domain) cs = retry x5 . batch $ do
+addMLSClients :: GroupId -> Qualified UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
+addMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
   for_ cs $ \(c, kpr) ->
-    addPrepQuery Cql.addMLSClient (tUnqualified lcnv, domain, usr, c, kpr)
+    addPrepQuery Cql.addMLSClient (groupId, domain, usr, c, kpr)
 
-removeMLSClients :: Local ConvId -> Qualified UserId -> Set.Set ClientId -> Client ()
-removeMLSClients lcnv (Qualified usr domain) cs = retry x5 . batch $ do
+removeMLSClients :: GroupId -> Qualified UserId -> Set.Set ClientId -> Client ()
+removeMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   setType BatchLogged
   setConsistency LocalQuorum
   for_ cs $ \c ->
-    addPrepQuery Cql.removeMLSClient (tUnqualified lcnv, domain, usr, c)
+    addPrepQuery Cql.removeMLSClient (groupId, domain, usr, c)
 
-lookupMLSClients :: Local ConvId -> Client ClientMap
-lookupMLSClients lcnv =
+lookupMLSClients :: GroupId -> Client ClientMap
+lookupMLSClients groupId =
   mkClientMap
     <$> retry
       x5
-      (query Cql.lookupMLSClients (params LocalQuorum (Identity (tUnqualified lcnv))))
+      (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
 
 interpretMemberStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>

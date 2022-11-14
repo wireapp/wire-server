@@ -49,6 +49,7 @@ import Galley.API.Push
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
+import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import Galley.Effects.ConversationStore (getConversation)
@@ -499,7 +500,8 @@ onUserDeleted origDomain udcn = do
             Public.GlobalTeamConv -> pure ()
             Public.RegularConv -> do
               let botsAndMembers = convBotsAndMembers conv
-              removeUser (qualifyAs lc conv) (qUntagged deletedUser)
+              for_ (Data.mlsMetadata conv) $ \mlsMeta ->
+                removeUser (qualifyAs lc conv) (cnvmlsGroupId mlsMeta) (qUntagged deletedUser)
               void $
                 notifyConversationAction
                   (sing @'ConversationLeaveTag)

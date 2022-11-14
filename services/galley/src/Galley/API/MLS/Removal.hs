@@ -23,7 +23,6 @@ module Galley.API.MLS.Removal
   )
 where
 
-import Control.Comonad
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
@@ -45,6 +44,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -110,9 +110,10 @@ removeClient ::
   ClientId ->
   Sem r ()
 removeClient lc qusr cid = do
-  cm <- lookupMLSClients (fmap Data.convId lc)
-  let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
-  removeClientsWithClientMap lc cidAndKP cm qusr
+  for_ (cnvmlsGroupId <$> Data.mlsMetadata (tUnqualified lc)) $ \groupId -> do
+    cm <- lookupMLSClients groupId
+    let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
+    removeClientsWithClientMap lc cidAndKP cm qusr
 
 -- | Send remove proposals for all clients of the user to clients in the ClientMap.
 --
@@ -153,8 +154,9 @@ removeUser ::
       r
   ) =>
   Local Data.Conversation ->
+  GroupId ->
   Qualified UserId ->
   Sem r ()
-removeUser lc qusr = do
-  cm <- lookupMLSClients (fmap Data.convId lc)
+removeUser lc groupId qusr = do
+  cm <- lookupMLSClients groupId
   removeUserWithClientMap lc cm qusr

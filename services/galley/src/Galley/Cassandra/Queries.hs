@@ -438,14 +438,14 @@ rmMemberClient c =
 
 -- MLS Clients --------------------------------------------------------------
 
-addMLSClient :: PrepQuery W (ConvId, Domain, UserId, ClientId, KeyPackageRef) ()
-addMLSClient = "insert into member_client (conv, user_domain, user, client, key_package_ref) values (?, ?, ?, ?, ?)"
+addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, KeyPackageRef) ()
+addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, key_package_ref) values (?, ?, ?, ?, ?)"
 
-removeMLSClient :: PrepQuery W (ConvId, Domain, UserId, ClientId) ()
-removeMLSClient = "delete from member_client where conv = ? and user_domain = ? and user = ? and client = ?"
+removeMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
+removeMLSClient = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ?"
 
-lookupMLSClients :: PrepQuery R (Identity ConvId) (Domain, UserId, ClientId, KeyPackageRef)
-lookupMLSClients = "select user_domain, user, client, key_package_ref from member_client where conv = ?"
+lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, KeyPackageRef)
+lookupMLSClients = "select user_domain, user, client, key_package_ref from mls_group_member_client where group_id = ?"
 
 acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
 acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"

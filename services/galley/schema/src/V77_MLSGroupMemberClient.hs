@@ -15,9 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V77_MLSGroupMemberClient (migration) where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 77
+migration :: Migration
+migration =
+  Migration 77 "Add table mls_group_member_client which replaces member_client" $ do
+    schema'
+      [r| CREATE TABLE mls_group_member_client (
+            group_id blob,
+            user_domain text,
+            user uuid,
+            client text,
+            key_package_ref blob,
+            PRIMARY KEY (group_id, user_domain, user, client)
+          );
+        |]

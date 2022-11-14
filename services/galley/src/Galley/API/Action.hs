@@ -57,6 +57,7 @@ import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation
 import qualified Galley.Data.Conversation as Data
+import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Services
 import Galley.Data.Types
 import Galley.Effects
@@ -325,7 +326,8 @@ performAction tag origUser lconv action = do
                       }
                 )
                 origUser
-      traverse_ (removeUser lconv') victims
+      for_ (Data.mlsMetadata (tUnqualified lconv')) $ \meta ->
+        traverse_ (removeUser lconv' (cnvmlsGroupId meta)) victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
