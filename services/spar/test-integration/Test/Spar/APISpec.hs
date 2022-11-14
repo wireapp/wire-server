@@ -87,6 +87,7 @@ import Util.Types
 import qualified Web.Cookie as Cky
 import qualified Web.Scim.Schema.User as Scim
 import Wire.API.Team.Member (newTeamMemberDeleteData)
+import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User
@@ -1304,6 +1305,26 @@ specScimAndSAML = do
     mid <- ssoToUidSpar tid ssoid
 
     liftIO $ mid `shouldBe` Just (ScimT.scimUserId scimStoredUser)
+  it "provision user with role via scim" $ do
+    let role = RoleExternalPartner
+    (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
+    scimUser <- do
+      u <- ScimT.randomScimUser
+      pure $ u {Scim.roles = [cs $ toByteString $ role]}
+    scimStoredUser <- ScimT.createUser tok scimUser
+    [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
+    liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just role
+  it "provision user with role via scim - fail if more than one role given" $ do
+    pending
+  it "provision user with role via scim - default to member if no role given" $ do
+    pending
+  it "update user with role via scim" $ do
+    pending
+  it "update user with role via scim - default to member if no role given" $ do
+    -- or should the role not change in this case
+    pending
+  it "updated user with role via scim - fail if more than one role given" $ do
+    pending
 
 specAux :: SpecWith TestEnv
 specAux = do
