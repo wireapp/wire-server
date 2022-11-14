@@ -1305,6 +1305,7 @@ specScimAndSAML = do
     mid <- ssoToUidSpar tid ssoid
 
     liftIO $ mid `shouldBe` Just (ScimT.scimUserId scimStoredUser)
+  -- todo(leif): add tests for SCIM no SAML as well
   it "provision user with role via scim" $ do
     let role = RoleExternalPartner
     (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
