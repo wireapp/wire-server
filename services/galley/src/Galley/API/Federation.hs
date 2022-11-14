@@ -53,10 +53,12 @@ import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
+import Galley.Effects.ConversationStore (lookupConvByGroupId)
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore (ProposalStore)
+import Galley.Effects.SubConversationStore
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList (UserList (UserList))
@@ -90,7 +92,6 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
-import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig.Connection
@@ -202,7 +203,7 @@ onNewRemoteConversation ::
 onNewRemoteConversation domain nrc = do
   -- update group_id -> conv_id mapping
   for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
-    E.setGroupId (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
+    E.setGroupIdForConversation (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
 
   pure EmptyResponse
 
@@ -601,24 +602,25 @@ updateConversation origDomain updateRequest = do
 
 sendMLSCommitBundle ::
   ( Members
-      [ BrigAccess,
-        ConversationStore,
-        ExternalAccess,
-        Error FederationError,
-        Error InternalError,
-        FederatorAccess,
-        GundeckAccess,
-        Input (Local ()),
-        Input Env,
-        Input Opts,
-        Input UTCTime,
-        LegalHoldStore,
-        MemberStore,
-        Resource,
-        TeamStore,
-        P.TinyLog,
-        ProposalStore
-      ]
+      '[ BrigAccess,
+         ConversationStore,
+         Error FederationError,
+         Error InternalError,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input (Local ()),
+         Input Opts,
+         Input UTCTime,
+         LegalHoldStore,
+         MemberStore,
+         ProposalStore,
+         P.TinyLog,
+         Resource,
+         SubConversationStore,
+         TeamStore
+       ]
       r
   ) =>
   Domain ->
@@ -637,11 +639,13 @@ sendMLSCommitBundle remoteDomain msr =
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
       bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.mmsrRawMessage msr))
+      -- TODO: remove this before the rebase
+      -- mapToGalleyError @MLSBundleStaticErrors $ do
       let msg = rmValue (cbCommitMsg bundle)
-      qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-      when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+      qConvOrSub <- lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+      when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       F.MLSMessageResponseUpdates . map lcuUpdate
-        <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
+        <$> postMLSCommitBundle loc (tUntagged sender) Nothing qConvOrSub Nothing bundle
 
 sendMLSMessage ::
   ( Members
@@ -659,6 +663,7 @@ sendMLSMessage ::
         LegalHoldStore,
         MemberStore,
         Resource,
+        SubConversationStore,
         TeamStore,
         P.TinyLog,
         ProposalStore
@@ -683,10 +688,10 @@ sendMLSMessage remoteDomain msr =
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
       case rmValue raw of
         SomeMessage _ msg -> do
-          qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-          when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+          qConvOrSub <- lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+          when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
           F.MLSMessageResponseUpdates . map lcuUpdate
-            <$> postMLSMessage loc (tUntagged sender) Nothing qcnv Nothing raw
+            <$> postMLSMessage loc (tUntagged sender) Nothing qConvOrSub Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::

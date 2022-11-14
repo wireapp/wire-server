@@ -28,7 +28,7 @@ module Galley.Effects.ConversationStore
 
     -- * Read conversation
     getConversation,
-    getConversationIdByGroupId,
+    lookupConvByGroupId,
     getConversations,
     getConversationMetadata,
     getPublicGroupState,
@@ -44,7 +44,7 @@ module Galley.Effects.ConversationStore
     setConversationMessageTimer,
     setConversationEpoch,
     acceptConnectConversation,
-    setGroupId,
+    setGroupIdForConversation,
     setPublicGroupState,
 
     -- * Delete conversation
@@ -69,6 +69,7 @@ import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.SubConversation
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
@@ -78,7 +79,7 @@ data ConversationStore m a where
     ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
-  GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
+  LookupConvByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvOrSubConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   GetPublicGroupState ::
@@ -96,7 +97,7 @@ data ConversationStore m a where
   SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
-  SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
+  SetGroupIdForConversation :: GroupId -> Qualified ConvId -> ConversationStore m ()
   SetPublicGroupState ::
     ConvId ->
     OpaquePublicGroupState ->

@@ -204,6 +204,11 @@ tests s =
           test s "cannot send an MLS message" postMLSMessageDisabled,
           test s "cannot send a commit bundle" postMLSBundleDisabled,
           test s "cannot get group info" getGroupInfoDisabled
+        ],
+      testGroup
+        "SubConversation"
+        [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
+          test s "get subconversation of Proteus conv - 404" (testCreateSubConv False)
         ]
     ]
 
@@ -2276,3 +2281,20 @@ getGroupInfoDisabled = do
     withMLSDisabled $
       getGroupInfo (qUnqualified alice) qcnv
         !!! assertMLSNotEnabled
+
+testCreateSubConv :: Bool -> TestM ()
+testCreateSubConv parentIsMLSConv = do
+  [alice] <- createAndConnectUsers [Nothing]
+  runMLSTest $ do
+    qcnv <-
+      if parentIsMLSConv
+        then do
+          (creator : _) <- traverse createMLSClient (replicate 2 alice)
+          (_, qcnv) <- setupMLSGroup creator
+          pure qcnv
+        else cnvQualifiedId <$> liftTest (postConvQualified (qUnqualified alice) defNewProteusConv >>= responseJsonError)
+    let sconv = SubConvId "call"
+    liftTest $
+      getSubConv (qUnqualified alice) qcnv sconv
+        !!! do
+          const (if parentIsMLSConv then 200 else 404) === statusCode

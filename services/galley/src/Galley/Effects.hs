@@ -81,6 +81,7 @@ import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
 import Galley.Effects.SparAccess
+import Galley.Effects.SubConversationStore
 import Galley.Effects.TeamFeatureStore
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamNotificationStore
@@ -108,6 +109,7 @@ type GalleyEffects1 =
      CodeStore,
      ProposalStore,
      ConversationStore,
+     SubConversationStore,
      CustomBackendStore,
      LegalHoldStore,
      MemberStore,

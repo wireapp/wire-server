@@ -37,6 +37,7 @@ import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.SubConversation
 import Wire.API.Provider
 import Wire.API.Provider.Service
 import Wire.API.Team
@@ -313,11 +314,31 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 
 -- MLS Conversations --------------------------------------------------------
 
-insertGroupId :: PrepQuery W (GroupId, ConvId, Domain) ()
-insertGroupId = "INSERT INTO group_id_conv_id (group_id, conv_id, domain) VALUES (?, ?, ?)"
+insertGroupIdForConversation :: PrepQuery W (GroupId, ConvId, Domain) ()
+insertGroupIdForConversation = "INSERT INTO group_id_conv_id (group_id, conv_id, domain) VALUES (?, ?, ?)"
 
-lookupGroupId :: PrepQuery R (Identity GroupId) (ConvId, Domain)
-lookupGroupId = "SELECT conv_id, domain from group_id_conv_id where group_id = ?"
+lookupGroupId :: PrepQuery R (Identity GroupId) (ConvId, Domain, Maybe SubConvId)
+lookupGroupId = "SELECT conv_id, domain, subconv_id from group_id_conv_id where group_id = ?"
+
+-- MLS SubConversations -----------------------------------------------------
+
+selectSubConversation :: PrepQuery R (ConvId, SubConvId) (CipherSuiteTag, Epoch, GroupId)
+selectSubConversation = "SELECT cipher_suite, epoch, group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
+
+insertSubConversation :: PrepQuery W (ConvId, SubConvId, CipherSuiteTag, Epoch, GroupId, Maybe OpaquePublicGroupState) ()
+insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, cipher_suite, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?, ?)"
+
+updateSubConvPublicGroupState :: PrepQuery W (ConvId, SubConvId, Maybe OpaquePublicGroupState) ()
+updateSubConvPublicGroupState = "INSERT INTO subconversation (conv_id, subconv_id, public_group_state) VALUES (?, ?, ?)"
+
+selectSubConvPublicGroupState :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe OpaquePublicGroupState))
+selectSubConvPublicGroupState = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+
+insertGroupIdForSubConversation :: PrepQuery W (GroupId, ConvId, Domain, SubConvId) ()
+insertGroupIdForSubConversation = "INSERT INTO group_id_conv_id (group_id, conv_id, domain, subconv_id) VALUES (?, ?, ?, ?)"
+
+lookupGroupIdForSubConversation :: PrepQuery R (Identity GroupId) (ConvId, Domain, SubConvId)
+lookupGroupIdForSubConversation = "SELECT conv_id, domain, subconv_id from group_id_conv_id where group_id = ?"
 
 -- Members ------------------------------------------------------------------
 

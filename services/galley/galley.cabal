@@ -38,6 +38,7 @@ library
     Galley.API.MLS.Message
     Galley.API.MLS.Propagate
     Galley.API.MLS.Removal
+    Galley.API.MLS.SubConversation
     Galley.API.MLS.Types
     Galley.API.MLS.Util
     Galley.API.MLS.Welcome
@@ -79,6 +80,7 @@ library
     Galley.Cassandra.SearchVisibility
     Galley.Cassandra.Services
     Galley.Cassandra.Store
+    Galley.Cassandra.SubConversation
     Galley.Cassandra.Team
     Galley.Cassandra.TeamFeatures
     Galley.Cassandra.TeamNotifications
@@ -108,6 +110,7 @@ library
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.ServiceStore
     Galley.Effects.SparAccess
+    Galley.Effects.SubConversationStore
     Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
@@ -473,6 +476,7 @@ executable galley-integration
     , HsOpenSSL
     , HsOpenSSL-x509-system
     , hspec
+    , http-api-data
     , http-client
     , http-client-openssl
     , http-client-tls
@@ -692,6 +696,7 @@ executable galley-schema
     V75_MLSGroupInfo
     V76_ProposalOrigin
     V77_MLSGroupMemberClient
+    V78_MLSSubconversation
 
   hs-source-dirs:     schema/src
   default-extensions:

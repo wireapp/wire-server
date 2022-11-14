@@ -32,6 +32,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Servant
+import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -373,6 +374,26 @@ type ConversationAPI =
                         200
                         "The MLS self-conversation"
                         Conversation
+                    )
+           )
+    :<|> Named
+           "get-subconversation"
+           ( Summary "Get information about an MLS subconversation"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSSubConvUnsupportedConvType
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "subconversations"
+               :> Capture "subconv" SubConvId
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( Respond
+                        200
+                        "Subconversation"
+                        PublicSubConversation
                     )
            )
     -- This endpoint can lead to the following events being sent:

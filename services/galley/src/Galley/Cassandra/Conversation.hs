@@ -27,6 +27,7 @@ import qualified Cassandra as Cql
 import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
+import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
 import Data.Misc
@@ -56,6 +57,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
 import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.SubConversation
 
 createMLSSelfConversation ::
   Local UserId ->
@@ -101,7 +103,7 @@ createMLSSelfConversation lusr = do
         Just gid,
         Just cs
       )
-    addPrepQuery Cql.insertGroupId (gid, cnv, tDomain lusr)
+    addPrepQuery Cql.insertGroupIdForConversation (gid, cnv, tDomain lusr)
 
   (lmems, rmems) <- addMembers cnv (ncUsers nc)
   pure
@@ -158,7 +160,7 @@ createConversation lcnv nc = do
         mcs
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
-    for_ mgid $ \gid -> addPrepQuery Cql.insertGroupId (gid, tUnqualified lcnv, tDomain lcnv)
+    for_ mgid $ \gid -> addPrepQuery Cql.insertGroupIdForConversation (gid, tUnqualified lcnv, tDomain lcnv)
   (lmems, rmems) <- addMembers (tUnqualified lcnv) (ncUsers nc)
   pure
     Conversation
@@ -365,13 +367,19 @@ toConv cid ms remoteMems mconv = do
             }
       }
 
-mapGroupId :: GroupId -> Qualified ConvId -> Client ()
-mapGroupId gId conv =
-  write Cql.insertGroupId (params LocalQuorum (gId, qUnqualified conv, qDomain conv))
+setGroupIdForConversation :: GroupId -> Qualified ConvId -> Client ()
+setGroupIdForConversation gId conv =
+  write Cql.insertGroupIdForConversation (params LocalQuorum (gId, qUnqualified conv, qDomain conv))
 
-lookupGroupId :: GroupId -> Client (Maybe (Qualified ConvId))
-lookupGroupId gId =
-  uncurry Qualified <$$> retry x1 (query1 Cql.lookupGroupId (params LocalQuorum (Identity gId)))
+lookupConvByGroupId :: GroupId -> Client (Maybe (Qualified ConvOrSubConvId))
+lookupConvByGroupId gId =
+  toConvOrSubConv <$$> retry x1 (query1 Cql.lookupGroupId (params LocalQuorum (Identity gId)))
+  where
+    toConvOrSubConv :: (ConvId, Domain, Maybe SubConvId) -> Qualified ConvOrSubConvId
+    toConvOrSubConv (convId, domain, mbSubConvId) =
+      case mbSubConvId of
+        Nothing -> Qualified (Conv convId) domain
+        Just subConvId -> Qualified (SubConv convId subConvId) domain
 
 interpretConversationStoreToCassandra ::
   Members '[Embed IO, Input ClientState, TinyLog] r =>
@@ -382,7 +390,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateConversation loc nc -> embedClient $ createConversation loc nc
   CreateMLSSelfConversation lusr -> embedClient $ createMLSSelfConversation lusr
   GetConversation cid -> embedClient $ getConversation cid
-  GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
+  LookupConvByGroupId gId -> embedClient $ lookupConvByGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid
   GetPublicGroupState cid -> embedClient $ getPublicGroupState cid
@@ -396,7 +404,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationMessageTimer cid value -> embedClient $ updateConvMessageTimer cid value
   SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
   DeleteConversation cid -> embedClient $ deleteConversation cid
-  SetGroupId gId cid -> embedClient $ mapGroupId gId cid
+  SetGroupIdForConversation gId cid -> embedClient $ setGroupIdForConversation gId cid
   SetPublicGroupState cid gib -> embedClient $ setPublicGroupState cid gib
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch

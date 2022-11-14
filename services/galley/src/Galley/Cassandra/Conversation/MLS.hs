@@ -15,11 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Conversation.MLS where
+module Galley.Cassandra.Conversation.MLS
+  ( acquireCommitLock,
+    releaseCommitLock,
+    lookupMLSClients,
+  )
+where
 
 import Cassandra
 import Cassandra.Settings (fromRow)
 import Data.Time
+import Galley.API.MLS.Types
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Data.Types
 import Imports
@@ -54,3 +60,10 @@ releaseCommitLock groupId epoch =
 checkTransSuccess :: [Row] -> Bool
 checkTransSuccess [] = False
 checkTransSuccess (row : _) = either (const False) (fromMaybe False) $ fromRow 0 row
+
+lookupMLSClients :: GroupId -> Client ClientMap
+lookupMLSClients groupId =
+  mkClientMap
+    <$> retry
+      x5
+      (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
