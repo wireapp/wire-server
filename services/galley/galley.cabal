@@ -685,6 +685,7 @@ executable galley-schema
     V74_ExposeInvitationsToTeamAdmin
     V75_MLSGroupInfo
     V76_ProposalOrigin
+    V77_MLSSubconversation
 
   hs-source-dirs:     schema/src
   default-extensions:

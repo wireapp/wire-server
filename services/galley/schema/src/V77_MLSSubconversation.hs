@@ -15,9 +15,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V77_MLSSubconversation (migration) where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 77
+migration :: Migration
+migration =
+  Migration 77 "Add the MLS subconversation tables" $ do
+    schema'
+      [r| CREATE TABLE subconversation (
+            main_id uuid,
+            sub_id text,
+            group_id blob,
+            epoch bigint,
+            clients set<text>,
+            PRIMARY KEY (main_id, sub_id)
+          );
+        |]
+    schema'
+      [r| CREATE TABLE group_id_subconv_id (
+            group_id blob PRIMARY KEY,
+            domain text,
+            main_id uuid,
+            sub_id text
+          );
+        |]
