@@ -53,6 +53,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
+import Data.ByteString.Conversion (fromByteString)
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
@@ -272,7 +273,11 @@ validateScimUser' errloc midp richInfoLimit user = do
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
   lang <- maybe (error "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
-  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang)
+  let mRole = case Scim.roles user of
+        [] -> Nothing
+        [role] -> fromByteString $ cs role
+        _ -> error "todo(leif): handle error"
+  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RI.RichInfo -> m RI.RichInfo
@@ -368,7 +373,7 @@ logEmail email =
   Log.field "email_sha256" (sha256String . cs . show $ email)
 
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
-logVSU (ST.ValidScimUser veid handl _name _richInfo _active _lang) =
+logVSU (ST.ValidScimUser veid handl _name _richInfo _active _lang _role) =
   maybe id logEmail (veidEmail veid)
     . logHandle handl
 
@@ -423,7 +428,7 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _active language) =
+createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _active language role) =
   logScim
     ( logFunction "Spar.Scim.User.createValidScimUser"
         . logVSU vsu
@@ -449,7 +454,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
                     -- `createValidScimUser` into a function `createValidScimUserBrig` similar
                     -- to `createValidScimUserSpar`?
                     uid <- Id <$> Random.uuid
-                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language
+                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language role
               )
               ( \email -> do
                   buid <- BrigAccess.createNoSAML email stiTeam name language
@@ -929,7 +934,8 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
               ST._vsuName = dname,
               ST._vsuRichInfo = richInfo,
               ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus,
-              ST._vsuLocale = Just locale
+              ST._vsuLocale = Just locale,
+              ST._vsuRole = Nothing
             }
 
   pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)

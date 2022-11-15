@@ -169,7 +169,7 @@ createSamlUserWithId ::
   Sem r ()
 createSamlUserWithId teamid buid suid = do
   uname <- either (throwSparSem . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
-  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing
+  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing Nothing
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
 

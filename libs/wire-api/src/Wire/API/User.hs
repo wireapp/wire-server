@@ -165,6 +165,7 @@ import qualified Wire.API.Error.Brig as E
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
+import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
@@ -689,7 +690,8 @@ data NewUserSpar = NewUserSpar
     newUserSparManagedBy :: ManagedBy,
     newUserSparHandle :: Maybe Handle,
     newUserSparRichInfo :: Maybe RichInfo,
-    newUserSparLocale :: Maybe Locale
+    newUserSparLocale :: Maybe Locale,
+    newUserSparRole :: Maybe Role
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSpar)
@@ -714,6 +716,8 @@ instance ToSchema NewUserSpar where
           .= maybe_ (optField "newUserSparRichInfo" schema)
         <*> newUserSparLocale
           .= maybe_ (optField "newUserSparLocale" schema)
+        <*> newUserSparRole
+          .= maybe_ (optField "newUserSparRole" schema)
 
 newUserFromSpar :: NewUserSpar -> NewUser
 newUserFromSpar new =
