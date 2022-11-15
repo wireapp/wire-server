@@ -25,6 +25,7 @@ module Wire.API.Routes.Public
     ZLocalUser,
     ZConn,
     ZOptUser,
+    ZOptClient,
     ZOptConn,
     ZBot,
     ZConversation,
@@ -178,6 +179,8 @@ type ZConversation = ZAuthServant 'ZAuthConv InternalAuthDefOpts
 type ZProvider = ZAuthServant 'ZAuthProvider InternalAuthDefOpts
 
 type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Optional, Servant.Strict]
+
+type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict]
 
 type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
 
