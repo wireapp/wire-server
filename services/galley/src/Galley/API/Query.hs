@@ -37,6 +37,7 @@ module Galley.API.Query
   ( getBotConversationH,
     getUnqualifiedConversation,
     getConversation,
+    getGlobalTeamConversation,
     getConversationRoles,
     conversationIdsPageFromUnqualified,
     conversationIdsPageFrom,
@@ -71,6 +72,7 @@ import Galley.API.MLS.Keys
 import Galley.API.Mapping
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
+import qualified Galley.Data.Conversation as Conv
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Effects
@@ -97,6 +99,7 @@ import qualified System.Logger.Class as Logger
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
@@ -104,6 +107,8 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.GlobalTeamConversation
+import qualified Wire.API.MLS.GlobalTeamConversation as Public
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -150,6 +155,47 @@ getUnqualifiedConversation ::
 getUnqualifiedConversation lusr cnv = do
   c <- getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
+
+getGlobalTeamConversation ::
+  Members
+    '[ ConversationStore,
+       ErrorS 'NotATeamMember,
+       Error InternalError,
+       MemberStore,
+       TeamStore
+     ]
+    r =>
+  Local UserId ->
+  ClientId ->
+  TeamId ->
+  Sem r Public.GlobalTeamConversation
+getGlobalTeamConversation lusr cid tid = do
+  let uid = tUnqualified lusr
+  void $ noteS @'NotATeamMember =<< E.getTeamMember tid (tUnqualified lusr)
+  E.getGlobalTeamConversation tid >>= \case
+    Nothing -> do
+      conv <- E.createGlobalTeamConversation (qualifyAs lusr tid) uid
+      mlsData <- case Conv.convProtocol conv of
+        ProtocolMLS mls -> pure mls
+        ProtocolProteus -> throw (InternalErrorWithDescription "Wrong protocol, expected MLS, got Proteus.")
+      -- FUTUREWORK: remove this. we are planning to remove the need for a nullKeyPackageRef
+      let convId = Conv.convId conv
+          lconv = qualifyAs lusr convId
+      E.addMLSClients lconv (qUntagged lusr) (Set.singleton (cid, nullKeyPackageRef))
+      pure $
+        GlobalTeamConversation
+          (qUntagged lconv)
+          (Conv.convMetadata conv)
+          mlsData
+    Just conv -> do
+      mlsData <- case Conv.convProtocol conv of
+        ProtocolMLS mls -> pure mls
+        ProtocolProteus -> throw (InternalErrorWithDescription "Wrong protocol, expected MLS, got Proteus.")
+      pure $
+        GlobalTeamConversation
+          (qUntagged . qualifyAs lusr $ Conv.convId conv)
+          (Conv.convMetadata conv)
+          mlsData
 
 getConversation ::
   forall r.

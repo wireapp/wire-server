@@ -48,6 +48,7 @@ library
     Wire.API.MLS.Credential
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
+    Wire.API.MLS.GlobalTeamConversation
     Wire.API.MLS.Group
     Wire.API.MLS.GroupInfoBundle
     Wire.API.MLS.KeyPackage

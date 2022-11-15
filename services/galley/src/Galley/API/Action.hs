@@ -96,6 +96,11 @@ import qualified Wire.API.User as User
 data NoChanges = NoChanges
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
+  HasConversationActionEffects 'ConversationSelfInviteTag r =
+    Members
+      '[ ErrorS 'InvalidOperation
+       ]
+      r
   HasConversationActionEffects 'ConversationJoinTag r =
     Members
       '[ BrigAccess,
@@ -130,6 +135,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
         '[ MemberStore,
            Error InternalError,
            Error NoChanges,
+           ErrorS 'InvalidOperation,
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
@@ -157,6 +163,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
          Error InvalidInput,
          Error NoChanges,
          ErrorS 'InvalidTargetAccess,
+         ErrorS 'InvalidOperation,
          ErrorS ('ActionDenied 'RemoveConversationMember),
          ExternalAccess,
          FederatorAccess,
@@ -270,6 +277,13 @@ ensureAllowed tag loc action conv origUser = do
           -- not a team conv, so one of the other access roles has to allow this.
           when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
             throwS @'InvalidTargetAccess
+    SConversationSelfInviteTag ->
+      unless
+        (convType conv == GlobalTeamConv)
+        $ throwS @'InvalidOperation
+    SConversationLeaveTag ->
+      when (convType conv == GlobalTeamConv) $
+        throwS @'InvalidOperation
     _ -> pure ()
 
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
@@ -342,6 +356,8 @@ performAction tag origUser lconv action = do
     SConversationAccessDataTag -> do
       (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
+    SConversationSelfInviteTag ->
+      pure (mempty, action)
 
 performConversationJoin ::
   (HasConversationActionEffects 'ConversationJoinTag r) =>
@@ -789,16 +805,19 @@ notifyRemoteConversationAction loc rconvUpdate con = do
 -- leave, but then sends notifications as if the user was removed by someone
 -- else.
 kickMember ::
-  ( Member (Error InternalError) r,
-    Member ExternalAccess r,
-    Member FederatorAccess r,
-    Member GundeckAccess r,
-    Member ProposalStore r,
-    Member (Input UTCTime) r,
-    Member (Input Env) r,
-    Member MemberStore r,
-    Member TinyLog r
-  ) =>
+  Members
+    '[ Error InternalError,
+       ErrorS 'InvalidOperation,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       ProposalStore,
+       Input UTCTime,
+       Input Env,
+       MemberStore,
+       TinyLog
+     ]
+    r =>
   Qualified UserId ->
   Local Conversation ->
   BotsAndMembers ->

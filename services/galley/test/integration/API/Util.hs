@@ -15,6 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use head" #-}
 
 module API.Util where
 
@@ -275,9 +278,17 @@ createBindingTeamInternalNoActivate name owner = do
   tid <- randomId
   let nt = BindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon
   _ <-
-    put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-      const 201 === statusCode
-      const True === isJust . getHeader "Location"
+    put
+      ( g
+          . paths ["/i/teams", toByteString' tid]
+          . zUser owner
+          . zConn "conn"
+          . zType "access"
+          . json nt
+      )
+      <!! do
+        const 201 === statusCode
+        const True === isJust . getHeader "Location"
   pure tid
 
 createBindingTeamInternalWithCurrency :: HasCallStack => Text -> UserId -> Currency.Alpha -> TestM TeamId
@@ -1015,6 +1026,22 @@ getConv u c = do
     g
       . paths ["conversations", toByteString' c]
       . zUser u
+      . zConn "conn"
+      . zType "access"
+
+getGlobalTeamConv ::
+  (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) =>
+  UserId ->
+  ClientId ->
+  TeamId ->
+  m ResponseLBS
+getGlobalTeamConv u cid tid = do
+  g <- viewGalley
+  get $
+    g
+      . paths ["teams", toByteString' tid, "conversations", "global"]
+      . zUser u
+      . zClient cid
       . zConn "conn"
       . zType "access"
 
@@ -1842,11 +1869,11 @@ decodeQualifiedConvIdList = fmap mtpResults . responseJsonEither @ConvIdsPage
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
 
-zBot :: UserId -> Request -> Request
-zBot = header "Z-Bot" . toByteString'
-
 zClient :: ClientId -> Request -> Request
 zClient = header "Z-Client" . toByteString'
+
+zBot :: UserId -> Request -> Request
+zBot = header "Z-Bot" . toByteString'
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"

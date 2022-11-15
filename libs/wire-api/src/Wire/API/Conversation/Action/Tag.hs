@@ -30,6 +30,7 @@ import Wire.Arbitrary (Arbitrary (..))
 
 data ConversationActionTag
   = ConversationJoinTag
+  | ConversationSelfInviteTag
   | ConversationLeaveTag
   | ConversationRemoveMembersTag
   | ConversationMemberUpdateTag
@@ -48,6 +49,7 @@ instance ToSchema ConversationActionTag where
     enum @Text "ConversationActionTag" $
       mconcat
         [ element "ConversationJoinTag" ConversationJoinTag,
+          element "ConversationSelfInviteTag" ConversationSelfInviteTag,
           element "ConversationLeaveTag" ConversationLeaveTag,
           element "ConversationRemoveMembersTag" ConversationRemoveMembersTag,
           element "ConversationMemberUpdateTag" ConversationMemberUpdateTag,

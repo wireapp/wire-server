@@ -171,7 +171,7 @@ tests s =
                   [ test s "message" (postCryptoBroadcastMessage bcast),
                     test s "filtered only, too large team" (postCryptoBroadcastMessageFilteredTooLargeTeam bcast),
                     test s "report missing in body" (postCryptoBroadcastMessageReportMissingBody bcast),
-                    test s "redundant/missing" (postCryptoBroadcastMessage2 bcast),
+                    test s "redundant or missing" (postCryptoBroadcastMessage2 bcast),
                     test s "no-team" (postCryptoBroadcastMessageNoTeam bcast),
                     test s "100 (or max conns)" (postCryptoBroadcastMessage100OrMaxConns bcast)
                   ]
@@ -192,16 +192,17 @@ testCreateTeam = do
 testGetTeams :: TestM ()
 testGetTeams = do
   owner <- Util.randomUser
-  Util.getTeams owner [] >>= checkTeamList Nothing
+  let getTeams' = Util.getTeams owner
+  getTeams' [] >>= checkTeamList Nothing
   tid <- Util.createBindingTeamInternal "foo" owner <* assertQueue "create team" tActivate
   wrongTid <- (Util.randomUser >>= Util.createBindingTeamInternal "foobar") <* assertQueue "create team" tActivate
-  Util.getTeams owner [] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("size", Just "1")] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("ids", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("ids", Just $ toByteString' tid <> "," <> toByteString' wrongTid)] >>= checkTeamList (Just tid)
+  getTeams' [] >>= checkTeamList (Just tid)
+  getTeams' [("size", Just "1")] >>= checkTeamList (Just tid)
+  getTeams' [("ids", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
+  getTeams' [("ids", Just $ toByteString' tid <> "," <> toByteString' wrongTid)] >>= checkTeamList (Just tid)
   -- these two queries do not yield responses that are equivalent to the old wai route API
-  Util.getTeams owner [("ids", Just $ toByteString' wrongTid)] >>= checkTeamList (Just tid)
-  Util.getTeams owner [("start", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
+  getTeams' [("ids", Just $ toByteString' wrongTid)] >>= checkTeamList (Just tid)
+  getTeams' [("start", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
   where
     checkTeamList :: Maybe TeamId -> TeamList -> TestM ()
     checkTeamList mbTid tl = liftIO $ do

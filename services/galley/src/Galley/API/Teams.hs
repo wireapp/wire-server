@@ -219,21 +219,25 @@ lookupTeam zusr tid = do
     else pure Nothing
 
 createNonBindingTeamH ::
-  forall r.
-  ( Member BrigAccess r,
-    Member (ErrorS 'UserBindingExists) r,
-    Member (ErrorS 'NotConnected) r,
-    Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    Member P.TinyLog r,
-    Member TeamStore r,
-    Member WaiRoutes r
-  ) =>
-  UserId ->
+  Members
+    '[ ConversationStore,
+       ErrorS 'NotConnected,
+       ErrorS 'UserBindingExists,
+       GundeckAccess,
+       Input UTCTime,
+       MemberStore,
+       P.TinyLog,
+       TeamStore,
+       WaiRoutes,
+       BrigAccess
+     ]
+    r =>
+  Local UserId ->
   ConnId ->
   Public.NonBindingNewTeam ->
   Sem r TeamId
-createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
+createNonBindingTeamH lusr zcon (Public.NonBindingNewTeam body) = do
+  let zusr = tUnqualified lusr
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
         filter ((zusr /=) . view userId)
@@ -254,15 +258,24 @@ createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
       (body ^. newTeamIconKey)
       NonBinding
   finishCreateTeam team owner others (Just zcon)
-  pure (team ^. teamId)
+  let tid = team ^. teamId
+  pure tid
 
 createBindingTeam ::
-  Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
+  Members
+    '[ GundeckAccess,
+       Input UTCTime,
+       MemberStore,
+       TeamStore,
+       ConversationStore
+     ]
+    r =>
   TeamId ->
-  UserId ->
+  Local UserId ->
   BindingNewTeam ->
   Sem r TeamId
-createBindingTeam tid zusr (BindingNewTeam body) = do
+createBindingTeam tid lusr (BindingNewTeam body) = do
+  let zusr = tUnqualified lusr
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding

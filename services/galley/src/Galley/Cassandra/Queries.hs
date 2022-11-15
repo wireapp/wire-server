@@ -235,6 +235,9 @@ insertMLSSelfConv =
       <> show (fromEnum ProtocolMLSTag)
       <> ", ?, ?)"
 
+insertGlobalTeamConv :: PrepQuery W (ConvId, C.Set Access, Maybe Text, Maybe TeamId, Maybe GroupId, Maybe CipherSuiteTag) ()
+insertGlobalTeamConv = "insert into conversation (conv, type, access, name, team, group_id, cipher_suite) values (?, 4, ?, ?, ?, ?, ?)"
+
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRoleV2, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
 

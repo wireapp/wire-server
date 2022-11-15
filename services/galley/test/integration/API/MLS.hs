@@ -20,11 +20,12 @@
 module API.MLS (tests) where
 
 import API.MLS.Util
-import API.Util
+import API.SQS
+import API.Util as Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
@@ -45,6 +46,8 @@ import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
+import Galley.Data.Conversation
+import Galley.Options
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
@@ -61,11 +64,15 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.GlobalTeamConversation
+import Wire.API.MLS.Group
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
+import Wire.API.Team (teamCreator)
 import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
@@ -185,6 +192,12 @@ tests s =
         [ test s "add user with a commit bundle" testAddUserWithBundle,
           test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle,
           test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
+        ],
+      testGroup
+        "GlobalTeamConv"
+        [ test s "Non-existing team returns 403" testGetGlobalTeamConvNonExistant,
+          test s "Non member of team returns 403" testGetGlobalTeamConvNonMember,
+          test s "Global team conversation is created on get if not present" (testGetGlobalTeamConv s)
         ],
       testGroup
         "Self conversation"
@@ -2040,7 +2053,7 @@ testDeleteMLSConv :: TestM ()
 testDeleteMLSConv = do
   localDomain <- viewFederationDomain
   -- c <- view tsCannon
-  (tid, aliceUnq, [bobUnq]) <- API.Util.createBindingTeamWithMembers 2
+  (tid, aliceUnq, [bobUnq]) <- Util.createBindingTeamWithMembers 2
   let alice = Qualified aliceUnq localDomain
       bob = Qualified bobUnq localDomain
 
@@ -2138,6 +2151,64 @@ testRemoteUserPostsCommitBundle = do
         MLSMessageResponseError MLSUnsupportedProposal <- runFedClient @"send-mls-commit-bundle" fedGalleyClient (Domain bobDomain) msr
 
         pure ()
+
+testGetGlobalTeamConvNonExistant :: TestM ()
+testGetGlobalTeamConvNonExistant = do
+  uid <- randomUser
+  cid <- Util.randomClient uid (head Util.someLastPrekeys)
+  tid <- randomId
+  -- authorisation fails b/c not a team member
+  getGlobalTeamConv uid cid tid !!! const 403 === statusCode
+
+testGetGlobalTeamConvNonMember :: TestM ()
+testGetGlobalTeamConvNonMember = do
+  owner <- randomUser
+  tid <- createBindingTeamInternal "sample-team" owner
+  team <- getTeam owner tid
+  assertQueue "create team" tActivate
+  liftIO $ assertEqual "owner" owner (team ^. teamCreator)
+  assertQueueEmpty
+
+  -- authorisation fails b/c not a team member
+  uid <- randomUser
+  cid <- Util.randomClient uid (head Util.someLastPrekeys)
+  getGlobalTeamConv uid cid tid !!! const 403 === statusCode
+
+testGetGlobalTeamConv :: IO TestSetup -> TestM ()
+testGetGlobalTeamConv setup = do
+  owner <- randomUser
+  tid <- createBindingTeamInternal "sample-team" owner
+  team <- getTeam owner tid
+  assertQueue "create team" tActivate
+  liftIO $ assertEqual "owner" owner (team ^. teamCreator)
+  assertQueueEmpty
+  cid <- Util.randomClient owner (head Util.someLastPrekeys)
+
+  s <- liftIO setup
+  let domain = s ^. tsGConf . optSettings . setFederationDomain
+
+  let response = getGlobalTeamConv owner cid tid <!! const 200 === statusCode
+  Just rs <- responseBody <$> response
+  let convoId = globalTeamConv tid
+      lconv = toLocalUnsafe domain convoId
+      expected =
+        GlobalTeamConversation
+          (qUntagged lconv)
+          ( (defConversationMetadata owner)
+              { cnvmType = GlobalTeamConv,
+                cnvmAccess = [SelfInviteAccess],
+                cnvmAccessRoles = mempty,
+                cnvmName = Just "Global team conversation",
+                cnvmTeam = Just tid
+              }
+          )
+          ( ConversationMLSData
+              (convToGroupId lconv)
+              (Epoch 0)
+              MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          )
+  let cm = Aeson.decode rs :: Maybe GlobalTeamConversation
+  liftIO $ assertEqual "conversation metadata" cm (Just expected)
 
 testSelfConversation :: TestM ()
 testSelfConversation = do
