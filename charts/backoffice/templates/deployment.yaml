@@ -38,14 +38,6 @@ spec:
           - name: "backoffice-config"
             mountPath: /etc/wire/stern/conf/stern.yaml
             subPath: stern.yaml
-        - name: backoffice-frontend
-          image: "{{ .Values.images.frontend.repository }}:{{ .Values.images.frontend.tag }}"
-          imagePullPolicy: {{ default "" .Values.images.frontend.pullPolicy | quote }}
-          volumeMounts:
-          - name: "backoffice-config"
-            # We don't want to override existing files under /etc/nginx except for nginx.conf
-            mountPath: "/etc/nginx/nginx.conf"
-            subPath: nginx.conf
           ports:
             - containerPort: {{ .Values.service.internalPort }}
           livenessProbe:

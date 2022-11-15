@@ -53,7 +53,6 @@ import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
 import qualified Servant
 import qualified Servant.Server
 import Stern.API.Routes
-import qualified Stern.API.RoutesLegacy as RoutesLegacy
 import Stern.App
 import qualified Stern.Intra as Intra
 import Stern.Options
@@ -164,20 +163,6 @@ servantSitemap' =
 servantSitemapInternal :: Servant.Server SternAPIInternal
 servantSitemapInternal =
   Named @"status" (pure Servant.NoContent)
-    :<|> Named @"legacy-api-docs" serveLegacySwagger
-
--- | FUTUREWORK: remove this handler, the servant route, and module Stern.API.RoutesLegacy,
--- once we don't depend on swagger1.2 for stern any more.
-serveLegacySwagger :: Text -> Servant.Server.Handler NoContent
-serveLegacySwagger url =
-  Servant.Server.Handler $
-    throwE
-      ( Servant.ServerError
-          200
-          mempty
-          (encode $ RoutesLegacy.apiDocs (cs url))
-          [("Content-Type", "application/json")]
-      )
 
 -----------------------------------------------------------------------------
 -- Handlers
