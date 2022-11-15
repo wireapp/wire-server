@@ -86,6 +86,14 @@ nginx_conf:
   # docs.
   ignored_upstreams: []
 
+  # Possible 'extra_upstreams' are:
+  #   - 'ibis'
+  #   - 'galeb'
+  #   - 'calling-test'
+  #   - 'proxy'
+  # For security reasons, these should only be enabled if they are deployed.
+  extra_upstreams: []
+
   # If an upstream runs in a different namespace than nginz, its namespace must
   # be specified here otherwise nginz_disco will fail to find the upstream and
   # nginx will think that the upstream is down.

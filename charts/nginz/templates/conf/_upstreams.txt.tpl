@@ -1,3 +1,4 @@
 {{ define "nginz_upstreams.txt" }}
-{{ range $key, $value := .Values.nginx_conf.upstreams }}{{ if not (has $key $.Values.nginx_conf.ignored_upstreams) }} {{ $key }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $key }}.{{ get $.Values.nginx_conf.upstream_namespace $key }}{{end}} {{ end }}{{ end -}}
+{{- $validUpstreams := include "valid_upstreams" . | fromJsonArray }}
+{{ range $key, $value := .Values.nginx_conf.upstreams }}{{ if (has $key $validUpstreams) }} {{ $key }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $key }}.{{ get $.Values.nginx_conf.upstream_namespace $key }}{{end}} {{ end }}{{ end -}}
 {{ end }}

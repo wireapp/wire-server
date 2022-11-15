@@ -217,8 +217,12 @@ http {
     # Service Routing
     #
 
+    # XXX
+    # valid_upstreams: {{- include "valid_upstreams" . | fromJsonArray }}
+
+  {{- $validUpstreams := include "valid_upstreams" . | fromJsonArray }}
   {{ range $name, $locations := .Values.nginx_conf.upstreams -}}
-    {{- if not (has $name $.Values.nginx_conf.ignored_upstreams) -}}
+    {{- if (has $name $validUpstreams) -}}
     {{- range $location := $locations -}}
       {{- if hasKey $location "envs" -}}
         {{- range $env := $location.envs -}}
