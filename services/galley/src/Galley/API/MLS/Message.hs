@@ -286,18 +286,20 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
                 /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
             )
             $ throwS @'MLSWelcomeMismatch
+        updates <-
+          processCommitWithAction
+            qusr
+            senderClient
+            conn
+            lconv
+            cm
+            (msgEpoch msg)
+            groupId
+            action
+            (msgSender msg)
+            commit
         storeGroupInfoBundle lconv (cbGroupInfoBundle bundle)
-        processCommitWithAction
-          qusr
-          senderClient
-          conn
-          lconv
-          cm
-          (msgEpoch msg)
-          groupId
-          action
-          (msgSender msg)
-          commit
+        pure updates
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
