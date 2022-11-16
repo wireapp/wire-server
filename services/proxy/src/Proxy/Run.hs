@@ -20,17 +20,24 @@ module Proxy.Run
   )
 where
 
+import Control.Error (ExceptT (ExceptT))
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch
+import Control.Monad.Catch hiding (Handler)
 import Data.Metrics.Middleware hiding (path)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import qualified Data.Proxy as Data
 import Imports hiding (head)
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Proxy.API (sitemap)
+import Proxy.API.Public (servantSitemap)
 import Proxy.Env
 import Proxy.Options
 import Proxy.Proxy
+import Servant hiding (Proxy, route)
+import Wire.API.Routes.Public.Proxy
 import Wire.API.Routes.Version.Wai
+
+type CombinedAPI = ProxyAPI :<|> Servant.Raw
 
 run :: Opts -> IO ()
 run o = do
@@ -38,7 +45,14 @@ run o = do
   e <- createEnv m o
   s <- newSettings $ defaultServer (o ^. host) (o ^. port) (e ^. applog) m
   let rtree = compile (sitemap e)
-  let app r k = runProxy e r (route rtree r k)
+  let waiRouteApp r k = runProxy e r (route rtree r k)
+  let toServantHandler :: Proxy a -> Handler a
+      toServantHandler p = Handler . ExceptT $ Right <$> runDirect e p
+  let toServantSitemap = Servant.hoistServer (Data.Proxy @ProxyAPI) toServantHandler servantSitemap
+  let app =
+        Servant.serve
+          (Data.Proxy @CombinedAPI)
+          (toServantSitemap :<|> Servant.Tagged waiRouteApp)
   let middleware =
         versionMiddleware
           . waiPrometheusMiddleware (sitemap e)

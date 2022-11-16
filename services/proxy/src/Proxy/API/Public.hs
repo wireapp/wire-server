@@ -17,6 +17,7 @@
 
 module Proxy.API.Public
   ( sitemap,
+    servantSitemap,
   )
 where
 
@@ -44,8 +45,14 @@ import Network.Wai.Routing hiding (path, route)
 import Network.Wai.Utilities
 import Proxy.Env
 import Proxy.Proxy
+import Servant (ServerT)
 import System.Logger.Class hiding (Error, info, render)
 import qualified System.Logger.Class as Logger
+import Wire.API.Routes.Named (Named (Named))
+import Wire.API.Routes.Public.Proxy (ProxyAPI)
+
+servantSitemap :: ServerT ProxyAPI Proxy
+servantSitemap = Named @"hello-world" $ pure "hello world"
 
 sitemap :: Env -> Routes a Proxy ()
 sitemap e = do

@@ -20,6 +20,7 @@
 module Proxy.Proxy
   ( Proxy,
     runProxy,
+    runDirect,
   )
 where
 
@@ -55,6 +56,9 @@ instance MonadLogger Proxy where
 
 runProxy :: Env -> Request -> Proxy ResponseReceived -> IO ResponseReceived
 runProxy e r m = runReaderT (unProxy m) (reqId .~ lookupReqId r $ e)
+
+runDirect :: Env -> Proxy a -> IO a
+runDirect e m = runReaderT (unProxy m) e
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

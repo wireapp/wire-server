@@ -119,6 +119,7 @@ import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import qualified Wire.API.Routes.Public.Gundeck as GundeckAPI
+import qualified Wire.API.Routes.Public.Proxy as ProxyAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
@@ -156,6 +157,7 @@ versionedSwaggerDocsAPI (Just V3) =
         <> CargoholdAPI.swaggerDoc
         <> CannonAPI.swaggerDoc
         <> GundeckAPI.swaggerDoc
+        <> ProxyAPI.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")

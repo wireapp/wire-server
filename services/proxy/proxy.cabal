@@ -80,6 +80,7 @@ library
     , case-insensitive    >=1.2
     , configurator        >=0.3
     , data-default        >=0.5
+    , errors
     , exceptions          >=0.8
     , extended
     , http-client         >=0.4
@@ -90,6 +91,12 @@ library
     , lens                >=4.11
     , metrics-wai         >=0.5
     , retry               >=0.7
+    , servant
+    , servant-server
+    , servant-swagger
+    , servant-swagger-ui
+    , swagger
+    , swagger2
     , text                >=1.2
     , tinylog             >=0.12
     , types-common        >=0.8
