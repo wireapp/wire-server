@@ -86,14 +86,6 @@ nginx_conf:
   # docs.
   ignored_upstreams: []
 
-  # Possible 'extra_upstreams' are:
-  #   - 'ibis'
-  #   - 'galeb'
-  #   - 'calling-test'
-  #   - 'proxy'
-  # For security reasons, these should only be enabled if they are deployed.
-  extra_upstreams: []
-
   # If an upstream runs in a different namespace than nginz, its namespace must
   # be specified here otherwise nginz_disco will fail to find the upstream and
   # nginx will think that the upstream is down.
@@ -136,6 +128,12 @@ nginx_conf:
       allow_credentials: true
       max_body_size: "0"
       disable_request_buffering: true
+    cannon:
+    - path: /await
+      envs:
+      - all
+      use_websockets: true
+      doc: true
     brig:
     - path: /api-version
       envs:
@@ -553,16 +551,22 @@ nginx_conf:
     - path: /scim
       envs:
       - all
+
+  # Possible 'extra_extra_upstreams' are:
+  #   - 'ibis'
+  #   - 'galeb'
+  #   - 'calling-test'
+  #   - 'proxy'
+  # For security reasons, these should only be enabled if they are deployed.
+  # (Otherwise, there are open routes into the cluster.)
+  enabled_extra_upstreams: []
+
+  # Services that are optionally deployed.
+  extra_upstreams:
     proxy:
     - path: /proxy
       envs:
       - all
-      doc: true
-    cannon:
-    - path: /await
-      envs:
-      - all
-      use_websockets: true
       doc: true
     ibis:
     - path: /billing
@@ -600,7 +604,6 @@ nginx_conf:
       basic_auth: true
       envs:
       - staging
-
     calling-test:
     - path: /calling-test
       envs:
