@@ -32,8 +32,8 @@ spec:
             name: "backoffice"
       containers:
         - name: stern
-          image: "{{ .Values.images.stern.repository }}:{{ .Values.images.stern.tag }}"
-          imagePullPolicy: {{ default "" .Values.images.stern.pullPolicy | quote }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.image.pullPolicy | quote }}
           volumeMounts:
           - name: "backoffice-config"
             mountPath: /etc/wire/stern/conf/stern.yaml
