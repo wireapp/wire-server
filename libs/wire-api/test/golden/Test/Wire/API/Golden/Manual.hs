@@ -38,6 +38,8 @@ import Test.Wire.API.Golden.Manual.Token
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 
 tests :: TestTree
 tests =
@@ -105,6 +107,8 @@ tests =
       testGroup "ListConversations" $
         testObjects
           [(testObject_ListConversations_1, "testObject_ListConversations_1.json")],
+      testGroup "ConversationsResponse V2" $
+        testObjects [(Versioned @'V2 testObject_ConversationsResponse_1, "testObject_ConversationsResponse_v2_1.json")],
       testGroup "ConversationsResponse" $
         testObjects [(testObject_ConversationsResponse_1, "testObject_ConversationsResponse_1.json")],
       testGroup "CreateScimToken" $

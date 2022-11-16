@@ -28,6 +28,7 @@ import Servant.API.ContentTypes
 import Servant.Swagger
 import Servant.Swagger.Internal
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Version
 
 --------------------------------------
 -- Versioned requests
@@ -94,7 +95,7 @@ instance
 -- Use this type to provide several JSON/swagger instances for a given type.
 -- Use VersionedReqBody and VersionedRespond to select the instance to use in
 -- Servant.
-newtype Versioned v a = Versioned {unVersioned :: a}
+newtype Versioned (v :: Version) a = Versioned {unVersioned :: a}
   deriving (Eq, Show)
 
 instance Functor (Versioned v) where

@@ -39,7 +39,8 @@ conversationAPI =
     <@> mkNamedAPI @"list-conversation-ids-v2" (conversationIdsPageFromV2 DoNotListGlobalSelf)
     <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
     <@> mkNamedAPI @"get-conversations" getConversations
-    <@> mkNamedAPI @"list-conversations-v1" listConversations
+    <@> mkNamedAPI @"list-conversations@v1" listConversations
+    <@> mkNamedAPI @"list-conversations@v2" listConversations
     <@> mkNamedAPI @"list-conversations" listConversations
     <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
     <@> mkNamedAPI @"create-group-conversation@v2" createGroupConversation

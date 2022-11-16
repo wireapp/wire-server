@@ -432,17 +432,25 @@ data ConversationsResponse = ConversationsResponse
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationsResponse
 
+conversationsResponseSchema ::
+  ObjectSchema SwaggerDoc (Set AccessRole) ->
+  ValueSchema NamedSwaggerDoc ConversationsResponse
+conversationsResponseSchema sch =
+  let notFoundDoc = description ?~ "These conversations either don't exist or are deleted."
+      failedDoc = description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
+   in objectWithDocModifier
+        "ConversationsResponse"
+        (description ?~ "Response object for getting metadata of a list of conversations")
+        $ ConversationsResponse
+          <$> crFound .= field "found" (array (conversationSchema sch))
+          <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
+          <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
+
 instance ToSchema ConversationsResponse where
-  schema =
-    let notFoundDoc = description ?~ "These conversations either don't exist or are deleted."
-        failedDoc = description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
-     in objectWithDocModifier
-          "ConversationsResponse"
-          (description ?~ "Response object for getting metadata of a list of conversations")
-          $ ConversationsResponse
-            <$> crFound .= field "found" (array (conversationSchema accessRolesSchemaV2))
-            <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
-            <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
+  schema = conversationsResponseSchema accessRolesSchema
+
+instance ToSchema (Versioned 'V2 ConversationsResponse) where
+  schema = Versioned <$> unVersioned .= conversationsResponseSchema accessRolesSchemaV2
 
 --------------------------------------------------------------------------------
 -- Conversation properties

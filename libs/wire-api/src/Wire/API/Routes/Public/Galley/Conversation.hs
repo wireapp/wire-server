@@ -221,6 +221,7 @@ type ConversationAPI =
     :<|> Named
            "get-conversations"
            ( Summary "Get all *local* conversations."
+               :> Until 'V3
                :> Description
                     "Will not return remote conversations.\n\n\
                     \Use `POST /conversations/list-ids` followed by \
@@ -259,15 +260,34 @@ type ConversationAPI =
                     )
            )
     :<|> Named
-           "list-conversations-v1"
+           "list-conversations@v1"
            ( Summary "Get conversation metadata for a list of conversation ids"
                :> Until 'V2
                :> ZLocalUser
                :> "conversations"
                :> "list"
                :> "v2"
-               :> ReqBody '[Servant.JSON] ListConversations
-               :> Post '[Servant.JSON] ConversationsResponse
+               :> ReqBody '[JSON] ListConversations
+               :> Post '[JSON] ConversationsResponse
+           )
+    :<|> Named
+           "list-conversations@v2"
+           ( Summary "Get conversation metadata for a list of conversation ids"
+               :> From 'V2
+               :> Until 'V3
+               :> ZLocalUser
+               :> "conversations"
+               :> "list"
+               :> ReqBody '[JSON] ListConversations
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    ( VersionedRespond
+                        'V2
+                        200
+                        "Conversation page"
+                        ConversationsResponse
+                    )
            )
     :<|> Named
            "list-conversations"
@@ -276,8 +296,8 @@ type ConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> "list"
-               :> ReqBody '[Servant.JSON] ListConversations
-               :> Post '[Servant.JSON] ConversationsResponse
+               :> ReqBody '[JSON] ListConversations
+               :> Post '[JSON] ConversationsResponse
            )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
