@@ -20,13 +20,9 @@ Takes no parameters and returns a merged map of upstreams ('upstreams' and 'extr
 that should be configured.
 */}}
 {{- define "valid_upstreams" -}}
-    {{- toJson $.Values.nginx_conf.upstreams }}
-{{- end -}}
-
-{{- define "valid_upstreams_2" -}}
     {{- range $e := $.Values.nginx_conf.ignored_upstreams }}
         {{- if not (hasKey $.Values.nginx_conf.upstreams $e) }}
-            {{- fail (print "Upstream '" $e "' does not exist in 'upstreams'!" (toYaml $.Values.nginx_conf.upstreams)) }}
+            {{- fail (print "Upstream '" $e "' does not exist in 'upstreams'!") }}
         {{- end }}
     {{- end }}
     {{- range $e := $.Values.nginx_conf.enabled_extra_upstreams }}
@@ -35,12 +31,12 @@ that should be configured.
         {{- end }}
     {{- end }}
 
-    {{- $validUpstreams := $.Values.nginx_conf.upstreams }}
+    {{- $validUpstreams := (deepCopy $.Values.nginx_conf.upstreams) }}
     {{- range $key := $.Values.nginx_conf.ignored_upstreams }}
         {{- $validUpstreams = unset $validUpstreams $key}}
     {{- end }}
     {{- range $key := $.Values.nginx_conf.enabled_extra_upstreams }}
-        {{- $validUpstreams = set $validUpstreams $key (get $.Values.nginx_conf.enabled_extra_upstreams $key)}}
+        {{- $validUpstreams = set $validUpstreams $key (get $.Values.nginx_conf.extra_upstreams $key)}}
     {{- end }}
 
     {{- toJson $validUpstreams}}
