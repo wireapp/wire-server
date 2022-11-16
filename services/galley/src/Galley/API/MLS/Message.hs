@@ -796,23 +796,12 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
     postponedKeyPackageRefUpdate <-
       if epoch == Epoch 0
         then do
-          -- this is a newly created conversation, and it should contain exactly one
-          -- client (the creator)
           let cType = cnvmType . convMetadata . tUnqualified $ lconv
           case (self, cType, cmAssocs cm) of
-            (Left lm, SelfConv, []) -> do
+            (Left _, SelfConv, []) -> do
               creatorClient <-
                 note (mlsProtocolError "Missing the sender client") senderClient
-              unless (qusr == qUntagged (qualifyAs lconv (lmId lm)))
-                . throw
-                . mlsProtocolError
-                $ "Sender user cannot commit to self-conversations of others"
-              addMLSClients
-                (convId <$> lconv)
-                qusr
-                (Set.singleton (creatorClient, nullKeyPackageRef))
-              -- use update path as sender reference and if not existing fall back to sender
-              senderRef' <-
+              creatorRef <-
                 maybe
                   (pure senderRef)
                   ( note (mlsProtocolError "Could not compute key package ref")
@@ -820,11 +809,15 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
                       . upLeaf
                   )
                   $ cPath commit
-              -- register the creator client
-              updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef'
+              addMLSClients
+                (convId <$> lconv)
+                qusr
+                (Set.singleton (creatorClient, creatorRef))
             (Left _, SelfConv, _) ->
               throw . InternalErrorWithDescription $
                 "Unexpected creator client set in a self-conversation"
+            -- this is a newly created conversation, and it should contain exactly one
+            -- client (the creator)
             (Left lm, _, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender
