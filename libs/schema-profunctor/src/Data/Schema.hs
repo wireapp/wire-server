@@ -861,6 +861,8 @@ instance ToSchema String where schema = genericToSchema
 
 instance ToSchema Bool where schema = genericToSchema
 
+instance ToSchema Natural where schema = genericToSchema
+
 declareSwaggerSchema :: SchemaP (WithDeclare d) v w a b -> Declare d
 declareSwaggerSchema = runDeclare . schemaDoc
 

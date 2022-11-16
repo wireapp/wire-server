@@ -43,9 +43,9 @@ type ConversationResponse = ResponseForExistedCreated Conversation
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
-type ConversationVerbWithMethod (m :: StdMethod) =
+type ConversationVerb =
   MultiVerb
-    m
+    'POST
     '[JSON]
     '[ WithHeaders
          ConversationHeaders
@@ -57,10 +57,6 @@ type ConversationVerbWithMethod (m :: StdMethod) =
          (Respond 201 "Conversation created" Conversation)
      ]
     ConversationResponse
-
-type ConversationVerb = ConversationVerbWithMethod 'POST
-
-type ConversationPutVerb = ConversationVerbWithMethod 'PUT
 
 type CreateConversationCodeVerb =
   MultiVerb
@@ -285,7 +281,7 @@ type ConversationAPI =
                     '[JSON]
                     ( Respond
                         200
-                        "The MLS self-conversastion"
+                        "The MLS self-conversation"
                         Conversation
                     )
            )

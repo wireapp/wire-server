@@ -527,6 +527,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
+    Test.Wire.API.Golden.Manual.TeamSize
     Test.Wire.API.Golden.Manual.Token
     Test.Wire.API.Golden.Manual.UserClientPrekeyMap
     Test.Wire.API.Golden.Manual.UserIdList
@@ -639,6 +640,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString
     Test.Wire.API.Roundtrip.CSV
+    Test.Wire.API.Roundtrip.HttpApiData
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
     Test.Wire.API.Swagger

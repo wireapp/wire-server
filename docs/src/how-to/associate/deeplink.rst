@@ -20,6 +20,9 @@ Supported client apps:
 - iOS
 - Android
 
+.. note::
+   Wire deeplinks can be used to redirect a mobile (Android, iOS) Wire app to a specific backend URL. Deeplinks have no further ability implemented at this stage.
+
 Connecting to a custom backend utilizing a Deep Link
 ----------------------------------------------------
 

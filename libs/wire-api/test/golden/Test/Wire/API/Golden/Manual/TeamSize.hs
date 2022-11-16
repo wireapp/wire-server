@@ -15,26 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Team.Size
-  ( TeamSize (TeamSize),
-  )
-where
+module Test.Wire.API.Golden.Manual.TeamSize where
 
-import Control.Lens ((?~))
-import qualified Data.Aeson as A
-import Data.Schema
-import qualified Data.Swagger as S
 import Imports
-import Numeric.Natural
+import Wire.API.Team.Size
 
-newtype TeamSize = TeamSize Natural
-  deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TeamSize)
+testObject_TeamSize_1 :: TeamSize
+testObject_TeamSize_1 = TeamSize 0
 
-instance ToSchema TeamSize where
-  schema =
-    objectWithDocModifier "TeamSize" (description ?~ "A simple object with a total number of team members.") $
-      TeamSize <$> (unTeamSize .= fieldWithDocModifier "teamSize" (description ?~ "Team size.") schema)
-    where
-      unTeamSize :: TeamSize -> Natural
-      unTeamSize (TeamSize n) = n
+testObject_TeamSize_2 :: TeamSize
+testObject_TeamSize_2 = TeamSize 100
+
+testObject_TeamSize_3 :: TeamSize
+testObject_TeamSize_3 = TeamSize (fromIntegral $ maxBound @Word64)

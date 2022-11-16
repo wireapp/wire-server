@@ -196,6 +196,7 @@ servantSitemap =
     :<|> searchAPI
     :<|> authAPI
     :<|> callingAPI
+    :<|> Team.servantAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -338,7 +339,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Provider.routesPublic
-  Team.routesPublic
 
 apiDocs ::
   forall r.

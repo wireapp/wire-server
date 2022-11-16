@@ -258,9 +258,6 @@ propertyValueTooLarge = Wai.mkError status403 "property-value-too-large" "The pr
 clientCapabilitiesCannotBeRemoved :: Wai.Error
 clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-cannot-be-removed" "You can only add capabilities to a client, not remove them."
 
-noEmail :: Wai.Error
-noEmail = Wai.mkError status403 "no-email" "This operation requires the user to have a verified email address."
-
 emailExists :: Wai.Error
 emailExists = Wai.mkError status409 "email-exists" "The given e-mail address is in use."
 

@@ -107,7 +107,7 @@ postMessage ::
     MonadHttp m,
     HasGalley m
   ) =>
-  UserId ->
+  ClientIdentity ->
   ByteString ->
   m ResponseLBS
 postMessage sender msg = do
@@ -115,7 +115,8 @@ postMessage sender msg = do
   post
     ( galley
         . paths ["mls", "messages"]
-        . zUser sender
+        . zUser (ciUser sender)
+        . zClient (ciClient sender)
         . zConn "conn"
         . content "message/mls"
         . bytes msg
@@ -831,7 +832,7 @@ sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest [Event]
 sendAndConsumeMessage mp = do
   events <-
     fmap mmssEvents . responseJsonError
-      =<< postMessage (ciUser (mpSender mp)) (mpMessage mp)
+      =<< postMessage (mpSender mp) (mpMessage mp)
         <!! const 201 === statusCode
   consumeMessage mp
 

@@ -15,26 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Team.Size
-  ( TeamSize (TeamSize),
-  )
-where
+module Test.Wire.API.Roundtrip.HttpApiData (tests) where
 
-import Control.Lens ((?~))
-import qualified Data.Aeson as A
-import Data.Schema
-import qualified Data.Swagger as S
 import Imports
-import Numeric.Natural
+import Servant.API
+import qualified Test.Tasty as T
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
+import Type.Reflection (typeRep)
+import qualified Wire.API.User as User
+import qualified Wire.Arbitrary as Arbitrary ()
 
-newtype TeamSize = TeamSize Natural
-  deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TeamSize)
+tests :: T.TestTree
+tests =
+  T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "HttpApiData roundtrip tests" $
+    [ testRoundTrip @User.InvitationCode
+    ]
 
-instance ToSchema TeamSize where
-  schema =
-    objectWithDocModifier "TeamSize" (description ?~ "A simple object with a total number of team members.") $
-      TeamSize <$> (unTeamSize .= fieldWithDocModifier "teamSize" (description ?~ "Team size.") schema)
-    where
-      unTeamSize :: TeamSize -> Natural
-      unTeamSize (TeamSize n) = n
+testRoundTrip ::
+  forall a.
+  (Arbitrary a, Typeable a, ToHttpApiData a, FromHttpApiData a, Eq a, Show a) =>
+  T.TestTree
+testRoundTrip = testProperty msg trip
+  where
+    msg = show (typeRep @a)
+    trip (v :: a) =
+      counterexample (show $ v) $
+        Right v === (parseQueryParam . toQueryParam) v

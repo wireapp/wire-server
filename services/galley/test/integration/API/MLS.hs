@@ -246,7 +246,7 @@ testSenderNotInConversation = do
     -- send the message as bob, who is not in the conversation
     err <-
       responseJsonError
-        =<< postMessage (qUnqualified bob) (mpMessage message)
+        =<< postMessage bob1 (mpMessage message)
           <!! const 404 === statusCode
 
     liftIO $ Wai.label err @?= "no-conversation"
@@ -424,7 +424,7 @@ testAddUserNotConnected = do
     err <- mlsBracket [alice1, bob1] $ \wss -> do
       err <-
         responseJsonError
-          =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
+          =<< postMessage (mpSender commit) (mpMessage commit)
             <!! const 403 === statusCode
       void . liftIO $ WS.assertNoEvent (1 # WS.Second) wss
       pure err
@@ -471,7 +471,7 @@ testAddUserPartial = do
     -- alice sends a commit now, and should get a conflict error
     err <-
       responseJsonError
-        =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
+        =<< postMessage (mpSender commit) (mpMessage commit)
           <!! const 409 === statusCode
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
@@ -518,7 +518,7 @@ testSendAnotherUsersCommit = do
     -- and the corresponding commit is sent from Bob instead of Alice
     err <-
       responseJsonError
-        =<< postMessage (qUnqualified bob) (mpMessage mp)
+        =<< postMessage bob1 (mpMessage mp)
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
 
@@ -535,7 +535,7 @@ testAddUsersToProteus = do
     mp <- createAddCommit alice1 [bob]
     err <-
       responseJsonError
-        =<< postMessage (ciUser alice1) (mpMessage mp) <!! const 404 === statusCode
+        =<< postMessage alice1 (mpMessage mp) <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "no-conversation"
 
 testAddUsersDirectly :: TestM ()
@@ -611,7 +611,7 @@ testStaleCommit = do
     commit <- createAddCommit alice1 users2
     err <-
       responseJsonError
-        =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
+        =<< postMessage (mpSender commit) (mpMessage commit)
           <!! const 409 === statusCode
     liftIO $ Wai.label err @?= "mls-stale-message"
 
@@ -685,7 +685,7 @@ testCommitLock = do
       commit <- createAddCommit alice1 [cidQualifiedUser dee1]
       err <-
         responseJsonError
-          =<< postMessage (ciUser alice1) (mpMessage commit)
+          =<< postMessage alice1 (mpMessage commit)
             <!! const 409 === statusCode
       liftIO $ Wai.label err @?= "mls-stale-message"
   where
@@ -741,7 +741,7 @@ testUnknownProposalRefCommit = do
     -- send commit before proposal
     err <-
       responseJsonError
-        =<< postMessage (ciUser alice1) (mpMessage commit)
+        =<< postMessage alice1 (mpMessage commit)
           <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "mls-proposal-not-found"
 
@@ -765,7 +765,7 @@ testCommitNotReferencingAllProposals = do
     -- send commit and expect and error
     err <-
       responseJsonError
-        =<< postMessage (ciUser alice1) (mpMessage commit)
+        =<< postMessage alice1 (mpMessage commit)
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
@@ -805,7 +805,7 @@ testRemoveClientsIncomplete = do
 
     err <-
       responseJsonError
-        =<< postMessage (qUnqualified alice) (mpMessage commit)
+        =<< postMessage alice1 (mpMessage commit)
           <!! statusCode === const 409
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
@@ -1284,7 +1284,7 @@ propNonExistingConv = do
     createGroup alice1 "test_group"
 
     [prop] <- createAddProposals alice1 [bob]
-    postMessage (ciUser alice1) (mpMessage prop) !!! do
+    postMessage alice1 (mpMessage prop) !!! do
       const 404 === statusCode
       const (Just "no-conversation") === fmap Wai.label . responseJsonError
 
@@ -1301,7 +1301,7 @@ propExistingConv = do
 
 propInvalidEpoch :: TestM ()
 propInvalidEpoch = do
-  users@[alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 Nothing)
+  users@[_alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 Nothing)
   runMLSTest $ do
     [alice1, bob1, charlie1, dee1] <- traverse createMLSClient users
     void $ setupMLSGroup alice1
@@ -1317,7 +1317,7 @@ propInvalidEpoch = do
       [prop] <- createAddProposals alice1 [dee]
       err <-
         responseJsonError
-          =<< postMessage (qUnqualified alice) (mpMessage prop)
+          =<< postMessage alice1 (mpMessage prop)
             <!! const 409 === statusCode
       liftIO $ Wai.label err @?= "mls-stale-message"
       setGroupState alice1 groupState
@@ -1330,7 +1330,7 @@ propInvalidEpoch = do
       [prop] <- createAddProposals alice1 [dee]
       err <-
         responseJsonError
-          =<< postMessage (qUnqualified alice) (mpMessage prop)
+          =<< postMessage alice1 (mpMessage prop)
             <!! const 404 === statusCode
       liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
       replicateM_ 2 (rollBackClient alice1)
@@ -1461,7 +1461,7 @@ testExternalAddProposalWrongClient = do
         >>= sendAndConsumeCommit
 
     prop <- createExternalAddProposal bob2
-    postMessage (qUnqualified charlie) (mpMessage prop)
+    postMessage charlie1 (mpMessage prop)
       !!! do
         const 422 === statusCode
         const (Just "mls-unsupported-proposal") === fmap Wai.label . responseJsonError
@@ -1471,7 +1471,7 @@ testExternalAddProposalWrongClient = do
 -- charlie attempts to join with an external add proposal
 testExternalAddProposalWrongUser :: TestM ()
 testExternalAddProposalWrongUser = do
-  users@[_, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
+  users@[_, bob, _charlie] <- createAndConnectUsers (replicate 3 Nothing)
 
   runMLSTest $ do
     -- setup clients
@@ -1484,7 +1484,7 @@ testExternalAddProposalWrongUser = do
         >>= sendAndConsumeCommit
 
     prop <- createExternalAddProposal charlie1
-    postMessage (qUnqualified charlie) (mpMessage prop)
+    postMessage charlie1 (mpMessage prop)
       !!! do
         const 404 === statusCode
         const (Just "no-conversation") === fmap Wai.label . responseJsonError
@@ -1542,7 +1542,7 @@ propUnsupported = do
 
     -- we cannot use sendAndConsumeMessage here, because openmls does not yet
     -- support AppAck proposals
-    postMessage (ciUser alice1) msgData !!! const 201 === statusCode
+    postMessage alice1 msgData !!! const 201 === statusCode
 
 testBackendRemoveProposalLocalConvLocalUser :: TestM ()
 testBackendRemoveProposalLocalConvLocalUser = do
@@ -2107,7 +2107,7 @@ testSelfConversationOtherUser = do
     void $ setupMLSSelfGroup alice1
     commit <- createAddCommit alice1 [bob]
     mlsBracket [alice1, bob1] $ \wss -> do
-      postMessage (ciUser (mpSender commit)) (mpMessage commit)
+      postMessage (mpSender commit) (mpMessage commit)
         !!! do
           const 403 === statusCode
           const (Just "invalid-op") === fmap Wai.label . responseJsonError

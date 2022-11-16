@@ -28,6 +28,7 @@ config:
     maxTeamSize: 10000
     exposeInvitationURLsTeamAllowlist: []
     maxConvSize: 500
+    intraListing: true
     # Before making indexedBillingTeamMember true while upgrading, please
     # refer to notes here: https://github.com/wireapp/wire-server-deploy/releases/tag/v2020-05-15
     indexedBillingTeamMember: false
