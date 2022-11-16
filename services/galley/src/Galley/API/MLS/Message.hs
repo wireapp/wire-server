@@ -253,7 +253,6 @@ postMLSCommitBundleToLocalConv ::
          Error FederationError,
          Error InternalError,
          Error MLSProtocolError,
-         Input (Local ()),
          Input Opts,
          Input UTCTime,
          ProposalStore,
@@ -457,7 +456,6 @@ postMLSMessageToLocalConv ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
-         Input (Local ()),
          ProposalStore,
          Resource,
          TinyLog
