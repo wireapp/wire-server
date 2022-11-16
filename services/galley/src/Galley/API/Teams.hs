@@ -258,8 +258,7 @@ createNonBindingTeamH lusr zcon (Public.NonBindingNewTeam body) = do
       (body ^. newTeamIconKey)
       NonBinding
   finishCreateTeam team owner others (Just zcon)
-  let tid = team ^. teamId
-  pure tid
+  pure $ team ^. teamId
 
 createBindingTeam ::
   Members

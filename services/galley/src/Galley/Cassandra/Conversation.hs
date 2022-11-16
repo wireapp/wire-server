@@ -19,6 +19,7 @@ module Galley.Cassandra.Conversation
   ( createConversation,
     deleteConversation,
     interpretConversationStoreToCassandra,
+    getGlobalTeamConversationById,
   )
 where
 
@@ -54,6 +55,7 @@ import qualified UnliftIO
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.Group
 import Wire.API.MLS.PublicGroupState
 
@@ -249,60 +251,111 @@ getConversation conv = do
       <*> UnliftIO.wait cdata
   runMaybeT $ conversationGC =<< maybe mzero pure mbConv
 
-getGlobalTeamConversation :: TeamId -> Client (Maybe Conversation)
-getGlobalTeamConversation tid =
-  (\c -> c {convLocalMembers = [], convRemoteMembers = []})
-    <$$> getConversation (globalTeamConv tid)
+getGlobalTeamConversation ::
+  Local TeamId ->
+  Client (Maybe GlobalTeamConversation)
+getGlobalTeamConversation qtid = do
+  let tid = tUnqualified qtid
+      cid = globalTeamConv tid
+  mconv <- retry x1 (query1 Cql.selectGlobalTeamConv (params LocalQuorum (Identity cid)))
+  pure $ toGlobalConv cid tid mconv
+  where
+    toGlobalConv cid tid mconv = do
+      (muid, mname, _mtid, mgid, mepoch, mcs) <- mconv
+      mlsData <- ConversationMLSData <$> mgid <*> (mepoch <|> Just (Epoch 0)) <*> mcs
+      name <- mname
+
+      pure $
+        GlobalTeamConversation
+          (qUntagged $ qualifyAs qtid cid)
+          ( GlobalTeamConversationMetadata
+              { gtcmCreator = muid,
+                gtcmAccess = [SelfInviteAccess],
+                gtcmName = name,
+                gtcmTeam = tid
+              }
+          )
+          mlsData
+
+getGlobalTeamConversationById ::
+  Local ConvId ->
+  Client (Maybe GlobalTeamConversation)
+getGlobalTeamConversationById lconv = do
+  let cid = tUnqualified lconv
+  mconv <- retry x1 (query1 Cql.selectGlobalTeamConv (params LocalQuorum (Identity cid)))
+  pure $ toGlobalConv mconv
+  where
+    toGlobalConv mconv = do
+      (muid, mname, mtid, mgid, mepoch, mcs) <- mconv
+      tid <- mtid
+      name <- mname
+      mlsData <- ConversationMLSData <$> mgid <*> (mepoch <|> Just (Epoch 0)) <*> mcs
+
+      pure $
+        GlobalTeamConversation
+          (qUntagged lconv)
+          ( GlobalTeamConversationMetadata
+              { gtcmCreator = muid,
+                gtcmAccess = [SelfInviteAccess],
+                gtcmName = name,
+                gtcmTeam = tid
+              }
+          )
+          mlsData
 
 createGlobalTeamConversation ::
   Local TeamId ->
   UserId ->
-  Client Conversation
+  Client GlobalTeamConversation
 createGlobalTeamConversation tid uid = do
   let lconv = qualifyAs tid (globalTeamConv $ tUnqualified tid)
       meta =
-        ConversationMetadata
-          { cnvmType = GlobalTeamConv,
-            cnvmCreator = uid,
-            cnvmAccess = [SelfInviteAccess],
-            cnvmAccessRoles = mempty,
-            cnvmName = Just "Global team conversation",
-            cnvmTeam = Just (tUnqualified tid),
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Nothing
+        GlobalTeamConversationMetadata
+          { gtcmCreator = Just uid,
+            gtcmAccess = [SelfInviteAccess],
+            gtcmName = "Global team conversation",
+            gtcmTeam = tUnqualified tid
           }
       gid = convToGroupId lconv
       cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-      proto =
-        ProtocolMLS
-          ( ConversationMLSData
-              gid
-              (Epoch 0)
-              cs
-          )
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
     addPrepQuery
       Cql.insertGlobalTeamConv
       ( tUnqualified lconv,
-        Cql.Set (cnvmAccess meta),
-        cnvmName meta,
-        cnvmTeam meta,
+        Cql.Set (gtcmAccess meta),
+        gtcmName meta,
+        gtcmTeam meta,
+        uid,
         Just gid,
         Just cs
       )
     addPrepQuery Cql.insertTeamConv (tUnqualified tid, tUnqualified lconv)
     addPrepQuery Cql.insertGroupId (gid, tUnqualified lconv, tDomain lconv)
-  pure
-    Conversation
-      { convId = tUnqualified lconv,
-        convLocalMembers = mempty,
-        convRemoteMembers = mempty,
-        convDeleted = False,
-        convMetadata = meta,
-        convProtocol = proto
-      }
+  pure $
+    GlobalTeamConversation
+      (qUntagged lconv)
+      meta
+      ( ConversationMLSData
+          gid
+          (Epoch 0)
+          cs
+      )
+
+setGlobalTeamConversationCreator ::
+  GlobalTeamConversation ->
+  UserId ->
+  Client ()
+setGlobalTeamConversationCreator gtc uid = do
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery
+      Cql.setGlobalTeamConvCreator
+      ( uid,
+        qUnqualified . gtcId $ gtc
+      )
 
 -- | "Garbage collect" a 'Conversation', i.e. if the conversation is
 -- marked as deleted, actually remove it from the database and return
@@ -436,7 +489,9 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateMLSSelfConversation lusr -> embedClient $ createMLSSelfConversation lusr
   GetConversation cid -> embedClient $ getConversation cid
   GetGlobalTeamConversation tid -> embedClient $ getGlobalTeamConversation tid
+  GetGlobalTeamConversationById lconv -> embedClient $ getGlobalTeamConversationById lconv
   CreateGlobalTeamConversation tid uid -> embedClient $ createGlobalTeamConversation tid uid
+  SetGlobalTeamConversationCreator gtc uid -> embedClient $ setGlobalTeamConversationCreator gtc uid
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid

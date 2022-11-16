@@ -89,6 +89,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import qualified Wire.API.User as User
@@ -282,7 +283,7 @@ ensureAllowed tag loc action conv origUser = do
         (convType conv == GlobalTeamConv)
         $ throwS @'InvalidOperation
     SConversationLeaveTag ->
-      when (convType conv == GlobalTeamConv) $
+      when (convType conv == GlobalTeamConv) $ do
         throwS @'InvalidOperation
     _ -> pure ()
 
@@ -595,7 +596,17 @@ updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
 
   -- retrieve conversation
-  conv <- getConversationWithError lcnv
+  conv <- do
+    -- Check if global or not, if global, map it to conversation
+    E.getGlobalTeamConversationById lcnv >>= \case
+      Just gtc ->
+        let c = (gtcmCreator . gtcMetadata $ gtc)
+         in case c of
+              Nothing -> 
+                throwS @'ConvNotFound
+              Just creator ->
+                pure $ gtcToConv creator gtc
+      Nothing -> getConversationWithError lcnv
 
   -- check that the action does not bypass the underlying protocol
   unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
@@ -603,6 +614,27 @@ updateLocalConversation lcnv qusr con action = do
 
   -- perform all authorisation checks and, if successful, the update itself
   updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
+  where
+    gtcToConv creator gtc =
+      let meta = gtcMetadata gtc
+       in Conversation
+            { convId = qUnqualified $ gtcId gtc,
+              convLocalMembers = mempty,
+              convRemoteMembers = mempty,
+              convDeleted = False,
+              convMetadata =
+                ConversationMetadata
+                  { cnvmType = GlobalTeamConv,
+                    cnvmCreator = creator,
+                    cnvmAccess = [SelfInviteAccess],
+                    cnvmAccessRoles = mempty,
+                    cnvmName = Just $ gtcmName meta,
+                    cnvmTeam = Just $ gtcmTeam meta,
+                    cnvmMessageTimer = Nothing,
+                    cnvmReceiptMode = Nothing
+                  },
+              convProtocol = ProtocolMLS (gtcMlsMetadata gtc)
+            }
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
 -- 'Conversation' value directly, instead of a 'ConvId', and skips protocol
@@ -634,7 +666,26 @@ updateLocalConversationUnchecked lconv qusr con action = do
       conv = tUnqualified lconv
 
   -- retrieve member
-  self <- noteS @'ConvNotFound $ getConvMember lconv conv qusr
+  self <-
+    if (cnvmType . convMetadata . tUnqualified $ lconv) == GlobalTeamConv
+      then
+        -- TODO(elland): address this problem
+        pure . Left $
+          LocalMember
+            { lmId = qUnqualified qusr,
+              lmStatus =
+                MemberStatus
+                  { msOtrMutedStatus = Nothing,
+                    msOtrMutedRef = Nothing,
+                    msOtrArchived = False,
+                    msOtrArchivedRef = Nothing,
+                    msHidden = False,
+                    msHiddenRef = Nothing
+                  },
+              lmService = Nothing,
+              lmConvRoleName = roleToRoleName convRoleWireMember
+            }
+      else noteS @'ConvNotFound $ getConvMember lconv conv qusr
 
   -- perform checks
   ensureConversationActionAllowed (sing @tag) lcnv action conv self
@@ -674,7 +725,7 @@ ensureConversationActionAllowed tag loc action conv self = do
   -- general action check
   ensureActionAllowed (sConversationActionPermission tag) self
 
-  -- check if it is a group conversation (except for rename actions)
+  -- check if it is a group or global conversation (except for rename actions)
   when (fromSing tag /= ConversationRenameTag) $
     ensureGroupConversation conv
 

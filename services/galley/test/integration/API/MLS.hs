@@ -197,7 +197,8 @@ tests s =
         "GlobalTeamConv"
         [ test s "Non-existing team returns 403" testGetGlobalTeamConvNonExistant,
           test s "Non member of team returns 403" testGetGlobalTeamConvNonMember,
-          test s "Global team conversation is created on get if not present" (testGetGlobalTeamConv s)
+          test s "Global team conversation is created on get if not present" (testGetGlobalTeamConv s),
+          test s "Can't leave global team conversation" testGlobalTeamConversationLeave
         ],
       testGroup
         "Self conversation"
@@ -2182,11 +2183,11 @@ testGetGlobalTeamConv setup = do
   assertQueue "create team" tActivate
   liftIO $ assertEqual "owner" owner (team ^. teamCreator)
   assertQueueEmpty
-  cid <- Util.randomClient owner (head Util.someLastPrekeys)
 
   s <- liftIO setup
   let domain = s ^. tsGConf . optSettings . setFederationDomain
 
+  cid <- Util.randomClient owner (head Util.someLastPrekeys)
   let response = getGlobalTeamConv owner cid tid <!! const 200 === statusCode
   Just rs <- responseBody <$> response
   let convoId = globalTeamConv tid
@@ -2194,12 +2195,11 @@ testGetGlobalTeamConv setup = do
       expected =
         GlobalTeamConversation
           (qUntagged lconv)
-          ( (defConversationMetadata owner)
-              { cnvmType = GlobalTeamConv,
-                cnvmAccess = [SelfInviteAccess],
-                cnvmAccessRoles = mempty,
-                cnvmName = Just "Global team conversation",
-                cnvmTeam = Just tid
+          ( GlobalTeamConversationMetadata
+              { gtcmCreator = Just owner,
+                gtcmAccess = [SelfInviteAccess],
+                gtcmName = "Global team conversation",
+                gtcmTeam = tid
               }
           )
           ( ConversationMLSData
@@ -2209,6 +2209,35 @@ testGetGlobalTeamConv setup = do
           )
   let cm = Aeson.decode rs :: Maybe GlobalTeamConversation
   liftIO $ assertEqual "conversation metadata" cm (Just expected)
+
+testGlobalTeamConversationLeave :: TestM ()
+testGlobalTeamConversationLeave = do
+  alice <- randomQualifiedUser
+  let aliceUnq = qUnqualified alice
+
+  tid <- createBindingTeamInternal "sample-team" aliceUnq
+  team <- getTeam aliceUnq tid
+  assertQueue "create team" tActivate
+  liftIO $ assertEqual "owner" aliceUnq (team ^. teamCreator)
+  assertQueueEmpty
+
+  runMLSTest $ do
+    alice1 <- createMLSClient alice
+
+    let response = getGlobalTeamConv aliceUnq (ciClient alice1) tid <!! const 200 === statusCode
+    Just rs <- responseBody <$> response
+    let (Just gtc) = Aeson.decode rs :: Maybe GlobalTeamConversation
+        gid = cnvmlsGroupId $ gtcMlsMetadata gtc
+
+    void $ uploadNewKeyPackage alice1
+    createGroup alice1 gid
+    mlsBracket [alice1] $ \wss -> do
+      liftTest $
+        deleteMemberQualified (qUnqualified alice) alice (gtcId gtc)
+          !!! do
+            const 403 === statusCode
+            const (Just "invalid-op") === fmap Wai.label . responseJsonError
+      WS.assertNoEvent (1 # WS.Second) wss
 
 testSelfConversation :: TestM ()
 testSelfConversation = do

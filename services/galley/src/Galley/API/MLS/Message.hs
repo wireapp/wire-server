@@ -79,6 +79,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
+import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
@@ -475,7 +476,14 @@ postMLSMessageToLocalConv ::
   Sem r [LocalConversationUpdate]
 postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
   SomeMessage tag msg -> do
-    conv <- getLocalConvForUser qusr lcnv
+    gtc <- getGlobalTeamConversationById lcnv
+    conv <- case gtc of
+      Just conv -> do
+        when (isNothing (gtcmCreator $ gtcMetadata $ conv)) $ do
+          setGlobalTeamConversationCreator conv (qUnqualified qusr)
+        pure . gtcToConv $ conv
+      Nothing ->
+        getLocalConvForUser qusr lcnv
 
     -- construct client map
     cm <- lookupMLSClients lcnv
@@ -487,7 +495,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
         CommitMessage c ->
           processCommit qusr senderClient con lconv cm (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-        ProposalMessage prop ->
+        ProposalMessage prop -> 
           processProposal qusr conv msg prop $> mempty
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
         Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
@@ -499,6 +507,28 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
     propagateMessage qusr lconv cm con (rmRaw smsg)
 
     pure events
+  where
+    gtcToConv :: GlobalTeamConversation -> Data.Conversation
+    gtcToConv gtc =
+      let meta = gtcMetadata gtc
+       in Data.Conversation
+            { convId = qUnqualified $ gtcId gtc,
+              convLocalMembers = mempty, -- Should be full team
+              convRemoteMembers = mempty,
+              convDeleted = False,
+              convMetadata =
+                ConversationMetadata
+                  { cnvmType = GlobalTeamConv,
+                    cnvmCreator = undefined,
+                    cnvmAccess = gtcmAccess meta,
+                    cnvmAccessRoles = mempty,
+                    cnvmName = Just (gtcmName meta),
+                    cnvmTeam = Just (gtcmTeam meta),
+                    cnvmMessageTimer = Nothing,
+                    cnvmReceiptMode = Nothing
+                  },
+              convProtocol = ProtocolMLS (gtcMlsMetadata gtc)
+            }
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -555,7 +585,6 @@ type HasProposalEffects r =
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
-    Member TeamStore r,
     Member TeamStore r,
     Member TinyLog r
   )

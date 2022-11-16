@@ -47,14 +47,13 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action.Tag
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
-import Wire.API.MLS.GlobalTeamConversation (GlobalTeamConversation)
 import Wire.Arbitrary (Arbitrary (..))
 
 -- | We use this type family instead of a sum type to be able to define
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
 type family ConversationAction (tag :: ConversationActionTag) :: * where
   ConversationAction 'ConversationJoinTag = ConversationJoin
-  ConversationAction 'ConversationSelfInviteTag = GlobalTeamConversation
+  ConversationAction 'ConversationSelfInviteTag = ConvId
   ConversationAction 'ConversationLeaveTag = ()
   ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
   ConversationAction 'ConversationDeleteTag = ()
