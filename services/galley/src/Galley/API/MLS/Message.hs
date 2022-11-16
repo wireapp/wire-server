@@ -721,7 +721,7 @@ processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommit
   -- increment epoch number
   setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
   -- fetch local conversation with new epoch
-  lc <- qualifyAs lconv <$> getLocalConvForUser qusr (qualifyAs lconv $ convId $ tUnqualified lconv)
+  lc <- qualifyAs lconv <$> getLocalConvForUser qusr (convId <$> lconv)
   -- fetch backend remove proposals of the previous epoch
   kpRefs <- getPendingBackendRemoveProposals groupId epoch
   -- requeue backend remove proposals for the current epoch

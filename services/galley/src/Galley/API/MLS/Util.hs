@@ -28,6 +28,9 @@ import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
+import qualified Polysemy.TinyLog as TinyLog
+import qualified System.Logger as Log
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Epoch
@@ -56,16 +59,21 @@ getLocalConvForUser qusr lcnv = do
   pure conv
 
 getPendingBackendRemoveProposals ::
-  Members '[ProposalStore] r =>
+  Members '[ProposalStore, TinyLog] r =>
   GroupId ->
   Epoch ->
   Sem r [KeyPackageRef]
 getPendingBackendRemoveProposals gid epoch = do
-  proposals <- getAllPendingBackendProposals gid epoch
-  pure $
-    mapMaybe
-      ( \proposal -> case rmValue proposal of
-          RemoveProposal kp -> Just kp
-          _ -> Nothing
-      )
+  proposals <- getAllPendingProposals gid epoch
+  catMaybes
+    <$> for
       proposals
+      ( \case
+          (Just ProposalOriginBackend, proposal) -> case rmValue proposal of
+            RemoveProposal kp -> pure . Just $ kp
+            _ -> pure Nothing
+          (Just ProposalOriginClient, _) -> pure Nothing
+          (Nothing, _) -> do
+            TinyLog.warn $ Log.msg ("found pending proposal without origin, ignoring" :: ByteString)
+            pure Nothing
+      )

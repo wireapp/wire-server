@@ -211,4 +211,4 @@ originToInt ProposalOriginBackend = 1
 intToOrigin :: Int32 -> Either String ProposalOrigin
 intToOrigin 0 = pure ProposalOriginClient
 intToOrigin 1 = pure ProposalOriginBackend
-intToOrigin _ = Left "intToOrigin: unexptected int constant"
+intToOrigin n = Left $ "intToOrigin: unexptected int constant: " <> show n

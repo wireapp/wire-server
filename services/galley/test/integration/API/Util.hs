@@ -2935,38 +2935,6 @@ wsAssertAddProposal fromUser convId n = do
     getMLSMessageData (EdMLSMessage bs) = bs
     getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
 
-wsAssertCommit ::
-  HasCallStack =>
-  Qualified UserId ->
-  Qualified ConvId ->
-  Notification ->
-  IO ByteString
-wsAssertCommit fromUser convId n = do
-  let e = List1.head (WS.unpackPayload n)
-  ntfTransient n @?= False
-  evtConv e @?= convId
-  evtType e @?= MLSMessageAdd
-  evtFrom e @?= fromUser
-  let bs = getMLSMessageData (evtData e)
-  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' bs
-  let tbs = rmValue . msgTBS $ msg
-  tbsMsgSender tbs @?= NewMemberSender
-  case tbsMsgPayload tbs of
-    ProposalMessage rp ->
-      case rmValue rp of
-        AddProposal _ -> pure ()
-        otherProp ->
-          assertFailure $
-            "Expected AddProposal but got " <> show otherProp
-    otherPayload ->
-      assertFailure $
-        "Expected ProposalMessage but got " <> show otherPayload
-  pure bs
-  where
-    getMLSMessageData :: Conv.EventData -> ByteString
-    getMLSMessageData (EdMLSMessage bs) = bs
-    getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
-
 createAndConnectUsers :: [Maybe Text] -> TestM [Qualified UserId]
 createAndConnectUsers domains = do
   localDomain <- viewFederationDomain

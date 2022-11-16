@@ -52,8 +52,8 @@ interpretProposalStoreToCassandra =
         runIdentity <$$> retry x1 (query1 getQuery (params LocalQuorum (groupId, epoch, ref)))
       GetAllPendingProposalRefs groupId epoch ->
         runIdentity <$$> retry x1 (query getAllPendingRef (params LocalQuorum (groupId, epoch)))
-      GetAllPendingBackendProposals groupId epoch ->
-        mapMaybe (\(mpo, p) -> mpo >>= \po -> guard (po == ProposalOriginBackend) $> p) <$> retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
+      GetAllPendingProposals groupId epoch ->
+        retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
 
 storeQuery :: Timeout -> PrepQuery W (GroupId, Epoch, ProposalRef, ProposalOrigin, RawMLS Proposal) ()
 storeQuery ttl =

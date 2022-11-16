@@ -43,9 +43,9 @@ data ProposalStore m a where
     GroupId ->
     Epoch ->
     ProposalStore m [ProposalRef]
-  GetAllPendingBackendProposals ::
+  GetAllPendingProposals ::
     GroupId ->
     Epoch ->
-    ProposalStore m [RawMLS Proposal]
+    ProposalStore m [(Maybe ProposalOrigin, RawMLS Proposal)]
 
 makeSem ''ProposalStore
