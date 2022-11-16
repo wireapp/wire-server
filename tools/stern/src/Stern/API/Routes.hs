@@ -19,9 +19,10 @@ module Stern.API.Routes
   ( SternAPI,
     SternAPIInternal,
     SwaggerDocsAPI,
-    swaggerDocsAPI,
+    swaggerDocs,
     UserConnectionGroups (..),
     doubleMaybeToEither,
+    RedirectToSwaggerDocsAPI,
   )
 where
 
@@ -52,6 +53,8 @@ import Wire.API.User.Search
 
 ----------------------------------------------------------------------
 -- routing tables
+type RedirectToSwaggerDocsAPI =
+  Named "swagger-ui-redirect" (Get '[PlainText] NoContent)
 
 type SternAPIInternal =
   Named
@@ -380,8 +383,8 @@ type SternAPI =
 
 type SwaggerDocsAPI = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI =
+swaggerDocs :: Servant.Server SwaggerDocsAPI
+swaggerDocs =
   swaggerSchemaUIServer $
     toSwagger (Proxy @SternAPI)
       & S.info . S.title .~ "Stern API"
