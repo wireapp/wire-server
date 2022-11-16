@@ -378,7 +378,7 @@ type SternAPI =
 -------------------------------------------------------------------------------
 -- Swagger
 
-type SwaggerDocsAPI = SwaggerSchemaUI "" "swagger.json"
+type SwaggerDocsAPI = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI =

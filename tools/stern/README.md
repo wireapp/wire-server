@@ -13,10 +13,6 @@ It is intended to be deployed in a private network and accessible only through a
 
 Some endpoints (marked as such on the Swagger interface) depend on internal services (named galeb and ibis) that are not relevant for a generic wire server installation as they gather info from other internal systems at Wire (related to billing or other services) and as such will not work properly on installations without them.
 
-### Legacy mode
-
-stern used to be run together with a separate docker image that carried the swagger-ui frontend, while stern only served the swagger data and the actual rest api.  This is not recommended any more, but until all the infrastructure everywhere has caught up with the new mode of operation, stern still delivers the old swagger1.2 data as before under the same path.  For details see `./src/Stern/API/RoutesLegacy.hs`.
-
 ## How to run stern together with the rest of wire-server
 
 TODO: This section is under construction
@@ -26,8 +22,6 @@ TODO: This section is under construction
 Start local services via `services/start-services-only.sh`
 
 Open `http://localhost:8091/backoffice/api/swagger-ui/` in a browser.
-(Legacy mode: when you now open `localhost:8080/swagger-ui` in a
-browser, you can switch to the "Back Office" tab.)
 
 ## Screenshots
 
