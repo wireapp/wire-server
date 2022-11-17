@@ -6,7 +6,8 @@
             "invite",
             "link"
         ],
-        "access_role": [
+        "access_role": "non_activated",
+        "access_role_v2": [
             "team_member",
             "guest"
         ]

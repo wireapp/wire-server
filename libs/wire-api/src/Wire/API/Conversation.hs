@@ -50,6 +50,7 @@ module Wire.API.Conversation
     -- * Conversation properties
     Access (..),
     AccessRole (..),
+    accessRolesSchemaV2,
     genAccessRolesV2,
     AccessRoleLegacy (..),
     ConvType (..),
@@ -71,6 +72,7 @@ module Wire.API.Conversation
     -- * update
     ConversationRename (..),
     ConversationAccessData (..),
+    conversationAccessDataSchema,
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
     ConversationJoin (..),

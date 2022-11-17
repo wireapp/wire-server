@@ -373,7 +373,13 @@ taggedEventDataSchema =
       MemberLeave -> tag _EdMembersLeave (unnamed schema)
       MemberStateUpdate -> tag _EdMemberUpdate (unnamed schema)
       ConvRename -> tag _EdConvRename (unnamed schema)
-      ConvAccessUpdate -> tag _EdConvAccessUpdate (unnamed schema)
+      -- FUTUREWORK: when V2 is dropped, it is fine to change this schema to
+      -- V3, since V3 clients are guaranteed to know how to parse V2 and V3
+      -- conversation access update events.
+      ConvAccessUpdate ->
+        tag
+          _EdConvAccessUpdate
+          (unnamed (conversationAccessDataSchema accessRolesSchemaV2))
       ConvCodeUpdate -> tag _EdConvCodeUpdate (unnamed schema)
       ConvConnect -> tag _EdConnect (unnamed schema)
       ConvCreate -> tag _EdConversation (unnamed schema)
