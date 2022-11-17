@@ -222,7 +222,7 @@ type SternAPI =
                :> "ejpd-info"
                :> QueryParam' [Optional, Strict, Description "If 'true', this gives you more more exhaustive information about this user (including social network)"] "include_contacts" Bool
                :> QueryParam' [Required, Strict, Description "Handles of the users, separated by commas (NB: all chars need to be lower case!)"] "handles" [Handle]
-               :> Delete '[JSON] EJPD.EJPDResponseBody
+               :> Get '[JSON] EJPD.EJPDResponseBody
            )
     :<|> Named
            "head-user-blacklist"
