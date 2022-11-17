@@ -14,6 +14,7 @@ executable inconsistencies
   other-modules:
     DanglingHandles
     DanglingUserKeys
+    EmailLessUsers
     HandleLessUsers
     Options
     Paths_inconsistencies
@@ -77,8 +78,8 @@ executable inconsistencies
     , containers
     , extended
     , galley-types
-    , http-client
     , HsOpenSSL
+    , http-client
     , imports
     , lens
     , multihash
