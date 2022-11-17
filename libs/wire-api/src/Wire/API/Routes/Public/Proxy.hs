@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Public.Proxy where
 
+import Data.Aeson (Value)
 import Data.SOP
 import qualified Data.Swagger as Swagger
 import Imports
@@ -24,7 +25,50 @@ import Servant
 import Servant.Swagger
 import Wire.API.Routes.Named
 
-type ProxyAPI = Named "hello-world" (Summary "Hello World" :> "hello" :> Get '[JSON] Text)
+type ProxyAPI =
+  ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> Raw)
+    :<|> ProxyAPIRoute "gmaps-static" ("googlemaps" :> "api" :> "staticmap" :> Raw)
+    :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> Raw)
+    :<|> ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> Raw)
+    :<|> ProxyAPIRoute "spotify-token" ("spotify" :> "api" :> "token" :> Raw)
+    :<|> Named
+           "soundcloud-resolve"
+           ( Summary (ProxyAPISummary "soundcloud-resolve")
+               :> "proxy"
+               :> "soundcloud"
+               :> "resolve"
+               :> QueryParam' '[Required, Strict] "url" Text
+               :> Get '[JSON] Text
+           )
+    :<|> Named
+           "soundcloud-stream"
+           ( Summary (ProxyAPISummary "soundcloud-stream")
+               :> "proxy"
+               :> "soundcloud"
+               :> "stream"
+               :> QueryParam' '[Required, Strict] "url" Text
+               :> Get '[JSON] Text
+           )
+
+type ProxyAPIRoute name path = Named name (Summary (ProxyAPISummary name) :> "proxy" :> path)
+
+-- | API docs: if we want to make these longer, they won't clutter the routes above
+-- that they document.
+type family ProxyAPISummary name where
+  ProxyAPISummary "youtube-path" =
+    "proxy: `get /proxy/youtube/v3/:path`; see youtube API docs"
+  ProxyAPISummary "gmaps-static" =
+    "proxy: `get /proxy/googlemaps/api/staticmap`; see google maps API docs"
+  ProxyAPISummary "gmaps-path" =
+    "proxy: `get /proxy/googlemaps/maps/api/geocode/:path`; see google maps API docs"
+  ProxyAPISummary "giphy-path" =
+    "proxy: `get /proxy/giphy/v1/gifs/:path`; see giphy API docs"
+  ProxyAPISummary "spotify-token" =
+    "proxy: `get /proxy/spotify/api/token`; see spotify API docs"
+  ProxyAPISummary "soundcloud-resolve" =
+    "proxy: `get /proxy/soundcloud/resolve`; see soundcloud API docs"
+  ProxyAPISummary "soundcloud-stream" =
+    "proxy: `get /proxy/soundcloud/stream`; see soundcloud API docs"
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ProxyAPI)
