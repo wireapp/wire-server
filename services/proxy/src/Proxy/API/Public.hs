@@ -100,13 +100,24 @@ youtube = ProxyDest "www.googleapis.com" 443
 googleMaps = ProxyDest "maps.googleapis.com" 443
 giphy = ProxyDest "api.giphy.com" 443
 
-proxy :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
-proxy = undefined
+-- what do i even need Env for in proxyIO?
+-- => secret from config files; http manager; logging.
 
-{-
-_proxy' :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> Application
-_proxy' e qparam keyname reroute path phost rq k = do
-  s <- Config.require (e ^. secrets) keyname
+-- why do we need raw?
+-- => variable method, variable headers set, variable path.
+
+-- can i use the servant hack discussed (probably) in the RawM PR or issue?
+-- => yes
+
+-- can i just pass Env as an arg for all end-points, and run them in IO?  (sad, because we
+-- can't make a logger that explicitly logs the reqid.  then again how often would we have to
+-- do that explicitly?)
+-- => let's not?
+
+proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> (Application {- TODO: adjust this to RawM -})
+proxy qparam keyname reroute path phost rq kont = do
+  env :: Env <- ask
+  s <- Config.require (env ^. secrets) keyname
   let r = getRequest rq
   let q = renderQuery True ((qparam, Just s) : safeQuery (I.queryString r))
   let r' =
@@ -121,16 +132,15 @@ _proxy' e qparam keyname reroute path phost rq k = do
   liftIO $ loop (2 :: Int) r (WPRModifiedRequestSecure r' phost)
   where
     loop !n waiReq req =
-      waiProxyTo (const $ pure req) onUpstreamError (e ^. manager) waiReq $ \res ->
+      waiProxyTo (const $ pure req) onUpstreamError (env ^. manager) waiReq $ \res ->
         if responseStatus res == status502 && n > 0
           then do
             threadDelay 5000
             loop (n - 1) waiReq req
-          else runProxy e waiReq (k res)
+          else kont res
     onUpstreamError x _ next = do
       void $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
       next (errorRs' error502)
--}
 
 spotifyToken :: Request -> Proxy Response
 spotifyToken rq = do
