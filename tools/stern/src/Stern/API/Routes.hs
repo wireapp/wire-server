@@ -19,9 +19,10 @@ module Stern.API.Routes
   ( SternAPI,
     SternAPIInternal,
     SwaggerDocsAPI,
-    swaggerDocsAPI,
+    swaggerDocs,
     UserConnectionGroups (..),
     doubleMaybeToEither,
+    RedirectToSwaggerDocsAPI,
   )
 where
 
@@ -52,6 +53,8 @@ import Wire.API.User.Search
 
 ----------------------------------------------------------------------
 -- routing tables
+type RedirectToSwaggerDocsAPI =
+  Named "swagger-ui-redirect" (Get '[PlainText] NoContent)
 
 type SternAPIInternal =
   Named
@@ -60,16 +63,6 @@ type SternAPIInternal =
         :> "status"
         :> Get '[JSON] NoContent
     )
-    :<|> Named
-           "legacy-api-docs"
-           ( "stern"
-               :> "api-docs"
-               :> QueryParam' [Required, Strict, Description "Base URL"] "base_url" Text
-               -- we throw the old swagger docs as a exception with status 200 so we don't
-               -- have to implement its type and can give 'NoContent' as the response body
-               -- type here.
-               :> Get '[JSON] NoContent
-           )
 
 type SternAPI =
   Named
@@ -388,10 +381,10 @@ type SternAPI =
 -------------------------------------------------------------------------------
 -- Swagger
 
-type SwaggerDocsAPI = "backoffice" :> "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
+type SwaggerDocsAPI = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI =
+swaggerDocs :: Servant.Server SwaggerDocsAPI
+swaggerDocs =
   swaggerSchemaUIServer $
     toSwagger (Proxy @SternAPI)
       & S.info . S.title .~ "Stern API"
