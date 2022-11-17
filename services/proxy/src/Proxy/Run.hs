@@ -74,6 +74,10 @@ run o = do
           -- explicit arguments `innerApp` and `req` to `middleware` above, pass them again to
           -- the middleware we construct here at the end, and then use `req` to call
           -- `injectReqId` on `e0`.
+          --
+          -- Update: nope, can't be done, tinylog hides the `Logger` type and thus we can't
+          -- modify the `IO (Msg -> Msg)` field.  `/libs/extended` doesn't help with that
+          -- either.  we need to patch tinylog for this to work nicely.
           . catchErrors lgr [Right m]
 
   m <- metrics
