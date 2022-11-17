@@ -86,15 +86,16 @@ getUsers :: ConduitM () [UserDetailsRow] Client ()
 getUsers = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
     cql :: PrepQuery R () UserDetailsRow
-    cql = "SELECT id, status, writetime(status), email, writetime(email) from user"
+    cql = "SELECT id, status, writetime(status), email, writetime(email), activated from user"
 
-type UserDetailsRow = (UserId, Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Email, Maybe (Writetime Email))
+type UserDetailsRow = (UserId, Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Email, Maybe (Writetime Email), Bool)
 
 userWithEmailAndStatus :: UserDetailsRow -> Maybe (UserId, AccountStatus, Writetime AccountStatus, Email, Writetime Email)
-userWithEmailAndStatus (uid, mStatus, mStatusWritetime, mEmail, mEmailWritetime) =
-  case (,,,) <$> mStatus <*> mStatusWritetime <*> mEmail <*> mEmailWritetime of
+userWithEmailAndStatus (uid, mStatus, mStatusWritetime, mEmail, mEmailWritetime, activated) = do
+  let act = if activated then Just True else Nothing 
+  case (,,,,) <$> mStatus <*> mStatusWritetime <*> mEmail <*> mEmailWritetime <*> act of
     Nothing -> Nothing
-    Just (status, statusWritetime, email, emailWritetime) -> Just (uid, status, statusWritetime, email, emailWritetime)
+    Just (status, statusWritetime, email, emailWritetime, _) -> Just (uid, status, statusWritetime, email, emailWritetime)
 
 checkUser :: ClientState -> (UserId, AccountStatus, Writetime AccountStatus, Email, Writetime Email) -> IO (Maybe EmailInfo)
 checkUser brig (userId, statusValue, statusWritetime, userEmailValue, userEmailWriteTime) = do
