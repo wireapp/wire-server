@@ -15,7 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Proposal (interpretProposalStoreToCassandra) where
+module Galley.Cassandra.Proposal
+  ( interpretProposalStoreToCassandra,
+    ProposalOrigin (..),
+  )
+where
 
 import Cassandra
 import Data.Timeout
@@ -41,23 +45,28 @@ interpretProposalStoreToCassandra ::
 interpretProposalStoreToCassandra =
   interpret $
     embedClient . \case
-      StoreProposal groupId epoch ref raw ->
+      StoreProposal groupId epoch ref origin raw ->
         retry x5 $
-          write (storeQuery defaultTTL) (params LocalQuorum (groupId, epoch, ref, raw))
+          write (storeQuery defaultTTL) (params LocalQuorum (groupId, epoch, ref, origin, raw))
       GetProposal groupId epoch ref ->
         runIdentity <$$> retry x1 (query1 getQuery (params LocalQuorum (groupId, epoch, ref)))
+      GetAllPendingProposalRefs groupId epoch ->
+        runIdentity <$$> retry x1 (query getAllPendingRef (params LocalQuorum (groupId, epoch)))
       GetAllPendingProposals groupId epoch ->
-        runIdentity <$$> retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
+        retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
 
-storeQuery :: Timeout -> PrepQuery W (GroupId, Epoch, ProposalRef, RawMLS Proposal) ()
+storeQuery :: Timeout -> PrepQuery W (GroupId, Epoch, ProposalRef, ProposalOrigin, RawMLS Proposal) ()
 storeQuery ttl =
   fromString $
-    "insert into mls_proposal_refs (group_id, epoch, ref, proposal)\
-    \ values (?, ?, ?, ?) using ttl "
+    "insert into mls_proposal_refs (group_id, epoch, ref, origin, proposal)\
+    \ values (?, ?, ?, ?, ?) using ttl "
       <> show (ttl #> Second)
 
 getQuery :: PrepQuery R (GroupId, Epoch, ProposalRef) (Identity (RawMLS Proposal))
 getQuery = "select proposal from mls_proposal_refs where group_id = ? and epoch = ? and ref = ?"
 
-getAllPending :: PrepQuery R (GroupId, Epoch) (Identity ProposalRef)
-getAllPending = "select ref from mls_proposal_refs where group_id = ? and epoch = ?"
+getAllPendingRef :: PrepQuery R (GroupId, Epoch) (Identity ProposalRef)
+getAllPendingRef = "select ref from mls_proposal_refs where group_id = ? and epoch = ?"
+
+getAllPending :: PrepQuery R (GroupId, Epoch) (Maybe ProposalOrigin, RawMLS Proposal)
+getAllPending = "select origin, proposal from mls_proposal_refs where group_id = ? and epoch = ?"

@@ -41,6 +41,7 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Propagate
+import Galley.API.MLS.Removal
 import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.MLS.Welcome (postMLSWelcome)
@@ -252,7 +253,6 @@ postMLSCommitBundleToLocalConv ::
          Error FederationError,
          Error InternalError,
          Error MLSProtocolError,
-         Input (Local ()),
          Input Opts,
          Input UTCTime,
          ProposalStore,
@@ -456,7 +456,6 @@ postMLSMessageToLocalConv ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
-         Input (Local ()),
          ProposalStore,
          Resource,
          TinyLog
@@ -647,21 +646,30 @@ processExternalCommit ::
     '[ BrigAccess,
        ConversationStore,
        Error MLSProtocolError,
-       ErrorS 'MLSStaleMessage,
+       ErrorS 'ConvNotFound,
        ErrorS 'MLSClientSenderUserMismatch,
        ErrorS 'MLSKeyPackageRefNotFound,
+       ErrorS 'MLSStaleMessage,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input Env,
+       Input UTCTime,
        MemberStore,
-       Resource
+       ProposalStore,
+       Resource,
+       TinyLog
      ]
     r =>
   Qualified UserId ->
   Local Data.Conversation ->
+  ClientMap ->
   Epoch ->
   GroupId ->
   ProposalAction ->
   Maybe UpdatePath ->
   Sem r ()
-processExternalCommit qusr lconv epoch groupId action updatePath = withCommitLock groupId epoch $ do
+processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommitLock groupId epoch $ do
   newKeyPackage <-
     upLeaf
       <$> note
@@ -700,6 +708,9 @@ processExternalCommit qusr lconv epoch groupId action updatePath = withCommitLoc
     (ciClient cid)
     (Data.convId <$> qUntagged lconv)
   -- now it is safe to update the mapping without further checks
+  -- FUTUREWORK: This call is redundent and reduces to the previous
+  -- call of addKeyPackageRef when remRef is Nothing! Should be
+  -- limited to cases where remRef is not Nothing.
   updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
 
   -- FUTUREWORK: Resubmit backend-provided proposals when processing an
@@ -707,6 +718,12 @@ processExternalCommit qusr lconv epoch groupId action updatePath = withCommitLoc
 
   -- increment epoch number
   setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
+  -- fetch local conversation with new epoch
+  lc <- qualifyAs lconv <$> getLocalConvForUser qusr (convId <$> lconv)
+  -- fetch backend remove proposals of the previous epoch
+  kpRefs <- getPendingBackendRemoveProposals groupId epoch
+  -- requeue backend remove proposals for the current epoch
+  removeClientsWithClientMap lc kpRefs cm qusr
   where
     derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
     derefUser (Map.toList -> l) user = case l of
@@ -758,7 +775,7 @@ processCommitWithAction ::
 processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit =
   case sender of
     MemberSender ref -> processInternalCommit qusr senderClient con lconv cm epoch groupId action ref commit
-    NewMemberSender -> processExternalCommit qusr lconv epoch groupId action (cPath commit) $> []
+    NewMemberSender -> processExternalCommit qusr lconv cm epoch groupId action (cPath commit) $> []
     _ -> throw (mlsProtocolError "Unexpected sender")
 
 processInternalCommit ::
@@ -828,7 +845,7 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
           Nothing -> pure (pure ()) -- ignore commits without update path
 
     -- check all pending proposals are referenced in the commit
-    allPendingProposals <- getAllPendingProposals groupId epoch
+    allPendingProposals <- getAllPendingProposalRefs groupId epoch
     let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
     unless (all (`Set.member` referencedProposals) allPendingProposals) $
       throwS @'MLSCommitMissingReferences
@@ -1009,7 +1026,7 @@ processProposal qusr conv msg prop = do
     checkExternalProposalSignature suiteTag msg prop
     checkExternalProposalUser qusr propValue
   let propRef = proposalRef suiteTag prop
-  storeProposal (msgGroupId msg) (msgEpoch msg) propRef prop
+  storeProposal (msgGroupId msg) (msgEpoch msg) propRef ProposalOriginClient prop
 
 checkExternalProposalSignature ::
   Members

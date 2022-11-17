@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,35 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.ProposalStore where
+module V76_ProposalOrigin
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
-import Polysemy
-import Wire.API.MLS.Epoch
-import Wire.API.MLS.Group
-import Wire.API.MLS.Proposal
-import Wire.API.MLS.Serialisation
+import Text.RawString.QQ
 
-data ProposalStore m a where
-  StoreProposal ::
-    GroupId ->
-    Epoch ->
-    ProposalRef ->
-    ProposalOrigin ->
-    RawMLS Proposal ->
-    ProposalStore m ()
-  GetProposal ::
-    GroupId ->
-    Epoch ->
-    ProposalRef ->
-    ProposalStore m (Maybe (RawMLS Proposal))
-  GetAllPendingProposalRefs ::
-    GroupId ->
-    Epoch ->
-    ProposalStore m [ProposalRef]
-  GetAllPendingProposals ::
-    GroupId ->
-    Epoch ->
-    ProposalStore m [(Maybe ProposalOrigin, RawMLS Proposal)]
-
-makeSem ''ProposalStore
+migration :: Migration
+migration =
+  Migration 76 "Add the origin column to the pending proposals table" $
+    schema'
+      [r| ALTER TABLE mls_proposal_refs ADD (
+            origin int
+          )
+        |]
