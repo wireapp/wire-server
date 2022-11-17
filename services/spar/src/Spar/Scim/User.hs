@@ -284,7 +284,7 @@ validateScimUser' errloc midp richInfoLimit user = do
             (throwError $ badRequest $ "The role '" <> roleName <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
             (pure . Just)
             (fromByteString $ cs roleName)
-        _ -> error "todo(leif): handle error, more than one role"
+        _ -> throwError $ badRequest "A user cannot have more than one role."
 
     badRequest :: Text -> Scim.ScimError
     badRequest msg =

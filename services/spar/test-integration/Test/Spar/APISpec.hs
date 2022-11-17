@@ -1326,7 +1326,13 @@ specScimAndSAML = do
     [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
     liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just RoleMember
   it "provision user with role via scim - fail if more than one role given" $ do
-    pending
+    (tok, (_, _, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
+    scimUser <- do
+      u <- ScimT.randomScimUser
+      pure $ u {Scim.roles = ["member", "admin"]}
+    ScimT.createUser' tok scimUser !!! do
+      const 400 === statusCode
+      const (Just "A user cannot have more than one role.") =~= responseBody
   it "provision user with role via scim - fail if role name cannot be parsed correctly" $ do
     (tok, (_, _, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
     scimUser <- do
