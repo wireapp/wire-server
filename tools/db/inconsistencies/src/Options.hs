@@ -50,7 +50,7 @@ optionsParser = (,) <$> commandParser <*> settingsParser
 commandParser :: Parser Command
 commandParser =
   subparser $
-    danglingHandlesCommand <> handleLessUsersCommand <> danglingKeysCommand
+    danglingHandlesCommand <> handleLessUsersCommand <> danglingKeysCommand <> missingEmailsCommand
 
 danglingHandlesCommand :: Mod CommandFields Command
 danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional (inputFileRepairParser "handles")) (progDesc "find handle which shouldn't be claimed"))
