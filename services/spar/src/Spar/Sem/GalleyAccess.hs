@@ -23,6 +23,7 @@ module Spar.Sem.GalleyAccess
     assertHasPermission,
     assertSSOEnabled,
     isEmailValidationEnabledTeam,
+    updateTeamMember,
   )
 where
 
@@ -31,11 +32,13 @@ import Galley.Types.Teams (IsPerm)
 import Imports
 import Polysemy
 import Wire.API.Team.Member
+import Wire.API.Team.Role
 
 data GalleyAccess m a where
   GetTeamMembers :: TeamId -> GalleyAccess m [TeamMember]
   AssertHasPermission :: (Show perm, IsPerm perm) => TeamId -> perm -> UserId -> GalleyAccess m ()
   AssertSSOEnabled :: TeamId -> GalleyAccess m ()
   IsEmailValidationEnabledTeam :: TeamId -> GalleyAccess m Bool
+  UpdateTeamMember :: UserId -> TeamId -> Role -> GalleyAccess m ()
 
 makeSem ''GalleyAccess

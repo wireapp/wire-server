@@ -31,6 +31,7 @@ import Spar.Error
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
+import Wire.API.Team.Role
 
 ----------------------------------------------------------------------
 
@@ -91,3 +92,20 @@ isEmailValidationEnabledTeam tid = do
                == Just FeatureStatusEnabled
            )
     )
+
+-- | Update a team member.
+updateTeamMember ::
+  (MonadIO m, HasCallStack, MonadError SparError m, MonadSparToGalley m) =>
+  UserId ->
+  TeamId ->
+  Role ->
+  m ()
+updateTeamMember u tid role = do
+  let reqBody = mkNewTeamMember u (rolePermissions role) Nothing
+  rs <-
+    call $
+      method PUT
+        . paths ["i", "teams", toByteString' tid, "members"]
+        . contentJson
+        . json reqBody
+  print rs

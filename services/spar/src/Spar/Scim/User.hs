@@ -72,7 +72,7 @@ import Spar.Scim.Auth ()
 import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.Types as ST
 import Spar.Sem.BrigAccess as BrigAccess
-import Spar.Sem.GalleyAccess (GalleyAccess)
+import Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -575,7 +575,11 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
       -- if the locale of the new valid SCIM user is not set,
       -- we set it to default value from brig
       defLocale <- lift BrigAccess.getDefaultUserLocale
-      let newValidScimUser = nvsu {ST._vsuLocale = ST._vsuLocale nvsu <|> Just defLocale}
+      let newValidScimUser =
+            nvsu
+              { ST._vsuLocale = ST._vsuLocale nvsu <|> Just defLocale,
+                ST._vsuRole = ST._vsuRole nvsu <|> Just defaultRole
+              }
 
       -- assertions about new valid scim user that cannot be checked in 'validateScimUser' because
       -- they differ from the ones in 'createValidScimUser'.
@@ -589,11 +593,8 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
             newScimStoredUser :: Scim.StoredUser ST.SparTag <-
               updScimStoredUser (synthesizeScimUser newValidScimUser) oldScimStoredUser
 
-            do
-              let old = oldValidScimUser ^. ST.vsuExternalId
-                  new = newValidScimUser ^. ST.vsuExternalId
-              when (old /= new) $
-                updateVsuUref stiTeam uid old new
+            when (oldValidScimUser ^. ST.vsuExternalId /= newValidScimUser ^. ST.vsuExternalId) $
+              updateVsuUref stiTeam uid (oldValidScimUser ^. ST.vsuExternalId) (newValidScimUser ^. ST.vsuExternalId)
 
             when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $
               BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
@@ -606,6 +607,9 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
 
             when (oldValidScimUser ^. ST.vsuLocale /= newValidScimUser ^. ST.vsuLocale) $ do
               BrigAccess.setLocale uid (newValidScimUser ^. ST.vsuLocale)
+
+            when (oldValidScimUser ^. ST.vsuRole /= newValidScimUser ^. ST.vsuRole) $ do
+              GalleyAccess.updateTeamMember uid stiTeam (fromMaybe defaultRole $ newValidScimUser ^. ST.vsuRole)
 
             BrigAccess.getStatusMaybe uid >>= \case
               Nothing -> pure ()

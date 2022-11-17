@@ -107,6 +107,7 @@ spec = do
   specCRUDIdentityProvider
   specDeleteCornerCases
   specScimAndSAML
+  specProvisionScimAndSAMLUserWithRole
   specAux
   specSsoSettings
   specSparUserMigration
@@ -1306,48 +1307,81 @@ specScimAndSAML = do
     mid <- ssoToUidSpar tid ssoid
 
     liftIO $ mid `shouldBe` Just (ScimT.scimUserId scimStoredUser)
+
+specProvisionScimAndSAMLUserWithRole :: SpecWith TestEnv
+specProvisionScimAndSAMLUserWithRole = do
   -- todo(leif): add tests for SCIM no SAML as well
-  it "provision user with role via scim" $ do
-    (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
-    let testCreateUserWithRole role = do
-          scimUser <- do
-            u <- ScimT.randomScimUser
-            pure $ u {Scim.roles = [cs $ toByteString $ role]}
-          scimStoredUser <- ScimT.createUser tok scimUser
-          [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
-          liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just role
-    mapM_ testCreateUserWithRole [minBound .. maxBound]
-  it "provision user with role via scim - default to member if no role given" $ do
-    (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
-    scimUser <- do
-      u <- ScimT.randomScimUser
-      pure $ u {Scim.roles = []}
-    scimStoredUser <- ScimT.createUser tok scimUser
-    [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
-    liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just RoleMember
-  it "provision user with role via scim - fail if more than one role given" $ do
-    (tok, (_, _, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
-    scimUser <- do
-      u <- ScimT.randomScimUser
-      pure $ u {Scim.roles = ["member", "admin"]}
-    ScimT.createUser' tok scimUser !!! do
-      const 400 === statusCode
-      const (Just "A user cannot have more than one role.") =~= responseBody
-  it "provision user with role via scim - fail if role name cannot be parsed correctly" $ do
-    (tok, (_, _, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
-    scimUser <- do
-      u <- ScimT.randomScimUser
-      pure $ u {Scim.roles = ["president"]}
-    ScimT.createUser' tok scimUser !!! do
-      const 400 === statusCode
-      const (Just "The role 'president' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
-  it "update user with role via scim" $ do
-    pending
-  it "update user with role via scim - default to member if no role given" $ do
-    -- or should the role not change in this case
-    pending
-  it "updated user with role via scim - fail if more than one role given" $ do
-    pending
+  describe "provision scim user with SAML with role" $ do
+    it "create user" $ do
+      (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
+      let testCreateUserWithRole role = do
+            scimUser <- do
+              u <- ScimT.randomScimUser
+              pure $ u {Scim.roles = [cs $ toByteString $ role]}
+            scimStoredUser <- ScimT.createUser tok scimUser
+            [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
+            liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just role
+      mapM_ testCreateUserWithRole [minBound .. maxBound]
+    it "create user - default to member if no role given" $ do
+      (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
+      scimUser <- do
+        u <- ScimT.randomScimUser
+        pure $ u {Scim.roles = []}
+      scimStoredUser <- ScimT.createUser tok scimUser
+      [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
+      liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just RoleMember
+    it "create user - fail if more than one role given" $ do
+      (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
+      scimUser <- do
+        u <- ScimT.randomScimUser
+        pure $ u {Scim.roles = ["member", "admin"]}
+      ScimT.createUser' tok scimUser !!! do
+        const 400 === statusCode
+        const (Just "A user cannot have more than one role.") =~= responseBody
+    it "create user - fail if role name cannot be parsed correctly" $ do
+      (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
+      scimUser <- do
+        u <- ScimT.randomScimUser
+        pure $ u {Scim.roles = ["president"]}
+      ScimT.createUser' tok scimUser !!! do
+        const 400 === statusCode
+        const (Just "The role 'president' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
+    it "update user" $ do
+      (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
+      scimUserWithDefaultRole <- ScimT.randomScimUser
+      userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUserWithDefaultRole
+      let testUpdateUserWithRole role = do
+            let scimUserWithRole = scimUserWithDefaultRole {Scim.roles = [cs $ toByteString $ role]}
+            scimStoredUser <- ScimT.updateUser tok userId scimUserWithRole
+            [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
+            liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just role
+      mapM_ testUpdateUserWithRole [minBound .. maxBound]
+    it "update user - default to member if no role given" $ do
+      (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
+      let testUpdateUserWithDefaultRole :: Role -> TestSpar ()
+          testUpdateUserWithDefaultRole role = do
+            scimUser <- do
+              u <- ScimT.randomScimUser
+              pure $ u {Scim.roles = [cs $ toByteString $ role]}
+            userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+            scimStoredUser <- ScimT.updateUser tok userId (scimUser {Scim.roles = []})
+            [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
+            liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just RoleMember
+      mapM_ testUpdateUserWithDefaultRole [minBound .. maxBound]
+    it "updated user - fail if more than one role given" $ do
+      (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
+      scimUser <- ScimT.randomScimUser
+      userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+      ScimT.updateUser' tok userId (scimUser {Scim.roles = ["admin", "member"]}) !!! do
+        const 400 === statusCode
+        const (Just "A user cannot have more than one role.") =~= responseBody
+    it "updated user - fail if role name cannot be parsed correctly" $ do
+      (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
+      scimUser <- ScimT.randomScimUser
+      userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+      ScimT.updateUser' tok userId (scimUser {Scim.roles = ["hamlet"]}) !!! do
+        const 400 === statusCode
+        const (Just "The role 'hamlet' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
 
 specAux :: SpecWith TestEnv
 specAux = do

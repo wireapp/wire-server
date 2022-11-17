@@ -357,6 +357,17 @@ type ITeamsAPIBase =
                         :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
                         :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User can join")
                     )
+             :<|> Named
+                    "unchecked-update-team-member"
+                    ( CanThrow 'AccessDenied
+                        :> CanThrow 'InvalidPermissions
+                        :> CanThrow 'TeamNotFound
+                        :> CanThrow 'TeamMemberNotFound
+                        :> CanThrow 'NotATeamMember
+                        :> CanThrow OperationDenied
+                        :> ReqBody '[Servant.JSON] NewTeamMember
+                        :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "")
+                    )
          )
     :<|> Named
            "user-is-team-owner"
@@ -486,6 +497,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
               <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam @Cassandra tid)
+              <@> mkNamedAPI @"unchecked-update-team-member" (Teams.uncheckedUpdateTeamMember Nothing Nothing tid)
           )
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment

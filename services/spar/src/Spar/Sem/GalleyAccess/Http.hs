@@ -46,3 +46,4 @@ galleyAccessToHttp mgr req =
       AssertHasPermission itlt perm itlu -> Intra.assertHasPermission itlt perm itlu
       AssertSSOEnabled itlt -> Intra.assertSSOEnabled itlt
       IsEmailValidationEnabledTeam itlt -> Intra.isEmailValidationEnabledTeam itlt
+      UpdateTeamMember uid tid role -> Intra.updateTeamMember uid tid role

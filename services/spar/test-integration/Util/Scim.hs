@@ -204,6 +204,16 @@ createUser tok user = do
   r <- createUser' tok user <!! const 201 === statusCode
   pure (responseJsonUnsafe r)
 
+updateUser' ::
+  HasCallStack =>
+  ScimToken ->
+  UserId ->
+  Scim.User.User SparTag ->
+  TestSpar ResponseLBS
+updateUser' tok userid user = do
+  env <- ask
+  updateUser_ (Just tok) (Just userid) user (env ^. teSpar)
+
 -- | Update a user.
 updateUser ::
   HasCallStack =>
@@ -212,14 +222,7 @@ updateUser ::
   Scim.User.User SparTag ->
   TestSpar (Scim.StoredUser SparTag)
 updateUser tok userid user = do
-  env <- ask
-  r <-
-    updateUser_
-      (Just tok)
-      (Just userid)
-      user
-      (env ^. teSpar)
-      <!! const 200 === statusCode
+  r <- updateUser' tok userid user <!! const 200 === statusCode
   pure (responseJsonUnsafe r)
 
 -- | Patch a user
