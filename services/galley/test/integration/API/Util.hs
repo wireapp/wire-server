@@ -1090,16 +1090,14 @@ getConv u c = do
 getGlobalTeamConv ::
   (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) =>
   UserId ->
-  ClientId ->
   TeamId ->
   m ResponseLBS
-getGlobalTeamConv u cid tid = do
+getGlobalTeamConv u tid = do
   g <- viewGalley
   get $
     g
       . paths ["teams", toByteString' tid, "conversations", "global"]
       . zUser u
-      . zClient cid
       . zConn "conn"
       . zType "access"
 

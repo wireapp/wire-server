@@ -189,7 +189,8 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, _, _, _, _) = do
+    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _) = do
+      c <- mc
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
       pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
@@ -305,13 +306,12 @@ getGlobalTeamConversationById lconv = do
 
 createGlobalTeamConversation ::
   Local TeamId ->
-  UserId ->
   Client GlobalTeamConversation
-createGlobalTeamConversation tid uid = do
+createGlobalTeamConversation tid = do
   let lconv = qualifyAs tid (globalTeamConv $ tUnqualified tid)
       meta =
         GlobalTeamConversationMetadata
-          { gtcmCreator = Just uid,
+          { gtcmCreator = Nothing,
             gtcmAccess = [SelfInviteAccess],
             gtcmName = "Global team conversation",
             gtcmTeam = tUnqualified tid
@@ -327,7 +327,6 @@ createGlobalTeamConversation tid uid = do
         Cql.Set (gtcmAccess meta),
         gtcmName meta,
         gtcmTeam meta,
-        uid,
         Just gid,
         Just cs
       )
@@ -444,10 +443,11 @@ toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ->
+  Maybe (ConvType, Maybe UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mcs) <- mconv
+  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mcs) <- mconv
+  uid <- muid
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
   proto <- toProtocol ptag mgid mep mcs
@@ -490,7 +490,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   GetConversation cid -> embedClient $ getConversation cid
   GetGlobalTeamConversation tid -> embedClient $ getGlobalTeamConversation tid
   GetGlobalTeamConversationById lconv -> embedClient $ getGlobalTeamConversationById lconv
-  CreateGlobalTeamConversation tid uid -> embedClient $ createGlobalTeamConversation tid uid
+  CreateGlobalTeamConversation tid -> embedClient $ createGlobalTeamConversation tid
   SetGlobalTeamConversationCreator gtc uid -> embedClient $ setGlobalTeamConversationCreator gtc uid
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids

@@ -481,7 +481,8 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
       Just conv -> do
         when (isNothing (gtcmCreator $ gtcMetadata $ conv)) $ do
           setGlobalTeamConversationCreator conv (qUnqualified qusr)
-        pure . gtcToConv $ conv
+        localMembers <- getLocalMembers (qUnqualified . gtcId $ conv)
+        pure $ gtcToConv conv localMembers
       Nothing ->
         getLocalConvForUser qusr lcnv
 
@@ -495,7 +496,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
         CommitMessage c ->
           processCommit qusr senderClient con lconv cm (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-        ProposalMessage prop -> 
+        ProposalMessage prop ->
           processProposal qusr conv msg prop $> mempty
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
         Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
@@ -503,23 +504,22 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
         Right ApplicationMessageTag -> pure mempty
         Left _ -> throwS @'MLSUnsupportedMessage
 
-    -- forward message
     propagateMessage qusr lconv cm con (rmRaw smsg)
 
     pure events
   where
-    gtcToConv :: GlobalTeamConversation -> Data.Conversation
-    gtcToConv gtc =
+    gtcToConv gtc lm =
       let meta = gtcMetadata gtc
        in Data.Conversation
             { convId = qUnqualified $ gtcId gtc,
-              convLocalMembers = mempty, -- Should be full team
+              -- FUTUREWORK: Look into reworking things if needed for performance
+              convLocalMembers = lm,
               convRemoteMembers = mempty,
               convDeleted = False,
               convMetadata =
                 ConversationMetadata
                   { cnvmType = GlobalTeamConv,
-                    cnvmCreator = undefined,
+                    cnvmCreator = fromJust . gtcmCreator . gtcMetadata $ gtc,
                     cnvmAccess = gtcmAccess meta,
                     cnvmAccessRoles = mempty,
                     cnvmName = Just (gtcmName meta),
@@ -866,11 +866,32 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
                 (convId <$> lconv)
                 qusr
                 (Set.singleton (creatorClient, creatorRef))
+
             (Left _, SelfConv, _) ->
               throw . InternalErrorWithDescription $
                 "Unexpected creator client set in a self-conversation"
             -- this is a newly created conversation, and it should contain exactly one
             -- client (the creator)
+
+            (Left _, GlobalTeamConv, []) -> do
+              creatorClient <- noteS @'MLSMissingSenderClient senderClient
+              creatorRef <-
+                maybe
+                  (pure senderRef)
+                  ( note (mlsProtocolError "Could not compute key package ref")
+                      . kpRef'
+                      . upLeaf
+                  )
+                  $ cPath commit
+              addMLSClients
+                (convId <$> lconv)
+                qusr
+                (Set.singleton (creatorClient, creatorRef))
+
+            (Left _, GlobalTeamConv, _) ->
+              throw . InternalErrorWithDescription $
+                "Unexpected creator client set in a global teamconversation"
+
             (Left lm, _, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender

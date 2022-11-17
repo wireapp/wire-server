@@ -203,7 +203,7 @@ selectConv ::
     R
     (Identity ConvId)
     ( ConvType,
-      UserId,
+      Maybe UserId,
       Maybe (C.Set Access),
       Maybe AccessRoleLegacy,
       Maybe (C.Set AccessRoleV2),
@@ -266,8 +266,8 @@ insertMLSSelfConv =
       <> show (fromEnum ProtocolMLSTag)
       <> ", ?, ?)"
 
-insertGlobalTeamConv :: PrepQuery W (ConvId, C.Set Access, Text, TeamId, UserId, Maybe GroupId, Maybe CipherSuiteTag) ()
-insertGlobalTeamConv = "insert into conversation (conv, type, access, name, team, creator, group_id, cipher_suite) values (?, 4, ?, ?, ?, ?, ?, ?)"
+insertGlobalTeamConv :: PrepQuery W (ConvId, C.Set Access, Text, TeamId, Maybe GroupId, Maybe CipherSuiteTag) ()
+insertGlobalTeamConv = "insert into conversation (conv, type, access, name, team, group_id, cipher_suite) values (?, 4, ?, ?, ?, ?, ?)"
 
 setGlobalTeamConvCreator :: PrepQuery W (UserId, ConvId) ()
 setGlobalTeamConvCreator = "update conversation set creator = ? where conv = ?"

@@ -602,7 +602,7 @@ updateLocalConversation lcnv qusr con action = do
       Just gtc ->
         let c = (gtcmCreator . gtcMetadata $ gtc)
          in case c of
-              Nothing -> 
+              Nothing ->
                 throwS @'ConvNotFound
               Just creator ->
                 pure $ gtcToConv creator gtc
@@ -668,8 +668,8 @@ updateLocalConversationUnchecked lconv qusr con action = do
   -- retrieve member
   self <-
     if (cnvmType . convMetadata . tUnqualified $ lconv) == GlobalTeamConv
-      then
-        -- TODO(elland): address this problem
+      then -- TODO(elland): address this problem
+
         pure . Left $
           LocalMember
             { lmId = qUnqualified qusr,

@@ -24,7 +24,7 @@ import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Conversation)
 import Wire.API.Conversation.Protocol
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 

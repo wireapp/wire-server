@@ -121,7 +121,6 @@ type ConversationAPI =
                :> CanThrow 'ConvNotFound
                :> CanThrow 'NotATeamMember
                :> ZLocalUser
-               :> ZClient
                :> "teams"
                :> Capture "tid" TeamId
                :> "conversations"

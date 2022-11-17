@@ -85,7 +85,7 @@ data ConversationStore m a where
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
   GetGlobalTeamConversation :: Local TeamId -> ConversationStore m (Maybe GlobalTeamConversation)
   GetGlobalTeamConversationById :: Local ConvId -> ConversationStore m (Maybe GlobalTeamConversation)
-  CreateGlobalTeamConversation :: Local TeamId -> UserId -> ConversationStore m GlobalTeamConversation
+  CreateGlobalTeamConversation :: Local TeamId -> ConversationStore m GlobalTeamConversation
   SetGlobalTeamConversationCreator :: GlobalTeamConversation -> UserId -> ConversationStore m ()
   GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]

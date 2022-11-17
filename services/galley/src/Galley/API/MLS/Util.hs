@@ -20,7 +20,7 @@ module Galley.API.MLS.Util where
 import Control.Comonad
 import Data.Id
 import Data.Qualified
-import Galley.Data.Conversation.Types hiding (Conversation)
+import Galley.Data.Conversation
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
 import Galley.Effects.ConversationStore
@@ -28,13 +28,15 @@ import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
+import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as TinyLog
 import qualified System.Logger as Log
+import Wire.API.Conversation hiding (Conversation)
+import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.MLS.Epoch
-import Wire.API.MLS.Group
+import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -43,20 +45,55 @@ getLocalConvForUser ::
   Members
     '[ ErrorS 'ConvNotFound,
        ConversationStore,
-       MemberStore
+       MemberStore,
+       Input (Local ())
      ]
     r =>
   Qualified UserId ->
   Local ConvId ->
   Sem r Data.Conversation
 getLocalConvForUser qusr lcnv = do
-  conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+  gtc <- getGlobalTeamConversationById lcnv
+  conv <- case gtc of
+    Just conv -> do
+      -- TODO(elland): clean this up
+      let creator = gtcmCreator . gtcMetadata $ conv
+      localMembers <- getLocalMembers (qUnqualified . gtcId $ conv)
+
+      if isNothing creator
+        then do
+          setGlobalTeamConversationCreator conv (qUnqualified qusr)
+          pure $ gtcToConv conv (qUnqualified qusr) localMembers
+        else pure $ gtcToConv conv (fromJust creator) localMembers
+    Nothing -> do
+      getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
   -- check that sender is part of conversation
   isMember' <- foldQualified lcnv (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
   unless isMember' $ throwS @'ConvNotFound
 
   pure conv
+  where
+    gtcToConv gtc creator lMembers =
+      let meta = gtcMetadata gtc
+       in Conversation
+            { convId = qUnqualified $ gtcId gtc,
+              convLocalMembers = lMembers,
+              convRemoteMembers = mempty,
+              convDeleted = False,
+              convMetadata =
+                ConversationMetadata
+                  { cnvmType = GlobalTeamConv,
+                    cnvmCreator = creator,
+                    cnvmAccess = gtcmAccess meta,
+                    cnvmAccessRoles = mempty,
+                    cnvmName = Just (gtcmName meta),
+                    cnvmTeam = Just (gtcmTeam meta),
+                    cnvmMessageTimer = Nothing,
+                    cnvmReceiptMode = Nothing
+                  },
+              convProtocol = ProtocolMLS (gtcMlsMetadata gtc)
+            }
 
 getPendingBackendRemoveProposals ::
   Members '[ProposalStore, TinyLog] r =>

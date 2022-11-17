@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -45,6 +45,7 @@ import Data.Singletons
 import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
+import Debug.Trace
 import Federator.MockServer hiding (withTempMockFederator)
 import Galley.Data.Conversation
 import Galley.Options
@@ -198,7 +199,8 @@ tests s =
         [ test s "Non-existing team returns 403" testGetGlobalTeamConvNonExistant,
           test s "Non member of team returns 403" testGetGlobalTeamConvNonMember,
           test s "Global team conversation is created on get if not present" (testGetGlobalTeamConv s),
-          test s "Can't leave global team conversation" testGlobalTeamConversationLeave
+          test s "Can't leave global team conversation" testGlobalTeamConversationLeave,
+          test s "Send message in global team conversation" testGlobalTeamConversationMessage
         ],
       testGroup
         "Self conversation"
@@ -399,7 +401,7 @@ testAddUserWithBundleIncompleteWelcome = do
     bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postCommitBundle (ciUser (mpSender commit)) bundle
+        =<< postCommitBundle (mpSender commit) bundle
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-welcome-mismatch"
 
@@ -1001,7 +1003,7 @@ testExternalCommitNotMember = do
         <$> getGroupInfo (ciUser alice1) qcnv
     mp <- createExternalCommit bob1 (Just pgs) qcnv
     bundle <- createBundle mp
-    postCommitBundle (ciUser (mpSender mp)) bundle
+    postCommitBundle (mpSender mp) bundle
       !!! const 404 === statusCode
 
 testExternalCommitSameClient :: TestM ()
@@ -2156,10 +2158,9 @@ testRemoteUserPostsCommitBundle = do
 testGetGlobalTeamConvNonExistant :: TestM ()
 testGetGlobalTeamConvNonExistant = do
   uid <- randomUser
-  cid <- Util.randomClient uid (head Util.someLastPrekeys)
   tid <- randomId
   -- authorisation fails b/c not a team member
-  getGlobalTeamConv uid cid tid !!! const 403 === statusCode
+  getGlobalTeamConv uid tid !!! const 403 === statusCode
 
 testGetGlobalTeamConvNonMember :: TestM ()
 testGetGlobalTeamConvNonMember = do
@@ -2172,8 +2173,7 @@ testGetGlobalTeamConvNonMember = do
 
   -- authorisation fails b/c not a team member
   uid <- randomUser
-  cid <- Util.randomClient uid (head Util.someLastPrekeys)
-  getGlobalTeamConv uid cid tid !!! const 403 === statusCode
+  getGlobalTeamConv uid tid !!! const 403 === statusCode
 
 testGetGlobalTeamConv :: IO TestSetup -> TestM ()
 testGetGlobalTeamConv setup = do
@@ -2187,8 +2187,7 @@ testGetGlobalTeamConv setup = do
   s <- liftIO setup
   let domain = s ^. tsGConf . optSettings . setFederationDomain
 
-  cid <- Util.randomClient owner (head Util.someLastPrekeys)
-  let response = getGlobalTeamConv owner cid tid <!! const 200 === statusCode
+  let response = getGlobalTeamConv owner tid <!! const 200 === statusCode
   Just rs <- responseBody <$> response
   let convoId = globalTeamConv tid
       lconv = toLocalUnsafe domain convoId
@@ -2196,7 +2195,7 @@ testGetGlobalTeamConv setup = do
         GlobalTeamConversation
           (qUntagged lconv)
           ( GlobalTeamConversationMetadata
-              { gtcmCreator = Just owner,
+              { gtcmCreator = Nothing,
                 gtcmAccess = [SelfInviteAccess],
                 gtcmName = "Global team conversation",
                 gtcmTeam = tid
@@ -2209,6 +2208,63 @@ testGetGlobalTeamConv setup = do
           )
   let cm = Aeson.decode rs :: Maybe GlobalTeamConversation
   liftIO $ assertEqual "conversation metadata" cm (Just expected)
+
+testGlobalTeamConversationMessage :: TestM ()
+testGlobalTeamConversationMessage = do
+  alice <- randomQualifiedUser
+  let aliceUnq = qUnqualified alice
+
+  tid <- createBindingTeamInternal "sample-team" aliceUnq
+  team <- getTeam aliceUnq tid
+  assertQueue "create team" tActivate
+  liftIO $ assertEqual "owner" aliceUnq (team ^. teamCreator)
+  assertQueueEmpty
+
+  runMLSTest $ do
+    clients@[alice1, alice2, alice3] <- traverse createMLSClient (replicate 3 alice)
+
+    let response = getGlobalTeamConv aliceUnq tid <!! const 200 === statusCode
+    Just rs <- responseBody <$> response
+    let (Just gtc) = Aeson.decode rs :: Maybe GlobalTeamConversation
+        qcnv = gtcId gtc
+        gid = cnvmlsGroupId $ gtcMlsMetadata gtc
+
+    traverse_ uploadNewKeyPackage clients
+
+    createGroup alice1 gid
+    void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
+
+    pgs <-
+      LBS.toStrict . fromJust . responseBody
+        <$> getGroupInfo (ciUser alice1) qcnv
+    void $ createExternalCommit alice2 (Just pgs) qcnv >>= sendAndConsumeCommitBundle
+
+    -- FUTUREWORK: add tests for race conditions when adding two commits with same epoch?
+    -- TODO(elland): test racing conditions for get global team conv
+    pgs' <-
+      LBS.toStrict . fromJust . responseBody
+        <$> getGroupInfo (ciUser alice1) qcnv
+    void $ createExternalCommit alice3 (Just pgs') qcnv >>= sendAndConsumeCommitBundle
+
+    do
+      message <- createApplicationMessage alice1 "some text"
+
+      mlsBracket [alice2, alice3] $ \wss -> do
+        events <- sendAndConsumeMessage message
+        liftIO $ events @?= []
+        liftIO $
+          WS.assertMatchN_ (5 # WS.Second) wss $
+            wsAssertMLSMessage qcnv alice (mpMessage message)
+
+    do
+      message <- createApplicationMessage alice2 "some text new"
+
+      mlsBracket [alice1, alice3] $ \wss -> do
+        events <- sendAndConsumeMessage message
+        liftIO $ events @?= []
+        liftIO $
+          WS.assertMatchN_ (5 # WS.Second) wss $
+            wsAssertMLSMessage qcnv alice (mpMessage message)
 
 testGlobalTeamConversationLeave :: TestM ()
 testGlobalTeamConversationLeave = do
@@ -2224,13 +2280,14 @@ testGlobalTeamConversationLeave = do
   runMLSTest $ do
     alice1 <- createMLSClient alice
 
-    let response = getGlobalTeamConv aliceUnq (ciClient alice1) tid <!! const 200 === statusCode
+    let response = getGlobalTeamConv aliceUnq tid <!! const 200 === statusCode
     Just rs <- responseBody <$> response
     let (Just gtc) = Aeson.decode rs :: Maybe GlobalTeamConversation
         gid = cnvmlsGroupId $ gtcMlsMetadata gtc
 
     void $ uploadNewKeyPackage alice1
     createGroup alice1 gid
+    void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
     mlsBracket [alice1] $ \wss -> do
       liftTest $
         deleteMemberQualified (qUnqualified alice) alice (gtcId gtc)

@@ -163,21 +163,15 @@ getGlobalTeamConversation ::
      ]
     r =>
   Local UserId ->
-  ClientId ->
   TeamId ->
   Sem r Public.GlobalTeamConversation
-getGlobalTeamConversation lusr cid tid = do
-  let uid = tUnqualified lusr
-      ltid = qualifyAs lusr tid
+getGlobalTeamConversation lusr tid = do
+  let ltid = qualifyAs lusr tid
   void $ noteS @'NotATeamMember =<< E.getTeamMember tid (tUnqualified lusr)
   E.getGlobalTeamConversation ltid >>= \case
-    Nothing -> do
-      gtc <- E.createGlobalTeamConversation ltid uid
-      E.addMLSClients (localGtcId gtc) (qUntagged lusr) (Set.fromList [(cid, nullKeyPackageRef)])
-      pure gtc
+    Nothing ->
+      E.createGlobalTeamConversation (qualifyAs lusr tid)
     Just conv -> pure conv
-  where
-    localGtcId = qualifyAs lusr . qUnqualified . Public.gtcId
 
 getConversation ::
   forall r.
