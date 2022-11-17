@@ -256,7 +256,7 @@ createUserSpar new = do
     pure account
 
   -- Add to team
-  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing) (fromMaybe defaultRole $ newUserSparRole new)
 
   -- Set up feature flags
   let uid = userId (accountUser account)
@@ -274,10 +274,10 @@ createUserSpar new = do
         Just handl -> withExceptT CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
         Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
 
-    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
-    addUserToTeamSSO account tid ident = do
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
+    addUserToTeamSSO account tid ident role = do
       let uid = userId (accountUser account)
-      added <- lift $ liftSem $ GalleyProvider.addTeamMember uid tid (Nothing, defaultRole)
+      added <- lift $ liftSem $ GalleyProvider.addTeamMember uid tid (Nothing, role)
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do

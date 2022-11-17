@@ -275,8 +275,10 @@ validateScimUser' errloc midp richInfoLimit user = do
   lang <- maybe (error "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   let mRole = case Scim.roles user of
         [] -> Nothing
-        [role] -> fromByteString $ cs role
-        _ -> error "todo(leif): handle error"
+        [role] -> case fromByteString $ cs role of
+          Just role' -> Just role'
+          Nothing -> error "todo(leif): handle error, cannot parse role"
+        _ -> error "todo(leif): handle error, more than one role"
   pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.

@@ -1307,14 +1307,15 @@ specScimAndSAML = do
     liftIO $ mid `shouldBe` Just (ScimT.scimUserId scimStoredUser)
   -- todo(leif): add tests for SCIM no SAML as well
   it "provision user with role via scim" $ do
-    let role = RoleExternalPartner
     (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
-    scimUser <- do
-      u <- ScimT.randomScimUser
-      pure $ u {Scim.roles = [cs $ toByteString $ role]}
-    scimStoredUser <- ScimT.createUser tok scimUser
-    [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
-    liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just role
+    let testCreateUserWithRole role = do
+          scimUser <- do
+            u <- ScimT.randomScimUser
+            pure $ u {Scim.roles = [cs $ toByteString $ role]}
+          scimStoredUser <- ScimT.createUser tok scimUser
+          [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
+          liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just role
+    mapM_ testCreateUserWithRole [minBound .. maxBound]
   it "provision user with role via scim - fail if more than one role given" $ do
     pending
   it "provision user with role via scim - default to member if no role given" $ do
