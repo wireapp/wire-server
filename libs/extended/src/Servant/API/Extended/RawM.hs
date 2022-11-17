@@ -1,23 +1,45 @@
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 -- | copy of https://github.com/haskell-servant/servant/pull/1551 while we're waiting for this
 -- to be released.
 module Servant.API.Extended.RawM where
 
-tobedone :: ()
-tobedone = undefined
+import Control.Monad.Trans.Resource
+import Data.Proxy
+import Imports
+import Network.Wai
+import Servant.Server hiding (respond)
+import Servant.Server.Internal.Delayed
+import Servant.Server.Internal.RouteResult
+import Servant.Server.Internal.Router
+
+-- | Variant of 'Raw' that lets you access the underlying monadic context to process the request.
+data RawM deriving (Typeable)
+
+-- | Just pass the request to the underlying application and serve its response.
+--
+-- Example:
+--
+-- > type MyApi = "images" :> Raw
+-- >
+-- > server :: Server MyApi
+-- > server = serveDirectory "/var/www/images"
+instance HasServer RawM context where
+  type ServerT RawM m = Request -> (Response -> IO ResponseReceived) -> m ResponseReceived
+
+  route ::
+    Proxy RawM ->
+    Context context ->
+    Delayed env (Request -> (Response -> IO ResponseReceived) -> Handler ResponseReceived) ->
+    Router env
+  route _ _ handleDelayed = RawRouter $ \env request respond -> runResourceT $ do
+    routeResult <- runDelayed handleDelayed env request
+    let respond' = liftIO . respond
+    liftIO $ case routeResult of
+      Route handler ->
+        runHandler (handler request (respond . Route))
+          >>= \case
+            Left e -> respond' $ FailFatal e
+            Right a -> pure a
+      Fail e -> respond' $ Fail e
+      FailFatal e -> respond' $ FailFatal e
+
+  hoistServerWithContext _ _ f srvM = \req respond -> f (srvM req respond)
