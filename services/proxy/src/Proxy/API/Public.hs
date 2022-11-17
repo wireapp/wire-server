@@ -31,16 +31,14 @@ import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Configurator as Config
 import qualified Data.List as List
-import qualified Data.Text as Text
+import Data.String.Conversions (cs)
 import Imports hiding (head)
 import qualified Network.HTTP.Client as Client
 import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai
 import qualified Network.Wai.Internal as I
-import Network.Wai.Predicate hiding (Error, err, setStatus)
 import Network.Wai.Predicate.Request (getRequest)
-import Network.Wai.Routing hiding (path, route)
 import Network.Wai.Utilities
 import Proxy.Env
 import Proxy.Proxy
@@ -58,9 +56,9 @@ servantSitemap =
     :<|> Named @"gmaps-static" (proxy "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
     :<|> Named @"gmaps-path" (proxy "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
     :<|> Named @"giphy-path" (proxy "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
-    :<|> Named @"spotify-token" undefined --  post "/proxy/spotify/api/token" (continue spotifyToken) request
-    :<|> Named @"soundcloud-resolve" undefined -- get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
-    :<|> Named @"soundcloud-stream" undefined -- get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
+    :<|> Named @"spotify-token" spotifyToken
+    :<|> Named @"soundcloud-resolve" soundcloudResolve
+    :<|> Named @"soundcloud-stream" soundcloudStream
 
 youtube, googleMaps, giphy :: ProxyDest
 youtube = ProxyDest "www.googleapis.com" 443
@@ -86,15 +84,15 @@ proxyIO env qparam keyname reroute path phost rq kont = do
               Prefix -> snd $ breakSubstring path (I.rawPathInfo r),
             I.rawQueryString = q
           }
-  loop (2 :: Int) env r (WPRModifiedRequestSecure r' phost)
+  loop (2 :: Int) r (WPRModifiedRequestSecure r' phost)
   where
-    loop :: Int -> Env -> Request -> WaiProxyResponse -> IO ResponseReceived
-    loop !n env waiReq req =
+    loop :: Int -> Request -> WaiProxyResponse -> IO ResponseReceived
+    loop !n waiReq req =
       waiProxyTo (const $ pure req) onUpstreamError (env ^. manager) waiReq $ \res ->
         if responseStatus res == status502 && n > 0
           then do
             threadDelay 5000
-            loop (n - 1) env waiReq req
+            loop (n - 1) waiReq req
           else kont res
 
     onUpstreamError :: SomeException -> ignored -> (Response -> IO a) -> IO a
@@ -102,17 +100,23 @@ proxyIO env qparam keyname reroute path phost rq kont = do
       void . runProxy env $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
       next (errorRs' error502)
 
-spotifyToken :: Request -> Proxy Response
-spotifyToken rq = do
-  e <- view secrets
-  s <- liftIO $ Config.require e "secrets.spotify"
+spotifyToken :: ApplicationM Proxy
+spotifyToken req kont = do
+  env <- ask
+  liftIO $ do
+    assertMethod req "POST"
+    kont =<< spotifyTokenIO env req
+
+spotifyTokenIO :: Env -> Request -> IO Response
+spotifyTokenIO env rq = do
+  s <- Config.require (env ^. secrets) "secrets.spotify"
   b <- readBody rq
   let hdr = (hAuthorization, s) : basicHeaders (I.requestHeaders rq)
       req = baseReq {Client.requestHeaders = hdr}
-  mgr <- view manager
-  res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs (Req.lbytes b req) mgr)
+  let mgr = env ^. manager
+  res <- recovering x2 [handler] $ const (Client.httpLbs (Req.lbytes b req) mgr)
   when (isError (Client.responseStatus res)) $
-    debug $
+    runProxy env . debug $
       msg (val "unexpected upstream response")
         ~~ "upstream" .= val "spotify::token"
         ~~ "status" .= S (Client.responseStatus res)
@@ -129,15 +133,23 @@ spotifyToken rq = do
         . Req.path "/api/token"
         $ Req.empty {Client.secure = True}
 
-soundcloudResolve :: ByteString -> Proxy Response
-soundcloudResolve url = do
-  e <- view secrets
-  s <- liftIO $ Config.require e "secrets.soundcloud"
-  let req = Req.queryItem "client_id" s . Req.queryItem "url" url $ baseReq
-  mgr <- view manager
+-- get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
+soundcloudResolve :: ApplicationM Proxy
+soundcloudResolve req kont = do
+  env <- ask
+  liftIO $ do
+    url <- lookupQueryParam "url" req
+    assertMethod req "GET"
+    kont =<< soundcloudResolveIO env url
+
+soundcloudResolveIO :: Env -> Text -> IO Response
+soundcloudResolveIO env url = do
+  s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
+  let req = Req.queryItem "client_id" s . Req.queryItem "url" (cs url) $ baseReq
+  let mgr = env ^. manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
   when (isError (Client.responseStatus res)) $
-    debug $
+    runProxy env . debug $
       msg (val "unexpected upstream response")
         ~~ "upstream" .= val "soundcloud::resolve"
         ~~ "status" .= S (Client.responseStatus res)
@@ -154,24 +166,31 @@ soundcloudResolve url = do
         . Req.path "/resolve"
         $ Req.empty {Client.secure = True}
 
-soundcloudStream :: Text -> Proxy Response
-soundcloudStream url = do
-  e <- view secrets
-  s <- liftIO $ Config.require e "secrets.soundcloud"
-  req <- Req.noRedirect . Req.queryItem "client_id" s <$> Client.parseRequest (Text.unpack url)
-  unless (Client.secure req && Client.host req == "api.soundcloud.com") $
-    failWith "insecure stream url"
-  mgr <- view manager
+soundcloudStream :: ApplicationM Proxy
+soundcloudStream req kont = do
+  env <- ask
+  liftIO $ do
+    url <- lookupQueryParam "url" req
+    assertMethod req "GET"
+    kont =<< soundcloudStreamIO env url
+
+soundcloudStreamIO :: Env -> Text -> IO Response
+soundcloudStreamIO env url = do
+  s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
+  req <- Req.noRedirect . Req.queryItem "client_id" s <$> Client.parseRequest (cs url)
+  unless (Client.secure req && Client.host req == "api.soundcloud.com") $ do
+    runProxy env $ failWith "insecure stream url"
+  let mgr = env ^. manager
   res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
   unless (status302 == Client.responseStatus res) $ do
-    debug $
+    runProxy env . debug $
       msg (val "unexpected upstream response")
         ~~ "upstream" .= val "soundcloud::stream"
         ~~ "status" .= S (Client.responseStatus res)
         ~~ "body" .= B.take 256 (Client.responseBody res)
-    failWith "unexpected upstream response"
+    runProxy env $ failWith "unexpected upstream response"
   case Res.getHeader hLocation res of
-    Nothing -> failWith "missing location header"
+    Nothing -> runProxy env $ failWith "missing location header"
     Just loc -> pure (empty & setStatus status302 . addHeader hLocation loc)
 
 x2 :: RetryPolicy
@@ -229,3 +248,14 @@ instance ToBytes S where
       +++ val ")"
 
 data Rerouting = Static | Prefix
+
+-- TODO: throw wai error '405 wrong method' that will be caught and rendered by `catchErrors`
+-- in "Proxy.Run".
+assertMethod :: Request -> ByteString -> IO ()
+assertMethod req meth = do
+  unless (requestMethod req == meth) $ do
+    undefined
+
+-- TODO: throw wai error 400 that will be caught and rendered by `catchErrors` in "Proxy.Run".
+lookupQueryParam :: ByteString -> Request -> IO Text
+lookupQueryParam = undefined

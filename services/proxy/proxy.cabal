@@ -95,6 +95,7 @@ library
     , servant-server
     , servant-swagger
     , servant-swagger-ui
+    , string-conversions
     , swagger
     , swagger2
     , text                >=1.2

@@ -31,24 +31,8 @@ type ProxyAPI =
     :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
     :<|> ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
     :<|> ProxyAPIRoute "spotify-token" ("spotify" :> "api" :> "token" :> RawM)
-    :<|> Named
-           "soundcloud-resolve"
-           ( Summary (ProxyAPISummary "soundcloud-resolve")
-               :> "proxy"
-               :> "soundcloud"
-               :> "resolve"
-               :> QueryParam' '[Required, Strict] "url" Text
-               :> Get '[JSON] Text
-           )
-    :<|> Named
-           "soundcloud-stream"
-           ( Summary (ProxyAPISummary "soundcloud-stream")
-               :> "proxy"
-               :> "soundcloud"
-               :> "stream"
-               :> QueryParam' '[Required, Strict] "url" Text
-               :> Get '[JSON] Text
-           )
+    :<|> ProxyAPIRoute "soundcloud-resolve" ("soundcloud" :> "resolve" :> RawM)
+    :<|> ProxyAPIRoute "soundcloud-stream" ("soundcloud" :> "stream" :> RawM)
 
 type ProxyAPIRoute name path = Named name (Summary (ProxyAPISummary name) :> "proxy" :> path)
 
