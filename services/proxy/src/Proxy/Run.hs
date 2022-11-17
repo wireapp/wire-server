@@ -28,8 +28,8 @@ import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import qualified Data.Proxy as Data
 import Imports hiding (head)
 import Network.Wai.Utilities.Server hiding (serverPort)
-import Proxy.API (sitemap)
-import Proxy.API.Public (servantSitemap)
+import Proxy.API.Internal as I (InternalAPI, servantSitemap)
+import Proxy.API.Public as P (servantSitemap, sitemap)
 import Proxy.Env
 import Proxy.Options
 import Proxy.Proxy
@@ -37,24 +37,26 @@ import Servant hiding (Proxy, route)
 import Wire.API.Routes.Public.Proxy
 import Wire.API.Routes.Version.Wai
 
-type CombinedAPI = ProxyAPI :<|> Servant.Raw
-
 run :: Opts -> IO ()
 run o = do
   m <- metrics
   e <- createEnv m o
   s <- newSettings $ defaultServer (o ^. host) (o ^. port) (e ^. applog) m
-  let rtree = compile (sitemap e)
+  let rtree = compile (P.sitemap e)
   let waiRouteApp r k = runProxy e r (route rtree r k)
   let toServantHandler :: Proxy a -> Handler a
       toServantHandler p = Handler . ExceptT $ Right <$> runDirect e p
-  let toServantSitemap = Servant.hoistServer (Data.Proxy @ProxyAPI) toServantHandler servantSitemap
+  let toServantSitemap =
+        Servant.hoistServer
+          (Data.Proxy @(ProxyAPI :<|> I.InternalAPI))
+          toServantHandler
+          (P.servantSitemap :<|> I.servantSitemap)
   let app =
         Servant.serve
-          (Data.Proxy @CombinedAPI)
+          (Data.Proxy @((ProxyAPI :<|> InternalAPI) :<|> Servant.Raw))
           (toServantSitemap :<|> Servant.Tagged waiRouteApp)
   let middleware =
         versionMiddleware
-          . waiPrometheusMiddleware (sitemap e)
+          . waiPrometheusMiddleware (P.sitemap e)
           . catchErrors (e ^. applog) [Right m]
   runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e

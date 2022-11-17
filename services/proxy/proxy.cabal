@@ -18,7 +18,7 @@ flag static
 library
   exposed-modules:
     Main
-    Proxy.API
+    Proxy.API.Internal
     Proxy.API.Public
     Proxy.Env
     Proxy.Options

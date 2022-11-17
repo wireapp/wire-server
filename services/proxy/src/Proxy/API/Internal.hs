@@ -15,25 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Proxy.API
-  ( sitemap,
+module Proxy.API.Internal
+  ( InternalAPI,
+    servantSitemap,
   )
 where
 
 import Imports hiding (head)
-import Network.Wai.Predicate (true)
-import Network.Wai.Routing (Routes, continue, get, head)
-import Network.Wai.Utilities (empty)
-import qualified Proxy.API.Public as Public
-import Proxy.Env (Env)
-import Proxy.Proxy (Proxy)
+import qualified Proxy.Proxy
+import Servant
+import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Named (Named (Named))
 
-sitemap :: Env -> Routes a Proxy ()
-sitemap e = do
-  Public.sitemap e
-  routesInternal
+type InternalAPI = Named "status" ("i" :> "status" :> MultiVerb 'GET '[Servant.JSON] '[RespondEmpty 200 "OK"] ())
 
-routesInternal :: Routes a Proxy ()
-routesInternal = do
-  head "/i/status" (continue $ const (pure empty)) true
-  get "/i/status" (continue $ const (pure empty)) true
+servantSitemap :: ServerT InternalAPI Proxy.Proxy.Proxy
+servantSitemap = Named @"status" (pure ())
