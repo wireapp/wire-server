@@ -28,7 +28,6 @@ import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
-import Polysemy.Input
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as TinyLog
 import qualified System.Logger as Log
@@ -45,8 +44,7 @@ getLocalConvForUser ::
   Members
     '[ ErrorS 'ConvNotFound,
        ConversationStore,
-       MemberStore,
-       Input (Local ())
+       MemberStore
      ]
     r =>
   Qualified UserId ->
@@ -56,20 +54,26 @@ getLocalConvForUser qusr lcnv = do
   gtc <- getGlobalTeamConversationById lcnv
   conv <- case gtc of
     Just conv -> do
-      -- TODO(elland): clean this up
       let creator = gtcmCreator . gtcMetadata $ conv
       localMembers <- getLocalMembers (qUnqualified . gtcId $ conv)
 
-      if isNothing creator
-        then do
+      -- no creator means the conversation has been setup on backend but not on MLS.
+      case creator of
+        Nothing -> do
           setGlobalTeamConversationCreator conv (qUnqualified qusr)
           pure $ gtcToConv conv (qUnqualified qusr) localMembers
-        else pure $ gtcToConv conv (fromJust creator) localMembers
+        Just creator' ->
+          pure $ gtcToConv conv creator' localMembers
     Nothing -> do
       getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
   -- check that sender is part of conversation
-  isMember' <- foldQualified lcnv (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
+  isMember' <-
+    foldQualified
+      lcnv
+      (fmap isJust . getLocalMember (convId conv) . tUnqualified)
+      (fmap isJust . getRemoteMember (convId conv))
+      qusr
   unless isMember' $ throwS @'ConvNotFound
 
   pure conv
