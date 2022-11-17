@@ -260,7 +260,8 @@ instance ToSchema Conversation where
       (description ?~ "A conversation object as returned from the server")
       $ Conversation
         <$> cnvQualifiedId .= field "qualified_id" schema
-        <* (qUnqualified . cnvQualifiedId) .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+        <* (qUnqualified . cnvQualifiedId)
+          .= optional (field "id" (deprecatedSchema "qualified_id" schema))
         <*> cnvMetadata .= conversationMetadataObjectSchema
         <*> cnvMembers .= field "members" schema
         <*> cnvProtocol .= protocolSchema

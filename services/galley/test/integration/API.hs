@@ -3861,8 +3861,7 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
     let req = UpsertOne2OneConversationRequest alice bob actor desired Nothing
     res <-
       iUpsertOne2OneConversation req
-        <!! statusCode
-          === const 200
+        <!! statusCode === const 200
     uuorConvId <$> responseJsonError res
 
   liftIO $ convId @?= expectedConvId

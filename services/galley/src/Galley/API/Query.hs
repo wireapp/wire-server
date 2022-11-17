@@ -110,6 +110,7 @@ import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.Sem.Paging.Cassandra
+import qualified Galley.Effects.TeamStore as E
 
 getBotConversationH ::
   Members '[ConversationStore, ErrorS 'ConvNotFound, Input (Local ())] r =>
