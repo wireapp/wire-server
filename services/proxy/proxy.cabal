@@ -97,6 +97,7 @@ library
     , servant-swagger-ui
     , swagger
     , swagger2
+    , tagged
     , text                >=1.2
     , tinylog             >=0.12
     , types-common        >=0.8

@@ -16,8 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Proxy.API.Public
-  ( sitemap,
-    servantSitemap,
+  ( servantSitemap,
   )
 where
 
@@ -32,6 +31,7 @@ import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Configurator as Config
 import qualified Data.List as List
+import Data.Tagged (Tagged (Tagged))
 import qualified Data.Text as Text
 import Imports hiding (head)
 import qualified Network.HTTP.Client as Client
@@ -46,14 +46,25 @@ import Network.Wai.Utilities
 import Proxy.Env
 import Proxy.Proxy
 import Servant (ServerT)
+import Servant.API ((:<|>) ((:<|>)))
 import System.Logger.Class hiding (Error, info, render)
 import qualified System.Logger.Class as Logger
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Proxy (ProxyAPI)
 
 servantSitemap :: ServerT ProxyAPI Proxy
-servantSitemap = Named @"hello-world" $ pure "hello world"
+servantSitemap =
+  Named @"youtube-path" (x e) -- (\e -> proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
+    :<|> Named @"gmaps-static" undefined -- (\e -> proxy e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
+    :<|> Named @"gmaps-path" undefined -- (\e -> proxy e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
+    :<|> Named @"giphy-path" undefined -- (\e -> proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
+    :<|> Named @"spotify-token" undefined --  post "/proxy/spotify/api/token" (continue spotifyToken) request
+    :<|> Named @"soundcloud-resolve" undefined -- get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
+    :<|> Named @"soundcloud-stream" undefined -- get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
+  where
+    e = undefined -- no, can't have this from here!  need to pull if from the Proxy monad.
 
+{-
 sitemap :: Env -> Routes a Proxy ()
 sitemap e = do
   get
@@ -79,8 +90,10 @@ sitemap e = do
   post "/proxy/spotify/api/token" (continue spotifyToken) request
 
   get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
+-}
 
-  get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
+x :: Env -> Tagged Proxy Application
+x e = undefined -- Tagged $ proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube
 
 youtube, googleMaps, giphy :: ProxyDest
 youtube = ProxyDest "www.googleapis.com" 443
@@ -88,8 +101,12 @@ googleMaps = ProxyDest "maps.googleapis.com" 443
 giphy = ProxyDest "api.giphy.com" 443
 
 proxy :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
-proxy e qparam keyname reroute path phost rq k = do
-  s <- liftIO $ Config.require (e ^. secrets) keyname
+proxy = undefined
+
+{-
+_proxy' :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> Application
+_proxy' e qparam keyname reroute path phost rq k = do
+  s <- Config.require (e ^. secrets) keyname
   let r = getRequest rq
   let q = renderQuery True ((qparam, Just s) : safeQuery (I.queryString r))
   let r' =
@@ -101,19 +118,19 @@ proxy e qparam keyname reroute path phost rq k = do
               Prefix -> snd $ breakSubstring path (I.rawPathInfo r),
             I.rawQueryString = q
           }
-  runInIO <- askRunInIO
-  liftIO $ loop runInIO (2 :: Int) r (WPRModifiedRequestSecure r' phost)
+  liftIO $ loop (2 :: Int) r (WPRModifiedRequestSecure r' phost)
   where
-    loop runInIO !n waiReq req =
-      waiProxyTo (const $ pure req) (onUpstreamError runInIO) (e ^. manager) waiReq $ \res ->
+    loop !n waiReq req =
+      waiProxyTo (const $ pure req) onUpstreamError (e ^. manager) waiReq $ \res ->
         if responseStatus res == status502 && n > 0
           then do
             threadDelay 5000
-            loop runInIO (n - 1) waiReq req
+            loop (n - 1) waiReq req
           else runProxy e waiReq (k res)
-    onUpstreamError runInIO x _ next = do
-      void . runInIO $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
+    onUpstreamError x _ next = do
+      void $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
       next (errorRs' error502)
+-}
 
 spotifyToken :: Request -> Proxy Response
 spotifyToken rq = do
