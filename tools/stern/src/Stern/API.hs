@@ -30,6 +30,7 @@ where
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens ((^.))
+import Control.Monad.Except
 import Data.Aeson hiding (Error, json)
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (emptyArray)
@@ -53,7 +54,6 @@ import Servant (NoContent (NoContent), ServerT, (:<|>) (..))
 import qualified Servant
 import qualified Servant.Server
 import Stern.API.Routes
-import qualified Stern.API.RoutesLegacy as RoutesLegacy
 import Stern.App
 import qualified Stern.Intra as Intra
 import Stern.Options
@@ -87,18 +87,20 @@ start o = do
             @( SwaggerDocsAPI
                  :<|> SternAPIInternal
                  :<|> SternAPI
+                 :<|> RedirectToSwaggerDocsAPI
              )
         )
-        ( swaggerDocsAPI
-            :<|> servantSitemapInternal
-            :<|> servantSitemap e
+        ( swaggerDocs
+            :<|> sitemapInternal
+            :<|> sitemap e
+            :<|> sitemapRedirectToSwaggerDocs
         )
 
 -------------------------------------------------------------------------------
 -- servant API
 
-servantSitemap :: Stern.App.Env -> Servant.Server SternAPI
-servantSitemap env = Servant.Server.hoistServer (Proxy @SternAPI) nt servantSitemap'
+sitemap :: Stern.App.Env -> Servant.Server SternAPI
+sitemap env = Servant.Server.hoistServer (Proxy @SternAPI) nt sitemap'
   where
     nt :: forall x. Stern.App.Handler x -> Servant.Server.Handler x
     nt m = Servant.Server.Handler . ExceptT $ do
@@ -108,8 +110,8 @@ servantSitemap env = Servant.Server.hoistServer (Proxy @SternAPI) nt servantSite
     renderError (Error code label message _) =
       Servant.Server.ServerError (statusCode code) (cs label) (cs message) [("Content-type", "application/json")]
 
-servantSitemap' :: ServerT SternAPI Handler
-servantSitemap' =
+sitemap' :: ServerT SternAPI Handler
+sitemap' =
   Named @"suspend-user" suspendUser
     :<|> Named @"unsuspend-user" unsuspendUser
     :<|> Named @"get-users-by-email" usersByEmail
@@ -161,26 +163,18 @@ servantSitemap' =
     :<|> Named @"get-consent-log" getConsentLog
     :<|> Named @"get-user-meta-info" getUserData
 
-servantSitemapInternal :: Servant.Server SternAPIInternal
-servantSitemapInternal =
+sitemapInternal :: Servant.Server SternAPIInternal
+sitemapInternal =
   Named @"status" (pure Servant.NoContent)
-    :<|> Named @"legacy-api-docs" serveLegacySwagger
 
--- | FUTUREWORK: remove this handler, the servant route, and module Stern.API.RoutesLegacy,
--- once we don't depend on swagger1.2 for stern any more.
-serveLegacySwagger :: Text -> Servant.Server.Handler NoContent
-serveLegacySwagger url =
-  Servant.Server.Handler $
-    throwE
-      ( Servant.ServerError
-          200
-          mempty
-          (encode $ RoutesLegacy.apiDocs (cs url))
-          [("Content-Type", "application/json")]
-      )
+sitemapRedirectToSwaggerDocs :: Servant.Server RedirectToSwaggerDocsAPI
+sitemapRedirectToSwaggerDocs = Named @"swagger-ui-redirect" redirectToSwaggerDocs
 
 -----------------------------------------------------------------------------
 -- Handlers
+
+redirectToSwaggerDocs :: Servant.Server.Handler a
+redirectToSwaggerDocs = throwError Servant.err301 {Servant.errHeaders = [("Location", "/swagger-ui/index.html")]}
 
 suspendUser :: UserId -> Handler NoContent
 suspendUser uid = NoContent <$ Intra.putUserStatus Suspended uid

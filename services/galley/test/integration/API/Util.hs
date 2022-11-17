@@ -1656,6 +1656,18 @@ wsAssertClientRemoved cid n = do
   etype @?= Just "user.client-remove"
   fmap ClientId eclient @?= Just cid
 
+wsAssertClientAdded ::
+  HasCallStack =>
+  ClientId ->
+  Notification ->
+  IO ()
+wsAssertClientAdded cid n = do
+  let j = Object $ List1.head (ntfPayload n)
+  let etype = j ^? key "type" . _String
+  let eclient = j ^? key "client" . key "id" . _String
+  etype @?= Just "user.client-add"
+  fmap ClientId eclient @?= Just cid
+
 assertMLSMessageEvent ::
   HasCallStack =>
   Qualified ConvId ->
@@ -2858,6 +2870,14 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtType e @?= ConvReceiptModeUpdate
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
+
+wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Epoch -> Notification -> IO ByteString
+wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
+  bs <- wsAssertBackendRemoveProposal fromUser convId kpref n
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @(Message 'MLSPlainText) bs
+  let tbs = rmValue . msgTBS $ msg
+  tbsMsgEpoch tbs @?= epoch
+  pure bs
 
 wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
 wsAssertBackendRemoveProposal fromUser convId kpref n = do

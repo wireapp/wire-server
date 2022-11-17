@@ -1,13 +1,8 @@
 replicaCount: 1
-images:
-  frontend:
-    repository: quay.io/wire/backoffice-frontend
-    tag: 2.87.0
-    pullPolicy: IfNotPresent
-  stern:
-    repository: quay.io/wire/stern
-    tag: do-not-use
-    pullPolicy: IfNotPresent
+image:
+  repository: quay.io/wire/stern
+  tag: do-not-use
+  pullPolicy: IfNotPresent
 service:
   internalPort: 8080
   externalPort: 8080
@@ -19,6 +14,7 @@ resources:
     memory: 50Mi
 config:
   logLevel: Info
+  logFormat: StructuredJSON
   galebHost: galeb.integrations
   ibisHost: ibis.integrations
 baseUrl: http://localhost:8080

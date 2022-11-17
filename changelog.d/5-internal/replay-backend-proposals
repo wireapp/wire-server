@@ -1,0 +1,2 @@
+Replay external backend proposals after forwarding external commits.
+One column added to Galley's mls_proposal_refs.

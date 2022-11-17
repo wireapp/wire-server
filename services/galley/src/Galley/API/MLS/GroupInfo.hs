@@ -64,8 +64,7 @@ getGroupInfo lusr qcnvId =
 getGroupInfoFromLocalConv ::
   Members
     '[ ConversationStore,
-       MemberStore,
-       Input (Local ())
+       MemberStore
      ]
     r =>
   Members MLSGroupInfoStaticErrors r =>
