@@ -1316,9 +1316,17 @@ specScimAndSAML = do
           [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
           liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just role
     mapM_ testCreateUserWithRole [minBound .. maxBound]
+  it "provision user with role via scim - default to member if no role given" $ do
+    (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
+    scimUser <- do
+      u <- ScimT.randomScimUser
+      pure $ u {Scim.roles = []}
+    scimStoredUser <- ScimT.createUser tok scimUser
+    [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
+    liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just RoleMember
   it "provision user with role via scim - fail if more than one role given" $ do
     pending
-  it "provision user with role via scim - default to member if no role given" $ do
+  it "provision user with role via scim - fail if role name cannot be parsed correctly" $ do
     pending
   it "update user with role via scim" $ do
     pending
