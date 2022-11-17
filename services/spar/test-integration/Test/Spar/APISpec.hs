@@ -24,6 +24,7 @@ module Test.Spar.APISpec
 where
 
 import Bilge
+import Bilge.Assert
 import Brig.Types.Intra (AccountStatus (Deleted))
 import Cassandra as Cas hiding (Value)
 import Control.Lens hiding ((.=))
@@ -1327,7 +1328,13 @@ specScimAndSAML = do
   it "provision user with role via scim - fail if more than one role given" $ do
     pending
   it "provision user with role via scim - fail if role name cannot be parsed correctly" $ do
-    pending
+    (tok, (_, _, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
+    scimUser <- do
+      u <- ScimT.randomScimUser
+      pure $ u {Scim.roles = ["president"]}
+    ScimT.createUser' tok scimUser !!! do
+      const 400 === statusCode
+      const (Just "The role 'president' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
   it "update user with role via scim" $ do
     pending
   it "update user with role via scim - default to member if no role given" $ do

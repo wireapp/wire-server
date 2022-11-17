@@ -182,6 +182,18 @@ randomScimPhone = do
 ----------------------------------------------------------------------------
 -- API wrappers
 
+createUser' ::
+  HasCallStack =>
+  ScimToken ->
+  Scim.User.User SparTag ->
+  TestSpar ResponseLBS
+createUser' tok user = do
+  env <- ask
+  createUser_
+    (Just tok)
+    user
+    (env ^. teSpar)
+
 -- | Create a user.
 createUser ::
   HasCallStack =>
@@ -189,13 +201,7 @@ createUser ::
   Scim.User.User SparTag ->
   TestSpar (Scim.StoredUser SparTag)
 createUser tok user = do
-  env <- ask
-  r <-
-    createUser_
-      (Just tok)
-      user
-      (env ^. teSpar)
-      <!! const 201 === statusCode
+  r <- createUser' tok user <!! const 201 === statusCode
   pure (responseJsonUnsafe r)
 
 -- | Update a user.

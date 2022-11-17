@@ -53,7 +53,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
-import Data.ByteString.Conversion (fromByteString)
+import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
@@ -96,6 +96,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
+import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
@@ -258,11 +259,7 @@ validateScimUser' ::
   Scim.User ST.SparTag ->
   m ST.ValidScimUser
 validateScimUser' errloc midp richInfoLimit user = do
-  unless (isNothing $ Scim.password user) $
-    throwError $
-      Scim.badRequest
-        Scim.InvalidValue
-        (Just $ "Setting user passwords is not supported for security reasons. (" <> errloc <> ")")
+  unless (isNothing $ Scim.password user) $ throwError $ badRequest "Setting user passwords is not supported for security reasons."
   veid <- mkValidExternalId midp (Scim.externalId user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
@@ -273,14 +270,27 @@ validateScimUser' errloc midp richInfoLimit user = do
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
   lang <- maybe (error "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
-  let mRole = case Scim.roles user of
-        [] -> Nothing
-        [role] -> case fromByteString $ cs role of
-          Just role' -> Just role'
-          Nothing -> error "todo(leif): handle error, cannot parse role"
-        _ -> error "todo(leif): handle error, more than one role"
+  mRole <- validateRole user
   pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
+    validRoleNames :: Text
+    validRoleNames = cs $ intercalate ", " $ map (cs . toByteString') [minBound @Role .. maxBound]
+
+    validateRole =
+      Scim.roles <&> \case
+        [] -> pure Nothing
+        [roleName] ->
+          maybe
+            (throwError $ badRequest $ "The role '" <> roleName <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
+            (pure . Just)
+            (fromByteString $ cs roleName)
+        _ -> error "todo(leif): handle error, more than one role"
+
+    badRequest :: Text -> Scim.ScimError
+    badRequest msg =
+      Scim.badRequest
+        Scim.InvalidValue
+        (Just $ msg <> " (" <> errloc <> ")")
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RI.RichInfo -> m RI.RichInfo
     validateRichInfo richInfo = do
