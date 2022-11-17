@@ -17,20 +17,20 @@
 
 module Wire.API.Routes.Public.Proxy where
 
-import Data.Aeson (Value)
 import Data.SOP
 import qualified Data.Swagger as Swagger
 import Imports
 import Servant
+import Servant.API.Extended.RawM (RawM)
 import Servant.Swagger
 import Wire.API.Routes.Named
 
 type ProxyAPI =
-  ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> Raw)
-    :<|> ProxyAPIRoute "gmaps-static" ("googlemaps" :> "api" :> "staticmap" :> Raw)
-    :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> Raw)
-    :<|> ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> Raw)
-    :<|> ProxyAPIRoute "spotify-token" ("spotify" :> "api" :> "token" :> Raw)
+  ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
+    :<|> ProxyAPIRoute "gmaps-static" ("googlemaps" :> "api" :> "staticmap" :> RawM)
+    :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
+    :<|> ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
+    :<|> ProxyAPIRoute "spotify-token" ("spotify" :> "api" :> "token" :> RawM)
     :<|> Named
            "soundcloud-resolve"
            ( Summary (ProxyAPISummary "soundcloud-resolve")

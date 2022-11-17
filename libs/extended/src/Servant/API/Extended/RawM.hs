@@ -3,13 +3,18 @@
 module Servant.API.Extended.RawM where
 
 import Control.Monad.Trans.Resource
+import Data.Metrics.Servant
 import Data.Proxy
 import Imports
 import Network.Wai
+import Servant.API (Raw)
 import Servant.Server hiding (respond)
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.RouteResult
 import Servant.Server.Internal.Router
+import Servant.Swagger
+
+type ApplicationM m = Request -> (Response -> IO ResponseReceived) -> m ResponseReceived
 
 -- | Variant of 'Raw' that lets you access the underlying monadic context to process the request.
 data RawM deriving (Typeable)
@@ -43,3 +48,9 @@ instance HasServer RawM context where
       FailFatal e -> respond' $ FailFatal e
 
   hoistServerWithContext _ _ f srvM = \req respond -> f (srvM req respond)
+
+instance HasSwagger RawM where
+  toSwagger _ = toSwagger (Proxy @Raw)
+
+instance RoutesToPaths RawM where
+  getRoutes = []

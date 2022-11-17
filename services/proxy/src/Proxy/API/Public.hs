@@ -31,7 +31,6 @@ import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Configurator as Config
 import qualified Data.List as List
-import Data.Tagged (Tagged (Tagged))
 import qualified Data.Text as Text
 import Imports hiding (head)
 import qualified Network.HTTP.Client as Client
@@ -47,6 +46,7 @@ import Proxy.Env
 import Proxy.Proxy
 import Servant (ServerT)
 import Servant.API ((:<|>) ((:<|>)))
+import Servant.API.Extended.RawM (ApplicationM)
 import System.Logger.Class hiding (Error, info, render)
 import qualified System.Logger.Class as Logger
 import Wire.API.Routes.Named (Named (Named))
@@ -54,69 +54,26 @@ import Wire.API.Routes.Public.Proxy (ProxyAPI)
 
 servantSitemap :: ServerT ProxyAPI Proxy
 servantSitemap =
-  Named @"youtube-path" (x e) -- (\e -> proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
-    :<|> Named @"gmaps-static" undefined -- (\e -> proxy e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
-    :<|> Named @"gmaps-path" undefined -- (\e -> proxy e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
-    :<|> Named @"giphy-path" undefined -- (\e -> proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
+  Named @"youtube-path" (proxy "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
+    :<|> Named @"gmaps-static" (proxy "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
+    :<|> Named @"gmaps-path" (proxy "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
+    :<|> Named @"giphy-path" (proxy "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
     :<|> Named @"spotify-token" undefined --  post "/proxy/spotify/api/token" (continue spotifyToken) request
     :<|> Named @"soundcloud-resolve" undefined -- get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
     :<|> Named @"soundcloud-stream" undefined -- get "/proxy/soundcloud/stream" (continue soundcloudStream) (query "url")
-  where
-    e = undefined -- no, can't have this from here!  need to pull if from the Proxy monad.
-
-{-
-sitemap :: Env -> Routes a Proxy ()
-sitemap e = do
-  get
-    "/proxy/youtube/v3/:path"
-    (proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
-    pure
-
-  get
-    "/proxy/googlemaps/api/staticmap"
-    (proxy e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
-    pure
-
-  get
-    "/proxy/googlemaps/maps/api/geocode/:path"
-    (proxy e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
-    pure
-
-  get
-    "/proxy/giphy/v1/gifs/:path"
-    (proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
-    pure
-
-  post "/proxy/spotify/api/token" (continue spotifyToken) request
-
-  get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
--}
-
-x :: Env -> Tagged Proxy Application
-x e = undefined -- Tagged $ proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube
 
 youtube, googleMaps, giphy :: ProxyDest
 youtube = ProxyDest "www.googleapis.com" 443
 googleMaps = ProxyDest "maps.googleapis.com" 443
 giphy = ProxyDest "api.giphy.com" 443
 
--- what do i even need Env for in proxyIO?
--- => secret from config files; http manager; logging.
-
--- why do we need raw?
--- => variable method, variable headers set, variable path.
-
--- can i use the servant hack discussed (probably) in the RawM PR or issue?
--- => yes
-
--- can i just pass Env as an arg for all end-points, and run them in IO?  (sad, because we
--- can't make a logger that explicitly logs the reqid.  then again how often would we have to
--- do that explicitly?)
--- => let's not?
-
-proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> (Application {- TODO: adjust this to RawM -})
+proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
 proxy qparam keyname reroute path phost rq kont = do
   env :: Env <- ask
+  liftIO $ proxyIO env qparam keyname reroute path phost rq kont
+
+proxyIO :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> Application
+proxyIO env qparam keyname reroute path phost rq kont = do
   s <- Config.require (env ^. secrets) keyname
   let r = getRequest rq
   let q = renderQuery True ((qparam, Just s) : safeQuery (I.queryString r))
@@ -129,17 +86,20 @@ proxy qparam keyname reroute path phost rq kont = do
               Prefix -> snd $ breakSubstring path (I.rawPathInfo r),
             I.rawQueryString = q
           }
-  liftIO $ loop (2 :: Int) r (WPRModifiedRequestSecure r' phost)
+  loop (2 :: Int) env r (WPRModifiedRequestSecure r' phost)
   where
-    loop !n waiReq req =
+    loop :: Int -> Env -> Request -> WaiProxyResponse -> IO ResponseReceived
+    loop !n env waiReq req =
       waiProxyTo (const $ pure req) onUpstreamError (env ^. manager) waiReq $ \res ->
         if responseStatus res == status502 && n > 0
           then do
             threadDelay 5000
-            loop (n - 1) waiReq req
+            loop (n - 1) env waiReq req
           else kont res
+
+    onUpstreamError :: SomeException -> ignored -> (Response -> IO a) -> IO a
     onUpstreamError x _ next = do
-      void $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
+      void . runProxy env $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
       next (errorRs' error502)
 
 spotifyToken :: Request -> Proxy Response
