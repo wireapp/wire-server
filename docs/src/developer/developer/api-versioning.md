@@ -282,3 +282,36 @@ Many variations on this theme are possible. For example, one could choose to
 write adapting functions in terms of the new input/output types, or even use a
 mixed approach. The adapting functions need not be pure in general, and they
 might even perform further RPC calls.
+
+## Versioning changes in events
+
+Making incompatible changes to events is also sometimes necessary, or at least
+desirable. Unfortunately, there is no direct way to make API versioning
+preserve compatibility with older clients when the format of events changes.
+This is because the format of events is decided when they are generated, which
+is of course before they are fetched by the clients. By the time the backend is
+made aware of the version supported by a client, it is too late to change any
+logic of event generation or serialisation.
+
+However, there are ways to alter the event API in incompatible ways without
+breaking older clients. Namely, we can tie a change X in the format of an event
+to a specific api version N. This means that in order for a client to support
+any version *after* N, it has to be able to consume events in any format,
+before or after X.
+
+If clients respect this constraint, then the backend only needs to keep the old
+format around for as long as version N is supported, and can apply change X as
+soon as version N is dropped.
+
+Conversely, clients need to be advised on when it is ok for them to drop their
+legacy event parsing code. Unfortunately, determining this point in time is
+complicated by the fact that legacy events may be retained by a backend for
+some time after it has been upgraded to a version that emits events in the new
+format. Therefore, this has to be worked out on a case by case basis.
+
+More precisely: When a new version Q of a backend is released, some time after
+version N is dropped, *if* we can ensure that no version lower than N is
+running anywhere in production, and hasn't been for a time at least as long as
+the maximum event retention time, *then* we can drop the requirement for
+clients to be able to read events in the legacy format, *as long as they
+support only versions larger or equal to Q*.
