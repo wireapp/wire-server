@@ -52,6 +52,24 @@ getTeamMembers tid = do
     then (^. teamMembers) <$> parseResponse @TeamMemberList "galley" resp
     else rethrow "galley" resp
 
+-- | Get a single member of a team.
+getTeamMember ::
+  (HasCallStack, MonadError SparError m, MonadSparToGalley m) =>
+  TeamId ->
+  UserId ->
+  m (Maybe TeamMember)
+getTeamMember tid uid = do
+  resp :: ResponseLBS <-
+    call $
+      method GET
+        . paths ["i", "teams", toByteString' tid, "members", toByteString' uid]
+  if statusCode resp == 200
+    then Just <$> parseResponse @TeamMember "galley" resp
+    else
+      if statusCode resp == 404
+        then pure Nothing
+        else rethrow "galley" resp
+
 -- | user is member of a given team and has a given permission there.
 assertHasPermission ::
   (HasCallStack, MonadSparToGalley m, MonadError SparError m, IsPerm perm, Show perm) =>

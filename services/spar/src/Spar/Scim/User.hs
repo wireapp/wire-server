@@ -45,7 +45,7 @@ where
 import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
 import qualified Control.Applicative as Applicative (empty)
-import Control.Lens (view, (^.))
+import Control.Lens hiding (op)
 import Control.Monad.Error.Class (MonadError)
 import Control.Monad.Except (runExceptT, throwError)
 import Control.Monad.Trans.Except (mapExceptT)
@@ -53,13 +53,14 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
-import Data.ByteString.Conversion (fromByteString, toByteString')
+import Data.ByteString.Conversion (fromByteString, toByteString, toByteString')
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
+import qualified Galley.Types.Teams as Galley
 import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
@@ -96,6 +97,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
+import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.IdentityProvider (IdP)
@@ -269,7 +271,7 @@ validateScimUser' errloc midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-  lang <- maybe (error "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
+  lang <- maybe (throwError $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
   pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
   where
@@ -869,6 +871,7 @@ synthesizeStoredUser ::
        Now,
        Logger (Msg -> Msg),
        BrigAccess,
+       GalleyAccess,
        ScimUserTimesStore
      ]
     r =>
@@ -888,12 +891,13 @@ synthesizeStoredUser usr veid =
       let uid = userId (accountUser usr)
           accStatus = accountStatus usr
 
-      let readState :: Sem r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
-          readState = do
-            richInfo <- BrigAccess.getRichInfo uid
-            accessTimes <- ScimUserTimesStore.read uid
-            baseuri <- inputs $ derivedOptsScimBaseURI . derivedOpts
-            pure (richInfo, accessTimes, baseuri)
+      let readState :: Sem r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI, Role)
+          readState =
+            (,,,)
+              <$> BrigAccess.getRichInfo uid
+              <*> ScimUserTimesStore.read uid
+              <*> inputs (derivedOptsScimBaseURI . derivedOpts)
+              <*> getRole
 
       let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Sem r ()
           writeState oldAccessTimes oldManagedBy oldRichInfo storedUser = do
@@ -905,7 +909,7 @@ synthesizeStoredUser usr veid =
             when (oldRichInfo /= newRichInfo) $
               BrigAccess.setRichInfo uid newRichInfo
 
-      (richInfo, accessTimes, baseuri) <- lift readState
+      (richInfo, accessTimes, baseuri, role) <- lift readState
       now <- toUTCTimeMillis <$> lift Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
@@ -923,8 +927,14 @@ synthesizeStoredUser usr veid =
           lastUpdatedAt
           baseuri
           (userLocale (accountUser usr))
+          role
       lift $ writeState accessTimes (userManagedBy (accountUser usr)) richInfo storedUser
       pure storedUser
+  where
+    getRole :: Sem r Role
+    getRole = do
+      let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Galley.permissionsRole
+      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId $ accountUser usr)) (userTeam $ accountUser usr)
 
 synthesizeStoredUser' ::
   UserId ->
@@ -937,8 +947,9 @@ synthesizeStoredUser' ::
   UTCTimeMillis ->
   URIBS.URI ->
   Locale ->
+  Role ->
   MonadError Scim.ScimError m => m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale = do
+synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale role = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
@@ -951,7 +962,7 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
               ST._vsuRichInfo = richInfo,
               ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus,
               ST._vsuLocale = Just locale,
-              ST._vsuRole = Nothing
+              ST._vsuRole = Just role
             }
 
   pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
@@ -963,12 +974,14 @@ synthesizeScimUser info =
         { Scim.externalId = Brig.renderValidExternalId $ info ^. ST.vsuExternalId,
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive,
-          Scim.preferredLanguage = lan2Text . lLanguage <$> info ^. ST.vsuLocale
+          Scim.preferredLanguage = lan2Text . lLanguage <$> info ^. ST.vsuLocale,
+          Scim.roles = maybe [] ((: []) . cs . toByteString) (info ^. ST.vsuRole)
         }
 
 getUserById ::
   forall r.
   ( Member BrigAccess r,
+    Member GalleyAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member Now r,
@@ -1015,6 +1028,7 @@ getUserById midp stiTeam uid = do
 scimFindUserByHandle ::
   forall r.
   ( Member BrigAccess r,
+    Member GalleyAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member Now r,
@@ -1040,6 +1054,7 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 scimFindUserByEmail ::
   forall r.
   ( Member BrigAccess r,
+    Member GalleyAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member Now r,

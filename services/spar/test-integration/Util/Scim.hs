@@ -57,6 +57,7 @@ import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import Wire.API.Team.Role (defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.RichInfo
@@ -677,6 +678,14 @@ whatSparReturnsFor idp richInfoSizeLimit =
 setPreferredLanguage :: Language -> Scim.User.User SparTag -> Scim.User.User SparTag
 setPreferredLanguage lang u =
   u {Scim.preferredLanguage = Scim.preferredLanguage u <|> Just (lan2Text lang)}
+
+setDefaultRoleIfEmpty :: Scim.User.User a -> Scim.User.User a
+setDefaultRoleIfEmpty u =
+  u
+    { Scim.User.roles = case Scim.User.roles u of
+        [] -> [cs $ toByteString' defaultRole]
+        xs -> xs
+    }
 
 -- this is not always correct, but hopefully for the tests that we're using it in it'll do.
 scimifyBrigUserHack :: User -> Email -> User

@@ -43,6 +43,7 @@ galleyAccessToHttp mgr req =
   interpret $
     viaRunHttp (RunHttpEnv mgr req) . \case
       GetTeamMembers itlt -> Intra.getTeamMembers itlt
+      GetTeamMember tid uid -> Intra.getTeamMember tid uid
       AssertHasPermission itlt perm itlu -> Intra.assertHasPermission itlt perm itlu
       AssertSSOEnabled itlt -> Intra.assertSSOEnabled itlt
       IsEmailValidationEnabledTeam itlt -> Intra.isEmailValidationEnabledTeam itlt
