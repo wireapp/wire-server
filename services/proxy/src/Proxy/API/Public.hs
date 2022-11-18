@@ -68,7 +68,9 @@ giphy = ProxyDest "api.giphy.com" 443
 proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
 proxy qparam keyname reroute path phost rq kont = do
   env :: Env <- ask
-  liftIO $ proxyIO env qparam keyname reroute path phost rq kont
+  liftIO $ do
+    assertMethod req "GET"
+    proxyIO env qparam keyname reroute path phost rq kont
 
 proxyIO :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> Application
 proxyIO env qparam keyname reroute path phost rq kont = do

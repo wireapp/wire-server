@@ -48,11 +48,19 @@ type family ProxyAPISummary name where
   ProxyAPISummary "giphy-path" =
     "proxy: `get /proxy/giphy/v1/gifs/:path`; see giphy API docs"
   ProxyAPISummary "spotify-token" =
-    "proxy: `get /proxy/spotify/api/token`; see spotify API docs"
+    "proxy: `post /proxy/spotify/api/token`; see spotify API docs"
   ProxyAPISummary "soundcloud-resolve" =
     "proxy: `get /proxy/soundcloud/resolve`; see soundcloud API docs"
   ProxyAPISummary "soundcloud-stream" =
     "proxy: `get /proxy/soundcloud/stream`; see soundcloud API docs"
 
+-- | FUTUREWORK: (1) the verb could be added to the swagger docs in the appropriate place
+-- here; it's always defined in the `Summary`, but the `RawM` doesn't allow to constrain it.
+-- (2) [am i massifly over-engineering things here?] there should be a way to make this more
+-- type-safe: `assertMethod` in "Proxy.API.Public" could take a type-evel string literal
+-- argument containing the method, and that argument could be funnelled there from the routing
+-- table somehow: `"spotify" :> "api" :> "token" :> OnlyMethod "POST" :> RawM`, and then the
+-- `ServerT` instance for `OnlyMethod` requires a proxy argument in the handler of the same
+-- type.  Or something.
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ProxyAPI)
