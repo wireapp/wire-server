@@ -62,6 +62,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
+               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "messages"
@@ -89,6 +90,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
+               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "messages"
@@ -116,6 +118,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
+               :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MLSWelcomeMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure

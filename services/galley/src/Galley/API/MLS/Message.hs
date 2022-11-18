@@ -105,7 +105,8 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSCommitMissingReferences,
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
-     ErrorS 'MLSGroupConversationMismatch
+     ErrorS 'MLSGroupConversationMismatch,
+     ErrorS 'MLSMissingSenderClient
    ]
 
 type MLSBundleStaticErrors =
@@ -125,6 +126,7 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
+         ErrorS 'MLSMissingSenderClient,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
@@ -159,6 +161,7 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
+         ErrorS 'MLSMissingSenderClient,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
@@ -366,6 +369,7 @@ postMLSMessage ::
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
+         ErrorS 'MLSMissingSenderClient,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
@@ -441,7 +445,7 @@ getSenderIdentity qusr mc fmt msg = do
   -- one contained in the message. We throw an error if the two don't match.
   when (((==) <$> mc <*> mSender) == Just False) $
     throwS @'MLSClientSenderUserMismatch
-  pure (mkClientIdentity qusr <$> mSender)
+  pure (mkClientIdentity qusr <$> (mc <|> mSender))
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
@@ -452,6 +456,7 @@ postMLSMessageToLocalConv ::
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSMissingSenderClient,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
@@ -618,6 +623,7 @@ processCommit ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
@@ -752,6 +758,7 @@ processCommitWithAction ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
@@ -786,6 +793,7 @@ processInternalCommit ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
@@ -813,10 +821,28 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
     postponedKeyPackageRefUpdate <-
       if epoch == Epoch 0
         then do
-          -- this is a newly created conversation, and it should contain exactly one
-          -- client (the creator)
-          case (self, cmAssocs cm) of
-            (Left lm, [(qu, (creatorClient, _))])
+          let cType = cnvmType . convMetadata . tUnqualified $ lconv
+          case (self, cType, cmAssocs cm) of
+            (Left _, SelfConv, []) -> do
+              creatorClient <- noteS @'MLSMissingSenderClient senderClient
+              creatorRef <-
+                maybe
+                  (pure senderRef)
+                  ( note (mlsProtocolError "Could not compute key package ref")
+                      . kpRef'
+                      . upLeaf
+                  )
+                  $ cPath commit
+              addMLSClients
+                (convId <$> lconv)
+                qusr
+                (Set.singleton (creatorClient, creatorRef))
+            (Left _, SelfConv, _) ->
+              throw . InternalErrorWithDescription $
+                "Unexpected creator client set in a self-conversation"
+            -- this is a newly created conversation, and it should contain exactly one
+            -- client (the creator)
+            (Left lm, _, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender
                   senderRef' <-
@@ -830,9 +856,9 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
                   -- register the creator client
                   updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef'
             -- remote clients cannot send the first commit
-            (Right _, _) -> throwS @'MLSStaleMessage
+            (Right _, _, _) -> throwS @'MLSStaleMessage
             -- uninitialised conversations should contain exactly one client
-            (_, _) ->
+            (_, _, _) ->
               throw (InternalErrorWithDescription "Unexpected creator client set")
           pure $ pure () -- no key package ref update necessary
         else case upLeaf <$> cPath commit of

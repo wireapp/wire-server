@@ -24,6 +24,7 @@ module Galley.Effects.ConversationStore
     -- * Create conversation
     createConversationId,
     createConversation,
+    createMLSSelfConversation,
 
     -- * Read conversation
     getConversation,
@@ -72,6 +73,9 @@ import Wire.API.MLS.PublicGroupState
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
   CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m Conversation
+  CreateMLSSelfConversation ::
+    Local UserId ->
+    ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
   GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))

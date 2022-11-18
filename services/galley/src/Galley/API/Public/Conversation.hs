@@ -41,7 +41,7 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
-    <@> mkNamedAPI @"create-mls-self-conversation" createMLSSelfConversation
+    <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversation
     <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2

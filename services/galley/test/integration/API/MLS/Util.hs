@@ -107,7 +107,7 @@ postMessage ::
     MonadHttp m,
     HasGalley m
   ) =>
-  UserId ->
+  ClientIdentity ->
   ByteString ->
   m ResponseLBS
 postMessage sender msg = do
@@ -115,7 +115,8 @@ postMessage sender msg = do
   post
     ( galley
         . paths ["mls", "messages"]
-        . zUser sender
+        . zUser (ciUser sender)
+        . zClient (ciClient sender)
         . zConn "conn"
         . content "message/mls"
         . bytes msg
@@ -430,11 +431,8 @@ setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
     action =
       responseJsonError
         =<< liftTest
-          ( putSelfConv
-              (ciUser creator)
-              (ciClient creator)
-          )
-          <!! const 201 === statusCode
+          (getSelfConv (ciUser creator))
+          <!! const 200 === statusCode
 
 createGroup :: ClientIdentity -> GroupId -> MLSTest ()
 createGroup cid gid = do
@@ -834,7 +832,7 @@ sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest [Event]
 sendAndConsumeMessage mp = do
   events <-
     fmap mmssEvents . responseJsonError
-      =<< postMessage (ciUser (mpSender mp)) (mpMessage mp)
+      =<< postMessage (mpSender mp) (mpMessage mp)
         <!! const 201 === statusCode
   consumeMessage mp
 
@@ -1024,16 +1022,14 @@ getGroupInfo sender qcnv = do
         . zConn "conn"
     )
 
-putSelfConv ::
+getSelfConv ::
   UserId ->
-  ClientId ->
   TestM ResponseLBS
-putSelfConv u c = do
+getSelfConv u = do
   g <- viewGalley
-  put $
+  get $
     g
       . paths ["/conversations", "mls-self"]
       . zUser u
-      . zClient c
       . zConn "conn"
       . zType "access"
