@@ -257,7 +257,7 @@ data Rerouting = Static | Prefix
 
 assertMethod :: Request -> ByteString -> IO ()
 assertMethod req meth = do
-  when (requestMethod req /= meth) $ do
+  when (mk (requestMethod req) /= mk meth) $ do
     throwM error405
 
 lookupQueryParam :: ByteString -> Request -> IO Text
