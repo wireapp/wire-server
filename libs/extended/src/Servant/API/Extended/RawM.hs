@@ -47,7 +47,7 @@ instance HasServer RawM context where
       Fail e -> respond' $ Fail e
       FailFatal e -> respond' $ FailFatal e
 
-  hoistServerWithContext _ _ f srvM = \req respond -> f (srvM req respond)
+  hoistServerWithContext _ _ f srvM req respond = f (srvM req respond)
 
 instance HasSwagger RawM where
   toSwagger _ = toSwagger (Proxy @Raw)
