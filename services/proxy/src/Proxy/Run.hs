@@ -68,16 +68,9 @@ run o = do
       middleware m lgr =
         versionMiddleware
           . servantPrometheusMiddleware (DP.Proxy @CombinedAPI)
-          -- FUTUREWORK: the `lgr` passed to `catchErrors` below doesn't get the request id
-          -- from the request.  could be done, though: consult logger instance in Proxy.Proxy,
-          -- write something typed `Env -> Logger` from that, take `Env` as arg and add
-          -- explicit arguments `innerApp` and `req` to `middleware` above, pass them again to
-          -- the middleware we construct here at the end, and then use `req` to call
-          -- `injectReqId` on `e0`.
-          --
-          -- Update: nope, can't be done, tinylog hides the `Logger` type and thus we can't
-          -- modify the `IO (Msg -> Msg)` field.  `/libs/extended` doesn't help with that
-          -- either.  we need to patch tinylog for this to work nicely.
+          -- `catchErrors` plucks the request id from the request again by hand, so it's ok
+          -- the logger we pass here doesn't do that implicitly.  not very elegant or robuts,
+          -- but works!
           . catchErrors lgr [Right m]
 
   m <- metrics
