@@ -23,7 +23,7 @@ data RawM deriving (Typeable)
 --
 -- Example:
 --
--- > type MyApi = "images" :> Raw
+-- > type MyApi = "images" :> RawM
 -- >
 -- > server :: Server MyApi
 -- > server = serveDirectory "/var/www/images"
