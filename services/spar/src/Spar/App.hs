@@ -85,6 +85,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import Wire.API.Team.Role (defaultRole)
 import Wire.API.User hiding (validateEmail)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -169,7 +170,7 @@ createSamlUserWithId ::
   Sem r ()
 createSamlUserWithId teamid buid suid = do
   uname <- either (throwSparSem . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
-  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing Nothing
+  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing defaultRole
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
 

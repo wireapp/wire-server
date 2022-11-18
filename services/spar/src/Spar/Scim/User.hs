@@ -273,7 +273,7 @@ validateScimUser' errloc midp richInfoLimit user = do
   let active = Scim.active user
   lang <- maybe (throwError $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   mRole <- validateRole user
-  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) mRole
+  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) (fromMaybe defaultRole mRole)
   where
     validRoleNames :: Text
     validRoleNames = cs $ intercalate ", " $ map (cs . toByteString') [minBound @Role .. maxBound]
@@ -577,11 +577,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
       -- if the locale of the new valid SCIM user is not set,
       -- we set it to default value from brig
       defLocale <- lift BrigAccess.getDefaultUserLocale
-      let newValidScimUser =
-            nvsu
-              { ST._vsuLocale = ST._vsuLocale nvsu <|> Just defLocale,
-                ST._vsuRole = ST._vsuRole nvsu <|> Just defaultRole
-              }
+      let newValidScimUser = nvsu {ST._vsuLocale = ST._vsuLocale nvsu <|> Just defLocale}
 
       -- assertions about new valid scim user that cannot be checked in 'validateScimUser' because
       -- they differ from the ones in 'createValidScimUser'.
@@ -611,7 +607,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
               BrigAccess.setLocale uid (newValidScimUser ^. ST.vsuLocale)
 
             when (oldValidScimUser ^. ST.vsuRole /= newValidScimUser ^. ST.vsuRole) $ do
-              GalleyAccess.updateTeamMember uid stiTeam (fromMaybe defaultRole $ newValidScimUser ^. ST.vsuRole)
+              GalleyAccess.updateTeamMember uid stiTeam (newValidScimUser ^. ST.vsuRole)
 
             BrigAccess.getStatusMaybe uid >>= \case
               Nothing -> pure ()
@@ -962,7 +958,7 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
               ST._vsuRichInfo = richInfo,
               ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus,
               ST._vsuLocale = Just locale,
-              ST._vsuRole = Just role
+              ST._vsuRole = role
             }
 
   pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
@@ -975,7 +971,7 @@ synthesizeScimUser info =
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive,
           Scim.preferredLanguage = lan2Text . lLanguage <$> info ^. ST.vsuLocale,
-          Scim.roles = maybe [] ((: []) . cs . toByteString) (info ^. ST.vsuRole)
+          Scim.roles = (: []) . cs . toByteString $ info ^. ST.vsuRole
         }
 
 getUserById ::

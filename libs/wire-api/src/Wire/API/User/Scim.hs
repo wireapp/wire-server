@@ -328,7 +328,7 @@ data ValidScimUser = ValidScimUser
     _vsuRichInfo :: RI.RichInfo,
     _vsuActive :: Bool,
     _vsuLocale :: Maybe Locale,
-    _vsuRole :: Maybe Role
+    _vsuRole :: Role
   }
   deriving (Eq, Show)
 

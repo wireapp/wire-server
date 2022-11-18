@@ -691,7 +691,7 @@ data NewUserSpar = NewUserSpar
     newUserSparHandle :: Maybe Handle,
     newUserSparRichInfo :: Maybe RichInfo,
     newUserSparLocale :: Maybe Locale,
-    newUserSparRole :: Maybe Role
+    newUserSparRole :: Role
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSpar)
@@ -717,7 +717,7 @@ instance ToSchema NewUserSpar where
         <*> newUserSparLocale
           .= maybe_ (optField "newUserSparLocale" schema)
         <*> newUserSparRole
-          .= maybe_ (optField "newUserSparRole" schema)
+          .= field "newUserSparRole" schema
 
 newUserFromSpar :: NewUserSpar -> NewUser
 newUserFromSpar new =

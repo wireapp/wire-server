@@ -100,9 +100,9 @@ createBrigUserSAML ::
   Maybe Handle ->
   Maybe RichInfo ->
   Maybe Locale ->
-  Maybe Role ->
+  Role ->
   m UserId
-createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale mRole = do
+createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale role = do
   let newUser =
         NewUserSpar
           { newUserSparUUID = buid,
@@ -113,7 +113,7 @@ createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale 
             newUserSparHandle = handle,
             newUserSparRichInfo = richInfo,
             newUserSparLocale = mLocale,
-            newUserSparRole = mRole
+            newUserSparRole = role
           }
   resp :: ResponseLBS <-
     call $

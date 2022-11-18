@@ -256,7 +256,7 @@ createUserSpar new = do
     pure account
 
   -- Add to team
-  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing) (fromMaybe defaultRole $ newUserSparRole new)
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing) (newUserSparRole new)
 
   -- Set up feature flags
   let uid = userId (accountUser account)
