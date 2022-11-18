@@ -27,7 +27,7 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString (breakSubstring)
 import qualified Data.ByteString.Lazy as B
-import Data.CaseInsensitive (CI)
+import Data.CaseInsensitive (CI, mk)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Configurator as Config
 import qualified Data.List as List
@@ -231,6 +231,12 @@ failWith txt = err (msg txt) >> throwM error500
 isError :: Status -> Bool
 isError (statusCode -> c) = c < 200 || c > 299
 
+error400 :: ByteString -> Error
+error400 param = mkError status400 "missing-query-param" ("Bad request: " <> cs param <> " query param is missing")
+
+error405 :: Error
+error405 = mkError status405 "method-not-allowed" "Method not allowed"
+
 error500 :: Error
 error500 = mkError status500 "internal-error" "Internal server error"
 
@@ -249,13 +255,14 @@ instance ToBytes S where
 
 data Rerouting = Static | Prefix
 
--- TODO: throw wai error '405 wrong method' that will be caught and rendered by `catchErrors`
--- in "Proxy.Run".
 assertMethod :: Request -> ByteString -> IO ()
 assertMethod req meth = do
-  unless (requestMethod req == meth) $ do
-    undefined
+  when (requestMethod req /= meth) $ do
+    throwM error405
 
--- TODO: throw wai error 400 that will be caught and rendered by `catchErrors` in "Proxy.Run".
 lookupQueryParam :: ByteString -> Request -> IO Text
-lookupQueryParam = undefined
+lookupQueryParam key req = do
+  lookup (mk key) (requestHeaders req)
+    & maybe
+      (throwM $ error400 key)
+      (pure . cs)
