@@ -19,7 +19,6 @@ module Wire.API.Routes.Public.Proxy where
 
 import Data.SOP
 import qualified Data.Swagger as Swagger
-import Imports
 import Servant
 import Servant.API.Extended.RawM (RawM)
 import Servant.Swagger
