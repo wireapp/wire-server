@@ -135,7 +135,6 @@ spotifyTokenIO env rq = do
         . Req.path "/api/token"
         $ Req.empty {Client.secure = True}
 
--- get "/proxy/soundcloud/resolve" (continue soundcloudResolve) (query "url")
 soundcloudResolve :: ApplicationM Proxy
 soundcloudResolve req kont = do
   env <- ask
