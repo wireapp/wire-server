@@ -144,10 +144,10 @@ soundcloudResolve req kont = do
 
 soundcloudResolveIO :: Env -> Text -> IO Response
 soundcloudResolveIO env url = do
-  s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
+  s <- Config.require (env ^. secrets) "secrets.soundcloud"
   let req = Req.queryItem "client_id" s . Req.queryItem "url" (cs url) $ baseReq
   let mgr = env ^. manager
-  res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
+  res <- recovering x2 [handler] $ const (Client.httpLbs req mgr)
   when (isError (Client.responseStatus res)) $
     runProxy env . debug $
       msg (val "unexpected upstream response")
@@ -176,12 +176,12 @@ soundcloudStream req kont = do
 
 soundcloudStreamIO :: Env -> Text -> IO Response
 soundcloudStreamIO env url = do
-  s <- liftIO $ Config.require (env ^. secrets) "secrets.soundcloud"
+  s <- Config.require (env ^. secrets) "secrets.soundcloud"
   req <- Req.noRedirect . Req.queryItem "client_id" s <$> Client.parseRequest (cs url)
   unless (Client.secure req && Client.host req == "api.soundcloud.com") $ do
     runProxy env $ failWith "insecure stream url"
   let mgr = env ^. manager
-  res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
+  res <- recovering x2 [handler] $ const (Client.httpLbs req mgr)
   unless (status302 == Client.responseStatus res) $ do
     runProxy env . debug $
       msg (val "unexpected upstream response")
