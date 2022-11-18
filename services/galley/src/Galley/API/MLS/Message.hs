@@ -688,12 +688,23 @@ processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommit
     throw . mlsProtocolError $
       "The external commit must not have add proposals"
 
-  cid <- case kpIdentity (rmValue newKeyPackage) of
-    Left e -> throw (mlsProtocolError $ "Failed to parse the client identity: " <> e)
-    Right v -> pure v
   newRef <-
     kpRef' newKeyPackage
       & note (mlsProtocolError "An invalid key package in the update path")
+
+  -- validate and update mapping in brig
+  mCid <-
+    nkpresClientIdentity
+      <$$> validateAndAddKeyPackageRef
+        NewKeyPackage
+          { nkpConversation = Data.convId <$> qUntagged lconv,
+            nkpKeyPackage = KeyPackageData (rmRaw newKeyPackage)
+          }
+  cid <- mCid & note (mlsProtocolError "Tried to add invalid KeyPackage")
+
+  unless (cidQualifiedUser cid == qusr) $
+    throw . mlsProtocolError $
+      "The external commit attempts to add another user"
 
   -- check if there is a key package ref in the remove proposal
   remRef <-
@@ -707,20 +718,7 @@ processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommit
           $ "The external commit attempts to remove a client from a user other than themselves"
         pure (Just r)
 
-  -- first perform checks and map the key package if valid
-  addKeyPackageRef
-    newRef
-    (cidQualifiedUser cid)
-    (ciClient cid)
-    (Data.convId <$> qUntagged lconv)
-  -- now it is safe to update the mapping without further checks
-  -- FUTUREWORK: This call is redundent and reduces to the previous
-  -- call of addKeyPackageRef when remRef is Nothing! Should be
-  -- limited to cases where remRef is not Nothing.
   updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
-
-  -- FUTUREWORK: Resubmit backend-provided proposals when processing an
-  -- external commit.
 
   -- increment epoch number
   setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
