@@ -43,6 +43,7 @@ import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
 import Galley.Effects.ConversationStore (ConversationStore (..))
 import Galley.Types.Conversations.Members
+import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Imports
 import Polysemy
@@ -58,37 +59,37 @@ import Wire.API.MLS.PublicGroupState
 
 createMLSSelfConversation ::
   Local UserId ->
-  NewConversation ->
   Client Conversation
-createMLSSelfConversation lusr nc = do
-  let lcnv = mlsSelfConvId <$> lusr
+createMLSSelfConversation lusr = do
+  let cnv = mlsSelfConvId . tUnqualified $ lusr
+      usr = tUnqualified lusr
+      nc =
+        NewConversation
+          { ncMetadata =
+              (defConversationMetadata usr) {cnvmType = SelfConv},
+            ncUsers = ulFromLocals [toUserRole usr],
+            ncProtocol = ProtocolMLSTag
+          }
       meta = ncMetadata nc
-      (proto, mgid, mcs) = case ncProtocol nc of
-        ProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing)
-        ProtocolMLSTag ->
-          let gid = convToGroupId lcnv
-              ep = Epoch 0
-              cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-           in ( ProtocolMLS
-                  ConversationMLSData
-                    { cnvmlsGroupId = gid,
-                      cnvmlsEpoch = ep,
-                      cnvmlsCipherSuite = cs
-                    },
-                Just gid,
-                -- FUTUREWORK: Make the cipher suite be a record field in
-                -- 'NewConversation' instead of hard-coding it here.
-                --
-                -- 'CipherSuite 1' corresponds to
-                -- 'MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519'.
-                Just cs
-              )
+      gid = convToGroupId . qualifyAs lusr $ cnv
+      -- FUTUREWORK: Stop hard-coding the cipher suite
+      --
+      -- 'CipherSuite 1' corresponds to
+      -- 'MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519'.
+      cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+      proto =
+        ProtocolMLS
+          ConversationMLSData
+            { cnvmlsGroupId = gid,
+              cnvmlsEpoch = Epoch 0,
+              cnvmlsCipherSuite = cs
+            }
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
     addPrepQuery
       Cql.insertMLSSelfConv
-      ( tUnqualified lcnv,
+      ( cnv,
         cnvmType meta,
         cnvmCreator meta,
         Cql.Set (cnvmAccess meta),
@@ -97,18 +98,15 @@ createMLSSelfConversation lusr nc = do
         cnvmTeam meta,
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
-        mgid,
-        mcs
+        Just gid,
+        Just cs
       )
-    for_ (cnvmTeam meta) $ \tid ->
-      addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
-    for_ mgid $ \g ->
-      addPrepQuery Cql.insertGroupId (g, tUnqualified lcnv, tDomain lcnv)
+    addPrepQuery Cql.insertGroupId (gid, cnv, tDomain lusr)
 
-  (lmems, rmems) <- addMembers (tUnqualified lcnv) (ncUsers nc)
+  (lmems, rmems) <- addMembers cnv (ncUsers nc)
   pure
     Conversation
-      { convId = tUnqualified lcnv,
+      { convId = cnv,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convDeleted = False,
@@ -326,12 +324,13 @@ toProtocol ::
 toProtocol Nothing _ _ _ = Just ProtocolProteus
 toProtocol (Just ProtocolProteusTag) _ _ _ = Just ProtocolProteus
 toProtocol (Just ProtocolMLSTag) mgid mepoch mcs =
-  ProtocolMLS <$> (ConversationMLSData <$> mgid <*> mapEpoch mepoch <*> mcs)
-  where
-    -- If there is no epoch in the database, assume the epoch is 0 and this is a
-    -- self-conversation.
-    mapEpoch Nothing = Just (Epoch 0)
-    mapEpoch x = x
+  ProtocolMLS
+    <$> ( ConversationMLSData
+            <$> mgid
+            -- If there is no epoch in the database, assume the epoch is 0
+            <*> (mepoch <|> Just (Epoch 0))
+            <*> mcs
+        )
 
 toConv ::
   ConvId ->
@@ -379,7 +378,7 @@ interpretConversationStoreToCassandra ::
 interpretConversationStoreToCassandra = interpret $ \case
   CreateConversationId -> Id <$> embed nextRandom
   CreateConversation loc nc -> embedClient $ createConversation loc nc
-  CreateMLSSelfConversation lusr nc -> embedClient $ createMLSSelfConversation lusr nc
+  CreateMLSSelfConversation lusr -> embedClient $ createMLSSelfConversation lusr
   GetConversation cid -> embedClient $ getConversation cid
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids

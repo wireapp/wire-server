@@ -75,7 +75,6 @@ data ConversationStore m a where
   CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m Conversation
   CreateMLSSelfConversation ::
     Local UserId ->
-    NewConversation ->
     ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)

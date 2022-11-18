@@ -72,7 +72,6 @@ import Galley.API.Mapping
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import qualified Galley.Data.Conversation as Data
-import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
@@ -85,8 +84,6 @@ import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
-import Galley.Types.ToUserRole
-import Galley.Types.UserList
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -100,7 +97,6 @@ import qualified System.Logger.Class as Logger
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
@@ -641,16 +637,7 @@ getMLSSelfConversation lusr = do
     create = do
       unlessM (isJust <$> getMLSRemovalKey) $
         throw (InternalErrorWithDescription noKeyMsg)
-      let nc =
-            Data.NewConversation
-              { ncMetadata =
-                  (defConversationMetadata usr)
-                    { cnvmType = SelfConv
-                    },
-                ncUsers = ulFromLocals [toUserRole usr],
-                ncProtocol = ProtocolMLSTag
-              }
-      E.createMLSSelfConversation lusr nc
+      E.createMLSSelfConversation lusr
     noKeyMsg =
       "No backend removal key is configured (See 'mlsPrivateKeyPaths'"
         <> "in galley's config). Refusing to create MLS conversation."
