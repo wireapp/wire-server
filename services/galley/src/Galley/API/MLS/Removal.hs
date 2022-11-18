@@ -58,14 +58,14 @@ removeClientsWithClientMap ::
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
-         Error InternalError,
          ProposalStore,
          Input Env
        ]
-      r
+      r,
+    Traversable t
   ) =>
   Local Data.Conversation ->
-  Set (ClientId, KeyPackageRef) ->
+  t KeyPackageRef ->
   ClientMap ->
   Qualified UserId ->
   Sem r ()
@@ -78,7 +78,7 @@ removeClientsWithClientMap lc cs cm qusr = do
         Nothing -> do
           warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
         Just (secKey, pubKey) -> do
-          for_ cs $ \(_client, kpref) -> do
+          for_ cs $ \kpref -> do
             let proposal = mkRemoveProposal kpref
                 msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
                 msgEncoded = encodeMLS' msg
@@ -86,6 +86,7 @@ removeClientsWithClientMap lc cs cm qusr = do
               (cnvmlsGroupId meta)
               (cnvmlsEpoch meta)
               (proposalRef (cnvmlsCipherSuite meta) proposal)
+              ProposalOriginBackend
               proposal
             propagateMessage qusr lc cm Nothing msgEncoded
 
@@ -110,7 +111,7 @@ removeClient ::
   Sem r ()
 removeClient lc qusr cid = do
   cm <- lookupMLSClients (fmap Data.convId lc)
-  let cidAndKP = Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
+  let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
   removeClientsWithClientMap lc cidAndKP cm qusr
 
 -- | Send remove proposals for all clients of the user to clients in the ClientMap.
@@ -134,7 +135,7 @@ removeUserWithClientMap ::
   Qualified UserId ->
   Sem r ()
 removeUserWithClientMap lc cm qusr =
-  removeClientsWithClientMap lc (Map.findWithDefault mempty qusr cm) cm qusr
+  removeClientsWithClientMap lc (Set.toList . Set.map snd $ Map.findWithDefault mempty qusr cm) cm qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::

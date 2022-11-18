@@ -115,7 +115,8 @@ tests s =
         "External commit"
         [ test s "non-member attempts to join a conversation" testExternalCommitNotMember,
           test s "join a conversation with the same client" testExternalCommitSameClient,
-          test s "join a conversation with a new client" testExternalCommitNewClient
+          test s "join a conversation with a new client" testExternalCommitNewClient,
+          test s "join a conversation with a new client and resend backend proposals" testExternalCommitNewClientResendBackendProposal
         ],
       testGroup
         "Application Message"
@@ -1026,6 +1027,61 @@ testExternalCommitNewClient = do
     void $ sendAndConsumeMessage message
 
 -- the list of members should be [alice1, bob1]
+
+-- | Check that external backend proposals are replayed after external commits
+-- AND that (external) client proposals are NOT replayed by the backend in the
+-- same case (since this is up to the clients).
+testExternalCommitNewClientResendBackendProposal :: TestM ()
+testExternalCommitNewClientResendBackendProposal = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+
+  runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    forM_ [bob1, bob2] uploadNewKeyPackage
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+    Just (_, kpBob2) <- find (\(ci, _) -> ci == bob2) <$> getClientsFromGroupState alice1 bob
+
+    mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
+      liftTest $
+        deleteClient (qUnqualified bob) (ciClient bob2) (Just defPassword)
+          !!! statusCode === const 200
+      WS.assertMatchN_ (5 # WS.Second) [wsB] $
+        wsAssertClientRemoved (ciClient bob2)
+
+      State.modify $ \mls ->
+        mls
+          { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bob2])
+          }
+
+      WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
+        wsAssertBackendRemoveProposalWithEpoch bob qcnv kpBob2 (Epoch 1)
+
+      [bob3, bob4] <- for [bob, bob] $ \qusr' -> do
+        ci <- createMLSClient qusr'
+        WS.assertMatchN_ (5 # WS.Second) [wsB] $
+          wsAssertClientAdded (ciClient ci)
+        pure ci
+
+      void $
+        createExternalAddProposal bob3
+          >>= sendAndConsumeMessage
+      WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
+        void . wsAssertAddProposal bob qcnv
+
+      mp <- createExternalCommit bob4 Nothing qcnv
+      ecEvents <- sendAndConsumeCommitBundle mp
+      liftIO $
+        assertBool "No events after external commit expected" (null ecEvents)
+      WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
+        wsAssertMLSMessage qcnv bob (mpMessage mp)
+
+      -- The backend proposals for bob2 are replayed, but the external add
+      -- proposal for bob3 has to replayed by the client and is thus not found
+      -- here.
+      WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
+        wsAssertBackendRemoveProposalWithEpoch bob qcnv kpBob2 (Epoch 2)
+      WS.assertNoEvent (2 # WS.Second) [wsA, wsB]
 
 testAppMessage :: TestM ()
 testAppMessage = do
