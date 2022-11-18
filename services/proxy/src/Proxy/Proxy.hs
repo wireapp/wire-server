@@ -23,14 +23,11 @@ module Proxy.Proxy
   )
 where
 
-import Bilge.Request (requestIdName)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.IO.Unlift ()
-import Data.Default (def)
 import Data.Id (RequestId (..))
 import Imports
-import Network.Wai
 import Proxy.Env
 import qualified System.Logger as Logger
 import System.Logger.Class hiding (Error, info)
