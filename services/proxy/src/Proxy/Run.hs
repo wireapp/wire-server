@@ -69,7 +69,7 @@ run o = do
         versionMiddleware
           . servantPrometheusMiddleware (DP.Proxy @CombinedAPI)
           -- `catchErrors` plucks the request id from the request again by hand, so it's ok
-          -- the logger we pass here doesn't do that implicitly.  not very elegant or robuts,
+          -- the logger we pass here doesn't do that implicitly.  not very elegant or robust,
           -- but works!
           . catchErrors lgr [Right m]
 
