@@ -38,7 +38,7 @@ import Control.Arrow ((&&&))
 import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
 import Control.Monad.Catch
-import Data.Aeson
+import Data.Aeson hiding (json)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens
 import qualified Data.Aeson.Lens as AesonL
@@ -52,8 +52,9 @@ import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy
 import Data.Qualified
-import Data.Range (Range (fromRange))
+import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
@@ -63,8 +64,6 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Data.Vector (Vector)
-import qualified Data.Vector as Vec
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Imports hiding (head)
 import qualified Imports
@@ -85,10 +84,12 @@ import Web.Cookie (parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import qualified Wire.API.Asset as Asset
 import Wire.API.Connection
+import Wire.API.Conversation
 import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.Internal.Notification
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Feature (ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL' (..), LockStatus (LockStatusLocked), withStatus)
 import Wire.API.Team.Invitation (Invitation (inInvitation))
 import Wire.API.Team.Permission hiding (self)
@@ -303,17 +304,40 @@ testCreateUserWithPreverified opts brig aws = do
 testCreateUser :: Brig -> Galley -> Http () -- TODO: this has nothing to do with /register.  what's going on here?
 testCreateUser brig galley = do
   uid <- userId <$> randomUser brig
-  get (galley . path "conversations" . zAuthAccess uid "conn") !!! do
-    const 200 === statusCode
-    -- check number of conversations:
-    const (Just 1) === \r -> do
-      b <- responseBody r
-      c <- b ^? key "conversations"
-      Vec.length <$> (maybeFromJSON c :: Maybe (Vector Value))
-    -- check conversation type:
-    const (Just (1 :: Integer)) === \r -> do
-      b <- responseBody r
-      b ^? key "conversations" . nth 0 . key "type" >>= maybeFromJSON
+  assertOnlySelfConversation galley uid
+
+assertOnlySelfConversation :: Galley -> UserId -> Http ()
+assertOnlySelfConversation galley uid = do
+  page :: ConvIdsPage <-
+    responseJsonError
+      =<< post
+        ( galley
+            . paths ["conversations", "list-ids"]
+            . json
+              ( GetPaginatedConversationIds Nothing (toRange (Proxy @100)) ::
+                  GetPaginatedConversationIds
+              )
+            . zAuthAccess uid "conn"
+        )
+        <!! const 200 === statusCode
+
+  let results = mtpResults page
+  -- check number of conversations
+  liftIO $ length results @?= 1
+  let [qcnv] = results
+
+  -- check conversation type
+  r <-
+    responseJsonError
+      =<< post
+        ( galley
+            . zAuthAccess uid "conn"
+            . paths ["conversations", "list"]
+            . json (ListConversations (unsafeRange [qcnv]))
+        )
+        <!! const 200 === statusCode
+  conv <- assertOne (crFound r)
+  liftIO $ cnvType conv @?= SelfConv
 
 -- The testCreateUserEmptyName test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -361,17 +385,7 @@ testCreateUserAnon brig galley = do
   -- Every registered user gets a self conversation.
   let Just uid = userId <$> responseJsonMaybe rs
       Just quid = userQualifiedId <$> responseJsonMaybe rs
-  get (galley . path "conversations" . zAuthAccess uid "conn") !!! do
-    const 200 === statusCode
-    -- check number of conversations:
-    const (Just 1) === \r -> do
-      b <- responseBody r
-      c <- b ^? key "conversations"
-      Vec.length <$> (maybeFromJSON c :: Maybe (Vector Value))
-    -- check conversation type:
-    const (Just (1 :: Integer)) === \r -> do
-      b <- responseBody r
-      b ^? key "conversations" . nth 0 . key "type" >>= maybeFromJSON
+  assertOnlySelfConversation galley uid
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
