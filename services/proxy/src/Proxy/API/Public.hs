@@ -69,7 +69,7 @@ proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> Applicati
 proxy qparam keyname reroute path phost rq kont = do
   env :: Env <- ask
   liftIO $ do
-    assertMethod req "GET"
+    assertMethod rq "GET"
     proxyIO env qparam keyname reroute path phost rq kont
 
 proxyIO :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> Application
