@@ -43,7 +43,7 @@ Establishing a call
    The SFT server that is quickest to respond is the one that will be used by the client.
    (Request 1: ``CONFCONN``)
 2. *client `A`* gathers connection candidates (own public IP, public IP of the network the
-   client is in with the help of STUN, through TURN servers) [1]_ for the SFT server to
+   client is in with the help of STUN, through `TURN` servers) [1]_ for the SFT server to
    establish a media connection to *client `A`*. These information are then being send again
    from *client `A`* to the chosen SFT server via HTTPS request. (Request 2: ``SETUP``)
 3. The SFT server tests which of the connection candidates actually work. Meaning, it
@@ -60,7 +60,7 @@ and they continue talking to each other by using the data-channel, which uses th
 connection (i.e. no more HTTPS at that point). There are just 2 HTTPS request/response
 sequences per participant.
 
-.. [1] STUN & TURN are both part of a :ref:`Restund server <understand-restund>`
+.. [1] STUN & `TURN` are both part of a :ref:`Restund server <understand-restund>`
 .. [2] This encrypted message is sent in the same conversation, hidden from user's view but
        interpreted by user's clients. It is sent via backend servers and forwarded to other
        conversation participants, not to or via SFT.
@@ -77,11 +77,11 @@ via UDP (see :ref:`Firewall rules <install-sft-firewall-rules>`).
 If that is not possible, then at least SFT servers and Restund servers should be able to reach each
 other via UDP - and clients may connect via UDP and/or TCP to Restund servers
 (see :ref:`Protocols and open ports <understand-restund-protocal-and-ports>`), which in
-turn will connect to the SFT server.
+`TURN` will connect to the SFT server.
 In the unlikely scenario where no UDP is allowed whatsoever or SFT servers may not be able to reach
 the Restund servers that clients are using to make themselves reachable, an SFT server itself can
 also choose to proxy itself by a Restund server, which could be different from the Restund servers
-used by clients (see *TURN discovery* flag).
+used by clients (see *`TURN` discovery* flag).
 
 The SFT may need to receive and send traffic over UDP and TCP on a wide range of ports.
 Due to the fact that Kubernetes services do not support setting port ranges, and Kubernetes pods not being publicly routable (at least in IPv4) we require the SFT pods to run in `hostNetwork` mode and the pod will bind directly to the default interface of the node.
@@ -108,7 +108,7 @@ One-to-one calls are calls between two clients, whereas conference calls can hos
 
 Both flavors have the same technological foundation and heavily rely on `WebRTC <https://webrtc.org/>`__ for media encoding/decoding, encryption and media routing.
 
-Conference calls use an additional server-side component (Selective Forwarding TURN Server) as well as an additional encryption method.
+Conference calls use an additional server-side component (Selective Forwarding `TURN` Server) as well as an additional encryption method.
 
 Call signaling
 ..............
@@ -119,36 +119,36 @@ Call signalling parameters to establish a connection between Wire endpoints and 
 
 For one-to-one calls, these messages are sent between clients as `E2EE` messages, using the same encryption as text messages.
 
-In the case of conference calls, `SDP` messages are sent as `HTTPS` messages between a client `A`nd a Selective Forwarding TURN (SFT) server.
+In the case of conference calls, `SDP` messages are sent as `HTTPS` messages between a client `A`nd a Selective Forwarding `TURN` (SFT) server.
 
 Media transport
 ...............
 
 Once connected, endpoints determine a transport path for the media between them.
 
-Whenever possible the endpoints allow direct media flow between them, however some networks may have a topology (e.g. with firewalls or NATs) preventing direct streaming and instead require the media to be relayed through a TURN server.
+Whenever possible the endpoints allow direct media flow between them, however some networks may have a topology (e.g. with firewalls or NATs) preventing direct streaming and instead require the media to be relayed through a `TURN` server.
 
 `ICE` ( `Interactive Connectivity Establishment <https://en.wikipedia.org/wiki/Interactive_Connectivity_Establishment>`__ ) identifies the most suitable transport path.
 
-TURN servers are part of the Wire backend infrastructure but are standalone components that are not connected to the rest of the backend components and therefore do not share data with them.
+`TURN` servers are part of the Wire backend infrastructure but are standalone components that are not connected to the rest of the backend components and therefore do not share data with them.
 
 They do not know the user ID of the users that use them and act purely as relay servers for media streams.
 
-Clients use generic credentials to authenticate against the TURN servers, so that calls are indistinguishable for TURN servers.
+Clients use generic credentials to authenticate against the `TURN` servers, so that calls are indistinguishable for `TURN` servers.
 
-Therefore, TURN servers cannot log identifiable call records.
+Therefore, `TURN` servers cannot log identifiable call records.
 
-TURN servers and the backend only share a long-term secret key that is used to symmetrically sign the generic credentials used by the clients to authenticate to the TURN server.
+`TURN` servers and the backend only share a long-term secret key that is used to symmetrically sign the generic credentials used by the clients to authenticate to the `TURN` server.
 
 The credentials are emitted by the backend.
 
 They expire after 24 hours and need to be refreshed by the clients.
 
-The TURN server can verify the signature with the long-term secret key.
+The `TURN` server can verify the signature with the long-term secret key.
 
-The purpose of these credentials is to prevent DoS ( `Denial Of Service <https://en.wikipedia.org/wiki/Denial-of-service_attack>`__ ) attacks against the TURN server.
+The purpose of these credentials is to prevent DoS ( `Denial Of Service <https://en.wikipedia.org/wiki/Denial-of-service_attack>`__ ) attacks against the `TURN` server.
 
-In the case of a conference call the client starting the conference transmits the TURN servers and credentials to the SFT server as SFT servers do not have their own connection to the backend.
+In the case of a conference call the client starting the conference transmits the `TURN` servers and credentials to the SFT server as SFT servers do not have their own connection to the backend.
 
 Encoding
 ........
@@ -179,19 +179,19 @@ Call setup example
 
 The following is an example for setting up a one-to-one call with client `A` calling client `B`.
 
-Client `A` connects to TURN server A and client `B` to TURN server B.
+Client `A` connects to `TURN` server A and client `B` to `TURN` server B.
 
-In practice these two TURN servers could be the same server.
+In practice these two `TURN` servers could be the same server.
 
-The separation was chosen to reflect the fact that the external side of the TURN servers connects via `UDP`.
+The separation was chosen to reflect the fact that the external side of the `TURN` servers connects via `UDP`.
 
-Clients may also directly connect via UDP to either other clients that are directly reachable or to a TURN server that a client is connected to.
+Clients may also directly connect via UDP to either other clients that are directly reachable or to a `TURN` server that a client is connected to.
 
 .. figure:: img/sft-call-setup-example.png
    :alt: Call setup example
    :align: center
 
-   client `A` connecting with client `B` via TURN server A and TURN server B
+   client `A` connecting with client `B` via `TURN` server A and `TURN` server B
 
 Before a call can be set up, clients need to receive a call configuration from their associated backend.
 
@@ -199,9 +199,9 @@ This configuration is received when clients come online after they were offline 
 
 The refresh interval (TTL, `Time To Live <https://en.wikipedia.org/wiki/Time_to_live>`__) can be set on the backend and is transmitted to clients in the configuration.
 
-The configuration contains all available TURN servers, credentials to connect to the TURN server, and all available transport protocols.
+The configuration contains all available `TURN` servers, credentials to connect to the `TURN` server, and all available transport protocols.
 
-TURN servers can be configured to allow any combination out of `UDP`, `TCP`, and `TLS`.
+`TURN` servers can be configured to allow any combination out of `UDP`, `TCP`, and `TLS`.
 
 They are listening on the following ports:
 
@@ -244,7 +244,7 @@ A typical call configuration for one `TURN` server and all transports, and one `
       }]
       }
 
-In the above example, client `A` would receive a call configuration from the backend that includes TURN server A in combination with `UDP`, `TCP`, and `TLS` transport.
+In the above example, client `A` would receive a call configuration from the backend that includes `TURN` server A in combination with `UDP`, `TCP`, and `TLS` transport.
 
 On the other side, client `B` would receive a similar call configuration from the backend as well that includes `TURN` server B.
 
@@ -262,40 +262,94 @@ On the other side, client `B` would receive a similar call configuration from th
 
    Signaling flow during call setup phase.
 
-When client `A` sets up a call to client `B`, it contacts all `TURN` servers that were listed in the call configuration, in the above example TURN server `A`, with an allocation request.
+When client `A` sets up a call to client `B`, it contacts all `TURN` servers that were listed in the call configuration, in the above example `TURN` server `A`, with an allocation request.
 
-TURN server `A` then allocates and returns a UDP port on the “external” network for client `A`.
+`TURN` server `A` then allocates and returns a UDP port on the “external” network for client `A`.
 
-Client `A` now is reachable from the outside via the tuple of external IP address of TURN server `A` and the allocated UDP port.
+Client `A` now is reachable from the outside via the tuple of external IP address of `TURN` server `A` and the allocated UDP port.
 
 All data that is sent to this tuple will be forwarded to client `A`.
 
-The next step in the call setup process is to send this allocated tuple to client `B` in a call setup message via an E2EE message.
+The next step in the call setup process is to send this allocated tuple to client `B` in a call setup message via an `E2EE` message.
 
 When client `B` receives the setup message it will run through the same procedure as client `A`.
 
-Client `B` contacts TURN server `B` with an allocation request.
+Client `B` contacts `TURN` server `B` with an allocation request.
 
-TURN server `B` then allocates and returns a UDP port on the “external” network for client `B`.
+`TURN` server `B` then allocates and returns a `UDP` port on the «external» network for client `B`.
 
-Client `B` at this point is reachable from the outside via the tuple of external IP address of TURN server `B` and the allocated UDP port.
+Client `B` at this point is reachable from the outside via the tuple of external `IP` address of `TURN` server `B` and the allocated `UDP` port.
 
 All data that is sent to this tuple will be forwarded to client `B`.
 
-Client `B` sends this tuple to client `A` in an answer to the call setup message from client `A` via an E2EE message.
+Client `B` sends this tuple to client `A` in an answer to the call setup message from client `A` via an `E2EE` message.
 
 
 Now both clients, client `A` and client `B`, run through a connectivity check where they try to reach the other client on all possible routes.
 
-Ways to reach the other client includes the TURN allocation, but also local address or server reflexive address may be included.
+Ways to reach the other client includes the `TURN` allocation, but also local address or server reflexive address may be included.
 
 In the above example it is assumed that both clients reside in networks that are not directly reachable from the other side (or want to mask their IP addresses).
 
-Therefore, a connection from client `A` will be established through TURN server `A` connecting to TURN server `B`, forwarded to client `B`.
+Therefore, a connection from client `A` will be established through `TURN` server `A` connecting to `TURN` server `B`, forwarded to client `B`.
 
-Client `B` will connect through TURN server `B` to TURN server `A`, forwarded to client `A`.
+Client `B` will connect through `TURN` server `B` to `TURN` server `A`, forwarded to client `A`.
 
 A path between client `A` and client `B` has been established and both clients can start streaming media.
+
+Calling in federated environments
+.................................
+
+A call between two federated participants is not different from a call between two participants on the same domain.
+
+Both participants exchange connection capabilities as `E2EE` messages and setup their connection based on the available connection endpoints.
+
+Federated backends may additionally provide `TURN` servers to provide external connectivity.
+
+
+Conference calls
+~~~~~~~~~~~~~~~~
+
+This section specifies the end-to-end encryption (`E2EE`) used by the first version of the next generation conference calling system of Wire.
+
+This version implements a base-line security that is comparable with other end-to-end encrypted conferencing solutions today.
+
+The goal however is to move to an `sframe`-based solution on top of MLS.
+
+All messages between clients are sent with the selected `E2EE` protocol and inherit the security properties accordingly, i.e. authenticity and end-to-end encryption.
+
+Selective Forwarding TURN Server (SFT)
+......................................
+
+The `SFT` is the main component in the conference calling architecture.
+
+Its job is to gather encrypted streams from each client and fan them out to the others over a single connection.
+
+In order to establish a call, clients initially connect to the `SFT` server via `HTTPS` and exchanging connection information via `SDP`s in `SETUP` messages.
+
+Once established, the `SFT` and clients exchange media and data-channel messages over `UDP`.
+
+For clients that can not connect directly via `UDP` refer to previous sections on how clients may use `TURN` servers to connect to the `SFT` server.
+
+The `HTTPS` connection between clients and the `SFT` uses the same `TLS` mechanism and parameters described earlier in the `TLS` section.
+
+In that respect, the `SFT` acts as just another `REST`ful backend `API`.
+
+Calling messages
+................
+
+Wire uses JSON for encoding calling messages.
+
+Messages are sent via HTTPS post/response, via E2EE session or via the data channel between clients and the SFT.
+
+Messages only relevant for current call participants are sent via targeted E2EE messages to clients in the ongoing call (only Proteus supports targeted messages, MLS uses a subgroup (see \Cref{wire:subgroups}) to send the message to all actively participating clients).
+
+\Cref{tbl:wire:calling messages} lists the messages used for establishing calls.
+
+\ctodo[inline]{Describe correctly how subgroups are used to distribute the key material for this call}
+
+
+
 
 
 
@@ -340,31 +394,31 @@ and the conference call can happen normally.
     Basic Multi-SFT conference initiated by Alice in domain A, with Bob in domain B
 
 Because some customers do not wish to expose their SFTs directly to hosts on the public
-Internet, the SFTs can allocate a port on a TURN server. In this way, only the IP
-addresses and ports of the TURN server are exposed to the Internet. This can be a separate
-set of TURN servers from those used for ordinary client calling. The diagram below shows
+Internet, the SFTs can allocate a port on a `TURN` server. In this way, only the IP
+addresses and ports of the `TURN` server are exposed to the Internet. This can be a separate
+set of `TURN` servers from those used for ordinary client calling. The diagram below shows
 this scenario.  In this configuration, SFT A2 requests an allocation from the federation
-TURN server in domain A before responding to Alice. The anchor SFT tuple is the address
-allocated on the federation TURN server in domain A.
+`TURN` server in domain A before responding to Alice. The anchor SFT tuple is the address
+allocated on the federation `TURN` server in domain A.
 
 .. figure:: img/multi-sft-turn.png
 
-    Multi-SFT conference with TURN servers between federated SFTs
+    Multi-SFT conference with `TURN` servers between federated SFTs
 
-Finally, for extremely restrictive firewall environments, the TURN servers used for
-federated SFT traffic can be further secured with a TURN to TURN mutually
+Finally, for extremely restrictive firewall environments, the `TURN` servers used for
+federated SFT traffic can be further secured with a `TURN` to `TURN` mutually
 authenticated DTLS connection. The SFTs allocate a channel inside this DTLS connection
 per conference.  The channel number is included along with the anchor SFT tuple
 returned to Alice, which Alice shares with the conversation, which Bob sends to SFT B1,
 and which SFT B1 uses when forming its DTLS connection to SFT A2. This DTLS connection 
-runs on a dedicated port number which is not used for regular TURN traffic. Under this
+runs on a dedicated port number which is not used for regular `TURN` traffic. Under this
 configuration, only that single IP address and port is exposed for each federated TURN
 server with all SFT traffic multiplexed over the connection. The diagram below shows
-this scenario.  Note that this TURN DTLS multiplexing is only used for SFT to SFT
+this scenario.  Note that this `TURN` DTLS multiplexing is only used for SFT to SFT
 communication and does not affect the connectivity requirements for normal one-on-one
 calls.
 
 .. figure:: img/multi-sft-turn-dtls.png
 
-    Multi-SFT conference with federated TURN servers with DTLS multiplexing
+    Multi-SFT conference with federated `TURN` servers with DTLS multiplexing
 
