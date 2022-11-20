@@ -444,6 +444,68 @@ Step by step:
 
 8. On receiving the `CONFSTART` for call 1, client B sees that call 1 was initiated earlier and abandons call 2, reconnecting to the `SFT` for call 1.
 
+Leaving and ending the call
+...........................
+
+This next figure shows the message sequence for clients leaving the call until the last client leaves, ending the call:
+
+.. figure:: img/sft-leaving-and-ending-the-call.png
+   :alt: Leaving and ending the call.
+   :align: center
+
+   Message sequence for leaving and ending the call
+
+Step by step:
+
+1. Client A leaves the call by sending a `HANGUP` message to the `SFT`.
+   The `SFT` responds with a `HANGUP` response and the connection is dropped.
+
+2. The SFT sends an updated `CONFPART` with the participant list [B, C] to the remaining clients.
+
+3. Client B, seeing that it has become the new key generator, generates a new key and sends it via targeted `E2EE` messages 
+   (only `Proteus` supports targeted messages, `MLS` sends the message to the whole group) to the clients still in the call (in this case client C).
+
+4. Client B leaves in the same way.
+
+5. The SFT sends an update `CONFPART` with the participant list [C], client C generates a new key but has no-one to send it to.
+
+6. Client C leaves the call.
+
+7. Since client C was the last remaining client in the call, it sends a `CONFEND` to all clients in the conversation to signal the end of the call.
+   This removes the join button in the UI.
+
+
+CONFPART Messages and the KeyGenerator
+......................................
+
+When a client joins or leaves the call the `SFT` sends a `CONFPART` message to all clients.
+
+Contained in the message is the list of clients, the first of which is designated the `KeyGenerator`.
+
+When this client leaves the call a new list is sent and the first in this list is the new `KeyGenerator`.
+
+Key Requests and Resends
+.........................
+
+There are occasions where clients realize they are missing a key.
+
+When this happens the client requests a key resend from the `KeyGenerator`.
+
+On receiving a key request message a client checks that:
+
+* The local client is the `KeyGenerator`
+* Tthe requesting client is in the conversation (present in the list from backend)
+* The requesting client is currently in the call (present in the latest `CONFPART` from the `SFT`)
+
+If all these conditions are met the keys are sent as if the requesting client just joined the call.
+
+The sequence of sending and re-sending a key is shown here:
+
+.. figure:: img/sft-key-requests-and-resends.png
+   :alt: Key Requests and Resends.
+   :align: center
+
+   Key Requests and Resends: Message sequence when requesting a key resend
 
 
 
