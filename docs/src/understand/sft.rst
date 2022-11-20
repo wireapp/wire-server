@@ -338,15 +338,40 @@ In that respect, the `SFT` acts as just another `REST`ful backend `API`.
 Calling messages
 ................
 
-Wire uses JSON for encoding calling messages.
+Wire uses `JSON` for encoding calling messages.
 
-Messages are sent via HTTPS post/response, via E2EE session or via the data channel between clients and the SFT.
+Messages are sent via `HTTPS` post/response, via `E2EE` session or via the data channel between clients and the `SFT`.
 
-Messages only relevant for current call participants are sent via targeted E2EE messages to clients in the ongoing call (only Proteus supports targeted messages, MLS uses a subgroup (see \Cref{wire:subgroups}) to send the message to all actively participating clients).
+Messages only relevant for current call participants are sent via targeted `E2EE` messages to clients in the ongoing call (only `Proteus` supports targeted messages, `MLS` uses a subgroup to send the message to all actively participating clients).
 
-\Cref{tbl:wire:calling messages} lists the messages used for establishing calls.
+List of the messages used for establishing calls:
 
-\ctodo[inline]{Describe correctly how subgroups are used to distribute the key material for this call}
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| Message    | Transport              | Req  | Resp  | Description                                                                                          |
++============+========================+======+=======+======================================================================================================+
+| SETUP      | HTTPS                  | x    | x     | Contains SDP offer and answer for setting up connection to the SFT                                   |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| PROPSYNC   | Data channel           | x    | x     |  Used to inform clients of video send and mute status.	                                             |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| HANGUP     | Data channel           | x    | x     | Used to disconnect a connection to the SFT in an orderly fashion.	                                 |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| CONFSTART  | E2EE Protocol          | x    | x     | Informs clients of the start of a call.                                                              |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| CONFEND    | E2EE Protocol          | x    |       | Informs clients of the end of the call.	                                                            |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| CONFCONN   | HTTPS                  | x    | x     | Establishes the connection for a call.	                                                            |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| CONFPART   | Data channel           | x    |       | Lists the participants in the call and their streams.                                                |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| CONFPART   | Data channel           |      | x     | Lists authorized participants.	                                                                     |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| CONFKEY    | Targeted E2EE message  | x    |       | Request for missing key in case of missed E2EE messages.	                                          |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| CONFKEY    | Targeted E2EE message  |      | x     | Contains the encryption/decryption keys.	                                                            |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| CONFCHECK  | E2EE Protocol          |      |       | Sent periodically to inform inactive clients that the call is ongoing, fallback for missing CONFEND  |
++------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+
 
 
 
