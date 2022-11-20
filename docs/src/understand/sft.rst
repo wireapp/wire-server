@@ -113,13 +113,13 @@ Conference calls use an additional server-side component (Selective Forwarding T
 Call signaling
 ..............
 
-All calls are initiated through the E2EE session.
+All calls are initiated through the `E2EE` session.
 
-Call signalling parameters to establish a connection between Wire endpoints and negotiating their common capabilities is done by exchanging SDP ( `Session Description Protocol <https://en.wikipedia.org/wiki/Session_Description_Protocol>`__ ) messages.
+Call signalling parameters to establish a connection between Wire endpoints and negotiating their common capabilities is done by exchanging `SDP` ( `Session Description Protocol <https://en.wikipedia.org/wiki/Session_Description_Protocol>`__ ) messages.
 
-For one-to-one calls, these messages are sent between clients as E2EE messages, using the same encryption as text messages.
+For one-to-one calls, these messages are sent between clients as `E2EE` messages, using the same encryption as text messages.
 
-In the case of conference calls, SDP messages are sent as HTTPS messages between a client and a Selective Forwarding TURN (SFT) server.
+In the case of conference calls, `SDP` messages are sent as `HTTPS` messages between a client and a Selective Forwarding TURN (SFT) server.
 
 Media transport
 ...............
@@ -128,7 +128,7 @@ Once connected, endpoints determine a transport path for the media between them.
 
 Whenever possible the endpoints allow direct media flow between them, however some networks may have a topology (e.g. with firewalls or NATs) preventing direct streaming and instead require the media to be relayed through a TURN server.
 
-ICE ( `Interactive Connectivity Establishment <https://en.wikipedia.org/wiki/Interactive_Connectivity_Establishment>`__ ) identifies the most suitable transport path.
+`ICE` ( `Interactive Connectivity Establishment <https://en.wikipedia.org/wiki/Interactive_Connectivity_Establishment>`__ ) identifies the most suitable transport path.
 
 TURN servers are part of the Wire backend infrastructure but are standalone components that are not connected to the rest of the backend components and therefore do not share data with them.
 
@@ -157,17 +157,17 @@ The codec used for streaming is `Opus <https://en.wikipedia.org/wiki/Opus_(audio
 
 Opus can use variable bit rate encoding (`VBR <https://en.wikipedia.org/wiki/Variable_bitrate>`__) or constant bitrate encoding (`CBR <https://en.wikipedia.org/wiki/Constant_bitrate>`__).
 
-Users can choose to enforce CBR in one-to-one calls in the settings.
+Users can choose to enforce `CBR` in one-to-one calls in the settings.
 
-Conference calls always use CBR encoding.
+Conference calls always use `CBR` encoding.
 
-In custom builds of Wire it is possible to enforce the CBR option for one-to-one calls, too and remove this option for the users.
+In custom builds of Wire it is possible to enforce the `CBR` option for one-to-one calls, too and remove this option for the users.
 
-CBR has the advantage of eliminating potentially undesired information about packet length but might have an impact on call quality on slow networks.
+`CBR` has the advantage of eliminating potentially undesired information about packet length but might have an impact on call quality on slow networks.
 
-It is sufficient if one of the two parties of a call enables the CBR option, CBR will then always be used for calls of that user.
+It is sufficient if one of the two parties of a call enables the `CBR` option, `CBR` will then always be used for calls of that user.
 
-When CBR is used, the calling screen will display `CONSTANT BIT RATE`.
+When `CBR` is used, the calling screen will display `CONSTANT BIT RATE`.
 
 In video calls the CBR option affects the audio streams like in audio calls, but the calling screen will not display `CONSTANT BIT RATE`.
 
@@ -177,16 +177,72 @@ One-on-One calls
 Call setup example
 ..................
 
-The following is an example for setting up a one-to-one call with client~A calling client~B (see \Cref{fig:turn_connection}).
+The following is an example for setting up a one-to-one call with client A calling client B.
 
-Client~A connects to TURN server~A and client~B to TURN server~B.
+Client~A connects to TURN server A and client B to TURN server B.
 
 In practice these two TURN servers could be the same server.
 
-The separation was chosen to reflect the fact that the external side of the TURN servers connects via UDP.
+The separation was chosen to reflect the fact that the external side of the TURN servers connects via `UDP`.
 
 Clients may also directly connect via UDP to either other clients that are directly reachable or to a TURN server that a client is connected to.
 
+.. figure:: img/sft-call-setup-example.png
+   :alt: Call setup example
+   :align: center
+
+   Client A connecting with client B via TURN server A and TURN server B
+
+Before a call can be set up, clients need to receive a call configuration from their associated backend.
+
+This configuration is received when clients come online after they were offline for a longer time and it is frequently refreshed while being online.
+
+The refresh interval (TTL, `Time To Live <https://en.wikipedia.org/wiki/Time_to_live>`__) can be set on the backend and is transmitted to clients in the configuration.
+
+The configuration contains all available TURN servers, credentials to connect to the TURN server, and all available transport protocols.
+
+TURN servers can be configured to allow any combination out of `UDP`, `TCP`, and `TLS`.
+
+They are listening on the following ports:
+
+* `3478` for `UDP`
+* `3478` for `TCP`
+* `5349` for `TLS`
+
+For conference calls the call configuration also contains `URL`s to `SFT` servers.
+
+To allow for load balancing over multiple `SFT` servers on the backend side, the call configuration is refreshed immediately before starting a conference call.
+
+This way the backend can always distribute `SFT` servers with available capacity for a conference.
+
+A typical call configuration for one `TURN` server and all transports, and one `SFT` server received by clients may look like this:
+
+.. code-block::
+   :caption: Example call configuration
+
+      {
+      "ttl": 3600,
+      "ice_servers": [
+      {
+         "urls": ["turn:turn01.de.somedomain.com:3478?transport=udp"],
+         "credential":"qvt5kHU7vQ5HK6JxihBIFY60fVm8FTFiRlv2LKdOJi6LX8yauMoXGSzRY/6MEokaCFerNWkbNyYh02ngOXFtgA==",
+         "username":"d=1618436350.v=1.k=0.t=s.r=olgeadtuaoxmtkhz"
+      },
+      {
+         "urls": ["turns:turn01.de.somedomain.com:5349?transport=tcp"],
+         "credential": "QanQMQZvRZwQmojx3D/78lsZZLGwbGabqTOREUigf2vihwuSppWMz9PIytkvbBTyjDYR21/79coGJ8ZJ/3l9Og==",
+         "username": "d=1618436350.v=1.k=0.t=s.r=ogmdrqxmirpaiyss"
+      },
+      {
+         "urls": ["turn:turn01.de.somedomain.com:3478?transport=tcp"],
+         "credential": "e2snEvOH1mWaUgWaYvXG5i53XymAhJQWxENNLK5GDBoeTnAo8rb9Ne+pfSgG16WeyQqHSBVAXbaeZ3kzVWN0NQ==",
+         "username": "d=1618436350.v=1.k=0.t=s.r=pekwyrmcocpgicqq"
+      }],
+      "sft_servers": [
+      {
+         "urls": ["https://sft01.sft.somedomain.com:443"]
+      }]
+      }
 
 
 
