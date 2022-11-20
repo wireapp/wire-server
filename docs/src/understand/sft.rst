@@ -406,6 +406,45 @@ Step by step:
 
 9. Client A sees client C as a new client and sends a `CONFKEY` to client C also.
 
+Conflict resolution
+...................
+
+If two clients try to initiate a call at the same time, they will generate different random secrets and end up in two different calls on the `SFT`.
+
+To avoid this a conflict resolution procedure is in place.
+
+This is resolved by the `SFT` passing a creation time and sequence number to the client in the `CONFPART` message.
+
+This is relayed to the other clients in the `CONFSTART` message.
+
+The call with the earliest creation-sequence value wins the conflict, the other client abandons the call and joins the newer one.
+
+.. figure:: img/sft-conflict-resolution.png
+   :alt: Conflict resolution.
+   :align: center
+
+   Conflict resolution: Sequence of messages of a conflict (connection messages are simplified)
+
+Step by step:
+
+1. Client A starts a call (call 1) in the conversation in the same fashion as above.
+
+2. The `SFT` passes a `CONFPART` message with the participant list for call 1: [A].
+
+3. As this is a new call, client A sends a `CONFSTART` for call 1 to all clients in the conversation.
+
+4. Client B, having not received the `CONFSTART` for call 1 yet, starts another call (call 2) in the conversation.
+
+5. The `SFT` passes a `CONFPART` message with the participant list for call 2: [B].
+
+6. As call 2 is a new call, client B sends a `CONFSTART` for call 2 to all clients in the conversation.
+
+7. Client A receives the `CONFSTART` for call 2, compares the timestamp and sequence number and determines that call 1 was initiated earlier.
+   Client A then resends the `CONFSTART` for call 1.
+
+8. On receiving the `CONFSTART` for call 1, client B sees that call 1 was initiated earlier and abandons call 2, reconnecting to the `SFT` for call 1.
+
+
 
 
 .. _federated-sft:
