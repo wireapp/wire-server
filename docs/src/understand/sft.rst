@@ -39,23 +39,23 @@ and that the instance allocates at least one port for media transport per partic
 Establishing a call
 -------------------
 
-1. *Client A* wants to initiate a call. It contacts all the known SFT servers via HTTPS.
+1. *client `A`* wants to initiate a call. It contacts all the known SFT servers via HTTPS.
    The SFT server that is quickest to respond is the one that will be used by the client.
    (Request 1: ``CONFCONN``)
-2. *Client A* gathers connection candidates (own public IP, public IP of the network the
+2. *client `A`* gathers connection candidates (own public IP, public IP of the network the
    client is in with the help of STUN, through TURN servers) [1]_ for the SFT server to
-   establish a media connection to *Client A*. These information are then being send again
-   from *Client A* to the chosen SFT server via HTTPS request. (Request 2: ``SETUP``)
+   establish a media connection to *client `A`*. These information are then being send again
+   from *client `A`* to the chosen SFT server via HTTPS request. (Request 2: ``SETUP``)
 3. The SFT server tests which of the connection candidates actually work. Meaning, it
    goes through all the candidates until one leads to a successful media connection
-   between itself and *client A*
-4. *Client A* sends an end-to-end encrypted message [2]_ ``CONFSTART`` to all members of chat, which contains
+   between itself and *client `A`*
+4. *client `A`* sends an end-to-end encrypted message [2]_ ``CONFSTART`` to all members of chat, which contains
    the URL of the SFT server that is being used for the call.
 5. Any other client that wants to join the call, does 1. + 2. with the exception of **only**
-   contacting one SFT server i.e. the one that *client A* chose and told all other
+   contacting one SFT server i.e. the one that *client `A`* chose and told all other
    potential participants about via ``CONFSTART`` message
 
-At that point a media connection between *client A* and the SFT server has been established,
+At that point a media connection between *client `A`* and the SFT server has been established,
 and they continue talking to each other by using the data-channel, which uses the media
 connection (i.e. no more HTTPS at that point). There are just 2 HTTPS request/response
 sequences per participant.
@@ -119,7 +119,7 @@ Call signalling parameters to establish a connection between Wire endpoints and 
 
 For one-to-one calls, these messages are sent between clients as `E2EE` messages, using the same encryption as text messages.
 
-In the case of conference calls, `SDP` messages are sent as `HTTPS` messages between a client and a Selective Forwarding TURN (SFT) server.
+In the case of conference calls, `SDP` messages are sent as `HTTPS` messages between a client `A`nd a Selective Forwarding TURN (SFT) server.
 
 Media transport
 ...............
@@ -177,9 +177,9 @@ One-on-One calls
 Call setup example
 ..................
 
-The following is an example for setting up a one-to-one call with client A calling client B.
+The following is an example for setting up a one-to-one call with client `A` calling client `B`.
 
-Client~A connects to TURN server A and client B to TURN server B.
+Client `A` connects to TURN server A and client `B` to TURN server B.
 
 In practice these two TURN servers could be the same server.
 
@@ -191,7 +191,7 @@ Clients may also directly connect via UDP to either other clients that are direc
    :alt: Call setup example
    :align: center
 
-   Client A connecting with client B via TURN server A and TURN server B
+   client `A` connecting with client `B` via TURN server A and TURN server B
 
 Before a call can be set up, clients need to receive a call configuration from their associated backend.
 
@@ -244,6 +244,58 @@ A typical call configuration for one `TURN` server and all transports, and one `
       }]
       }
 
+In the above example, client `A` would receive a call configuration from the backend that includes TURN server A in combination with `UDP`, `TCP`, and `TLS` transport.
+
+On the other side, client `B` would receive a similar call configuration from the backend as well that includes `TURN` server B.
+
+.. note::
+
+   Note that neither client `A` or B has or requires any knowledge about the call configuration on the other side (B or A) at the time a call is initiated.
+
+.. note::
+
+   Also note that even though the example above only shows one `TURN` server, for redundancy reasons, there might be multiple `TURN`, and multiple `SFT` servers provided in the configuration.
+
+.. figure:: img/sft-signaling-flow.png
+   :alt: Signaling flow
+   :align: center
+
+   Signaling flow during call setup phase.
+
+When client `A` sets up a call to client `B`, it contacts all `TURN` servers that were listed in the call configuration, in the above example TURN server `A`, with an allocation request.
+
+TURN server `A` then allocates and returns a UDP port on the “external” network for client `A`.
+
+Client `A` now is reachable from the outside via the tuple of external IP address of TURN server `A` and the allocated UDP port.
+
+All data that is sent to this tuple will be forwarded to client `A`.
+
+The next step in the call setup process is to send this allocated tuple to client `B` in a call setup message via an E2EE message.
+
+When client `B` receives the setup message it will run through the same procedure as client `A`.
+
+Client `B` contacts TURN server `B` with an allocation request.
+
+TURN server `B` then allocates and returns a UDP port on the “external” network for client `B`.
+
+Client `B` at this point is reachable from the outside via the tuple of external IP address of TURN server `B` and the allocated UDP port.
+
+All data that is sent to this tuple will be forwarded to client `B`.
+
+Client `B` sends this tuple to client `A` in an answer to the call setup message from client `A` via an E2EE message.
+
+
+Now both clients, client `A` and client `B`, run through a connectivity check where they try to reach the other client on all possible routes.
+
+Ways to reach the other client includes the TURN allocation, but also local address or server reflexive address may be included.
+
+In the above example it is assumed that both clients reside in networks that are not directly reachable from the other side (or want to mask their IP addresses).
+
+Therefore, a connection from client `A` will be established through TURN server `A` connecting to TURN server `B`, forwarded to client `B`.
+
+Client `B` will connect through TURN server `B` to TURN server `A`, forwarded to client `A`.
+
+A path between client `A` and client `B` has been established and both clients can start streaming media.
 
 
 
