@@ -349,32 +349,62 @@ List of the messages used for establishing calls:
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
 | Message    | Transport              | Req  | Resp  | Description                                                                                          |
 +============+========================+======+=======+======================================================================================================+
-| SETUP      | HTTPS                  | x    | x     | Contains SDP offer and answer for setting up connection to the SFT                                   |
+| `SETUP`    | `HTTPS`                | x    | x     | Contains SDP offer and answer for setting up connection to the SFT                                   |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| PROPSYNC   | Data channel           | x    | x     |  Used to inform clients of video send and mute status.	                                             |
+| `PROPSYNC` | `Data channel`         | x    | x     |  Used to inform clients of video send and mute status.	                                             |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| HANGUP     | Data channel           | x    | x     | Used to disconnect a connection to the SFT in an orderly fashion.	                                 |
+| `HANGUP`   | `Data channel`         | x    | x     | Used to disconnect a connection to the SFT in an orderly fashion.	                                 |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| CONFSTART  | E2EE Protocol          | x    | x     | Informs clients of the start of a call.                                                              |
+| `CONFSTART`| `E2EE Protocol`        | x    | x     | Informs clients of the start of a call.                                                              |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| CONFEND    | E2EE Protocol          | x    |       | Informs clients of the end of the call.	                                                            |
+| `CONFEND`  | `E2EE Protocol`        | x    |       | Informs clients of the end of the call.	                                                            |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| CONFCONN   | HTTPS                  | x    | x     | Establishes the connection for a call.	                                                            |
+| `CONFCONN` | `HTTPS`                | x    | x     | Establishes the connection for a call.	                                                            |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| CONFPART   | Data channel           | x    |       | Lists the participants in the call and their streams.                                                |
+| `CONFPART` | `Data channel`         | x    |       | Lists the participants in the call and their streams.                                                |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| CONFPART   | Data channel           |      | x     | Lists authorized participants.	                                                                     |
+| `CONFPART` | `Data channel`         |      | x     | Lists authorized participants.	                                                                     |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| CONFKEY    | Targeted E2EE message  | x    |       | Request for missing key in case of missed E2EE messages.	                                          |
+| `CONFKEY`  |`Targeted E2EE message `| x    |       | Request for missing key in case of missed E2EE messages.	                                          |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| CONFKEY    | Targeted E2EE message  |      | x     | Contains the encryption/decryption keys.	                                                            |
+| `CONFKEY`  | Targeted E2EE message  |      | x     | Contains the encryption/decryption keys.	                                                            |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| CONFCHECK  | E2EE Protocol          |      |       | Sent periodically to inform inactive clients that the call is ongoing, fallback for missing CONFEND  |
+| `CONFCHECK`| `E2EE Protocol`        |      |       | Sent periodically to inform inactive clients that the call is ongoing, fallback for missing CONFEND  |
 +------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
 
+Starting and joining a call
+...........................
 
+This next figure shows the `HTTPS` calls (red), `E2EE` messages (black) and data channel messages (green) for a three party call, where client `A` starts the call, then client `B` joins and client `C` joins later.
 
+.. figure:: img/sft-starting-and-joining-a-call.png
+   :alt: Starting and joining a call.
+   :align: center
 
+   Message sequence for establishing a conference call
+
+Step by step:
+
+1. Client A starts a call, generates a random secret to be used to generate call and user-client IDs and connects to the SFT by sending a `CONFCONN` message over `HTTPS`.
+
+2. The `SFT` responds with a `SETUP` message including the SDP offer.
+   Client A then sends a `SETUP` response with the SDP answer and a connection started.
+   The `SFT` responds with a `CONFCONN` response.
+
+3. Once the connection is made the SFT sends a `CONFPART` over data-channel containing the participant list [A].
+   Client A responds with a `CONFPART` response (removed from the diagram for simplicity).
+
+4. The `SFT` indicates to client A that this is a new call, so client A sends a `CONFSTART` to all clients in the conversation, giving them the secret so they can also generate the IDs.
+
+5. Client B answers the call and connects in the same manner but is told this is not a new call so doesn’t send a `CONFSTART`.
+
+6. The `SFT` sends the updated participant list [A, B] to both clients.
+
+7. Client A sees that B is a new client and sends a `CONFKEY` to client B so media can be encrypted and decrypted.
+
+8. Client C joins in the same manner and the `SFT` sends `CONFPART` with participant list [A, B, C] to all clients.
+
+9. Client A sees client C as a new client and sends a `CONFKEY` to client C also.
 
 
 
