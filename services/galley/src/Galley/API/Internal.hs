@@ -641,19 +641,20 @@ rmUser ::
       '[ BrigAccess,
          ClientStore,
          ConversationStore,
+         Error InternalError,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
-         Input UTCTime,
          Input Env,
+         Input (Local ()),
+         Input UTCTime,
          ListItems p1 ConvId,
          ListItems p1 (Remote ConvId),
          ListItems p2 TeamId,
-         Input (Local ()),
          MemberStore,
          ProposalStore,
-         TeamStore,
-         P.TinyLog
+         P.TinyLog,
+         TeamStore
        ]
       r
   ) =>

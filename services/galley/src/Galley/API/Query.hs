@@ -141,6 +141,7 @@ getUnqualifiedConversation ::
        ErrorS 'ConvNotFound,
        ErrorS 'ConvAccessDenied,
        Error InternalError,
+       Input Env,
        P.TinyLog
      ]
     r =>
@@ -148,6 +149,13 @@ getUnqualifiedConversation ::
   ConvId ->
   Sem r Public.Conversation
 getUnqualifiedConversation lusr cnv = do
+  -- NOTE: Getting the MLS self-conversation creates it in case it does not
+  -- exist yet. This is to ensure fetching the self-conversation works without
+  -- needing to create it separately.
+  when (mlsSelfConvId (tUnqualified lusr) == cnv) $
+    void $
+      getMLSSelfConversation lusr
+
   c <- getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
 
@@ -160,6 +168,7 @@ getConversation ::
        Error FederationError,
        Error InternalError,
        FederatorAccess,
+       Input Env,
        P.TinyLog
      ]
     r =>
@@ -290,12 +299,24 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  Member (ListItems LegacyPaging ConvId) r =>
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       Input Env,
+       ListItems LegacyPaging ConvId,
+       P.TinyLog
+     ]
+    r =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
   Sem r (Public.ConversationList ConvId)
 conversationIdsPageFromUnqualified lusr start msize = do
+  -- NOTE: Getting the MLS self-conversation creates it in case it does not
+  -- exist yet. This is to ensure it is automatically listed without needing to
+  -- create it separately.
+  void $ getMLSSelfConversation lusr
+
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- E.listItems (tUnqualified lusr) start size
   pure $
@@ -314,12 +335,25 @@ conversationIdsPageFromUnqualified lusr start msize = do
 conversationIdsPageFrom ::
   forall p r.
   ( p ~ CassandraPaging,
-    Members '[ListItems p ConvId, ListItems p (Remote ConvId)] r
+    Members
+      '[ ConversationStore,
+         Error InternalError,
+         Input Env,
+         ListItems p ConvId,
+         ListItems p (Remote ConvId),
+         P.TinyLog
+       ]
+      r
   ) =>
   Local UserId ->
   Public.GetPaginatedConversationIds ->
   Sem r Public.ConvIdsPage
 conversationIdsPageFrom lusr Public.GetMultiTablePageRequest {..} = do
+  -- NOTE: Getting the MLS self-conversation creates it in case it does not
+  -- exist yet. This is to ensure it is automatically listed without needing to
+  -- create it separately.
+  void $ getMLSSelfConversation lusr
+
   let localDomain = tDomain lusr
   case gmtprState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
@@ -364,13 +398,25 @@ conversationIdsPageFrom lusr Public.GetMultiTablePageRequest {..} = do
         }
 
 getConversations ::
-  Members '[Error InternalError, ListItems LegacyPaging ConvId, ConversationStore, P.TinyLog] r =>
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       Input Env,
+       ListItems LegacyPaging ConvId,
+       P.TinyLog
+     ]
+    r =>
   Local UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
   Maybe (Range 1 500 Int32) ->
   Sem r (Public.ConversationList Public.Conversation)
 getConversations luser mids mstart msize = do
+  -- NOTE: Getting the MLS self-conversation creates it in case it does not
+  -- exist yet. This is to ensure it is automatically listed without needing to
+  -- create it separately.
+  void $ getMLSSelfConversation luser
+
   ConversationList cs more <- getConversationsInternal luser mids mstart msize
   flip ConversationList more <$> mapM (Mapping.conversationView luser) cs
 
@@ -416,11 +462,23 @@ getConversationsInternal luser mids mstart msize = do
       | otherwise = pure True
 
 listConversations ::
-  Members '[ConversationStore, Error InternalError, FederatorAccess, P.TinyLog] r =>
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       FederatorAccess,
+       Input Env,
+       P.TinyLog
+     ]
+    r =>
   Local UserId ->
   Public.ListConversations ->
   Sem r Public.ConversationsResponse
 listConversations luser (Public.ListConversations ids) = do
+  -- NOTE: Getting the MLS self-conversation creates it in case it does not
+  -- exist yet. This is to ensure it is automatically listed without needing to
+  -- create it separately.
+  void $ getMLSSelfConversation luser
+
   let (localIds, remoteIds) = partitionQualified luser (fromRange ids)
   (foundLocalIds, notFoundLocalIds) <-
     foundsAndNotFounds (E.selectConversations (tUnqualified luser)) localIds
@@ -620,8 +678,8 @@ getMLSSelfConversation ::
   Members
     '[ ConversationStore,
        Error InternalError,
-       P.TinyLog,
-       Input Env
+       Input Env,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
