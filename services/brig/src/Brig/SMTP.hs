@@ -168,21 +168,40 @@ throwOnLeft = \case
 
 logResult :: MonadIO m => Logger -> String -> Either SMTPFailure c -> m ()
 logResult lg actionString res =
-  case res of
-    Left Unauthorized -> do
-      Logger.log
-        lg
-        Logger.Warn
-        (msg $ concatToVal actionString "Failed to establish connection, check your credentials.")
-    Left ConnectionTimeout -> do
-      Logger.log lg Logger.Warn (msg $ concatToVal actionString "Connection timeout.")
-    Left (CaughtException e) -> do
-      Logger.log lg Logger.Warn (msg $ concatToVal actionString ("Caught exception : " ++ show e))
-    Right _ -> do
-      Logger.log lg Logger.Debug (msg $ concatToVal actionString "Succeeded.")
-  where
-    concatToVal :: ToBytes s1 => s1 -> String -> Builder
-    concatToVal a b = a +++ (" : " :: String) +++ b
+  let msg' = msg ("SMTP connection result" :: String)
+   in case res of
+        Left Unauthorized -> do
+          Logger.log
+            lg
+            Logger.Warn
+            ( msg'
+                . field "action" actionString
+                . field "result" ("Failed to establish connection, check your credentials." :: String)
+            )
+        Left ConnectionTimeout -> do
+          Logger.log
+            lg
+            Logger.Warn
+            ( msg'
+                . field "action" actionString
+                . field "result" ("Connection timeout." :: String)
+            )
+        Left (CaughtException e) -> do
+          Logger.log
+            lg
+            Logger.Warn
+            ( msg'
+                . field "action" actionString
+                . field "result" ("Caught exception : " ++ show e)
+            )
+        Right _ -> do
+          Logger.log
+            lg
+            Logger.Debug
+            ( msg'
+                . field "action" actionString
+                . field "result" ("Succeeded." :: String)
+            )
 
 -- | Default timeout for all actions
 --
