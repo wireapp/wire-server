@@ -212,6 +212,14 @@ logResult lg actionString res =
 defaultTimeoutDuration :: Second
 defaultTimeoutDuration = 15 :: Second
 
+-- | Wrapper function for `SMTP` network actions
+--
+-- This function ensures that @action@ finishes in a given period of time.
+-- Additionally, all exceptions are caught and transformed into @Left
+-- (CaughtException e)@. Staying in @Either SMTPFailure a@ makes error handling
+-- in this module a lot easier compared to having to deal with both, failure
+-- values and exceptions. (We cannot be sure which exceptions may arise as this
+-- depends on a stack of libraries...)
 ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> m a -> m (Either SMTPFailure a)
 ensureSMTPConnectionTimeout timeoutDuration action =
   catch
