@@ -197,6 +197,7 @@ servantSitemap =
     :<|> authAPI
     :<|> callingAPI
     :<|> Team.servantAPI
+    :<|> systemSettingsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -318,6 +319,9 @@ servantSitemap =
     callingAPI =
       Named @"get-calls-config" Calling.getCallsConfig
         :<|> Named @"get-calls-config-v2" Calling.getCallsConfigV2
+
+    systemSettingsAPI :: ServerT SystemSettingsAPI (Handler r)
+    systemSettingsAPI = Named @ "get-system-settings" getSystemSettings
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1094,6 +1098,11 @@ sendVerificationCode req = do
     getFeatureStatus mbAccount = do
       mbStatusEnabled <- lift $ liftSem $ GalleyProvider.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
+
+getSystemSettings :: ExceptT Brig.API.Error.Error (AppT r) SystemSettings
+getSystemSettings = do
+  optSettings <- view settings
+  pure (SystemSettings (Brig.Options.setRestrictUserCreation optSettings))
 
 -- Deprecated
 

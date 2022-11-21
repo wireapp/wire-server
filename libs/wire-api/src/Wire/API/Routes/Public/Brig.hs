@@ -86,6 +86,7 @@ type BrigAPI =
     :<|> AuthAPI
     :<|> CallingAPI
     :<|> TeamsAPI
+    :<|> SystemSettingsAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
@@ -1437,3 +1438,25 @@ type TeamsAPI =
                     '[JSON]
                     (Respond 200 "Number of team members" TeamSize)
            )
+
+-- TODO: Maybe move elsewhere
+data SystemSettings = SystemSettings
+  { setRestrictUserCreation :: !(Maybe Bool)
+  }
+  deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema.Schema SystemSettings
+
+instance Schema.ToSchema SystemSettings where
+  schema =
+    Schema.object "SystemSettings" $
+      SystemSettings
+        <$> setRestrictUserCreation Schema..= Schema.maybe_ (Schema.optField "setRestrictUserCreation" Schema.schema)
+
+type SystemSettingsAPI =
+  Named
+    "get-system-settings"
+    ( Summary "Returns a curated set of system configuration settings."
+        :> "system"
+        :> "settings"
+        :> Get '[JSON] SystemSettings
+    )
