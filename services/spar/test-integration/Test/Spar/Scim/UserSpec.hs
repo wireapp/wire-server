@@ -1507,6 +1507,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
         \we want to implement synchronisation from brig to spar?"
     it "updates to scim user will overwrite these updates" $
       pendingWith "that's probably what we want?"
+  it "updates role" testUpdateUserRole
 
 -- | Tests that you can't unset your display name
 testCannotRemoveDisplayName :: TestSpar ()
@@ -1775,6 +1776,41 @@ testBrigSideIsUpdated = do
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
   let scimUserWithDefLocale = (validScimUser {Spar.Types._vsuLocale = Spar.Types._vsuLocale validScimUser <|> Just (Locale (Language EN) Nothing)})
   brigUser `userShouldMatch` scimUserWithDefLocale
+
+testUpdateUserRole :: TestSpar ()
+testUpdateUserRole = do
+  env <- ask
+  let brig = env ^. teBrig
+  let galley = env ^. teGalley
+  (owner, tid) <- call $ createUserWithTeam brig galley
+  tok <- registerScimToken tid Nothing
+  let testWithInitialRole r = forM_ [minBound .. maxBound] (testUpdateUserRoles brig tid owner tok r)
+  forM_ [minBound .. maxBound] testWithInitialRole
+
+testUpdateUserRoles :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Role -> TestSpar ()
+testUpdateUserRoles brig tid owner tok initialRole targetRole = do
+  email <- randomEmail
+  scimUser <-
+    randomScimUser <&> \u ->
+      u
+        { Scim.User.externalId = Just $ fromEmail email,
+          Scim.User.roles = [cs $ toByteString initialRole]
+        }
+  scimStoredUser <- createUser tok scimUser
+  let userid = scimUserId scimStoredUser
+      userName = Name . fromJust . Scim.User.displayName $ scimUser
+
+  -- user follows invitation flow
+  do
+    inv <- call $ getInvitation brig email
+    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    registerInvitation email userName inviteeCode True
+  let checkRole r = do
+        [member] <- filter ((== scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
+        liftIO $ (member ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just r
+  checkRole initialRole
+  _ <- updateUser tok userid (scimUser {Scim.User.roles = [cs $ toByteString targetRole]})
+  checkRole targetRole
 
 ----------------------------------------------------------------------------
 -- Patching users
