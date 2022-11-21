@@ -334,7 +334,7 @@ data ValidScimUser = ValidScimUser
 -- this does not represent a valid 'ValidExternalId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
 data ValidExternalId
   = EmailAndUref Email SAML.UserRef
-  | UrefOnly SAML.UserRef
+  | UrefOnly SAML.UserRef  -- do we even allow external ids that are not email?  if so, getUsers crud end-point needs to be revisited: it does an email lookup only.
   | EmailOnly Email
   deriving (Eq, Show, Generic)
 

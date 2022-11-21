@@ -1643,6 +1643,7 @@ CREATE TABLE spar_test.bind_cookie (
     AND speculative_retry = '99PERCENTILE';
 
 CREATE TABLE spar_test.user_v2 (
+    -- can we have the same issuer for two teams, and do we need a teamid here in that case?
     issuer text,
     normalized_uname_id text,
     sso_id text,
@@ -1993,4 +1994,3 @@ CREATE TABLE spar_test.user (
     AND min_index_interval = 128
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
-

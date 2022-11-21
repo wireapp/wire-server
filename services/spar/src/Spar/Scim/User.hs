@@ -400,10 +400,10 @@ veidEmail (ST.EmailOnly email) = Just email
 -- suspended users?  (i think it won't, but i haven't checked.)  easy solution would be to
 -- disallow creation of suspended users.
 --
--- FUTUREWORK(fisx): race conditions.  details in source commends marked with @{}@.
+-- FUTUREWORK(fisx): race conditions.  details in source comments marked with @{}@.
 --
 -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
--- This is the pain and the price you pay for the horribleness called MTL
+-- This is the pain and the price you pay for the horribleness called MTL -> has this been resolved with polysemy?
 createValidScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Sem r)) =>
@@ -453,6 +453,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
               )
               ( \email -> do
                   buid <- BrigAccess.createNoSAML email stiTeam name language
+                  -- TODO: didn't sven t. fix this and made the handle be settable inside createNoSAML?
                   BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
                   pure buid
               )
@@ -487,6 +488,9 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       -- TODO: suspension via scim is brittle, and may leave active users behind: if we don't
       -- reach the following line due to a crash, the user will be active.
       lift $ do
+        -- this block makes no sense.  we don't suspend users the same time we create them.
+        -- was this copied from PUT?  also, i think this code compares the brig value against
+        -- itself in a convoluted, obfuscated way.
         old <- BrigAccess.getStatus buid
         let new = ST.scimActiveFlagToAccountStatus old (Scim.unScimBool <$> active)
             active = Scim.active . Scim.value . Scim.thing $ storedUser
@@ -813,6 +817,8 @@ assertExternalIdNotUsedElsewhere tid veid wireUserId =
 
 assertExternalIdInAllowedValues :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => [Maybe UserId] -> Text -> TeamId -> ST.ValidExternalId -> Scim.ScimHandler (Sem r) ()
 assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
+  -- TODO: if veid is/contains an email, look in brig.user_keys, too!
+  -- or is this covered by the get that always (or only sometimes?) precedes the post?
   isGood <-
     lift $
       ST.runValidExternalIdBoth

@@ -483,7 +483,8 @@ specCreateUser = describe "POST /Users" $ do
   it "rejects invalid handle" $ testCreateRejectsInvalidHandle
   it "rejects occupied handle" $ testCreateRejectsTakenHandle
   it "rejects occupied externalId (uref)" $ testCreateRejectsTakenExternalId True
-  it "rejects occupied externalId (email)" $ testCreateRejectsTakenExternalId False
+  it "rejects occupied externalId (email, used by other account in own team)" $ testCreateRejectsTakenExternalId False
+  focus . it "rejects occupied externalId (email, used somewhere in brig.user_keys)" $ testCreateRejectsTakenExternalId2
   it "allows an occupied externalId when the IdP is different" $
     testCreateSameExternalIds
   it "provides a correct location in the 'meta' field" $ testLocation
@@ -817,8 +818,28 @@ testCreateRejectsTakenExternalId withidp = do
   user1 <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
   _ <- createUser tok user1
   -- Try to create different user with same @externalId@ in same team, and fail.
-  user2 <- randomScimUser
-  createUser_ (Just tok) (user2 {Scim.User.externalId = Scim.User.externalId user1}) (env ^. teSpar)
+  user2 <- randomScimUser <&> \u -> u {Scim.User.externalId = Scim.User.externalId user1}
+  createUser_ (Just tok) user2 (env ^. teSpar)
+    !!! const 409 === statusCode
+
+-- | Test that user creation fails if the @externalId@ is already in use somewhere in `brig.user_keys`.
+testCreateRejectsTakenExternalId2 :: TestSpar ()
+testCreateRejectsTakenExternalId2 = do
+  env <- ask
+
+  tok <- do
+    (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+    registerScimToken tid Nothing
+
+  -- Create and add a first user: success!
+  email <- randomEmail
+  do
+    (owner, team) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+    void . call $ inviteAndRegisterUser (env ^. teBrig) owner team email
+  -- Try to create different user with same @externalId@ in same team, and fail.
+  user2 <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  createUser_ (Just tok) user2 (env ^. teSpar)
+    -- TODO: this passes, but we expected it it not to.  seems like we might be fine because brig has this covered?
     !!! const 409 === statusCode
 
 -- | Test that it's fine to have same @externalId@s for two users belonging to different IdPs.

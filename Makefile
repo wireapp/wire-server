@@ -29,7 +29,7 @@ EXE_SCHEMA := ./dist/$(package)-schema
 # Additionally, if stack is being used with nix, environment variables do not
 # make it into the shell where hspec is run, to tackle that this variable is
 # also exported in stack-deps.nix.
-export HSPEC_OPTIONS = --fail-on-focused
+#export HSPEC_OPTIONS = --fail-on-focused
 
 default: install
 
