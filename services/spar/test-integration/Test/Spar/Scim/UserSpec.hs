@@ -54,7 +54,6 @@ import Data.String.Conversions (cs)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth
-import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
@@ -83,7 +82,6 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Export as CsvExport
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
-import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Role (Role (RoleExternalPartner, RoleMember), defaultRole)
 import Wire.API.User hiding (scimExternalId)
 import Wire.API.User.IdentityProvider (IdP)
@@ -622,8 +620,7 @@ testCreateUserNoIdPWithRole brig tid owner tok role = do
     registerInvitation email userName inviteeCode True
   -- check for correct role
   do
-    [member] <- filter ((== scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
-    liftIO $ (member ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
+    checkTeamMembersRole tid owner scimStoredUser role
 
 testCreateUserNoIdP :: TestSpar ()
 testCreateUserNoIdP = do
@@ -1806,12 +1803,9 @@ testUpdateUserRoles brig tid owner tok initialRole targetRole = do
     inv <- call $ getInvitation brig email
     Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
     registerInvitation email userName inviteeCode True
-  let checkRole r = do
-        [member] <- filter ((== scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
-        liftIO $ (member ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just r
-  checkRole initialRole
+  checkTeamMembersRole tid owner scimStoredUser initialRole
   _ <- updateUser tok userid (scimUser {Scim.User.roles = [cs $ toByteString targetRole]})
-  checkRole targetRole
+  checkTeamMembersRole tid owner scimStoredUser targetRole
 
 ----------------------------------------------------------------------------
 -- Patching users

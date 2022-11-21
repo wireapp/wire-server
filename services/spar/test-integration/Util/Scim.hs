@@ -33,6 +33,7 @@ import qualified Data.Text.Lazy as Lazy
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
+import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.Wai.Utilities as Error
 import qualified SAML2.WebSSO as SAML
@@ -49,15 +50,18 @@ import Web.HttpApiData (toHeader)
 import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Filter as Scim
+import Web.Scim.Schema.Common (WithId)
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
+import Web.Scim.Schema.Meta (WithMeta (..))
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
-import Wire.API.Team.Role (defaultRole)
+import qualified Wire.API.Team.Member as Member
+import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.RichInfo
@@ -705,3 +709,8 @@ getDefaultUserLocale = do
           . expect2xx
       )
   pure defLocale
+
+checkTeamMembersRole :: HasCallStack => TeamId -> UserId -> WithMeta (WithId UserId (Scim.User.User SparTag)) -> Role -> TestSpar ()
+checkTeamMembersRole tid owner user role = do
+  [member] <- filter ((== scimUserId user) . (^. Member.userId)) <$> getTeamMembers owner tid
+  liftIO $ (member ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role

@@ -88,7 +88,6 @@ import Util.Types
 import qualified Web.Cookie as Cky
 import qualified Web.Scim.Schema.User as Scim
 import Wire.API.Team.Member (newTeamMemberDeleteData)
-import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User
@@ -1318,8 +1317,7 @@ specProvisionScimAndSAMLUserWithRole = do
               u <- ScimT.randomScimUser
               pure $ u {Scim.roles = [cs $ toByteString $ role]}
             scimStoredUser <- ScimT.createUser tok scimUser
-            [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
-            liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just role
+            ScimT.checkTeamMembersRole tid owner scimStoredUser role
       mapM_ testCreateUserWithRole [minBound .. maxBound]
     it "create user - default to member if no role given" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
@@ -1327,8 +1325,7 @@ specProvisionScimAndSAMLUserWithRole = do
         u <- ScimT.randomScimUser
         pure $ u {Scim.roles = []}
       scimStoredUser <- ScimT.createUser tok scimUser
-      [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
-      liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just RoleMember
+      ScimT.checkTeamMembersRole tid owner scimStoredUser RoleMember
     it "create user - fail if more than one role given" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- do
@@ -1352,8 +1349,7 @@ specProvisionScimAndSAMLUserWithRole = do
       let testUpdateUserWithRole role = do
             let scimUserWithRole = scimUserWithDefaultRole {Scim.roles = [cs $ toByteString $ role]}
             scimStoredUser <- ScimT.updateUser tok userId scimUserWithRole
-            [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
-            liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just role
+            ScimT.checkTeamMembersRole tid owner scimStoredUser role
       mapM_ testUpdateUserWithRole [minBound .. maxBound]
     it "update user - default to member if no role given" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
@@ -1364,8 +1360,7 @@ specProvisionScimAndSAMLUserWithRole = do
               pure $ u {Scim.roles = [cs $ toByteString $ role]}
             userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
             scimStoredUser <- ScimT.updateUser tok userId (scimUser {Scim.roles = []})
-            [member] <- filter ((== ScimT.scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
-            liftIO $ (member ^. Member.permissions . to Galley.permissionsRole) `shouldBe` Just RoleMember
+            ScimT.checkTeamMembersRole tid owner scimStoredUser RoleMember
       mapM_ testUpdateUserWithDefaultRole [minBound .. maxBound]
     it "updated user - fail if more than one role given" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
