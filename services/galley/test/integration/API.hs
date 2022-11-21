@@ -1688,7 +1688,8 @@ getConvsOk = do
   usr <- randomUser
   getConvs usr Nothing Nothing !!! do
     const 200 === statusCode
-    const [toUUID usr] === map (toUUID . qUnqualified . cnvQualifiedId) . decodeConvList
+    const (Set.fromList [toUUID usr, toUUID $ mlsSelfConvId usr])
+      === Set.fromList . map (toUUID . qUnqualified . cnvQualifiedId) . decodeConvList
 
 getConvsOk2 :: TestM ()
 getConvsOk2 = do
@@ -1739,22 +1740,25 @@ getConvIdsOk = do
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
+  -- Each of the users has a Proteus self-conversation, an MLS self-conversation
+  -- and the one-to-one coversation.
   getConvIds alice Nothing Nothing !!! do
     const 200 === statusCode
-    const 2 === length . decodeConvIdList
+    const 3 === length . decodeConvIdList
   getConvIds bob Nothing Nothing !!! do
     const 200 === statusCode
-    const 2 === length . decodeConvIdList
+    const 3 === length . decodeConvIdList
 
 paginateConvIds :: TestM ()
 paginateConvIds = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
-  replicateM_ 253 $
+  replicateM_ 252 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
-  -- 1 self conv, 2 convs with bob and eve, 253 gossips = 256 convs
+  -- 1 Proteus self conv, 1 MLS self conv, 2 convs with bob and eve, 252 gossips
+  -- = 256 convs
   foldM_ (getChunk 16 alice) Nothing [15, 14 .. 0 :: Int]
   where
     getChunk size alice start n = do
@@ -1786,12 +1790,14 @@ listConvIdsOk = do
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
+  -- Each of the users has a Proteus self-conversation, an MLS self-conversation
+  -- and the one-to-one coversation.
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Right 2) === fmap length . decodeQualifiedConvIdList
+    const (Right 3) === fmap length . decodeQualifiedConvIdList
   listConvIds bob paginationOpts !!! do
     const 200 === statusCode
-    const (Right 2) === fmap length . decodeQualifiedConvIdList
+    const (Right 3) === fmap length . decodeQualifiedConvIdList
 
 paginateConvListIds :: TestM ()
 paginateConvListIds = do
@@ -1802,7 +1808,7 @@ paginateConvListIds = do
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
 
-  replicateM_ 197 $
+  replicateM_ 196 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
 
@@ -1838,9 +1844,9 @@ paginateConvListIds = do
             }
     runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
-  -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
-  -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
-  -- should get all them in 16 times.
+  -- 1 Proteus self conv + 1 MLS self conv + 2 convs with bob and eve + 196
+  -- local convs + 25 convs on chad.example.com + 31 on dee.example = 256 convs.
+  -- Getting them 16 at a time should get all them in 16 times.
   foldM_ (getChunkedConvs 16 0 alice) Nothing [16, 15 .. 0 :: Int]
 
 -- This test ensures to setup conversations so that a page would end exactly
@@ -1856,9 +1862,9 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
 
-  -- With page size 16, 29 group convs + 2 one-to-one convs + 1 self conv, we
-  -- get 32 convs. The 2nd page should end here.
-  replicateM_ 29 $
+  -- With page size 16, 28 group convs + 2 one-to-one convs + 1 Proteus self
+  -- conv + 1 MLS self conv, we get 32 convs. The 2nd page should end here.
+  replicateM_ 28 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
 
@@ -1929,9 +1935,9 @@ getConvsPagingOk = do
   [ally, bill, carl] <- randomUsers 3
   connectUsers ally (list1 bill [carl])
   replicateM_ 11 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
-  walk ally [3, 3, 3, 3, 2] -- 11 (group) + 2 (1:1) + 1 (self)
-  walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
-  walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+  walk ally [3, 3, 3, 3, 3] -- 11 (group) + 2 (1:1) + 1 (self) + 1 (MLS-self)
+  walk bill [3, 3, 3, 3, 2] -- 11 (group) + 1 (1:1) + 1 (self) + 1 (MLS-self)
+  walk carl [3, 3, 3, 3, 2] -- 11 (group) + 1 (1:1) + 1 (self) + 1 (MLS-self)
   where
     walk :: Foldable t => UserId -> t Int -> TestM ()
     walk u = foldM_ (next u 3) Nothing
