@@ -444,6 +444,7 @@ executable brig-integration
     API.Search
     API.Search.Util
     API.Settings
+    API.SystemSettings
     API.Team
     API.Team.Util
     API.TeamUserSearch

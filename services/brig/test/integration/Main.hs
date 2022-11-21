@@ -28,6 +28,7 @@ import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
+import qualified API.SystemSettings as SystemSettings
 import qualified API.Team as Team
 import qualified API.TeamUserSearch as TeamUserSearch
 import qualified API.User as User
@@ -142,6 +143,7 @@ runTests iConf brigOpts otherArgs = do
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
   metricsApi <- Metrics.tests mg b
+  systemSettingsApi <- SystemSettings.tests brigOpts mg b
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
@@ -169,6 +171,7 @@ runTests iConf brigOpts otherArgs = do
         teamApis,
         turnApi,
         metricsApi,
+        systemSettingsApi,
         settingsApi,
         createIndex,
         userPendingActivation,
