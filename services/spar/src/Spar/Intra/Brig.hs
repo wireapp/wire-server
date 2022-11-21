@@ -131,9 +131,10 @@ createBrigUserNoSAML ::
   -- | User name
   Name ->
   Maybe Locale ->
+  Role ->
   m UserId
-createBrigUserNoSAML email teamid uname locale = do
-  let newUser = NewUserScimInvitation teamid locale uname email
+createBrigUserNoSAML email teamid uname locale role = do
+  let newUser = NewUserScimInvitation teamid locale uname email role
   resp :: ResponseLBS <-
     call $
       method POST

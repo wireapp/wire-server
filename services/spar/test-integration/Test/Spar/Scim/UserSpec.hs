@@ -54,6 +54,7 @@ import Data.String.Conversions (cs)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth
+import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
@@ -82,7 +83,8 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Export as CsvExport
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
-import Wire.API.Team.Role (Role (RoleMember))
+import qualified Wire.API.Team.Member as Member
+import Wire.API.Team.Role (Role (RoleMember), defaultRole)
 import Wire.API.User hiding (scimExternalId)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
@@ -466,6 +468,7 @@ specCreateUser = describe "POST /Users" $ do
   context "team has no SAML IdP" $ do
     it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
       testCreateUserNoIdP
+    it "creates a user with a given role" testCreateUserNoIdPWithRoles
     it "fails if no email can be extracted from externalId" $ do
       testCreateUserNoIdPNoEmail
     it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
@@ -551,6 +554,47 @@ testCreateUserWithPass = do
     -- TODO: write a FAQ entry in wire-docs, reference it in the error description.
     -- TODO: yes, we should just test for error labels consistently, i know...
     const (Just "Setting user passwords is not supported for security reasons.") =~= responseBody
+
+testCreateUserNoIdPWithRoles :: TestSpar ()
+testCreateUserNoIdPWithRoles = do
+  env <- ask
+  let brig = env ^. teBrig
+  let galley = env ^. teGalley
+  (owner, tid) <- call $ createUserWithTeam brig galley
+  tok <- registerScimToken tid Nothing
+  forM_ [minBound .. maxBound] (testCreateUserNoIdPWithRole brig tid owner tok)
+
+testCreateUserNoIdPWithRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> TestSpar ()
+testCreateUserNoIdPWithRole brig tid owner tok role = do
+  email <- randomEmail
+  scimUser <-
+    randomScimUser <&> \u ->
+      u
+        { Scim.User.externalId = Just $ fromEmail email,
+          Scim.User.roles = [cs $ toByteString role]
+        }
+  scimStoredUser <- createUser tok scimUser
+  let userid = scimUserId scimStoredUser
+      userName = Name . fromJust . Scim.User.displayName $ scimUser
+
+  do
+    usr <- Scim.value . Scim.thing <$> getUser tok userid
+    -- we still expect to see the default role (member) as long as the user has not followed the invitation flow
+    -- todo(leif): is this ok?
+    -- if not we have to handle this in the `getUser` handler:
+    -- - if the user has a pending invitation, we have to look up the role in the invitation table
+    --   by doing an rpc to brig
+    liftIO $ Scim.User.roles usr `shouldBe` [cs $ toByteString defaultRole]
+
+  -- user follows invitation flow
+  do
+    inv <- call $ getInvitation brig email
+    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    registerInvitation email userName inviteeCode True
+  -- check for correct role
+  do
+    [member] <- filter ((== scimUserId scimStoredUser) . (^. Member.userId)) <$> getTeamMembers owner tid
+    liftIO $ (member ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
 
 testCreateUserNoIdP :: TestSpar ()
 testCreateUserNoIdP = do

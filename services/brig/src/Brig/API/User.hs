@@ -538,13 +538,14 @@ initAccountFeatureConfig uid = do
 createUserInviteViaScim ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore p
+       UserPendingActivationStore p,
+       GalleyProvider
      ]
     r =>
   UserId ->
   NewUserScimInvitation ->
   ExceptT Error.Error (AppT r) UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
+createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail _) = do
   email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
@@ -565,7 +566,6 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
         -- the SCIM user.
         True
   lift . wrapClient $ Data.insertAccount account Nothing Nothing activated
-
   pure account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.

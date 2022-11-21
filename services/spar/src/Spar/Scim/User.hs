@@ -471,7 +471,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
                     BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language role
               )
               ( \email -> do
-                  buid <- BrigAccess.createNoSAML email stiTeam name language
+                  buid <- BrigAccess.createNoSAML email stiTeam name language role
                   BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
                   pure buid
               )
