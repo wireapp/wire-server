@@ -279,7 +279,7 @@ onConversationUpdated requestingDomain cu = do
       SConversationMessageTimerUpdateTag -> pure (Just sca, [])
       SConversationReceiptModeUpdateTag -> pure (Just sca, [])
       SConversationAccessDataTag -> pure (Just sca, [])
-      SConversationSelfInviteTag -> pure (Nothing, []) -- TODO(elland): Should not happen. Should we throw?
+      SConversationSelfInviteTag -> pure (Nothing, [])
   unless allUsersArePresent $
     P.warn $
       Log.field "conversation" (toByteString' (F.cuConvId cu))
