@@ -607,9 +607,10 @@ testCreateUserNoIdPWithRole brig tid owner tok role = do
 
   do
     usr <- Scim.value . Scim.thing <$> getUser tok userid
-    -- we still expect to see the default role (member) as long as the user has not followed the invitation flow
-    -- todo(leif): is this ok?
-    -- if not we have to handle this in the `getUser` handler:
+    -- the user hasn't yet followed the invitation flow
+    -- however the invitee's role is stored together with the invitation in brig and not in spar
+    -- so as long as the user hasn't accepted the invitation, the scim users's role will be the default role here (which is 'member')
+    -- FUTUREWORK: if this is not the desired behavior, have to handle this in the `getUser` handler:
     -- - if the user has a pending invitation, we have to look up the role in the invitation table
     --   by doing an rpc to brig
     liftIO $ Scim.User.roles usr `shouldBe` [cs $ toByteString defaultRole]

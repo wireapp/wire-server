@@ -1310,7 +1310,6 @@ specScimAndSAML = do
 
 specProvisionScimAndSAMLUserWithRole :: SpecWith TestEnv
 specProvisionScimAndSAMLUserWithRole = do
-  -- todo(leif): add tests for SCIM no SAML as well
   describe "provision scim user with SAML with role" $ do
     it "create user" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
