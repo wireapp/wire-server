@@ -656,6 +656,7 @@ processExternalCommit ::
        ErrorS 'MLSClientSenderUserMismatch,
        ErrorS 'MLSKeyPackageRefNotFound,
        ErrorS 'MLSStaleMessage,
+       ErrorS 'MLSMissingSenderClient,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -668,6 +669,7 @@ processExternalCommit ::
      ]
     r =>
   Qualified UserId ->
+  Maybe ClientId ->
   Local Data.Conversation ->
   ClientMap ->
   Epoch ->
@@ -675,7 +677,7 @@ processExternalCommit ::
   ProposalAction ->
   Maybe UpdatePath ->
   Sem r ()
-processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommitLock groupId epoch $ do
+processExternalCommit qusr mSenderClient lconv cm epoch groupId action updatePath = withCommitLock groupId epoch $ do
   newKeyPackage <-
     upLeaf
       <$> note
@@ -705,6 +707,15 @@ processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommit
   unless (cidQualifiedUser cid == qusr) $
     throw . mlsProtocolError $
       "The external commit attempts to add another user"
+
+  senderClient <- noteS @'MLSMissingSenderClient mSenderClient
+
+  unless (ciClient cid == senderClient) $
+    throw . mlsProtocolError $
+      "The external commit attempts to add another client of the user, it must only add itself"
+
+  -- for_ senderClient $ \senderClient' ->
+  --   pure ()
 
   -- check if there is a key package ref in the remove proposal
   remRef <-
@@ -780,7 +791,7 @@ processCommitWithAction ::
 processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit =
   case sender of
     MemberSender ref -> processInternalCommit qusr senderClient con lconv cm epoch groupId action ref commit
-    NewMemberSender -> processExternalCommit qusr lconv cm epoch groupId action (cPath commit) $> []
+    NewMemberSender -> processExternalCommit qusr senderClient lconv cm epoch groupId action (cPath commit) $> []
     _ -> throw (mlsProtocolError "Unexpected sender")
 
 processInternalCommit ::
