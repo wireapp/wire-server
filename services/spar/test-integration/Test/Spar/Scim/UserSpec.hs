@@ -77,6 +77,7 @@ import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
 import qualified Web.Scim.Schema.Meta as Scim
+import Web.Scim.Schema.PatchOp (Operation)
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Export as CsvExport
@@ -1823,6 +1824,11 @@ specPatchUser = do
             PatchOp.Replace
             (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
             (Just (toJSON value))
+    let addAttrib name value =
+          PatchOp.Operation
+            PatchOp.Add
+            (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+            (Just (toJSON value))
     let removeAttrib name =
           PatchOp.Operation
             PatchOp.Remove
@@ -1900,6 +1906,8 @@ specPatchUser = do
             [replaceAttrib "externalId" externalId]
       let user'' = Scim.value . Scim.thing $ storedUser'
       liftIO $ Scim.User.externalId user'' `shouldBe` externalId
+    it "replace role works" $ testPatchRole replaceAttrib
+    it "add role works" $ testPatchRole addAttrib
     it "replacing every supported atttribute at once works" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
@@ -1966,6 +1974,47 @@ specPatchUser = do
       let userid = scimUserId storedUser
       let patchOp = PatchOp.PatchOp [removeAttrib "externalId"]
       patchUser_ (Just tok) (Just userid) patchOp (env ^. teSpar) !!! const 400 === statusCode
+
+testPatchRole :: (Text -> [Role] -> Operation) -> TestSpar ()
+testPatchRole replaceOrAdd = do
+  env <- ask
+  let brig = env ^. teBrig
+  let galley = env ^. teGalley
+  (owner, tid) <- call $ createUserWithTeam brig galley
+  tok <- registerScimToken tid Nothing
+  let testWithInitialRole r = forM_ [minBound .. maxBound] (testPatchRoles brig replaceOrAdd tid owner tok r)
+  forM_ [minBound .. maxBound] testWithInitialRole
+
+testPatchRoles :: BrigReq -> (Text -> [Role] -> Operation) -> TeamId -> UserId -> ScimToken -> Role -> Role -> TestSpar ()
+testPatchRoles brig replaceOrAdd tid owner tok initialRole targetRole = do
+  email <- randomEmail
+  scimUser <-
+    randomScimUser <&> \u ->
+      u
+        { Scim.User.externalId = Just $ fromEmail email,
+          Scim.User.roles = [cs $ toByteString initialRole]
+        }
+  scimStoredUser <- createUser tok scimUser
+  let userid = scimUserId scimStoredUser
+      userName = Name . fromJust . Scim.User.displayName $ scimUser
+
+  -- user follows invitation flow
+  do
+    inv <- call $ getInvitation brig email
+    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    registerInvitation email userName inviteeCode True
+  checkTeamMembersRole tid owner userid initialRole
+
+  _ <- patchUser tok userid $ PatchOp.PatchOp [replaceOrAdd "roles" [targetRole]]
+  checkTeamMembersRole tid owner userid targetRole
+  -- also check if remove works
+  let removeAttrib name =
+        PatchOp.Operation
+          PatchOp.Remove
+          (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+          Nothing
+  _ <- patchUser tok userid $ PatchOp.PatchOp [removeAttrib "roles"]
+  checkTeamMembersRole tid owner userid defaultRole
 
 ----------------------------------------------------------------------------
 -- Deleting users
