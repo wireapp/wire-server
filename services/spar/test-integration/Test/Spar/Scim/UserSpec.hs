@@ -84,7 +84,7 @@ import qualified Wire.API.Team.Export as CsvExport
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import qualified Wire.API.Team.Member as Member
-import Wire.API.Team.Role (Role (RoleMember), defaultRole)
+import Wire.API.Team.Role (Role (RoleExternalPartner, RoleMember), defaultRole)
 import Wire.API.User hiding (scimExternalId)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
@@ -469,6 +469,7 @@ specCreateUser = describe "POST /Users" $ do
     it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
       testCreateUserNoIdP
     it "creates a user with a given role" testCreateUserNoIdPWithRoles
+    it "fails to create user if roles are invalid" testCreateUserNoIdPInvalidRoles
     it "fails if no email can be extracted from externalId" $ do
       testCreateUserNoIdPNoEmail
     it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
@@ -554,6 +555,33 @@ testCreateUserWithPass = do
     -- TODO: write a FAQ entry in wire-docs, reference it in the error description.
     -- TODO: yes, we should just test for error labels consistently, i know...
     const (Just "Setting user passwords is not supported for security reasons.") =~= responseBody
+
+testCreateUserNoIdPInvalidRoles :: TestSpar ()
+testCreateUserNoIdPInvalidRoles = do
+  env <- ask
+  let brig = env ^. teBrig
+  let galley = env ^. teGalley
+  (_, tid) <- call $ createUserWithTeam brig galley
+  tok <- registerScimToken tid Nothing
+  email <- randomEmail
+  scimUserTooManyRoles <-
+    randomScimUser <&> \u ->
+      u
+        { Scim.User.externalId = Just $ fromEmail email,
+          Scim.User.roles = cs . toByteString <$> [RoleMember, RoleExternalPartner]
+        }
+  createUser' tok scimUserTooManyRoles !!! do
+    const 400 === statusCode
+    const (Just "A user cannot have more than one role.") =~= responseBody
+  scimUserInvalidRole <-
+    randomScimUser <&> \u ->
+      u
+        { Scim.User.externalId = Just $ fromEmail email,
+          Scim.User.roles = ["foobar"]
+        }
+  createUser' tok scimUserInvalidRole !!! do
+    const 400 === statusCode
+    const (Just "The role 'foobar' is not valid. Valid roles are owner, admin, member, partner.") =~= responseBody
 
 testCreateUserNoIdPWithRoles :: TestSpar ()
 testCreateUserNoIdPWithRoles = do
