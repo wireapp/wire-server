@@ -11,8 +11,12 @@ to each other in a peer-to-peer fashion. This meant that a client would have to 
 video and audio feeds separately for each participant. This in practice meant that the amount
 of participants was limited by the upload bandwidth of the clients.
 
-Wire now has a signalling-forwarding unit called ``SFT` <https://github.com/wireapp/wire-avs-service>`__ which allows clients to upload once and
-then the `SFT` fans it out to the other clients. Because connections are not end-to-end anymore now, dTLS encryption offered by WebRTC is not enough anymore as the encryption is terminated at the server-side. To avoid Wire from seeing the contents of calls `SFT` utilises WebRTC InsertibleStreams to encrypt the packets a second time with a group key that is not known to the server.
+Wire now has a signalling-forwarding unit called `SFT` <https://github.com/wireapp/wire-avs-service>`__ which allows 
+clients to upload once and then the `SFT` fans it out to the other clients. Because connections are not end-to-end anymore now, 
+dTLS encryption offered by WebRTC is not enough anymore as the encryption is terminated at the server-side. 
+
+To avoid Wire from seeing the contents of calls `SFT` utilises WebRTC InsertibleStreams 
+to encrypt the packets a second time with a group key that is not known to the server.
 
 With `SFT` it is thus possible to have conference calls with many participants
 without compromising end-to-end security.
@@ -346,31 +350,31 @@ Messages only relevant for current call participants are sent via targeted `E2EE
 
 List of the messages used for establishing calls:
 
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| Message    | Transport              | Req  | Resp  | Description                                                                                          |
-+============+========================+======+=======+======================================================================================================+
-| `SETUP`    | `HTTPS`                | x    | x     | Contains SDP offer and answer for setting up connection to the `SFT`                                   |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `PROPSYNC` | `Data channel`         | x    | x     |  Used to inform clients of video send and mute status.	                                             |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `HANGUP`   | `Data channel`         | x    | x     | Used to disconnect a connection to the `SFT` in an orderly fashion.	                                 |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `CONFSTART`| `E2EE Protocol`        | x    | x     | Informs clients of the start of a call.                                                              |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `CONFEND`  | `E2EE Protocol`        | x    |       | Informs clients of the end of the call.	                                                            |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `CONFCONN` | `HTTPS`                | x    | x     | Establishes the connection for a call.	                                                            |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `CONFPART` | `Data channel`         | x    |       | Lists the participants in the call and their streams.                                                |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `CONFPART` | `Data channel`         |      | x     | Lists authorized participants.	                                                                     |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `CONFKEY`  |`Targeted E2EE message `| x    |       | Request for missing key in case of missed E2EE messages.	                                          |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `CONFKEY`  | Targeted E2EE message  |      | x     | Contains the encryption/decryption keys.	                                                            |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
-| `CONFCHECK`| `E2EE Protocol`        |      |       | Sent periodically to inform inactive clients that the call is ongoing, fallback for missing CONFEND  |
-+------------+------------------------+------+-------+------------------------------------------------------------------------------------------------------+
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| Message     | Transport               | Req  | Resp  | Description.                                                                                         |
++=============+=========================+======+=======+======================================================================================================+
+| `SETUP`     | `HTTPS`                 | x    | x     | Contains SDP offer and answer for setting up connection to the `SFT`.                                |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `PROPSYNC`  | `Data channel`          | x    | x     |  Used to inform clients of video send and mute status.                                               |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `HANGUP`    | `Data channel`          | x    | x     | Used to disconnect a connection to the `SFT` in an orderly fashion.                                  |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `CONFSTART` | `E2EE Protocol`         | x    | x     | Informs clients of the start of a call.                                                              |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `CONFEND`   | `E2EE Protocol`         | x    |       | Informs clients of the end of the call.                                                              |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `CONFCONN`  | `HTTPS`                 | x    | x     | Establishes the connection for a call.                                                               |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `CONFPART`  | `Data channel`          | x    |       | Lists the participants in the call and their streams.                                                |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `CONFPART`  | `Data channel`          |      | x     | Lists authorized participants.                                                                       |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `CONFKEY`   | `Targeted E2EE message` | x    |       | Request for missing key in case of missed E2EE messages.                                             |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `CONFKEY`   | Targeted E2EE message   |      | x     | Contains the encryption/decryption keys.                                                             |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
+| `CONFCHECK` | `E2EE Protocol`         |      |       | Sent periodically to inform inactive clients that the call is ongoing, fallback for missing CONFEND. |
++-------------+-------------------------+------+-------+------------------------------------------------------------------------------------------------------+
 
 Starting and joining a call
 ...........................
@@ -672,10 +676,6 @@ For the DTLS connection between the `TURN` servers, both `TURN` servers negotiat
       SRTP_AEAD_AES_128_GCM
 
 
-
-
-
-
 .. _federated-sft:
 
 Federated Conference Calling 
@@ -686,7 +686,7 @@ conference will use an `SFT` in its own domain. The `SFT` in the caller's domain
 the `anchor SFT`. 
 
 Multi-`SFT` Architecture
-----------------------
+------------------------
 
 With support for federation, each domain participating in a conference is responsible to
 make available an `SFT` for users in that domain.  The `SFT` in the domain of the caller is
