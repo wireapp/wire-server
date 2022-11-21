@@ -564,7 +564,7 @@ executable brig-integration
     , pipes
     , polysemy
     , polysemy-wire-zoo
-    , postie                 >=0.6
+    , postie                 >=0.6.0.3
     , process
     , proto-lens
     , QuickCheck
