@@ -26,9 +26,9 @@ spec:
       targetPort: coturn-tls
     {{- end }}
     {{- if .Values.federation.enabled }}
-    - name: coturn-federation
+    - name: coturn-fed
       port: {{ .Values.federation.listenPort }}
-      targetPort: coturn-federation
+      targetPort: coturn-fed
     {{- end }}
     - name: status-http
       port: {{ .Values.coturnMetricsListenPort }}

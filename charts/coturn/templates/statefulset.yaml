@@ -134,7 +134,7 @@ spec:
               protocol: TCP
             {{- end }}
             {{- if .Values.federation.enabled }}
-            - name: coturn-federation
+            - name: coturn-fed
               containerPort: {{ .Values.federation.listenPort }}
               protocol: UDP
             {{- end }}
