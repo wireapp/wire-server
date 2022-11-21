@@ -385,7 +385,7 @@ testAddUserWithBundleIncompleteWelcome = do
     bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postCommitBundle (ciUser (mpSender commit)) bundle
+        =<< postCommitBundle (mpSender commit) bundle
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-welcome-mismatch"
 
@@ -987,7 +987,7 @@ testExternalCommitNotMember = do
         <$> getGroupInfo (ciUser alice1) qcnv
     mp <- createExternalCommit bob1 (Just pgs) qcnv
     bundle <- createBundle mp
-    postCommitBundle (ciUser (mpSender mp)) bundle
+    postCommitBundle (mpSender mp) bundle
       !!! const 404 === statusCode
 
 testExternalCommitSameClient :: TestM ()

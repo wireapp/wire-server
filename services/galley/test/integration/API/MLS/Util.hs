@@ -130,7 +130,7 @@ postCommitBundle ::
     MonadHttp m,
     HasGalley m
   ) =>
-  UserId ->
+  ClientIdentity ->
   ByteString ->
   m ResponseLBS
 postCommitBundle sender bundle = do
@@ -138,7 +138,8 @@ postCommitBundle sender bundle = do
   post
     ( galley
         . paths ["mls", "commit-bundles"]
-        . zUser sender
+        . zUser (ciUser sender)
+        . zClient (ciClient sender)
         . zConn "conn"
         . content "application/x-protobuf"
         . bytes bundle
@@ -888,7 +889,7 @@ sendAndConsumeCommitBundle mp = do
   events <-
     fmap mmssEvents
       . responseJsonError
-      =<< postCommitBundle (ciUser (mpSender mp)) bundle
+      =<< postCommitBundle (mpSender mp) bundle
         <!! const 201 === statusCode
   consumeMessage mp
   traverse_ consumeWelcome (mpWelcome mp)

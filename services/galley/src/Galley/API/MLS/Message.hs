@@ -656,6 +656,7 @@ processExternalCommit ::
        ErrorS 'MLSClientSenderUserMismatch,
        ErrorS 'MLSKeyPackageRefNotFound,
        ErrorS 'MLSStaleMessage,
+       ErrorS 'MLSMissingSenderClient,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -668,6 +669,7 @@ processExternalCommit ::
      ]
     r =>
   Qualified UserId ->
+  Maybe ClientId ->
   Local Data.Conversation ->
   ClientMap ->
   Epoch ->
@@ -675,7 +677,7 @@ processExternalCommit ::
   ProposalAction ->
   Maybe UpdatePath ->
   Sem r ()
-processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommitLock groupId epoch $ do
+processExternalCommit qusr mSenderClient lconv cm epoch groupId action updatePath = withCommitLock groupId epoch $ do
   newKeyPackage <-
     upLeaf
       <$> note
@@ -688,12 +690,29 @@ processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommit
     throw . mlsProtocolError $
       "The external commit must not have add proposals"
 
-  cid <- case kpIdentity (rmValue newKeyPackage) of
-    Left e -> throw (mlsProtocolError $ "Failed to parse the client identity: " <> e)
-    Right v -> pure v
   newRef <-
     kpRef' newKeyPackage
       & note (mlsProtocolError "An invalid key package in the update path")
+
+  -- validate and update mapping in brig
+  mCid <-
+    nkpresClientIdentity
+      <$$> validateAndAddKeyPackageRef
+        NewKeyPackage
+          { nkpConversation = Data.convId <$> qUntagged lconv,
+            nkpKeyPackage = KeyPackageData (rmRaw newKeyPackage)
+          }
+  cid <- mCid & note (mlsProtocolError "Tried to add invalid KeyPackage")
+
+  unless (cidQualifiedUser cid == qusr) $
+    throw . mlsProtocolError $
+      "The external commit attempts to add another user"
+
+  senderClient <- noteS @'MLSMissingSenderClient mSenderClient
+
+  unless (ciClient cid == senderClient) $
+    throw . mlsProtocolError $
+      "The external commit attempts to add another client of the user, it must only add itself"
 
   -- check if there is a key package ref in the remove proposal
   remRef <-
@@ -707,20 +726,7 @@ processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommit
           $ "The external commit attempts to remove a client from a user other than themselves"
         pure (Just r)
 
-  -- first perform checks and map the key package if valid
-  addKeyPackageRef
-    newRef
-    (cidQualifiedUser cid)
-    (ciClient cid)
-    (Data.convId <$> qUntagged lconv)
-  -- now it is safe to update the mapping without further checks
-  -- FUTUREWORK: This call is redundent and reduces to the previous
-  -- call of addKeyPackageRef when remRef is Nothing! Should be
-  -- limited to cases where remRef is not Nothing.
   updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
-
-  -- FUTUREWORK: Resubmit backend-provided proposals when processing an
-  -- external commit.
 
   -- increment epoch number
   setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
@@ -782,7 +788,7 @@ processCommitWithAction ::
 processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit =
   case sender of
     MemberSender ref -> processInternalCommit qusr senderClient con lconv cm epoch groupId action ref commit
-    NewMemberSender -> processExternalCommit qusr lconv cm epoch groupId action (cPath commit) $> []
+    NewMemberSender -> processExternalCommit qusr senderClient lconv cm epoch groupId action (cPath commit) $> []
     _ -> throw (mlsProtocolError "Unexpected sender")
 
 processInternalCommit ::
