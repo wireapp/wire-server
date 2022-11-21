@@ -1316,16 +1316,16 @@ specProvisionScimAndSAMLUserWithRole = do
             scimUser <- do
               u <- ScimT.randomScimUser
               pure $ u {Scim.roles = [cs $ toByteString $ role]}
-            scimStoredUser <- ScimT.createUser tok scimUser
-            ScimT.checkTeamMembersRole tid owner scimStoredUser role
+            userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+            ScimT.checkTeamMembersRole tid owner userId role
       mapM_ testCreateUserWithRole [minBound .. maxBound]
     it "create user - default to member if no role given" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- do
         u <- ScimT.randomScimUser
         pure $ u {Scim.roles = []}
-      scimStoredUser <- ScimT.createUser tok scimUser
-      ScimT.checkTeamMembersRole tid owner scimStoredUser RoleMember
+      userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
+      ScimT.checkTeamMembersRole tid owner userId RoleMember
     it "create user - fail if more than one role given" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta
       scimUser <- do
@@ -1348,8 +1348,8 @@ specProvisionScimAndSAMLUserWithRole = do
       userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUserWithDefaultRole
       let testUpdateUserWithRole role = do
             let scimUserWithRole = scimUserWithDefaultRole {Scim.roles = [cs $ toByteString $ role]}
-            scimStoredUser <- ScimT.updateUser tok userId scimUserWithRole
-            ScimT.checkTeamMembersRole tid owner scimStoredUser role
+            _ <- ScimT.updateUser tok userId scimUserWithRole
+            ScimT.checkTeamMembersRole tid owner userId role
       mapM_ testUpdateUserWithRole [minBound .. maxBound]
     it "update user - default to member if no role given" $ do
       (tok, (owner, tid, _idp, (_, _privcreds))) <- ScimT.registerIdPAndScimTokenWithMeta
@@ -1359,8 +1359,8 @@ specProvisionScimAndSAMLUserWithRole = do
               u <- ScimT.randomScimUser
               pure $ u {Scim.roles = [cs $ toByteString $ role]}
             userId <- ScimT.scimUserId <$> ScimT.createUser tok scimUser
-            scimStoredUser <- ScimT.updateUser tok userId (scimUser {Scim.roles = []})
-            ScimT.checkTeamMembersRole tid owner scimStoredUser RoleMember
+            _ <- ScimT.updateUser tok userId (scimUser {Scim.roles = []})
+            ScimT.checkTeamMembersRole tid owner userId RoleMember
       mapM_ testUpdateUserWithDefaultRole [minBound .. maxBound]
     it "updated user - fail if more than one role given" $ do
       (tok, _) <- ScimT.registerIdPAndScimTokenWithMeta

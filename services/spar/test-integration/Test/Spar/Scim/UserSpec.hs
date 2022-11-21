@@ -620,7 +620,7 @@ testCreateUserNoIdPWithRole brig tid owner tok role = do
     registerInvitation email userName inviteeCode True
   -- check for correct role
   do
-    checkTeamMembersRole tid owner scimStoredUser role
+    checkTeamMembersRole tid owner userid role
 
 testCreateUserNoIdP :: TestSpar ()
 testCreateUserNoIdP = do
@@ -1803,9 +1803,9 @@ testUpdateUserRoles brig tid owner tok initialRole targetRole = do
     inv <- call $ getInvitation brig email
     Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
     registerInvitation email userName inviteeCode True
-  checkTeamMembersRole tid owner scimStoredUser initialRole
+  checkTeamMembersRole tid owner userid initialRole
   _ <- updateUser tok userid (scimUser {Scim.User.roles = [cs $ toByteString targetRole]})
-  checkTeamMembersRole tid owner scimStoredUser targetRole
+  checkTeamMembersRole tid owner userid targetRole
 
 ----------------------------------------------------------------------------
 -- Patching users

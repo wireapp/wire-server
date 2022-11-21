@@ -50,10 +50,8 @@ import Web.HttpApiData (toHeader)
 import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Filter as Scim
-import Web.Scim.Schema.Common (WithId)
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
-import Web.Scim.Schema.Meta (WithMeta (..))
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim
@@ -710,7 +708,7 @@ getDefaultUserLocale = do
       )
   pure defLocale
 
-checkTeamMembersRole :: HasCallStack => TeamId -> UserId -> WithMeta (WithId UserId (Scim.User.User SparTag)) -> Role -> TestSpar ()
-checkTeamMembersRole tid owner user role = do
-  [member] <- filter ((== scimUserId user) . (^. Member.userId)) <$> getTeamMembers owner tid
+checkTeamMembersRole :: HasCallStack => TeamId -> UserId -> UserId -> Role -> TestSpar ()
+checkTeamMembersRole tid owner uid role = do
+  [member] <- filter ((== uid) . (^. Member.userId)) <$> getTeamMembers owner tid
   liftIO $ (member ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
