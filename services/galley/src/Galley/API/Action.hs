@@ -648,23 +648,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
   -- retrieve member
   self <-
     if (cnvmType . convMetadata . tUnqualified $ lconv) == GlobalTeamConv
-      then -- TODO(elland): address this problem
-
-        pure . Left $
-          LocalMember
-            { lmId = qUnqualified qusr,
-              lmStatus =
-                MemberStatus
-                  { msOtrMutedStatus = Nothing,
-                    msOtrMutedRef = Nothing,
-                    msOtrArchived = False,
-                    msOtrArchivedRef = Nothing,
-                    msHidden = False,
-                    msHiddenRef = Nothing
-                  },
-              lmService = Nothing,
-              lmConvRoleName = roleToRoleName convRoleWireMember
-            }
+      then pure $ Left $ localMemberFromUser (qUnqualified qusr)
       else noteS @'ConvNotFound $ getConvMember lconv conv qusr
 
   -- perform checks
@@ -684,6 +668,23 @@ updateLocalConversationUnchecked lconv qusr con action = do
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
+
+localMemberFromUser :: UserId -> LocalMember
+localMemberFromUser uid =
+  LocalMember
+    { lmId = uid,
+      lmStatus =
+        MemberStatus
+          { msOtrMutedStatus = Nothing,
+            msOtrMutedRef = Nothing,
+            msOtrArchived = False,
+            msOtrArchivedRef = Nothing,
+            msHidden = False,
+            msHiddenRef = Nothing
+          },
+      lmService = Nothing,
+      lmConvRoleName = roleToRoleName convRoleWireMember
+    }
 
 ensureConversationActionAllowed ::
   forall tag mem x r.
