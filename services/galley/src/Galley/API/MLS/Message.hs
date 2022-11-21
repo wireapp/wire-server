@@ -479,7 +479,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
     gtc <- getGlobalTeamConversationById lcnv
     conv <- case gtc of
       Just conv -> do
-        when (isNothing (gtcmCreator $ gtcMetadata $ conv)) $ do
+        when (isNothing (gtcCreator conv)) $ do
           setGlobalTeamConversationCreator conv (qUnqualified qusr)
         localMembers <- getLocalMembers (qUnqualified . gtcId $ conv)
         pure $ gtcToConv conv localMembers
@@ -509,26 +509,25 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
     pure events
   where
     gtcToConv gtc lm =
-      let meta = gtcMetadata gtc
-       in Data.Conversation
-            { convId = qUnqualified $ gtcId gtc,
-              -- FUTUREWORK: Look into reworking things if needed for performance
-              convLocalMembers = lm,
-              convRemoteMembers = mempty,
-              convDeleted = False,
-              convMetadata =
-                ConversationMetadata
-                  { cnvmType = GlobalTeamConv,
-                    cnvmCreator = fromJust . gtcmCreator . gtcMetadata $ gtc,
-                    cnvmAccess = gtcmAccess meta,
-                    cnvmAccessRoles = mempty,
-                    cnvmName = Just (gtcmName meta),
-                    cnvmTeam = Just (gtcmTeam meta),
-                    cnvmMessageTimer = Nothing,
-                    cnvmReceiptMode = Nothing
-                  },
-              convProtocol = ProtocolMLS (gtcMlsMetadata gtc)
-            }
+      Data.Conversation
+        { convId = qUnqualified $ gtcId gtc,
+          -- FUTUREWORK: Look into reworking things if needed for performance
+          convLocalMembers = lm,
+          convRemoteMembers = mempty,
+          convDeleted = False,
+          convMetadata =
+            ConversationMetadata
+              { cnvmType = GlobalTeamConv,
+                cnvmCreator = fromJust . gtcCreator $ gtc,
+                cnvmAccess = gtcAccess gtc,
+                cnvmAccessRoles = mempty,
+                cnvmName = Just (gtcName gtc),
+                cnvmTeam = Just (gtcTeam gtc),
+                cnvmMessageTimer = Nothing,
+                cnvmReceiptMode = Nothing
+              },
+          convProtocol = ProtocolMLS (gtcMlsMetadata gtc)
+        }
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,

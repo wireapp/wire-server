@@ -52,6 +52,7 @@ import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.MLS.Removal
+import Galley.API.MLS.Util (globalTeamConvToConversation)
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation
@@ -283,7 +284,7 @@ ensureAllowed tag loc action conv origUser = do
         (convType conv == GlobalTeamConv)
         $ throwS @'InvalidOperation
     SConversationLeaveTag ->
-      when (convType conv == GlobalTeamConv) $ do
+      when (convType conv == GlobalTeamConv) $
         throwS @'InvalidOperation
     _ -> pure ()
 
@@ -600,12 +601,12 @@ updateLocalConversation lcnv qusr con action = do
     -- Check if global or not, if global, map it to conversation
     E.getGlobalTeamConversationById lcnv >>= \case
       Just gtc ->
-        let c = (gtcmCreator . gtcMetadata $ gtc)
+        let c = gtcCreator gtc
          in case c of
               Nothing ->
                 throwS @'ConvNotFound
               Just creator ->
-                pure $ gtcToConv creator gtc
+                pure $ globalTeamConvToConversation gtc creator mempty
       Nothing -> getConversationWithError lcnv
 
   -- check that the action does not bypass the underlying protocol
@@ -614,27 +615,6 @@ updateLocalConversation lcnv qusr con action = do
 
   -- perform all authorisation checks and, if successful, the update itself
   updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
-  where
-    gtcToConv creator gtc =
-      let meta = gtcMetadata gtc
-       in Conversation
-            { convId = qUnqualified $ gtcId gtc,
-              convLocalMembers = mempty,
-              convRemoteMembers = mempty,
-              convDeleted = False,
-              convMetadata =
-                ConversationMetadata
-                  { cnvmType = GlobalTeamConv,
-                    cnvmCreator = creator,
-                    cnvmAccess = [SelfInviteAccess],
-                    cnvmAccessRoles = mempty,
-                    cnvmName = Just $ gtcmName meta,
-                    cnvmTeam = Just $ gtcmTeam meta,
-                    cnvmMessageTimer = Nothing,
-                    cnvmReceiptMode = Nothing
-                  },
-              convProtocol = ProtocolMLS (gtcMlsMetadata gtc)
-            }
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
 -- 'Conversation' value directly, instead of a 'ConvId', and skips protocol

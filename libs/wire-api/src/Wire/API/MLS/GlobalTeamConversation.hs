@@ -33,8 +33,11 @@ import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 -- Protocol is also implicit: it's always MLS.
 data GlobalTeamConversation = GlobalTeamConversation
   { gtcId :: Qualified ConvId,
-    gtcMetadata :: GlobalTeamConversationMetadata,
-    gtcMlsMetadata :: ConversationMLSData
+    gtcMlsMetadata :: ConversationMLSData,
+    gtcCreator :: Maybe UserId,
+    gtcAccess :: [Access],
+    gtcName :: Text,
+    gtcTeam :: TeamId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GlobalTeamConversation)
@@ -47,28 +50,14 @@ instance ToSchema GlobalTeamConversation where
       (description ?~ "The global team conversation object as returned from the server")
       $ GlobalTeamConversation
         <$> gtcId .= field "qualified_id" schema
-        <*> gtcMetadata .= gtcMetadataSchema
         <*> gtcMlsMetadata .= mlsDataSchema
-
-data GlobalTeamConversationMetadata = GlobalTeamConversationMetadata
-  { gtcmCreator :: Maybe UserId,
-    gtcmAccess :: [Access],
-    gtcmName :: Text,
-    gtcmTeam :: TeamId
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform GlobalTeamConversationMetadata)
-
-gtcMetadataSchema :: ObjectSchema SwaggerDoc GlobalTeamConversationMetadata
-gtcMetadataSchema =
-  GlobalTeamConversationMetadata
-    <$> gtcmCreator
-      .= maybe_
-        ( optFieldWithDocModifier
-            "creator"
-            (description ?~ "The creator's user ID")
-            schema
-        )
-    <*> gtcmAccess .= field "access" (array schema)
-    <*> gtcmName .= field "name" schema
-    <*> gtcmTeam .= field "team" schema
+        <*> gtcCreator
+          .= maybe_
+            ( optFieldWithDocModifier
+                "creator"
+                (description ?~ "The creator's user ID")
+                schema
+            )
+        <*> gtcAccess .= field "access" (array schema)
+        <*> gtcName .= field "name" schema
+        <*> gtcTeam .= field "team" schema

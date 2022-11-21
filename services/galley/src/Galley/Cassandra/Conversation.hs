@@ -255,28 +255,9 @@ getConversation conv = do
 getGlobalTeamConversation ::
   Local TeamId ->
   Client (Maybe GlobalTeamConversation)
-getGlobalTeamConversation qtid = do
-  let tid = tUnqualified qtid
-      cid = globalTeamConv tid
-  mconv <- retry x1 (query1 Cql.selectGlobalTeamConv (params LocalQuorum (Identity cid)))
-  pure $ toGlobalConv cid tid mconv
-  where
-    toGlobalConv cid tid mconv = do
-      (muid, mname, _mtid, mgid, mepoch, mcs) <- mconv
-      mlsData <- ConversationMLSData <$> mgid <*> (mepoch <|> Just (Epoch 0)) <*> mcs
-      name <- mname
-
-      pure $
-        GlobalTeamConversation
-          (qUntagged $ qualifyAs qtid cid)
-          ( GlobalTeamConversationMetadata
-              { gtcmCreator = muid,
-                gtcmAccess = [SelfInviteAccess],
-                gtcmName = name,
-                gtcmTeam = tid
-              }
-          )
-          mlsData
+getGlobalTeamConversation qtid =
+  let cid = qualifyAs qtid (globalTeamConv (tUnqualified qtid))
+   in getGlobalTeamConversationById cid
 
 getGlobalTeamConversationById ::
   Local ConvId ->
@@ -295,27 +276,17 @@ getGlobalTeamConversationById lconv = do
       pure $
         GlobalTeamConversation
           (qUntagged lconv)
-          ( GlobalTeamConversationMetadata
-              { gtcmCreator = muid,
-                gtcmAccess = [SelfInviteAccess],
-                gtcmName = name,
-                gtcmTeam = tid
-              }
-          )
           mlsData
+          muid
+          [SelfInviteAccess]
+          name
+          tid
 
 createGlobalTeamConversation ::
   Local TeamId ->
   Client GlobalTeamConversation
 createGlobalTeamConversation tid = do
   let lconv = qualifyAs tid (globalTeamConv $ tUnqualified tid)
-      meta =
-        GlobalTeamConversationMetadata
-          { gtcmCreator = Nothing,
-            gtcmAccess = [SelfInviteAccess],
-            gtcmName = "Global team conversation",
-            gtcmTeam = tUnqualified tid
-          }
       gid = convToGroupId lconv
       cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
   retry x5 . batch $ do
@@ -324,9 +295,9 @@ createGlobalTeamConversation tid = do
     addPrepQuery
       Cql.insertGlobalTeamConv
       ( tUnqualified lconv,
-        Cql.Set (gtcmAccess meta),
-        gtcmName meta,
-        gtcmTeam meta,
+        Cql.Set [SelfInviteAccess],
+        "Global team conversation",
+        tUnqualified tid,
         Just gid,
         Just cs
       )
@@ -335,12 +306,15 @@ createGlobalTeamConversation tid = do
   pure $
     GlobalTeamConversation
       (qUntagged lconv)
-      meta
       ( ConversationMLSData
           gid
           (Epoch 0)
           cs
       )
+      Nothing
+      [SelfInviteAccess]
+      "Global team conversation"
+      (tUnqualified tid)
 
 setGlobalTeamConversationCreator ::
   GlobalTeamConversation ->

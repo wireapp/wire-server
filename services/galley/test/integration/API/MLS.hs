@@ -2193,18 +2193,16 @@ testGetGlobalTeamConv setup = do
       expected =
         GlobalTeamConversation
           (qUntagged lconv)
-          ( GlobalTeamConversationMetadata
-              { gtcmCreator = Nothing,
-                gtcmAccess = [SelfInviteAccess],
-                gtcmName = "Global team conversation",
-                gtcmTeam = tid
-              }
-          )
           ( ConversationMLSData
               (convToGroupId lconv)
               (Epoch 0)
               MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
           )
+          Nothing
+          [SelfInviteAccess]
+          "Global team conversation"
+          tid
+
   let cm = Aeson.decode rs :: Maybe GlobalTeamConversation
   liftIO $ assertEqual "conversation metadata" cm (Just expected)
 
