@@ -866,7 +866,6 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
                 (convId <$> lconv)
                 qusr
                 (Set.singleton (creatorClient, creatorRef))
-
             (Left _, SelfConv, _) ->
               throw . InternalErrorWithDescription $
                 "Unexpected creator client set in a self-conversation"
@@ -887,11 +886,9 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
                 (convId <$> lconv)
                 qusr
                 (Set.singleton (creatorClient, creatorRef))
-
             (Left _, GlobalTeamConv, _) ->
               throw . InternalErrorWithDescription $
                 "Unexpected creator client set in a global teamconversation"
-
             (Left lm, _, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender
