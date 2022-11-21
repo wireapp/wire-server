@@ -75,7 +75,7 @@ In short, when you `cd` into this folder, you should see this message:
 direnv: error wire-server/docs/.envrc is blocked. Run `direnv allow` to approve its content
 ```
 
-Run `direnv allow` to allow the `.envrc` file to modify your environment, and you should then have all the binaries/correct environment needed to build the docs.
+Run `direnv allow` to allow the `.envrc` file to modify your environment. Then, you should have everything (binaries, environment variables) needed to build the docs.
 
 ### Generating html output (one-off)
 
