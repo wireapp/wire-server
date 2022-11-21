@@ -714,9 +714,6 @@ processExternalCommit qusr mSenderClient lconv cm epoch groupId action updatePat
     throw . mlsProtocolError $
       "The external commit attempts to add another client of the user, it must only add itself"
 
-  -- for_ senderClient $ \senderClient' ->
-  --   pure ()
-
   -- check if there is a key package ref in the remove proposal
   remRef <-
     if Map.null (paRemove action)
