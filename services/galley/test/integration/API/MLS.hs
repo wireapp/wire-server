@@ -189,6 +189,7 @@ tests s =
       testGroup
         "Self conversation"
         [ test s "create a self conversation" testSelfConversation,
+          test s "list a self conversation automatically" testSelfConversationList,
           test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser,
           test s "attempt to leave fails" testSelfConversationLeave
         ]
@@ -2153,6 +2154,14 @@ testSelfConversation = do
       WS.assertMatchN_ (5 # Second) wss $
         wsAssertMLSWelcome alice welcome
       WS.assertNoEvent (1 # WS.Second) wss
+
+-- | The MLS self-conversation should be available even without explicitly
+-- creating it by calling `GET /conversations/mls-self`.
+testSelfConversationList :: TestM ()
+testSelfConversationList = do
+  alice <- randomQualifiedUser
+  getConv (qUnqualified alice) (mlsSelfConvId (qUnqualified alice))
+    !!! const 200 === statusCode
 
 testSelfConversationOtherUser :: TestM ()
 testSelfConversationOtherUser = do
