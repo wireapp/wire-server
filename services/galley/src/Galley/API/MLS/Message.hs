@@ -695,14 +695,14 @@ processExternalCommit qusr mSenderClient lconv cm epoch groupId action updatePat
       & note (mlsProtocolError "An invalid key package in the update path")
 
   -- validate and update mapping in brig
-  mCid <-
+  eithCid <-
     nkpresClientIdentity
       <$$> validateAndAddKeyPackageRef
         NewKeyPackage
           { nkpConversation = Data.convId <$> qUntagged lconv,
             nkpKeyPackage = KeyPackageData (rmRaw newKeyPackage)
           }
-  cid <- mCid & note (mlsProtocolError "Tried to add invalid KeyPackage")
+  cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
 
   unless (cidQualifiedUser cid == qusr) $
     throw . mlsProtocolError $
@@ -968,14 +968,14 @@ applyProposal convId (AddProposal kp) = do
     addKeyPackageMapping :: Local ConvId -> KeyPackageRef -> KeyPackageData -> Sem r ClientIdentity
     addKeyPackageMapping lconv ref kpdata = do
       -- validate and update mapping in brig
-      mCid <-
+      eithCid <-
         nkpresClientIdentity
           <$$> validateAndAddKeyPackageRef
             NewKeyPackage
               { nkpConversation = qUntagged lconv,
                 nkpKeyPackage = kpdata
               }
-      cid <- mCid & note (mlsProtocolError "Tried to add invalid KeyPackage")
+      cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
       let qcid = cidQualifiedClient cid
       let qusr = fst <$> qcid
       -- update mapping in galley

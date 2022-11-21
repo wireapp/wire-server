@@ -132,7 +132,7 @@ data BrigAccess m a where
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
   GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientInfo)
   AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()
-  ValidateAndAddKeyPackageRef :: NewKeyPackage -> BrigAccess m (Maybe NewKeyPackageResult)
+  ValidateAndAddKeyPackageRef :: NewKeyPackage -> BrigAccess m (Either Text NewKeyPackageResult)
   UpdateKeyPackageRef :: KeyPackageUpdate -> BrigAccess m ()
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
