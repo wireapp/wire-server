@@ -386,24 +386,16 @@ This next figure shows the `HTTPS` calls (red), `E2EE` messages (black) and data
 Step by step:
 
 1. Client A starts a call, generates a random secret to be used to generate call and user-client IDs and connects to the SFT by sending a `CONFCONN` message over `HTTPS`.
-
 2. The `SFT` responds with a `SETUP` message including the SDP offer.
    Client A then sends a `SETUP` response with the SDP answer and a connection started.
    The `SFT` responds with a `CONFCONN` response.
-
 3. Once the connection is made the SFT sends a `CONFPART` over data-channel containing the participant list [A].
    Client A responds with a `CONFPART` response (removed from the diagram for simplicity).
-
 4. The `SFT` indicates to client A that this is a new call, so client A sends a `CONFSTART` to all clients in the conversation, giving them the secret so they can also generate the IDs.
-
 5. Client B answers the call and connects in the same manner but is told this is not a new call so doesn’t send a `CONFSTART`.
-
 6. The `SFT` sends the updated participant list [A, B] to both clients.
-
 7. Client A sees that B is a new client and sends a `CONFKEY` to client B so media can be encrypted and decrypted.
-
 8. Client C joins in the same manner and the `SFT` sends `CONFPART` with participant list [A, B, C] to all clients.
-
 9. Client A sees client C as a new client and sends a `CONFKEY` to client C also.
 
 Conflict resolution
@@ -428,20 +420,13 @@ The call with the earliest creation-sequence value wins the conflict, the other 
 Step by step:
 
 1. Client A starts a call (call 1) in the conversation in the same fashion as above.
-
 2. The `SFT` passes a `CONFPART` message with the participant list for call 1: [A].
-
 3. As this is a new call, client A sends a `CONFSTART` for call 1 to all clients in the conversation.
-
 4. Client B, having not received the `CONFSTART` for call 1 yet, starts another call (call 2) in the conversation.
-
 5. The `SFT` passes a `CONFPART` message with the participant list for call 2: [B].
-
 6. As call 2 is a new call, client B sends a `CONFSTART` for call 2 to all clients in the conversation.
-
 7. Client A receives the `CONFSTART` for call 2, compares the timestamp and sequence number and determines that call 1 was initiated earlier.
    Client A then resends the `CONFSTART` for call 1.
-
 8. On receiving the `CONFSTART` for call 1, client B sees that call 1 was initiated earlier and abandons call 2, reconnecting to the `SFT` for call 1.
 
 Leaving and ending the call
@@ -459,18 +444,12 @@ Step by step:
 
 1. Client A leaves the call by sending a `HANGUP` message to the `SFT`.
    The `SFT` responds with a `HANGUP` response and the connection is dropped.
-
 2. The SFT sends an updated `CONFPART` with the participant list [B, C] to the remaining clients.
-
 3. Client B, seeing that it has become the new key generator, generates a new key and sends it via targeted `E2EE` messages 
    (only `Proteus` supports targeted messages, `MLS` sends the message to the whole group) to the clients still in the call (in this case client C).
-
 4. Client B leaves in the same way.
-
 5. The SFT sends an update `CONFPART` with the participant list [C], client C generates a new key but has no-one to send it to.
-
 6. Client C leaves the call.
-
 7. Since client C was the last remaining client in the call, it sends a `CONFEND` to all clients in the conversation to signal the end of the call.
    This removes the join button in the UI.
 
@@ -506,6 +485,114 @@ The sequence of sending and re-sending a key is shown here:
    :align: center
 
    Key Requests and Resends: Message sequence when requesting a key resend
+
+Step by step:
+
+1. After client B joins, the SFT sends a `CONFPART` with participant list [A, B] to both clients.
+2. Client A sees a new valid client B and sends the current key in a `CONFKEY` response.
+3. If client B doesn’t receive the key in time, client B will request a key from the current `KeyGenerator` (A) via targeted `E2EE` messages 
+   (only `Proteus` supports targeted messages, `MLS` sends the message to the whole group) by sending a `CONFKEY` request.
+4. A receives the request, checks that client B is valid and in the call and if so sends a new `CONFKEY` message.
+
+Pseudonymization of Metadata
+............................
+
+The SFT is in a position to gather metadata on people and their calling habits.
+
+In order to mitigate this issue (and also as a security measure) the metadata (user and conversation info) going to the SFT is pseudonymized.
+
+When a call is started, the caller generates a random 128 bit call pseudonym and connects to the SFT with the call ID (CID) derived by running the call pseudonym and the conversation ID (string representation of a UUID) through the hash function:
+
+.. code-block::
+   :caption: Random 128 bit call pseudonym
+
+      opaque CallPseudonym[16];
+      opaque StringUUID[36];
+
+      struct {
+         CallPseudonym call_pseudonym;
+         StringUUID wire_conv_id;
+      } PseudoConvData;
+
+      CID = ID2Str(Hash(PseudoConvData))
+
+`ID2Str` is a function that creates a string representation of the first 16 bytes of binary data making a 32 character string.
+
+The call pseudonym `CallPseudonym` is then sent to the other clients via the `E2EE` session (in the `CONFSTART` message).
+
+The other clients use the derived `CID` to connect to the correct call on the SFT.
+
+Clients present themselves and each other to the SFT by a pseudonymized user ID (`UID`) derived from the call pseudonym (`CallPseudonym`) and the user ID (string representation of a `UUID`) and client ID (string representation of a 64 bit binary value)
+
+.. code-block::
+   :caption: Pseudonymized user ID
+
+      opaque CallPseudonym[16];
+      opaque StringUUID[36];
+      opaque ClientID[16];
+
+      struct {
+         CallPseudonym call_pseudonym;
+         StringUUID wire_user_id;
+         ClientID   wire_client_id;
+      } PseudoUserData;
+
+      UID = ID2Str(Hash(PseudoUserData))
+
+Participant authentication
+..........................
+
+In order to prevent malicious clients getting (encrypted) media by guessing the call secret, clients authorize the sending and receiving of media between each other based on a lookup from the so called «sync engine list» containing clients in pseudo-anonymized form.
+
+The source for the sync engine is received from the Wire servers and stored locally in memory.
+
+On joining the call clients request a list of clients in the conversation and generate the pseudo-anonymous client list.
+
+When clients are added or removed from a conversation the list gets updated, too.
+
+When a client receives a `CONFPART` message from the `SFT` containing the participant list, it looks up each pseudo-anonymous ID, compares it with the sync engine list and marks those present as authorized.
+
+The list of authorized clients is sent back to the SFT in a `CONFPART` response message.
+
+In order for client A to receive client B's media, client A must authorize client B and client B must authorize client A.
+
+This prevents an unauthorized client from both sending and receiving media.
+
+This figure shows the message sequence used to control the forwarding of media:
+
+.. figure:: img/sft-participant-authentication.png
+   :alt: Participant authentication.
+   :align: center
+
+   Participant authentication: Message sequence for controlling the forwarding of media
+
+Step by step:
+
+The SFT sends a `CONFPART` message with participant list [A, B, C] to all clients.
+
+1. Client A checks the IDs of client B and client C with the sync engine list and returns a `CONFPART` response with the list [B, C] for authorization.
+2. Client B checks the IDs of client A and client C with the sync engine list and returns a `CONFPART` response with the list [A, C].
+   From this point client A’s packets will be forwarded to client B and client B’s packets forwarded to client A.
+3. Client C checks the IDs of client B and client C with the sync engine list and returns a `CONFPART` response with the list [A, B].
+   From this point client A’s and client B’s packets are also forwarded to client C and client C’s packets are forwarded to client A and client B.
+
+
+If a client is present in the list from the `SFT` but not in the sync engine list then an updated list is requested from the Wire servers.
+
+When this list is received and if the client is now present, an updated `CONFPART` response is sent to the `SFT` and the two clients can now receive media from each other.
+
+If the client is not part of the list, the SFT will not receive a `CONFPART` response referencing this client and the therefore missing mutual authentication to the SFT will prevent the SFT from exchanging data between these two clients.
+
+The `KeyGenerator` sends key material for the calls only to members of the group over the existing `E2EE` session.
+
+A malicious client that is able to guess or know the call ID and a valid client ID is still not given access to the key material since that is sent via the `E2EE` channel using the real user and client IDs from the list which would send the key to the target client rather than the malicious client.
+
+The authentication guarantees are derived from the authentication of the `E2EE` Sessions.
+
+If all devices in the group in which the call takes place are verified, the client will warn the user when a new unverified device is added to the conversation and the call will not connect automatically.
+
+
+
 
 
 
