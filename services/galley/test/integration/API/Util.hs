@@ -141,13 +141,14 @@ import Wire.API.User.Client.Prekey
 -- API Operations
 
 addPrefix :: Request -> Request
-addPrefix r = r {HTTP.path = "v" <> toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}
+addPrefix = addPrefixAtVersion maxBound
+
+addPrefixAtVersion :: Version -> Request -> Request
+addPrefixAtVersion v r = r {HTTP.path = "v" <> toHeader v <> "/" <> removeSlash (HTTP.path r)}
   where
     removeSlash s = case B8.uncons s of
       Just ('/', s') -> s'
       _ -> s
-    latestVersion :: Version
-    latestVersion = maxBound
 
 -- | A class for monads with access to a Sem r instance
 class HasGalley m where
@@ -1042,6 +1043,15 @@ getConvIds u r s = do
 listConvIds :: UserId -> GetPaginatedConversationIds -> TestM ResponseLBS
 listConvIds u paginationOpts = do
   g <- viewGalley
+  post $
+    g
+      . path "/conversations/list-ids"
+      . zUser u
+      . json paginationOpts
+
+listConvIdsV2 :: UserId -> GetPaginatedConversationIds -> TestM ResponseLBS
+listConvIdsV2 u paginationOpts = do
+  g <- fmap (addPrefixAtVersion V2 .) (view tsUnversionedGalley)
   post $
     g
       . path "/conversations/list-ids"
