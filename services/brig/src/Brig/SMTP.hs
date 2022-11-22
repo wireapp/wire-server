@@ -109,7 +109,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
           establishConnection
       )
       ( \(e :: SomeException) -> do
-          -- Ensure that the logs are written: In case of failure, the errors thrown
+          -- Ensure that the logs are written: In case of failure, the error thrown
           -- below will kill the app (which could otherwise leave the logs unwritten).
           flush lg
           error $ "Failed to establish test connection with SMTP server: " ++ show e
@@ -119,7 +119,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
         ensureSMTPConnectionTimeout timeoutDuration (SMTP.gracefullyCloseSMTP con)
     )
     ( \(e :: SomeException) -> do
-        -- Ensure that the logs are written: In case of failure, the errors thrown
+        -- Ensure that the logs are written: In case of failure, the error thrown
         -- below will kill the app (which could otherwise leave the logs unwritten).
         flush lg
         error $ "Failed to close test connection with SMTP server: " ++ show e
