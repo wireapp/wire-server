@@ -329,6 +329,11 @@ setGlobalTeamConversationCreator gtc uid = do
       ( uid,
         qUnqualified . gtcId $ gtc
       )
+    addPrepQuery
+      Cql.insertUserConv
+      ( uid,
+        qUnqualified . gtcId $ gtc
+      )
 
 -- | "Garbage collect" a 'Conversation', i.e. if the conversation is
 -- marked as deleted, actually remove it from the database and return

@@ -199,7 +199,8 @@ tests s =
           test s "Non member of team returns 403" testGetGlobalTeamConvNonMember,
           test s "Global team conversation is created on get if not present" (testGetGlobalTeamConv s),
           test s "Can't leave global team conversation" testGlobalTeamConversationLeave,
-          test s "Send message in global team conversation" testGlobalTeamConversationMessage
+          test s "Send message in global team conversation" testGlobalTeamConversationMessage,
+          test s "Listing convs includes global team conversation" testConvListIncludesGlobal
         ],
       testGroup
         "Self conversation"
@@ -2205,6 +2206,45 @@ testGetGlobalTeamConv setup = do
 
   let cm = Aeson.decode rs :: Maybe GlobalTeamConversation
   liftIO $ assertEqual "conversation metadata" cm (Just expected)
+
+testConvListIncludesGlobal :: TestM ()
+testConvListIncludesGlobal = do
+  aliceQ <- randomQualifiedUser
+  let alice = qUnqualified aliceQ
+  tid <- createBindingTeamInternal "sample-team" alice
+  team <- getTeam alice tid
+  assertQueue "create team" tActivate
+  liftIO $ assertEqual "alice" alice (team ^. teamCreator)
+  assertQueueEmpty
+
+  -- global team conv doesn't yet include user
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
+  listConvIds alice paginationOpts !!! do
+    const 200 === statusCode
+    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+
+  -- add user to conv
+  runMLSTest $ do
+    alice1 <- createMLSClient aliceQ
+
+    let response = getGlobalTeamConv alice tid <!! const 200 === statusCode
+    Just rs <- responseBody <$> response
+    let (Just gtc) = Aeson.decode rs :: Maybe GlobalTeamConversation
+        gid = cnvmlsGroupId $ gtcMlsMetadata gtc
+
+    void $ uploadNewKeyPackage alice1
+
+    -- create mls group
+    createGroup alice1 gid
+    void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
+
+  -- Now we should have the user as part of that conversation also in the backend
+  listConvIds alice paginationOpts !!! do
+    const 200 === statusCode
+    const (Just [globalTeamConv tid]) =~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+
+rightToMaybe :: Either a b -> Maybe b
+rightToMaybe = either (const Nothing) Just
 
 testGlobalTeamConversationMessage :: TestM ()
 testGlobalTeamConversationMessage = do
