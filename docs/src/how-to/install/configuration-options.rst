@@ -178,11 +178,11 @@ There is no way to entirely disable this behaviour, two extreme examples below
 
 
 Control nginz upstreams (routes) into the Kubernetes cluster
-------------------------------------------------
+------------------------------------------------------------
 
-Open unterminated upstreams (routes) into the Kubernetes cluster are a
-potential security issue. To prevent this there are fine grained settings in the
-nginz configuration defining which upstreams should exist.
+Open unterminated upstreams (routes) into the Kubernetes cluster are a potential
+security issue. To prevent this, there are fine-grained settings in the nginz
+configuration defining which upstreams should exist.
 
 Default upstreams
 ^^^^^^^^^^^^^^^^^
@@ -356,7 +356,7 @@ You may want
 Metrics/logging
 ---------------
 
-`` :ref:`monitoring`
+* :ref:`monitoring`
 * :ref:`logging`
 
 SMTP server
