@@ -1,4 +1,4 @@
-The list of upstreams is split into `nginx_conf.upstreams` and
+**Nginz helm chart**: The list of upstreams is split into `nginx_conf.upstreams` and
 `nginx_conf.extra_upstreams`. Extra upstreams are disabled by default. They can
 be enabled by adding their name (entry's key) to
 `nginx_conf.enabled_extra_upstreams`. `nginx_conf.ignored_upstreams` is only
