@@ -111,7 +111,7 @@ instance Aeson.ToJSON a => Aeson.ToJSON (WithWritetime a)
 -- Queries
 
 getKey :: UserKey -> Client (Maybe (UserId, Writetime UserId))
-getKey key = retry x1 $ query1 cql (params LocalQuorum (Identity key))
+getKey key = retry x5 $ query1 cql (params LocalQuorum (Identity key))
   where
     cql :: PrepQuery R (Identity UserKey) (UserId, Writetime UserId)
     cql = "SELECT user, writetime(user) from user_keys where key = ?"
@@ -142,7 +142,7 @@ instance Aeson.ToJSON UserKey where
 type UserDetailsRow = (Maybe AccountStatus, Maybe (Writetime AccountStatus), Maybe Email, Maybe (Writetime Email), Maybe Phone, Maybe (Writetime Phone))
 
 getUserDetails :: UserId -> Client (Maybe UserDetailsRow)
-getUserDetails uid = retry x1 $ query1 cql (params LocalQuorum (Identity uid))
+getUserDetails uid = retry x5 $ query1 cql (params LocalQuorum (Identity uid))
   where
     cql :: PrepQuery R (Identity UserId) UserDetailsRow
     cql = "SELECT status, writetime(status), email, writetime(email), phone, writetime(phone) from user where id = ?"
@@ -218,10 +218,20 @@ checkUser l brig key userId time repairData = do
           keyError = foldKey compareEmail comparePhone key
       when (statusError && repairData) $ -- case 1.
         runClient brig $ freeUserKey l key
+      when (keyError && repairData) $ -- case 3.
+        case mEmail of
+          Nothing -> pure ()
+          Just email -> do
+            validKeysEntry <- runClient brig $ getKey (userEmailKey email) 
+            case validKeysEntry of
+              Just (uid, _) -> if uid == userId then do
+                  -- there is a valid matching user_key entry for a user in the user table; just *also* an extra entry that can be cleaned up (case 3.)
+                  Log.warn l (Log.msg (Log.val "Subcase 3a: entry can be repaired by removing entry") . Log.field "key" (keyText key) )
+                  runClient brig $ freeUserKey l key
+                else
+                  Log.warn l (Log.msg (Log.val "Subcase 3b: double mismatch entry in user_keys") . Log.field "userId" (show userId))
+              Nothing -> do
+                Log.warn l (Log.msg (Log.val "Subcase 3c: missing entry in user_keys") . Log.field "userId" (show userId))
       if statusError || keyError
-        then do
-          -- when repairData $
-          --   runClient brig $
-          --     freeKey l key
-          pure . Just $ Inconsistency {..}
+        then pure . Just $ Inconsistency {..}
         else pure Nothing
