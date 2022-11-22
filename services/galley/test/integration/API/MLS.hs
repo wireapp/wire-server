@@ -66,6 +66,7 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
@@ -2159,9 +2160,23 @@ testSelfConversation = do
 -- creating it by calling `GET /conversations/mls-self`.
 testSelfConversationList :: TestM ()
 testSelfConversationList = do
-  alice <- randomQualifiedUser
-  getConv (qUnqualified alice) (mlsSelfConvId (qUnqualified alice))
-    !!! const 200 === statusCode
+  alice <- randomUser
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
+  convs :: ConvIdsPage <-
+    responseJsonError
+      =<< listConvIds alice paginationOpts
+        <!! const 200 === statusCode
+  let maybeMLSSelf :: Maybe Conversation -> Qualified ConvId -> TestM (Maybe Conversation)
+      maybeMLSSelf (Just acc) _ = pure (Just acc)
+      maybeMLSSelf Nothing qcnv = do
+        conv <- responseJsonError =<< getConvQualified alice qcnv
+        let isMLSSelf =
+              cnvType conv == SelfConv
+                && protocolTag (cnvProtocol conv) == ProtocolMLSTag
+        pure (guard isMLSSelf $> conv)
+  mMLSSelf <- foldM maybeMLSSelf Nothing (mtpResults convs)
+  liftIO $
+    assertBool "The MLS self-conversation is not listed" (isJust mMLSSelf)
 
 testSelfConversationOtherUser :: TestM ()
 testSelfConversationOtherUser = do
