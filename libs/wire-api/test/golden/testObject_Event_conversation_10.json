@@ -1,0 +1,15 @@
+{
+    "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "data": "cwiKd+znUCgb2M0=",
+    "from": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "qualified_conversation": {
+        "domain": "1852a.o-4",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "qualified_from": {
+        "domain": "4-p.d7b8d3.6.c8--jds3-1acy",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "time": "2018-01-01T00:00:00.000Z",
+    "type": "conversation.mls-message-add"
+}
