@@ -99,11 +99,15 @@ initSMTP' ::
   SMTPConnType ->
   IO SMTP
 initSMTP' timeoutDuration lg host port credentials connType = do
-  -- Try to initiate a connection and fail badly right away in case of bad auth
-  -- otherwise config errors will be detected "too late"
+  -- Try to initiate a connection and fail badly right away in case of bad auth.
+  -- Otherwise, config errors will be detected "too late".
   con <-
     catch
-      (logExceptionOrResult lg ("Checking test connection to " ++ unpack host ++ " on startup") establishConnection)
+      ( logExceptionOrResult
+          lg
+          ("Checking test connection to " ++ unpack host ++ " on startup")
+          establishConnection
+      )
       ( \(e :: SomeException) -> do
           -- Ensure that the logs are written: In case of failure, the errors thrown
           -- below will kill the app (which could otherwise leave the logs unwritten).
@@ -115,17 +119,19 @@ initSMTP' timeoutDuration lg host port credentials connType = do
         ensureSMTPConnectionTimeout timeoutDuration (SMTP.gracefullyCloseSMTP con)
     )
     ( \(e :: SomeException) -> do
+        -- Ensure that the logs are written: In case of failure, the errors thrown
+        -- below will kill the app (which could otherwise leave the logs unwritten).
         flush lg
         error $ "Failed to close test connection with SMTP server: " ++ show e
     )
   SMTP <$> createPool create destroy 1 5 5
   where
-    liftSMTP :: IO a -> IO a
-    liftSMTP action = ensureSMTPConnectionTimeout timeoutDuration action
+    ensureTimeout :: IO a -> IO a
+    ensureTimeout = ensureSMTPConnectionTimeout timeoutDuration
 
     establishConnection :: IO SMTP.SMTPConnection
     establishConnection = do
-      conn <- liftSMTP $ case (connType, port) of
+      conn <- ensureTimeout $ case (connType, port) of
         (Plain, Nothing) -> SMTP.connectSMTP (unpack host)
         (Plain, Just p) -> SMTP.connectSMTPPort (unpack host) p
         (TLS, Nothing) -> SMTP.connectSMTPSTARTTLS (unpack host)
@@ -138,7 +144,7 @@ initSMTP' timeoutDuration lg host port credentials connType = do
             SMTP.defaultSettingsSMTPSSL {SMTP.sslPort = p}
       ok <- case credentials of
         (Just (Username u, Password p)) ->
-          liftSMTP $
+          ensureTimeout $
             SMTP.authenticate SMTP.LOGIN (unpack u) (unpack p) conn
         _ -> pure True
       if ok
@@ -154,7 +160,8 @@ initSMTP' timeoutDuration lg host port credentials connType = do
 
     destroy :: SMTP.SMTPConnection -> IO ()
     destroy c =
-      logExceptionOrResult lg ("Closing pooled SMTP connection to " ++ unpack host) $ (ensureSMTPConnectionTimeout timeoutDuration . SMTP.gracefullyCloseSMTP) c
+      logExceptionOrResult lg ("Closing pooled SMTP connection to " ++ unpack host) $
+        (ensureTimeout . SMTP.gracefullyCloseSMTP) c
 
 logExceptionOrResult :: (MonadIO m, MonadCatch m) => Logger -> String -> m a -> m a
 logExceptionOrResult lg actionString action = do
@@ -163,19 +170,19 @@ logExceptionOrResult lg actionString action = do
     catches
       action
       [ Handler
-          ( \(e :: SMTPPoolException) ->
+          ( \(e :: SMTPPoolException) -> do
               let resultLog = case e of
-                    SMTPUnauthorized -> ("Failed to establish connection, check your credentials." :: String)
+                    SMTPUnauthorized ->
+                      ("Failed to establish connection, check your credentials." :: String)
                     SMTPConnectionTimeout -> ("Connection timeout." :: String)
-               in ( Logger.log
-                      lg
-                      Logger.Warn
-                      ( msg'
-                          . field "action" actionString
-                          . field "result" resultLog
-                      )
-                      >> CE.throw e
-                  )
+              Logger.log
+                lg
+                Logger.Warn
+                ( msg'
+                    . field "action" actionString
+                    . field "result" resultLog
+                )
+              CE.throw e
           ),
         Handler
           ( \(e :: SomeException) -> do
@@ -210,11 +217,7 @@ defaultTimeoutDuration = 15 :: Second
 -- | Wrapper function for `SMTP` network actions
 --
 -- This function ensures that @action@ finishes in a given period of time.
--- Additionally, all exceptions are caught and transformed into @Left
--- (CaughtException e)@. Staying in @Either SMTPFailure a@ makes error handling
--- in this module a lot easier compared to having to deal with both, failure
--- values and exceptions. (We cannot be sure which exceptions may arise as this
--- depends on a stack of libraries...)
+-- Throws on a timeout. Exceptions of @action@ are propagated (re-thrown).
 ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> m a -> m a
 ensureSMTPConnectionTimeout timeoutDuration action =
   timeout timeoutDuration action >>= \mbA ->
@@ -240,4 +243,6 @@ sendMail' :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> Logger -> SMTP -> Mai
 sendMail' timeoutDuration lg s m = liftIO $ withResource (s ^. pool) sendMail''
   where
     sendMail'' :: SMTP.SMTPConnection -> IO ()
-    sendMail'' c = logExceptionOrResult lg "Sending mail via SMTP" $ ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c)
+    sendMail'' c =
+      logExceptionOrResult lg "Sending mail via SMTP" $
+        ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c)
