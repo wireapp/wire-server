@@ -155,10 +155,10 @@ providerToken dur pid = do
   d <- expiry dur
   newToken d P Nothing (mkProvider pid)
 
-renewToken :: ToByteString a => Integer -> Token a -> Create (Token a)
-renewToken dur tkn = do
+renewToken :: ToByteString a => Integer -> Header -> a -> Create (Token a)
+renewToken dur hdr bdy = do
   d <- expiry dur
-  newToken d (tkn ^. header . typ) (tkn ^. header . tag) (tkn ^. body)
+  newToken d (hdr ^. typ) (hdr ^. tag) bdy
 
 newToken :: ToByteString a => POSIXTime -> Type -> Maybe Tag -> a -> Create (Token a)
 newToken ti ty ta a = do
