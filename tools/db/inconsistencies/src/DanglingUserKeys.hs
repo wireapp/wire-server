@@ -87,7 +87,7 @@ pageSize :: Int32
 pageSize = 1000
 
 data Inconsistency = Inconsistency
-  { -- | Handle in the user_handle table
+  { -- | Key in the user_keys table
     key :: UserKey,
     userId :: UserId,
     time :: Writetime UserId,
@@ -189,9 +189,10 @@ instance Cql UserKeyHash where
   toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
 
 
--- inconsistent data cases:
--- - 1. user deleted in users table, data left in user_keys -> delete records in user_keys
--- - 2. ... TODO
+-- repair these inconsistent data cases:
+-- - 1. user deleted (or with status=null) in user table, data left in user_keys -> delete records in user_keys
+-- - 2. user not found in user table, data left in user_keys -> delete records in user_keys
+-- - 3. ... TODO
 checkUser :: Logger -> ClientState -> UserKey -> UserId -> Writetime UserId -> Bool -> IO (Maybe Inconsistency)
 checkUser l brig key userId time repairData = do
   maybeDetails <- runClient brig $ getUserDetails userId
@@ -200,17 +201,14 @@ checkUser l brig key userId time repairData = do
       let status = Nothing
           userEmail = Nothing
           userPhone = Nothing
-      -- when repairData $
-      --   runClient brig $
-      --     freeKey l key
+      when repairData $ -- case 2.
+        runClient brig $
+          freeUserKey l key
       pure . Just $ Inconsistency {..}
     Just (mStatus, mStatusWriteTime, mEmail, mEmailWriteTime, mPhone, mPhoneWriteTime) -> do
       let status = WithWritetime <$> mStatus <*> mStatusWriteTime
           userEmail = WithWritetime <$> mEmail <*> mEmailWriteTime
           userPhone = WithWritetime <$> mPhone <*> mPhoneWriteTime
-          userDeletedError = case mStatus of
-            Just Deleted -> True
-            _ -> False
           statusError = case mStatus of
             Nothing -> True
             Just Deleted -> True
@@ -218,7 +216,7 @@ checkUser l brig key userId time repairData = do
           compareEmail e = (emailKeyUniq . mkEmailKey <$> mEmail) /= Just (fromEmail e)
           comparePhone p = (phoneKeyUniq . mkPhoneKey <$> mPhone) /= Just (fromPhone p)
           keyError = foldKey compareEmail comparePhone key
-      when (userDeletedError && repairData) $ -- inconsistency 1
+      when (statusError && repairData) $ -- case 1.
         runClient brig $ freeUserKey l key
       if statusError || keyError
         then do
