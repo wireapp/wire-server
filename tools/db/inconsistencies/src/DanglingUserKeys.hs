@@ -197,6 +197,7 @@ instance Cql UserKeyHash where
 --     3.a. this user *also* has a correct entry in the user_keys table -> delete record of the wrong pointer inside user_keys
 --     3.b. this user's email, when searched for points to another user -> do nothing; log this issue
 --     3.c  this user's email, when searched for does not exist in user_keys. Do nothing, let this be handled by the other module EmailLessUsers.hs
+--   4. user has an email in user_keys but no email inside user table -> do nothing. How to resolve?
 checkUser :: Logger -> ClientState -> UserKey -> UserId -> Writetime UserId -> Bool -> IO (Maybe Inconsistency)
 checkUser l brig key userId time repairData = do
   maybeDetails <- runClient brig $ getUserDetails userId

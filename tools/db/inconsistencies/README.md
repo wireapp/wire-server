@@ -53,3 +53,9 @@ kubectl cp inconsistencies:/inconsistencies.log inconsistencies.log
 cat <log-file> |
     jq -r '[.userId, .status.value, .status.writetime, .userHandle.value, .userHandle.writetime, .handleClaimUser.value, .handleClaimUser.writetime] | @csv' >! handle-less-users.csv
 ```
+
+8. From a CSV file, you may extract only handles/emails/keys to feed into repair using awk/grep:
+
+```bash
+cat inconsistencies.csv | awk -F ',' '{print $1}' | grep -v '^"+' | xargs -n 1 echo > dangling-email-keys.txt
+```
