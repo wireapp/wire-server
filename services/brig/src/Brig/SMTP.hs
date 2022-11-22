@@ -33,11 +33,9 @@ where
 import qualified Control.Exception as CE (throw)
 import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.Trans.Except
 import Control.Timeout (timeout)
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Either.Extra
 import Data.Pool
 import Data.Text (unpack)
 import Data.Time.Units
@@ -66,9 +64,6 @@ data SMTPConnType
 deriveJSON defaultOptions {constructorTagModifier = map toLower} ''SMTPConnType
 
 makeLenses ''SMTP
-
-data SMTPFailure = Unauthorized | ConnectionTimeout | CaughtException SomeException
-  deriving (Show)
 
 data SMTPPoolException = SMTPUnauthorized | SMTPConnectionTimeout
   deriving (Eq, Show)
@@ -106,27 +101,29 @@ initSMTP' ::
 initSMTP' timeoutDuration lg host port credentials connType = do
   -- Try to initiate a connection and fail badly right away in case of bad auth
   -- otherwise config errors will be detected "too late"
-  res <- runExceptT establishConnection
-  logResult lg ("Checking test connection to " ++ unpack host ++ " on startup") res
-  -- Ensure that the logs are written: In case of failure, the errors thrown
-  -- below will kill the app (which could otherwise leave the logs unwritten).
-  flush lg
-  case res of
-    Left e ->
-      error $ "Failed to establish test connection with SMTP server: " ++ show e
-    Right con ->
-      either
-        (error "Failed to close test connection with SMTP server.")
-        (const (SMTP <$> createPool create destroy 1 5 5))
-        =<< do
-          r <- ensureSMTPConnectionTimeout timeoutDuration (SMTP.gracefullyCloseSMTP con)
-          logResult lg "Closing test connection on startup" r
-          pure r
+  con <-
+    catch
+      (logExceptionOrResult lg ("Checking test connection to " ++ unpack host ++ " on startup") establishConnection)
+      ( \(e :: SomeException) -> do
+          -- Ensure that the logs are written: In case of failure, the errors thrown
+          -- below will kill the app (which could otherwise leave the logs unwritten).
+          flush lg
+          error $ "Failed to establish test connection with SMTP server: " ++ show e
+      )
+  catch
+    ( logExceptionOrResult lg "Closing test connection on startup" $
+        ensureSMTPConnectionTimeout timeoutDuration (SMTP.gracefullyCloseSMTP con)
+    )
+    ( \(e :: SomeException) -> do
+        flush lg
+        error $ "Failed to close test connection with SMTP server: " ++ show e
+    )
+  SMTP <$> createPool create destroy 1 5 5
   where
-    liftSMTP :: IO a -> ExceptT SMTPFailure IO a
-    liftSMTP action = ExceptT $ ensureSMTPConnectionTimeout timeoutDuration action
+    liftSMTP :: IO a -> IO a
+    liftSMTP action = ensureSMTPConnectionTimeout timeoutDuration action
 
-    establishConnection :: ExceptT SMTPFailure IO SMTP.SMTPConnection
+    establishConnection :: IO SMTP.SMTPConnection
     establishConnection = do
       conn <- liftSMTP $ case (connType, port) of
         (Plain, Nothing) -> SMTP.connectSMTP (unpack host)
@@ -146,62 +143,60 @@ initSMTP' timeoutDuration lg host port credentials connType = do
         _ -> pure True
       if ok
         then pure conn
-        else throwE Unauthorized
+        else CE.throw SMTPUnauthorized
 
     create :: IO SMTP.SMTPConnection
-    create = do
-      res <- runExceptT establishConnection
-      logResult lg ("Creating pooled SMTP connection to " ++ unpack host) res
-      throwOnLeft res
+    create =
+      logExceptionOrResult
+        lg
+        ("Creating pooled SMTP connection to " ++ unpack host)
+        establishConnection
 
     destroy :: SMTP.SMTPConnection -> IO ()
     destroy c =
-      (ensureSMTPConnectionTimeout timeoutDuration . SMTP.gracefullyCloseSMTP) c
-        >>= void . logResult lg ("Closing pooled SMTP connection to " ++ unpack host)
+      logExceptionOrResult lg ("Closing pooled SMTP connection to " ++ unpack host) $ (ensureSMTPConnectionTimeout timeoutDuration . SMTP.gracefullyCloseSMTP) c
 
-throwOnLeft :: MonadIO m => Either SMTPFailure a -> m a
-throwOnLeft = \case
-  Left Unauthorized -> CE.throw SMTPUnauthorized
-  Left ConnectionTimeout -> CE.throw SMTPConnectionTimeout
-  Left (CaughtException e) -> CE.throw e
-  Right a -> pure a
-
-logResult :: MonadIO m => Logger -> String -> Either SMTPFailure c -> m ()
-logResult lg actionString res =
+logExceptionOrResult :: (MonadIO m, MonadCatch m) => Logger -> String -> m a -> m a
+logExceptionOrResult lg actionString action = do
   let msg' = msg ("SMTP connection result" :: String)
-   in case res of
-        Left Unauthorized -> do
-          Logger.log
-            lg
-            Logger.Warn
-            ( msg'
-                . field "action" actionString
-                . field "result" ("Failed to establish connection, check your credentials." :: String)
-            )
-        Left ConnectionTimeout -> do
-          Logger.log
-            lg
-            Logger.Warn
-            ( msg'
-                . field "action" actionString
-                . field "result" ("Connection timeout." :: String)
-            )
-        Left (CaughtException e) -> do
-          Logger.log
-            lg
-            Logger.Warn
-            ( msg'
-                . field "action" actionString
-                . field "result" ("Caught exception : " ++ show e)
-            )
-        Right _ -> do
-          Logger.log
-            lg
-            Logger.Debug
-            ( msg'
-                . field "action" actionString
-                . field "result" ("Succeeded." :: String)
-            )
+  res <-
+    catches
+      action
+      [ Handler
+          ( \(e :: SMTPPoolException) ->
+              let resultLog = case e of
+                    SMTPUnauthorized -> ("Failed to establish connection, check your credentials." :: String)
+                    SMTPConnectionTimeout -> ("Connection timeout." :: String)
+               in ( Logger.log
+                      lg
+                      Logger.Warn
+                      ( msg'
+                          . field "action" actionString
+                          . field "result" resultLog
+                      )
+                      >> CE.throw e
+                  )
+          ),
+        Handler
+          ( \(e :: SomeException) -> do
+              Logger.log
+                lg
+                Logger.Warn
+                ( msg'
+                    . field "action" actionString
+                    . field "result" ("Caught exception : " ++ show e)
+                )
+              CE.throw e
+          )
+      ]
+  Logger.log
+    lg
+    Logger.Debug
+    ( msg'
+        . field "action" actionString
+        . field "result" ("Succeeded." :: String)
+    )
+  pure res
 
 -- | Default timeout for all actions
 --
@@ -220,11 +215,13 @@ defaultTimeoutDuration = 15 :: Second
 -- in this module a lot easier compared to having to deal with both, failure
 -- values and exceptions. (We cannot be sure which exceptions may arise as this
 -- depends on a stack of libraries...)
-ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> m a -> m (Either SMTPFailure a)
+ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> m a -> m a
 ensureSMTPConnectionTimeout timeoutDuration action =
-  catch
-    (maybe (Left ConnectionTimeout) Right <$> timeout timeoutDuration action)
-    (\(e :: SomeException) -> pure (Left (CaughtException e)))
+  timeout timeoutDuration action >>= \mbA ->
+    ( case mbA of
+        Just a -> pure a
+        Nothing -> CE.throw SMTPConnectionTimeout
+    )
 
 -- | Send a `Mail` via an existing `SMTP` connection pool
 --
@@ -243,9 +240,4 @@ sendMail' :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> Logger -> SMTP -> Mai
 sendMail' timeoutDuration lg s m = liftIO $ withResource (s ^. pool) sendMail''
   where
     sendMail'' :: SMTP.SMTPConnection -> IO ()
-    sendMail'' c = ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c) >>= handleError
-
-    handleError :: MonadIO m => Either SMTPFailure a -> m ()
-    handleError r =
-      logResult lg "Sending mail via SMTP" r
-        >> (void . throwOnLeft) r
+    sendMail'' c = logExceptionOrResult lg "Sending mail via SMTP" $ ensureSMTPConnectionTimeout timeoutDuration (SMTP.sendMail m c)
