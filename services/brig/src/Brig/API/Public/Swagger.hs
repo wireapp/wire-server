@@ -7,10 +7,10 @@ module Brig.API.Public.Swagger
   )
 where
 
-import Control.Lens
 import qualified Data.Aeson as A
 import Data.FileEmbed
 import qualified Data.HashMap.Strict.InsOrd as HM
+import Data.Swagger (NamedSchema (NamedSchema))
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as T
@@ -55,7 +55,7 @@ swaggerPregenUIServer =
 - swagger2 doesn't handle types with the same name from different models well; it silently
   drops the second definition, which is what you want only if there are no name clashes as
   in our case with three types called `Event` and three types called `EventType`.  We have
-  solved this by rendering the three event types seperately and returning each
+  solved this by rendering the three event types separately and returning each
   declarations list in a super-list.  For a better work-around, check
   https://github.com/GetShopTV/swagger2/issues/14.
 
@@ -70,17 +70,16 @@ swaggerPregenUIServer =
   https://docs.wire.com/understand/api-client-perspective/swagger.html
 
 tracked in https://wearezeta.atlassian.net/browse/FS-1008 -}
-eventNotificationSchemas :: [S.Definitions S.Schema]
-eventNotificationSchemas = fst . (`S.runDeclare` mempty) <$> renderAll
+eventNotificationSchemas :: S.Definitions S.Schema
+eventNotificationSchemas = fst . (`S.runDeclare` mempty) $ renderAll
   where
-    renderAll :: [S.Declare (S.Definitions S.Schema) ()]
-    renderAll =
-      [ render @Wire.API.Event.Conversation.Event "Wire.API.Event.Conversation.Event",
-        render @Wire.API.Event.FeatureConfig.Event "Wire.API.Event.FeatureConfig.Event",
-        render @Wire.API.Event.Team.Event "Wire.API.Event.Team.Event"
-      ]
+    renderAll :: S.Declare (S.Definitions S.Schema) ()
+    renderAll = do
+      render @Wire.API.Event.Conversation.Event
+      render @Wire.API.Event.FeatureConfig.Event
+      render @Wire.API.Event.Team.Event
 
-    render :: forall a. S.ToSchema a => Text -> S.Declare (S.Definitions S.Schema) ()
-    render eventTypeName = do
-      eventSchema <- S.declareNamedSchema (Proxy @a) <&> view S.schema
-      S.declare (HM.singleton eventTypeName eventSchema)
+    render :: forall a. S.ToSchema a => S.Declare (S.Definitions S.Schema) ()
+    render = do
+      NamedSchema mName eventSchema <- S.declareNamedSchema (Proxy @a)
+      for_ mName $ \name -> S.declare (HM.singleton name eventSchema)

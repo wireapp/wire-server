@@ -87,6 +87,7 @@ import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
 import Data.Qualified
 import Data.Range
+import Data.Swagger (Swagger)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -144,26 +145,30 @@ import Wire.Sem.Now (Now)
 -- User API -----------------------------------------------------------
 
 docsAPI :: Servant.Server DocsAPI
-docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas
+docsAPI = versionedSwaggerDocsAPI :<|> pure [eventNotificationSchemas]
 
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just V3) =
-  swaggerSchemaUIServer $
-    ( brigSwagger
-        <> versionSwagger
-        <> GalleyAPI.swaggerDoc
-        <> SparAPI.swaggerDoc
-        <> CargoholdAPI.swaggerDoc
-        <> CannonAPI.swaggerDoc
-        <> GundeckAPI.swaggerDoc
-    )
-      & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
-      & cleanupSwagger
+versionedSwaggerDocsAPI (Just V3) = swaggerSchemaUIServer mkSwagger
 versionedSwaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
+
+mkSwagger :: Swagger
+mkSwagger = do
+  let swagger =
+        ( brigSwagger
+            <> versionSwagger
+            <> GalleyAPI.swaggerDoc
+            <> SparAPI.swaggerDoc
+            <> CargoholdAPI.swaggerDoc
+            <> CannonAPI.swaggerDoc
+            <> GundeckAPI.swaggerDoc
+        )
+          & S.info . S.title .~ "Wire-Server API"
+          & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
+          & cleanupSwagger
+   in swagger & S.definitions .~ ((swagger ^. S.definitions) <> eventNotificationSchemas)
 
 servantSitemap ::
   forall r p.

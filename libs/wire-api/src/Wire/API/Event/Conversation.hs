@@ -136,7 +136,7 @@ data EventType
 
 instance ToSchema EventType where
   schema =
-    enum @Text "EventType" $
+    enum @Text "Conversation.EventType" $
       mconcat
         [ element "conversation.member-join" MemberJoin,
           element "conversation.member-leave" MemberLeave,
@@ -387,7 +387,7 @@ taggedEventDataSchema =
       ConvDelete -> tag _EdConvDelete null_
 
 instance ToSchema Event where
-  schema = object "Event" eventObjectSchema
+  schema = object "Conversation.Event" eventObjectSchema
 
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =
