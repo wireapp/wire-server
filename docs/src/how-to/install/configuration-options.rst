@@ -176,6 +176,79 @@ There is no way to entirely disable this behaviour, two extreme examples below
        millisecondsBetweenBatches: 50
        minBatchSize: 20
 
+
+Control nginz upstreams (routes) into the Kubernetes cluster
+------------------------------------------------
+
+Open unterminated upstreams (routes) into the Kubernetes cluster are a
+potential security issue. To prevent this there are fine grained settings in the
+nginz configuration defining which upstreams should exist.
+
+Default upstreams
+^^^^^^^^^^^^^^^^^
+
+Upstreams for services that exist in (almost) every Wire installation are
+enabled by default. These are:
+
+- ``brig``
+- ``cannon``
+- ``cargohold``
+- ``galley``
+- ``gundeck``
+- ``spar``
+
+For special setups (as e.g. described in separate-websocket-traffic_) the
+upstreams of these services can be ignored (disabled) with the setting
+``nginz.nginx_conf.ignored_upstreams``.
+
+The most common example is to disable the upstream of ``cannon``:
+
+.. code:: yaml
+
+   nginz:
+     nginx_conf:
+       ignored_upstreams: ["cannon"]
+
+
+Optional upstreams
+^^^^^^^^^^^^^^^^^^
+
+There are some services that are usually not deployed on most Wire installations
+or are specific to the Wire cloud:
+
+- ``ibis``
+- ``galeb``
+- ``calling-test``
+- ``proxy``
+
+The upstreams for those are disabled by default and can be enabled by the
+setting ``nginz.nginx_conf.enabled_extra_upstreams``.
+
+The most common example is to enable the (extra) upstream of ``proxy``:
+
+.. code:: yaml
+
+   nginz:
+     nginx_conf:
+       enabled_extra_upstreams: ["proxy"]
+
+
+Combining default and extra upstream configurations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Default and extra upstream configurations are independent of each other. I.e.
+``nginz.nginx_conf.ignored_upstreams`` and
+``nginz.nginx_conf.enabled_extra_upstreams`` can be combined in the same
+configuration:
+
+.. code:: yaml
+
+   nginz:
+     nginx_conf:
+       ignored_upstreams: ["cannon"]
+       enabled_extra_upstreams: ["proxy"]
+
+
 .. _separate-websocket-traffic:
 
 Separate incoming websocket network traffic from the rest of the https traffic
@@ -283,7 +356,7 @@ You may want
 Metrics/logging
 ---------------
 
-* :ref:`monitoring`
+`` :ref:`monitoring`
 * :ref:`logging`
 
 SMTP server
