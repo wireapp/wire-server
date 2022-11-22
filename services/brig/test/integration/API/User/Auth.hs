@@ -151,6 +151,7 @@ tests conf m z db b g n =
           test m "new-session-cookie" (testNewSessionCookie conf b),
           test m "suspend-inactive" (testSuspendInactiveUsers conf b),
           test m "client access" (testAccessWithClientId b),
+          test m "client access with old token" (testAccessWithClientIdAndOldToken b),
           test m "client access incorrect" (testAccessWithIncorrectClientId b),
           test m "multiple client accesses" (testAccessWithExistingClientId b)
         ],
@@ -1012,6 +1013,58 @@ testAccessWithClientId brig = do
     assertSanePersistentCookie @ZAuth.User ck
     ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
     assertSaneAccessToken now (userId u) (decodeToken' @ZAuth.Access r)
+    ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
+
+-- here a fresh client gets a token without client_id first, then allocates a
+-- new client ID and finally calls access again with the new client_id
+testAccessWithClientIdAndOldToken :: Brig -> Http ()
+testAccessWithClientIdAndOldToken brig = do
+  u <- randomUser brig
+  rs <-
+    login
+      brig
+      ( emailLogin
+          (fromJust (userEmail u))
+          defPassword
+          (Just "nexus1")
+      )
+      PersistentCookie
+      <!! const 200 === statusCode
+  let c = decodeCookie rs
+  token0 <-
+    fmap (decodeToken' @ZAuth.Access) $
+      post
+        ( unversioned
+            . brig
+            . path "/access"
+            . cookie c
+        )
+        <!! const 200 === statusCode
+  cl <-
+    responseJsonError
+      =<< addClient
+        brig
+        (userId u)
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
+        <!! const 201 === statusCode
+  r <-
+    post
+      ( unversioned
+          . brig
+          . path "/access"
+          . queryItem "client_id" (toByteString' (clientId cl))
+          . header "Authorization" ("Bearer " <> toByteString' token0)
+          . cookie c
+      )
+      <!! const 200 === statusCode
+  now <- liftIO getCurrentTime
+  liftIO $ do
+    let ck = decodeCookie r
+        Just token = fromByteString (cookie_value ck)
+        atoken = decodeToken' @ZAuth.Access r
+    assertSanePersistentCookie @ZAuth.User ck
+    ZAuth.userTokenClient @ZAuth.User token @?= Just (clientId cl)
+    assertSaneAccessToken now (userId u) atoken
     ZAuth.accessTokenClient @ZAuth.Access atoken @?= Just (clientId cl)
 
 testAccessWithIncorrectClientId :: Brig -> Http ()
