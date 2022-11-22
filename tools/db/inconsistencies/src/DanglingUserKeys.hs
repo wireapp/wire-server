@@ -23,31 +23,31 @@
 module DanglingUserKeys where
 
 import Brig.Data.Instances ()
-import qualified Data.Multihash.Digest as MH
 import Brig.Data.UserKey
 import Brig.Email (EmailKey (..), mkEmailKey)
 import Brig.Phone (PhoneKey (..), mkPhoneKey)
-import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Brig.Types.Intra
 import Cassandra
 import Cassandra.Util
 import Conduit
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as B
 import qualified Data.ByteString as BS
+import Data.ByteString.Lazy (toStrict)
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
+import qualified Data.Multihash.Digest as MH
 import Data.String.Conversions (cs)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.IO as Text
 import Imports
+import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import System.Logger
 import qualified System.Logger as Log
 import UnliftIO.Async
 import Wire.API.User hiding (userEmail, userPhone)
-import qualified Data.Text as Text
-import qualified Data.Text.IO as Text
-import qualified Data.Text.Encoding as T
-import qualified Data.ByteString as B
-import Data.ByteString.Lazy (toStrict)
 
 runCommand :: Logger -> ClientState -> FilePath -> IO ()
 runCommand l brig inconsistenciesFile = do
@@ -82,7 +82,6 @@ runRepair l brig inputFile outputFile repairData = do
         .| C.map ((<> "\n") . cs . Aeson.encode)
         .| sinkFile outputFile
 
-
 pageSize :: Int32
 pageSize = 1000
 
@@ -93,7 +92,8 @@ data Inconsistency = Inconsistency
     time :: Writetime UserId,
     status :: Maybe (WithWritetime AccountStatus),
     userEmail :: Maybe (WithWritetime Email),
-    userPhone :: Maybe (WithWritetime Phone)
+    userPhone :: Maybe (WithWritetime Phone),
+    inconsistencyCase :: Text
   }
   deriving (Generic)
 
@@ -131,7 +131,8 @@ instance Cql UserKey where
   fromCql (CqlText t) =
     maybe
       (Left $ "invalid userkey: " <> show t)
-      Right (parseKey t)
+      Right
+      (parseKey t)
   fromCql _ = Left "userkey: expected text"
 
   toCql k = toCql $ keyText k
@@ -178,6 +179,7 @@ freeUserKey l k = do
     deleteHashed = "DELETE FROM user_keys_hash WHERE key = ?"
 
 newtype UserKeyHash = UserKeyHash MH.MultihashDigest
+
 instance Cql UserKeyHash where
   ctype = Tagged BlobColumn
 
@@ -188,11 +190,13 @@ instance Cql UserKeyHash where
 
   toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
 
-
 -- repair these inconsistent data cases:
 -- - 1. user deleted (or with status=null) in user table, data left in user_keys -> delete records in user_keys
 -- - 2. user not found in user table, data left in user_keys -> delete records in user_keys
--- - 3. ... TODO
+-- - 3. the user to which this key points to has a different email in the user table, and
+--     3.a. this user *also* has a correct entry in the user_keys table -> delete record of the wrong pointer inside user_keys
+--     3.b. this user's email, when searched for points to another user -> do nothing; log this issue
+--     3.c  this user's email, when searched for does not exist in user_keys. Do nothing, let this be handled by the other module EmailLessUsers.hs
 checkUser :: Logger -> ClientState -> UserKey -> UserId -> Writetime UserId -> Bool -> IO (Maybe Inconsistency)
 checkUser l brig key userId time repairData = do
   maybeDetails <- runClient brig $ getUserDetails userId
@@ -201,6 +205,7 @@ checkUser l brig key userId time repairData = do
       let status = Nothing
           userEmail = Nothing
           userPhone = Nothing
+          inconsistencyCase = "2."
       when repairData $ -- case 2.
         runClient brig $
           freeUserKey l key
@@ -216,22 +221,38 @@ checkUser l brig key userId time repairData = do
           compareEmail e = (emailKeyUniq . mkEmailKey <$> mEmail) /= Just (fromEmail e)
           comparePhone p = (phoneKeyUniq . mkPhoneKey <$> mPhone) /= Just (fromPhone p)
           keyError = foldKey compareEmail comparePhone key
-      when (statusError && repairData) $ -- case 1.
-        runClient brig $ freeUserKey l key
-      when (keyError && repairData) $ -- case 3.
-        case mEmail of
-          Nothing -> pure ()
-          Just email -> do
-            validKeysEntry <- runClient brig $ getKey (userEmailKey email) 
-            case validKeysEntry of
-              Just (uid, _) -> if uid == userId then do
-                  -- there is a valid matching user_key entry for a user in the user table; just *also* an extra entry that can be cleaned up (case 3.)
-                  Log.warn l (Log.msg (Log.val "Subcase 3a: entry can be repaired by removing entry") . Log.field "key" (keyText key) )
-                  runClient brig $ freeUserKey l key
-                else
-                  Log.warn l (Log.msg (Log.val "Subcase 3b: double mismatch entry in user_keys") . Log.field "userId" (show userId))
-              Nothing -> do
-                Log.warn l (Log.msg (Log.val "Subcase 3c: missing entry in user_keys") . Log.field "userId" (show userId))
-      if statusError || keyError
-        then pure . Just $ Inconsistency {..}
-        else pure Nothing
+      if statusError
+        then do
+          let inconsistencyCase = "1."
+          when repairData $ runClient brig (freeUserKey l key)
+          pure . Just $ Inconsistency {..}
+        else
+          if keyError
+            then do
+              case mEmail of
+                Nothing -> do
+                  Log.warn l (Log.msg (Log.val "Subcase 4: user has no email") . Log.field "userId" (show userId))
+                  let inconsistencyCase = "4."
+                  pure . Just $ Inconsistency {..}
+                Just email -> do
+                  validKeysEntry <- runClient brig $ getKey (userEmailKey email)
+                  case validKeysEntry of
+                    Just (uid, _) ->
+                      if uid == userId
+                        then do
+                          -- there is a valid matching user_key entry for a user in the user table; just *also* an extra entry that can be cleaned up (case 3.a.)
+                          Log.warn l (Log.msg (Log.val "Subcase 3a: entry can be repaired by removing entry") . Log.field "key" (keyText key))
+                          let inconsistencyCase = "3.a."
+                          when repairData $
+                            runClient brig $
+                              freeUserKey l key
+                          pure . Just $ Inconsistency {..}
+                        else do
+                          let inconsistencyCase = "3.b."
+                          Log.warn l (Log.msg (Log.val "Subcase 3b: double mismatch entry in user_keys") . Log.field "userId" (show userId))
+                          pure . Just $ Inconsistency {..}
+                    Nothing -> do
+                      let inconsistencyCase = "3.c."
+                      Log.warn l (Log.msg (Log.val "Subcase 3c: missing entry in user_keys") . Log.field "userId" (show userId))
+                      pure . Just $ Inconsistency {..}
+            else pure Nothing
