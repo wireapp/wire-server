@@ -34,6 +34,7 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" getGroupInfo
     <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
+    <@> mkNamedAPI @"list-conversation-ids-v2" conversationIdsPageFromV2
     <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
     <@> mkNamedAPI @"get-conversations" getConversations
     <@> mkNamedAPI @"list-conversations-v1" listConversations

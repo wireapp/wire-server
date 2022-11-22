@@ -167,8 +167,20 @@ type ConversationAPI =
                :> Get '[Servant.JSON] (ConversationList ConvId)
            )
     :<|> Named
+           "list-conversation-ids-v2"
+           ( Summary "Get all conversation IDs."
+               :> Until 'V3
+               :> Description PaginationDocs
+               :> ZLocalUser
+               :> "conversations"
+               :> "list-ids"
+               :> ReqBody '[Servant.JSON] GetPaginatedConversationIds
+               :> Post '[Servant.JSON] ConvIdsPage
+           )
+    :<|> Named
            "list-conversation-ids"
            ( Summary "Get all conversation IDs."
+               :> From 'V3
                :> Description PaginationDocs
                :> ZLocalUser
                :> "conversations"
