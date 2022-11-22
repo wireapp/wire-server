@@ -67,7 +67,6 @@ where
 import Control.Applicative
 import Control.Arrow ((&&&))
 import Control.Lens (makePrisms, (?~), _1)
-import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Id
@@ -132,7 +131,7 @@ data EventType
   | Typing
   deriving stock (Eq, Show, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform EventType)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema EventType
 
 instance ToSchema EventType where
   schema =
@@ -220,7 +219,7 @@ newtype SimpleMembers = SimpleMembers
   }
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema SimpleMembers
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema SimpleMembers
 
 instance ToSchema SimpleMembers where
   schema =
@@ -241,7 +240,7 @@ data SimpleMember = SimpleMember
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SimpleMember)
-  deriving (FromJSON, ToJSON) via Schema SimpleMember
+  deriving (A.FromJSON, A.ToJSON) via Schema SimpleMember
 
 smId :: SimpleMember -> UserId
 smId = qUnqualified . smQualifiedId
@@ -266,7 +265,7 @@ data Connect = Connect
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Connect)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema Connect
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema Connect
 
 instance ToSchema Connect where
   schema = object "Connect" connectObjectSchema
@@ -298,7 +297,7 @@ data MemberUpdateData = MemberUpdateData
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform MemberUpdateData)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema MemberUpdateData
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema MemberUpdateData
 
 instance ToSchema MemberUpdateData where
   schema = object "MemberUpdateData" memberUpdateDataObjectSchema
@@ -328,7 +327,7 @@ data OtrMessage = OtrMessage
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtrMessage)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema OtrMessage
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema OtrMessage
 
 instance ToSchema OtrMessage where
   schema =
@@ -389,6 +388,12 @@ taggedEventDataSchema =
 instance ToSchema Event where
   schema = object "Conversation.Event" eventObjectSchema
 
+deriving via (Schema Event) instance (A.ToJSON Event)
+
+deriving via (Schema Event) instance (A.FromJSON Event)
+
+deriving via (Schema Event) instance (S.ToSchema Event)
+
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =
   mk
@@ -406,15 +411,6 @@ instance ToJSONObject Event where
     KeyMap.fromList
       . fromMaybe []
       . schemaOut eventObjectSchema
-
-instance FromJSON Event where
-  parseJSON = schemaParseJSON
-
-instance ToJSON Event where
-  toJSON = schemaToJSON
-
-instance S.ToSchema Event where
-  declareNamedSchema = schemaToSwagger
 
 --------------------------------------------------------------------------------
 -- MultiVerb instances

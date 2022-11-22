@@ -47,6 +47,7 @@ where
 import Control.Lens (makeLenses, (?~))
 import Data.Aeson hiding (object, (.=))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (Parser)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
@@ -73,26 +74,20 @@ data Event = Event
 
 instance ToSchema Event where
   schema =
-    object "Team.Event" $
-      Event
-        <$> _eventTeam .= field "team" schema
-        <*> _eventTime .= field "time" utcTimeSchema
-        <*> _eventData .= fieldWithDocModifier "data" (description ?~ dataFieldDesc) schema
-        <* eventType .= field "version" schema
-    where
-      dataFieldDesc = "FUTUREWORK: this part of the docs is lying; we're working on it!"
+    object "Team.Event" $ eventObjectSchema
 
-eventType :: Event -> EventType
-eventType = eventDataType . _eventData
-
-newEvent :: TeamId -> UTCTime -> EventData -> Event
-newEvent = Event
+eventObjectSchema :: ObjectSchema SwaggerDoc Event
+eventObjectSchema =
+  Event
+    <$> _eventTeam .= field "team" schema
+    <*> _eventTime .= field "time" utcTimeSchema
+    <*> _eventData .= fieldWithDocModifier "data" (description ?~ dataFieldDesc) schema
+    <* eventType .= field "version" schema
+  where
+    dataFieldDesc = "FUTUREWORK: this part of the docs is lying; we're working on it!"
 
 -- instance ToJSON Event where
 --   toJSON = A.Object . toJSONObject
-
-instance ToJSONObject Event where
-  toJSONObject = undefined
 
 -- instance FromJSON Event where
 --   parseJSON = withObject "event" $ \o -> do
@@ -102,6 +97,17 @@ instance ToJSONObject Event where
 --       <$> o .: "team"
 --       <*> o .: "time"
 --       <*> _parseEventData ty dt
+eventType :: Event -> EventType
+eventType = eventDataType . _eventData
+
+newEvent :: TeamId -> UTCTime -> EventData -> Event
+newEvent = Event
+
+instance ToJSONObject Event where
+  toJSONObject =
+    KeyMap.fromList
+      . fromMaybe []
+      . schemaOut eventObjectSchema
 
 instance Arbitrary Event where
   arbitrary = do
