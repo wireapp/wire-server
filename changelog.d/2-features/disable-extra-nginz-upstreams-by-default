@@ -4,7 +4,7 @@ be enabled by adding their name (entry's key) to
 `nginx_conf.enabled_extra_upstreams`. `nginx_conf.ignored_upstreams` is only
 applied to upstreams from `nginx_conf.upstreams`. In the default configuration
 of `nginz` extra upstreams are `ibis`, `galeb`, `calling-test` and `proxy`. If one
-of those is deployed, it's name has be be added to
+of those is deployed, its name has be be added to
 `nginx_conf.enabled_extra_upstreams` (otherwise, it won't be reachable). Unless
 `nginx_conf.upstreams` hasn't been changed manually (overriding it's default),
 this should be the only needed migration step.
