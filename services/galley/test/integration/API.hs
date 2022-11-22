@@ -1688,8 +1688,7 @@ getConvsOk = do
   usr <- randomUser
   getConvs usr Nothing Nothing !!! do
     const 200 === statusCode
-    const (Set.fromList [toUUID usr, toUUID $ mlsSelfConvId usr])
-      === Set.fromList . map (toUUID . qUnqualified . cnvQualifiedId) . decodeConvList
+    const [toUUID usr] === map (toUUID . qUnqualified . cnvQualifiedId) . decodeConvList
 
 getConvsOk2 :: TestM ()
 getConvsOk2 = do
@@ -1740,25 +1739,22 @@ getConvIdsOk = do
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
-  -- Each of the users has a Proteus self-conversation, an MLS self-conversation
-  -- and the one-to-one coversation.
   getConvIds alice Nothing Nothing !!! do
     const 200 === statusCode
-    const 3 === length . decodeConvIdList
+    const 2 === length . decodeConvIdList
   getConvIds bob Nothing Nothing !!! do
     const 200 === statusCode
-    const 3 === length . decodeConvIdList
+    const 2 === length . decodeConvIdList
 
 paginateConvIds :: TestM ()
 paginateConvIds = do
   [alice, bob, eve] <- randomUsers 3
   connectUsers alice (singleton bob)
   connectUsers alice (singleton eve)
-  replicateM_ 252 $
+  replicateM_ 253 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
-  -- 1 Proteus self conv, 1 MLS self conv, 2 convs with bob and eve, 252 gossips
-  -- = 256 convs
+  -- 1 self conv, 2 convs with bob and eve, 253 gossips = 256 convs
   foldM_ (getChunk 16 alice) Nothing [15, 14 .. 0 :: Int]
   where
     getChunk size alice start n = do
@@ -1935,9 +1931,9 @@ getConvsPagingOk = do
   [ally, bill, carl] <- randomUsers 3
   connectUsers ally (list1 bill [carl])
   replicateM_ 11 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
-  walk ally [3, 3, 3, 3, 3] -- 11 (group) + 2 (1:1) + 1 (self) + 1 (MLS-self)
-  walk bill [3, 3, 3, 3, 2] -- 11 (group) + 1 (1:1) + 1 (self) + 1 (MLS-self)
-  walk carl [3, 3, 3, 3, 2] -- 11 (group) + 1 (1:1) + 1 (self) + 1 (MLS-self)
+  walk ally [3, 3, 3, 3, 2] -- 11 (group) + 2 (1:1) + 1 (self)
+  walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+  walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
   where
     walk :: Foldable t => UserId -> t Int -> TestM ()
     walk u = foldM_ (next u 3) Nothing
