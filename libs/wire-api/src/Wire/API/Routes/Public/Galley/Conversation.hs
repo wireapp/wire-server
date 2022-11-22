@@ -292,7 +292,7 @@ type ConversationAPI =
     :<|> Named
            "list-conversations"
            ( Summary "Get conversation metadata for a list of conversation ids"
-               :> From 'V2
+               :> From 'V3
                :> ZLocalUser
                :> "conversations"
                :> "list"
