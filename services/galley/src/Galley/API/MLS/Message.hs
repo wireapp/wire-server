@@ -79,7 +79,6 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
@@ -476,15 +475,7 @@ postMLSMessageToLocalConv ::
   Sem r [LocalConversationUpdate]
 postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
   SomeMessage tag msg -> do
-    gtc <- getGlobalTeamConversationById lcnv
-    conv <- case gtc of
-      Just conv -> do
-        when (isNothing (gtcCreator conv)) $ do
-          setGlobalTeamConversationCreator conv (qUnqualified qusr)
-        localMembers <- getLocalMembers (qUnqualified . gtcId $ conv)
-        pure $ gtcToConv conv localMembers
-      Nothing ->
-        getLocalConvForUser qusr lcnv
+    conv <- getLocalConvForUser qusr lcnv
 
     -- construct client map
     cm <- lookupMLSClients lcnv
@@ -507,27 +498,6 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
     propagateMessage qusr lconv cm con (rmRaw smsg)
 
     pure events
-  where
-    gtcToConv gtc lm =
-      Data.Conversation
-        { convId = qUnqualified $ gtcId gtc,
-          -- FUTUREWORK: Look into reworking things if needed for performance
-          convLocalMembers = lm,
-          convRemoteMembers = mempty,
-          convDeleted = False,
-          convMetadata =
-            ConversationMetadata
-              { cnvmType = GlobalTeamConv,
-                cnvmCreator = fromJust . gtcCreator $ gtc,
-                cnvmAccess = gtcAccess gtc,
-                cnvmAccessRoles = mempty,
-                cnvmName = Just (gtcName gtc),
-                cnvmTeam = Just (gtcTeam gtc),
-                cnvmMessageTimer = Nothing,
-                cnvmReceiptMode = Nothing
-              },
-          convProtocol = ProtocolMLS (gtcMlsMetadata gtc)
-        }
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
