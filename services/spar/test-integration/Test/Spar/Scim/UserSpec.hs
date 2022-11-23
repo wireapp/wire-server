@@ -1782,8 +1782,7 @@ testUpdateUserRole = do
   let galley = env ^. teGalley
   (owner, tid) <- call $ createUserWithTeam brig galley
   tok <- registerScimToken tid Nothing
-  let testWithInitialRole r = forM_ [minBound .. maxBound] (testCreateUserWithInitalRoleAndUpdateToTargetRole brig tid owner tok r)
-  forM_ [minBound .. maxBound] testWithInitialRole
+  forM_ [minBound ..] (forM_ [minBound ..] . testCreateUserWithInitalRoleAndUpdateToTargetRole brig tid owner tok)
   where
     testCreateUserWithInitalRoleAndUpdateToTargetRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Role -> TestSpar ()
     testCreateUserWithInitalRoleAndUpdateToTargetRole brig tid owner tok initialRole targetRole = do
