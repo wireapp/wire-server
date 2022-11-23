@@ -1,0 +1,17 @@
+{
+    "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "data": {
+        "status": "started"
+    },
+    "from": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "qualified_conversation": {
+        "domain": "36.e9.s-o-17",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "qualified_from": {
+        "domain": "0--gy.705nsa8.j4m",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "time": "2018-01-01T00:00:00.000Z",
+    "type": "conversation.typing"
+}

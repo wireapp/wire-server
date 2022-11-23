@@ -192,7 +192,7 @@ ensureActionAllowed action self = case isActionAllowed (fromSing action) (convMe
 ensureGroupConversation :: Member (ErrorS 'InvalidOperation) r => Data.Conversation -> Sem r ()
 ensureGroupConversation conv = do
   let ty = Data.convType conv
-  when (ty /= RegularConv) $ throwS @'InvalidOperation
+  unless (ty `elem` [RegularConv, GlobalTeamConv]) $ throwS @'InvalidOperation
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions

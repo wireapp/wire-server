@@ -642,13 +642,13 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
       { mlsNewMembers = Set.fromList (map fst clientsAndKeyPackages)
       }
 
-  welcome <- liftIO $ BS.readFile welcomeFile
+  welcome <- liftIO $ readWelcome welcomeFile
   pgs <- liftIO $ BS.readFile pgsFile
   pure $
     MessagePackage
       { mpSender = qcid,
         mpMessage = commit,
-        mpWelcome = Just welcome,
+        mpWelcome = welcome,
         mpPublicGroupState = Just pgs
       }
 
@@ -863,7 +863,7 @@ sendAndConsumeCommit mp = do
 
   pure events
 
-mkBundle :: MessagePackage -> Either Text CommitBundle
+mkBundle :: HasCallStack => MessagePackage -> Either Text CommitBundle
 mkBundle mp = do
   commitB <- decodeMLS' (mpMessage mp)
   welcomeB <- traverse decodeMLS' (mpWelcome mp)
@@ -873,7 +873,7 @@ mkBundle mp = do
     CommitBundle commitB welcomeB $
       GroupInfoBundle UnencryptedGroupInfo TreeFull pgsB
 
-createBundle :: MonadIO m => MessagePackage -> m ByteString
+createBundle :: (HasCallStack, MonadIO m) => MessagePackage -> m ByteString
 createBundle mp = do
   bundle <-
     either (liftIO . assertFailure . T.unpack) pure $

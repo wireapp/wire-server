@@ -1,0 +1,12 @@
+{
+    "data": {
+        "config": {
+            "enforcedTimeoutSeconds": 32
+        },
+        "lockStatus": "locked",
+        "status": "disabled",
+        "ttl": 3
+    },
+    "name": "7\u0010q-wⱑ\u0010 B󻀗H\n\u0012R\u0008",
+    "type": "feature-config.update"
+}
