@@ -212,7 +212,7 @@ logExceptionOrResult lg actionString action = do
 -- servers / network components aren't playing tricks to us. Other cases should
 -- be handled by the network libraries themselves.
 defaultTimeoutDuration :: Second
-defaultTimeoutDuration = 15 :: Second
+defaultTimeoutDuration = 15
 
 -- | Wrapper function for `SMTP` network actions
 --
