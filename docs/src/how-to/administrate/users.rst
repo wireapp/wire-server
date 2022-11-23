@@ -615,7 +615,7 @@ By default, backend services (pods) might not output as much information as need
 
 You can change this for any of the services by editing its configuration.
 
-For example, to enable debugging for the `cargohold` service, you can edit the `cargohold` configuration in your ``values.yaml``:
+For example, to enable debug logs for the `cargohold` service, you can edit the `cargohold` configuration in your ``values.yaml``:
 
 .. code:: yaml
 
