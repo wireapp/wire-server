@@ -296,12 +296,12 @@ logic of event generation or serialisation.
 However, there are ways to alter the event API in incompatible ways without
 breaking older clients. Namely, we can tie a change X in the format of an event
 to a specific api version N. This means that in order for a client to support
-any version *after* N, it has to be able to consume events in any format,
+version N or later, it has to be able to consume events in any format,
 before or after X.
 
 If clients respect this constraint, then the backend only needs to keep the old
-format around for as long as version N is supported, and can apply change X as
-soon as version N is dropped.
+format around for as long as version N-1 is supported, and can apply change X as
+soon as version N-1 is dropped.
 
 Conversely, clients need to be advised on when it is ok for them to drop their
 legacy event parsing code. Unfortunately, determining this point in time is
@@ -309,12 +309,11 @@ complicated by the fact that legacy events may be retained by a backend for
 some time after it has been upgraded to a version that emits events in the new
 format. Therefore, this has to be worked out on a case by case basis.
 
-More precisely: When a new version Q of a backend is released, some time after
-version N is dropped, *if* we can ensure that no version lower than N is
-running anywhere in production, and hasn't been for a time at least as long as
-the maximum event retention time, *then* we can drop the requirement for
-clients to be able to read events in the legacy format, *as long as they
-support only versions larger or equal to Q*.
+More precisely: When a new version Q of a backend is released, *if* we can
+ensure that no version lower than N is running anywhere in production, and
+hasn't been for a time at least as long as the maximum event retention time,
+*then* we can drop the requirement for clients to be able to read events in the
+legacy format, *as long as they support only versions larger or equal to Q*.
 
 ### Example timeline
 
