@@ -33,6 +33,7 @@ import qualified Data.Text.Lazy as Lazy
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
+import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.Wai.Utilities as Error
 import qualified SAML2.WebSSO as SAML
@@ -57,6 +58,8 @@ import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import qualified Wire.API.Team.Member as Member
+import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.RichInfo
@@ -182,6 +185,18 @@ randomScimPhone = do
 ----------------------------------------------------------------------------
 -- API wrappers
 
+createUser' ::
+  HasCallStack =>
+  ScimToken ->
+  Scim.User.User SparTag ->
+  TestSpar ResponseLBS
+createUser' tok user = do
+  env <- ask
+  createUser_
+    (Just tok)
+    user
+    (env ^. teSpar)
+
 -- | Create a user.
 createUser ::
   HasCallStack =>
@@ -189,14 +204,18 @@ createUser ::
   Scim.User.User SparTag ->
   TestSpar (Scim.StoredUser SparTag)
 createUser tok user = do
-  env <- ask
-  r <-
-    createUser_
-      (Just tok)
-      user
-      (env ^. teSpar)
-      <!! const 201 === statusCode
+  r <- createUser' tok user <!! const 201 === statusCode
   pure (responseJsonUnsafe r)
+
+updateUser' ::
+  HasCallStack =>
+  ScimToken ->
+  UserId ->
+  Scim.User.User SparTag ->
+  TestSpar ResponseLBS
+updateUser' tok userid user = do
+  env <- ask
+  updateUser_ (Just tok) (Just userid) user (env ^. teSpar)
 
 -- | Update a user.
 updateUser ::
@@ -206,14 +225,7 @@ updateUser ::
   Scim.User.User SparTag ->
   TestSpar (Scim.StoredUser SparTag)
 updateUser tok userid user = do
-  env <- ask
-  r <-
-    updateUser_
-      (Just tok)
-      (Just userid)
-      user
-      (env ^. teSpar)
-      <!! const 200 === statusCode
+  r <- updateUser' tok userid user <!! const 200 === statusCode
   pure (responseJsonUnsafe r)
 
 -- | Patch a user
@@ -669,6 +681,14 @@ setPreferredLanguage :: Language -> Scim.User.User SparTag -> Scim.User.User Spa
 setPreferredLanguage lang u =
   u {Scim.preferredLanguage = Scim.preferredLanguage u <|> Just (lan2Text lang)}
 
+setDefaultRoleIfEmpty :: Scim.User.User a -> Scim.User.User a
+setDefaultRoleIfEmpty u =
+  u
+    { Scim.User.roles = case Scim.User.roles u of
+        [] -> [cs $ toByteString' defaultRole]
+        xs -> xs
+    }
+
 -- this is not always correct, but hopefully for the tests that we're using it in it'll do.
 scimifyBrigUserHack :: User -> Email -> User
 scimifyBrigUserHack usr email =
@@ -687,3 +707,8 @@ getDefaultUserLocale = do
           . expect2xx
       )
   pure defLocale
+
+checkTeamMembersRole :: HasCallStack => TeamId -> UserId -> UserId -> Role -> TestSpar ()
+checkTeamMembersRole tid owner uid role = do
+  [member] <- filter ((== uid) . (^. Member.userId)) <$> getTeamMembers owner tid
+  liftIO $ (member ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role

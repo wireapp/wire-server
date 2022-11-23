@@ -50,6 +50,7 @@ module Galley.API.Teams
     uncheckedGetTeamMember,
     uncheckedGetTeamMembersH,
     uncheckedDeleteTeamMember,
+    uncheckedUpdateTeamMember,
     userIsTeamOwner,
     canUserJoinTeam,
     ensureNotTooLargeForLegalHold,
@@ -778,6 +779,70 @@ uncheckedAddTeamMember tid nmem = do
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
+uncheckedUpdateTeamMember ::
+  forall r.
+  Members
+    '[ BrigAccess,
+       ErrorS 'AccessDenied,
+       ErrorS 'InvalidPermissions,
+       ErrorS 'TeamNotFound,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       GundeckAccess,
+       Input Opts,
+       Input UTCTime,
+       P.TinyLog,
+       TeamStore
+     ]
+    r =>
+  Maybe (Local UserId) ->
+  Maybe ConnId ->
+  TeamId ->
+  NewTeamMember ->
+  Sem r ()
+uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
+  let mZusr = tUnqualified <$> mlzusr
+  let targetMember = ntmNewTeamMember newMember
+  let targetId = targetMember ^. userId
+      targetPermissions = targetMember ^. permissions
+  P.debug $
+    Log.field "targets" (toByteString targetId)
+      . Log.field "action" (Log.val "Teams.updateTeamMember")
+
+  team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
+
+  previousMember <-
+    E.getTeamMember tid targetId >>= noteS @'TeamMemberNotFound
+
+  -- update target in Cassandra
+  E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
+
+  updatedMembers <- getTeamMembersForFanout tid
+  updateJournal team updatedMembers
+  updatePeers mZusr targetId targetMember targetPermissions updatedMembers
+  where
+    updateJournal :: Team -> TeamMemberList -> Sem r ()
+    updateJournal team mems = do
+      when (team ^. teamBinding == Binding) $ do
+        (TeamSize size) <- E.getSize tid
+        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
+        Journal.teamUpdate tid size billingUserIds
+
+    updatePeers :: Maybe UserId -> UserId -> TeamMember -> Permissions -> TeamMemberList -> Sem r ()
+    updatePeers zusr targetId targetMember targetPermissions updatedMembers = do
+      -- inform members of the team about the change
+      -- some (privileged) users will be informed about which change was applied
+      let privileged = filter (`canSeePermsOf` targetMember) (updatedMembers ^. teamMembers)
+          mkUpdate = EdMemberUpdate targetId
+          privilegedUpdate = mkUpdate $ Just targetPermissions
+          privilegedRecipients = membersToRecipients Nothing privileged
+      now <- input
+      let ePriv = newEvent tid now privilegedUpdate
+      -- push to all members (user is privileged)
+      let pushPriv = newPush (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
+      for_ pushPriv (\p -> E.push1 (p & pushConn .~ mZcon))
+
 updateTeamMember ::
   forall r.
   Members
@@ -810,7 +875,6 @@ updateTeamMember lzusr zcon tid newMember = do
       . Log.field "action" (Log.val "Teams.updateTeamMember")
 
   -- get the team and verify permissions
-  team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
   user <-
     E.getTeamMember tid zusr
       >>= permissionCheck SetMemberPermissions
@@ -825,12 +889,7 @@ updateTeamMember lzusr zcon tid newMember = do
     )
     $ throwS @'AccessDenied
 
-  -- update target in Cassandra
-  E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
-
-  updatedMembers <- getTeamMembersForFanout tid
-  updateJournal team updatedMembers
-  updatePeers zusr targetId targetMember targetPermissions updatedMembers
+  uncheckedUpdateTeamMember (Just lzusr) (Just zcon) tid newMember
   where
     canDowngradeOwner = canDeleteMember
 
@@ -838,27 +897,6 @@ updateTeamMember lzusr zcon tid newMember = do
     downgradesOwner previousMember targetPermissions =
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
         && permissionsRole targetPermissions /= Just RoleOwner
-
-    updateJournal :: Team -> TeamMemberList -> Sem r ()
-    updateJournal team mems = do
-      when (team ^. teamBinding == Binding) $ do
-        (TeamSize size) <- E.getSize tid
-        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
-        Journal.teamUpdate tid size billingUserIds
-
-    updatePeers :: UserId -> UserId -> TeamMember -> Permissions -> TeamMemberList -> Sem r ()
-    updatePeers zusr targetId targetMember targetPermissions updatedMembers = do
-      -- inform members of the team about the change
-      -- some (privileged) users will be informed about which change was applied
-      let privileged = filter (`canSeePermsOf` targetMember) (updatedMembers ^. teamMembers)
-          mkUpdate = EdMemberUpdate targetId
-          privilegedUpdate = mkUpdate $ Just targetPermissions
-          privilegedRecipients = membersToRecipients Nothing privileged
-      now <- input
-      let ePriv = newEvent tid now privilegedUpdate
-      -- push to all members (user is privileged)
-      let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
-      for_ pushPriv $ \p -> E.push1 $ p & pushConn ?~ zcon
 
 deleteTeamMember ::
   Members

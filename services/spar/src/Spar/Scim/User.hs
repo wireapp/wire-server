@@ -45,7 +45,7 @@ where
 import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
 import Brig.Types.User (HavePendingInvitations (..))
 import qualified Control.Applicative as Applicative (empty)
-import Control.Lens (view, (^.))
+import Control.Lens hiding (op)
 import Control.Monad.Error.Class (MonadError)
 import Control.Monad.Except (runExceptT, throwError)
 import Control.Monad.Trans.Except (mapExceptT)
@@ -53,12 +53,14 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
+import Data.ByteString.Conversion (fromByteString, toByteString, toByteString')
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
+import qualified Galley.Types.Teams as Galley
 import Imports
 import Network.URI (URI, parseURI)
 import Polysemy
@@ -71,7 +73,7 @@ import Spar.Scim.Auth ()
 import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.Types as ST
 import Spar.Sem.BrigAccess as BrigAccess
-import Spar.Sem.GalleyAccess (GalleyAccess)
+import Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -95,6 +97,8 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
+import qualified Wire.API.Team.Member as Member
+import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
@@ -257,11 +261,7 @@ validateScimUser' ::
   Scim.User ST.SparTag ->
   m ST.ValidScimUser
 validateScimUser' errloc midp richInfoLimit user = do
-  unless (isNothing $ Scim.password user) $
-    throwError $
-      Scim.badRequest
-        Scim.InvalidValue
-        (Just $ "Setting user passwords is not supported for security reasons. (" <> errloc <> ")")
+  unless (isNothing $ Scim.password user) $ throwError $ badRequest "Setting user passwords is not supported for security reasons."
   veid <- mkValidExternalId midp (Scim.externalId user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
@@ -271,9 +271,29 @@ validateScimUser' errloc midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-  lang <- maybe (error "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
-  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang)
+  lang <- maybe (throwError $ badRequest "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
+  mRole <- validateRole user
+  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang) (fromMaybe defaultRole mRole)
   where
+    validRoleNames :: Text
+    validRoleNames = cs $ intercalate ", " $ map (cs . toByteString') [minBound @Role .. maxBound]
+
+    validateRole =
+      Scim.roles <&> \case
+        [] -> pure Nothing
+        [roleName] ->
+          maybe
+            (throwError $ badRequest $ "The role '" <> roleName <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
+            (pure . Just)
+            (fromByteString $ cs roleName)
+        (_ : _ : _) -> throwError $ badRequest "A user cannot have more than one role."
+
+    badRequest :: Text -> Scim.ScimError
+    badRequest msg =
+      Scim.badRequest
+        Scim.InvalidValue
+        (Just $ msg <> " (" <> errloc <> ")")
+
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RI.RichInfo -> m RI.RichInfo
     validateRichInfo richInfo = do
@@ -368,7 +388,7 @@ logEmail email =
   Log.field "email_sha256" (sha256String . cs . show $ email)
 
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
-logVSU (ST.ValidScimUser veid handl _name _richInfo _active _lang) =
+logVSU (ST.ValidScimUser veid handl _name _richInfo _active _lang _role) =
   maybe id logEmail (veidEmail veid)
     . logHandle handl
 
@@ -423,7 +443,7 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _active language) =
+createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _active language role) =
   logScim
     ( logFunction "Spar.Scim.User.createValidScimUser"
         . logVSU vsu
@@ -449,10 +469,10 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
                     -- `createValidScimUser` into a function `createValidScimUserBrig` similar
                     -- to `createValidScimUserSpar`?
                     uid <- Id <$> Random.uuid
-                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language
+                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language role
               )
               ( \email -> do
-                  buid <- BrigAccess.createNoSAML email stiTeam name language
+                  buid <- BrigAccess.createNoSAML email stiTeam name language role
                   BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
                   pure buid
               )
@@ -572,11 +592,8 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
             newScimStoredUser :: Scim.StoredUser ST.SparTag <-
               updScimStoredUser (synthesizeScimUser newValidScimUser) oldScimStoredUser
 
-            do
-              let old = oldValidScimUser ^. ST.vsuExternalId
-                  new = newValidScimUser ^. ST.vsuExternalId
-              when (old /= new) $
-                updateVsuUref stiTeam uid old new
+            when (oldValidScimUser ^. ST.vsuExternalId /= newValidScimUser ^. ST.vsuExternalId) $
+              updateVsuUref stiTeam uid (oldValidScimUser ^. ST.vsuExternalId) (newValidScimUser ^. ST.vsuExternalId)
 
             when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $
               BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
@@ -589,6 +606,9 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
 
             when (oldValidScimUser ^. ST.vsuLocale /= newValidScimUser ^. ST.vsuLocale) $ do
               BrigAccess.setLocale uid (newValidScimUser ^. ST.vsuLocale)
+
+            when (oldValidScimUser ^. ST.vsuRole /= newValidScimUser ^. ST.vsuRole) $ do
+              GalleyAccess.updateTeamMember uid stiTeam (newValidScimUser ^. ST.vsuRole)
 
             BrigAccess.getStatusMaybe uid >>= \case
               Nothing -> pure ()
@@ -848,6 +868,7 @@ synthesizeStoredUser ::
        Now,
        Logger (Msg -> Msg),
        BrigAccess,
+       GalleyAccess,
        ScimUserTimesStore
      ]
     r =>
@@ -867,12 +888,13 @@ synthesizeStoredUser usr veid =
       let uid = userId (accountUser usr)
           accStatus = accountStatus usr
 
-      let readState :: Sem r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
-          readState = do
-            richInfo <- BrigAccess.getRichInfo uid
-            accessTimes <- ScimUserTimesStore.read uid
-            baseuri <- inputs $ derivedOptsScimBaseURI . derivedOpts
-            pure (richInfo, accessTimes, baseuri)
+      let readState :: Sem r (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI, Role)
+          readState =
+            (,,,)
+              <$> BrigAccess.getRichInfo uid
+              <*> ScimUserTimesStore.read uid
+              <*> inputs (derivedOptsScimBaseURI . derivedOpts)
+              <*> getRole
 
       let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Sem r ()
           writeState oldAccessTimes oldManagedBy oldRichInfo storedUser = do
@@ -884,7 +906,7 @@ synthesizeStoredUser usr veid =
             when (oldRichInfo /= newRichInfo) $
               BrigAccess.setRichInfo uid newRichInfo
 
-      (richInfo, accessTimes, baseuri) <- lift readState
+      (richInfo, accessTimes, baseuri, role) <- lift readState
       now <- toUTCTimeMillis <$> lift Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
@@ -902,8 +924,14 @@ synthesizeStoredUser usr veid =
           lastUpdatedAt
           baseuri
           (userLocale (accountUser usr))
+          role
       lift $ writeState accessTimes (userManagedBy (accountUser usr)) richInfo storedUser
       pure storedUser
+  where
+    getRole :: Sem r Role
+    getRole = do
+      let tmRoleOrDefault m = fromMaybe defaultRole $ m >>= \member -> member ^. Member.permissions . to Galley.permissionsRole
+      maybe (pure defaultRole) (\tid -> tmRoleOrDefault <$> GalleyAccess.getTeamMember tid (userId $ accountUser usr)) (userTeam $ accountUser usr)
 
 synthesizeStoredUser' ::
   UserId ->
@@ -916,8 +944,9 @@ synthesizeStoredUser' ::
   UTCTimeMillis ->
   URIBS.URI ->
   Locale ->
+  Role ->
   MonadError Scim.ScimError m => m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale = do
+synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale role = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
@@ -929,7 +958,8 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
               ST._vsuName = dname,
               ST._vsuRichInfo = richInfo,
               ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus,
-              ST._vsuLocale = Just locale
+              ST._vsuLocale = Just locale,
+              ST._vsuRole = role
             }
 
   pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
@@ -941,12 +971,14 @@ synthesizeScimUser info =
         { Scim.externalId = Brig.renderValidExternalId $ info ^. ST.vsuExternalId,
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive,
-          Scim.preferredLanguage = lan2Text . lLanguage <$> info ^. ST.vsuLocale
+          Scim.preferredLanguage = lan2Text . lLanguage <$> info ^. ST.vsuLocale,
+          Scim.roles = (: []) . cs . toByteString $ info ^. ST.vsuRole
         }
 
 getUserById ::
   forall r.
   ( Member BrigAccess r,
+    Member GalleyAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member Now r,
@@ -993,6 +1025,7 @@ getUserById midp stiTeam uid = do
 scimFindUserByHandle ::
   forall r.
   ( Member BrigAccess r,
+    Member GalleyAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member Now r,
@@ -1018,6 +1051,7 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 scimFindUserByEmail ::
   forall r.
   ( Member BrigAccess r,
+    Member GalleyAccess r,
     Member (Input Opts) r,
     Member (Logger (Msg -> Msg)) r,
     Member Now r,

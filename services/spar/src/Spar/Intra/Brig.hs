@@ -59,6 +59,7 @@ import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import qualified System.Logger.Class as Log
 import Web.Cookie
+import Wire.API.Team.Role (Role)
 import Wire.API.User
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
@@ -99,8 +100,9 @@ createBrigUserSAML ::
   Maybe Handle ->
   Maybe RichInfo ->
   Maybe Locale ->
+  Role ->
   m UserId
-createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale = do
+createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale role = do
   let newUser =
         NewUserSpar
           { newUserSparUUID = buid,
@@ -110,7 +112,8 @@ createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo mLocale 
             newUserSparManagedBy = managedBy,
             newUserSparHandle = handle,
             newUserSparRichInfo = richInfo,
-            newUserSparLocale = mLocale
+            newUserSparLocale = mLocale,
+            newUserSparRole = role
           }
   resp :: ResponseLBS <-
     call $
@@ -128,9 +131,10 @@ createBrigUserNoSAML ::
   -- | User name
   Name ->
   Maybe Locale ->
+  Role ->
   m UserId
-createBrigUserNoSAML email teamid uname locale = do
-  let newUser = NewUserScimInvitation teamid locale uname email
+createBrigUserNoSAML email teamid uname locale role = do
+  let newUser = NewUserScimInvitation teamid locale uname email role
   resp :: ResponseLBS <-
     call $
       method POST
