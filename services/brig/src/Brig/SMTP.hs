@@ -220,11 +220,7 @@ defaultTimeoutDuration = 15 :: Second
 -- Throws on a timeout. Exceptions of @action@ are propagated (re-thrown).
 ensureSMTPConnectionTimeout :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> m a -> m a
 ensureSMTPConnectionTimeout timeoutDuration action =
-  timeout timeoutDuration action >>= \mbA ->
-    ( case mbA of
-        Just a -> pure a
-        Nothing -> CE.throw SMTPConnectionTimeout
-    )
+  timeout timeoutDuration action >>= maybe (CE.throw SMTPConnectionTimeout) pure
 
 -- | Send a `Mail` via an existing `SMTP` connection pool
 --
