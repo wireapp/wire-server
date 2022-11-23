@@ -286,13 +286,14 @@ validateScimUser' errloc midp richInfoLimit user = do
             (throwError $ badRequest $ "The role '" <> roleName <> "' is not valid. Valid roles are " <> validRoleNames <> ".")
             (pure . Just)
             (fromByteString $ cs roleName)
-        _ -> throwError $ badRequest "A user cannot have more than one role."
+        (_ : _ : _) -> throwError $ badRequest "A user cannot have more than one role."
 
     badRequest :: Text -> Scim.ScimError
     badRequest msg =
       Scim.badRequest
         Scim.InvalidValue
         (Just $ msg <> " (" <> errloc <> ")")
+
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RI.RichInfo -> m RI.RichInfo
     validateRichInfo richInfo = do
