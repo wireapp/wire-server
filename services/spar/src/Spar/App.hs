@@ -85,7 +85,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
-import Wire.API.Team.Role (defaultRole)
+import Wire.API.Team.Role (Role, defaultRole)
 import Wire.API.User hiding (validateEmail)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -167,10 +167,11 @@ createSamlUserWithId ::
   TeamId ->
   UserId ->
   SAML.UserRef ->
+  Role ->
   Sem r ()
-createSamlUserWithId teamid buid suid = do
+createSamlUserWithId teamid buid suid role = do
   uname <- either (throwSparSem . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
-  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing defaultRole
+  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
 
@@ -195,7 +196,7 @@ autoprovisionSamlUser ::
 autoprovisionSamlUser idp buid suid = do
   guardReplacedIdP
   guardScimTokens
-  createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid
+  createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid defaultRole
   where
     -- Replaced IdPs are not allowed to create new wire accounts.
     guardReplacedIdP :: Sem r ()
