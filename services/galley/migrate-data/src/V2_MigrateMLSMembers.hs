@@ -68,12 +68,26 @@ getMemberClientsFromLegacy = paginateC cql (paramsP LocalQuorum () pageSize) x5
     cql :: PrepQuery R () (ConvId, Domain, UserId, ClientId, KeyPackageRef)
     cql = "SELECT conv, user_domain, user, client, key_package_ref from member_client"
 
-lookupGroupIds :: (MonadUnliftIO m, MonadClient m) => [ConvId] -> m (Map ConvId GroupId)
+lookupGroupIds :: [ConvId] -> MigrationActionT IO (Map ConvId GroupId)
 lookupGroupIds convIds = do
   rows <- pooledMapConcurrentlyN 8 (\convId -> retry x5 (query1 cql (params LocalQuorum (Identity convId)))) convIds
-  rows
+  rows' <-
+    rows
+      & mapM
+        ( \case
+            (Just (c, mg)) -> do
+              case mg of
+                Nothing -> do
+                  Log.warn (Log.msg ("No group found for conv " <> show c))
+                  pure Nothing
+                Just g -> pure (Just (c, g))
+            Nothing -> do
+              Log.warn (Log.msg ("Conversation is missing for entry" :: Text))
+              pure Nothing
+        )
+
+  rows'
     & catMaybes
-    & mapMaybe (\(c, mg) -> (c,) <$> mg)
     & Map.fromList
     & pure
   where
