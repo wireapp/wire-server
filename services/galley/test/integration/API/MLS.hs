@@ -206,7 +206,7 @@ tests s =
       testGroup
         "Self conversation"
         [ test s "create a self conversation" testSelfConversation,
-          test s "do list a self conversation below v3" $ testSelfConversationList True,
+          test s "do not list a self conversation below v3" $ testSelfConversationList True,
           test s "list a self conversation automatically from v3" $ testSelfConversationList False,
           test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser,
           test s "attempt to leave fails" testSelfConversationLeave
