@@ -54,7 +54,6 @@ import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
 import Util.Options (casEndpoint, casFilterNodesByDatacentre, casKeyspace, epHost, epPort)
 import Wire.API.Routes.Version.Wai
-import Wire.API.Team.Role
 import Wire.API.User.Saml as Types
 import Wire.Sem.Logger.TinyLog
 
@@ -91,18 +90,18 @@ initCassandra opts lgr = do
 
 -- | FUTUREWORK: figure out how to call 'Network.Wai.Utilities.Server.newSettings' here.  For once,
 -- this would create the "Listening on..." log message there, but it may also have other benefits.
-runServer :: Role -> Opts -> IO ()
-runServer role sparCtxOpts = do
+runServer :: Opts -> IO ()
+runServer sparCtxOpts = do
   let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
       shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
       sport :: Int = sparCtxOpts ^. to saml . SAML.cfgSPPort
-  (wrappedApp, ctxOpts) <- mkApp role sparCtxOpts
+  (wrappedApp, ctxOpts) <- mkApp sparCtxOpts
   let logger = sparCtxLogger ctxOpts
   Log.info logger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
   WU.runSettingsWithShutdown settings wrappedApp Nothing
 
-mkApp :: Role -> Opts -> IO (Application, Env)
-mkApp role sparCtxOpts = do
+mkApp :: Opts -> IO (Application, Env)
+mkApp sparCtxOpts = do
   let logLevel = samlToLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts) (logFormat sparCtxOpts)
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
@@ -127,7 +126,7 @@ mkApp role sparCtxOpts = do
           -- outages.
           . SAML.setHttpCachePolicy
           . lookupRequestIdMiddleware
-          $ \sparCtxRequestId -> app role Env {..}
+          $ \sparCtxRequestId -> app Env {..}
       heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)
       heavyLogOnly out@(req, _) =
         if Wai.requestMethod req == "POST" && Wai.pathInfo req == ["sso", "finalize-login"]

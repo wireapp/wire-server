@@ -42,7 +42,6 @@ import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
 import Web.Cookie
-import Wire.API.Team.Role
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
 
@@ -55,7 +54,7 @@ spec = describe "accessVerdict" $ do
     context "denied" $ do
       it "responds with status 200 and a valid html page with constant expected title." $ do
         (_, _, idp) <- registerTestIdP
-        (Nothing, outcome, _, _) <- requestAccessVerdict idp False defaultRole mkAuthnReqWeb
+        (Nothing, outcome, _, _) <- requestAccessVerdict idp False mkAuthnReqWeb
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 200
           Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -66,7 +65,7 @@ spec = describe "accessVerdict" $ do
     context "granted" $ do
       it "responds with status 200 and a valid html page with constant expected title." $ do
         (_, _, idp) <- registerTestIdP
-        (Just _, outcome, _, _) <- requestAccessVerdict idp True defaultRole mkAuthnReqWeb
+        (Just _, outcome, _, _) <- requestAccessVerdict idp True mkAuthnReqWeb
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 200
           Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -83,7 +82,7 @@ spec = describe "accessVerdict" $ do
     context "denied" $ do
       it "responds with status 303 with appropriate details." $ do
         (_, _, idp) <- registerTestIdP
-        (Nothing, outcome, loc, qry) <- requestAccessVerdict idp False defaultRole mkAuthnReqMobile
+        (Nothing, outcome, loc, qry) <- requestAccessVerdict idp False mkAuthnReqMobile
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 303
           Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -95,7 +94,7 @@ spec = describe "accessVerdict" $ do
     context "granted" $ do
       it "responds with status 303 with appropriate details." $ do
         (_, _, idp) <- registerTestIdP
-        (Just uid, outcome, loc, qry) <- requestAccessVerdict idp True defaultRole mkAuthnReqMobile
+        (Just uid, outcome, loc, qry) <- requestAccessVerdict idp True mkAuthnReqMobile
         liftIO $ do
           Servant.errHTTPCode outcome `shouldBe` 303
           Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -139,7 +138,6 @@ requestAccessVerdict ::
   -- | is the verdict granted?
   Bool ->
   -- | raw authnreq
-  Role ->
   (SAML.IdPId -> TestSpar ResponseLBS) ->
   TestSpar
     ( Maybe UserId,
@@ -147,7 +145,7 @@ requestAccessVerdict ::
       URI, -- location header
       [(SBS, SBS)] -- query params
     )
-requestAccessVerdict idp isGranted role mkAuthnReq = do
+requestAccessVerdict idp isGranted mkAuthnReq = do
   subject <- nextSubject
   let uref = SAML.UserRef tenant subject
       tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
@@ -169,7 +167,7 @@ requestAccessVerdict idp isGranted role mkAuthnReq = do
           then SAML.AccessGranted uref
           else SAML.AccessDenied [DeniedNoBearerConfSubj, DeniedNoAuthnStatement]
   outcome :: ResponseVerdict <- do
-    runSpar $ Spar.verdictHandler authnresp verdict idp role
+    runSpar $ Spar.verdictHandler authnresp verdict idp
   let loc :: URI.URI
       loc =
         maybe (error "no location") (either error id . SAML.parseURI' . cs)

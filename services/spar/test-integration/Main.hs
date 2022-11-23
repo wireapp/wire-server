@@ -48,7 +48,6 @@ import qualified Test.Spar.Scim.AuthSpec
 import qualified Test.Spar.Scim.UserSpec
 import Util
 import Web.Scim.Test.Acceptance (AcceptanceConfig (..), AcceptanceQueryConfig (..), microsoftAzure)
-import Wire.API.Team.Role
 import Wire.API.User.Scim
 
 main :: IO ()
@@ -61,7 +60,7 @@ main = do
         mkspecMisc
         mkspecSaml
         mkspecScim
-    mkspecHscimAcceptance defaultRole env destroyEnv
+    mkspecHscimAcceptance env destroyEnv
 
 partitionArgs :: [String] -> ([String], [String])
 partitionArgs = go [] []
@@ -88,14 +87,14 @@ mkspecScim = do
   describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
   describe "Spar.Scim.User" Test.Spar.Scim.UserSpec.spec
 
-mkspecHscimAcceptance :: Role -> IO TestEnv -> (TestEnv -> IO ()) -> Spec
-mkspecHscimAcceptance role mkenv _destroyenv = do
+mkspecHscimAcceptance :: IO TestEnv -> (TestEnv -> IO ()) -> Spec
+mkspecHscimAcceptance mkenv _destroyenv = do
   describe "hscim acceptance tests" $
     microsoftAzure @SparTag AcceptanceConfig {..}
   where
     scimAppAndConfig = do
       env <- mkenv
-      (app, _) <- mkApp role (env ^. teOpts)
+      (app, _) <- mkApp (env ^. teOpts)
       scimAuthToken <- toHeader . fst <$> registerIdPAndScimToken `runReaderT` env
       let queryConfig = AcceptanceQueryConfig {..}
           scimPathPrefix = "/scim/v2"
