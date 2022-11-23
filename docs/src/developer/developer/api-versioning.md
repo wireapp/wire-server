@@ -315,3 +315,20 @@ running anywhere in production, and hasn't been for a time at least as long as
 the maximum event retention time, *then* we can drop the requirement for
 clients to be able to read events in the legacy format, *as long as they
 support only versions larger or equal to Q*.
+
+### Example timeline
+
+- While version 3 is in development: a new format for an event is introduced in
+  the code base, but not yet used for output events, the new format is
+  documented for clients.
+- Version 3 is finalised: events are still produced using the old format;
+  clients that implement v3 are able to parse both event formats.
+- Versions 4 to 6 are finalised. No changes to events.
+- Support for version 2 is dropped while version 7 is in development. The old
+  format can be removed from the code base, and the backend can start producing
+  events in the new format. No changes in clients are required.
+- Version 7 to 9 are finalised. No further changes to events.
+- Version 2 or lower is not used in production anymore. Version 10 is currently
+  in development. The old event format is removed from the documentation.
+  Clients that support only version 10 or above are not required to understand
+  the old format anymore.
