@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -28,12 +28,10 @@ import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
-import Data.Misc
 import Galley.Cassandra.Instances ()
 import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
-import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Feature
 import Wire.API.User
 
