@@ -85,7 +85,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
-import Wire.API.Team.Role (defaultRole)
+import Wire.API.Team.Role (Role)
 import Wire.API.User hiding (validateEmail)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -167,10 +167,11 @@ createSamlUserWithId ::
   TeamId ->
   UserId ->
   SAML.UserRef ->
+  Role ->
   Sem r ()
-createSamlUserWithId teamid buid suid = do
+createSamlUserWithId teamid buid suid role = do
   uname <- either (throwSparSem . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
-  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing defaultRole
+  buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire Nothing Nothing Nothing role
   assert (buid == buid') $ pure ()
   SAMLUserStore.insert suid buid
 
@@ -191,11 +192,12 @@ autoprovisionSamlUser ::
   IdP ->
   UserId ->
   SAML.UserRef ->
+  Role ->
   Sem r ()
-autoprovisionSamlUser idp buid suid = do
+autoprovisionSamlUser idp buid suid role = do
   guardReplacedIdP
   guardScimTokens
-  createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid
+  createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid role
   where
     -- Replaced IdPs are not allowed to create new wire accounts.
     guardReplacedIdP :: Sem r ()
@@ -254,8 +256,9 @@ verdictHandler ::
   SAML.AuthnResponse ->
   SAML.AccessVerdict ->
   IdP ->
+  Role ->
   Sem r SAML.ResponseVerdict
-verdictHandler aresp verdict idp = do
+verdictHandler aresp verdict idp role = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
@@ -264,9 +267,9 @@ verdictHandler aresp verdict idp = do
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just VerdictFormatWeb ->
-      verdictHandlerResult verdict idp >>= verdictHandlerWeb
+      verdictHandlerResult verdict idp role >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied) ->
-      verdictHandlerResult verdict idp >>= verdictHandlerMobile granted denied
+      verdictHandlerResult verdict idp role >>= verdictHandlerMobile granted denied
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
@@ -295,10 +298,11 @@ verdictHandlerResult ::
     r =>
   SAML.AccessVerdict ->
   IdP ->
+  Role ->
   Sem r VerdictHandlerResult
-verdictHandlerResult verdict idp = do
+verdictHandlerResult verdict idp role = do
   Logger.log Logger.Debug $ "entering verdictHandlerResult"
-  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict
+  result <- catchVerdictErrors $ verdictHandlerResultCore idp role verdict
   Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
@@ -368,9 +372,10 @@ verdictHandlerResultCore ::
      ]
     r =>
   IdP ->
+  Role ->
   SAML.AccessVerdict ->
   Sem r VerdictHandlerResult
-verdictHandlerResultCore idp = \case
+verdictHandlerResultCore idp role = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted uref -> do
@@ -391,7 +396,7 @@ verdictHandlerResultCore idp = \case
                 else throwSparSem err
             Nothing -> do
               buid <- Id <$> Random.uuid
-              autoprovisionSamlUser idp buid uref
+              autoprovisionSamlUser idp buid uref role
               validateEmailIfExists buid uref
               pure buid
 

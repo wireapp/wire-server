@@ -20,6 +20,7 @@ module Main where
 import Imports
 import Spar.Options
 import Spar.Run
+import Wire.API.Team.Role
 
 main :: IO ()
-main = runServer =<< getOpts
+main = runServer defaultRole =<< getOpts

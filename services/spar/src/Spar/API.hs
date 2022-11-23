@@ -100,6 +100,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Public.Spar
+import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -109,10 +110,10 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
 
-app :: Env -> Application
-app ctx =
+app :: Role -> Env -> Application
+app role ctx =
   SAML.setHttpCachePolicy $
-    serve (Proxy @API) (hoistServer (Proxy @API) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server API)
+    serve (Proxy @API) (hoistServer (Proxy @API) (runSparToHandler ctx) (api role $ sparCtxOpts ctx) :: Server API)
 
 api ::
   Members
@@ -141,10 +142,11 @@ api ::
        Logger (Msg -> Msg)
      ]
     r =>
+  Role ->
   Opts ->
   ServerT API (Sem r)
-api opts =
-  apiSSO opts
+api role opts =
+  apiSSO role opts
     :<|> apiIDP
     :<|> apiScim
     :<|> apiINTERNAL
@@ -169,15 +171,16 @@ apiSSO ::
        SAMLUserStore
      ]
     r =>
+  Role ->
   Opts ->
   ServerT APISSO (Sem r)
-apiSSO opts =
+apiSSO role opts =
   SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing)
     :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
     :<|> authreqPrecheck
     :<|> authreq (maxttlAuthreqDiffTime opts)
-    :<|> authresp Nothing
-    :<|> authresp . Just
+    :<|> authresp role Nothing
+    :<|> authresp role . Just
     :<|> ssoSettings
 
 apiIDP ::
@@ -309,14 +312,15 @@ authresp ::
        SAMLUserStore
      ]
     r =>
+  Role ->
   Maybe TeamId ->
   SAML.AuthnResponseBody ->
   Sem r Void
-authresp mbtid arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
+authresp role mbtid arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
   where
     go :: SAML.AuthnResponse -> IdP -> SAML.AccessVerdict -> Sem r Void
     go resp verdict idp = do
-      result :: SAML.ResponseVerdict <- verdictHandler resp idp verdict
+      result :: SAML.ResponseVerdict <- verdictHandler resp idp verdict role
       throw @SparError $ SAML.CustomServant result
 
     logErrors :: Sem r Void -> Sem r Void
