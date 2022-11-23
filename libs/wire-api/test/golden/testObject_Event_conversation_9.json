@@ -1,0 +1,95 @@
+{
+    "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "data": {
+        "qualified_user_ids": [
+            {
+                "domain": "ow8i3fhr.v",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "8kshw-2l.3w44.6c8763a-77r4.gk13zq",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "xk-no.m5--f8b7",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "x02.p.69y-6.8ncr.u",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "1-47tume1e5l32i.v75is-q4-o.u7qc",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "8ay.ec.k-8",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "u-8.m-42ns2c",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "08kh83-8.vu.i24",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "t1t683.o3--2.3k5.it-5.e1",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "q.ajw-5",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "73m4g.c24em3.v",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "i7zn.li",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "42y78.yekf",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "n63-p87m2.dtq",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            },
+            {
+                "domain": "ns.v2p",
+                "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+            }
+        ],
+        "user_ids": [
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e",
+            "2126ea99-ca79-43ea-ad99-a59616468e8e"
+        ]
+    },
+    "from": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "qualified_conversation": {
+        "domain": "743846p6-pp33.1.ktb9.0bmn.efm2bly",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "qualified_from": {
+        "domain": "9--5grmn.j39y3--9n",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "time": "2018-01-01T00:00:00.000Z",
+    "type": "conversation.member-leave"
+}
