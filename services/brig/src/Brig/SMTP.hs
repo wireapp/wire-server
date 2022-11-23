@@ -165,7 +165,6 @@ initSMTP' timeoutDuration lg host port credentials connType = do
 
 logExceptionOrResult :: (MonadIO m, MonadCatch m) => Logger -> String -> m a -> m a
 logExceptionOrResult lg actionString action = do
-  let msg' = msg ("SMTP connection result" :: String)
   res <-
     catches
       action
@@ -175,35 +174,22 @@ logExceptionOrResult lg actionString action = do
                     SMTPUnauthorized ->
                       ("Failed to establish connection, check your credentials." :: String)
                     SMTPConnectionTimeout -> ("Connection timeout." :: String)
-              Logger.log
-                lg
-                Logger.Warn
-                ( msg'
-                    . field "action" actionString
-                    . field "result" resultLog
-                )
+              doLog Logger.Warn resultLog
               CE.throw e
           ),
         Handler
           ( \(e :: SomeException) -> do
-              Logger.log
-                lg
-                Logger.Warn
-                ( msg'
-                    . field "action" actionString
-                    . field "result" ("Caught exception : " ++ show e)
-                )
+              doLog Logger.Warn ("Caught exception : " ++ show e)
               CE.throw e
           )
       ]
-  Logger.log
-    lg
-    Logger.Debug
-    ( msg'
-        . field "action" actionString
-        . field "result" ("Succeeded." :: String)
-    )
+  doLog Logger.Debug ("Succeeded." :: String)
   pure res
+  where
+    doLog :: MonadIO m => Logger.Level -> String -> m ()
+    doLog lvl result =
+      let msg' = msg ("SMTP connection result" :: String)
+       in Logger.log lg lvl (msg' . field "action" actionString . field "result" result)
 
 -- | Default timeout for all actions
 --
