@@ -1114,7 +1114,8 @@ getConvQualified u (Qualified conv domain) = do
 
 getConvIds :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
 getConvIds u r s = do
-  g <- viewGalley
+  -- The endpoint is removed starting V3
+  g <- fmap (addPrefixAtVersion V2 .) (view tsUnversionedGalley)
   get $
     g
       . path "/conversations/ids"
