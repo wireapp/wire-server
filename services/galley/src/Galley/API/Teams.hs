@@ -796,7 +796,7 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
       targetPermissions = targetMember ^. permissions
   P.debug $
     Log.field "targets" (toByteString targetId)
-      . Log.field "action" (Log.val "Teams.uncheckedUpdateTeamMember")
+      . Log.field "action" (Log.val "Teams.updateTeamMember")
 
   team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
 
