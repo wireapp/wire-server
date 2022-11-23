@@ -40,6 +40,7 @@ module Galley.API.Query
     getGlobalTeamConversation,
     getConversationRoles,
     conversationIdsPageFromUnqualified,
+    conversationIdsPageFromV2,
     conversationIdsPageFrom,
     getConversations,
     listConversations,
@@ -334,15 +335,26 @@ conversationIdsPageFromUnqualified lusr start msize = do
 --
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.
-conversationIdsPageFrom ::
+--
+-- FUTUREWORK: Move the body of this function to 'conversationIdsPageFrom' once
+-- support for V2 is dropped.
+conversationIdsPageFromV2 ::
   forall p r.
   ( p ~ CassandraPaging,
-    Members '[ListItems p ConvId, ListItems p (Remote ConvId)] r
+    Members
+      '[ ConversationStore,
+         Error InternalError,
+         Input Env,
+         ListItems p ConvId,
+         ListItems p (Remote ConvId),
+         P.TinyLog
+       ]
+      r
   ) =>
   Local UserId ->
   Public.GetPaginatedConversationIds ->
   Sem r Public.ConvIdsPage
-conversationIdsPageFrom lusr Public.GetMultiTablePageRequest {..} = do
+conversationIdsPageFromV2 lusr Public.GetMultiTablePageRequest {..} = do
   let localDomain = tDomain lusr
   case gmtprState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
@@ -385,6 +397,37 @@ conversationIdsPageFrom lusr Public.GetMultiTablePageRequest {..} = do
           mtpHasMore = C.pwsHasMore page,
           mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
         }
+
+-- | Lists conversation ids for the logged in user in a paginated way.
+--
+-- Pagination requires an order, in this case the order is defined as:
+--
+-- - First all the local conversations are listed ordered by their id
+--
+-- - After local conversations, remote conversations are listed ordered
+-- - lexicographically by their domain and then by their id.
+conversationIdsPageFrom ::
+  forall p r.
+  ( p ~ CassandraPaging,
+    Members
+      '[ ConversationStore,
+         Error InternalError,
+         Input Env,
+         ListItems p ConvId,
+         ListItems p (Remote ConvId),
+         P.TinyLog
+       ]
+      r
+  ) =>
+  Local UserId ->
+  Public.GetPaginatedConversationIds ->
+  Sem r Public.ConvIdsPage
+conversationIdsPageFrom lusr state = do
+  -- NOTE: Getting the MLS self-conversation creates it in case it does not
+  -- exist yet. This is to ensure it is automatically listed without needing to
+  -- create it separately.
+  void $ getMLSSelfConversation lusr
+  conversationIdsPageFromV2 lusr state
 
 getConversations ::
   Members '[Error InternalError, ListItems LegacyPaging ConvId, ConversationStore, P.TinyLog] r =>
@@ -643,8 +686,8 @@ getMLSSelfConversation ::
   Members
     '[ ConversationStore,
        Error InternalError,
-       P.TinyLog,
-       Input Env
+       Input Env,
+       P.TinyLog
      ]
     r =>
   Local UserId ->

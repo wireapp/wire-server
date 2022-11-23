@@ -160,6 +160,7 @@ type ConversationAPI =
            "list-conversation-ids-unqualified"
            ( Summary "[deprecated] Get all local conversation IDs."
                -- FUTUREWORK: add bounds to swagger schema for Range
+               :> Until 'V3
                :> ZLocalUser
                :> "conversations"
                :> "ids"
@@ -180,8 +181,20 @@ type ConversationAPI =
                :> Get '[Servant.JSON] (ConversationList ConvId)
            )
     :<|> Named
+           "list-conversation-ids-v2"
+           ( Summary "Get all conversation IDs."
+               :> Until 'V3
+               :> Description PaginationDocs
+               :> ZLocalUser
+               :> "conversations"
+               :> "list-ids"
+               :> ReqBody '[Servant.JSON] GetPaginatedConversationIds
+               :> Post '[Servant.JSON] ConvIdsPage
+           )
+    :<|> Named
            "list-conversation-ids"
            ( Summary "Get all conversation IDs."
+               :> From 'V3
                :> Description PaginationDocs
                :> ZLocalUser
                :> "conversations"

@@ -72,6 +72,7 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
+import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team (teamCreator)
 import Wire.API.User.Client
 
@@ -205,6 +206,8 @@ tests s =
       testGroup
         "Self conversation"
         [ test s "create a self conversation" testSelfConversation,
+          test s "do not list a self conversation below v3" $ testSelfConversationList True,
+          test s "list a self conversation automatically from v3" $ testSelfConversationList False,
           test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser,
           test s "attempt to leave fails" testSelfConversationLeave
         ]
@@ -2347,6 +2350,30 @@ testSelfConversation = do
       WS.assertMatchN_ (5 # Second) wss $
         wsAssertMLSWelcome alice welcome
       WS.assertNoEvent (1 # WS.Second) wss
+
+-- | The MLS self-conversation should be available even without explicitly
+-- creating it by calling `GET /conversations/mls-self` starting from version 3
+-- of the client API and should not be listed in versions less than 3.
+testSelfConversationList :: Bool -> TestM ()
+testSelfConversationList isBelowV3 = do
+  let (errMsg, justOrNothing, listCnvs) =
+        if isBelowV3
+          then ("The MLS self-conversation is listed", isNothing, listConvIdsV2)
+          else ("The MLS self-conversation is not listed", isJust, listConvIds)
+  alice <- randomUser
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
+  convIds :: ConvIdsPage <-
+    responseJsonError
+      =<< listCnvs alice paginationOpts
+        <!! const 200 === statusCode
+  convs <-
+    forM (mtpResults convIds) (responseJsonError <=< getConvQualified alice)
+  let mMLSSelf = foldr (<|>) Nothing $ guard . isMLSSelf <$> convs
+  liftIO $ assertBool errMsg (justOrNothing mMLSSelf)
+  where
+    isMLSSelf conv =
+      cnvType conv == SelfConv
+        && protocolTag (cnvProtocol conv) == ProtocolMLSTag
 
 testSelfConversationOtherUser :: TestM ()
 testSelfConversationOtherUser = do
