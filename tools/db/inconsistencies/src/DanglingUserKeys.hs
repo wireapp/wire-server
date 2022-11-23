@@ -168,15 +168,33 @@ freeUserKey l k = do
     keyDelete :: PrepQuery W (Identity Text) ()
     keyDelete = "DELETE FROM user_keys WHERE key = ?"
 
-    hashKey :: UserKey -> IO UserKeyHash
-    hashKey uk = do
-      Just d <- getDigestByName "SHA256"
-      let d' = digestBS d $ T.encodeUtf8 (keyText uk)
-      pure . UserKeyHash $
-        MH.MultihashDigest MH.SHA256 (B.length d') d'
 
     deleteHashed :: PrepQuery W (Identity UserKeyHash) ()
     deleteHashed = "DELETE FROM user_keys_hash WHERE key = ?"
+
+hashKey :: UserKey -> IO UserKeyHash
+hashKey uk = do
+  Just d <- getDigestByName "SHA256"
+  let d' = digestBS d $ T.encodeUtf8 (keyText uk)
+  pure . UserKeyHash $
+    MH.MultihashDigest MH.SHA256 (B.length d') d'
+    
+data UKHashType
+  = UKHashPhone
+  | UKHashEmail
+  deriving (Eq)
+
+instance Cql UKHashType where
+  ctype = Tagged IntColumn
+
+  fromCql (CqlInt i) = case i of
+    0 -> pure UKHashPhone
+    1 -> pure UKHashEmail
+    n -> Left $ "unexpected hashtype: " ++ show n
+  fromCql _ = Left "userkeyhashtype: int expected"
+
+  toCql UKHashPhone = CqlInt 0
+  toCql UKHashEmail = CqlInt 1
 
 newtype UserKeyHash = UserKeyHash MH.MultihashDigest
 
@@ -189,6 +207,20 @@ instance Cql UserKeyHash where
   fromCql _ = Left "userkeyhash: expected blob"
 
   toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
+
+insertKey :: Logger -> UserId -> UserKey -> Client ()
+insertKey l u k = do
+  Log.info l $ Log.msg (Log.val "Inserting key") . Log.field "key" (keyText k) . Log.field "userId" (show u)
+  hk <- liftIO $ hashKey k
+  let kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
+  retry x5 $ write insertHashed (params LocalQuorum (hk, kt, u))
+  retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
+  where
+    insertHashed :: PrepQuery W (UserKeyHash, UKHashType, UserId) ()
+    insertHashed = "INSERT INTO user_keys_hash(key, key_type, user) VALUES (?, ?, ?)"
+
+    keyInsert :: PrepQuery W (Text, UserId) ()
+    keyInsert = "INSERT INTO user_keys (key, user) VALUES (?, ?)"
 
 -- repair these inconsistent data cases:
 -- - 1. user deleted (or with status=null) in user table, data left in user_keys -> delete records in user_keys

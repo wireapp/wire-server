@@ -53,7 +53,8 @@ main = do
       DanglingUserKeys.runCommand workLogger brig outputFile
     DanglingUserKeys (Just (inputFile, repairData)) ->
       DanglingUserKeys.runRepair workLogger brig inputFile outputFile repairData
-    MissingEmailUserKeys (Just (_inputFile, _repairData)) -> undefined
+    MissingEmailUserKeys (Just (inputFile, repairData)) -> 
+      EmailLessUsers.runRepair workLogger brig inputFile outputFile repairData
     MissingEmailUserKeys Nothing ->
       EmailLessUsers.runCommand workLogger brig outputFile
 
