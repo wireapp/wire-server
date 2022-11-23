@@ -127,7 +127,11 @@ getBotConversation ::
   Local ConvId ->
   Sem r Public.BotConvView
 getBotConversation zbot lcnv = do
-  (c, _) <- getConversationAndMemberWithError @'ConvNotFound (botUserId zbot) lcnv
+  (c, _) <-
+    getConversationAndMemberWithError
+      @'ConvNotFound
+      (qUntagged . qualifyAs lcnv . botUserId $ zbot)
+      lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems

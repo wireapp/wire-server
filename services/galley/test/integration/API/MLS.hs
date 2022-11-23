@@ -201,7 +201,8 @@ tests s =
           test s "Global team conversation is created on get if not present" (testGetGlobalTeamConv s),
           test s "Can't leave global team conversation" testGlobalTeamConversationLeave,
           test s "Send message in global team conversation" testGlobalTeamConversationMessage,
-          test s "Listing convs includes global team conversation" testConvListIncludesGlobal
+          test s "Listing convs includes global team conversation" testConvListIncludesGlobal,
+          test s "Listing convs includes global team conversation for new users" testConvListIncludesGlobalForNewUsers
         ],
       testGroup
         "Self conversation"
@@ -2245,6 +2246,30 @@ testConvListIncludesGlobal = do
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
     const (Just [globalTeamConv tid]) =~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+
+testConvListIncludesGlobalForNewUsers :: TestM ()
+testConvListIncludesGlobalForNewUsers = do
+  localDomain <- viewFederationDomain
+  -- c <- view tsCannon
+  (tid, alice, [bob]) <- Util.createBindingTeamWithMembers 2
+  let aliceQ = Qualified alice localDomain
+      bobQ = Qualified bob localDomain
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [aliceQ, bobQ]
+    void $ uploadNewKeyPackage bob1
+
+    void $ setupMLSGroup alice1
+    void $ createAddCommit alice1 [bobQ] >>= sendAndConsumeCommitBundle
+
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
+  listConvIds alice paginationOpts !!! do
+    const 200 === statusCode
+    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+
+  listConvIds bob paginationOpts !!! do
+    const 200 === statusCode
+    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
 rightToMaybe :: Either a b -> Maybe b
 rightToMaybe = either (const Nothing) Just

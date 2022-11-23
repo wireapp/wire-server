@@ -76,6 +76,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
@@ -508,7 +509,7 @@ getConversationAndCheckMembership uid lcnv = do
   (conv, _) <-
     getConversationAndMemberWithError
       @'ConvAccessDenied
-      uid
+      (qUntagged $ qualifyAs lcnv uid)
       lcnv
   pure conv
 
@@ -517,18 +518,49 @@ getConversationWithError ::
     Member (ErrorS 'ConvNotFound) r
   ) =>
   Local ConvId ->
+  UserId ->
   Sem r Data.Conversation
-getConversationWithError lcnv =
-  getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+getConversationWithError lcnv uid =
+  let cid = tUnqualified lcnv
+   in getConversation cid >>= \case
+        Just c -> pure c
+        Nothing -> do
+          gtc <- noteS @'ConvNotFound =<< getGlobalTeamConversationById lcnv
+          pure $ toConv uid mempty gtc
+  where
+    toConv usr lm gtc =
+      let mlsData = gtcMlsMetadata gtc
+       in Data.Conversation
+            { convId = qUnqualified $ gtcId gtc,
+              convLocalMembers = lm,
+              convRemoteMembers = mempty,
+              convDeleted = False,
+              convMetadata =
+                ConversationMetadata
+                  { cnvmType = GlobalTeamConv,
+                    -- FUTUREWORK: Make this a qualified user ID.
+                    cnvmCreator = usr,
+                    cnvmAccess = [SelfInviteAccess],
+                    cnvmAccessRoles = mempty,
+                    cnvmName = Just $ gtcName gtc,
+                    cnvmTeam = Just $ gtcTeam gtc,
+                    cnvmMessageTimer = Nothing,
+                    cnvmReceiptMode = Nothing
+                  },
+              convProtocol = ProtocolMLS mlsData
+            }
 
 getConversationAndMemberWithError ::
   forall e uid mem r.
-  (Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r, IsConvMemberId uid mem) =>
+  ( Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r,
+    IsConvMemberId uid mem,
+    uid ~ Qualified UserId
+  ) =>
   uid ->
   Local ConvId ->
   Sem r (Data.Conversation, mem)
 getConversationAndMemberWithError usr lcnv = do
-  c <- getConversationWithError lcnv
+  c <- getConversationWithError lcnv (qUnqualified usr)
   member <- noteS @e $ getConvMember lcnv c usr
   pure (c, member)
 

@@ -793,20 +793,23 @@ processCommitWithAction qusr senderClient con lconv mlsMeta cm epoch action send
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSMissingSenderClient) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input (Local ())) r,
-    Member ProposalStore r,
-    Member BrigAccess r,
-    Member Resource r
+    Members
+      [ Error FederationError,
+        Error InternalError,
+        ErrorS 'ConvNotFound,
+        ErrorS 'MLSClientSenderUserMismatch,
+        ErrorS 'MLSCommitMissingReferences,
+        ErrorS 'MLSMissingSenderClient,
+        ErrorS 'MLSProposalNotFound,
+        ErrorS 'MLSSelfRemovalNotAllowed,
+        ErrorS 'MLSStaleMessage,
+        ErrorS 'MissingLegalholdConsent,
+        Input (Local ()),
+        ProposalStore,
+        BrigAccess,
+        Resource
+      ]
+      r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -858,6 +861,9 @@ processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action sender
                       . upLeaf
                   )
                   $ cPath commit
+              -- add user to global conv as a member as well
+              lusr <- qualifyLocal (qUnqualified qusr)
+              void $ createMember (convId <$> lconv) lusr
               addMLSClients
                 (cnvmlsGroupId mlsMeta)
                 qusr
