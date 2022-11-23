@@ -25,6 +25,7 @@ import API.Util as Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
+import Control.Error.Util (hush)
 import Control.Lens (view, (^.))
 import qualified Control.Monad.State as State
 import Crypto.Error
@@ -2225,7 +2226,7 @@ testConvListIncludesGlobal = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
   -- add user to conv
   runMLSTest $ do
@@ -2245,7 +2246,7 @@ testConvListIncludesGlobal = do
   -- Now we should have the user as part of that conversation also in the backend
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
 testConvListIncludesGlobalForNewUsers :: TestM ()
 testConvListIncludesGlobalForNewUsers = do
@@ -2265,14 +2266,11 @@ testConvListIncludesGlobalForNewUsers = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
   listConvIds bob paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
-
-rightToMaybe :: Either a b -> Maybe b
-rightToMaybe = either (const Nothing) Just
+    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
 testGlobalTeamConversationMessage :: TestM ()
 testGlobalTeamConversationMessage = do
