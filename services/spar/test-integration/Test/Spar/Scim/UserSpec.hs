@@ -1782,30 +1782,30 @@ testUpdateUserRole = do
   let galley = env ^. teGalley
   (owner, tid) <- call $ createUserWithTeam brig galley
   tok <- registerScimToken tid Nothing
-  let testWithInitialRole r = forM_ [minBound .. maxBound] (testUpdateUserRoles brig tid owner tok r)
+  let testWithInitialRole r = forM_ [minBound .. maxBound] (testCreateUserWithInitalRoleAndUpdateToTargetRole brig tid owner tok r)
   forM_ [minBound .. maxBound] testWithInitialRole
+  where
+    testCreateUserWithInitalRoleAndUpdateToTargetRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Role -> TestSpar ()
+    testCreateUserWithInitalRoleAndUpdateToTargetRole brig tid owner tok initialRole targetRole = do
+      email <- randomEmail
+      scimUser <-
+        randomScimUser <&> \u ->
+          u
+            { Scim.User.externalId = Just $ fromEmail email,
+              Scim.User.roles = [cs $ toByteString initialRole]
+            }
+      scimStoredUser <- createUser tok scimUser
+      let userid = scimUserId scimStoredUser
+          userName = Name . fromJust . Scim.User.displayName $ scimUser
 
-testUpdateUserRoles :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Role -> TestSpar ()
-testUpdateUserRoles brig tid owner tok initialRole targetRole = do
-  email <- randomEmail
-  scimUser <-
-    randomScimUser <&> \u ->
-      u
-        { Scim.User.externalId = Just $ fromEmail email,
-          Scim.User.roles = [cs $ toByteString initialRole]
-        }
-  scimStoredUser <- createUser tok scimUser
-  let userid = scimUserId scimStoredUser
-      userName = Name . fromJust . Scim.User.displayName $ scimUser
-
-  -- user follows invitation flow
-  do
-    inv <- call $ getInvitation brig email
-    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
-    registerInvitation email userName inviteeCode True
-  checkTeamMembersRole tid owner userid initialRole
-  _ <- updateUser tok userid (scimUser {Scim.User.roles = [cs $ toByteString targetRole]})
-  checkTeamMembersRole tid owner userid targetRole
+      -- user follows invitation flow
+      do
+        inv <- call $ getInvitation brig email
+        Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+        registerInvitation email userName inviteeCode True
+      checkTeamMembersRole tid owner userid initialRole
+      _ <- updateUser tok userid (scimUser {Scim.User.roles = [cs $ toByteString targetRole]})
+      checkTeamMembersRole tid owner userid targetRole
 
 ----------------------------------------------------------------------------
 -- Patching users
