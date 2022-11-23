@@ -160,6 +160,7 @@ type ConversationAPI =
            "list-conversation-ids-unqualified"
            ( Summary "[deprecated] Get all local conversation IDs."
                -- FUTUREWORK: add bounds to swagger schema for Range
+               :> Until 'V3
                :> ZLocalUser
                :> "conversations"
                :> "ids"
