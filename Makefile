@@ -39,7 +39,6 @@ init:
 # Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
-	cabal update
 	cabal build all
 	./hack/bin/cabal-run-all-tests.sh
 	./hack/bin/cabal-install-artefacts.sh all
