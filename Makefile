@@ -114,6 +114,10 @@ lint-all: formatc hlint-check-all check-local-nix-derivations treefmt
 hlint-check-all:
 	./tools/hlint.sh -f all -m check
 
+.PHONY: hlint-inplace-all
+hlint-inplace-all:
+	./tools/hlint.sh -f all -m inplace
+
 .PHONY: hlint-check-pr
 hlint-check-pr:
 	./tools/hlint.sh -f pr -m check
@@ -121,11 +125,6 @@ hlint-check-pr:
 .PHONY: hlint-inplace-pr
 hlint-inplace-pr:
 	./tools/hlint.sh -f pr -m inplace
-
-
-.PHONY: hlint-inplace-all
-hlint-inplace-all:
-	./tools/hlint.sh -f all -m inplace
 
 .PHONY: hlint-check
 hlint-check:

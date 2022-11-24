@@ -300,6 +300,7 @@ let
     pkgs.helm
     pkgs.helmfile
     pkgs.hlint
+    ( hlib.justStaticExecutables pkgs.haskellPackages.apply-refact )
     pkgs.jq
     pkgs.kubectl
     pkgs.nixpkgs-fmt
