@@ -16,8 +16,8 @@ This bash script can either
 
 USAGE: $0
     -h     : show this help.
-    -f pr  : run even if working copy is dirty. Check only on changed files.
-    -f all : run even if working copy is dirty.
+    -f pr  : run even if working copy is dirty. Check only on files changed by branch.
+    -f all : run even if working copy is dirty. Check all files.
     -c     : set ormolu mode to 'check'.  default: 'inplace'
 "
 
@@ -47,7 +47,6 @@ done
 shift $((OPTIND -1))
 
 if [ "$#" -ne 0 ]; then
-  echo "??"
   echo "$USAGE" 1>&2
   exit 1
 fi
