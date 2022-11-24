@@ -154,7 +154,12 @@ format:
 # formats all Haskell files even if local changes are not committed to git
 .PHONY: formatf
 formatf:
-	./tools/ormolu.sh -f
+	./tools/ormolu.sh -f pr
+
+# formats all Haskell files even if local changes are not committed to git
+.PHONY: formatf-all
+formatf-all:
+	./tools/ormolu.sh -f all
 
 # checks that all Haskell files are formatted; fail if a `make format` run is needed.
 .PHONY: formatc
