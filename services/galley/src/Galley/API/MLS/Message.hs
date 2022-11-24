@@ -612,8 +612,7 @@ getCommitData lconv mlsMeta epoch commit = do
 
   -- check epoch number
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
-  action <- foldMap (applyProposalRef (tUnqualified lconv) groupId epoch suite) (cProposals commit)
-  pure action
+  foldMap (applyProposalRef (tUnqualified lconv) groupId epoch suite) (cProposals commit)
 
 processCommit ::
   ( HasProposalEffects r,
