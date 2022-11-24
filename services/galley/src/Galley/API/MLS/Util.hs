@@ -26,6 +26,7 @@ import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
+import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
@@ -55,7 +56,7 @@ getLocalConvForUser qusr lcnv = do
   conv <- case gtc of
     Just conv -> do
       localMembers <- getLocalMembers (qUnqualified . gtcId $ conv)
-      pure $ toConv conv (qUnqualified qusr) localMembers
+      pure $ gtcToConv conv (qUnqualified qusr) localMembers
     Nothing -> do
       getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
@@ -69,28 +70,6 @@ getLocalConvForUser qusr lcnv = do
   unless isMember' $ throwS @'ConvNotFound
 
   pure conv
-  where
-    toConv gtc usr lm =
-      let mlsData = gtcMlsMetadata gtc
-       in Data.Conversation
-            { convId = qUnqualified $ gtcId gtc,
-              convLocalMembers = lm,
-              convRemoteMembers = mempty,
-              convDeleted = False,
-              convMetadata =
-                ConversationMetadata
-                  { cnvmType = GlobalTeamConv,
-                    -- FUTUREWORK: Make this a qualified user ID.
-                    cnvmCreator = usr,
-                    cnvmAccess = [SelfInviteAccess],
-                    cnvmAccessRoles = mempty,
-                    cnvmName = Just $ gtcName gtc,
-                    cnvmTeam = Just $ gtcTeam gtc,
-                    cnvmMessageTimer = Nothing,
-                    cnvmReceiptMode = Nothing
-                  },
-              convProtocol = ProtocolMLS mlsData
-            }
 
 getPendingBackendRemoveProposals ::
   Members '[ProposalStore, TinyLog] r =>
@@ -111,3 +90,30 @@ getPendingBackendRemoveProposals gid epoch = do
             TinyLog.warn $ Log.msg ("found pending proposal without origin, ignoring" :: ByteString)
             pure Nothing
       )
+
+gtcToConv ::
+  GlobalTeamConversation ->
+  UserId ->
+  [LocalMember] ->
+  Conversation
+gtcToConv gtc usr lm =
+  let mlsData = gtcMlsMetadata gtc
+   in Conversation
+        { convId = qUnqualified $ gtcId gtc,
+          convLocalMembers = lm,
+          convRemoteMembers = mempty,
+          convDeleted = False,
+          convMetadata =
+            ConversationMetadata
+              { cnvmType = GlobalTeamConv,
+                -- FUTUREWORK: Make this a qualified user ID.
+                cnvmCreator = usr,
+                cnvmAccess = [SelfInviteAccess],
+                cnvmAccessRoles = mempty,
+                cnvmName = Just $ gtcName gtc,
+                cnvmTeam = Just $ gtcTeam gtc,
+                cnvmMessageTimer = Nothing,
+                cnvmReceiptMode = Nothing
+              },
+          convProtocol = ProtocolMLS mlsData
+        }

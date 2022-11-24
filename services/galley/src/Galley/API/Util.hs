@@ -36,6 +36,7 @@ import Data.Singletons
 import qualified Data.Text as T
 import Data.Time
 import Galley.API.Error
+import Galley.API.MLS.Util
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
@@ -76,7 +77,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
@@ -526,29 +526,7 @@ getConversationWithError lcnv uid =
         Just c -> pure c
         Nothing -> do
           gtc <- noteS @'ConvNotFound =<< getGlobalTeamConversationById lcnv
-          pure $ toConv uid mempty gtc
-  where
-    toConv usr lm gtc =
-      let mlsData = gtcMlsMetadata gtc
-       in Data.Conversation
-            { convId = qUnqualified $ gtcId gtc,
-              convLocalMembers = lm,
-              convRemoteMembers = mempty,
-              convDeleted = False,
-              convMetadata =
-                ConversationMetadata
-                  { cnvmType = GlobalTeamConv,
-                    -- FUTUREWORK: Make this a qualified user ID.
-                    cnvmCreator = usr,
-                    cnvmAccess = [SelfInviteAccess],
-                    cnvmAccessRoles = mempty,
-                    cnvmName = Just $ gtcName gtc,
-                    cnvmTeam = Just $ gtcTeam gtc,
-                    cnvmMessageTimer = Nothing,
-                    cnvmReceiptMode = Nothing
-                  },
-              convProtocol = ProtocolMLS mlsData
-            }
+          pure $ gtcToConv gtc uid mempty
 
 getConversationAndMemberWithError ::
   forall e uid mem r.
