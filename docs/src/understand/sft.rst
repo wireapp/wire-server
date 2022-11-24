@@ -154,7 +154,7 @@ runs on a dedicated port number which is not used for regular TURN traffic. Unde
 configuration, only that single IP address and port is exposed for each federated TURN
 server with all SFT traffic multiplexed over the connection. The diagram below shows
 this scenario.  Note that this TURN DTLS multiplexing is only used for SFT to SFT
-communication and does not affect the connectivity requirements for normal one-on-one
+communication into federated group calls, and does not affect the connectivity requirements for normal one-on-one
 calls.
 
 .. figure:: img/multi-sft-turn-dtls.png
