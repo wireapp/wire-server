@@ -77,6 +77,9 @@ elif [ "$f" = "pr" ]; then
     files=$(git diff --name-only origin/develop... | { grep '\.hsc\?$' || true; }; git diff --name-only HEAD | { grep \.hs\$ || true ; })
 fi
 
+count=$( echo "$files" | sed '/^\s*$/d' | wc -l )
+echo "Checking $count file(s)…"
+
 for hsfile in $files; do
     FAILED=0
 
