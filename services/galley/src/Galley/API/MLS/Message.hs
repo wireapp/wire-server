@@ -846,11 +846,10 @@ processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action sender
                 qusr
                 (Set.singleton (creatorClient, creatorRef))
             (Left _, SelfConv, _) ->
+              -- this is a newly created conversation, and it should contain exactly one
+              -- client (the creator)
               throw . InternalErrorWithDescription $
                 "Unexpected creator client set in a self-conversation"
-            -- this is a newly created conversation, and it should contain exactly one
-            -- client (the creator)
-
             (Left _, GlobalTeamConv, []) -> do
               creatorClient <- noteS @'MLSMissingSenderClient senderClient
               creatorRef <-
@@ -870,7 +869,7 @@ processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action sender
                 (Set.singleton (creatorClient, creatorRef))
             (Left _, GlobalTeamConv, _) ->
               throw . InternalErrorWithDescription $
-                "Unexpected creator client set in a global teamconversation"
+                "Unexpected creator client set in a global team conversation"
             (Left lm, _, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender
