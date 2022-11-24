@@ -1,1 +1,0 @@
-Add more logs to SMTP mail sending. Ensure that logs are written before the application fails due to SMTP misconfiguration.

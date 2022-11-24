@@ -113,7 +113,6 @@ library
     , lens                   >=4.10
     , lens-datetime          >=0.3
     , mime                   >=0.4.0.2
-    , network
     , optparse-applicative   >=0.10
     , pem
     , protobuf               >=0.2
