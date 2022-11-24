@@ -44,7 +44,6 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
-import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -154,9 +153,9 @@ removeUser ::
       r
   ) =>
   Local Data.Conversation ->
-  GroupId ->
   Qualified UserId ->
   Sem r ()
-removeUser lc groupId qusr = do
-  cm <- lookupMLSClients groupId
-  removeUserWithClientMap lc cm qusr
+removeUser lc qusr = do
+  for_ (Data.mlsMetadata (tUnqualified lc)) $ \meta -> do
+    cm <- lookupMLSClients (cnvmlsGroupId meta)
+    removeUserWithClientMap lc cm qusr

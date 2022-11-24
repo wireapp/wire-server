@@ -708,10 +708,9 @@ rmUser lusr conn = do
       now <- input
       let deleteIfNeeded c = do
             when (tUnqualified lusr `isMember` Data.convLocalMembers c) $ do
-              for_ (Data.mlsMetadata c) $ \mlsMeta ->
-                runError (removeUser (qualifyAs lusr c) (cnvmlsGroupId mlsMeta) (qUntagged lusr)) >>= \case
-                  Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
-                  Right _ -> pure ()
+              runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
+                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+                Right _ -> pure ()
               deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
             let e =
@@ -726,10 +725,9 @@ rmUser lusr conn = do
                   . set Intra.pushRoute Intra.RouteDirect
 
           deleteClientsFromGlobal c = do
-            for_ (Data.mlsMetadata c) $ \mlsMeta ->
-              runError (removeUser (qualifyAs lusr c) (cnvmlsGroupId mlsMeta) (qUntagged lusr)) >>= \case
-                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
-                Right _ -> pure ()
+            runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
+              Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+              Right _ -> pure ()
             deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
             for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
             pure Nothing
