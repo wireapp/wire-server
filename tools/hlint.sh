@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 
-usage() { echo "Usage: $0 -f [all, changeset] -m [check, inplace]" 1>&2; exit 1; }
+usage() { echo "Usage: $0 -f [all, changeset, pr] -m [check, inplace]" 1>&2; exit 1; }
 
 files=''
 
