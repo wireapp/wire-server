@@ -203,7 +203,8 @@ tests s =
           test s "Can't leave global team conversation" testGlobalTeamConversationLeave,
           test s "Send message in global team conversation" testGlobalTeamConversationMessage,
           test s "Listing convs includes global team conversation" testConvListIncludesGlobal,
-          test s "Listing convs includes global team conversation for new users" testConvListIncludesGlobalForNewUsers
+          test s "Listing convs includes global team conversation for new users" testConvListIncludesGlobalForNewUsers,
+          test s "Listing convs before calling GET on global team conversation still includes it" testConvListIncludesGlobalBeforeGet
         ],
       testGroup
         "Self conversation"
@@ -2247,6 +2248,14 @@ testConvListIncludesGlobal = do
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
     const (Just [globalTeamConv tid]) =~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+
+testConvListIncludesGlobalBeforeGet :: TestM ()
+testConvListIncludesGlobalBeforeGet = do
+  (tid, alice, []) <- Util.createBindingTeamWithMembers 1
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
+  listConvIds alice paginationOpts !!! do
+    const 200 === statusCode
+    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
 testConvListIncludesGlobalForNewUsers :: TestM ()
 testConvListIncludesGlobalForNewUsers = do

@@ -68,6 +68,7 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Tagged
 import Galley.API.Error
 import Galley.API.MLS.Keys
 import Galley.API.Mapping
@@ -318,12 +319,24 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  Member (ListItems LegacyPaging ConvId) r =>
+  Members
+    [ ListItems LegacyPaging ConvId,
+      ConversationStore,
+      MemberStore,
+      TeamStore
+    ]
+    r =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
   Sem r (Public.ConversationList ConvId)
 conversationIdsPageFromUnqualified lusr start msize = do
+  void $
+    E.getUserTeams (tUnqualified lusr) >>= \tids ->
+      runError @InternalError $
+        runError @(Tagged 'NotATeamMember ())
+          (for_ tids $ \tid -> getGlobalTeamConversation lusr tid)
+
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- E.listItems (tUnqualified lusr) start size
   pure $
