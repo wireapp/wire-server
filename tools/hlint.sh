@@ -4,14 +4,13 @@
 usage() { echo "Usage: $0 -f [all, changeset] -m [check, inplace]" 1>&2; exit 1; }
 
 files=''
-check=true
 
 while getopts ':f:m:k' opt
  do
      case $opt in
          f) f=${OPTARG}
             if [ "$f" = "all" ]; then
-              echo "Checking every file…"
+              files=$(git ls-files | grep \.hs\$)
             elif [ "$f" = "pr" ]; then
               files=$(git diff --name-only origin/develop... | grep \.hs\$)
             elif [ "$f" = "changeset" ]; then
@@ -22,9 +21,9 @@ while getopts ':f:m:k' opt
             ;;
          m) m=${OPTARG}
             if [ "$m" = "inplace" ]; then
-              check=false
+            :
             elif [ "$m" = "check" ]; then
-              check=true
+            :
             else
               usage
             fi
@@ -43,15 +42,15 @@ if [ "${k}" ]; then
   set -euo pipefail
 fi
 
-if [ "$f" = "all" ]; then
-  hlint -g -v
+if [ "$f" = "all" ] && [ "$m" = "check" ]; then
+  hlint -g
 else
   count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
   echo "Analysing $count file(s)…"
   for f in $files
   do
     echo "$f"
-    if [ $check = true ]; then
+    if [ "$m" = "check" ]; then
       hlint --no-summary "$f"
     else
       hlint --refactor --refactor-options="--inplace" "$f"
