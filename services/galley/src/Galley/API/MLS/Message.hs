@@ -28,7 +28,7 @@ where
 
 import Control.Comonad
 import Control.Error.Util (hush)
-import Control.Lens (preview, to)
+import Control.Lens (preview)
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -491,7 +491,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
           processCommit qusr senderClient con lconv mlsMeta cm (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage prop ->
-          processProposal qusr conv msg prop $> mempty
+          processProposal qusr conv mlsMeta msg prop $> mempty
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
         Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
         Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
@@ -612,7 +612,7 @@ getCommitData lconv mlsMeta epoch commit = do
 
   -- check epoch number
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
-  foldMap (applyProposalRef (tUnqualified lconv) groupId epoch suite) (cProposals commit)
+  foldMap (applyProposalRef (tUnqualified lconv) mlsMeta groupId epoch suite) (cProposals commit)
 
 processCommit ::
   ( HasProposalEffects r,
@@ -948,17 +948,18 @@ applyProposalRef ::
       r
   ) =>
   Data.Conversation ->
+  ConversationMLSData ->
   GroupId ->
   Epoch ->
   CipherSuiteTag ->
   ProposalOrRef ->
   Sem r ProposalAction
-applyProposalRef conv groupId epoch _suite (Ref ref) = do
+applyProposalRef conv mlsMeta groupId epoch _suite (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
-  checkEpoch epoch conv
-  checkGroup groupId conv
+  checkEpoch epoch mlsMeta
+  checkGroup groupId mlsMeta
   applyProposal (convId conv) groupId (rmValue p)
-applyProposalRef conv groupId _epoch suite (Inline p) = do
+applyProposalRef conv _mlsMeta groupId _epoch suite (Inline p) = do
   checkProposalCipherSuite suite p
   applyProposal (convId conv) groupId p
 
@@ -1041,15 +1042,14 @@ processProposal ::
     r =>
   Qualified UserId ->
   Data.Conversation ->
+  ConversationMLSData ->
   Message 'MLSPlainText ->
   RawMLS Proposal ->
   Sem r ()
-processProposal qusr conv msg prop = do
-  checkEpoch (msgEpoch msg) conv
-  checkGroup (msgGroupId msg) conv
-  suiteTag <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
-      & noteS @'ConvNotFound
+processProposal qusr conv mlsMeta msg prop = do
+  checkEpoch (msgEpoch msg) mlsMeta
+  checkGroup (msgGroupId msg) mlsMeta
+  let suiteTag = cnvmlsCipherSuite mlsMeta
 
   -- validate the proposal
   --
@@ -1320,30 +1320,23 @@ getRemoteMLSClients rusr ss = do
 -- | Check if the epoch number matches that of a conversation
 checkEpoch ::
   Members
-    '[ ErrorS 'ConvNotFound,
-       ErrorS 'MLSStaleMessage
+    '[ ErrorS 'MLSStaleMessage
      ]
     r =>
   Epoch ->
-  Data.Conversation ->
+  ConversationMLSData ->
   Sem r ()
-checkEpoch epoch conv = do
-  curEpoch <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
-      & noteS @'ConvNotFound
-  unless (epoch == curEpoch) $ throwS @'MLSStaleMessage
+checkEpoch epoch mlsMeta = do
+  unless (epoch == cnvmlsEpoch mlsMeta) $ throwS @'MLSStaleMessage
 
 -- | Check if the group ID matches that of a conversation
 checkGroup ::
   Member (ErrorS 'ConvNotFound) r =>
   GroupId ->
-  Data.Conversation ->
+  ConversationMLSData ->
   Sem r ()
-checkGroup gId conv = do
-  groupId <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsGroupId) conv
-      & noteS @'ConvNotFound
-  unless (gId == groupId) $ throwS @'ConvNotFound
+checkGroup gId mlsMeta = do
+  unless (gId == cnvmlsGroupId mlsMeta) $ throwS @'ConvNotFound
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution
