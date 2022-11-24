@@ -25,8 +25,6 @@ import API.Util as Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
--- import Control.Error.Util (hush)
--- import Control.Lens (view, (^.))
 import Control.Lens (view, (%~), (.~))
 import qualified Control.Monad.State as State
 import Crypto.Error
@@ -76,7 +74,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
--- import Wire.API.Team (teamCreator)
+import Wire.API.Routes.Version
 import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
@@ -372,14 +370,11 @@ testAddUserWithBundle = do
     pure (qcnv, commit)
 
   -- check that bob can now see the conversation
-  convs <-
-    responseJsonError
-      =<< getConvs (qUnqualified bob) Nothing Nothing
-        <!! const 200 === statusCode
+  convs <- getAllConvs (qUnqualified bob)
   liftIO $
     assertBool
       "Users added to an MLS group should find it when listing conversations"
-      (qcnv `elem` map cnvQualifiedId (convList convs))
+      (qcnv `elem` map cnvQualifiedId convs)
 
   returnedGS <-
     fmap responseBody $
@@ -429,14 +424,11 @@ testAddUser = do
     pure qcnv
 
   -- check that bob can now see the conversation
-  convs <-
-    responseJsonError
-      =<< getConvs (qUnqualified bob) Nothing Nothing
-        <!! const 200 === statusCode
+  convs <- getAllConvs (qUnqualified bob)
   liftIO $
     assertBool
       "Users added to an MLS group should find it when listing conversations"
-      (qcnv `elem` map cnvQualifiedId (convList convs))
+      (qcnv `elem` map cnvQualifiedId convs)
 
 testAddUserNotConnected :: TestM ()
 testAddUserNotConnected = do
@@ -744,14 +736,11 @@ testAddUserBareProposalCommit = do
 
     -- check that bob can now see the conversation
     liftTest $ do
-      convs <-
-        responseJsonError
-          =<< getConvs (ciUser bob1) Nothing Nothing
-            <!! const 200 === statusCode
+      convs <- getAllConvs (ciUser bob1)
       liftIO $
         assertBool
           "Users added to an MLS group should find it when listing conversations"
-          (qcnv `elem` map cnvQualifiedId (convList convs))
+          (qcnv `elem` map cnvQualifiedId convs)
 
 testUnknownProposalRefCommit :: TestM ()
 testUnknownProposalRefCommit = do
@@ -811,14 +800,11 @@ testAdminRemovesUserFromConv = do
   liftIO $ assertOne events >>= assertLeaveEvent qcnv alice [bob]
 
   do
-    convs <-
-      responseJsonError
-        =<< getConvs (qUnqualified bob) Nothing Nothing
-          <!! const 200 === statusCode
+    convs <- getAllConvs (qUnqualified bob)
     liftIO $
       assertBool
         "bob is not longer part of conversation after the commit"
-        (qcnv `notElem` map cnvQualifiedId (convList convs))
+        (qcnv `notElem` map cnvQualifiedId convs)
 
 testRemoveClientsIncomplete :: TestM ()
 testRemoveClientsIncomplete = do
@@ -2394,8 +2380,8 @@ testSelfConversationList :: Bool -> TestM ()
 testSelfConversationList isBelowV3 = do
   let (errMsg, justOrNothing, listCnvs) =
         if isBelowV3
-          then ("The MLS self-conversation is listed", isNothing, listConvIdsV2)
-          else ("The MLS self-conversation is not listed", isJust, listConvIds)
+          then ("The MLS self-conversation is listed", isNothing, getConvPageV2)
+          else ("The MLS self-conversation is not listed", isJust, getConvPage)
   alice <- randomUser
   do
     mMLSSelf <- findSelfConv alice listCnvs
@@ -2404,29 +2390,28 @@ testSelfConversationList isBelowV3 = do
   -- make sure that the self-conversation is not listed below V3 even once it
   -- has been created.
   unless isBelowV3 $ do
-    mMLSSelf <- findSelfConv alice listConvIdsV2
+    mMLSSelf <- findSelfConv alice getConvPageV2
     liftIO $ assertBool errMsg (isNothing mMLSSelf)
   where
-    paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
-
     isMLSSelf u conv = mlsSelfConvId u == qUnqualified conv
 
     findSelfConv u listEndpoint = do
       convIds :: ConvIdsPage <-
         responseJsonError
-          =<< listEndpoint u paginationOpts
+          =<< listEndpoint u Nothing (Just 100)
             <!! const 200 === statusCode
       pure $ foldr (<|>) Nothing $ guard . isMLSSelf u <$> mtpResults convIds
+
+    getConvPageV2 u s c = do
+      g <- view tsUnversionedGalley
+      getConvPageWithGalley (addPrefixAtVersion V2 . g) u s c
 
 testSelfConversationMLSNotConfigured :: TestM ()
 testSelfConversationMLSNotConfigured = do
   alice <- randomUser
-  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
-      noMLS = Opts.optSettings %~ Opts.setMlsPrivateKeyPaths .~ Nothing
-  runMLSTest
-    . liftTest
-    . withSettingsOverrides noMLS
-    $ listConvIds alice paginationOpts !!! const 200 === statusCode
+  let noMLS = Opts.optSettings %~ Opts.setMlsPrivateKeyPaths .~ Nothing
+  withSettingsOverrides noMLS $
+    getConvPage alice Nothing (Just 100) !!! const 200 === statusCode
 
 testSelfConversationOtherUser :: TestM ()
 testSelfConversationOtherUser = do
@@ -2485,14 +2470,11 @@ testAddTeamUserWithBundle = do
     pure (qcnv, commit)
 
   -- check that bob can now see the conversation
-  convs <-
-    responseJsonError
-      =<< getConvs (qUnqualified bob) Nothing Nothing
-        <!! const 200 === statusCode
+  convs <- getAllConvs (qUnqualified bob)
   liftIO $
     assertBool
       "Users added to an MLS group should find it when listing conversations"
-      (qcnv `elem` map cnvQualifiedId (convList convs))
+      (qcnv `elem` map cnvQualifiedId convs)
 
   returnedGS <-
     fmap responseBody $

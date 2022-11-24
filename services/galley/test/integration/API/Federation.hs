@@ -124,7 +124,7 @@ getConversationsAllFound = do
         =<< iUpsertOne2OneConversation createO2O
     liftIO $ assertEqual "Mismatch in the generated conversation ID" cnv1IdReturned cnv1Id
 
-  getConvs bob (Just . Left . fmap qUnqualified $ [cnv1Id, cnvQualifiedId cnv2]) Nothing !!! do
+  getConvs bob [cnv1Id, cnvQualifiedId cnv2] !!! do
     const 200 === statusCode
     const (Just . Just . sort $ [cnv1Id, cnvQualifiedId cnv2])
       === fmap (fmap (sort . map cnvQualifiedId . convList)) . responseJsonMaybe
@@ -167,7 +167,7 @@ getConversationsNotPartOf = do
   connectUsers alice (singleton bob)
   -- create & get one2one conv
   cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
-  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv1]) Nothing !!! do
+  getConvs alice [cnvQualifiedId cnv1] !!! do
     const 200 === statusCode
     const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
 
