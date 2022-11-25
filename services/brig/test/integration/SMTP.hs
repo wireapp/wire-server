@@ -36,24 +36,25 @@ tests m lg =
 
 testSendMail :: Logger.Logger -> Bilge.Http ()
 testSendMail lg = do
-  (port, sock) <- randomPortAndSocket
   receivedMailRef <- liftIO $ newIORef Nothing
   liftIO
-    . withMailServer sock (mailStoringApp receivedMailRef)
-    $ do
-      conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
-      sendMail lg conPool someTestMail
-      mbMail <-
-        retryWhileN 3 isJust $ do
-          readIORef receivedMailRef
-      isJust mbMail @? "Expected to receive mail"
-      postieAddressAsString . rmSender <$> mbMail
-        @=? (Just . unpack . addressEmail) someTestSender
-      postieAddressAsString <$> (concat . maybeToList) (rmReceipients <$> mbMail)
-        @=? [(unpack . addressEmail) someTestReceiver]
-      let mailContent = (rmContent . fromJust) mbMail
-      elem (unpack someTestBody) mailContent @? "Expected the SMTP server to receive the mail body."
-      elem ("Subject: " ++ unpack someTestSubject) mailContent @? "Expected the SMTP server to receive the mail subject."
+    . withRandomPortAndSocket
+    $ \(port, sock) ->
+      withMailServer sock (mailStoringApp receivedMailRef) $
+        do
+          conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
+          sendMail lg conPool someTestMail
+          mbMail <-
+            retryWhileN 3 isJust $ do
+              readIORef receivedMailRef
+          isJust mbMail @? "Expected to receive mail"
+          postieAddressAsString . rmSender <$> mbMail
+            @=? (Just . unpack . addressEmail) someTestSender
+          postieAddressAsString <$> (concat . maybeToList) (rmReceipients <$> mbMail)
+            @=? [(unpack . addressEmail) someTestReceiver]
+          let mailContent = (rmContent . fromJust) mbMail
+          elem (unpack someTestBody) mailContent @? "Expected the SMTP server to receive the mail body."
+          elem ("Subject: " ++ unpack someTestSubject) mailContent @? "Expected the SMTP server to receive the mail subject."
   where
     postieAddressAsString :: Postie.Address -> String
     postieAddressAsString addr =
@@ -67,34 +68,36 @@ testSendMail lg = do
 
 testSendMailNoReceiver :: Logger.Logger -> Bilge.Http ()
 testSendMailNoReceiver lg = do
-  (port, sock) <- randomPortAndSocket
   receivedMailRef <- liftIO $ newIORef Nothing
   liftIO
-    . withMailServer sock (mailStoringApp receivedMailRef)
-    $ do
-      conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
-      caughtException <-
-        handle @SomeException
-          (const (pure True))
-          (sendMail lg conPool (emptyMail (Address Nothing "foo@example.com")) >> pure False)
-      caughtException @? "Expected exception due to missing mail receiver."
+    . withRandomPortAndSocket
+    $ \(port, sock) ->
+      withMailServer sock (mailStoringApp receivedMailRef) $
+        do
+          conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
+          caughtException <-
+            handle @SomeException
+              (const (pure True))
+              (sendMail lg conPool (emptyMail (Address Nothing "foo@example.com")) >> pure False)
+          caughtException @? "Expected exception due to missing mail receiver."
 
 testSendMailTransactionFailed :: Logger.Logger -> Bilge.Http ()
 testSendMailTransactionFailed lg = do
-  (port, sock) <- randomPortAndSocket
   liftIO
-    . withMailServer sock mailRejectingApp
-    $ do
-      conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
-      caughtException <-
-        handle @SomeException
-          (const (pure True))
-          (sendMail lg conPool someTestMail >> pure False)
-      caughtException @? "Expected exception due to missing mail receiver."
+    . withRandomPortAndSocket
+    $ \(port, sock) ->
+      withMailServer sock mailRejectingApp $
+        do
+          conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
+          caughtException <-
+            handle @SomeException
+              (const (pure True))
+              (sendMail lg conPool someTestMail >> pure False)
+          caughtException @? "Expected exception due to missing mail receiver."
 
 testSendMailFailingConnectionOnStartup :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnStartup lg = do
-  (port, sock) <- randomPortAndSocket
+  (port, sock) <- liftIO $ openRandomPartAndSocket
   liftIO $ gracefulClose sock 1000
   caughtError <-
     liftIO $
@@ -105,14 +108,15 @@ testSendMailFailingConnectionOnStartup lg = do
 
 testSendMailFailingConnectionOnSend :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnSend lg = do
-  (port, sock) <- randomPortAndSocket
   receivedMailRef <- liftIO $ newIORef Nothing
   conPool <-
     liftIO $
-      withMailServer
-        sock
-        (mailStoringApp receivedMailRef)
-        (initSMTP lg "localhost" (Just port) Nothing Plain)
+      withRandomPortAndSocket $
+        \(port, sock) ->
+          withMailServer
+            sock
+            (mailStoringApp receivedMailRef)
+            (initSMTP lg "localhost" (Just port) Nothing Plain)
   caughtException <-
     liftIO $
       handle @SomeException
@@ -124,27 +128,29 @@ testSendMailFailingConnectionOnSend lg = do
 
 testSendMailTimeout :: Logger.Logger -> Bilge.Http ()
 testSendMailTimeout lg = do
-  (port, sock) <- randomPortAndSocket
   mbException <-
     liftIO $
-      withMailServer sock (delayingApp (3 :: Second)) $
-        do
-          conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
-          handle @SMTPPoolException
-            (\e -> pure (Just e))
-            (sendMail' (500 :: Millisecond) lg conPool someTestMail >> pure Nothing)
+      withRandomPortAndSocket $
+        \(port, sock) ->
+          withMailServer sock (delayingApp (3 :: Second)) $
+            do
+              conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
+              handle @SMTPPoolException
+                (\e -> pure (Just e))
+                (sendMail' (500 :: Millisecond) lg conPool someTestMail >> pure Nothing)
   liftIO $ isJust mbException @? "Expected exception (SMTP server action timed out.)"
   liftIO $ mbException @?= Just SMTPConnectionTimeout
 
 testSendMailTimeoutOnStartup :: Logger.Logger -> Bilge.Http ()
 testSendMailTimeoutOnStartup lg = do
-  (port, sock) <- randomPortAndSocket
   mbException <-
     liftIO $
-      everDelayingTCPServer sock $
-        handle @ErrorCall
-          (\e -> pure (Just e))
-          (initSMTP' (500 :: Millisecond) lg "localhost" (Just port) Nothing Plain >> pure Nothing)
+      withRandomPortAndSocket $
+        \(port, sock) ->
+          everDelayingTCPServer sock $
+            handle @ErrorCall
+              (\e -> pure (Just e))
+              (initSMTP' (500 :: Millisecond) lg "localhost" (Just port) Nothing Plain >> pure Nothing)
   liftIO $ isJust mbException @? "Expected exception (SMTP server action timed out.)"
 
 someTestReceiver :: Address
@@ -215,7 +221,13 @@ delayingApp delay =
 everDelayingTCPServer :: HasCallStack => Socket -> IO a -> IO a
 everDelayingTCPServer sock action = listen sock 1024 >> action
 
-randomPortAndSocket :: MonadIO m => m (PortNumber, Socket)
-randomPortAndSocket = do
-  (port, sock) <- liftIO $ bindRandomPortTCP "*6"
-  pure $ (fromIntegral port, sock)
+withRandomPortAndSocket :: MonadIO m => ((PortNumber, Socket) -> IO a) -> m a
+withRandomPortAndSocket action =
+  liftIO $
+    bracket
+      (liftIO $ openRandomPartAndSocket)
+      (\(_, s) -> liftIO $ close s)
+      (\(p, s) -> action (p, s))
+
+openRandomPartAndSocket :: IO (PortNumber, Socket)
+openRandomPartAndSocket = bindRandomPortTCP "*6" >>= \(p, s) -> pure (fromIntegral p, s)
