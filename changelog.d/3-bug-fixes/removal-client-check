@@ -1,1 +1,0 @@
-Fix bug in MLS user removal from conversation: the list of removed clients has to be compared with those in the conversation, not the list of *all* clients of that user

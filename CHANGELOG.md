@@ -1,3 +1,84 @@
+# [2022-11-25] (Chart Release 4.27.0)
+
+## Release notes
+
+
+* This realease migrates data from `galley.member_client` to `galley.mls_group_member_client`. When upgrading wire-server no manual steps are required. (#2859)
+
+
+## API changes
+
+
+* Added global conversation type and GET endpoint (`GET /teams/:tid/conversations/global`). (#2753)
+
+* Support MLS self-conversations via a new endpoint `GET /conversations/mls-self`. This removes the `PUT` counterpart introduced in #2730 (#2839)
+
+* List the MLS self-conversation automatically without needing to call `GET /conversations/mls-self` first (#2856)
+
+* Support MLS self-conversations via a new endpoint `PUT /conversations/mls-self` (#2730)
+
+
+## Features
+
+
+* A team member's role can now be provisioned via SCIM (#2851)
+
+
+## Bug fixes and other updates
+
+
+* Avoid client deletion edge case condition which can lead to inconsistent data between brig and galley's clients tables. (#2830)
+
+* Prevention of storing unnecessary data in the database if adding a bot to a conversation fails. (#2870)
+
+* Fix bug in MLS user removal from conversation: the list of removed clients has to be compared with those in the conversation, not the list of *all* clients of that user (#2817)
+
+* For sftd/coturn/restund, fixed a bug in external ip address lookup, in case Kubernetes Node Name doesn't equal hostname. (#2837)
+
+* Requesting a new token with the client_id now works correctly when the old token is part of the request (#2860)
+
+
+## Internal changes
+
+
+* Add tests for invitation urls in team invitation responses. These depend on the settings of galley. (#2797)
+
+* Remove support for compiling local docker images with buildah. Nix is used to build docker images these days (#2822)
+
+* bump nginx-module-vts from v0.1.15 to v0.2.1 (#2827)
+
+* Nix-created docker images: add some debugging tools in the containers, and add 'make build-image-<packagename>' for convenience (#2829)
+
+* Split galley API routes and handler definitions into several modules (#2820)
+
+* Default intraListing to true. This means that the list of clients, so far saved in both brig's and galley's databases, will still be written to both, but only read from brig's database. This avoids cases where these two tables go out of sync. Brig becomes the source of truth for clients. In the future, if this holds, code and data for galley's clients table can be removed. (#2847)
+
+* Build nginz and nginz_disco docker images using nix (#2796)
+
+* Bump nixpkgs to latest unstable. Stop using forked nixpkgs. (#2828)
+
+* Brig calling API is now migrated to servant (#2815)
+
+* Fixed flaky feature TTL integration test (#2823)
+
+* Brig teams API is now migrated to servant (#2824)
+
+* Backoffice Swagger 2.x docs is exposed on `/` and the old Swagger has been removed. Backoffice helm chart only runs stern without an extra nginx. (#2846)
+
+* Stern API endpoint `GET ejpd-info` has now the correct HTTP method (#2850)
+
+* External commits: add additional checks (#2852)
+
+* Golden tests for conversation and feature config event schemas (#2861)
+
+* Refactor and simplify MLS message handling logic (#2844)
+
+* Replay external backend proposals after forwarding external commits.
+  One column added to Galley's mls_proposal_refs. (#2842)
+
+* Use treefmt to ensure consistent formatting of .nix files, use for shellcheck too (#2831)
+
+
 # [2022-11-03] (Chart Release 4.26.0)
 
 ## Release notes
