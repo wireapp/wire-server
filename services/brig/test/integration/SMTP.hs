@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
+
 module SMTP where
 
 import qualified Bilge
@@ -5,18 +7,16 @@ import Brig.SMTP
 import Control.Exception
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C
+import Data.Streaming.Network (bindRandomPortTCP)
 import Data.Text (unpack)
 import Data.Text.Lazy (fromStrict)
 import Data.Time.Units
-import Foreign.C.Error (Errno (..), eCONNREFUSED)
-import GHC.IO.Exception (ioe_errno)
 import Imports
 import Network.Mail.Mime
 import qualified Network.Mail.Postie as Postie
 import Network.Socket
 import qualified Pipes.Prelude
 import qualified System.Logger as Logger
-import Test.QuickCheck
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -36,10 +36,10 @@ tests m lg =
 
 testSendMail :: Logger.Logger -> Bilge.Http ()
 testSendMail lg = do
-  port <- randomPortNumber
+  (port, sock) <- randomPortAndSocket
   receivedMailRef <- liftIO $ newIORef Nothing
   liftIO
-    . withMailServer port (mailStoringApp receivedMailRef)
+    . withMailServer sock (mailStoringApp receivedMailRef)
     $ do
       conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
       sendMail lg conPool someTestMail
@@ -67,10 +67,10 @@ testSendMail lg = do
 
 testSendMailNoReceiver :: Logger.Logger -> Bilge.Http ()
 testSendMailNoReceiver lg = do
-  port <- randomPortNumber
+  (port, sock) <- randomPortAndSocket
   receivedMailRef <- liftIO $ newIORef Nothing
   liftIO
-    . withMailServer port (mailStoringApp receivedMailRef)
+    . withMailServer sock (mailStoringApp receivedMailRef)
     $ do
       conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
       caughtException <-
@@ -81,9 +81,9 @@ testSendMailNoReceiver lg = do
 
 testSendMailTransactionFailed :: Logger.Logger -> Bilge.Http ()
 testSendMailTransactionFailed lg = do
-  port <- randomPortNumber
+  (port, sock) <- randomPortAndSocket
   liftIO
-    . withMailServer port mailRejectingApp
+    . withMailServer sock mailRejectingApp
     $ do
       conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
       caughtException <-
@@ -94,7 +94,8 @@ testSendMailTransactionFailed lg = do
 
 testSendMailFailingConnectionOnStartup :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnStartup lg = do
-  port <- randomPortNumber
+  (port, sock) <- randomPortAndSocket
+  liftIO $ gracefulClose sock 1000
   caughtError <-
     liftIO $
       handle @ErrorCall
@@ -104,12 +105,12 @@ testSendMailFailingConnectionOnStartup lg = do
 
 testSendMailFailingConnectionOnSend :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnSend lg = do
-  port <- randomPortNumber
+  (port, sock) <- randomPortAndSocket
   receivedMailRef <- liftIO $ newIORef Nothing
   conPool <-
     liftIO $
       withMailServer
-        port
+        sock
         (mailStoringApp receivedMailRef)
         (initSMTP lg "localhost" (Just port) Nothing Plain)
   caughtException <-
@@ -123,10 +124,10 @@ testSendMailFailingConnectionOnSend lg = do
 
 testSendMailTimeout :: Logger.Logger -> Bilge.Http ()
 testSendMailTimeout lg = do
-  port <- randomPortNumber
+  (port, sock) <- randomPortAndSocket
   mbException <-
     liftIO $
-      withMailServer port (delayingApp (3 :: Second)) $
+      withMailServer sock (delayingApp (3 :: Second)) $
         do
           conPool <- initSMTP lg "localhost" (Just port) Nothing Plain
           handle @SMTPPoolException
@@ -137,10 +138,10 @@ testSendMailTimeout lg = do
 
 testSendMailTimeoutOnStartup :: Logger.Logger -> Bilge.Http ()
 testSendMailTimeoutOnStartup lg = do
-  port <- randomPortNumber
+  (port, sock) <- randomPortAndSocket
   mbException <-
     liftIO $
-      everDelayingTCPServer port $
+      everDelayingTCPServer sock $
         handle @ErrorCall
           (\e -> pure (Just e))
           (initSMTP' (500 :: Millisecond) lg "localhost" (Just port) Nothing Plain >> pure Nothing)
@@ -169,14 +170,12 @@ someTestMail =
 toString :: B.ByteString -> String
 toString bs = C.foldr (:) [] bs
 
-withMailServer :: PortNumber -> Postie.Application -> IO a -> IO a
-withMailServer port app action = do
+withMailServer :: Socket -> Postie.Application -> IO a -> IO a
+withMailServer s app action = do
   bracket
-    (forkIO $ Postie.run (portNumberToInt port) app)
+    (forkIO $ Postie.runSettingsSocket Postie.def s app)
     killThread
     (const action)
-  where
-    portNumberToInt = fromInteger . toInteger
 
 data ReceivedMail = ReceivedMail
   { rmSender :: Postie.Address,
@@ -213,44 +212,10 @@ delayingApp delay =
         >> pure Postie.Accepted
     )
 
-everDelayingTCPServer :: PortNumber -> IO a -> IO a
-everDelayingTCPServer port action = withSocketsDo $ do
-  addr <- resolve
-  bracket (open addr) close (const action)
-  where
-    portString :: String
-    portString = (show . toInteger) port
-    resolve = do
-      let hints =
-            defaultHints
-              { addrFlags = [AI_PASSIVE],
-                addrSocketType = Stream
-              }
-      head <$> getAddrInfo (Just hints) Nothing (Just portString)
-    open addr = bracketOnError (openSocket addr) close $ \sock -> do
-      setSocketOption sock ReuseAddr 1
-      withFdSocket sock setCloseOnExecIfNeeded
-      bind sock $ addrAddress addr
-      listen sock 1024
-      pure sock
+everDelayingTCPServer :: HasCallStack => Socket -> IO a -> IO a
+everDelayingTCPServer sock action = listen sock 1024 >> action
 
-randomPortNumber :: MonadIO m => m PortNumber
-randomPortNumber = do
-  candidate <- liftIO $ generate (arbitrary `suchThat` (> 1024))
-  portOpen <- liftIO $ isPortOpen candidate
-  if portOpen
-    then randomPortNumber
-    else pure candidate
-
-isPortOpen :: PortNumber -> IO Bool
-isPortOpen port = do
-  let sockAddr = SockAddrInet port (tupleToHostAddress (127, 0, 0, 1))
-      tcpProtocolNumber = 6
-  bracket (socket AF_INET Stream tcpProtocolNumber) close' $ \sock -> do
-    res <- try $ connect sock sockAddr
-    case res of
-      Right () -> pure True
-      Left e ->
-        if (Errno <$> ioe_errno e) == Just eCONNREFUSED
-          then pure False
-          else throwIO e
+randomPortAndSocket :: MonadIO m => m (PortNumber, Socket)
+randomPortAndSocket = do
+  (port, sock) <- liftIO $ bindRandomPortTCP "*6"
+  pure $ (fromIntegral port, sock)

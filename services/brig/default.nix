@@ -118,6 +118,7 @@
 , ssl-util
 , statistics
 , stomp-queue
+, streaming-commons
 , string-conversions
 , swagger
 , swagger2
@@ -358,6 +359,7 @@ mkDerivation {
     servant-client
     servant-client-core
     spar
+    streaming-commons
     string-conversions
     tasty
     tasty-cannon
