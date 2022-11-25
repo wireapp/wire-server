@@ -2346,7 +2346,7 @@ testSelfConversation = do
     commit <- createAddCommit creator [alice]
     welcome <- assertJust (mpWelcome commit)
     mlsBracket others $ \wss -> do
-      void $ sendAndConsumeCommit commit
+      void $ sendAndConsumeCommitBundle commit
       WS.assertMatchN_ (5 # Second) wss $
         wsAssertMLSWelcome alice welcome
       WS.assertNoEvent (1 # WS.Second) wss
