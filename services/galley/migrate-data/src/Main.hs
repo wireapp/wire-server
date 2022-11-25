@@ -22,11 +22,17 @@ import Imports
 import Options.Applicative
 import qualified System.Logger.Extended as Log
 import qualified V1_BackfillBillingTeamMembers
+import qualified V2_MigrateMLSMembers
 
 main :: IO ()
 main = do
   o <- execParser (info (helper <*> cassandraSettingsParser) desc)
   l <- Log.mkLogger Log.Debug Nothing Nothing
-  migrate l o [V1_BackfillBillingTeamMembers.migration]
+  migrate
+    l
+    o
+    [ V1_BackfillBillingTeamMembers.migration,
+      V2_MigrateMLSMembers.migration
+    ]
   where
     desc = header "Galley Cassandra Data Migrations" <> fullDesc

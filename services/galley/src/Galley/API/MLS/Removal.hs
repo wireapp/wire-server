@@ -23,7 +23,6 @@ module Galley.API.MLS.Removal
   )
 where
 
-import Control.Comonad
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
@@ -110,9 +109,10 @@ removeClient ::
   ClientId ->
   Sem r ()
 removeClient lc qusr cid = do
-  cm <- lookupMLSClients (fmap Data.convId lc)
-  let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
-  removeClientsWithClientMap lc cidAndKP cm qusr
+  for_ (cnvmlsGroupId <$> Data.mlsMetadata (tUnqualified lc)) $ \groupId -> do
+    cm <- lookupMLSClients groupId
+    let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
+    removeClientsWithClientMap lc cidAndKP cm qusr
 
 -- | Send remove proposals for all clients of the user to clients in the ClientMap.
 --
@@ -156,5 +156,6 @@ removeUser ::
   Qualified UserId ->
   Sem r ()
 removeUser lc qusr = do
-  cm <- lookupMLSClients (fmap Data.convId lc)
-  removeUserWithClientMap lc cm qusr
+  for_ (Data.mlsMetadata (tUnqualified lc)) $ \meta -> do
+    cm <- lookupMLSClients (cnvmlsGroupId meta)
+    removeUserWithClientMap lc cm qusr

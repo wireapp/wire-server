@@ -126,11 +126,11 @@ createGroupConversation lusr conn newConv = do
   conv <- E.createConversation lcnv nc
 
   -- set creator client for MLS conversations
-  case (newConvProtocol newConv, newConvCreatorClient newConv) of
-    (ProtocolProteusTag, _) -> pure ()
-    (ProtocolMLSTag, Just c) ->
-      E.addMLSClients lcnv (qUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
-    (ProtocolMLSTag, Nothing) ->
+  case (convProtocol conv, newConvCreatorClient newConv) of
+    (ProtocolProteus, _) -> pure ()
+    (ProtocolMLS mlsMeta, Just c) ->
+      E.addMLSClients (cnvmlsGroupId mlsMeta) (qUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
+    (ProtocolMLS _mlsMeta, Nothing) ->
       throw (InvalidPayload "Missing creator_client field when creating an MLS conversation")
 
   now <- input

@@ -211,7 +211,10 @@ git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:
 	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
-	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./cassandra-schema.cql
+	( echo '-- automatically generated with `make git-add-cassandra-schema`'; \
+      docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) \
+    | sed "s/CREATE TABLE galley_test.member_client/-- NOTE: this table is unused. It was replaced by mls_group_member_client\nCREATE TABLE galley_test.member_client/g" \
+      > ./cassandra-schema.cql
 	git add ./cassandra-schema.cql
 
 .PHONY: cqlsh
