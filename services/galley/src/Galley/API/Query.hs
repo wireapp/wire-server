@@ -70,6 +70,7 @@ import Data.Range
 import qualified Data.Set as Set
 import Galley.API.Error
 import Galley.API.MLS.Keys
+import Galley.API.MLS.Types
 import Galley.API.Mapping
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
@@ -351,10 +352,11 @@ conversationIdsPageFromV2 ::
        ]
       r
   ) =>
+  ListGlobalSelfConvs ->
   Local UserId ->
   Public.GetPaginatedConversationIds ->
   Sem r Public.ConvIdsPage
-conversationIdsPageFromV2 lusr Public.GetMultiTablePageRequest {..} = do
+conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {..} = do
   let localDomain = tDomain lusr
   case gmtprState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
@@ -375,11 +377,17 @@ conversationIdsPageFromV2 lusr Public.GetMultiTablePageRequest {..} = do
           <$> E.listItems (tUnqualified lusr) pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
-        then pure localPage {Public.mtpHasMore = True} -- We haven't checked the remotes yet, so has_more must always be True here.
+        then -- We haven't checked the remotes yet, so has_more must always be True here.
+          pure (filterOut localPage) {Public.mtpHasMore = True}
         else do
           -- remainingSize <= size and remainingSize >= 1, so it is safe to convert to Range
           remotePage <- remotesOnly Nothing (unsafeRange remainingSize)
-          pure $ remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
+          pure $
+            remotePage
+              { Public.mtpResults =
+                  Public.mtpResults (filterOut localPage)
+                    <> Public.mtpResults remotePage
+              }
 
     remotesOnly ::
       Maybe C.PagingState ->
@@ -396,6 +404,22 @@ conversationIdsPageFromV2 lusr Public.GetMultiTablePageRequest {..} = do
         { mtpResults = pwsResults,
           mtpHasMore = C.pwsHasMore page,
           mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
+        }
+
+    -- MLS self-conversation of this user
+    selfConvId = mlsSelfConvId (tUnqualified lusr)
+    isNotSelfConv = (/= selfConvId) . qUnqualified
+
+    -- If this is an old client making a request (i.e., a V1 or V2 client), make
+    -- sure to filter out the MLS global team conversation and the MLS
+    -- self-conversation.
+    --
+    -- FUTUREWORK: This is yet to be implemented for global team conversations.
+    filterOut :: ConvIdsPage -> ConvIdsPage
+    filterOut page | listGlobalSelf == ListGlobalSelf = page
+    filterOut page =
+      page
+        { Public.mtpResults = filter isNotSelfConv $ Public.mtpResults page
         }
 
 -- | Lists conversation ids for the logged in user in a paginated way.
@@ -427,7 +451,7 @@ conversationIdsPageFrom lusr state = do
   -- exist yet. This is to ensure it is automatically listed without needing to
   -- create it separately.
   void $ getMLSSelfConversation lusr
-  conversationIdsPageFromV2 lusr state
+  conversationIdsPageFromV2 ListGlobalSelf lusr state
 
 getConversations ::
   Members '[Error InternalError, ListItems LegacyPaging ConvId, ConversationStore, P.TinyLog] r =>

@@ -19,6 +19,7 @@ module Galley.API.Public.Conversation where
 
 import Galley.API.Create
 import Galley.API.MLS.GroupInfo
+import Galley.API.MLS.Types
 import Galley.API.Query
 import Galley.API.Update
 import Galley.App
@@ -35,7 +36,7 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" getGroupInfo
     <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
-    <@> mkNamedAPI @"list-conversation-ids-v2" conversationIdsPageFromV2
+    <@> mkNamedAPI @"list-conversation-ids-v2" (conversationIdsPageFromV2 DoNotListGlobalSelf)
     <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
     <@> mkNamedAPI @"get-conversations" getConversations
     <@> mkNamedAPI @"list-conversations-v1" listConversations
