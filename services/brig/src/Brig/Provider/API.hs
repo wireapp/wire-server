@@ -898,6 +898,14 @@ addBot zuid zcon cid add = do
   let sid = addBotService add
   -- Get the conversation and check preconditions
   cnv <- lift (liftSem $ GalleyProvider.getConv zuid cid) >>= maybeConvNotFound
+  -- Check that the user is a conversation admin and therefore is allowed to add a bot to this conversation.
+  -- Note that this precondition is also checked in the internal galley API,
+  -- but by having this check here we prevent any (useless) data to be written to the database
+  -- as well as the unnecessary creation of the bot via the external service API call.
+  -- However, in case we refine the roles model in the future, this check might not be granular enough.
+  -- In that case we should rather do an internal call to galley to check for the correct permissions.
+  -- Also see `removeBot` for a similar check.
+  guardConvAdmin cnv
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
     throwStd invalidConv
@@ -974,6 +982,12 @@ removeBot :: Members '[GalleyProvider] r => UserId -> ConnId -> ConvId -> BotId 
 removeBot zusr zcon cid bid = do
   -- Get the conversation and check preconditions
   cnv <- lift (liftSem $ GalleyProvider.getConv zusr cid) >>= maybeConvNotFound
+  -- Check that the user is a conversation admin and therefore is allowed to remove a bot from the conversation.
+  -- Note that this precondition is also checked in the internal galley API.
+  -- However, in case we refine the roles model in the future, this check might not be granular enough.
+  -- In that case we should rather do an internal call to galley to check for the correct permissions.
+  -- Also see `addBot` for a similar check.
+  guardConvAdmin cnv
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
     throwStd invalidConv
@@ -984,6 +998,11 @@ removeBot zusr zcon cid bid = do
     Nothing -> pure Nothing
     Just _ -> do
       lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
+
+guardConvAdmin :: Conversation -> ExceptT Error (AppT r) ()
+guardConvAdmin conv = do
+  let selfMember = cmSelf . cnvMembers $ conv
+  unless (memConvRoleName selfMember == roleNameWireAdmin) $ throwStd accessDenied
 
 --------------------------------------------------------------------------------
 -- Bot API

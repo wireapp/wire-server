@@ -214,10 +214,24 @@ updatePermissions from tid (to, perm) galley =
     changeMember = Member.mkNewTeamMember to perm Nothing
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
-createTeamConv g tid u us mtimer = do
+createTeamConv = createTeamConvWithRole roleNameWireAdmin
+
+createTeamConvWithRole :: HasCallStack => RoleName -> Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
+createTeamConvWithRole role g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid
   let conv =
-        NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+        NewConv
+          us
+          []
+          Nothing
+          (Set.fromList [])
+          Nothing
+          tinfo
+          mtimer
+          Nothing
+          role
+          ProtocolProteusTag
+          Nothing
   r <-
     post
       ( g
