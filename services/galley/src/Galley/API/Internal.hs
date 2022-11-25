@@ -53,7 +53,6 @@ import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.TeamFeatures
 import qualified Galley.Data.Conversation as Data
-import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
@@ -89,7 +88,6 @@ import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Protocol (ConversationMLSData (cnvmlsGroupId))
 import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
 import Wire.API.Error
