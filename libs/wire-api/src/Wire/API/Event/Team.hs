@@ -44,7 +44,6 @@ module Wire.API.Event.Team
   )
 where
 
-import Control.Arrow ((&&&))
 import Control.Lens (makeLenses, makePrisms, _1)
 import Data.Aeson hiding (object, (.=))
 import qualified Data.Aeson as A
@@ -153,39 +152,49 @@ genEventData = \case
 makeLenses ''Event
 makePrisms ''EventData
 
-taggedEventDataSchema :: ObjectSchema SwaggerDoc (EventType, EventData)
-taggedEventDataSchema =
-  bind
-    (fst .= field "type" schema)
-    (snd .= fieldOver _1 "data" edata)
+instance ToSchema EventData where
+  schema = object "Team.EventData" $ eventDataObjectSchema
+
+deriving via (Schema EventData) instance (A.ToJSON EventData)
+
+deriving via (Schema EventData) instance (A.FromJSON EventData)
+
+deriving via (Schema EventData) instance (S.ToSchema EventData)
+
+eventDataObjectSchema :: ObjectSchema SwaggerDoc EventData
+eventDataObjectSchema = snd <$> toTagged .= taggedEventDataSchema
   where
-    edata = dispatch $ \case
-      TeamCreate -> tag _EdTeamCreate (unnamed schema)
-      TeamDelete -> tag _EdTeamDelete null_
-      TeamUpdate -> tag _EdTeamUpdate (unnamed schema)
-      MemberJoin -> tag _EdMemberJoin (unnamed $ object "UserId" (field "user" schema))
-      MemberLeave -> tag _EdMemberLeave (unnamed $ object "UserId" (field "user" schema))
-      MemberUpdate -> tag _EdMemberUpdate (unnamed $ object "(UserId, Maybe Permissions)" memberUpdateObjectSchema)
-      ConvCreate -> tag _EdConvCreate (unnamed $ object "ConvId" (field "conv" schema))
-      ConvDelete -> tag _EdConvDelete (unnamed $ object "ConvId" (field "conv" schema))
+    toTagged :: EventData -> (EventType, EventData)
+    toTagged ed = (eventDataType ed, ed)
 
-    memberUpdateObjectSchema :: ObjectSchemaP SwaggerDoc (UserId, Maybe Permissions) (UserId, Maybe Permissions)
-    memberUpdateObjectSchema =
-      (,)
-        <$> fst .= field "user" schema
-        <*> snd .= maybe_ (optField "permissions" schema)
+    taggedEventDataSchema :: ObjectSchema SwaggerDoc (EventType, EventData)
+    taggedEventDataSchema =
+      bind
+        (fst .= field "type" schema)
+        (snd .= fieldOver _1 "data" edata)
+      where
+        edata = dispatch $ \case
+          TeamCreate -> tag _EdTeamCreate (unnamed schema)
+          TeamDelete -> tag _EdTeamDelete null_
+          TeamUpdate -> tag _EdTeamUpdate (unnamed schema)
+          MemberJoin -> tag _EdMemberJoin (unnamed $ object "UserId" (field "user" schema))
+          MemberLeave -> tag _EdMemberLeave (unnamed $ object "UserId" (field "user" schema))
+          MemberUpdate -> tag _EdMemberUpdate (unnamed $ object "(UserId, Maybe Permissions)" memberUpdateObjectSchema)
+          ConvCreate -> tag _EdConvCreate (unnamed $ object "ConvId" (field "conv" schema))
+          ConvDelete -> tag _EdConvDelete (unnamed $ object "ConvId" (field "conv" schema))
 
-evtType :: Event -> EventType
-evtType = eventDataType . _eventData
+        memberUpdateObjectSchema :: ObjectSchemaP SwaggerDoc (UserId, Maybe Permissions) (UserId, Maybe Permissions)
+        memberUpdateObjectSchema =
+          (,)
+            <$> fst .= field "user" schema
+            <*> snd .= maybe_ (optField "permissions" schema)
 
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =
-  mk
+  Event
     <$> _eventTeam .= field "team" schema
     <*> _eventTime .= field "time" utcTimeSchema
-    <*> (evtType &&& _eventData) .= taggedEventDataSchema
-  where
-    mk tid time (_, d) = Event tid time d
+    <*> _eventData .= eventDataObjectSchema
 
 instance ToSchema Event where
   schema =
