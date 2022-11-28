@@ -394,6 +394,21 @@ deriving via (Schema Event) instance (A.FromJSON Event)
 
 deriving via (Schema Event) instance (S.ToSchema Event)
 
+instance ToSchema EventData where
+  schema = object "Conversation.EventData" eventDataObjectSchema
+    where
+      eventDataObjectSchema :: ObjectSchema SwaggerDoc EventData
+      eventDataObjectSchema = snd <$> toTagged .= taggedEventDataSchema
+
+      toTagged :: EventData -> (EventType, EventData)
+      toTagged ed = (eventDataType ed, ed)
+
+deriving via (Schema EventData) instance (A.ToJSON EventData)
+
+deriving via (Schema EventData) instance (A.FromJSON EventData)
+
+deriving via (Schema EventData) instance (S.ToSchema EventData)
+
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =
   mk

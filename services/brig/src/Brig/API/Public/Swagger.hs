@@ -1,12 +1,14 @@
 module Brig.API.Public.Swagger
   ( VersionedSwaggerDocsAPI,
     DocsAPI,
+    EventNotificationsAPI,
     pregenSwagger,
     swaggerPregenUIServer,
-    eventNotificationSchemas,
+    eventNotificationsAPI,
   )
 where
 
+import Control.Lens ((.~))
 import qualified Data.Aeson as A
 import Data.FileEmbed
 import qualified Data.HashMap.Strict.InsOrd as HM
@@ -18,20 +20,34 @@ import FileEmbedLzma
 import Imports hiding (head)
 import Language.Haskell.TH
 import Servant
+import Servant.Swagger
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified Wire.API.Event.Conversation
 import qualified Wire.API.Event.FeatureConfig
 import qualified Wire.API.Event.Team
 import Wire.API.Routes.Version
+import Wire.API.SwaggerHelper (cleanupSwagger)
 
 type VersionedSwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> VersionedSwaggerDocsAPIBase
 
-type NotificationSchemasAPI = "api" :> "event-notification-schemas" :> Get '[JSON] [S.Definitions S.Schema]
+type NotificationSchemasAPI = "api" :> "event-notification-schemas" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type DocsAPI = VersionedSwaggerDocsAPI :<|> NotificationSchemasAPI
+
+data EventNotificationsAPI
+
+instance HasSwagger EventNotificationsAPI where
+  toSwagger _ =
+    mempty
+      & S.definitions .~ eventNotificationSchemas
+      & S.info . S.title .~ "Wire-Server Event Definitions"
+      & cleanupSwagger
+
+eventNotificationsAPI :: S.Swagger
+eventNotificationsAPI = toSwagger (Proxy @EventNotificationsAPI)
 
 pregenSwagger :: Version -> Q Exp
 pregenSwagger v =
@@ -47,10 +63,6 @@ swaggerPregenUIServer =
 
 {- FUTUREWORK(fisx): there are a few things that need to be fixed before this schema collection
    is of any practical use!
-
-- `ToSchema` instances of team notifications are wrong.  To do this right, search
-  schema-profunctor tutorial for bind/dispatch, and consult conversation events for
-  examples.
 
 - swagger2 doesn't handle types with the same name from different models well; it silently
   drops the second definition, which is what you want only if there are no name clashes as
@@ -78,6 +90,8 @@ eventNotificationSchemas = fst . (`S.runDeclare` mempty) $ renderAll
       render @Wire.API.Event.Conversation.Event
       render @Wire.API.Event.FeatureConfig.Event
       render @Wire.API.Event.Team.Event
+      render @Wire.API.Event.Team.EventData
+      render @Wire.API.Event.Conversation.EventData
 
     render :: forall a. S.ToSchema a => S.Declare (S.Definitions S.Schema) ()
     render = do
