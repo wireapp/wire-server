@@ -107,7 +107,7 @@ postMessage ::
     MonadHttp m,
     HasGalley m
   ) =>
-  UserId ->
+  ClientIdentity ->
   ByteString ->
   m ResponseLBS
 postMessage sender msg = do
@@ -115,7 +115,8 @@ postMessage sender msg = do
   post
     ( galley
         . paths ["mls", "messages"]
-        . zUser sender
+        . zUser (ciUser sender)
+        . zClient (ciClient sender)
         . zConn "conn"
         . content "message/mls"
         . bytes msg
@@ -129,7 +130,7 @@ postCommitBundle ::
     MonadHttp m,
     HasGalley m
   ) =>
-  UserId ->
+  ClientIdentity ->
   ByteString ->
   m ResponseLBS
 postCommitBundle sender bundle = do
@@ -137,7 +138,8 @@ postCommitBundle sender bundle = do
   post
     ( galley
         . paths ["mls", "commit-bundles"]
-        . zUser sender
+        . zUser (ciUser sender)
+        . zClient (ciClient sender)
         . zConn "conn"
         . content "application/x-protobuf"
         . bytes bundle
@@ -430,11 +432,8 @@ setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
     action =
       responseJsonError
         =<< liftTest
-          ( putSelfConv
-              (ciUser creator)
-              (ciClient creator)
-          )
-          <!! const 201 === statusCode
+          (getSelfConv (ciUser creator))
+          <!! const 200 === statusCode
 
 createGroup :: ClientIdentity -> GroupId -> MLSTest ()
 createGroup cid gid = do
@@ -643,13 +642,13 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
       { mlsNewMembers = Set.fromList (map fst clientsAndKeyPackages)
       }
 
-  welcome <- liftIO $ BS.readFile welcomeFile
+  welcome <- liftIO $ readWelcome welcomeFile
   pgs <- liftIO $ BS.readFile pgsFile
   pure $
     MessagePackage
       { mpSender = qcid,
         mpMessage = commit,
-        mpWelcome = Just welcome,
+        mpWelcome = welcome,
         mpPublicGroupState = Just pgs
       }
 
@@ -834,7 +833,7 @@ sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest [Event]
 sendAndConsumeMessage mp = do
   events <-
     fmap mmssEvents . responseJsonError
-      =<< postMessage (ciUser (mpSender mp)) (mpMessage mp)
+      =<< postMessage (mpSender mp) (mpMessage mp)
         <!! const 201 === statusCode
   consumeMessage mp
 
@@ -864,7 +863,7 @@ sendAndConsumeCommit mp = do
 
   pure events
 
-mkBundle :: MessagePackage -> Either Text CommitBundle
+mkBundle :: HasCallStack => MessagePackage -> Either Text CommitBundle
 mkBundle mp = do
   commitB <- decodeMLS' (mpMessage mp)
   welcomeB <- traverse decodeMLS' (mpWelcome mp)
@@ -874,7 +873,7 @@ mkBundle mp = do
     CommitBundle commitB welcomeB $
       GroupInfoBundle UnencryptedGroupInfo TreeFull pgsB
 
-createBundle :: MonadIO m => MessagePackage -> m ByteString
+createBundle :: (HasCallStack, MonadIO m) => MessagePackage -> m ByteString
 createBundle mp = do
   bundle <-
     either (liftIO . assertFailure . T.unpack) pure $
@@ -890,7 +889,7 @@ sendAndConsumeCommitBundle mp = do
   events <-
     fmap mmssEvents
       . responseJsonError
-      =<< postCommitBundle (ciUser (mpSender mp)) bundle
+      =<< postCommitBundle (mpSender mp) bundle
         <!! const 201 === statusCode
   consumeMessage mp
   traverse_ consumeWelcome (mpWelcome mp)
@@ -1024,16 +1023,14 @@ getGroupInfo sender qcnv = do
         . zConn "conn"
     )
 
-putSelfConv ::
+getSelfConv ::
   UserId ->
-  ClientId ->
   TestM ResponseLBS
-putSelfConv u c = do
+getSelfConv u = do
   g <- viewGalley
-  put $
+  get $
     g
       . paths ["/conversations", "mls-self"]
       . zUser u
-      . zClient c
       . zConn "conn"
       . zType "access"

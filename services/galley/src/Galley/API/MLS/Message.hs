@@ -28,7 +28,7 @@ where
 
 import Control.Comonad
 import Control.Error.Util (hush)
-import Control.Lens (preview, to)
+import Control.Lens (preview)
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -105,7 +105,9 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSCommitMissingReferences,
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
-     ErrorS 'MLSGroupConversationMismatch
+     ErrorS 'MLSUnexpectedSenderClient,
+     ErrorS 'MLSGroupConversationMismatch,
+     ErrorS 'MLSMissingSenderClient
    ]
 
 type MLSBundleStaticErrors =
@@ -121,14 +123,16 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
-         ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
+         ErrorS 'MLSMissingSenderClient,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnexpectedSenderClient,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -155,14 +159,16 @@ postMLSMessageFromLocalUser ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
-         ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
+         ErrorS 'MLSMissingSenderClient,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnexpectedSenderClient,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -270,15 +276,17 @@ postMLSCommitBundleToLocalConv ::
 postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
+  mlsMeta <- Data.mlsMetadata conv & noteS @'ConvNotFound
+
   let lconv = qualifyAs lcnv conv
-  cm <- lookupMLSClients lcnv
+  cm <- lookupMLSClients (cnvmlsGroupId mlsMeta)
 
   senderClient <- fmap ciClient <$> getSenderIdentity qusr mc SMLSPlainText msg
 
   events <- case msgPayload msg of
     CommitMessage commit ->
       do
-        (groupId, action) <- getCommitData lconv (msgEpoch msg) commit
+        action <- getCommitData lconv mlsMeta (msgEpoch msg) commit
         -- check that the welcome message matches the action
         for_ (cbWelcome bundle) $ \welcome ->
           when
@@ -292,9 +300,9 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
             senderClient
             conn
             lconv
+            mlsMeta
             cm
             (msgEpoch msg)
-            groupId
             action
             (msgSender msg)
             commit
@@ -362,14 +370,16 @@ postMLSMessage ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
-         ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
+         ErrorS 'MLSMissingSenderClient,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnexpectedSenderClient,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -441,7 +451,7 @@ getSenderIdentity qusr mc fmt msg = do
   -- one contained in the message. We throw an error if the two don't match.
   when (((==) <$> mc <*> mSender) == Just False) $
     throwS @'MLSClientSenderUserMismatch
-  pure (mkClientIdentity qusr <$> mSender)
+  pure (mkClientIdentity qusr <$> (mc <|> mSender))
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
@@ -449,13 +459,15 @@ postMLSMessageToLocalConv ::
       '[ Error FederationError,
          Error InternalError,
          ErrorS 'ConvNotFound,
-         ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSMissingSenderClient,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnexpectedSenderClient,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MissingLegalholdConsent,
          ProposalStore,
          Resource,
          TinyLog
@@ -471,26 +483,26 @@ postMLSMessageToLocalConv ::
 postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
   SomeMessage tag msg -> do
     conv <- getLocalConvForUser qusr lcnv
+    mlsMeta <- Data.mlsMetadata conv & noteS @'ConvNotFound
 
     -- construct client map
-    cm <- lookupMLSClients lcnv
+    cm <- lookupMLSClients (cnvmlsGroupId mlsMeta)
     let lconv = qualifyAs lcnv conv
 
     -- validate message
     events <- case tag of
       SMLSPlainText -> case msgPayload msg of
         CommitMessage c ->
-          processCommit qusr senderClient con lconv cm (msgEpoch msg) (msgSender msg) c
+          processCommit qusr senderClient con lconv mlsMeta cm (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage prop ->
-          processProposal qusr conv msg prop $> mempty
+          processProposal qusr conv mlsMeta msg prop $> mempty
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
         Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
         Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
         Right ApplicationMessageTag -> pure mempty
         Left _ -> throwS @'MLSUnsupportedMessage
 
-    -- forward message
     propagateMessage qusr lconv cm con (rmRaw smsg)
 
     pure events
@@ -532,27 +544,29 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
     pure (LocalConversationUpdate e update)
 
 type HasProposalEffects r =
-  ( Member BrigAccess r,
-    Member ConversationStore r,
-    Member (Error InternalError) r,
-    Member (Error MLSProposalFailure) r,
-    Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'MLSKeyPackageRefNotFound) r,
-    Member (ErrorS 'MLSUnsupportedProposal) r,
-    Member ExternalAccess r,
-    Member FederatorAccess r,
-    Member GundeckAccess r,
-    Member (Input Env) r,
-    Member (Input (Local ())) r,
-    Member (Input Opts) r,
-    Member (Input UTCTime) r,
-    Member LegalHoldStore r,
-    Member MemberStore r,
-    Member ProposalStore r,
-    Member TeamStore r,
-    Member TeamStore r,
-    Member TinyLog r
+  ( Members
+      '[ BrigAccess,
+         ConversationStore,
+         Error InternalError,
+         Error MLSProposalFailure,
+         Error MLSProtocolError,
+         ErrorS 'MLSClientMismatch,
+         ErrorS 'MLSKeyPackageRefNotFound,
+         ErrorS 'MLSUnsupportedProposal,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input (Local ()),
+         Input Opts,
+         Input UTCTime,
+         LegalHoldStore,
+         MemberStore,
+         ProposalStore,
+         TeamStore,
+         TinyLog
+       ]
+      r
   )
 
 data ProposalAction = ProposalAction
@@ -595,50 +609,53 @@ getCommitData ::
     Member TinyLog r
   ) =>
   Local Data.Conversation ->
+  ConversationMLSData ->
   Epoch ->
   Commit ->
-  Sem r (GroupId, ProposalAction)
-getCommitData lconv epoch commit = do
-  convMeta <-
-    preview (to convProtocol . _ProtocolMLS) (tUnqualified lconv)
-      & noteS @'ConvNotFound
-
-  let curEpoch = cnvmlsEpoch convMeta
-      groupId = cnvmlsGroupId convMeta
+  Sem r ProposalAction
+getCommitData lconv mlsMeta epoch commit = do
+  let curEpoch = cnvmlsEpoch mlsMeta
+      groupId = cnvmlsGroupId mlsMeta
+      suite = cnvmlsCipherSuite mlsMeta
 
   -- check epoch number
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
-  action <- foldMap (applyProposalRef (tUnqualified lconv) groupId epoch) (cProposals commit)
-  pure (groupId, action)
+  foldMap (applyProposalRef (tUnqualified lconv) mlsMeta groupId epoch suite) (cProposals commit)
 
 processCommit ::
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input (Local ())) r,
-    Member ProposalStore r,
-    Member BrigAccess r,
-    Member Resource r
+    Members
+      '[ Error FederationError,
+         Error InternalError,
+         ErrorS 'ConvNotFound,
+         ErrorS 'MLSClientSenderUserMismatch,
+         ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSMissingSenderClient,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSSelfRemovalNotAllowed,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnexpectedSenderClient,
+         ErrorS 'MissingLegalholdConsent,
+         Input (Local ()),
+         ProposalStore,
+         BrigAccess,
+         Resource
+       ]
+      r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
   Maybe ConnId ->
   Local Data.Conversation ->
+  ConversationMLSData ->
   ClientMap ->
   Epoch ->
   Sender 'MLSPlainText ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommit qusr senderClient con lconv cm epoch sender commit = do
-  (groupId, action) <- getCommitData lconv epoch commit
-  processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit
+processCommit qusr senderClient con lconv mlsMeta cm epoch sender commit = do
+  action <- getCommitData lconv mlsMeta epoch commit
+  processCommitWithAction qusr senderClient con lconv mlsMeta cm epoch action sender commit
 
 processExternalCommit ::
   forall r.
@@ -650,6 +667,7 @@ processExternalCommit ::
        ErrorS 'MLSClientSenderUserMismatch,
        ErrorS 'MLSKeyPackageRefNotFound,
        ErrorS 'MLSStaleMessage,
+       ErrorS 'MLSMissingSenderClient,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -662,14 +680,15 @@ processExternalCommit ::
      ]
     r =>
   Qualified UserId ->
+  Maybe ClientId ->
   Local Data.Conversation ->
+  ConversationMLSData ->
   ClientMap ->
   Epoch ->
-  GroupId ->
   ProposalAction ->
   Maybe UpdatePath ->
   Sem r ()
-processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommitLock groupId epoch $ do
+processExternalCommit qusr mSenderClient lconv mlsMeta cm epoch action updatePath = withCommitLock (cnvmlsGroupId mlsMeta) epoch $ do
   newKeyPackage <-
     upLeaf
       <$> note
@@ -682,12 +701,29 @@ processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommit
     throw . mlsProtocolError $
       "The external commit must not have add proposals"
 
-  cid <- case kpIdentity (rmValue newKeyPackage) of
-    Left e -> throw (mlsProtocolError $ "Failed to parse the client identity: " <> e)
-    Right v -> pure v
   newRef <-
     kpRef' newKeyPackage
       & note (mlsProtocolError "An invalid key package in the update path")
+
+  -- validate and update mapping in brig
+  eithCid <-
+    nkpresClientIdentity
+      <$$> validateAndAddKeyPackageRef
+        NewKeyPackage
+          { nkpConversation = Data.convId <$> qUntagged lconv,
+            nkpKeyPackage = KeyPackageData (rmRaw newKeyPackage)
+          }
+  cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
+
+  unless (cidQualifiedUser cid == qusr) $
+    throw . mlsProtocolError $
+      "The external commit attempts to add another user"
+
+  senderClient <- noteS @'MLSMissingSenderClient mSenderClient
+
+  unless (ciClient cid == senderClient) $
+    throw . mlsProtocolError $
+      "The external commit attempts to add another client of the user, it must only add itself"
 
   -- check if there is a key package ref in the remove proposal
   remRef <-
@@ -701,27 +737,14 @@ processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommit
           $ "The external commit attempts to remove a client from a user other than themselves"
         pure (Just r)
 
-  -- first perform checks and map the key package if valid
-  addKeyPackageRef
-    newRef
-    (cidQualifiedUser cid)
-    (ciClient cid)
-    (Data.convId <$> qUntagged lconv)
-  -- now it is safe to update the mapping without further checks
-  -- FUTUREWORK: This call is redundent and reduces to the previous
-  -- call of addKeyPackageRef when remRef is Nothing! Should be
-  -- limited to cases where remRef is not Nothing.
-  updateKeyPackageMapping lconv qusr (ciClient cid) remRef newRef
-
-  -- FUTUREWORK: Resubmit backend-provided proposals when processing an
-  -- external commit.
+  updateKeyPackageMapping lconv (cnvmlsGroupId mlsMeta) qusr (ciClient cid) remRef newRef
 
   -- increment epoch number
   setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
   -- fetch local conversation with new epoch
   lc <- qualifyAs lconv <$> getLocalConvForUser qusr (convId <$> lconv)
   -- fetch backend remove proposals of the previous epoch
-  kpRefs <- getPendingBackendRemoveProposals groupId epoch
+  kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId mlsMeta) epoch
   -- requeue backend remove proposals for the current epoch
   removeClientsWithClientMap lc kpRefs cm qusr
   where
@@ -747,76 +770,122 @@ processExternalCommit qusr lconv cm epoch groupId action updatePath = withCommit
 processCommitWithAction ::
   forall r.
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input (Local ())) r,
-    Member ProposalStore r,
-    Member BrigAccess r,
-    Member Resource r
+    Members
+      '[ Error FederationError,
+         Error InternalError,
+         ErrorS 'ConvNotFound,
+         ErrorS 'MLSClientSenderUserMismatch,
+         ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSMissingSenderClient,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSSelfRemovalNotAllowed,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnexpectedSenderClient,
+         ErrorS 'MissingLegalholdConsent,
+         Input (Local ()),
+         ProposalStore,
+         BrigAccess,
+         Resource
+       ]
+      r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
   Maybe ConnId ->
   Local Data.Conversation ->
+  ConversationMLSData ->
   ClientMap ->
   Epoch ->
-  GroupId ->
   ProposalAction ->
   Sender 'MLSPlainText ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit =
+processCommitWithAction qusr senderClient con lconv mlsMeta cm epoch action sender commit =
   case sender of
-    MemberSender ref -> processInternalCommit qusr senderClient con lconv cm epoch groupId action ref commit
-    NewMemberSender -> processExternalCommit qusr lconv cm epoch groupId action (cPath commit) $> []
+    MemberSender ref -> processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action ref commit
+    NewMemberSender -> processExternalCommit qusr senderClient lconv mlsMeta cm epoch action (cPath commit) $> []
     _ -> throw (mlsProtocolError "Unexpected sender")
 
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input (Local ())) r,
-    Member ProposalStore r,
-    Member BrigAccess r,
-    Member Resource r
+    Members
+      [ Error FederationError,
+        Error InternalError,
+        ErrorS 'ConvNotFound,
+        ErrorS 'MLSClientSenderUserMismatch,
+        ErrorS 'MLSCommitMissingReferences,
+        ErrorS 'MLSMissingSenderClient,
+        ErrorS 'MLSProposalNotFound,
+        ErrorS 'MLSSelfRemovalNotAllowed,
+        ErrorS 'MLSStaleMessage,
+        ErrorS 'MLSUnexpectedSenderClient,
+        ErrorS 'MissingLegalholdConsent,
+        Input (Local ()),
+        ProposalStore,
+        BrigAccess,
+        Resource
+      ]
+      r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
   Maybe ConnId ->
   Local Data.Conversation ->
+  ConversationMLSData ->
   ClientMap ->
   Epoch ->
-  GroupId ->
   ProposalAction ->
   KeyPackageRef ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processInternalCommit qusr senderClient con lconv cm epoch groupId action senderRef commit = do
+processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action senderRef commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
-  withCommitLock groupId epoch $ do
+  withCommitLock (cnvmlsGroupId mlsMeta) epoch $ do
     postponedKeyPackageRefUpdate <-
       if epoch == Epoch 0
         then do
-          -- this is a newly created conversation, and it should contain exactly one
-          -- client (the creator)
-          case (self, cmAssocs cm) of
-            (Left lm, [(qu, (creatorClient, _))])
+          let cType = cnvmType . convMetadata . tUnqualified $ lconv
+          case (self, cType, cmAssocs cm) of
+            (Left _, SelfConv, []) -> do
+              creatorClient <- noteS @'MLSMissingSenderClient senderClient
+              creatorRef <-
+                maybe
+                  (pure senderRef)
+                  ( note (mlsProtocolError "Could not compute key package ref")
+                      . kpRef'
+                      . upLeaf
+                  )
+                  $ cPath commit
+              addMLSClients
+                (cnvmlsGroupId mlsMeta)
+                qusr
+                (Set.singleton (creatorClient, creatorRef))
+            (Left _, SelfConv, _) ->
+              -- this is a newly created conversation, and it should contain exactly one
+              -- client (the creator)
+              throwS @'MLSUnexpectedSenderClient
+            (Left _, GlobalTeamConv, []) -> do
+              creatorClient <- noteS @'MLSMissingSenderClient senderClient
+              creatorRef <-
+                maybe
+                  (pure senderRef)
+                  ( note (mlsProtocolError "Could not compute key package ref")
+                      . kpRef'
+                      . upLeaf
+                  )
+                  $ cPath commit
+              -- add user to global conv as a member as well
+              lusr <- qualifyLocal (qUnqualified qusr)
+              void $ createMember (convId <$> lconv) lusr
+              addMLSClients
+                (cnvmlsGroupId mlsMeta)
+                qusr
+                (Set.singleton (creatorClient, creatorRef))
+            (Left _, GlobalTeamConv, _) ->
+              throwS @'MLSUnexpectedSenderClient
+            (Left lm, _, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender
                   senderRef' <-
@@ -828,11 +897,11 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
                       )
                       $ cPath commit
                   -- register the creator client
-                  updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef'
+                  updateKeyPackageMapping lconv (cnvmlsGroupId mlsMeta) qusr creatorClient Nothing senderRef'
             -- remote clients cannot send the first commit
-            (Right _, _) -> throwS @'MLSStaleMessage
+            (Right _, _, _) -> throwS @'MLSStaleMessage
             -- uninitialised conversations should contain exactly one client
-            (_, _) ->
+            (_, _, _) ->
               throw (InternalErrorWithDescription "Unexpected creator client set")
           pure $ pure () -- no key package ref update necessary
         else case upLeaf <$> cPath commit of
@@ -840,18 +909,18 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
             updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
             -- postpone key package ref update until other checks/processing passed
             case senderClient of
-              Just cli -> pure (updateKeyPackageMapping lconv qusr cli (Just senderRef) updatedRef)
+              Just cli -> pure (updateKeyPackageMapping lconv (cnvmlsGroupId mlsMeta) qusr cli (Just senderRef) updatedRef)
               Nothing -> pure (pure ())
           Nothing -> pure (pure ()) -- ignore commits without update path
 
     -- check all pending proposals are referenced in the commit
-    allPendingProposals <- getAllPendingProposalRefs groupId epoch
+    allPendingProposals <- getAllPendingProposalRefs (cnvmlsGroupId mlsMeta) epoch
     let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
     unless (all (`Set.member` referencedProposals) allPendingProposals) $
       throwS @'MLSCommitMissingReferences
 
     -- process and execute proposals
-    updates <- executeProposalAction qusr con lconv cm action
+    updates <- executeProposalAction qusr con lconv mlsMeta cm action
 
     -- update key package ref if necessary
     postponedKeyPackageRefUpdate
@@ -864,12 +933,13 @@ processInternalCommit qusr senderClient con lconv cm epoch groupId action sender
 updateKeyPackageMapping ::
   Members '[BrigAccess, MemberStore] r =>
   Local Data.Conversation ->
+  GroupId ->
   Qualified UserId ->
   ClientId ->
   Maybe KeyPackageRef ->
   KeyPackageRef ->
   Sem r ()
-updateKeyPackageMapping lconv qusr cid mOld new = do
+updateKeyPackageMapping lconv groupId qusr cid mOld new = do
   let lcnv = fmap Data.convId lconv
   -- update actual mapping in brig
   case mOld of
@@ -883,9 +953,9 @@ updateKeyPackageMapping lconv qusr cid mOld new = do
           }
 
   -- remove old (client, key package) pair
-  removeMLSClients lcnv qusr (Set.singleton cid)
+  removeMLSClients groupId qusr (Set.singleton cid)
   -- add new (client, key package) pair
-  addMLSClients lcnv qusr (Set.singleton (cid, new))
+  addMLSClients groupId qusr (Set.singleton (cid, new))
 
 applyProposalRef ::
   ( HasProposalEffects r,
@@ -898,29 +968,29 @@ applyProposalRef ::
       r
   ) =>
   Data.Conversation ->
+  ConversationMLSData ->
   GroupId ->
   Epoch ->
+  CipherSuiteTag ->
   ProposalOrRef ->
   Sem r ProposalAction
-applyProposalRef conv groupId epoch (Ref ref) = do
+applyProposalRef conv mlsMeta groupId epoch _suite (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
-  checkEpoch epoch conv
-  checkGroup groupId conv
-  applyProposal (convId conv) (rmValue p)
-applyProposalRef conv _groupId _epoch (Inline p) = do
-  suite <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
-      & noteS @'ConvNotFound
+  checkEpoch epoch mlsMeta
+  checkGroup groupId mlsMeta
+  applyProposal (convId conv) groupId (rmValue p)
+applyProposalRef conv _mlsMeta groupId _epoch suite (Inline p) = do
   checkProposalCipherSuite suite p
-  applyProposal (convId conv) p
+  applyProposal (convId conv) groupId p
 
 applyProposal ::
   forall r.
   HasProposalEffects r =>
   ConvId ->
+  GroupId ->
   Proposal ->
   Sem r ProposalAction
-applyProposal convId (AddProposal kp) = do
+applyProposal convId groupId (AddProposal kp) = do
   ref <- kpRef' kp & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   mbClientIdentity <- getClientByKeyPackageRef ref
   clientIdentity <- case mbClientIdentity of
@@ -936,27 +1006,27 @@ applyProposal convId (AddProposal kp) = do
     addKeyPackageMapping :: Local ConvId -> KeyPackageRef -> KeyPackageData -> Sem r ClientIdentity
     addKeyPackageMapping lconv ref kpdata = do
       -- validate and update mapping in brig
-      mCid <-
+      eithCid <-
         nkpresClientIdentity
           <$$> validateAndAddKeyPackageRef
             NewKeyPackage
               { nkpConversation = qUntagged lconv,
                 nkpKeyPackage = kpdata
               }
-      cid <- mCid & note (mlsProtocolError "Tried to add invalid KeyPackage")
+      cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
       let qcid = cidQualifiedClient cid
       let qusr = fst <$> qcid
       -- update mapping in galley
-      addMLSClients lconv qusr (Set.singleton (ciClient cid, ref))
+      addMLSClients groupId qusr (Set.singleton (ciClient cid, ref))
       pure cid
-applyProposal _conv (RemoveProposal ref) = do
+applyProposal _conv _groupId (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient ((,ref) <$$> qclient))
-applyProposal _conv (ExternalInitProposal _) =
+applyProposal _conv _groupId (ExternalInitProposal _) =
   -- only record the fact there was an external init proposal, but do not
   -- process it in any way.
   pure paExternalInitPresent
-applyProposal _conv _ = pure mempty
+applyProposal _conv _groupId _ = pure mempty
 
 checkProposalCipherSuite ::
   Members
@@ -992,15 +1062,14 @@ processProposal ::
     r =>
   Qualified UserId ->
   Data.Conversation ->
+  ConversationMLSData ->
   Message 'MLSPlainText ->
   RawMLS Proposal ->
   Sem r ()
-processProposal qusr conv msg prop = do
-  checkEpoch (msgEpoch msg) conv
-  checkGroup (msgGroupId msg) conv
-  suiteTag <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
-      & noteS @'ConvNotFound
+processProposal qusr conv mlsMeta msg prop = do
+  checkEpoch (msgEpoch msg) mlsMeta
+  checkGroup (msgGroupId msg) mlsMeta
+  let suiteTag = cnvmlsCipherSuite mlsMeta
 
   -- validate the proposal
   --
@@ -1114,12 +1183,12 @@ executeProposalAction ::
   Qualified UserId ->
   Maybe ConnId ->
   Local Data.Conversation ->
+  ConversationMLSData ->
   ClientMap ->
   ProposalAction ->
   Sem r [LocalConversationUpdate]
-executeProposalAction qusr con lconv cm action = do
-  cs <- preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) (tUnqualified lconv) & noteS @'ConvNotFound
-  let ss = csSignatureScheme cs
+executeProposalAction qusr con lconv mlsMeta cm action = do
+  let ss = csSignatureScheme (cnvmlsCipherSuite mlsMeta)
       newUserClients = Map.assocs (paAdd action)
 
   -- Note [client removal]
@@ -1181,7 +1250,7 @@ executeProposalAction qusr con lconv cm action = do
 
   -- add clients in the conversation state
   for_ newUserClients $ \(qtarget, newClients) -> do
-    addMLSClients (fmap convId lconv) qtarget newClients
+    addMLSClients (cnvmlsGroupId mlsMeta) qtarget newClients
 
   -- remove users from the conversation and send events
   removeEvents <- foldMap removeMembers (nonEmpty membersToRemove)
@@ -1189,7 +1258,7 @@ executeProposalAction qusr con lconv cm action = do
   -- Remove clients from the conversation state. This includes client removals
   -- of all types (see Note [client removal]).
   for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
-    removeMLSClients (fmap convId lconv) qtarget (Set.map fst clients)
+    removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.map fst clients)
 
   pure (addEvents <> removeEvents)
   where
@@ -1271,30 +1340,23 @@ getRemoteMLSClients rusr ss = do
 -- | Check if the epoch number matches that of a conversation
 checkEpoch ::
   Members
-    '[ ErrorS 'ConvNotFound,
-       ErrorS 'MLSStaleMessage
+    '[ ErrorS 'MLSStaleMessage
      ]
     r =>
   Epoch ->
-  Data.Conversation ->
+  ConversationMLSData ->
   Sem r ()
-checkEpoch epoch conv = do
-  curEpoch <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
-      & noteS @'ConvNotFound
-  unless (epoch == curEpoch) $ throwS @'MLSStaleMessage
+checkEpoch epoch mlsMeta = do
+  unless (epoch == cnvmlsEpoch mlsMeta) $ throwS @'MLSStaleMessage
 
 -- | Check if the group ID matches that of a conversation
 checkGroup ::
   Member (ErrorS 'ConvNotFound) r =>
   GroupId ->
-  Data.Conversation ->
+  ConversationMLSData ->
   Sem r ()
-checkGroup gId conv = do
-  groupId <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsGroupId) conv
-      & noteS @'ConvNotFound
-  unless (gId == groupId) $ throwS @'ConvNotFound
+checkGroup gId mlsMeta = do
+  unless (gId == cnvmlsGroupId mlsMeta) $ throwS @'ConvNotFound
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution

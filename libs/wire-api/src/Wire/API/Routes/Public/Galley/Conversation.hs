@@ -29,6 +29,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Servant
 import Wire.API.Routes.MultiVerb
@@ -43,9 +44,9 @@ type ConversationResponse = ResponseForExistedCreated Conversation
 
 type ConversationHeaders = '[DescHeader "Location" "Conversation ID" ConvId]
 
-type ConversationVerbWithMethod (m :: StdMethod) =
+type ConversationVerb =
   MultiVerb
-    m
+    'POST
     '[JSON]
     '[ WithHeaders
          ConversationHeaders
@@ -57,10 +58,6 @@ type ConversationVerbWithMethod (m :: StdMethod) =
          (Respond 201 "Conversation created" Conversation)
      ]
     ConversationResponse
-
-type ConversationVerb = ConversationVerbWithMethod 'POST
-
-type ConversationPutVerb = ConversationVerbWithMethod 'PUT
 
 type CreateConversationCodeVerb =
   MultiVerb
@@ -119,6 +116,18 @@ type ConversationAPI =
                :> Get '[Servant.JSON] Conversation
            )
     :<|> Named
+           "get-global-team-conversation"
+           ( Summary "Get the global conversation for a given team ID"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'NotATeamMember
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "conversations"
+               :> "global"
+               :> Get '[Servant.JSON] GlobalTeamConversation
+           )
+    :<|> Named
            "get-conversation-roles"
            ( Summary "Get existing roles available for the given conversation"
                :> CanThrow 'ConvNotFound
@@ -151,6 +160,7 @@ type ConversationAPI =
            "list-conversation-ids-unqualified"
            ( Summary "[deprecated] Get all local conversation IDs."
                -- FUTUREWORK: add bounds to swagger schema for Range
+               :> Until 'V3
                :> ZLocalUser
                :> "conversations"
                :> "ids"
@@ -171,8 +181,20 @@ type ConversationAPI =
                :> Get '[Servant.JSON] (ConversationList ConvId)
            )
     :<|> Named
+           "list-conversation-ids-v2"
+           ( Summary "Get all conversation IDs."
+               :> Until 'V3
+               :> Description PaginationDocs
+               :> ZLocalUser
+               :> "conversations"
+               :> "list-ids"
+               :> ReqBody '[Servant.JSON] GetPaginatedConversationIds
+               :> Post '[Servant.JSON] ConvIdsPage
+           )
+    :<|> Named
            "list-conversation-ids"
            ( Summary "Get all conversation IDs."
+               :> From 'V3
                :> Description PaginationDocs
                :> ZLocalUser
                :> "conversations"
@@ -275,13 +297,19 @@ type ConversationAPI =
                :> ConversationVerb
            )
     :<|> Named
-           "create-mls-self-conversation"
-           ( Summary "Create the user's MLS self-conversation"
+           "get-mls-self-conversation"
+           ( Summary "Get the user's MLS self-conversation"
                :> ZLocalUser
                :> "conversations"
                :> "mls-self"
-               :> ZClient
-               :> ConversationPutVerb
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( Respond
+                        200
+                        "The MLS self-conversation"
+                        Conversation
+                    )
            )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members

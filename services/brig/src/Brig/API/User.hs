@@ -256,7 +256,7 @@ createUserSpar new = do
     pure account
 
   -- Add to team
-  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing) (newUserSparRole new)
 
   -- Set up feature flags
   let uid = userId (accountUser account)
@@ -274,10 +274,10 @@ createUserSpar new = do
         Just handl -> withExceptT CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
         Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
 
-    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
-    addUserToTeamSSO account tid ident = do
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> Role -> ExceptT RegisterError (AppT r) CreateUserTeam
+    addUserToTeamSSO account tid ident role = do
       let uid = userId (accountUser account)
-      added <- lift $ liftSem $ GalleyProvider.addTeamMember uid tid (Nothing, defaultRole)
+      added <- lift $ liftSem $ GalleyProvider.addTeamMember uid tid (Nothing, role)
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -538,13 +538,14 @@ initAccountFeatureConfig uid = do
 createUserInviteViaScim ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore p
+       UserPendingActivationStore p,
+       GalleyProvider
      ]
     r =>
   UserId ->
   NewUserScimInvitation ->
   ExceptT Error.Error (AppT r) UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
+createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail _) = do
   email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
@@ -565,7 +566,6 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
         -- the SCIM user.
         True
   lift . wrapClient $ Data.insertAccount account Nothing Nothing activated
-
   pure account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.

@@ -25,6 +25,7 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
 import qualified Data.Text.Lazy as LT
+import Galley.Cassandra.Instances ()
 import Galley.Data.Scope
 import Galley.Types.Teams.Intra
 import Imports
@@ -197,8 +198,39 @@ updateTeamSplashScreen = "update team set splash_screen = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 
-selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRoleLegacy, Maybe (C.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag)
+selectConv ::
+  PrepQuery
+    R
+    (Identity ConvId)
+    ( ConvType,
+      Maybe UserId,
+      Maybe (C.Set Access),
+      Maybe AccessRoleLegacy,
+      Maybe (C.Set AccessRoleV2),
+      Maybe Text,
+      Maybe TeamId,
+      Maybe Bool,
+      Maybe Milliseconds,
+      Maybe ReceiptMode,
+      Maybe ProtocolTag,
+      Maybe GroupId,
+      Maybe Epoch,
+      Maybe CipherSuiteTag
+    )
 selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite from conversation where conv = ?"
+
+selectGlobalTeamConv ::
+  PrepQuery
+    R
+    (Identity ConvId)
+    ( Maybe UserId,
+      Maybe Text,
+      Maybe TeamId,
+      Maybe GroupId,
+      Maybe Epoch,
+      Maybe CipherSuiteTag
+    )
+selectGlobalTeamConv = "select creator, name, team, group_id, epoch, cipher_suite from conversation where conv = ?"
 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
@@ -208,6 +240,37 @@ isConvDeleted = "select deleted from conversation where conv = ?"
 
 insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRoleV2, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ()
 insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+insertMLSSelfConv ::
+  PrepQuery
+    W
+    ( ConvId,
+      ConvType,
+      UserId,
+      C.Set Access,
+      C.Set AccessRoleV2,
+      Maybe Text,
+      Maybe TeamId,
+      Maybe Milliseconds,
+      Maybe ReceiptMode,
+      Maybe GroupId,
+      Maybe CipherSuiteTag
+    )
+    ()
+insertMLSSelfConv =
+  fromString $
+    "insert into conversation (conv, type, creator, access, \
+    \ access_roles_v2, name, team, message_timer, receipt_mode,\
+    \ protocol, group_id, cipher_suite) values \
+    \ (?, ?, ?, ?, ?, ?, ?, ?, ?, "
+      <> show (fromEnum ProtocolMLSTag)
+      <> ", ?, ?)"
+
+insertGlobalTeamConv :: PrepQuery W (ConvId, C.Set Access, Text, TeamId, Maybe GroupId, Maybe CipherSuiteTag) ()
+insertGlobalTeamConv = "insert into conversation (conv, type, access, name, team, group_id, cipher_suite) values (?, 4, ?, ?, ?, ?, ?)"
+
+setGlobalTeamConvCreator :: PrepQuery W (UserId, ConvId) ()
+setGlobalTeamConvCreator = "update conversation set creator = ? where conv = ?"
 
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRoleV2, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
@@ -375,14 +438,14 @@ rmMemberClient c =
 
 -- MLS Clients --------------------------------------------------------------
 
-addMLSClient :: PrepQuery W (ConvId, Domain, UserId, ClientId, KeyPackageRef) ()
-addMLSClient = "insert into member_client (conv, user_domain, user, client, key_package_ref) values (?, ?, ?, ?, ?)"
+addMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId, KeyPackageRef) ()
+addMLSClient = "insert into mls_group_member_client (group_id, user_domain, user, client, key_package_ref) values (?, ?, ?, ?, ?)"
 
-removeMLSClient :: PrepQuery W (ConvId, Domain, UserId, ClientId) ()
-removeMLSClient = "delete from member_client where conv = ? and user_domain = ? and user = ? and client = ?"
+removeMLSClient :: PrepQuery W (GroupId, Domain, UserId, ClientId) ()
+removeMLSClient = "delete from mls_group_member_client where group_id = ? and user_domain = ? and user = ? and client = ?"
 
-lookupMLSClients :: PrepQuery R (Identity ConvId) (Domain, UserId, ClientId, KeyPackageRef)
-lookupMLSClients = "select user_domain, user, client, key_package_ref from member_client where conv = ?"
+lookupMLSClients :: PrepQuery R (Identity GroupId) (Domain, UserId, ClientId, KeyPackageRef)
+lookupMLSClients = "select user_domain, user, client, key_package_ref from mls_group_member_client where group_id = ?"
 
 acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
 acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"

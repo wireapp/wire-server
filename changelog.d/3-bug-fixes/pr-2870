@@ -1,0 +1,1 @@
+Prevention of storing unnecessary data in the database if adding a bot to a conversation fails.

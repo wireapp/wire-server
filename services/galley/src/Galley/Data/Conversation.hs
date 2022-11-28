@@ -23,6 +23,7 @@ module Galley.Data.Conversation
     -- * Utilities
     isConvDeleted,
     selfConv,
+    globalTeamConv,
     localOne2OneConvId,
     convAccess,
     convAccessData,
@@ -57,6 +58,9 @@ isConvDeleted = convDeleted
 
 selfConv :: UserId -> ConvId
 selfConv uid = Id (toUUID uid)
+
+globalTeamConv :: TeamId -> ConvId
+globalTeamConv tid = Id (toUUID tid)
 
 -- | We deduce the conversation ID by adding the 4 components of the V4 UUID
 -- together pairwise, and then setting the version bits (v4) and variant bits

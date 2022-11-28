@@ -56,12 +56,14 @@ instance Cql ConvType where
   toCql SelfConv = CqlInt 1
   toCql One2OneConv = CqlInt 2
   toCql ConnectConv = CqlInt 3
+  toCql GlobalTeamConv = CqlInt 4
 
   fromCql (CqlInt i) = case i of
     0 -> pure RegularConv
     1 -> pure SelfConv
     2 -> pure One2OneConv
     3 -> pure ConnectConv
+    4 -> pure GlobalTeamConv
     n -> Left $ "unexpected conversation-type: " ++ show n
   fromCql _ = Left "conv-type: int expected"
 
@@ -72,12 +74,14 @@ instance Cql Access where
   toCql InviteAccess = CqlInt 2
   toCql LinkAccess = CqlInt 3
   toCql CodeAccess = CqlInt 4
+  toCql SelfInviteAccess = CqlInt 5
 
   fromCql (CqlInt i) = case i of
     1 -> pure PrivateAccess
     2 -> pure InviteAccess
     3 -> pure LinkAccess
     4 -> pure CodeAccess
+    5 -> pure SelfInviteAccess
     n -> Left $ "Unexpected Access value: " ++ show n
   fromCql _ = Left "Access value: int expected"
 
@@ -182,13 +186,14 @@ instance Cql Public.EnforceAppLock where
 instance Cql ProtocolTag where
   ctype = Tagged IntColumn
 
-  toCql ProtocolProteusTag = CqlInt 0
-  toCql ProtocolMLSTag = CqlInt 1
+  toCql = CqlInt . fromIntegral . fromEnum
 
-  fromCql (CqlInt i) = case i of
-    0 -> pure ProtocolProteusTag
-    1 -> pure ProtocolMLSTag
-    n -> Left $ "unexpected protocol: " ++ show n
+  fromCql (CqlInt i) = do
+    let i' = fromIntegral i
+    if i' < fromEnum @ProtocolTag minBound
+      || i' > fromEnum @ProtocolTag maxBound
+      then Left $ "unexpected protocol: " ++ show i
+      else Right $ toEnum i'
   fromCql _ = Left "protocol: int expected"
 
 instance Cql GroupId where

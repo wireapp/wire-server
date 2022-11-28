@@ -1,0 +1,9 @@
+{
+    "data": {
+        "lockStatus": "locked",
+        "status": "disabled",
+        "ttl": "unlimited"
+    },
+    "name": "\u0010",
+    "type": "feature-config.update"
+}

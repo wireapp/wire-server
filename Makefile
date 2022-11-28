@@ -39,7 +39,6 @@ init:
 # Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
-	cabal update
 	cabal build all
 	./hack/bin/cabal-run-all-tests.sh
 	./hack/bin/cabal-install-artefacts.sh all
@@ -114,6 +113,10 @@ lint-all: formatc hlint-check-all check-local-nix-derivations treefmt
 hlint-check-all:
 	./tools/hlint.sh -f all -m check
 
+.PHONY: hlint-inplace-all
+hlint-inplace-all:
+	./tools/hlint.sh -f all -m inplace
+
 .PHONY: hlint-check-pr
 hlint-check-pr:
 	./tools/hlint.sh -f pr -m check
@@ -121,11 +124,6 @@ hlint-check-pr:
 .PHONY: hlint-inplace-pr
 hlint-inplace-pr:
 	./tools/hlint.sh -f pr -m inplace
-
-
-.PHONY: hlint-inplace-all
-hlint-inplace-all:
-	./tools/hlint.sh -f all -m inplace
 
 .PHONY: hlint-check
 hlint-check:
@@ -154,7 +152,12 @@ format:
 # formats all Haskell files even if local changes are not committed to git
 .PHONY: formatf
 formatf:
-	./tools/ormolu.sh -f
+	./tools/ormolu.sh -f pr
+
+# formats all Haskell files even if local changes are not committed to git
+.PHONY: formatf-all
+formatf-all:
+	./tools/ormolu.sh -f all
 
 # checks that all Haskell files are formatted; fail if a `make format` run is needed.
 .PHONY: formatc
@@ -208,7 +211,10 @@ git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:
 	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
-	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./cassandra-schema.cql
+	( echo '-- automatically generated with `make git-add-cassandra-schema`'; \
+      docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) \
+    | sed "s/CREATE TABLE galley_test.member_client/-- NOTE: this table is unused. It was replaced by mls_group_member_client\nCREATE TABLE galley_test.member_client/g" \
+      > ./cassandra-schema.cql
 	git add ./cassandra-schema.cql
 
 .PHONY: cqlsh

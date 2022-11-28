@@ -83,6 +83,8 @@ data GalleyError
   | MLSClientSenderUserMismatch
   | MLSWelcomeMismatch
   | MLSMissingGroupInfo
+  | MLSMissingSenderClient
+  | MLSUnexpectedSenderClient
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -202,9 +204,13 @@ type instance MapError 'MLSGroupConversationMismatch = 'StaticError 400 "mls-gro
 
 type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 400 "mls-client-sender-user-mismatch" "User ID resolved from Client ID does not match message's sender user ID"
 
+type instance MapError 'MLSUnexpectedSenderClient = 'StaticError 422 "mls-unexpected-sender-client-found" "Unexpected creator client set. This is a newly created conversation and it expected exactly one client."
+
 type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-mismatch" "The list of targets of a welcome message does not match the list of new clients in a group"
 
 type instance MapError 'MLSMissingGroupInfo = 'StaticError 404 "mls-missing-group-info" "The conversation has no group information"
+
+type instance MapError 'MLSMissingSenderClient = 'StaticError 403 "mls-missing-sender-client" "The client has to refresh their access token and provide their client ID"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

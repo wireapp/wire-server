@@ -19,6 +19,7 @@ module Galley.API.Public.Conversation where
 
 import Galley.API.Create
 import Galley.API.MLS.GroupInfo
+import Galley.API.MLS.Types
 import Galley.API.Query
 import Galley.API.Update
 import Galley.App
@@ -31,9 +32,11 @@ conversationAPI =
   mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
     <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
     <@> mkNamedAPI @"get-conversation" getConversation
+    <@> mkNamedAPI @"get-global-team-conversation" getGlobalTeamConversation
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" getGroupInfo
     <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
+    <@> mkNamedAPI @"list-conversation-ids-v2" (conversationIdsPageFromV2 DoNotListGlobalSelf)
     <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
     <@> mkNamedAPI @"get-conversations" getConversations
     <@> mkNamedAPI @"list-conversations-v1" listConversations
@@ -41,7 +44,7 @@ conversationAPI =
     <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
     <@> mkNamedAPI @"create-group-conversation" createGroupConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
-    <@> mkNamedAPI @"create-mls-self-conversation" createMLSSelfConversation
+    <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversation
     <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2

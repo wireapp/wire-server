@@ -33,6 +33,7 @@ import qualified Data.Schema as Schema
 import qualified Data.Swagger as S
 import Imports
 import Test.QuickCheck (Arbitrary)
+import Wire.API.Team.Role
 import Wire.API.User
 import Wire.Arbitrary (GenericUniform (..))
 
@@ -111,7 +112,8 @@ data NewUserScimInvitation = NewUserScimInvitation
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
-    newUserScimInvEmail :: Email
+    newUserScimInvEmail :: Email,
+    newUserScimInvRole :: Role
   }
   deriving (Eq, Show, Generic)
 
@@ -122,12 +124,14 @@ instance FromJSON NewUserScimInvitation where
       <*> o .:? "locale"
       <*> o .: "name"
       <*> o .: "email"
+      <*> o .: "role"
 
 instance ToJSON NewUserScimInvitation where
-  toJSON (NewUserScimInvitation tid loc name email) =
+  toJSON (NewUserScimInvitation tid loc name email role) =
     object
       [ "team_id" .= tid,
         "locale" .= loc,
         "name" .= name,
-        "email" .= email
+        "email" .= email,
+        "role" .= role
       ]

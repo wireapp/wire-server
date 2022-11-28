@@ -48,6 +48,7 @@ library
     Wire.API.MLS.Credential
     Wire.API.MLS.Epoch
     Wire.API.MLS.Extension
+    Wire.API.MLS.GlobalTeamConversation
     Wire.API.MLS.Group
     Wire.API.MLS.GroupInfoBundle
     Wire.API.MLS.KeyPackage
@@ -358,6 +359,8 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Email_user
     Test.Wire.API.Golden.Generated.EmailUpdate_provider
     Test.Wire.API.Golden.Generated.EmailUpdate_user
+    Test.Wire.API.Golden.Generated.Event_conversation
+    Test.Wire.API.Golden.Generated.Event_featureConfig
     Test.Wire.API.Golden.Generated.Event_team
     Test.Wire.API.Golden.Generated.Event_user
     Test.Wire.API.Golden.Generated.EventType_team
