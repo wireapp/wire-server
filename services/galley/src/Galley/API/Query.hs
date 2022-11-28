@@ -446,8 +446,6 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
     -- If this is an old client making a request (i.e., a V1 or V2 client), make
     -- sure to filter out the MLS global team conversation and the MLS
     -- self-conversation.
-    --
-    -- FUTUREWORK: This is yet to be implemented for global team conversations.
     filterOut :: (Qualified ConvId -> Bool) -> ConvIdsPage -> ConvIdsPage
     filterOut _ page | listGlobalSelf == ListGlobalSelf = page
     filterOut f page =
