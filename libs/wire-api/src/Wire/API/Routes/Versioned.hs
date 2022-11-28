@@ -20,6 +20,7 @@ module Wire.API.Routes.Versioned where
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Metrics.Servant
 import Data.Schema
+import Data.Singletons
 import qualified Data.Swagger as S
 import GHC.TypeLits
 import Imports
@@ -105,4 +106,8 @@ deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => FromJSO
 
 deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => ToJSON (Versioned v a)
 
-deriving via Schema (Versioned v a) instance ToSchema (Versioned v a) => S.ToSchema (Versioned v a)
+-- add version suffix to swagger schema to prevent collisions
+instance (SingI v, ToSchema (Versioned v a)) => S.ToSchema (Versioned v a) where
+  declareNamedSchema _ = do
+    S.NamedSchema n s <- schemaToSwagger (Proxy @(Versioned v a))
+    pure $ S.NamedSchema (fmap (<> toUrlPiece (demote @v)) n) s

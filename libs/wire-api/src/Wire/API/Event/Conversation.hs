@@ -85,6 +85,7 @@ import Wire.API.Conversation.Code (ConversationCode (..))
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..))
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Version
 import Wire.API.User (QualifiedUserIdList (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -379,7 +380,7 @@ taggedEventDataSchema =
       ConvAccessUpdate ->
         tag
           _EdConvAccessUpdate
-          (unnamed (conversationAccessDataSchema accessRolesSchemaV2))
+          (unnamed (conversationAccessDataSchema V2))
       ConvCodeUpdate -> tag _EdConvCodeUpdate (unnamed schema)
       ConvConnect -> tag _EdConnect (unnamed schema)
       ConvCreate -> tag _EdConversation (unnamed schema)

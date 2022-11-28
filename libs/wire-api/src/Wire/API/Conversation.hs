@@ -118,6 +118,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V5 as UUIDV5
 import Imports
+import Servant.API
 import System.Random (randomRIO)
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
@@ -189,9 +190,7 @@ accessRolesSchemaTuple :: ObjectSchema SwaggerDoc (Maybe AccessRoleLegacy, Maybe
 accessRolesSchemaTuple =
   (,)
     <$> fst .= optFieldWithDocModifier "access_role" (description ?~ "Deprecated, please use access_role_v2") (maybeWithDefault A.Null schema)
-    <*> snd .= optFieldWithDocModifier "access_role_v2" (description ?~ desc) (maybeWithDefault A.Null $ set schema)
-  where
-    desc = "This field is optional. If it is not present, the default will be `[team_member, non_team_member, service]`. Please note that an empty list is not allowed when creating a new conversation."
+    <*> snd .= optField "access_role_v2" (maybeWithDefault A.Null $ set schema)
 
 conversationMetadataObjectSchema ::
   ObjectSchema SwaggerDoc (Set AccessRole) ->
@@ -894,20 +893,25 @@ data ConversationAccessData = ConversationAccessData
   deriving (Arbitrary) via (GenericUniform ConversationAccessData)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationAccessData
 
-conversationAccessDataSchema ::
-  ObjectSchema SwaggerDoc (Set AccessRole) ->
-  ValueSchema NamedSwaggerDoc ConversationAccessData
-conversationAccessDataSchema sch =
-  object "ConversationAccessData" $
+conversationAccessDataSchema :: Version -> ValueSchema NamedSwaggerDoc ConversationAccessData
+conversationAccessDataSchema v =
+  object ("ConversationAccessData" <> suffix) $
     ConversationAccessData
       <$> cupAccess .= field "access" (set schema)
       <*> cupAccessRoles .= sch
+  where
+    suffix
+      | v == maxBound = ""
+      | otherwise = toUrlPiece v
+    sch = case v of
+      V2 -> accessRolesSchemaV2
+      _ -> accessRolesSchema
 
 instance ToSchema ConversationAccessData where
-  schema = conversationAccessDataSchema accessRolesSchema
+  schema = conversationAccessDataSchema V3
 
 instance ToSchema (Versioned 'V2 ConversationAccessData) where
-  schema = Versioned <$> unVersioned .= conversationAccessDataSchema accessRolesSchemaV2
+  schema = Versioned <$> unVersioned .= conversationAccessDataSchema V2
 
 modelConversationAccessData :: Doc.Model
 modelConversationAccessData = Doc.defineModel "ConversationAccessData" $ do
