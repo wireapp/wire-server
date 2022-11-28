@@ -20,6 +20,7 @@
 
 module Test.Galley.Intra.User where
 
+-- import Debug.Trace (traceShow)
 import Galley.Intra.User (chunkify)
 import Imports
 import Test.QuickCheck

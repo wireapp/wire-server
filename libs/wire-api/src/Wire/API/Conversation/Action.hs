@@ -53,7 +53,6 @@ import Wire.Arbitrary (Arbitrary (..))
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
 type family ConversationAction (tag :: ConversationActionTag) :: * where
   ConversationAction 'ConversationJoinTag = ConversationJoin
-  ConversationAction 'ConversationSelfInviteTag = ConvId
   ConversationAction 'ConversationLeaveTag = ()
   ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
   ConversationAction 'ConversationDeleteTag = ()
@@ -104,7 +103,6 @@ conversationActionSchema SConversationRenameTag = schema
 conversationActionSchema SConversationMessageTimerUpdateTag = schema
 conversationActionSchema SConversationReceiptModeUpdateTag = schema
 conversationActionSchema SConversationAccessDataTag = schema
-conversationActionSchema SConversationSelfInviteTag = schema
 
 instance FromJSON SomeConversationAction where
   parseJSON = A.withObject "SomeConversationAction" $ \ob -> do
@@ -152,9 +150,6 @@ conversationActionToEvent tag now quid qcnv action =
         SConversationJoinTag ->
           let ConversationJoin newMembers role = action
            in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
-        SConversationSelfInviteTag ->
-          -- this event will not be sent anyway so this is a dummy event
-          EdMembersJoin $ SimpleMembers []
         SConversationLeaveTag ->
           EdMembersLeave (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->

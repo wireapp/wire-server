@@ -20,12 +20,11 @@
 module API.MLS (tests) where
 
 import API.MLS.Util
-import API.SQS
-import API.Util as Util
+import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
-import Control.Lens (view, (^.))
+import Control.Lens (view)
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
@@ -46,8 +45,6 @@ import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
-import Galley.Data.Conversation
-import Galley.Options
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
@@ -64,16 +61,12 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
-import Wire.API.MLS.GlobalTeamConversation
-import Wire.API.MLS.Group
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.Team (teamCreator)
 import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
@@ -193,15 +186,6 @@ tests s =
         [ test s "add user with a commit bundle" testAddUserWithBundle,
           test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle,
           test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
-        ],
-      testGroup
-        "GlobalTeamConv"
-        [ test s "Non-existing team returns 403" testGetGlobalTeamConvNonExistant,
-          test s "Non member of team returns 403" testGetGlobalTeamConvNonMember,
-          test s "Global team conversation is created on get if not present" (testGetGlobalTeamConv s),
-          test s "Can't leave global team conversation" testGlobalTeamConversationLeave,
-          test s "Send message in global team conversation" testGlobalTeamConversationMessage,
-          test s "Listing convs includes global team conversation" testConvListIncludesGlobal
         ],
       testGroup
         "Self conversation"
@@ -2059,7 +2043,7 @@ testDeleteMLSConv :: TestM ()
 testDeleteMLSConv = do
   localDomain <- viewFederationDomain
   -- c <- view tsCannon
-  (tid, aliceUnq, [bobUnq]) <- Util.createBindingTeamWithMembers 2
+  (tid, aliceUnq, [bobUnq]) <- API.Util.createBindingTeamWithMembers 2
   let alice = Qualified aliceUnq localDomain
       bob = Qualified bobUnq localDomain
 
@@ -2157,184 +2141,6 @@ testRemoteUserPostsCommitBundle = do
         MLSMessageResponseError MLSUnsupportedProposal <- runFedClient @"send-mls-commit-bundle" fedGalleyClient (Domain bobDomain) msr
 
         pure ()
-
-testGetGlobalTeamConvNonExistant :: TestM ()
-testGetGlobalTeamConvNonExistant = do
-  uid <- randomUser
-  tid <- randomId
-  -- authorisation fails b/c not a team member
-  getGlobalTeamConv uid tid !!! const 403 === statusCode
-
-testGetGlobalTeamConvNonMember :: TestM ()
-testGetGlobalTeamConvNonMember = do
-  owner <- randomUser
-  tid <- createBindingTeamInternal "sample-team" owner
-  team <- getTeam owner tid
-  assertQueue "create team" tActivate
-  liftIO $ assertEqual "owner" owner (team ^. teamCreator)
-  assertQueueEmpty
-
-  -- authorisation fails b/c not a team member
-  uid <- randomUser
-  getGlobalTeamConv uid tid !!! const 403 === statusCode
-
-testGetGlobalTeamConv :: IO TestSetup -> TestM ()
-testGetGlobalTeamConv setup = do
-  owner <- randomUser
-  tid <- createBindingTeamInternal "sample-team" owner
-  team <- getTeam owner tid
-  assertQueue "create team" tActivate
-  liftIO $ assertEqual "owner" owner (team ^. teamCreator)
-  assertQueueEmpty
-
-  s <- liftIO setup
-  let domain = s ^. tsGConf . optSettings . setFederationDomain
-
-  let response = getGlobalTeamConv owner tid <!! const 200 === statusCode
-  Just rs <- responseBody <$> response
-  let convoId = globalTeamConv tid
-      lconv = toLocalUnsafe domain convoId
-      expected =
-        GlobalTeamConversation
-          (qUntagged lconv)
-          ( ConversationMLSData
-              (convToGroupId lconv)
-              (Epoch 0)
-              MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-          )
-          Nothing
-          [SelfInviteAccess]
-          "Global team conversation"
-          tid
-
-  let cm = Aeson.decode rs :: Maybe GlobalTeamConversation
-  liftIO $ assertEqual "conversation metadata" cm (Just expected)
-
-testConvListIncludesGlobal :: TestM ()
-testConvListIncludesGlobal = do
-  aliceQ <- randomQualifiedUser
-  let alice = qUnqualified aliceQ
-  tid <- createBindingTeamInternal "sample-team" alice
-  team <- getTeam alice tid
-  assertQueue "create team" tActivate
-  liftIO $ assertEqual "alice" alice (team ^. teamCreator)
-  assertQueueEmpty
-
-  -- global team conv doesn't yet include user
-  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
-  listConvIds alice paginationOpts !!! do
-    const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
-
-  -- add user to conv
-  runMLSTest $ do
-    alice1 <- createMLSClient aliceQ
-
-    let response = getGlobalTeamConv alice tid <!! const 200 === statusCode
-    Just rs <- responseBody <$> response
-    let (Just gtc) = Aeson.decode rs :: Maybe GlobalTeamConversation
-        gid = cnvmlsGroupId $ gtcMlsMetadata gtc
-
-    void $ uploadNewKeyPackage alice1
-
-    -- create mls group
-    createGroup alice1 gid
-    void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
-
-  -- Now we should have the user as part of that conversation also in the backend
-  listConvIds alice paginationOpts !!! do
-    const 200 === statusCode
-    const (Just [globalTeamConv tid]) =~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
-
-rightToMaybe :: Either a b -> Maybe b
-rightToMaybe = either (const Nothing) Just
-
-testGlobalTeamConversationMessage :: TestM ()
-testGlobalTeamConversationMessage = do
-  alice <- randomQualifiedUser
-  let aliceUnq = qUnqualified alice
-
-  tid <- createBindingTeamInternal "sample-team" aliceUnq
-  team <- getTeam aliceUnq tid
-  assertQueue "create team" tActivate
-  liftIO $ assertEqual "owner" aliceUnq (team ^. teamCreator)
-  assertQueueEmpty
-
-  runMLSTest $ do
-    clients@[alice1, alice2, alice3] <- traverse createMLSClient (replicate 3 alice)
-
-    let response = getGlobalTeamConv aliceUnq tid <!! const 200 === statusCode
-    Just rs <- responseBody <$> response
-    let (Just gtc) = Aeson.decode rs :: Maybe GlobalTeamConversation
-        qcnv = gtcId gtc
-        gid = cnvmlsGroupId $ gtcMlsMetadata gtc
-
-    traverse_ uploadNewKeyPackage clients
-
-    createGroup alice1 gid
-    void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
-
-    pgs <-
-      LBS.toStrict . fromJust . responseBody
-        <$> getGroupInfo (ciUser alice1) qcnv
-    void $ createExternalCommit alice2 (Just pgs) qcnv >>= sendAndConsumeCommitBundle
-
-    -- FUTUREWORK: add tests for race conditions when adding two commits with same epoch?
-    -- TODO(elland): test racing conditions for get global team conv
-    pgs' <-
-      LBS.toStrict . fromJust . responseBody
-        <$> getGroupInfo (ciUser alice1) qcnv
-    void $ createExternalCommit alice3 (Just pgs') qcnv >>= sendAndConsumeCommitBundle
-
-    do
-      message <- createApplicationMessage alice1 "some text"
-
-      mlsBracket [alice2, alice3] $ \wss -> do
-        events <- sendAndConsumeMessage message
-        liftIO $ events @?= []
-        liftIO $
-          WS.assertMatchN_ (5 # WS.Second) wss $
-            wsAssertMLSMessage qcnv alice (mpMessage message)
-
-    do
-      message <- createApplicationMessage alice2 "some text new"
-
-      mlsBracket [alice1, alice3] $ \wss -> do
-        events <- sendAndConsumeMessage message
-        liftIO $ events @?= []
-        liftIO $
-          WS.assertMatchN_ (5 # WS.Second) wss $
-            wsAssertMLSMessage qcnv alice (mpMessage message)
-
-testGlobalTeamConversationLeave :: TestM ()
-testGlobalTeamConversationLeave = do
-  alice <- randomQualifiedUser
-  let aliceUnq = qUnqualified alice
-
-  tid <- createBindingTeamInternal "sample-team" aliceUnq
-  team <- getTeam aliceUnq tid
-  assertQueue "create team" tActivate
-  liftIO $ assertEqual "owner" aliceUnq (team ^. teamCreator)
-  assertQueueEmpty
-
-  runMLSTest $ do
-    alice1 <- createMLSClient alice
-
-    let response = getGlobalTeamConv aliceUnq tid <!! const 200 === statusCode
-    Just rs <- responseBody <$> response
-    let (Just gtc) = Aeson.decode rs :: Maybe GlobalTeamConversation
-        gid = cnvmlsGroupId $ gtcMlsMetadata gtc
-
-    void $ uploadNewKeyPackage alice1
-    createGroup alice1 gid
-    void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
-    mlsBracket [alice1] $ \wss -> do
-      liftTest $
-        deleteMemberQualified (qUnqualified alice) alice (gtcId gtc)
-          !!! do
-            const 403 === statusCode
-            const (Just "invalid-op") === fmap Wai.label . responseJsonError
-      WS.assertNoEvent (1 # WS.Second) wss
 
 testSelfConversation :: TestM ()
 testSelfConversation = do

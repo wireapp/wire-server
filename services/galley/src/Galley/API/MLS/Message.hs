@@ -498,6 +498,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
         Right ApplicationMessageTag -> pure mempty
         Left _ -> throwS @'MLSUnsupportedMessage
 
+    -- forward message
     propagateMessage qusr lconv cm con (rmRaw smsg)
 
     pure events
@@ -557,6 +558,7 @@ type HasProposalEffects r =
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member TeamStore r,
     Member TeamStore r,
     Member TinyLog r
   )
@@ -847,24 +849,6 @@ processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action sender
                 "Unexpected creator client set in a self-conversation"
             -- this is a newly created conversation, and it should contain exactly one
             -- client (the creator)
-
-            (Left _, GlobalTeamConv, []) -> do
-              creatorClient <- noteS @'MLSMissingSenderClient senderClient
-              creatorRef <-
-                maybe
-                  (pure senderRef)
-                  ( note (mlsProtocolError "Could not compute key package ref")
-                      . kpRef'
-                      . upLeaf
-                  )
-                  $ cPath commit
-              addMLSClients
-                (cnvmlsGroupId mlsMeta)
-                qusr
-                (Set.singleton (creatorClient, creatorRef))
-            (Left _, GlobalTeamConv, _) ->
-              throw . InternalErrorWithDescription $
-                "Unexpected creator client set in a global teamconversation"
             (Left lm, _, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender

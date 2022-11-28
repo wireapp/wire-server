@@ -52,7 +52,6 @@ import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.MLS.Removal
-import Galley.API.MLS.Util (globalTeamConvToConversation)
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation
@@ -90,7 +89,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import qualified Wire.API.User as User
@@ -98,11 +96,6 @@ import qualified Wire.API.User as User
 data NoChanges = NoChanges
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
-  HasConversationActionEffects 'ConversationSelfInviteTag r =
-    Members
-      '[ ErrorS 'InvalidOperation
-       ]
-      r
   HasConversationActionEffects 'ConversationJoinTag r =
     Members
       '[ BrigAccess,
@@ -137,7 +130,6 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
         '[ MemberStore,
            Error InternalError,
            Error NoChanges,
-           ErrorS 'InvalidOperation,
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
@@ -165,7 +157,6 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
          Error InvalidInput,
          Error NoChanges,
          ErrorS 'InvalidTargetAccess,
-         ErrorS 'InvalidOperation,
          ErrorS ('ActionDenied 'RemoveConversationMember),
          ExternalAccess,
          FederatorAccess,
@@ -279,13 +270,6 @@ ensureAllowed tag loc action conv origUser = do
           -- not a team conv, so one of the other access roles has to allow this.
           when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
             throwS @'InvalidTargetAccess
-    SConversationSelfInviteTag ->
-      unless
-        (convType conv == GlobalTeamConv)
-        $ throwS @'InvalidOperation
-    SConversationLeaveTag ->
-      when (convType conv == GlobalTeamConv) $
-        throwS @'InvalidOperation
     _ -> pure ()
 
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
@@ -358,8 +342,6 @@ performAction tag origUser lconv action = do
     SConversationAccessDataTag -> do
       (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
-    SConversationSelfInviteTag ->
-      pure (mempty, action)
 
 performConversationJoin ::
   (HasConversationActionEffects 'ConversationJoinTag r) =>
@@ -597,17 +579,7 @@ updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
 
   -- retrieve conversation
-  conv <- do
-    -- Check if global or not, if global, map it to conversation
-    E.getGlobalTeamConversationById lcnv >>= \case
-      Just gtc ->
-        let c = gtcCreator gtc
-         in case c of
-              Nothing ->
-                throwS @'ConvNotFound
-              Just creator ->
-                pure $ globalTeamConvToConversation gtc creator mempty
-      Nothing -> getConversationWithError lcnv
+  conv <- getConversationWithError lcnv
 
   -- check that the action does not bypass the underlying protocol
   unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
@@ -646,10 +618,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
       conv = tUnqualified lconv
 
   -- retrieve member
-  self <-
-    if (cnvmType . convMetadata . tUnqualified $ lconv) == GlobalTeamConv
-      then pure $ Left $ localMemberFromUser (qUnqualified qusr)
-      else noteS @'ConvNotFound $ getConvMember lconv conv qusr
+  self <- noteS @'ConvNotFound $ getConvMember lconv conv qusr
 
   -- perform checks
   ensureConversationActionAllowed (sing @tag) lcnv action conv self
@@ -668,23 +637,6 @@ updateLocalConversationUnchecked lconv qusr con action = do
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
-
-localMemberFromUser :: UserId -> LocalMember
-localMemberFromUser uid =
-  LocalMember
-    { lmId = uid,
-      lmStatus =
-        MemberStatus
-          { msOtrMutedStatus = Nothing,
-            msOtrMutedRef = Nothing,
-            msOtrArchived = False,
-            msOtrArchivedRef = Nothing,
-            msHidden = False,
-            msHiddenRef = Nothing
-          },
-      lmService = Nothing,
-      lmConvRoleName = roleToRoleName convRoleWireMember
-    }
 
 ensureConversationActionAllowed ::
   forall tag mem x r.
@@ -706,7 +658,7 @@ ensureConversationActionAllowed tag loc action conv self = do
   -- general action check
   ensureActionAllowed (sConversationActionPermission tag) self
 
-  -- check if it is a group or global conversation (except for rename actions)
+  -- check if it is a group conversation (except for rename actions)
   when (fromSing tag /= ConversationRenameTag) $
     ensureGroupConversation conv
 
@@ -837,19 +789,16 @@ notifyRemoteConversationAction loc rconvUpdate con = do
 -- leave, but then sends notifications as if the user was removed by someone
 -- else.
 kickMember ::
-  Members
-    '[ Error InternalError,
-       ErrorS 'InvalidOperation,
-       ExternalAccess,
-       FederatorAccess,
-       GundeckAccess,
-       ProposalStore,
-       Input UTCTime,
-       Input Env,
-       MemberStore,
-       TinyLog
-     ]
-    r =>
+  ( Member (Error InternalError) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member ProposalStore r,
+    Member (Input UTCTime) r,
+    Member (Input Env) r,
+    Member MemberStore r,
+    Member TinyLog r
+  ) =>
   Qualified UserId ->
   Local Conversation ->
   BotsAndMembers ->

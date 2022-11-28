@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -22,13 +24,16 @@ import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (activateEmail, initiateEmailUpdateNoSend)
 import Bilge (Manager, MonadHttp)
 import qualified Brig.Options as Opt
+import Brig.User.Search.TeamUserSearch (TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry ()
-import Data.ByteString.Conversion (toByteString)
+import Data.ByteString.Conversion (ToByteString (..), toByteString)
 import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId)
+import qualified Data.Map.Strict as M
 import Data.String.Conversions (cs)
 import Imports
+import System.Random
 import System.Random.Shuffle (shuffleM)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual)
