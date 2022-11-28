@@ -1,0 +1,1 @@
+Filter out global team conversation from older versions of the API calls, ensuring no compatibility breaks.
