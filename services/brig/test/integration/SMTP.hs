@@ -97,7 +97,7 @@ testSendMailTransactionFailed lg = do
 
 testSendMailFailingConnectionOnStartup :: Logger.Logger -> Bilge.Http ()
 testSendMailFailingConnectionOnStartup lg = do
-  (port, sock) <- liftIO $ openRandomPartAndSocket
+  (port, sock) <- liftIO $ openRandomPortAndSocket
   liftIO $ gracefulClose sock 1000
   caughtError <-
     liftIO $
@@ -225,9 +225,9 @@ withRandomPortAndSocket :: MonadIO m => ((PortNumber, Socket) -> IO a) -> m a
 withRandomPortAndSocket action =
   liftIO $
     bracket
-      (liftIO $ openRandomPartAndSocket)
+      (liftIO $ openRandomPortAndSocket)
       (\(_, s) -> liftIO $ close s)
       (\(p, s) -> action (p, s))
 
-openRandomPartAndSocket :: IO (PortNumber, Socket)
-openRandomPartAndSocket = bindRandomPortTCP "*6" >>= \(p, s) -> pure (fromIntegral p, s)
+openRandomPortAndSocket :: IO (PortNumber, Socket)
+openRandomPortAndSocket = bindRandomPortTCP "*6" >>= \(p, s) -> pure (fromIntegral p, s)
