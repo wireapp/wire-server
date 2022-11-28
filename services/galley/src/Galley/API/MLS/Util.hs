@@ -106,7 +106,6 @@ gtcToConv gtc usr lm =
           convMetadata =
             ConversationMetadata
               { cnvmType = GlobalTeamConv,
-                -- FUTUREWORK: Make this a qualified user ID.
                 cnvmCreator = usr,
                 cnvmAccess = [SelfInviteAccess],
                 cnvmAccessRoles = mempty,

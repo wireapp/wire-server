@@ -164,7 +164,6 @@ getGlobalTeamConversation ::
   Members
     '[ ConversationStore,
        ErrorS 'NotATeamMember,
-       Error InternalError,
        MemberStore,
        TeamStore
      ]
