@@ -2226,26 +2226,6 @@ testConvListINotncludesGlobalV1 = do
 
   -- global team conv doesn't yet include user
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
-  listConvIds alice paginationOpts !!! do
-    const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
-
-  -- add user to conv
-  runMLSTest $ do
-    alice1 <- createMLSClient aliceQ
-
-    let response = getGlobalTeamConv alice tid <!! const 200 === statusCode
-    Just rs <- responseBody <$> response
-    let (Just gtc) = Aeson.decode rs :: Maybe GlobalTeamConversation
-        gid = cnvmlsGroupId $ gtcMlsMetadata gtc
-
-    void $ uploadNewKeyPackage alice1
-
-    -- create mls group
-    createGroup alice1 gid
-    void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
-
-  -- Now we should have the user as part of that conversation also in the backend
   listConvIdsV2 alice paginationOpts !!! do
     const 200 === statusCode
     const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
@@ -2260,11 +2240,11 @@ testConvListIncludesGlobal = do
   liftIO $ assertEqual "alice" alice (team ^. teamCreator)
   assertQueueEmpty
 
-  -- global team conv doesn't yet include user
+  -- global team conv doesn't yet include user on MLS but it is listed
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
   -- add user to conv
   runMLSTest $ do
@@ -2281,7 +2261,7 @@ testConvListIncludesGlobal = do
     createGroup alice1 gid
     void $ createAddCommit alice1 [] >>= sendAndConsumeCommitBundle
 
-  -- Now we should have the user as part of that conversation also in the backend
+  -- Now we should have the user as part of that conversation also in the backend, user is still listed
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
     const (Just [globalTeamConv tid]) =~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)

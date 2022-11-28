@@ -89,6 +89,7 @@ import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
+import Galley.Types.UserList (UserList (..))
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -265,7 +266,12 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
     split (FailedGetConversation convs (FailedGetConversationRemotely _)) = Right convs
 
 getRemoteConversationsWithFailures ::
-  Members '[ConversationStore, FederatorAccess, P.TinyLog] r =>
+  Members
+    '[ ConversationStore,
+       FederatorAccess,
+       P.TinyLog
+     ]
+    r =>
   Local UserId ->
   [Remote ConvId] ->
   Sem r ([FailedGetConversation], [Public.Conversation])
@@ -361,6 +367,7 @@ conversationIdsPageFromV2 ::
     Members
       '[ ConversationStore,
          TeamStore,
+         MemberStore,
          Error InternalError,
          ListItems p ConvId,
          ListItems p (Remote ConvId),
@@ -377,6 +384,9 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
   let localDomain = tDomain lusr
   gtcIds <-
     E.getUserTeams (tUnqualified lusr) >>= mapM (pure . Data.globalTeamConv)
+
+  -- implicitly add user to the global team conv, so it gets listed.
+  for_ gtcIds $ \tid -> E.createMembers tid (UserList [tUnqualified lusr] mempty)
 
   case gmtprState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
@@ -459,6 +469,7 @@ conversationIdsPageFrom ::
     Members
       '[ ConversationStore,
          TeamStore,
+         MemberStore,
          Error InternalError,
          Input Env,
          ListItems p ConvId,
