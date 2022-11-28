@@ -20,13 +20,10 @@ module Proxy.API.Public
   )
 where
 
-import qualified Bilge.Request as Req
-import qualified Bilge.Response as Res
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Retry
 import Data.ByteString (breakSubstring)
-import qualified Data.ByteString.Lazy as B
 import Data.CaseInsensitive (CI, mk)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Configurator as Config
@@ -52,18 +49,15 @@ import Wire.API.Routes.Public.Proxy (ProxyAPI)
 
 servantSitemap :: ServerT ProxyAPI Proxy
 servantSitemap =
-  Named @"youtube-path" (proxy "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
+  Named @"giphy-path" (proxy "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
+    :<|> Named @"youtube-path" (proxy "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
     :<|> Named @"gmaps-static" (proxy "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
     :<|> Named @"gmaps-path" (proxy "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
-    :<|> Named @"giphy-path" (proxy "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
-    :<|> Named @"spotify-token" spotifyToken
-    :<|> Named @"soundcloud-resolve" soundcloudResolve
-    :<|> Named @"soundcloud-stream" soundcloudStream
 
-youtube, googleMaps, giphy :: ProxyDest
+giphy, youtube, googleMaps :: ProxyDest
+giphy = ProxyDest "api.giphy.com" 443
 youtube = ProxyDest "www.googleapis.com" 443
 googleMaps = ProxyDest "maps.googleapis.com" 443
-giphy = ProxyDest "api.giphy.com" 443
 
 proxy :: ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> ApplicationM Proxy
 proxy qparam keyname reroute path phost rq kont = do
@@ -102,109 +96,6 @@ proxyIO env qparam keyname reroute path phost rq kont = do
       void . runProxy env $ Logger.warn (msg (val "gateway error") ~~ field "error" (show x))
       next (errorRs' error502)
 
-spotifyToken :: ApplicationM Proxy
-spotifyToken req kont = do
-  env <- ask
-  liftIO $ do
-    assertMethod req "POST"
-    kont =<< spotifyTokenIO env req
-
-spotifyTokenIO :: Env -> Request -> IO Response
-spotifyTokenIO env rq = do
-  s <- Config.require (env ^. secrets) "secrets.spotify"
-  b <- readBody rq
-  let hdr = (hAuthorization, s) : basicHeaders (I.requestHeaders rq)
-      req = baseReq {Client.requestHeaders = hdr}
-  let mgr = env ^. manager
-  res <- recovering x2 [handler] $ const (Client.httpLbs (Req.lbytes b req) mgr)
-  when (isError (Client.responseStatus res)) $
-    runProxy env . debug $
-      msg (val "unexpected upstream response")
-        ~~ "upstream" .= val "spotify::token"
-        ~~ "status" .= S (Client.responseStatus res)
-        ~~ "body" .= B.take 256 (Client.responseBody res)
-  pure $
-    plain (Client.responseBody res)
-      & setStatus (Client.responseStatus res)
-        . maybeHeader hContentType res
-  where
-    baseReq =
-      Req.method POST
-        . Req.host "accounts.spotify.com"
-        . Req.port 443
-        . Req.path "/api/token"
-        $ Req.empty {Client.secure = True}
-
-soundcloudResolve :: ApplicationM Proxy
-soundcloudResolve req kont = do
-  env <- ask
-  liftIO $ do
-    url <- lookupQueryParam "url" req
-    assertMethod req "GET"
-    kont =<< soundcloudResolveIO env url
-
-soundcloudResolveIO :: Env -> Text -> IO Response
-soundcloudResolveIO env url = do
-  s <- Config.require (env ^. secrets) "secrets.soundcloud"
-  let req = Req.queryItem "client_id" s . Req.queryItem "url" (cs url) $ baseReq
-  let mgr = env ^. manager
-  res <- recovering x2 [handler] $ const (Client.httpLbs req mgr)
-  when (isError (Client.responseStatus res)) $
-    runProxy env . debug $
-      msg (val "unexpected upstream response")
-        ~~ "upstream" .= val "soundcloud::resolve"
-        ~~ "status" .= S (Client.responseStatus res)
-        ~~ "body" .= B.take 256 (Client.responseBody res)
-  pure $
-    plain (Client.responseBody res)
-      & setStatus (Client.responseStatus res)
-        . maybeHeader hContentType res
-  where
-    baseReq =
-      Req.method GET
-        . Req.host "api.soundcloud.com"
-        . Req.port 443
-        . Req.path "/resolve"
-        $ Req.empty {Client.secure = True}
-
-soundcloudStream :: ApplicationM Proxy
-soundcloudStream req kont = do
-  env <- ask
-  liftIO $ do
-    url <- lookupQueryParam "url" req
-    assertMethod req "GET"
-    kont =<< soundcloudStreamIO env url
-
-soundcloudStreamIO :: Env -> Text -> IO Response
-soundcloudStreamIO env url = do
-  s <- Config.require (env ^. secrets) "secrets.soundcloud"
-  req <- Req.noRedirect . Req.queryItem "client_id" s <$> Client.parseRequest (cs url)
-  unless (Client.secure req && Client.host req == "api.soundcloud.com") $ do
-    runProxy env $ failWith "insecure stream url"
-  let mgr = env ^. manager
-  res <- recovering x2 [handler] $ const (Client.httpLbs req mgr)
-  unless (status302 == Client.responseStatus res) $ do
-    runProxy env . debug $
-      msg (val "unexpected upstream response")
-        ~~ "upstream" .= val "soundcloud::stream"
-        ~~ "status" .= S (Client.responseStatus res)
-        ~~ "body" .= B.take 256 (Client.responseBody res)
-    runProxy env $ failWith "unexpected upstream response"
-  case Res.getHeader hLocation res of
-    Nothing -> runProxy env $ failWith "missing location header"
-    Just loc -> pure (empty & setStatus status302 . addHeader hLocation loc)
-
-x2 :: RetryPolicy
-x2 = exponentialBackoff 5000 <> limitRetries 2
-
-handler :: (MonadIO m, MonadMask m) => RetryStatus -> Handler m Bool
-handler = const . Handler $ \case
-  Client.HttpExceptionRequest _ Client.NoResponseDataReceived -> pure True
-  Client.HttpExceptionRequest _ Client.IncompleteHeaders -> pure True
-  Client.HttpExceptionRequest _ Client.ConnectionTimeout -> pure True
-  Client.HttpExceptionRequest _ (Client.ConnectionFailure _) -> pure True
-  _ -> pure False
-
 safeQuery :: Query -> Query
 safeQuery = filter noAccessToken
   where
@@ -212,34 +103,11 @@ safeQuery = filter noAccessToken
       | CI.mk q == accessToken = False
       | otherwise = True
 
-basicHeaders :: RequestHeaders -> RequestHeaders
-basicHeaders = filter ((`elem` headers) . fst)
-  where
-    headers = [hAccept, hContentType]
-
-maybeHeader :: HeaderName -> Client.Response a -> Response -> Response
-maybeHeader n r =
-  case List.find ((== n) . fst) (Client.responseHeaders r) of
-    Nothing -> id
-    Just v -> addHeader n (snd v)
-
 accessToken :: CI ByteString
 accessToken = CI.mk "access_token"
 
-failWith :: Text -> Proxy a
-failWith txt = err (msg txt) >> throwM error500
-
-isError :: Status -> Bool
-isError (statusCode -> c) = c < 200 || c > 299
-
-error400 :: ByteString -> Error
-error400 param = mkError status400 "missing-query-param" ("Bad request: " <> cs param <> " query param is missing")
-
 error405 :: Error
 error405 = mkError status405 "method-not-allowed" "Method not allowed"
-
-error500 :: Error
-error500 = mkError status500 "internal-error" "Internal server error"
 
 error502 :: Error
 error502 = mkError status502 "bad-gateway" "Bad gateway"
@@ -260,10 +128,3 @@ assertMethod :: Request -> ByteString -> IO ()
 assertMethod req meth = do
   when (mk (requestMethod req) /= mk meth) $ do
     throwM error405
-
-lookupQueryParam :: ByteString -> Request -> IO Text
-lookupQueryParam key req = do
-  lookup (mk key) (requestHeaders req)
-    & maybe
-      (throwM $ error400 key)
-      (pure . cs)
