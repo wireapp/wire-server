@@ -2346,7 +2346,7 @@ testSelfConversation = do
     commit <- createAddCommit creator [alice]
     welcome <- assertJust (mpWelcome commit)
     mlsBracket others $ \wss -> do
-      void $ sendAndConsumeCommit commit
+      void $ sendAndConsumeCommitBundle commit
       WS.assertMatchN_ (5 # Second) wss $
         wsAssertMLSWelcome alice welcome
       WS.assertNoEvent (1 # WS.Second) wss
@@ -2361,19 +2361,26 @@ testSelfConversationList isBelowV3 = do
           then ("The MLS self-conversation is listed", isNothing, listConvIdsV2)
           else ("The MLS self-conversation is not listed", isJust, listConvIds)
   alice <- randomUser
-  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
-  convIds :: ConvIdsPage <-
-    responseJsonError
-      =<< listCnvs alice paginationOpts
-        <!! const 200 === statusCode
-  convs <-
-    forM (mtpResults convIds) (responseJsonError <=< getConvQualified alice)
-  let mMLSSelf = foldr (<|>) Nothing $ guard . isMLSSelf <$> convs
-  liftIO $ assertBool errMsg (justOrNothing mMLSSelf)
+  do
+    mMLSSelf <- findSelfConv alice listCnvs
+    liftIO $ assertBool errMsg (justOrNothing mMLSSelf)
+
+  -- make sure that the self-conversation is not listed below V3 even once it
+  -- has been created.
+  unless isBelowV3 $ do
+    mMLSSelf <- findSelfConv alice listConvIdsV2
+    liftIO $ assertBool errMsg (isNothing mMLSSelf)
   where
-    isMLSSelf conv =
-      cnvType conv == SelfConv
-        && protocolTag (cnvProtocol conv) == ProtocolMLSTag
+    paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
+
+    isMLSSelf u conv = mlsSelfConvId u == qUnqualified conv
+
+    findSelfConv u listEndpoint = do
+      convIds :: ConvIdsPage <-
+        responseJsonError
+          =<< listEndpoint u paginationOpts
+            <!! const 200 === statusCode
+      pure $ foldr (<|>) Nothing $ guard . isMLSSelf u <$> mtpResults convIds
 
 testSelfConversationOtherUser :: TestM ()
 testSelfConversationOtherUser = do
