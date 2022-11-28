@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -x
 set -o pipefail
 set -o errexit
 
@@ -22,6 +23,7 @@ check_login() {
     echo "login: OK"
   else
     echo "status code: $status_code"
+    echo "this may be because your password contains special characters that would need to be quoted better in this script."
     fail "login: FAIL"
   fi
 }
@@ -30,20 +32,25 @@ check_url() {
   export testnum=$1
   export verb=$2
   export uri=$3
-  export status=$4
+  export status_want=$4
 
-  status_code=$(curl --write-out '%{http_code}' --silent --output "./proxy-test/$testnum.txt" -I -X "$verb" \
+  status_have=$(curl --write-out '%{http_code}' --silent --output "./proxy-test/$testnum.txt" -I -X "$verb" \
                      --header "Authorization: Bearer $BEARER" \
                      --header "Content-Type: application/json" \
                      "$uri")
-  if [[ "$status_code" == "$status" ]]; then
-    echo "proxy $uri: OK"
-  else
-    echo "expected status code: $status, but got $status_code"
-    fail "proxy $uri: FAIL"
-  fi
 
-  git diff "./proxy-test/$testnum.txt"  # TODO: fail if diff is non-empty
+  curl -X "$verb" \
+       --header "Authorization: Bearer $BEARER" \
+       --header "Content-Type: application/json" \
+       "$uri" > ./proxy-test/$testnum.json
+
+  if [[ "$status_have" == "$status_want" ]]; then
+    echo "proxy $uri: OK"
+    file ./proxy-test/$testnum.json | grep -q '\(JSON\|PNG\)' || ( echo "received something weird!"; exit 1 )
+  else
+    echo "expected status code: $status_want, but got $status_have"
+    fail "proxy $uri: FAIL (check "./proxy-test/$testnum.json" for details)"
+  fi
 }
 
 get_access_token() {
@@ -53,17 +60,17 @@ get_access_token() {
                  | jq -r .access_token)
 }
 
+
+mkdir -p ./proxy-test
+
 get_access_token
 check_login
 
 check_url "1" "GET" "$WIRE_BACKEND"/api/swagger.json 200
-check_url "2" "GET" "$WIRE_BACKEND"'/v2/proxy/youtube/v3/search' 200
-check_url "3" "GET" "$WIRE_BACKEND"'/v2/proxy/googlemaps/api/staticmap?center=Berlin&zoom=14&size=400x400' 200
-check_url "4" "GET" "$WIRE_BACKEND"'/v2/proxy/googlemaps/maps/api/geocode/json?place_id=ChIJeRpOeF67j4AR9ydy_PIzPuM' 200
-check_url "5" "GET" "$WIRE_BACKEND"'/v2/proxy/giphy/v1/gifs/search?limit=100&offset=0&q=kitty' 200
-check_url "6" "POST" "$WIRE_BACKEND"'/v2/proxy/spotify/api/token' 415
-check_url "7" "GET" "$WIRE_BACKEND"'/v2/proxy/soundcloud/resolve' 400
-check_url "8" "GET" "$WIRE_BACKEND"'/v2/proxy/soundcloud/stream' 400
+check_url "2" "GET" "$WIRE_BACKEND"'/v2/proxy/giphy/v1/gifs/search?limit=100&offset=0&q=kitty' 200
+check_url "3" "GET" "$WIRE_BACKEND"'/v2/proxy/youtube/v3/search' 200
+check_url "4" "GET" "$WIRE_BACKEND"'/v2/proxy/googlemaps/api/staticmap?center=Berlin&zoom=14&size=400x400' 200
+check_url "5" "GET" "$WIRE_BACKEND"'/v2/proxy/googlemaps/maps/api/geocode/json?place_id=ChIJeRpOeF67j4AR9ydy_PIzPuM' 200
 
 # manually:
 # curl -XGET http://localhost:8080/i/status  # from proxy pod
