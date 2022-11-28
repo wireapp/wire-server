@@ -105,7 +105,6 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSCommitMissingReferences,
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
-     ErrorS 'MLSUnexpectedSenderClient,
      ErrorS 'MLSGroupConversationMismatch,
      ErrorS 'MLSMissingSenderClient
    ]
@@ -123,6 +122,7 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
+         ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
@@ -130,9 +130,7 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnexpectedSenderClient,
          ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -159,6 +157,7 @@ postMLSMessageFromLocalUser ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
+         ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
@@ -166,9 +165,7 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnexpectedSenderClient,
          ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -370,6 +367,7 @@ postMLSMessage ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
+         ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
@@ -377,9 +375,7 @@ postMLSMessage ::
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnexpectedSenderClient,
          ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -459,15 +455,14 @@ postMLSMessageToLocalConv ::
       '[ Error FederationError,
          Error InternalError,
          ErrorS 'ConvNotFound,
+         ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSMissingSenderClient,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnexpectedSenderClient,
          ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MissingLegalholdConsent,
          ProposalStore,
          Resource,
          TinyLog
@@ -544,29 +539,26 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
     pure (LocalConversationUpdate e update)
 
 type HasProposalEffects r =
-  ( Members
-      '[ BrigAccess,
-         ConversationStore,
-         Error InternalError,
-         Error MLSProposalFailure,
-         Error MLSProtocolError,
-         ErrorS 'MLSClientMismatch,
-         ErrorS 'MLSKeyPackageRefNotFound,
-         ErrorS 'MLSUnsupportedProposal,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input (Local ()),
-         Input Opts,
-         Input UTCTime,
-         LegalHoldStore,
-         MemberStore,
-         ProposalStore,
-         TeamStore,
-         TinyLog
-       ]
-      r
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member (Error MLSProposalFailure) r,
+    Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSClientMismatch) r,
+    Member (ErrorS 'MLSKeyPackageRefNotFound) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input (Local ())) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member TeamStore r,
+    Member TinyLog r
   )
 
 data ProposalAction = ProposalAction
@@ -624,24 +616,20 @@ getCommitData lconv mlsMeta epoch commit = do
 
 processCommit ::
   ( HasProposalEffects r,
-    Members
-      '[ Error FederationError,
-         Error InternalError,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSMissingSenderClient,
-         ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSSelfRemovalNotAllowed,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnexpectedSenderClient,
-         ErrorS 'MissingLegalholdConsent,
-         Input (Local ()),
-         ProposalStore,
-         BrigAccess,
-         Resource
-       ]
-      r
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Input (Local ())) r,
+    Member ProposalStore r,
+    Member BrigAccess r,
+    Member Resource r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -770,24 +758,20 @@ processExternalCommit qusr mSenderClient lconv mlsMeta cm epoch action updatePat
 processCommitWithAction ::
   forall r.
   ( HasProposalEffects r,
-    Members
-      '[ Error FederationError,
-         Error InternalError,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSMissingSenderClient,
-         ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSSelfRemovalNotAllowed,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnexpectedSenderClient,
-         ErrorS 'MissingLegalholdConsent,
-         Input (Local ()),
-         ProposalStore,
-         BrigAccess,
-         Resource
-       ]
-      r
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Input (Local ())) r,
+    Member ProposalStore r,
+    Member BrigAccess r,
+    Member Resource r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -809,24 +793,20 @@ processCommitWithAction qusr senderClient con lconv mlsMeta cm epoch action send
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
-    Members
-      [ Error FederationError,
-        Error InternalError,
-        ErrorS 'ConvNotFound,
-        ErrorS 'MLSClientSenderUserMismatch,
-        ErrorS 'MLSCommitMissingReferences,
-        ErrorS 'MLSMissingSenderClient,
-        ErrorS 'MLSProposalNotFound,
-        ErrorS 'MLSSelfRemovalNotAllowed,
-        ErrorS 'MLSStaleMessage,
-        ErrorS 'MLSUnexpectedSenderClient,
-        ErrorS 'MissingLegalholdConsent,
-        Input (Local ()),
-        ProposalStore,
-        BrigAccess,
-        Resource
-      ]
-      r
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Input (Local ())) r,
+    Member ProposalStore r,
+    Member BrigAccess r,
+    Member Resource r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -863,9 +843,11 @@ processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action sender
                 qusr
                 (Set.singleton (creatorClient, creatorRef))
             (Left _, SelfConv, _) ->
-              -- this is a newly created conversation, and it should contain exactly one
-              -- client (the creator)
-              throwS @'MLSUnexpectedSenderClient
+              throw . InternalErrorWithDescription $
+                "Unexpected creator client set in a self-conversation"
+            -- this is a newly created conversation, and it should contain exactly one
+            -- client (the creator)
+
             (Left _, GlobalTeamConv, []) -> do
               creatorClient <- noteS @'MLSMissingSenderClient senderClient
               creatorRef <-
@@ -876,15 +858,13 @@ processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action sender
                       . upLeaf
                   )
                   $ cPath commit
-              -- add user to global conv as a member as well
-              lusr <- qualifyLocal (qUnqualified qusr)
-              void $ createMember (convId <$> lconv) lusr
               addMLSClients
                 (cnvmlsGroupId mlsMeta)
                 qusr
                 (Set.singleton (creatorClient, creatorRef))
             (Left _, GlobalTeamConv, _) ->
-              throwS @'MLSUnexpectedSenderClient
+              throw . InternalErrorWithDescription $
+                "Unexpected creator client set in a global teamconversation"
             (Left lm, _, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender

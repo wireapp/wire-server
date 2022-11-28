@@ -52,6 +52,7 @@ import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.MLS.Removal
+import Galley.API.MLS.Util (globalTeamConvToConversation)
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation
@@ -89,6 +90,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import qualified Wire.API.User as User
@@ -595,7 +597,17 @@ updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
 
   -- retrieve conversation
-  conv <- getConversationWithError lcnv (qUnqualified qusr)
+  conv <- do
+    -- Check if global or not, if global, map it to conversation
+    E.getGlobalTeamConversationById lcnv >>= \case
+      Just gtc ->
+        let c = gtcCreator gtc
+         in case c of
+              Nothing ->
+                throwS @'ConvNotFound
+              Just creator ->
+                pure $ globalTeamConvToConversation gtc creator mempty
+      Nothing -> getConversationWithError lcnv
 
   -- check that the action does not bypass the underlying protocol
   unless (protocolValidAction (convProtocol conv) (fromSing tag)) $

@@ -52,7 +52,6 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged
 import Galley.API.Error
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Types
@@ -113,11 +112,7 @@ getBotConversation ::
   Local ConvId ->
   Sem r Public.BotConvView
 getBotConversation zbot lcnv = do
-  (c, _) <-
-    getConversationAndMemberWithError
-      @'ConvNotFound
-      (qUntagged . qualifyAs lcnv . botUserId $ zbot)
-      lcnv
+  (c, _) <- getConversationAndMemberWithError @'ConvNotFound (botUserId zbot) lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
@@ -149,6 +144,7 @@ getGlobalTeamConversation ::
   Members
     '[ ConversationStore,
        ErrorS 'NotATeamMember,
+       Error InternalError,
        MemberStore,
        TeamStore
      ]
@@ -303,24 +299,12 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  Members
-    [ ListItems LegacyPaging ConvId,
-      ConversationStore,
-      MemberStore,
-      TeamStore
-    ]
-    r =>
+  Member (ListItems LegacyPaging ConvId) r =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
   Sem r (Public.ConversationList ConvId)
 conversationIdsPageFromUnqualified lusr start msize = do
-  void $
-    E.getUserTeams (tUnqualified lusr) >>= \tids ->
-      runError @InternalError $
-        runError @(Tagged 'NotATeamMember ())
-          (for_ tids $ \tid -> getGlobalTeamConversation lusr tid)
-
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- E.listItems (tUnqualified lusr) start size
   pure $

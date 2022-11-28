@@ -84,7 +84,6 @@ data GalleyError
   | MLSWelcomeMismatch
   | MLSMissingGroupInfo
   | MLSMissingSenderClient
-  | MLSUnexpectedSenderClient
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -203,8 +202,6 @@ type instance MapError 'MLSSelfRemovalNotAllowed = 'StaticError 400 "mls-self-re
 type instance MapError 'MLSGroupConversationMismatch = 'StaticError 400 "mls-group-conversation-mismatch" "Conversation ID resolved from Group ID does not match submitted Conversation ID"
 
 type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 400 "mls-client-sender-user-mismatch" "User ID resolved from Client ID does not match message's sender user ID"
-
-type instance MapError 'MLSUnexpectedSenderClient = 'StaticError 422 "mls-unexpected-sender-client-found" "Unexpected creator client set. This is a newly created conversation and it expected exactly one client."
 
 type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-mismatch" "The list of targets of a welcome message does not match the list of new clients in a group"
 
