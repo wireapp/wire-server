@@ -360,10 +360,11 @@ conversationIdsPageFromV2 ::
   ( p ~ CassandraPaging,
     Members
       '[ ConversationStore,
+         TeamStore,
          Error InternalError,
-         Input Env,
          ListItems p ConvId,
          ListItems p (Remote ConvId),
+         Input Env,
          P.TinyLog
        ]
       r
@@ -374,34 +375,40 @@ conversationIdsPageFromV2 ::
   Sem r Public.ConvIdsPage
 conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {..} = do
   let localDomain = tDomain lusr
+  gtcIds <-
+    E.getUserTeams (tUnqualified lusr) >>= mapM (pure . Data.globalTeamConv)
+
   case gmtprState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
       remotesOnly (mkState <$> stateBS) gmtprSize
-    _ -> localsAndRemotes localDomain (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
+    _ -> localsAndRemotes gtcIds localDomain (fmap mkState . Public.mtpsState =<< gmtprState) gmtprSize
   where
     mkState :: ByteString -> C.PagingState
     mkState = C.PagingState . LBS.fromStrict
 
     localsAndRemotes ::
+      [ConvId] ->
       Domain ->
       Maybe C.PagingState ->
       Range 1 1000 Int32 ->
       Sem r Public.ConvIdsPage
-    localsAndRemotes localDomain pagingState size = do
+    localsAndRemotes gtcIds localDomain pagingState size = do
       localPage <-
         pageToConvIdPage Public.PagingLocals . fmap (`Qualified` localDomain)
           <$> E.listItems (tUnqualified lusr) pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
+          notGtcId = flip notElem gtcIds . qUnqualified
+
       if Public.mtpHasMore localPage || remainingSize <= 0
         then -- We haven't checked the remotes yet, so has_more must always be True here.
-          pure (filterOut localPage) {Public.mtpHasMore = True}
+          pure (filterOut notGtcId localPage) {Public.mtpHasMore = True}
         else do
           -- remainingSize <= size and remainingSize >= 1, so it is safe to convert to Range
           remotePage <- remotesOnly Nothing (unsafeRange remainingSize)
           pure $
             remotePage
               { Public.mtpResults =
-                  Public.mtpResults (filterOut localPage)
+                  Public.mtpResults (filterOut notGtcId localPage)
                     <> Public.mtpResults remotePage
               }
 
@@ -431,11 +438,11 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
     -- self-conversation.
     --
     -- FUTUREWORK: This is yet to be implemented for global team conversations.
-    filterOut :: ConvIdsPage -> ConvIdsPage
-    filterOut page | listGlobalSelf == ListGlobalSelf = page
-    filterOut page =
+    filterOut :: (Qualified ConvId -> Bool) -> ConvIdsPage -> ConvIdsPage
+    filterOut _ page | listGlobalSelf == ListGlobalSelf = page
+    filterOut f page =
       page
-        { Public.mtpResults = filter isNotSelfConv $ Public.mtpResults page
+        { Public.mtpResults = filter f . filter isNotSelfConv $ Public.mtpResults page
         }
 
 -- | Lists conversation ids for the logged in user in a paginated way.
@@ -451,6 +458,7 @@ conversationIdsPageFrom ::
   ( p ~ CassandraPaging,
     Members
       '[ ConversationStore,
+         TeamStore,
          Error InternalError,
          Input Env,
          ListItems p ConvId,

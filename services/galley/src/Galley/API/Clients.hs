@@ -90,6 +90,7 @@ rmClientH ::
   ( p1 ~ CassandraPaging,
     Members
       '[ ClientStore,
+         TeamStore,
          ConversationStore,
          ExternalAccess,
          FederatorAccess,
