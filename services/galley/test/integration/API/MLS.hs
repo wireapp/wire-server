@@ -25,6 +25,7 @@ import API.Util as Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
+import Control.Error.Util (hush)
 import Control.Lens (view, (^.))
 import qualified Control.Monad.State as State
 import Crypto.Error
@@ -201,7 +202,9 @@ tests s =
           test s "Global team conversation is created on get if not present" (testGetGlobalTeamConv s),
           test s "Can't leave global team conversation" testGlobalTeamConversationLeave,
           test s "Send message in global team conversation" testGlobalTeamConversationMessage,
-          test s "Listing convs includes global team conversation" testConvListIncludesGlobal
+          test s "Listing convs includes global team conversation" testConvListIncludesGlobal,
+          test s "Listing convs includes global team conversation for new users" testConvListIncludesGlobalForNewUsers,
+          test s "Listing convs before calling GET on global team conversation still includes it" testConvListIncludesGlobalBeforeGet
         ],
       testGroup
         "Self conversation"
@@ -2224,7 +2227,7 @@ testConvListIncludesGlobal = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
   -- add user to conv
   runMLSTest $ do
@@ -2244,10 +2247,39 @@ testConvListIncludesGlobal = do
   -- Now we should have the user as part of that conversation also in the backend
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
-rightToMaybe :: Either a b -> Maybe b
-rightToMaybe = either (const Nothing) Just
+testConvListIncludesGlobalBeforeGet :: TestM ()
+testConvListIncludesGlobalBeforeGet = do
+  (tid, alice, []) <- Util.createBindingTeamWithMembers 1
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
+  listConvIds alice paginationOpts !!! do
+    const 200 === statusCode
+    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+
+testConvListIncludesGlobalForNewUsers :: TestM ()
+testConvListIncludesGlobalForNewUsers = do
+  localDomain <- viewFederationDomain
+  -- c <- view tsCannon
+  (tid, alice, [bob]) <- Util.createBindingTeamWithMembers 2
+  let aliceQ = Qualified alice localDomain
+      bobQ = Qualified bob localDomain
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [aliceQ, bobQ]
+    void $ uploadNewKeyPackage bob1
+
+    void $ setupMLSGroup alice1
+    void $ createAddCommit alice1 [bobQ] >>= sendAndConsumeCommitBundle
+
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
+  listConvIds alice paginationOpts !!! do
+    const 200 === statusCode
+    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+
+  listConvIds bob paginationOpts !!! do
+    const 200 === statusCode
+    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
 testGlobalTeamConversationMessage :: TestM ()
 testGlobalTeamConversationMessage = do

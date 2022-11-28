@@ -36,6 +36,7 @@ import Data.Singletons
 import qualified Data.Text as T
 import Data.Time
 import Galley.API.Error
+import Galley.API.MLS.Util
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
@@ -508,7 +509,7 @@ getConversationAndCheckMembership uid lcnv = do
   (conv, _) <-
     getConversationAndMemberWithError
       @'ConvAccessDenied
-      uid
+      (qUntagged $ qualifyAs lcnv uid)
       lcnv
   pure conv
 
@@ -517,18 +518,27 @@ getConversationWithError ::
     Member (ErrorS 'ConvNotFound) r
   ) =>
   Local ConvId ->
+  UserId ->
   Sem r Data.Conversation
-getConversationWithError lcnv =
-  getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+getConversationWithError lcnv uid =
+  let cid = tUnqualified lcnv
+   in getConversation cid >>= \case
+        Just c -> pure c
+        Nothing -> do
+          gtc <- noteS @'ConvNotFound =<< getGlobalTeamConversationById lcnv
+          pure $ gtcToConv gtc uid mempty
 
 getConversationAndMemberWithError ::
   forall e uid mem r.
-  (Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r, IsConvMemberId uid mem) =>
+  ( Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r,
+    IsConvMemberId uid mem,
+    uid ~ Qualified UserId
+  ) =>
   uid ->
   Local ConvId ->
   Sem r (Data.Conversation, mem)
 getConversationAndMemberWithError usr lcnv = do
-  c <- getConversationWithError lcnv
+  c <- getConversationWithError lcnv (qUnqualified usr)
   member <- noteS @e $ getConvMember lcnv c usr
   pure (c, member)
 

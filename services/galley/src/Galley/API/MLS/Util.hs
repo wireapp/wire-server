@@ -41,31 +41,6 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
-globalTeamConvToConversation ::
-  GlobalTeamConversation ->
-  UserId ->
-  [LocalMember] ->
-  Conversation
-globalTeamConvToConversation gtc creator lMembers =
-  Conversation
-    { convId = qUnqualified $ gtcId gtc,
-      convLocalMembers = lMembers,
-      convRemoteMembers = mempty,
-      convDeleted = False,
-      convMetadata =
-        ConversationMetadata
-          { cnvmType = GlobalTeamConv,
-            cnvmCreator = creator,
-            cnvmAccess = gtcAccess gtc,
-            cnvmAccessRoles = mempty,
-            cnvmName = Just (gtcName gtc),
-            cnvmTeam = Just (gtcTeam gtc),
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Nothing
-          },
-      convProtocol = ProtocolMLS (gtcMlsMetadata gtc)
-    }
-
 getLocalConvForUser ::
   Members
     '[ ErrorS 'ConvNotFound,
@@ -80,16 +55,8 @@ getLocalConvForUser qusr lcnv = do
   gtc <- getGlobalTeamConversationById lcnv
   conv <- case gtc of
     Just conv -> do
-      let creator = gtcCreator conv
       localMembers <- getLocalMembers (qUnqualified . gtcId $ conv)
-
-      -- no creator means the conversation has been setup on backend but not on MLS.
-      case creator of
-        Nothing -> do
-          setGlobalTeamConversationCreator conv (qUnqualified qusr)
-          pure $ globalTeamConvToConversation conv (qUnqualified qusr) localMembers
-        Just creator' ->
-          pure $ globalTeamConvToConversation conv creator' localMembers
+      pure $ gtcToConv conv (qUnqualified qusr) localMembers
     Nothing -> do
       getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
@@ -123,3 +90,29 @@ getPendingBackendRemoveProposals gid epoch = do
             TinyLog.warn $ Log.msg ("found pending proposal without origin, ignoring" :: ByteString)
             pure Nothing
       )
+
+gtcToConv ::
+  GlobalTeamConversation ->
+  UserId ->
+  [LocalMember] ->
+  Conversation
+gtcToConv gtc usr lm =
+  let mlsData = gtcMlsMetadata gtc
+   in Conversation
+        { convId = qUnqualified $ gtcId gtc,
+          convLocalMembers = lm,
+          convRemoteMembers = mempty,
+          convDeleted = False,
+          convMetadata =
+            ConversationMetadata
+              { cnvmType = GlobalTeamConv,
+                cnvmCreator = usr,
+                cnvmAccess = [SelfInviteAccess],
+                cnvmAccessRoles = mempty,
+                cnvmName = Just $ gtcName gtc,
+                cnvmTeam = Just $ gtcTeam gtc,
+                cnvmMessageTimer = Nothing,
+                cnvmReceiptMode = Nothing
+              },
+          convProtocol = ProtocolMLS mlsData
+        }

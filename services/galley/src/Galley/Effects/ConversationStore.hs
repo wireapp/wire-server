@@ -46,7 +46,6 @@ module Galley.Effects.ConversationStore
     setConversationReceiptMode,
     setConversationMessageTimer,
     setConversationEpoch,
-    setGlobalTeamConversationCreator,
     acceptConnectConversation,
     setGroupId,
     setPublicGroupState,
@@ -86,7 +85,6 @@ data ConversationStore m a where
   GetGlobalTeamConversation :: Local TeamId -> ConversationStore m (Maybe GlobalTeamConversation)
   GetGlobalTeamConversationById :: Local ConvId -> ConversationStore m (Maybe GlobalTeamConversation)
   CreateGlobalTeamConversation :: Local TeamId -> ConversationStore m GlobalTeamConversation
-  SetGlobalTeamConversationCreator :: GlobalTeamConversation -> UserId -> ConversationStore m ()
   GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)

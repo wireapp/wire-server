@@ -316,25 +316,6 @@ createGlobalTeamConversation tid = do
       "Global team conversation"
       (tUnqualified tid)
 
-setGlobalTeamConversationCreator ::
-  GlobalTeamConversation ->
-  UserId ->
-  Client ()
-setGlobalTeamConversationCreator gtc uid = do
-  retry x5 . batch $ do
-    setType BatchLogged
-    setConsistency LocalQuorum
-    addPrepQuery
-      Cql.setGlobalTeamConvCreator
-      ( uid,
-        qUnqualified . gtcId $ gtc
-      )
-    addPrepQuery
-      Cql.insertUserConv
-      ( uid,
-        qUnqualified . gtcId $ gtc
-      )
-
 -- | "Garbage collect" a 'Conversation', i.e. if the conversation is
 -- marked as deleted, actually remove it from the database and return
 -- 'Nothing'.
@@ -470,7 +451,6 @@ interpretConversationStoreToCassandra = interpret $ \case
   GetGlobalTeamConversation tid -> embedClient $ getGlobalTeamConversation tid
   GetGlobalTeamConversationById lconv -> embedClient $ getGlobalTeamConversationById lconv
   CreateGlobalTeamConversation tid -> embedClient $ createGlobalTeamConversation tid
-  SetGlobalTeamConversationCreator gtc uid -> embedClient $ setGlobalTeamConversationCreator gtc uid
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid
