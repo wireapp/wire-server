@@ -47,6 +47,7 @@ import Polysemy.Input
 import qualified UnliftIO
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
+import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
 
