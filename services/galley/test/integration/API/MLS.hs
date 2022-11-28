@@ -2228,7 +2228,7 @@ testConvListINotncludesGlobalV1 = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
   listConvIdsV2 alice paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (rightToMaybe . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
 testConvListIncludesGlobal :: TestM ()
 testConvListIncludesGlobal = do
@@ -2272,12 +2272,11 @@ testConvListIncludesGlobalBeforeGet = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
 testConvListIncludesGlobalForNewUsers :: TestM ()
 testConvListIncludesGlobalForNewUsers = do
   localDomain <- viewFederationDomain
-  -- c <- view tsCannon
   (tid, alice, [bob]) <- Util.createBindingTeamWithMembers 2
   let aliceQ = Qualified alice localDomain
       bobQ = Qualified bob localDomain
@@ -2292,11 +2291,11 @@ testConvListIncludesGlobalForNewUsers = do
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
   listConvIds bob paginationOpts !!! do
     const 200 === statusCode
-    const (Just [globalTeamConv tid]) =/~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
+    const (Just [globalTeamConv tid]) =~= (hush . (<$$>) qUnqualified . decodeQualifiedConvIdList)
 
 testGlobalTeamConversationMessage :: TestM ()
 testGlobalTeamConversationMessage = do
