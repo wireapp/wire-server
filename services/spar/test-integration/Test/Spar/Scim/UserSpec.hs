@@ -1982,39 +1982,39 @@ testPatchRole replaceOrAdd = do
   let galley = env ^. teGalley
   (owner, tid) <- call $ createUserWithTeam brig galley
   tok <- registerScimToken tid Nothing
-  let testWithInitialRole r = forM_ [minBound .. maxBound] (testPatchRoles brig replaceOrAdd tid owner tok r)
-  forM_ [minBound .. maxBound] testWithInitialRole
+  let testWithInitialRole r = forM_ (Nothing : fmap Just [minBound ..]) (testCreateUserWithInitialRoleAndPatchToTargetRole brig tid owner tok r)
+  forM_ [minBound ..] testWithInitialRole
+  where
+    testCreateUserWithInitialRoleAndPatchToTargetRole :: BrigReq -> TeamId -> UserId -> ScimToken -> Role -> Maybe Role -> TestSpar ()
+    testCreateUserWithInitialRoleAndPatchToTargetRole brig tid owner tok initialRole mTargetRole = do
+      email <- randomEmail
+      scimUser <-
+        randomScimUser <&> \u ->
+          u
+            { Scim.User.externalId = Just $ fromEmail email,
+              Scim.User.roles = [cs $ toByteString initialRole]
+            }
+      scimStoredUser <- createUser tok scimUser
+      let userid = scimUserId scimStoredUser
+          userName = Name . fromJust . Scim.User.displayName $ scimUser
 
-testPatchRoles :: BrigReq -> (Text -> [Role] -> Operation) -> TeamId -> UserId -> ScimToken -> Role -> Role -> TestSpar ()
-testPatchRoles brig replaceOrAdd tid owner tok initialRole targetRole = do
-  email <- randomEmail
-  scimUser <-
-    randomScimUser <&> \u ->
-      u
-        { Scim.User.externalId = Just $ fromEmail email,
-          Scim.User.roles = [cs $ toByteString initialRole]
-        }
-  scimStoredUser <- createUser tok scimUser
-  let userid = scimUserId scimStoredUser
-      userName = Name . fromJust . Scim.User.displayName $ scimUser
+      -- user follows invitation flow
+      do
+        inv <- call $ getInvitation brig email
+        Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+        registerInvitation email userName inviteeCode True
+      checkTeamMembersRole tid owner userid initialRole
 
-  -- user follows invitation flow
-  do
-    inv <- call $ getInvitation brig email
-    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
-    registerInvitation email userName inviteeCode True
-  checkTeamMembersRole tid owner userid initialRole
-
-  _ <- patchUser tok userid $ PatchOp.PatchOp [replaceOrAdd "roles" [targetRole]]
-  checkTeamMembersRole tid owner userid targetRole
-  -- also check if remove works
-  let removeAttrib name =
-        PatchOp.Operation
-          PatchOp.Remove
-          (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
-          Nothing
-  _ <- patchUser tok userid $ PatchOp.PatchOp [removeAttrib "roles"]
-  checkTeamMembersRole tid owner userid defaultRole
+      _ <- patchUser tok userid $ PatchOp.PatchOp [replaceOrAdd "roles" (maybeToList mTargetRole)]
+      checkTeamMembersRole tid owner userid (fromMaybe defaultRole mTargetRole)
+      -- also check if remove works
+      let removeAttrib name =
+            PatchOp.Operation
+              PatchOp.Remove
+              (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+              Nothing
+      _ <- patchUser tok userid $ PatchOp.PatchOp [removeAttrib "roles"]
+      checkTeamMembersRole tid owner userid defaultRole
 
 ----------------------------------------------------------------------------
 -- Deleting users
