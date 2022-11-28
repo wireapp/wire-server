@@ -32,7 +32,7 @@ spec:
     spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      {{- if .Values.tls.enabled }}
+      {{- if or .Values.tls.enabled (and .Values.federation.enabled .Values.federation.dtls.enabled) }}
       # Needed for automatic certificate reload handling
       shareProcessNamespace: true
       {{- end }}
@@ -53,6 +53,11 @@ spec:
         - name: secrets-tls
           secret:
             secretName: {{ .Values.tls.secretRef }}
+        {{- end }}
+        {{- if and .Values.federation.enabled .Values.federation.dtls.enabled }}
+        - name: secrets-dtls-federation
+          secret:
+            secretName: {{ .Values.federation.dtls.secretRef }}
         {{- end }}
       initContainers:
         - name: get-external-ip
@@ -100,6 +105,11 @@ spec:
           {{- if .Values.tls.enabled }}
             - name: secrets-tls
               mountPath: /secrets-tls/
+              readOnly: true
+          {{- end }}
+          {{- if and .Values.federation.enabled .Values.federation.dtls.enabled }}
+            - name: secrets-dtls-federation
+              mountPath: /secrets-dtls-federation/
               readOnly: true
           {{- end }}
           command:
@@ -157,8 +167,8 @@ spec:
 
         {{- if .Values.tls.enabled }}
         - name: {{ .Chart.Name }}-cert-reloader
-          image: "{{ .Values.tls.reloaderImage.repository }}:{{ .Values.tls.reloaderImage.tag }}"
-          imagePullPolicy: {{ .Values.tls.reloaderImage.pullPolicy }}
+          image: "{{ .Values.reloaderImage.repository }}:{{ .Values.reloaderImage.tag }}"
+          imagePullPolicy: {{ .Values.reloaderImage.pullPolicy }}
           env:
             - name: CONFIG_DIR
               value: /secrets-tls
@@ -169,6 +179,22 @@ spec:
           volumeMounts:
             - name: secrets-tls
               mountPath: /secrets-tls/
+              readOnly: true
+        {{- end }}
+        {{- if and .Values.federation.enabled .Values.federation.dtls.enabled }}
+        - name: {{ .Chart.Name }}-fed-cert-reloader
+          image: "{{ .Values.reloaderImage.repository }}:{{ .Values.reloaderImage.tag }}"
+          imagePullPolicy: {{ .Values.reloaderImage.pullPolicy }}
+          env:
+            - name: CONFIG_DIR
+              value: /secrets-dtls-federation
+            - name: PROCESS_NAME
+              value: /usr/bin/turnserver
+            - name: RELOAD_SIGNAL
+              value: SIGUSR2
+          volumeMounts:
+            - name: secrets-dtls-federation
+              mountPath: /secrets-dtls-federation/
               readOnly: true
         {{- end }}
 

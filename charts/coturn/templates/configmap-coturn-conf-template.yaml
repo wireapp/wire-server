@@ -41,8 +41,23 @@ data:
     {{- if .Values.federation.enabled }}
     federation-listening-ip=__COTURN_EXT_IP__
     federation-listening-port={{ .Values.federation.listenPort }}
-    # FUTUREWORK: enable DTLS support
+
+    {{- if .Values.federation.dtls.enabled }}
+    federation-cert=/secrets-dtls-federation/tls.crt
+    federation-pkey=/secrets-dtls-federation/tls.key
+
+    {{- range .Values.federation.dtls.allowHosts }}
+    {{- if not .issuer }}
+    federation-remote-whitelist={{ .hostname }}
+    {{- else }}
+    federation-remote-whitelist={{ .hostname }},{{ .issuer }}
+    {{- end }}
+    {{- end }}
+
+    {{- else }}
     federation-no-dtls
+    {{- end }}
+
     {{- end }}
 
     ## access control settings.
