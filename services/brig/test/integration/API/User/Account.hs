@@ -304,10 +304,10 @@ testCreateUserWithPreverified opts brig aws = do
 testCreateUser :: Brig -> Galley -> Http () -- TODO: this has nothing to do with /register.  what's going on here?
 testCreateUser brig galley = do
   uid <- userId <$> randomUser brig
-  assertOnlySelfConversation galley uid
+  assertOnlySelfConversations galley uid
 
-assertOnlySelfConversation :: Galley -> UserId -> Http ()
-assertOnlySelfConversation galley uid = do
+assertOnlySelfConversations :: Galley -> UserId -> Http ()
+assertOnlySelfConversations galley uid = do
   page :: ConvIdsPage <-
     responseJsonError
       =<< post
@@ -323,8 +323,7 @@ assertOnlySelfConversation galley uid = do
 
   let results = mtpResults page
   -- check number of conversations
-  liftIO $ length results @?= 1
-  let [qcnv] = results
+  liftIO $ length results @?= 2
 
   -- check conversation type
   r <-
@@ -333,11 +332,11 @@ assertOnlySelfConversation galley uid = do
         ( galley
             . zAuthAccess uid "conn"
             . paths ["conversations", "list"]
-            . json (ListConversations (unsafeRange [qcnv]))
+            . json (ListConversations (unsafeRange results))
         )
         <!! const 200 === statusCode
-  conv <- assertOne (crFound r)
-  liftIO $ cnvType conv @?= SelfConv
+  for_ (crFound r) $ \conv ->
+    liftIO $ cnvType conv @?= SelfConv
 
 -- The testCreateUserEmptyName test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
@@ -382,10 +381,10 @@ testCreateUserAnon brig galley = do
   -- Every registered user gets a cookie.
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rs
   liftIO $ assertBool "Missing zuid cookie" (isJust zuid)
-  -- Every registered user gets a self conversation.
+  -- Every registered user gets two self conversations.
   let Just uid = userId <$> responseJsonMaybe rs
       Just quid = userQualifiedId <$> responseJsonMaybe rs
-  assertOnlySelfConversation galley uid
+  assertOnlySelfConversations galley uid
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
