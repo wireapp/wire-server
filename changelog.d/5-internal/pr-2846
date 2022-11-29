@@ -1,1 +1,0 @@
-Backoffice Swagger 2.x docs is exposed on `/` and the old Swagger has been removed. Backoffice helm chart only runs stern without an extra nginx.
