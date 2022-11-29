@@ -22,7 +22,6 @@ module API.Team
   )
 where
 
-import qualified Wire.Data.Timeout as WireTimeout
 import qualified API.Search.Util as SearchUtil
 import API.Team.Util
 import API.User.Util as Util
@@ -78,6 +77,7 @@ import Wire.API.Team.Size
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client (ClientType (PermanentClientType))
+import qualified Wire.Data.Timeout as WireTimeout
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 

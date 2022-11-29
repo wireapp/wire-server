@@ -43,10 +43,12 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
+import qualified Data.LimitFailedLogins as LimitFailedLogins
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Qualified (Qualified (qUnqualified))
 import Data.Range (unsafeRange)
+import qualified Data.SuspendInactiveUsers as SuspendInactiveUsers
 import qualified Data.Text as Text
 import Data.Text.Ascii (AsciiChars (validate))
 import Data.Text.IO (hPutStrLn)
@@ -72,9 +74,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
-import qualified Data.LimitFailedLogins as LimitFailedLogins
 import qualified Wire.Data.Timeout as WireTimeout
-import qualified Data.SuspendInactiveUsers as SuspendInactiveUsers
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to

@@ -55,6 +55,7 @@ import qualified Data.List as List
 import qualified Data.Metrics as Metrics
 import Data.Proxy
 import Data.RetryAfter
+import Data.SuspendInactiveUsers
 import Data.Time.Clock
 import Imports
 import Network.Wai (Response)
@@ -64,7 +65,6 @@ import qualified System.Logger.Class as Log
 import qualified Web.Cookie as WebCookie
 import Wire.API.User.Auth
 import Wire.Data.Timeout
-import Data.SuspendInactiveUsers
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management

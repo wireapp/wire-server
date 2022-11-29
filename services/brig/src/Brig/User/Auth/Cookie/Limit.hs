@@ -17,6 +17,7 @@
 
 module Brig.User.Auth.Cookie.Limit where
 
+import Data.CookieThrottle
 import Data.RetryAfter
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
@@ -24,7 +25,6 @@ import qualified Data.Vector as Vector
 import Imports
 import qualified Statistics.Sample as Stats
 import Wire.API.User.Auth
-import Data.CookieThrottle
 
 --------------------------------------------------------------------------------
 -- Quantitive Limiting
