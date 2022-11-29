@@ -138,11 +138,13 @@ spec:
               scheme: HTTP
               path: /i/status
               port: {{ .Values.service.internalPort }}
+            initialDelaySeconds: 30
           readinessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
               port: {{ .Values.service.internalPort }}
+            initialDelaySeconds: 30
           resources:
 {{ toYaml .Values.resources | indent 12 }}
         {{- if .Values.config.geoip.enabled }}
