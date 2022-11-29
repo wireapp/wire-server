@@ -23,6 +23,7 @@ module API.User.Account
   )
 where
 
+import qualified Wire.Data.Timeout as WireTimeout
 import qualified API.Search.Util as Search
 import API.Team.Util
 import API.User.Util
@@ -98,7 +99,7 @@ import Wire.API.User.Auth
 import qualified Wire.API.User.Auth as Auth
 import Wire.API.User.Client
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
+tests :: ConnectionLimit -> WireTimeout.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
 tests _ at opts p b c ch g aws =
   testGroup
     "account"
@@ -559,7 +560,7 @@ testCreateUserExternalSSO brig = do
   post (brig . path "/register" . contentJson . body (p True True))
     !!! const 400 === statusCode
 
-testActivateWithExpiry :: Opt.Opts -> Brig -> Opt.Timeout -> Http ()
+testActivateWithExpiry :: Opt.Opts -> Brig -> WireTimeout.Timeout -> Http ()
 testActivateWithExpiry (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
 testActivateWithExpiry _ brig timeout = do
   u <- responseJsonError =<< registerUser "dilbert" brig

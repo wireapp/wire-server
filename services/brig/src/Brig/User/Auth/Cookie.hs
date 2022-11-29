@@ -63,6 +63,8 @@ import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Web.Cookie as WebCookie
 import Wire.API.User.Auth
+import Wire.Data.Timeout
+import Data.SuspendInactiveUsers
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management

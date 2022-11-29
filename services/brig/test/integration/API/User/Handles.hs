@@ -51,8 +51,9 @@ import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Handle
+import qualified Wire.Data.Timeout as WireTimeout
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> WireTimeout.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =
   testGroup
     "handles"

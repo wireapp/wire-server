@@ -34,8 +34,9 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Util
 import Wire.API.User
+import qualified Wire.Data.Timeout as WireTimeout
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> WireTimeout.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p b _c _g =
   testGroup
     "property"

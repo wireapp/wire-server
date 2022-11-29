@@ -15,12 +15,15 @@ library
   exposed-modules:
     Data.Code
     Data.CommaSeparatedList
+    Data.CookieThrottle
     Data.Domain
+    Data.EmailVisibility
     Data.ETag
     Data.Handle
     Data.Id
     Data.Json.Util
     Data.LegalHold
+    Data.LimitFailedLogins
     Data.List1
     Data.Misc
     Data.Nonce
@@ -29,6 +32,7 @@ library
     Data.Range
     Data.RetryAfter
     Data.SizedHashMap
+    Data.SuspendInactiveUsers
     Data.Text.Ascii
     Data.UUID.Tagged
     Util.Attoparsec
@@ -37,6 +41,7 @@ library
     Util.Options.Common
     Util.Test
     Wire.Arbitrary
+    Wire.Data.Timeout
     Wire.Swagger
 
   other-modules:      Paths_types_common

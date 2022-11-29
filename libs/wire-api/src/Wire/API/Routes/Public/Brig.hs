@@ -19,7 +19,13 @@
 
 module Wire.API.Routes.Public.Brig where
 
-import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
+import qualified Wire.Data.Timeout as WireTimeout
+import qualified Data.Aeson as A
+import qualified Data.EmailVisibility as EmailVisibility
+import qualified Data.SuspendInactiveUsers as SuspendInactiveUsers
+import qualified Data.LimitFailedLogins as LimitFailedLogins
+import qualified Data.Nonce as Nonce
+import qualified Data.CookieThrottle as CookieThrottle
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
@@ -70,6 +76,7 @@ import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, Password
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
+import qualified Data.Code as Code
 
 type BrigAPI =
   UserAPI
@@ -1431,8 +1438,40 @@ type TeamsAPI =
            )
 
 -- TODO: Maybe move elsewhere
+-- | Subset of `Brig.Options.Settings` that is safe to be shown in public
+--
+-- Used to expose settings via the @/system/settings@ endpoint.
 data SystemSettings = SystemSettings
-  { setRestrictUserCreation :: !(Maybe Bool)
+  {
+    systemSettingsSetActivationTimeout :: !WireTimeout.Timeout,
+    systemSettingsSetVerificationCodeTimeoutInternal :: !(Maybe Code.Timeout),
+    systemSettingsSetTeamInvitationTimeout :: !WireTimeout.Timeout,
+    systemSettingsSetExpiredUserCleanupTimeout :: !(Maybe WireTimeout.Timeout),
+    systemSettingsSetUserMaxConnections :: !Int64,
+    systemSettingsSetUserMaxPermClients :: !(Maybe Int),
+    systemSettingsSetCookieInsecure :: !Bool,
+    systemSettingsSetUserCookieRenewAge :: !Integer,
+    systemSettingsSetUserCookieLimit :: !Int,
+    systemSettingsSetUserCookieThrottle :: !CookieThrottle.CookieThrottle,
+    systemSettingsSetLimitFailedLogins :: !(Maybe LimitFailedLogins.LimitFailedLogins),
+    systemSettingsSetSuspendInactiveUsers :: !(Maybe SuspendInactiveUsers.SuspendInactiveUsers),
+    systemSettingsSetRichInfoLimit :: !Int,
+    systemSettingsSetDefaultTemplateLocaleInternal :: !(Maybe Locale),
+    systemSettingsSetDefaultUserLocaleInternal :: !(Maybe Locale),
+    systemSettingsSetMaxTeamSize :: !Word32,
+    systemSettingsSetMaxConvSize :: !Word16,
+    systemSettingsSetEmailVisibility :: !EmailVisibility.EmailVisibility,
+    systemSettingsSetPropertyMaxKeyLen :: !(Maybe Int64),
+    systemSettingsSetPropertyMaxValueLen :: !(Maybe Int64),
+    systemSettingsSetDeleteThrottleMillis :: !(Maybe Int),
+    systemSettingsSetSearchSameTeamOnly :: !(Maybe Bool),
+    systemSettingsSetFederationDomain :: !Domain,
+    systemSettingsSetSqsThrottleMillis :: !(Maybe Int),
+    systemSettingsSetRestrictUserCreation :: !(Maybe Bool),
+--  systemSettings  setFeatureFlags :: !(Maybe AccountFeatureConfigs),
+    systemSettingsSetEnableDevelopmentVersions :: Maybe Bool,
+    systemSettingsSet2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
+    systemSettingsSetNonceTtlSecsInternal :: !(Maybe Nonce.NonceTtlSecs)
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema.Schema SystemSettings
@@ -1441,7 +1480,35 @@ instance Schema.ToSchema SystemSettings where
   schema =
     Schema.object "SystemSettings" $
       SystemSettings
-        <$> setRestrictUserCreation Schema..= Schema.maybe_ (Schema.optField "setRestrictUserCreation" Schema.schema)
+        <$> systemSettingsSetActivationTimeout Schema..= Schema.field "setActivationTimeout" Schema.schema
+        <*> systemSettingsSetVerificationCodeTimeoutInternal Schema..= Schema.maybe_ (Schema.optField "setVerificationCodeTimeoutInternal" Schema.schema)
+        <*> systemSettingsSetTeamInvitationTimeout Schema..= Schema.field "setTeamInvitationTimeout" Schema.schema
+        <*> systemSettingsSetExpiredUserCleanupTimeout Schema..= Schema.maybe_ (Schema.optField "setExpiredUserCleanupTimeout" Schema.schema)
+        <*> systemSettingsSetUserMaxConnections Schema..= Schema.field "setUserMaxConnections" Schema.schema
+        <*> systemSettingsSetUserMaxPermClients Schema..= Schema.maybe_ (Schema.optField "setUserMaxPermClients" Schema.schema)
+        <*> systemSettingsSetCookieInsecure Schema..= Schema.field "setCookieInsecure" Schema.schema
+        <*> systemSettingsSetUserCookieRenewAge Schema..= Schema.field "setUserCookieRenewAge" Schema.schema
+        <*> systemSettingsSetUserCookieLimit  Schema..= Schema.field "setUserCookieLimit" Schema.schema
+        <*> systemSettingsSetUserCookieThrottle Schema..= Schema.field "setUserCookieThrottle" Schema.schema
+        <*> systemSettingsSetLimitFailedLogins Schema..= Schema.maybe_ (Schema.optField "setLimitFailedLogins" Schema.schema)
+        <*> systemSettingsSetSuspendInactiveUsers Schema..= Schema.maybe_ (Schema.optField "setSuspendInactiveUsers" Schema.schema)
+        <*> systemSettingsSetRichInfoLimit  Schema..= Schema.field "setRichInfoLimit" Schema.schema
+        <*> systemSettingsSetDefaultTemplateLocaleInternal  Schema..= Schema.maybe_ (Schema.optField "setDefaultTemplateLocaleInternal" Schema.schema)
+        <*> systemSettingsSetDefaultUserLocaleInternal  Schema..= Schema.maybe_ (Schema.optField "setDefaultUserLocaleInternal" Schema.schema)
+        <*> systemSettingsSetMaxTeamSize  Schema..= Schema.field "setMaxTeamSize" Schema.schema
+        <*> systemSettingsSetMaxConvSize   Schema..= Schema.field "setMaxConvSize" Schema.schema
+        <*> systemSettingsSetEmailVisibility   Schema..= Schema.field "setEmailVisibility" Schema.schema
+        <*> systemSettingsSetPropertyMaxKeyLen  Schema..= Schema.maybe_ (Schema.optField "setPropertyMaxKeyLen" Schema.schema)
+        <*> systemSettingsSetPropertyMaxValueLen  Schema..= Schema.maybe_ (Schema.optField "setPropertyMaxValueLen" Schema.schema)
+        <*> systemSettingsSetDeleteThrottleMillis  Schema..= Schema.maybe_ (Schema.optField "setDeleteThrottleMillis" Schema.schema)
+        <*> systemSettingsSetSearchSameTeamOnly  Schema..= Schema.maybe_ (Schema.optField "setSearchSameTeamOnly" Schema.schema)
+        <*> systemSettingsSetFederationDomain   Schema..= Schema.field "setFederationDomain" Schema.schema
+        <*> systemSettingsSetSqsThrottleMillis  Schema..= Schema.maybe_ (Schema.optField "setSqsThrottleMillis" Schema.schema)
+        <*> systemSettingsSetRestrictUserCreation Schema..= Schema.maybe_ (Schema.optField "setRestrictUserCreation" Schema.schema)
+--        <*> systemSettingsSetFeatureFlags  Schema..= Schema.maybe_ (Schema.optField "setFeatureFlags" Schema.schema)
+        <*> systemSettingsSetEnableDevelopmentVersions  Schema..= Schema.maybe_ (Schema.optField "setEnableDevelopmentVersions" Schema.schema)
+        <*> systemSettingsSet2FACodeGenerationDelaySecsInternal  Schema..= Schema.maybe_ (Schema.optField "set2FACodeGenerationDelaySecsInternal" Schema.schema)
+        <*> systemSettingsSetNonceTtlSecsInternal  Schema..= Schema.maybe_ (Schema.optField "setNonceTtlSecsInternal" Schema.schema)
 
 type SystemSettingsAPI =
   Named

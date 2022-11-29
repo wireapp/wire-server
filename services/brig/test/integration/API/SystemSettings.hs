@@ -7,7 +7,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Control.Lens.Operators
-import Wire.API.Routes.Public.Brig (SystemSettings (setRestrictUserCreation))
+import Wire.API.Routes.Public.Brig
 import Control.Monad.Catch
 import Bilge.Assert
 
@@ -22,7 +22,7 @@ testGetSettings :: Opts.Opts -> Brig -> Http ()
 testGetSettings opts brig = forM_ [False .. True] $ \v -> do
   let newOpts = opts & (Opts.optionSettings . Opts.restrictUserCreation) ?~ v
   settings <- withSettingsOverrides newOpts $ getSystemSettings brig
-  liftIO $ setRestrictUserCreation settings @?= Just v
+  liftIO $ systemSettingsSetRestrictUserCreation settings @?= Just v
 
 getSystemSettings :: (HasCallStack, MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) =>
   Brig -> m SystemSettings

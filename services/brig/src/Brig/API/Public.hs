@@ -1102,7 +1102,38 @@ sendVerificationCode req = do
 getSystemSettings :: ExceptT Brig.API.Error.Error (AppT r) SystemSettings
 getSystemSettings = do
   optSettings <- view settings
-  pure (SystemSettings (Brig.Options.setRestrictUserCreation optSettings))
+  pure $
+    SystemSettings
+      { systemSettingsSetActivationTimeout = setActivationTimeout optSettings,
+        systemSettingsSetVerificationCodeTimeoutInternal = setVerificationCodeTimeoutInternal optSettings,
+        systemSettingsSetTeamInvitationTimeout = setTeamInvitationTimeout optSettings,
+        systemSettingsSetExpiredUserCleanupTimeout = setExpiredUserCleanupTimeout optSettings,
+        systemSettingsSetUserMaxConnections = setUserMaxConnections optSettings,
+        systemSettingsSetUserMaxPermClients = setUserMaxPermClients optSettings,
+        systemSettingsSetCookieInsecure = setCookieInsecure optSettings,
+        systemSettingsSetUserCookieRenewAge = setUserCookieRenewAge optSettings,
+        systemSettingsSetUserCookieLimit = setUserCookieLimit optSettings,
+        systemSettingsSetUserCookieThrottle = setUserCookieThrottle optSettings,
+        systemSettingsSetLimitFailedLogins = setLimitFailedLogins optSettings,
+        systemSettingsSetSuspendInactiveUsers = setSuspendInactiveUsers optSettings,
+        systemSettingsSetRichInfoLimit = setRichInfoLimit optSettings,
+        systemSettingsSetDefaultTemplateLocaleInternal = setDefaultTemplateLocaleInternal optSettings,
+        systemSettingsSetDefaultUserLocaleInternal = setDefaultUserLocaleInternal optSettings,
+        systemSettingsSetMaxTeamSize = setMaxTeamSize optSettings,
+        systemSettingsSetMaxConvSize = setMaxConvSize optSettings,
+        systemSettingsSetEmailVisibility = setEmailVisibility optSettings,
+        systemSettingsSetPropertyMaxKeyLen = setPropertyMaxKeyLen optSettings,
+        systemSettingsSetPropertyMaxValueLen = setPropertyMaxValueLen optSettings,
+        systemSettingsSetDeleteThrottleMillis = setDeleteThrottleMillis optSettings,
+        systemSettingsSetSearchSameTeamOnly = setSearchSameTeamOnly optSettings,
+        systemSettingsSetFederationDomain = setFederationDomain optSettings,
+        systemSettingsSetSqsThrottleMillis = setSqsThrottleMillis optSettings,
+        systemSettingsSetRestrictUserCreation = setRestrictUserCreation optSettings,
+        --    systemSettingsSetFeatureFlags :: !(Maybe AccountFeatureConfigs),
+        systemSettingsSetEnableDevelopmentVersions = setEnableDevelopmentVersions optSettings,
+        systemSettingsSet2FACodeGenerationDelaySecsInternal = set2FACodeGenerationDelaySecsInternal optSettings,
+        systemSettingsSetNonceTtlSecsInternal = setNonceTtlSecsInternal optSettings
+      }
 
 -- Deprecated
 
