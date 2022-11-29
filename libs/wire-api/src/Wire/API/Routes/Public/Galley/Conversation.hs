@@ -29,7 +29,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.MLS.GlobalTeamConversation
+-- import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Servant
 import Wire.API.Routes.MultiVerb
@@ -115,18 +115,18 @@ type ConversationAPI =
                :> QualifiedCapture "cnv" ConvId
                :> Get '[Servant.JSON] Conversation
            )
-    :<|> Named
-           "get-global-team-conversation"
-           ( Summary "Get the global conversation for a given team ID"
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'NotATeamMember
-               :> ZLocalUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "conversations"
-               :> "global"
-               :> Get '[Servant.JSON] GlobalTeamConversation
-           )
+    -- :<|> Named
+    --        "get-global-team-conversation"
+    --        ( Summary "Get the global conversation for a given team ID"
+    --            :> CanThrow 'ConvNotFound
+    --            :> CanThrow 'NotATeamMember
+    --            :> ZLocalUser
+    --            :> "teams"
+    --            :> Capture "tid" TeamId
+    --            :> "conversations"
+    --            :> "global"
+    --            :> Get '[Servant.JSON] GlobalTeamConversation
+    --        )
     :<|> Named
            "get-conversation-roles"
            ( Summary "Get existing roles available for the given conversation"
