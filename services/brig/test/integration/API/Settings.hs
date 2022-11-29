@@ -28,6 +28,7 @@ import Data.Aeson
 import Data.Aeson.Lens
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
+import Data.EmailVisibility
 import Data.Id
 import qualified Data.Set as Set
 import qualified Galley.Types.Teams as Team
@@ -38,7 +39,6 @@ import Util
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User
-import Data.EmailVisibility
 
 tests :: Opts -> Manager -> Brig -> Galley -> IO TestTree
 tests defOpts manager brig galley = pure $ do

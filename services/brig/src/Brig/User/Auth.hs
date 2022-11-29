@@ -68,6 +68,7 @@ import Control.Monad.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (Handle)
 import Data.Id
+import Data.LimitFailedLogins
 import qualified Data.List.NonEmpty as NE
 import Data.List1 (List1)
 import qualified Data.List1 as List1
@@ -85,7 +86,6 @@ import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
 import Wire.Data.Timeout
-import Data.LimitFailedLogins
 
 sendLoginCode ::
   ( MonadClient m,

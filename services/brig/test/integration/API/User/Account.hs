@@ -23,7 +23,6 @@ module API.User.Account
   )
 where
 
-import qualified Wire.Data.Timeout as WireTimeout
 import qualified API.Search.Util as Search
 import API.Team.Util
 import API.User.Util
@@ -99,6 +98,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Auth
 import qualified Wire.API.User.Auth as Auth
 import Wire.API.User.Client
+import qualified Wire.Data.Timeout as WireTimeout
 
 tests :: ConnectionLimit -> WireTimeout.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
 tests _ at opts p b c ch g aws =
