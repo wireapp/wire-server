@@ -40,7 +40,6 @@ where
 import Brig.App as App
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
-import Brig.Options
 import Brig.Team.Template
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import Brig.Template (renderTextWithBranding)
@@ -64,6 +63,7 @@ import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Team.Invitation hiding (HeadInvitationByEmailResult (..))
 import Wire.API.Team.Role
 import Wire.API.User
+import Wire.Data.Timeout
 
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24

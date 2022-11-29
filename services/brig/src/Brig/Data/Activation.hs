@@ -36,7 +36,6 @@ import Brig.Data.User
 import Brig.Data.UserKey
 import qualified Brig.Effects.CodeStore as E
 import Brig.Effects.CodeStore.Cassandra
-import Brig.Options
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
@@ -52,6 +51,7 @@ import Polysemy
 import Text.Printf (printf)
 import Wire.API.User
 import Wire.API.User.Activation
+import Wire.Data.Timeout
 
 --  | The information associated with the pending activation of a 'UserKey'.
 data Activation = Activation

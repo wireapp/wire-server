@@ -22,6 +22,7 @@ module API.Team
   )
 where
 
+import qualified Wire.Data.Timeout as WireTimeout
 import qualified API.Search.Util as SearchUtil
 import API.Team.Util
 import API.User.Util as Util
@@ -777,7 +778,7 @@ testInvitationInfoBadCode brig = do
   get (brig . path ("/teams/invitations/info?code=" <> icode))
     !!! const 400 === statusCode
 
-testInvitationInfoExpired :: Brig -> Opt.Timeout -> Http ()
+testInvitationInfoExpired :: Brig -> WireTimeout.Timeout -> Http ()
 testInvitationInfoExpired brig timeout = do
   email <- randomEmail
   (uid, tid) <- createUserWithTeam brig

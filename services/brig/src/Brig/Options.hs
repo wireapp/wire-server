@@ -23,15 +23,13 @@ module Brig.Options where
 
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
-import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist (..))
 import qualified Brig.ZAuth as ZAuth
 import Control.Applicative
 import qualified Control.Lens as Lens
-import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
+import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON)
 import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import qualified Data.Code as Code
 import Data.Domain (Domain (..))
@@ -41,7 +39,6 @@ import Data.Misc (HttpsUrl)
 import Data.Nonce
 import Data.Range
 import Data.Schema
-import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
@@ -56,17 +53,11 @@ import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, arbitrary)
-
-newtype Timeout = Timeout
-  { timeoutDiff :: NominalDiffTime
-  }
-  deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
-
-instance Read Timeout where
-  readsPrec i s =
-    case readsPrec i s of
-      [(x :: Int, s')] -> [(Timeout (fromIntegral x), s')]
-      _ -> []
+import Wire.Data.Timeout
+import Data.CookieThrottle
+import Data.LimitFailedLogins
+import Data.SuspendInactiveUsers
+import Data.EmailVisibility
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
@@ -259,32 +250,6 @@ data EmailSMSOpts = EmailSMSOpts
 
 instance FromJSON EmailSMSOpts
 
--- | Login retry limit.  In contrast to 'setUserCookieThrottle', this is not about mitigating
--- DOS attacks, but about preventing dictionary attacks.  This introduces the orthogonal risk
--- of an attacker blocking legitimate login attempts of a user by constantly keeping the retry
--- limit for that user exhausted with failed login attempts.
---
--- If in doubt, do not ues retry options and worry about encouraging / enforcing a good
--- password policy.
-data LimitFailedLogins = LimitFailedLogins
-  { -- | Time the user is blocked when retry limit is reached (in
-    -- seconds mostly for making it easier to write a fast-ish
-    -- integration test.)
-    timeout :: !Timeout,
-    -- | Maximum number of failed login attempts for one user.
-    retryLimit :: !Int
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON LimitFailedLogins
-
-data SuspendInactiveUsers = SuspendInactiveUsers
-  { suspendTimeout :: !Timeout
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON SuspendInactiveUsers
-
 -- | ZAuth options
 data ZAuthOpts = ZAuthOpts
   { -- | Private key file
@@ -354,34 +319,6 @@ instance FromJSON TurnDnsOpts where
     TurnDnsOpts
       <$> (asciiOnly =<< o .: "baseDomain")
       <*> o .:? "discoveryIntervalSeconds"
-
--- | Configurations for whether to show a user's email to others.
-data EmailVisibility
-  = -- | Anyone can see the email of someone who is on ANY team.
-    --         This may sound strange; but certain on-premise hosters have many different teams
-    --         and still want them to see each-other's emails.
-    EmailVisibleIfOnTeam
-  | -- | Anyone on your team with at least 'Member' privileges can see your email address.
-    EmailVisibleIfOnSameTeam
-  | -- | Show your email only to yourself
-    EmailVisibleToSelf
-  deriving (Eq, Show, Bounded, Enum)
-
-instance FromJSON EmailVisibility where
-  parseJSON = withText "EmailVisibility" $ \case
-    "visible_if_on_team" -> pure EmailVisibleIfOnTeam
-    "visible_if_on_same_team" -> pure EmailVisibleIfOnSameTeam
-    "visible_to_self" -> pure EmailVisibleToSelf
-    _ ->
-      fail $
-        "unexpected value for EmailVisibility settings: "
-          <> "expected one of "
-          <> show (Aeson.encode <$> [(minBound :: EmailVisibility) ..])
-
-instance ToJSON EmailVisibility where
-  toJSON EmailVisibleIfOnTeam = "visible_if_on_team"
-  toJSON EmailVisibleIfOnSameTeam = "visible_if_on_same_team"
-  toJSON EmailVisibleToSelf = "visible_to_self"
 
 data ListAllSFTServers
   = ListAllSFTServers
@@ -808,16 +745,6 @@ defSrvDiscoveryIntervalSeconds = secondsToDiffTime 10
 
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
-
-instance FromJSON Timeout where
-  parseJSON (Y.Number n) =
-    let defaultV = 3600
-        bounded = toBoundedInteger n :: Maybe Int64
-     in pure $
-          Timeout $
-            fromIntegral @Int $
-              maybe defaultV fromIntegral bounded
-  parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings where
   parseJSON = genericParseJSON customOptions

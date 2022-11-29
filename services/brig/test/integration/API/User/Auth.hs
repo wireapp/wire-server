@@ -72,6 +72,9 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import qualified Data.LimitFailedLogins as LimitFailedLogins
+import qualified Wire.Data.Timeout as WireTimeout
+import qualified Data.SuspendInactiveUsers as SuspendInactiveUsers
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -597,14 +600,14 @@ testThrottleLogins conf b = do
 testLimitRetries :: HasCallStack => Opts.Opts -> Brig -> Http ()
 testLimitRetries conf brig = do
   let Just opts = Opts.setLimitFailedLogins . Opts.optSettings $ conf
-  unless (Opts.timeout opts <= 30) $
+  unless (LimitFailedLogins.timeout opts <= 30) $
     error "`loginRetryTimeout` is the number of seconds this test is running.  Please pick a value < 30."
   usr <- randomUser brig
   let Just email = userEmail usr
   usr' <- randomUser brig
   let Just email' = userEmail usr'
   -- Login 5 times with bad password.
-  forM_ [1 .. Opts.retryLimit opts] $ \_ ->
+  forM_ [1 .. LimitFailedLogins.retryLimit opts] $ \_ ->
     login brig (emailLogin email defWrongPassword (Just defCookieLabel)) SessionCookie
       <!! const 403 === statusCode
   -- Login once more. This should fail for usr, even though password is correct...
@@ -618,13 +621,13 @@ testLimitRetries conf brig = do
   -- throttling should stop and login should work again
   do
     let Just retryAfterSecs = fromByteString =<< getHeader "Retry-After" resp
-        retryTimeout = Opts.Timeout $ fromIntegral retryAfterSecs
+        retryTimeout = WireTimeout.Timeout $ fromIntegral retryAfterSecs
     liftIO $ do
       assertBool
-        ("throttle delay (1): " <> show (retryTimeout, Opts.timeout opts))
+        ("throttle delay (1): " <> show (retryTimeout, LimitFailedLogins.timeout opts))
         -- (this accounts for slow CI systems that lose up to 2 secs)
-        ( retryTimeout >= Opts.timeout opts - 2
-            && retryTimeout <= Opts.timeout opts
+        ( retryTimeout >= LimitFailedLogins.timeout opts - 2
+            && retryTimeout <= LimitFailedLogins.timeout opts
         )
       threadDelay (1000000 * (retryAfterSecs - 2)) -- wait almost long enough.
 
@@ -1190,7 +1193,7 @@ testSuspendInactiveUsers config brig = do
   -- (context information: cookies are stored by user, not be device; so if there if the
   -- cookie is old it means none of the devices of a user has used it for a request.)
 
-  let Just suspendAge = Opts.suspendTimeout <$> Opts.setSuspendInactiveUsers (Opts.optSettings config)
+  let Just suspendAge = SuspendInactiveUsers.suspendTimeout <$> Opts.setSuspendInactiveUsers (Opts.optSettings config)
   unless (suspendAge <= 30) $
     error "`suspendCookiesOlderThanSecs` is the number of seconds this test is running.  Please pick a value < 30."
   let check :: HasCallStack => CookieType -> String -> Http ()
@@ -1202,7 +1205,7 @@ testSuspendInactiveUsers config brig = do
             <!! const 200 === statusCode
         let cky = decodeCookie rs
         -- wait slightly longer than required for being marked as inactive.
-        let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
+        let waitTime :: Int = floor (WireTimeout.timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
         liftIO $ threadDelay (1000000 * waitTime)
         case endPoint of
           "/access" -> do

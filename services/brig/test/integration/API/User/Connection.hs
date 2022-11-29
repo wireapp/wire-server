@@ -49,10 +49,11 @@ import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User
+import qualified Wire.Data.Timeout as WireTimeout
 
 tests ::
   ConnectionLimit ->
-  Opt.Timeout ->
+  WireTimeout.Timeout ->
   Opt.Opts ->
   Manager ->
   Brig ->

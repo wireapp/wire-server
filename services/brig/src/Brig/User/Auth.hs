@@ -84,6 +84,8 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
+import Wire.Data.Timeout
+import Data.LimitFailedLogins
 
 sendLoginCode ::
   ( MonadClient m,
@@ -221,8 +223,8 @@ withRetryLimit action uid = do
     let bkey = BudgetKey ("login#" <> idToText uid)
         budget =
           Budget
-            (Opt.timeoutDiff $ Opt.timeout opts)
-            (fromIntegral $ Opt.retryLimit opts)
+            (timeoutDiff $ timeout opts)
+            (fromIntegral $ retryLimit opts)
     bresult <- action bkey budget
     case bresult of
       BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl

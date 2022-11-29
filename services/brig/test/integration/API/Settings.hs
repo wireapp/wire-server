@@ -38,6 +38,7 @@ import Util
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User
+import Data.EmailVisibility
 
 tests :: Opts -> Manager -> Brig -> Galley -> IO TestTree
 tests defOpts manager brig galley = pure $ do
@@ -70,13 +71,13 @@ data ViewedUserIs = SameTeam | DifferentTeam | NoTeam
 data ViewingUserIs = Creator | Member | Guest
   deriving (Eq, Show, Enum, Bounded)
 
-expectEmailVisible :: Opt.EmailVisibility -> ViewingUserIs -> ViewedUserIs -> Bool
-expectEmailVisible Opt.EmailVisibleIfOnTeam = \case
+expectEmailVisible :: EmailVisibility -> ViewingUserIs -> ViewedUserIs -> Bool
+expectEmailVisible EmailVisibleIfOnTeam = \case
   _ -> \case
     SameTeam -> True
     DifferentTeam -> True
     NoTeam -> False
-expectEmailVisible Opt.EmailVisibleIfOnSameTeam = \case
+expectEmailVisible EmailVisibleIfOnSameTeam = \case
   Creator -> \case
     SameTeam -> True
     DifferentTeam -> False
@@ -89,7 +90,7 @@ expectEmailVisible Opt.EmailVisibleIfOnSameTeam = \case
     SameTeam -> False
     DifferentTeam -> False
     NoTeam -> False
-expectEmailVisible Opt.EmailVisibleToSelf = \case
+expectEmailVisible EmailVisibleToSelf = \case
   _ -> \case
     SameTeam -> False
     DifferentTeam -> False
@@ -98,7 +99,7 @@ expectEmailVisible Opt.EmailVisibleToSelf = \case
 jsonField :: FromJSON a => Key -> Value -> Maybe a
 jsonField f u = u ^? key f >>= maybeFromJSON
 
-testUsersEmailVisibleIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
+testUsersEmailVisibleIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> EmailVisibility -> Http ()
 testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySetting = do
   (viewerId, userA, userB, nonTeamUser) <- setup brig galley viewingUserIs
   let uids =
@@ -131,7 +132,7 @@ testUsersEmailVisibleIffExpected opts brig galley viewingUserIs visibilitySettin
   where
     result r = Set.fromList . map (jsonField "id" &&& jsonField "email") <$> responseJsonMaybe r
 
-testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> Opt.EmailVisibility -> Http ()
+testGetUserEmailShowsEmailsIffExpected :: Opts -> Brig -> Galley -> ViewingUserIs -> EmailVisibility -> Http ()
 testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibilitySetting = do
   (viewerId, userA, userB, nonTeamUser) <- setup brig galley viewingUserIs
   let expectations :: [(UserId, Maybe Email)]

@@ -68,8 +68,9 @@ import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
+import qualified Wire.Data.Timeout as WireTimeout
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> TestTree
+tests :: ConnectionLimit -> WireTimeout.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p db b c g =
   testGroup
     "client"

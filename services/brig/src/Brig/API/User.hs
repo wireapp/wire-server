@@ -123,7 +123,7 @@ import qualified Brig.Effects.UserPendingActivationStore as UserPendingActivatio
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
-import Brig.Options hiding (Timeout, internalEvents)
+import Brig.Options hiding (internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
@@ -187,6 +187,7 @@ import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
 import Wire.Sem.Concurrency
+import Data.EmailVisibility
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates

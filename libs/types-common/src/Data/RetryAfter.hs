@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving#-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,7 +19,20 @@
 module Data.RetryAfter where
 
 import Imports
+import Data.Aeson
+import qualified Data.Schema as Schema
+import qualified Data.Swagger as Swagger
+import qualified Data.Swagger.Internal.Schema as SwaggerInternal
+import Data.Proxy
 
 newtype RetryAfter = RetryAfter
   {retryAfterSeconds :: Int64}
-  deriving (Eq, Show)
+  deriving (Eq, Show, ToJSON, FromJSON)
+
+instance Schema.ToSchema RetryAfter where schema = Schema.genericToSchema
+
+instance Swagger.ToSchema RetryAfter where
+ declareNamedSchema = SwaggerInternal.plain . Swagger.paramSchemaToSchema
+
+instance Swagger.ToParamSchema RetryAfter where
+  toParamSchema _ = Swagger.toParamSchema (Proxy @Int64)
