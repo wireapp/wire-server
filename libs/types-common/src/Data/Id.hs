@@ -49,6 +49,7 @@ module Data.Id
     RequestId (..),
     BotId (..),
     NoId,
+    OAuthClientId,
   )
 where
 
@@ -87,7 +88,7 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
-data IdTag = A | C | I | U | P | S | T | STo
+data IdTag = A | C | I | U | P | S | T | STo | OAuthClient
 
 idTagName :: IdTag -> Text
 idTagName A = "Asset"
@@ -98,6 +99,7 @@ idTagName P = "Provider"
 idTagName S = "Service"
 idTagName T = "Team"
 idTagName STo = "ScimToken"
+idTagName OAuthClient = "OAuthClient"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
@@ -118,6 +120,8 @@ instance KnownIdTag 'T where idTagValue = T
 
 instance KnownIdTag 'STo where idTagValue = STo
 
+instance KnownIdTag 'OAuthClient where idTagValue = OAuthClient
+
 type AssetId = Id 'A
 
 type InvitationId = Id 'I
@@ -135,6 +139,8 @@ type ServiceId = Id 'S
 type TeamId = Id 'T
 
 type ScimTokenId = Id 'STo
+
+type OAuthClientId = Id 'OAuthClient
 
 -- Id -------------------------------------------------------------------------
 

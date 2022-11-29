@@ -30,6 +30,7 @@ import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages.Validation
+import Brig.API.OAuth (OAuthAPI, oauthAPI)
 import Brig.API.Types
 import qualified Brig.API.User as API
 import qualified Brig.API.User as Api
@@ -111,8 +112,18 @@ servantSitemap ::
        UserPendingActivationStore p
      ]
     r =>
+  ServerT (BrigIRoutes.API :<|> OAuthAPI) (Handler r)
+servantSitemap = brigInternalAPI :<|> oauthAPI
+
+brigInternalAPI ::
+  Members
+    '[ BlacklistStore,
+       GalleyProvider,
+       UserPendingActivationStore p
+     ]
+    r =>
   ServerT BrigIRoutes.API (Handler r)
-servantSitemap =
+brigInternalAPI =
   ejpdAPI
     :<|> accountAPI
     :<|> mlsAPI
