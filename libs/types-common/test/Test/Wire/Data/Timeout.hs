@@ -5,7 +5,6 @@ import qualified Data.ByteString.Lazy as BL
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck
 import qualified Wire.Data.Timeout as WireTimeout
 
 tests :: TestTree
@@ -14,8 +13,7 @@ tests =
     "Wire.Data.Timeout"
     [ testCase "defaults small numbers in JSON de-serialization" testFromJSONDefaultsSmallNumbers,
       testCase "defaults big numbers in JSON de-serialization" testFromJSONDefaultsBigNumbers,
-      testCase "defaults decimal numbers in JSON de-serialization" testFromJSONDefaultsBigNumbers,
-      testProperty "JSON serialization and de-serialisation are isomorphic" testSerializationDeserialization
+      testCase "defaults decimal numbers in JSON de-serialization" testFromJSONDefaultsBigNumbers
     ]
 
 testFromJSONDefaultsDecimalNumbers :: Assertion
@@ -38,17 +36,3 @@ assertDefaultedTimeout numberBS =
   let decoded = decode numberBS :: Maybe WireTimeout.Timeout
    in fromJust decoded @?= WireTimeout.Timeout 3600
 
-testSerializationDeserialization :: NonDefaultedTimeout -> Property
-testSerializationDeserialization (NonDefaultedTimeout t) =
-  let encoded = encode t
-      decoded = fromJust $ decode encoded
-      encoded' = encode decoded
-   in (encoded === encoded') .&. (t === decoded)
-
-newtype NonDefaultedTimeout = NonDefaultedTimeout WireTimeout.Timeout
-  deriving (Show, Eq)
-
-instance Arbitrary NonDefaultedTimeout where
-  arbitrary =
-    NonDefaultedTimeout . WireTimeout.Timeout . fromInteger . fromIntegral
-      <$> chooseBoundedIntegral (minBound :: Int64, maxBound :: Int64)
