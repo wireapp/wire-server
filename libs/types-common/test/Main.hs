@@ -27,8 +27,8 @@ import qualified Test.Handle as Handle
 import qualified Test.Properties as Properties
 import qualified Test.Qualified as Qualified
 import qualified Test.SizedHashMap as SizedHashMap
-import qualified Test.Wire.Data.Timeout as WireTimeout
 import Test.Tasty
+import qualified Test.Wire.Data.Timeout as WireTimeout
 
 main :: IO ()
 main =

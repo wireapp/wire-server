@@ -35,4 +35,3 @@ assertDefaultedTimeout :: BL.ByteString -> Assertion
 assertDefaultedTimeout numberBS =
   let decoded = decode numberBS :: Maybe WireTimeout.Timeout
    in fromJust decoded @?= WireTimeout.Timeout 3600
-

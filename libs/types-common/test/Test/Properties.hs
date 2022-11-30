@@ -31,14 +31,19 @@ import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion as BS
 import Data.ByteString.Lazy as L
+import Data.CookieThrottle
 import Data.Domain (Domain)
+import Data.EmailVisibility
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Json.Util as Util
+import Data.LimitFailedLogins
 import Data.Nonce (Nonce)
 import Data.ProtocolBuffers.Internal
+import Data.RetryAfter
 import Data.Serialize
 import Data.String.Conversions (cs)
+import Data.SuspendInactiveUsers
 import Data.Text.Ascii
 import qualified Data.Text.Ascii as Ascii
 import Data.Time
@@ -48,11 +53,6 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
-import Data.CookieThrottle
-import Data.EmailVisibility
-import Data.RetryAfter
-import Data.LimitFailedLogins
-import Data.SuspendInactiveUsers
 import qualified Wire.Data.Timeout
 
 tests :: TestTree
@@ -225,33 +225,27 @@ tests =
         ],
       testGroup
         "CookieThrottle"
-        [
-          jsonRoundtrip @CookieThrottle
+        [ jsonRoundtrip @CookieThrottle
         ],
       testGroup
         "EmailVisibility"
-        [
-          jsonRoundtrip @EmailVisibility
+        [ jsonRoundtrip @EmailVisibility
         ],
       testGroup
         "RetryAfter"
-        [
-          jsonRoundtrip @RetryAfter
+        [ jsonRoundtrip @RetryAfter
         ],
       testGroup
         "LimitFailedLogins"
-        [
-          jsonRoundtrip @LimitFailedLogins
+        [ jsonRoundtrip @LimitFailedLogins
         ],
       testGroup
         "SuspendInactiveUsers"
-        [
-          jsonRoundtrip @SuspendInactiveUsers
+        [ jsonRoundtrip @SuspendInactiveUsers
         ],
       testGroup
         "Wire.Data.Timeout"
-        [
-          jsonRoundtrip @Wire.Data.Timeout.Timeout
+        [ jsonRoundtrip @Wire.Data.Timeout.Timeout
         ]
     ]
 
