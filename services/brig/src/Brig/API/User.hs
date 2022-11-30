@@ -148,6 +148,7 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
 import qualified Data.Currency as Currency
+import Data.EmailVisibility
 import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
@@ -187,7 +188,6 @@ import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
 import Wire.Sem.Concurrency
-import Data.EmailVisibility
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates

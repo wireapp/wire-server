@@ -549,6 +549,8 @@ executable brig-integration
     , http-reverse-proxy
     , http-types
     , imports
+    , iso3166-country-codes
+    , iso639
     , lens                   >=3.9
     , lens-aeson
     , metrics-wai

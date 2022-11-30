@@ -2,11 +2,12 @@
 
 module Data.LimitFailedLogins where
 
-import Prelude
 import Data.Aeson
-import GHC.Generics
-import Wire.Data.Timeout
 import Data.Schema as Schema
+import GHC.Generics
+import Wire.Arbitrary
+import Wire.Data.Timeout
+import Prelude
 
 -- | Login retry limit.  In contrast to 'setUserCookieThrottle', this is not about mitigating
 -- DOS attacks, but about preventing dictionary attacks.  This introduces the orthogonal risk
@@ -24,11 +25,13 @@ data LimitFailedLogins = LimitFailedLogins
     retryLimit :: !Int
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LimitFailedLogins)
 
 instance FromJSON LimitFailedLogins
 
 instance ToSchema LimitFailedLogins where
-  schema = Schema.object "LimitFailedLogins" $
+  schema =
+    Schema.object "LimitFailedLogins" $
       LimitFailedLogins
-      <$> timeout Schema..= Schema.field "timeout" Schema.schema
-      <*> retryLimit Schema..= Schema.field "retryLimit" Schema.schema
+        <$> timeout Schema..= Schema.field "timeout" Schema.schema
+        <*> retryLimit Schema..= Schema.field "retryLimit" Schema.schema

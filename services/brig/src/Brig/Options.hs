@@ -32,13 +32,17 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
 import qualified Data.Code as Code
+import Data.CookieThrottle
 import Data.Domain (Domain (..))
+import Data.EmailVisibility
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
+import Data.LimitFailedLogins
 import Data.Misc (HttpsUrl)
 import Data.Nonce
 import Data.Range
 import Data.Schema
+import Data.SuspendInactiveUsers
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
@@ -54,10 +58,6 @@ import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 import Wire.Arbitrary (Arbitrary, arbitrary)
 import Wire.Data.Timeout
-import Data.CookieThrottle
-import Data.LimitFailedLogins
-import Data.SuspendInactiveUsers
-import Data.EmailVisibility
 
 data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
