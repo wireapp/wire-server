@@ -160,6 +160,7 @@ test-suite tests
     Test.Properties
     Test.Qualified
     Test.SizedHashMap
+    Test.Wire.Data.Timeout
 
   hs-source-dirs:     test
   default-extensions:

@@ -27,6 +27,7 @@ import qualified Test.Handle as Handle
 import qualified Test.Properties as Properties
 import qualified Test.Qualified as Qualified
 import qualified Test.SizedHashMap as SizedHashMap
+import qualified Test.Wire.Data.Timeout as WireTimeout
 import Test.Tasty
 
 main :: IO ()
@@ -39,5 +40,6 @@ main =
         Domain.tests,
         Handle.tests,
         Qualified.tests,
-        PEMKeys.tests
+        PEMKeys.tests,
+        WireTimeout.tests
       ]
