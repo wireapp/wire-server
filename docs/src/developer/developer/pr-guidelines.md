@@ -51,7 +51,6 @@ For internal endpoints for QA access on staging environments, copy a block with 
     - staging
     disable_zauth: true
     basic_auth: true
-    versioned: false
 ```
 
 For customer support access to an internal endpoint, instead update code in [stern](https://github.com/wireapp/wire-server/tree/develop/tools/stern) as part of your PR. There is no need to add that endpoint to nginz.
