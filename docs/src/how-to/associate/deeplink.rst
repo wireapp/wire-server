@@ -45,6 +45,7 @@ From a user's perspective:
 With Added Proxy
 ~~~~~~~~~~~~~~~~
 In addition to the previous points
+
 7. The app will remember the (proxy host, proxy port, if the proxy need authentication)
 8. In the login page the user will see new section to add the proxy credentials if the proxy need authentication
 
