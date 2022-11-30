@@ -9,13 +9,9 @@
 ## API changes
 
 
-* Added global conversation type and GET endpoint (`GET /teams/:tid/conversations/global`). (#2753)
-
 * Support MLS self-conversations via a new endpoint `GET /conversations/mls-self`. This removes the `PUT` counterpart introduced in #2730 (#2839)
 
 * List the MLS self-conversation automatically without needing to call `GET /conversations/mls-self` first (#2856)
-
-* Support MLS self-conversations via a new endpoint `PUT /conversations/mls-self` (#2730)
 
 
 ## Features
