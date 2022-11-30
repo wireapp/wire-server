@@ -672,6 +672,7 @@ executable brig-schema
     V71_AddTableVCodesThrottle
     V72_AddNonceTable
     V73_ReplaceNonceTable
+    V74_AddOAuthClientTable
     V9
 
   hs-source-dirs:     schema/src
