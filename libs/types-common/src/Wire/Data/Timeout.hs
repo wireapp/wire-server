@@ -12,10 +12,10 @@ import Data.Schema
 import Data.Scientific
 import qualified Data.Swagger as Swagger
 import qualified Data.Swagger.Internal.Schema as Swagger
+import Data.Time.Clock
 import qualified Data.Yaml as Y
 import Test.QuickCheck
 import Prelude
-import Data.Time.Clock
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -23,7 +23,8 @@ newtype Timeout = Timeout
   deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
 
 instance Arbitrary Timeout where
-  arbitrary = Timeout . fromInteger . fromIntegral
+  arbitrary =
+    Timeout . fromInteger . fromIntegral
       <$> chooseBoundedIntegral (minBound :: Int64, maxBound :: Int64)
 
 instance Read Timeout where

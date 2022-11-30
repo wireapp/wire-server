@@ -24,7 +24,7 @@ data LimitFailedLogins = LimitFailedLogins
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LimitFailedLogins)
-  deriving (FromJSON , ToJSON) via (Schema LimitFailedLogins)
+  deriving (FromJSON, ToJSON) via (Schema LimitFailedLogins)
 
 instance ToSchema LimitFailedLogins where
   schema =
