@@ -1,1 +1,0 @@
-Avoid client deletion edge case condition which can lead to inconsistent data between brig and galley's clients tables.

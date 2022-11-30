@@ -1,1 +1,0 @@
-This realease migrates data from `galley.member_client` to `galley.mls_group_member_client`. When upgrading wire-server no manual steps are required.
