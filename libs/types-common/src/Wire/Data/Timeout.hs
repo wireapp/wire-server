@@ -1,23 +1,29 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeApplications #-}
+
 module Wire.Data.Timeout where
 
-import Prelude
-import Data.Time.Clock
 import Data.Aeson
-import qualified Data.Yaml as Y
-import Data.Int
-import Data.Scientific
 import Data.Aeson.Types
+import Data.Data (Proxy (..))
+import Data.Fixed
+import Data.Int
 import Data.Schema
+import Data.Scientific
 import qualified Data.Swagger as Swagger
 import qualified Data.Swagger.Internal.Schema as Swagger
-import Data.Data (Proxy(..))
+import Data.Time.Clock
+import qualified Data.Yaml as Y
+import Test.QuickCheck
+import Prelude
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
   }
   deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
+
+instance Arbitrary Timeout where
+  arbitrary = Timeout . secondsToNominalDiffTime . MkFixed <$> chooseAny
 
 instance Read Timeout where
   readsPrec i s =

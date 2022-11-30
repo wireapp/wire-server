@@ -40,8 +40,8 @@ import Data.UUID as UUID (UUID, fromByteString, toByteString)
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (Arbitrary)
 import Test.QuickCheck.Instances.UUID ()
+import Wire.Arbitrary
 
 newtype Nonce = Nonce {unNonce :: UUID}
   deriving (Eq, Show)
@@ -88,6 +88,7 @@ instance Cql Nonce where
 newtype NonceTtlSecs = NonceTtlSecs {unNonceTtlSecs :: Word32}
   deriving (Eq, Show, Generic)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema NonceTtlSecs)
+  deriving (Arbitrary) via (GenericUniform NonceTtlSecs)
 
 -- | Convert 'Word32' to 'Int32', with clipping if it doesn't fit.
 word32ToInt32 :: Word32 -> Int32

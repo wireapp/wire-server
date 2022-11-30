@@ -67,6 +67,7 @@
 , imports
 , insert-ordered-containers
 , iproute
+, iso3166-country-codes
 , iso639
 , jwt-tools
 , lens
@@ -325,6 +326,8 @@ mkDerivation {
     http-reverse-proxy
     http-types
     imports
+    iso3166-country-codes
+    iso639
     lens
     lens-aeson
     metrics-wai
