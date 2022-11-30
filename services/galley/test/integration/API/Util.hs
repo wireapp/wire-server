@@ -727,7 +727,8 @@ defNewMLSConv :: ClientId -> NewConv
 defNewMLSConv c =
   defNewProteusConv
     { newConvProtocol = ProtocolMLSTag,
-      newConvCreatorClient = Just c
+      newConvCreatorClient = Just c,
+      newConvName = Just (unsafeRange "Test conv")
     }
 
 postConvQualified ::
