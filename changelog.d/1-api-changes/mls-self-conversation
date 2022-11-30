@@ -1,1 +1,0 @@
-Support MLS self-conversations via a new endpoint `PUT /conversations/mls-self`
