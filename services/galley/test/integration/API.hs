@@ -1689,7 +1689,8 @@ getConvsOk = do
   usr <- randomUser
   convs <- getAllConvs usr
   liftIO $
-    [toUUID usr] @?= map (toUUID . qUnqualified . cnvQualifiedId) convs
+    [selfConv usr, mlsSelfConvId usr]
+      @?= map (qUnqualified . cnvQualifiedId) convs
 
 getConvsOk2 :: TestM ()
 getConvsOk2 = do
@@ -1806,14 +1807,15 @@ testListConvIds = do
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
-  -- Each of the users has a Proteus self-conversation, an MLS self-conversation
-  -- and the one-to-one coversation.
-  getConvIdsV2 alice Nothing (Just 5) !!! do
-    const 200 === statusCode
-    const (Right 3) === fmap length . decodeQualifiedConvIdList
-  getConvIdsV2 bob Nothing (Just 5) !!! do
-    const 200 === statusCode
-    const (Right 3) === fmap length . decodeQualifiedConvIdList
+  -- Each user has a Proteus self-conversation and the one-to-one coversation.
+  for_ [alice, bob] $ \u -> do
+    r :: ConversationList ConvId <-
+      responseJsonError
+        =<< getConvIdsV2 u Nothing (Just 5)
+          <!! const 200 === statusCode
+    liftIO $ do
+      length (convList r) @?= 2
+      convHasMore r @?= False
 
 paginateConvListIds :: TestM ()
 paginateConvListIds = do
@@ -1949,11 +1951,11 @@ getConvsPagingOk :: TestM ()
 getConvsPagingOk = do
   [ally, bill, carl] <- randomUsers 3
   connectUsers ally (list1 bill [carl])
-  replicateM_ 11 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
+  replicateM_ 10 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
 
-  walk ally [3, 3, 3, 3, 2] -- 11 (group) + 2 (1:1) + 1 (self)
-  walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
-  walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+  walk ally [3, 3, 3, 3, 2] -- 10 (group) + 2 (1:1) + 2 (self)
+  walk bill [3, 3, 3, 3, 1] -- 10 (group) + 1 (1:1) + 2 (self)
+  walk carl [3, 3, 3, 3, 1] -- 10 (group) + 1 (1:1) + 2 (self)
   where
     walk :: Foldable t => UserId -> t Int -> TestM ()
     walk u = foldM_ (next u 3) Nothing

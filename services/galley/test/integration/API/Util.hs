@@ -1142,7 +1142,7 @@ getConvIdsV2 u r s = do
   g <- fmap (addPrefixAtVersion V2 .) (view tsUnversionedGalley)
   get $
     g
-      . path "/v2/conversations/ids"
+      . path "/conversations/ids"
       . zUser u
       . zConn "conn"
       . zType "access"
