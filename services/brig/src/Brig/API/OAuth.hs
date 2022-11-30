@@ -17,22 +17,24 @@
 
 module Brig.API.OAuth where
 
-import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
+import Brig.App (Env, wrapClient)
+import Brig.Password (Password, mkSafePassword)
+import Cassandra
 import Control.Monad.Except
-import Crypto.Random.DRBG
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy (toStrict)
 import Data.Id (OAuthClientId, randomId)
+import Data.Misc (PlainTextPassword (PlainTextPassword))
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
 import Imports
-import Network.HTTP.Types
-import qualified Network.Wai.Utilities.Error as Wai
-import Servant hiding (Handler)
+import OpenSSL.Random (randBytes)
+import Servant hiding (Handler, Tagged)
 import URI.ByteString
 import Wire.API.Routes.Named (Named (..))
 
@@ -43,13 +45,26 @@ newtype RedirectUrl = RedirectUrl {unRedirectUrl :: URIRef Absolute}
   deriving stock (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RedirectUrl)
 
+instance ToByteString RedirectUrl where
+  builder = serializeURIRef . unRedirectUrl
+
+instance FromByteString RedirectUrl where
+  parser = RedirectUrl <$> uriParser strictURIParserOptions
+
 instance ToSchema RedirectUrl where
   schema =
     (TE.decodeUtf8 . serializeURIRef' . unRedirectUrl)
       .= (RedirectUrl <$> parsedText "RedirectUrl" (runParser (uriParser strictURIParserOptions) . TE.encodeUtf8))
 
+newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: Range 1 256 Text}
+  deriving stock (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthApplicationName)
+
+instance ToSchema OAuthApplicationName where
+  schema = OAuthApplicationName <$> unOAuthApplicationName .= schema
+
 data NewOAuthClient = NewOAuthClient
-  { nocApplicationName :: Range 1 256 Text,
+  { nocApplicationName :: OAuthApplicationName,
     nocRedirectURI :: RedirectUrl
   }
   deriving stock (Eq, Show, Generic)
@@ -62,16 +77,19 @@ instance ToSchema NewOAuthClient where
         <$> nocApplicationName .= field "applicationName" schema
         <*> nocRedirectURI .= field "redirectUri" schema
 
-newtype OAuthClientSecret = OAuthClientSecret {unOAuthClientSecret :: AsciiBase16}
-  deriving stock (Eq, Show, Generic)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClientSecret)
+newtype OAuthClientPlainTextSecret = OAuthClientPlainTextSecret {unOAuthClientPlainTextSecret :: AsciiBase16}
+  deriving stock (Eq, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClientPlainTextSecret)
 
-instance ToSchema OAuthClientSecret where
-  schema = (toText . unOAuthClientSecret) .= parsedText "OAuthClientSecret" (fmap OAuthClientSecret . validateBase16)
+instance Show OAuthClientPlainTextSecret where
+  show _ = "<OAuthClientPlainTextSecret>"
+
+instance ToSchema OAuthClientPlainTextSecret where
+  schema = (toText . unOAuthClientPlainTextSecret) .= parsedText "OAuthClientPlainTextSecret" (fmap OAuthClientPlainTextSecret . validateBase16)
 
 data OAuthClientCredentials = OAuthClientCredentials
   { occClientId :: OAuthClientId,
-    occClientSecret :: OAuthClientSecret
+    occClientSecret :: OAuthClientPlainTextSecret
   }
   deriving stock (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClientCredentials)
@@ -105,18 +123,38 @@ oauthAPI =
 -- Handlers
 
 createNewOAuthClient :: NewOAuthClient -> (Handler r) OAuthClientCredentials
-createNewOAuthClient _ = do
-  OAuthClientCredentials
-    <$> randomId
-    <*> (createSecret >>= either (const $ throwStd $ oauthClientSecretGenError) pure)
+createNewOAuthClient req = do
+  credentials <- OAuthClientCredentials <$> randomId <*> createSecret
+  safePw <- liftIO $ hashClientSecret (occClientSecret credentials)
+  lift $ wrapClient $ insertOAuthClient (occClientId credentials) (nocApplicationName req) (nocRedirectURI req) safePw
+  pure credentials
   where
-    createSecret :: MonadIO m => m (Either GenError OAuthClientSecret)
-    createSecret = do
-      g :: CtrDRBG <- liftIO newGenIO
-      pure $ genBytes 32 g <&> OAuthClientSecret . encodeBase16 . fst
+    createSecret :: MonadIO m => m OAuthClientPlainTextSecret
+    createSecret = liftIO . fmap (OAuthClientPlainTextSecret . encodeBase16) $ randBytes 32
 
--------------------------------------------------------------------------------
--- Errors
+    hashClientSecret :: MonadIO m => OAuthClientPlainTextSecret -> m Password
+    hashClientSecret = mkSafePassword . PlainTextPassword . toText . unOAuthClientPlainTextSecret
 
-oauthClientSecretGenError :: Wai.Error
-oauthClientSecretGenError = Wai.mkError status500 "oauth-client-secret-gen-error" "OAuth client secret generation failed."
+--------------------------------------------------------------------------------
+-- DB
+
+insertOAuthClient :: (MonadClient m, MonadReader Env m) => OAuthClientId -> OAuthApplicationName -> RedirectUrl -> Password -> m ()
+insertOAuthClient cid name uri pw = retry x5 . write oauthClientInsert $ params LocalQuorum (cid, name, uri, pw)
+
+oauthClientInsert :: PrepQuery W (OAuthClientId, OAuthApplicationName, RedirectUrl, Password) ()
+oauthClientInsert = "INSERT INTO oauth_client (id, name, redirect_uri, secret) VALUES (?, ?, ?, ?)"
+
+--------------------------------------------------------------------------------
+-- CQL instances
+
+instance Cql OAuthApplicationName where
+  ctype = Tagged TextColumn
+  toCql = CqlText . fromRange . unOAuthApplicationName
+  fromCql (CqlText t) = checkedEither t <&> OAuthApplicationName
+  fromCql _ = Left "OAuthApplicationName: Text expected"
+
+instance Cql RedirectUrl where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . toByteString
+  fromCql (CqlBlob t) = runParser parser (toStrict t)
+  fromCql _ = Left "RedirectUrl: Blob expected"
