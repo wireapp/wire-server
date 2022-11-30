@@ -89,7 +89,15 @@ turnDiscoveryEnabled: false
 # Allow establishing calls involving remote SFT servers (e.g. for Federation)
 # Requires appVersion 3.0.9 or later
 multiSFT:
-  enabled: False
-  # Required. URL that provides TURN connection configuration. These configured
-  # TURN servers will be used to connect to remote SFT servers.
+  enabled: false
+  # For sftd versions up to 3.1.3, sftd uses the TURN servers advertised at a
+  # discovery URL.
   turnDiscoveryURL: ""
+  # For sftd versions 3.1.10 and later, this discovery process is no longer
+  # required or supported, and must be disabled. sftd must instead be directly
+  # configured with the authentication secret used by the TURN server and the
+  # URI for the TURN server.
+  discoveryRequired: true
+  secret:
+  turnServerURI:
+

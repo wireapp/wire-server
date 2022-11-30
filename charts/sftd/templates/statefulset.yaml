@@ -35,8 +35,16 @@ spec:
       volumes:
         - name: external-ip
           emptyDir: {}
+      {{- if .Values.multiSFT.enabled }}
+        {{- if .Values.multiSFT.discoveryRequired }}
         - name: multi-sft-config
           emptyDir: {}
+        {{- else }}
+        - name: sft-secret
+          secret:
+            secretName: {{ include "sftd.fullname" . }}-secret
+        {{- end }}
+      {{- end }}
       initContainers:
         - name: get-external-ip
           image: bitnami/kubectl:1.19.7
@@ -62,6 +70,8 @@ spec:
                 addr=$(kubectl get node $NODE_NAME -ojsonpath='{.metadata.annotations.wire\.com/external-ip}')
               fi
               echo -n "$addr" | tee /dev/stderr > /external-ip/ip
+
+        {{- if and .Values.multiSFT.enabled .Values.multiSFT.discoveryRequired }}
         - name: get-multi-sft-config
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
 
@@ -75,7 +85,6 @@ spec:
             - |
               set -e
 
-              {{- if .Values.multiSFT.enabled }}
 
               response=$(curl "{{ .Values.multiSFT.turnDiscoveryURL }}")
               if [ -z "$response" ]; then
@@ -100,8 +109,7 @@ spec:
                 echo "Response does not contain a turn server"
                 exit 1
               fi
-
-              {{- end }}
+        {{- end }}
 
       containers:
         - name: {{ .Chart.Name }}
@@ -121,8 +129,15 @@ spec:
           volumeMounts:
             - name: external-ip
               mountPath: /external-ip
+            {{- if .Values.multiSFT.enabled }}
+            {{- if .Values.multiSFT.discoveryRequired }}
             - name: multi-sft-config
               mountPath: /multi-sft-config
+            {{- else }}
+            - name: sft-secret
+              mountPath: /secrets
+            {{- end }}
+            {{- end }}
           command:
             - /bin/sh
             - -c
@@ -135,12 +150,17 @@ spec:
                 ACCESS_ARGS="-A ${EXTERNAL_IP}"
               fi
 
+              MULTI_SFT_ARGS=""
+
               {{- if .Values.multiSFT.enabled }}
+              {{- if .Values.multiSFT.discoveryRequired }}
               MULTI_SFT_ARGS="-t $(cat /multi-sft-config/turn_server) \
               -x $(cat /multi-sft-config/username) \
               -c $(cat /multi-sft-config/password)"
               {{- else }}
-              MULTI_SFT_ARGS=""
+              MULTI_SFT_ARGS="-t {{ required "must specify TURN server URI" .Values.multiSFT.turnServerURI }} \
+              -s /secrets/zrest_secret.txt"
+              {{- end }}
               {{- end }}
 
               exec sftd \
