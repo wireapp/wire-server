@@ -268,19 +268,22 @@ getGlobalTeamConversationById lconv = do
   pure $ toGlobalConv mconv
   where
     toGlobalConv mconv = do
-      (muid, mname, mtid, mgid, mepoch, mcs) <- mconv
-      tid <- mtid
-      name <- mname
-      mlsData <- ConversationMLSData <$> mgid <*> (mepoch <|> Just (Epoch 0)) <*> mcs
+      (muid, mname, mtid, mty, mgid, mepoch, mcs) <- mconv
+      if mty /= Just GlobalTeamConv
+        then Nothing
+        else do
+          tid <- mtid
+          name <- mname
+          mlsData <- ConversationMLSData <$> mgid <*> (mepoch <|> Just (Epoch 0)) <*> mcs
 
-      pure $
-        GlobalTeamConversation
-          (qUntagged lconv)
-          mlsData
-          muid
-          [SelfInviteAccess]
-          name
-          tid
+          pure $
+            GlobalTeamConversation
+              (qUntagged lconv)
+              mlsData
+              muid
+              [SelfInviteAccess]
+              name
+              tid
 
 createGlobalTeamConversation ::
   Local TeamId ->

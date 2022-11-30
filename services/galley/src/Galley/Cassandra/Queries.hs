@@ -226,11 +226,12 @@ selectGlobalTeamConv ::
     ( Maybe UserId,
       Maybe Text,
       Maybe TeamId,
+      Maybe ConvType,
       Maybe GroupId,
       Maybe Epoch,
       Maybe CipherSuiteTag
     )
-selectGlobalTeamConv = "select creator, name, team, group_id, epoch, cipher_suite from conversation where conv = ?"
+selectGlobalTeamConv = "select creator, name, team, type, group_id, epoch, cipher_suite from conversation where conv = ?"
 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
