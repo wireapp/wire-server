@@ -83,6 +83,7 @@ import qualified V70_UserEmailUnvalidated
 import qualified V71_AddTableVCodesThrottle
 import qualified V72_AddNonceTable
 import qualified V73_ReplaceNonceTable
+import qualified V74_AddOAuthClientTable
 import qualified V9
 
 main :: IO ()
@@ -155,7 +156,8 @@ main = do
       V70_UserEmailUnvalidated.migration,
       V71_AddTableVCodesThrottle.migration,
       V72_AddNonceTable.migration,
-      V73_ReplaceNonceTable.migration
+      V73_ReplaceNonceTable.migration,
+      V74_AddOAuthClientTable.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 
