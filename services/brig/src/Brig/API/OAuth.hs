@@ -123,10 +123,10 @@ oauthAPI =
 -- Handlers
 
 createNewOAuthClient :: NewOAuthClient -> (Handler r) OAuthClientCredentials
-createNewOAuthClient req = do
-  credentials <- OAuthClientCredentials <$> randomId <*> createSecret
-  safePw <- liftIO $ hashClientSecret (occClientSecret credentials)
-  lift $ wrapClient $ insertOAuthClient (occClientId credentials) (nocApplicationName req) (nocRedirectURI req) safePw
+createNewOAuthClient (NewOAuthClient name uri) = do
+  credentials@(OAuthClientCredentials cid secret) <- OAuthClientCredentials <$> randomId <*> createSecret
+  safeSecret <- liftIO $ hashClientSecret secret
+  lift $ wrapClient $ insertOAuthClient cid name uri safeSecret
   pure credentials
   where
     createSecret :: MonadIO m => m OAuthClientPlainTextSecret
