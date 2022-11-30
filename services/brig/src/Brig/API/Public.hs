@@ -33,6 +33,7 @@ import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
+import Brig.API.OAuth (OAuthAPI, oauthAPI)
 import qualified Brig.API.Properties as API
 import Brig.API.Public.Swagger
 import Brig.API.Types
@@ -182,24 +183,26 @@ servantSitemap ::
        UserPendingActivationStore p
      ]
     r =>
-  ServerT BrigAPI (Handler r)
-servantSitemap =
-  userAPI
-    :<|> selfAPI
-    :<|> accountAPI
-    :<|> clientAPI
-    :<|> prekeyAPI
-    :<|> userClientAPI
-    :<|> connectionAPI
-    :<|> propertiesAPI
-    :<|> mlsAPI
-    :<|> userHandleAPI
-    :<|> searchAPI
-    :<|> authAPI
-    :<|> callingAPI
-    :<|> Team.servantAPI
-    :<|> systemSettingsAPI
+  ServerT (BrigAPI :<|> OAuthAPI) (Handler r)
+servantSitemap = brigAPI :<|> oauthAPI
   where
+    brigAPI :: ServerT BrigAPI (Handler r)
+    brigAPI =
+          userAPI
+            :<|> selfAPI
+            :<|> accountAPI
+            :<|> clientAPI
+            :<|> prekeyAPI
+            :<|> userClientAPI
+            :<|> connectionAPI
+            :<|> propertiesAPI
+            :<|> mlsAPI
+            :<|> userHandleAPI
+            :<|> searchAPI
+            :<|> authAPI
+            :<|> callingAPI
+            :<|> Team.servantAPI
+            :<|> systemSettingsAPI
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
       Named @"get-user-unqualified" getUserUnqualifiedH

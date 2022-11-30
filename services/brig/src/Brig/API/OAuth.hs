@@ -25,7 +25,7 @@ import Control.Monad.Except
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import Data.Id (OAuthClientId, randomId)
+import Data.Id (OAuthClientId, UserId, randomId)
 import Data.Misc (PlainTextPassword (PlainTextPassword))
 import Data.Range
 import Data.Schema
@@ -36,7 +36,10 @@ import Imports
 import OpenSSL.Random (randBytes)
 import Servant hiding (Handler, Tagged)
 import URI.ByteString
+import Wire.API.Error
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
+import Wire.API.Routes.Public (ZUser)
 
 --------------------------------------------------------------------------------
 -- Types
@@ -75,7 +78,7 @@ instance ToSchema NewOAuthClient where
     object "NewOAuthClient" $
       NewOAuthClient
         <$> nocApplicationName .= field "applicationName" schema
-        <*> nocRedirectURI .= field "redirectUri" schema
+        <*> nocRedirectURI .= field "redirectUrl" schema
 
 newtype OAuthClientPlainTextSecret = OAuthClientPlainTextSecret {unOAuthClientPlainTextSecret :: AsciiBase16}
   deriving stock (Eq, Generic)
@@ -101,10 +104,26 @@ instance ToSchema OAuthClientCredentials where
         <$> occClientId .= field "clientId" schema
         <*> occClientSecret .= field "clientSecret" schema
 
---------------------------------------------------------------------------------
--- API
+data OAuthClient = OAuthClient
+  { ocId :: OAuthClientId,
+    ocName :: OAuthApplicationName,
+    ocRedirectURI :: RedirectUrl
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClient)
 
-type OAuthAPI =
+instance ToSchema OAuthClient where
+  schema =
+    object "OAuthClient" $
+      OAuthClient
+        <$> ocId .= field "clientId" schema
+        <*> ocName .= field "applicationName" schema
+        <*> ocRedirectURI .= field "redirectUrl" schema
+
+--------------------------------------------------------------------------------
+-- API Internal
+
+type IOAuthAPI =
   Named
     "create-oauth-client"
     ( Summary "Register an OAuth client"
@@ -115,9 +134,37 @@ type OAuthAPI =
         :> Post '[JSON] OAuthClientCredentials
     )
 
+internalOauthAPI :: ServerT IOAuthAPI (Handler r)
+internalOauthAPI =
+  Named @"create-oauth-client" createNewOAuthClient
+
+--------------------------------------------------------------------------------
+-- API Public
+
+data OAuthError = OAuthClientNotFound
+
+type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
+
+type OAuthAPI =
+  Named
+    "get-oauth-client"
+    ( Summary "Get OAuth client information"
+        :> ZUser
+        :> "oauth"
+        :> "clients"
+        :> Capture "ClientId" OAuthClientId
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[ ErrorResponse 'OAuthClientNotFound,
+                Respond 200 "OAuth client found" OAuthClient
+              ]
+             (Maybe OAuthClient)
+    )
+
 oauthAPI :: ServerT OAuthAPI (Handler r)
 oauthAPI =
-  Named @"create-oauth-client" createNewOAuthClient
+  Named @"get-oauth-client" getOAuthClient
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -135,14 +182,25 @@ createNewOAuthClient (NewOAuthClient name uri) = do
     hashClientSecret :: MonadIO m => OAuthClientPlainTextSecret -> m Password
     hashClientSecret = mkSafePassword . PlainTextPassword . toText . unOAuthClientPlainTextSecret
 
+getOAuthClient :: UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
+getOAuthClient _ cid = lift $ wrapClient $ lookupOauthClient cid
+
 --------------------------------------------------------------------------------
 -- DB
 
 insertOAuthClient :: (MonadClient m, MonadReader Env m) => OAuthClientId -> OAuthApplicationName -> RedirectUrl -> Password -> m ()
-insertOAuthClient cid name uri pw = retry x5 . write oauthClientInsert $ params LocalQuorum (cid, name, uri, pw)
+insertOAuthClient cid name uri pw = retry x5 . write q $ params LocalQuorum (cid, name, uri, pw)
+  where
+    q :: PrepQuery W (OAuthClientId, OAuthApplicationName, RedirectUrl, Password) ()
+    q = "INSERT INTO oauth_client (id, name, redirect_uri, secret) VALUES (?, ?, ?, ?)"
 
-oauthClientInsert :: PrepQuery W (OAuthClientId, OAuthApplicationName, RedirectUrl, Password) ()
-oauthClientInsert = "INSERT INTO oauth_client (id, name, redirect_uri, secret) VALUES (?, ?, ?, ?)"
+lookupOauthClient :: (MonadClient m, MonadReader Env m) => OAuthClientId -> m (Maybe OAuthClient)
+lookupOauthClient cid = do
+  mNameUrl <- retry x5 . query1 q $ params LocalQuorum (Identity cid)
+  pure $ mNameUrl <&> uncurry (OAuthClient cid)
+  where
+    q :: PrepQuery R (Identity OAuthClientId) (OAuthApplicationName, RedirectUrl)
+    q = "SELECT name, redirect_uri FROM oauth_client WHERE id = ?"
 
 --------------------------------------------------------------------------------
 -- CQL instances

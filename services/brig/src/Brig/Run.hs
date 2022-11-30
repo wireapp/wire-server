@@ -28,7 +28,7 @@ import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
 import qualified Brig.API.Internal as IAPI
-import Brig.API.OAuth (OAuthAPI)
+import Brig.API.OAuth (IOAuthAPI, OAuthAPI)
 import Brig.API.Public (DocsAPI, docsAPI, servantSitemap)
 import qualified Brig.API.User as API
 import Brig.AWS (amazonkaEnv, sesQueue)
@@ -141,8 +141,8 @@ mkApp o = do
             (Proxy @ServantCombinedAPI)
             (customFormatters :. localDomain :. Servant.EmptyContext)
             ( docsAPI
-                :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
-                :<|> hoistServerWithDomain @(IAPI.API :<|> OAuthAPI) (toServantHandler e) IAPI.servantSitemap
+                :<|> hoistServerWithDomain @(BrigAPI :<|> OAuthAPI) (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomain @(IAPI.API :<|> IOAuthAPI) (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
                 :<|> Servant.Tagged (app e)
@@ -150,8 +150,8 @@ mkApp o = do
 
 type ServantCombinedAPI =
   ( DocsAPI
-      :<|> BrigAPI
-      :<|> (IAPI.API :<|> OAuthAPI)
+      :<|> (BrigAPI :<|> OAuthAPI)
+      :<|> (IAPI.API :<|> IOAuthAPI)
       :<|> FederationAPI
       :<|> VersionAPI
       :<|> Servant.Raw
