@@ -377,6 +377,14 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+    - path: /oauth/clients/([^/]*)$
+      envs:
+      - all
+    - path: i/oauth/clients$
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
     galley:
     - path: /conversations/code-check
       disable_zauth: true
