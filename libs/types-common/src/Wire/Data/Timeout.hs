@@ -23,7 +23,8 @@ newtype Timeout = Timeout
   deriving newtype (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
 
 instance Arbitrary Timeout where
-  arbitrary = Timeout . fromInteger <$> chooseAny
+  arbitrary = Timeout . fromInteger . fromIntegral
+      <$> chooseBoundedIntegral (minBound :: Int64, maxBound :: Int64)
 
 instance Read Timeout where
   readsPrec i s =

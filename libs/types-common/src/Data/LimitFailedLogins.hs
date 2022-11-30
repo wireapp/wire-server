@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 module Data.LimitFailedLogins where
 
 import Data.Aeson
@@ -26,8 +24,7 @@ data LimitFailedLogins = LimitFailedLogins
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform LimitFailedLogins)
-
-instance FromJSON LimitFailedLogins
+  deriving (FromJSON , ToJSON) via (Schema LimitFailedLogins)
 
 instance ToSchema LimitFailedLogins where
   schema =

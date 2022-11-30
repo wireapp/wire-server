@@ -48,6 +48,12 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
+import Data.CookieThrottle
+import Data.EmailVisibility
+import Data.RetryAfter
+import Data.LimitFailedLogins
+import Data.SuspendInactiveUsers
+import qualified Wire.Data.Timeout
 
 tests :: TestTree
 tests =
@@ -216,6 +222,36 @@ tests =
         [ testProperty "decode . encode = id" $
             \(x :: Nonce) -> bsRoundtrip x,
           jsonRoundtrip @Nonce
+        ],
+      testGroup
+        "CookieThrottle"
+        [
+          jsonRoundtrip @CookieThrottle
+        ],
+      testGroup
+        "EmailVisibility"
+        [
+          jsonRoundtrip @EmailVisibility
+        ],
+      testGroup
+        "RetryAfter"
+        [
+          jsonRoundtrip @RetryAfter
+        ],
+      testGroup
+        "LimitFailedLogins"
+        [
+          jsonRoundtrip @LimitFailedLogins
+        ],
+      testGroup
+        "SuspendInactiveUsers"
+        [
+          jsonRoundtrip @SuspendInactiveUsers
+        ],
+      testGroup
+        "Wire.Data.Timeout"
+        [
+          jsonRoundtrip @Wire.Data.Timeout.Timeout
         ]
     ]
 
