@@ -440,6 +440,7 @@ executable brig-integration
     API.Metrics
     API.MLS
     API.MLS.Util
+    API.OAuth
     API.Provider
     API.RichInfo.Util
     API.Search

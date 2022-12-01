@@ -25,6 +25,7 @@ import qualified API.Federation
 import qualified API.Internal
 import qualified API.MLS as MLS
 import qualified API.Metrics as Metrics
+import qualified API.OAuth as API.OAuth
 import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
@@ -155,6 +156,8 @@ runTests iConf brigOpts otherArgs = do
 
   let mlsApi = MLS.tests mg b brigOpts
 
+  let oauthAPI = API.OAuth.tests mg b brigOpts
+
   withArgs otherArgs . defaultMain
     $ testGroup
       "Brig API Integration"
@@ -176,7 +179,8 @@ runTests iConf brigOpts otherArgs = do
         federationEndpoints,
         internalApi,
         versionApi,
-        mlsApi
+        mlsApi,
+        oauthAPI
       ]
       <> [federationEnd2End | includeFederationTests]
   where

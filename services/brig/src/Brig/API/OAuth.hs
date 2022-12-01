@@ -68,7 +68,7 @@ instance ToSchema OAuthApplicationName where
 
 data NewOAuthClient = NewOAuthClient
   { nocApplicationName :: OAuthApplicationName,
-    nocRedirectURI :: RedirectUrl
+    nocRedirectUrl :: RedirectUrl
   }
   deriving stock (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOAuthClient)
@@ -78,7 +78,7 @@ instance ToSchema NewOAuthClient where
     object "NewOAuthClient" $
       NewOAuthClient
         <$> nocApplicationName .= field "applicationName" schema
-        <*> nocRedirectURI .= field "redirectUrl" schema
+        <*> nocRedirectUrl .= field "redirectUrl" schema
 
 newtype OAuthClientPlainTextSecret = OAuthClientPlainTextSecret {unOAuthClientPlainTextSecret :: AsciiBase16}
   deriving stock (Eq, Generic)
@@ -107,7 +107,7 @@ instance ToSchema OAuthClientCredentials where
 data OAuthClient = OAuthClient
   { ocId :: OAuthClientId,
     ocName :: OAuthApplicationName,
-    ocRedirectURI :: RedirectUrl
+    ocRedirectUrl :: RedirectUrl
   }
   deriving stock (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClient)
@@ -118,7 +118,7 @@ instance ToSchema OAuthClient where
       OAuthClient
         <$> ocId .= field "clientId" schema
         <*> ocName .= field "applicationName" schema
-        <*> ocRedirectURI .= field "redirectUrl" schema
+        <*> ocRedirectUrl .= field "redirectUrl" schema
 
 --------------------------------------------------------------------------------
 -- API Internal
