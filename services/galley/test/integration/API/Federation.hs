@@ -130,7 +130,7 @@ getConversationsAllFound = do
         =<< getConvs bob [cnv1Id, cnvQualifiedId cnv2] <!! do
           const 200 === statusCode
     liftIO $
-      map cnvQualifiedId (crFound convs)
+      sort (map cnvQualifiedId (crFound convs))
         @?= sort [cnv1Id, cnvQualifiedId cnv2]
 
   -- get conversations
