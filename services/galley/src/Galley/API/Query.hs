@@ -37,6 +37,7 @@ module Galley.API.Query
     getConversationGuestLinksStatus,
     ensureConvAdmin,
     getMLSSelfConversation,
+    getMLSSelfConversationWithError,
   )
 where
 
@@ -450,7 +451,14 @@ conversationIdsPageFrom lusr state = do
   -- NOTE: Getting the MLS self-conversation creates it in case it does not
   -- exist yet. This is to ensure it is automatically listed without needing to
   -- create it separately.
-  void $ getMLSSelfConversation lusr
+  --
+  -- Make sure that in case MLS is not configured (the non-existance of the
+  -- backend removal key is a proxy for it) the self-conversation is not
+  -- returned or attempted to be created; in that case we skip anything related
+  -- to it.
+  whenM (isJust <$> getMLSRemovalKey)
+    . void
+    $ getMLSSelfConversation lusr
   conversationIdsPageFromV2 ListGlobalSelf lusr state
 
 getConversations ::
@@ -699,6 +707,29 @@ getConversationGuestLinksFeatureStatus mbTid = do
       mbLockStatus <- TeamFeatures.getFeatureLockStatus @db (Proxy @GuestLinksConfig) tid
       pure $ computeFeatureConfigForTeamUser mbConfigNoLock mbLockStatus defaultStatus
 
+-- | The same as 'getMLSSelfConversation', but it throws an error in case the
+-- backend is not configured for MLS (the proxy for it being the existance of
+-- the backend removal key).
+getMLSSelfConversationWithError ::
+  forall r.
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       Input Env,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
+  Sem r Conversation
+getMLSSelfConversationWithError lusr = do
+  unlessM (isJust <$> getMLSRemovalKey) $
+    throw (InternalErrorWithDescription noKeyMsg)
+  getMLSSelfConversation lusr
+  where
+    noKeyMsg =
+      "No backend removal key is configured (See 'mlsPrivateKeyPaths'"
+        <> "in galley's config). Refusing to create MLS conversation."
+
 -- | Get an MLS self conversation. In case it does not exist, it is partially
 -- created in the database. The part that is not written is the epoch number;
 -- the number is inserted only upon the first commit. With this we avoid race
@@ -717,20 +748,10 @@ getMLSSelfConversation ::
   Local UserId ->
   Sem r Conversation
 getMLSSelfConversation lusr = do
-  let selfConvId = mlsSelfConvId usr
+  let selfConvId = mlsSelfConvId . tUnqualified $ lusr
   mconv <- E.getConversation selfConvId
-  cnv <- maybe create pure mconv
+  cnv <- maybe (E.createMLSSelfConversation lusr) pure mconv
   conversationView lusr cnv
-  where
-    usr = tUnqualified lusr
-    create :: Sem r Data.Conversation
-    create = do
-      unlessM (isJust <$> getMLSRemovalKey) $
-        throw (InternalErrorWithDescription noKeyMsg)
-      E.createMLSSelfConversation lusr
-    noKeyMsg =
-      "No backend removal key is configured (See 'mlsPrivateKeyPaths'"
-        <> "in galley's config). Refusing to create MLS conversation."
 
 -------------------------------------------------------------------------------
 -- Helpers
