@@ -84,6 +84,7 @@ import qualified V71_AddTableVCodesThrottle
 import qualified V72_AddNonceTable
 import qualified V73_ReplaceNonceTable
 import qualified V74_AddOAuthClientTable
+import qualified V75_AddOAuthCodeTable
 import qualified V9
 
 main :: IO ()
@@ -157,7 +158,8 @@ main = do
       V71_AddTableVCodesThrottle.migration,
       V72_AddNonceTable.migration,
       V73_ReplaceNonceTable.migration,
-      V74_AddOAuthClientTable.migration
+      V74_AddOAuthClientTable.migration,
+      V75_AddOAuthCodeTable.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 
