@@ -209,7 +209,6 @@ tests s =
           test s "conversation receipt mode update" putReceiptModeOk,
           test s "conversation receipt mode update with remote members" putReceiptModeWithRemotesOk,
           test s "remote conversation receipt mode update" putRemoteReceiptModeOk,
-          test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
           test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
           test s "post conversations/:cnv/otr/message: mismatch and prekey fetching" postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson,
@@ -240,7 +239,13 @@ tests s =
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
           test s "post message - reject if missing client" postMessageRejectIfMissingClients,
           test s "post message - client that is not in group doesn't receive message" postMessageClientNotInGroupDoesNotReceiveMsg,
-          test s "get guest links status from foreign team conversation" getGuestLinksStatusFromForeignTeamConv
+          test s "get guest links status from foreign team conversation" getGuestLinksStatusFromForeignTeamConv,
+          testGroup
+            "Typing indicators"
+            [ test s "send typing indicators" postTypingIndicators,
+              test s "send typing indicators without domain" postTypingIndicatorsV2,
+              test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense
+            ]
         ]
 
 -------------------------------------------------------------------------------
@@ -3665,8 +3670,8 @@ putReceiptModeWithRemotesOk = do
         @?= EdConvReceiptModeUpdate
           (ConversationReceiptModeUpdate (ReceiptMode 43))
 
-postTypingIndicators :: TestM ()
-postTypingIndicators = do
+postTypingIndicatorsV2 :: TestM ()
+postTypingIndicatorsV2 = do
   c <- view tsCannon
   g <- viewGalley
 
@@ -3683,9 +3688,10 @@ postTypingIndicators = do
 
   WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
     post
-      ( g
+      ( unversioned
+          . g
           . paths ["conversations", toByteString' conv, "typing"]
-          . zUser bob
+          . zUser alice
           . zConn "conn"
           . zType "access"
           . json (TypingData StartedTyping)
@@ -3694,12 +3700,13 @@ postTypingIndicators = do
 
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
-        wsAssertTyping (qUntagged lcnv) (qUntagged bobL) StartedTyping n
+        wsAssertTyping (qUntagged lcnv) (qUntagged aliceL) StartedTyping n
 
     post
-      ( g
+      ( unversioned
+          . g
           . paths ["conversations", toByteString' conv, "typing"]
-          . zUser alice
+          . zUser bob
           . zConn "conn"
           . zType "access"
           . json (TypingData StoppedTyping)
@@ -3708,12 +3715,70 @@ postTypingIndicators = do
 
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
-        wsAssertTyping (qUntagged lcnv) (qUntagged aliceL) StoppedTyping n
+        wsAssertTyping (qUntagged lcnv) (qUntagged bobL) StoppedTyping n
 
-  -- Just making sure we don't respond to nonsense typing status
+postTypingIndicators :: TestM ()
+postTypingIndicators = do
+  domain <- viewFederationDomain
+  c <- view tsCannon
+  g <- viewGalley
+
+  alice <- randomUser
+  bob <- randomUser
+
+  aliceL <- qualifyLocal alice
+  bobL <- qualifyLocal bob
+
+  connectUsers alice (singleton bob)
+
+  conv <- decodeConvId <$> postO2OConv alice bob Nothing
+  lcnv <- qualifyLocal conv
+
+  WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
+    -- alice to bob
+    post
+      ( g
+          . paths ["conversations", toByteString' domain, toByteString' conv, "typing"]
+          . zUser bob
+          . zConn "conn"
+          . zType "access"
+          . json (TypingData StoppedTyping)
+      )
+      !!! const 200 === statusCode
+
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+        wsAssertTyping (qUntagged lcnv) (qUntagged bobL) StoppedTyping n
+
+    -- bob to alice
+    post
+      ( g
+          . paths ["conversations", toByteString' domain, toByteString' conv, "typing"]
+          . zUser alice
+          . zConn "conn"
+          . zType "access"
+          . json (TypingData StartedTyping)
+      )
+      !!! const 200 === statusCode
+
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+        wsAssertTyping (qUntagged lcnv) (qUntagged aliceL) StartedTyping n
+
+postTypingIndicatorsHandlesNonsense :: TestM ()
+postTypingIndicatorsHandlesNonsense = do
+  domain <- viewFederationDomain
+  g <- viewGalley
+
+  alice <- randomUser
+  bob <- randomUser
+
+  connectUsers alice (singleton bob)
+  conv <- decodeConvId <$> postO2OConv alice bob Nothing
+
   post
     ( g
-        . paths ["conversations", toByteString' conv, "typing"]
+        . paths ["conversations", toByteString' domain, toByteString' conv, "typing"]
         . zUser bob
         . zConn "conn"
         . zType "access"
