@@ -1,1 +1,0 @@
-Default intraListing to true. This means that the list of clients, so far saved in both brig's and galley's databases, will still be written to both, but only read from brig's database. This avoids cases where these two tables go out of sync. Brig becomes the source of truth for clients. In the future, if this holds, code and data for galley's clients table can be removed.

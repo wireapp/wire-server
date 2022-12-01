@@ -1,1 +1,0 @@
-Requesting a new token with the client_id now works correctly when the old token is part of the request
