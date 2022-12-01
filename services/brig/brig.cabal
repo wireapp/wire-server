@@ -673,6 +673,7 @@ executable brig-schema
     V72_AddNonceTable
     V73_ReplaceNonceTable
     V74_AddOAuthClientTable
+    V75_AddOAuthCodeTable
     V9
 
   hs-source-dirs:     schema/src
