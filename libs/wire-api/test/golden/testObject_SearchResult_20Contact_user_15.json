@@ -1,6 +1,7 @@
 {
     "documents": [],
     "found": 3,
+    "has_more": true,
     "returned": 2,
     "search_policy": "exact_handle_search",
     "took": 4

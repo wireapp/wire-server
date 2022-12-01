@@ -95,6 +95,7 @@
         }
     ],
     "found": 1,
+    "has_more": false,
     "returned": 5,
     "search_policy": "full_search",
     "took": 5

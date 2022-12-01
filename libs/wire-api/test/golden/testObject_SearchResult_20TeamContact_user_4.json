@@ -74,6 +74,7 @@
         }
     ],
     "found": -2,
+    "has_more": false,
     "returned": 4,
     "search_policy": "exact_handle_search",
     "took": 2

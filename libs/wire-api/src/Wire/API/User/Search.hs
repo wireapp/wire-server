@@ -1,4 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -51,6 +52,7 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
+import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Imports
 import Servant.API (FromHttpApiData)
 import Web.Internal.HttpApiData (parseQueryParam)
@@ -58,6 +60,15 @@ import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
 import Wire.API.User.Identity (Email (..))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+
+-------------------------------------------------------------------------------
+-- PagingState
+
+newtype PagingState = PagingState {unPagingState :: AsciiBase64Url}
+  deriving newtype (Eq, Show, Arbitrary)
+
+instance ToSchema PagingState where
+  schema = (toText . unPagingState) .= parsedText "PagingState" (fmap PagingState . validateBase64Url)
 
 --------------------------------------------------------------------------------
 -- SearchResult
@@ -67,7 +78,8 @@ data SearchResult a = SearchResult
     searchReturned :: Int,
     searchTook :: Int,
     searchResults :: [a],
-    searchPolicy :: FederatedUserSearchPolicy
+    searchPolicy :: FederatedUserSearchPolicy,
+    searchPagingState :: Maybe PagingState
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (SearchResult a))
@@ -89,6 +101,10 @@ instance ToSchema a => ToSchema (SearchResult a) where
         <*> searchTook .= fieldWithDocModifier "took" (S.description ?~ "Search time in ms") schema
         <*> searchResults .= fieldWithDocModifier "documents" (S.description ?~ "List of contacts found") (array schema)
         <*> searchPolicy .= fieldWithDocModifier "search_policy" (S.description ?~ "Search policy that was applied when searching for users") schema
+        <*> searchPagingState .= maybe_ (optFieldWithDocModifier "paging_state" (S.description ?~ "Paging state for the next page of results") schema)
+        <* hasMore .= field "has_more" schema
+    where
+      hasMore result = searchFound result > searchReturned result
 
 deriving via (Schema (SearchResult Contact)) instance ToJSON (SearchResult Contact)
 

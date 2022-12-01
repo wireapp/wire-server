@@ -51,7 +51,8 @@ teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) 
   let search =
         (ES.mkSearch (Just q) (Just f))
           { ES.size = ES.Size (fromIntegral s),
-            ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs)
+            ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs),
+            ES.searchAfterKey = Nothing
           }
   r <-
     ES.searchByType idx mappingName search

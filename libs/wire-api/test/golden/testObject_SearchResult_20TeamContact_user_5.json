@@ -17,6 +17,7 @@
         }
     ],
     "found": -2,
+    "has_more": true,
     "returned": -3,
     "search_policy": "full_search",
     "took": -7
