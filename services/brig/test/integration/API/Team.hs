@@ -36,21 +36,29 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Aeson
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy (toStrict)
+import Data.Either.Extra (eitherToMaybe)
 import Data.Id hiding (client)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldDisabled))
+import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time (addUTCTime, getCurrentTime)
 import qualified Data.UUID as UUID (fromString)
 import qualified Data.UUID.V4 as UUID
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
+import qualified Network.HTTP.Types as HTTP
+import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import Numeric.Natural (Natural)
 import Test.Tasty hiding (Timeout)
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import URI.ByteString
 import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcurrently)
 import Util
 import Util.AWS as Util
@@ -58,6 +66,7 @@ import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
 import Wire.API.Connection
 import Wire.API.Team hiding (newTeam)
+import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Invitation
 import Wire.API.Team.Member hiding (invitation, userId)
@@ -80,6 +89,10 @@ tests conf m n b c g aws = do
       "team"
       [ testGroup "invitation" $
           [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b,
+            test m "get /teams/:tid/invitations/:iid - 200" $ testGetInvitation b,
+            test m "delete /teams/:tid/invitations/:iid - 200" $ testDeleteInvitation b,
+            test m "post /teams/:tid/invitations - invitation url" $ testInvitationUrl conf b,
+            test m "post /teams/:tid/invitations - no invitation url" $ testNoInvitationUrl conf b,
             test m "post /teams/:tid/invitations - email lookup" $ testInvitationEmailLookup b,
             test m "post /teams/:tid/invitations - email lookup nginz" $ testInvitationEmailLookupNginz b n,
             test m "post /teams/:tid/invitations - email lookup register" $ testInvitationEmailLookupRegister b,
@@ -114,26 +127,37 @@ tests conf m n b c g aws = do
             test m "get /i/teams/:tid/is-team-owner/:uid" $ testSSOIsTeamOwner b g,
             test m "2FA disabled for SSO user" $ test2FaDisabledForSsoUser b g
           ],
-        testGroup "size" $ [test m "get /i/teams/:tid/size" $ testTeamSize b]
+        testGroup "size" $
+          [ test m "get /i/teams/:tid/size" $ testTeamSizeInternal b,
+            test m "get /teams/:tid/size" $ testTeamSizePublic b
+          ]
       ]
 
-testTeamSize :: Brig -> Http ()
-testTeamSize brig = do
-  (tid, _, _) <- createPopulatedBindingTeam brig 10
+testTeamSizeInternal :: Brig -> Http ()
+testTeamSizeInternal brig = do
+  testTeamSize brig (\tid _ -> brig . paths ["i", "teams", toByteString' tid, "size"])
+
+testTeamSizePublic :: Brig -> Http ()
+testTeamSizePublic brig = do
+  testTeamSize brig (\tid uid -> brig . paths ["teams", toByteString' tid, "size"] . zUser uid)
+
+testTeamSize :: Brig -> (TeamId -> UserId -> Request -> Request) -> Http ()
+testTeamSize brig req = do
+  (tid, owner, _) <- createPopulatedBindingTeam brig 10
   SearchUtil.refreshIndex brig
   -- 10 Team Members and an admin
   let expectedSize = 11
-  assertSize tid expectedSize
+  assertSize tid owner expectedSize
 
   -- Even suspended teams should report correct size
   suspendTeam brig tid !!! const 200 === statusCode
   SearchUtil.refreshIndex brig
-  assertSize tid expectedSize
+  assertSize tid owner expectedSize
   where
-    assertSize :: HasCallStack => TeamId -> Natural -> Http ()
-    assertSize tid expectedSize =
+    assertSize :: HasCallStack => TeamId -> UserId -> Natural -> Http ()
+    assertSize tid uid expectedSize =
       void $
-        get (brig . paths ["i", "teams", toByteString' tid, "size"]) <!! do
+        get (req tid uid) <!! do
           const 200 === statusCode
           (const . Right $ TeamSize expectedSize) === responseJsonEither
 
@@ -177,7 +201,114 @@ testInvitationEmail :: Brig -> Http ()
 testInvitationEmail brig = do
   (inviter, tid) <- createUserWithTeam brig
   invite <- stdInvitationRequest <$> randomEmail
-  void $ postInvitation brig tid inviter invite
+  res <-
+    postInvitation brig tid inviter invite <!! do
+      const 201 === statusCode
+  inv <- responseJsonError res
+  let actualHeader = getHeader "Location" res
+  let expectedHeader = "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' (inInvitation inv)
+  liftIO $ do
+    Just inviter @=? inCreatedBy inv
+    tid @=? inTeam inv
+    assertInvitationResponseInvariants invite inv
+    (isNothing . inInviteeUrl) inv @? "No invitation url expected"
+    actualHeader @?= Just expectedHeader
+
+assertInvitationResponseInvariants :: InvitationRequest -> Invitation -> Assertion
+assertInvitationResponseInvariants invReq inv = do
+  irInviteeName invReq @=? inInviteeName inv
+  irInviteePhone invReq @=? inInviteePhone inv
+  irInviteeEmail invReq @=? inInviteeEmail inv
+
+testGetInvitation :: Brig -> Http ()
+testGetInvitation brig = do
+  (inviter, tid) <- createUserWithTeam brig
+  invite <- stdInvitationRequest <$> randomEmail
+  inv1 <- responseJsonError =<< postInvitation brig tid inviter invite <!! do const 201 === statusCode
+  inv2 <- responseJsonError =<< getInvitation brig tid (inInvitation inv1) inviter <!! do const 200 === statusCode
+  liftIO $ inv1 @=? inv2
+
+testDeleteInvitation :: Brig -> Http ()
+testDeleteInvitation brig = do
+  (inviter, tid) <- createUserWithTeam brig
+  invite <- stdInvitationRequest <$> randomEmail
+  iid <- inInvitation <$> (responseJsonError =<< postInvitation brig tid inviter invite <!! do const 201 === statusCode)
+  deleteInvitation brig tid iid inviter
+  getInvitation brig tid iid inviter !!! do const 404 === statusCode
+
+-- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
+-- inlined into Brig.
+testInvitationUrl :: Opt.Opts -> Brig -> Http ()
+testInvitationUrl opts brig = do
+  (inviter, tid) <- createUserWithTeam brig
+  invite <- stdInvitationRequest <$> randomEmail
+
+  void . withMockedGalley opts (invitationUrlGalleyMock FeatureStatusEnabled tid inviter) $ do
+    resp <-
+      postInvitation brig tid inviter invite
+        <!! (const 201 === statusCode)
+
+    inv :: Invitation <- responseJsonError resp
+    invCode <- getInvitationCode brig tid (inInvitation inv)
+    liftIO $ do
+      assertInvitationResponseInvariants invite inv
+      isJust invCode @? "Expect an invitation code in the backend"
+      Just inviter @=? inCreatedBy inv
+      tid @=? inTeam inv
+      getQueryParam "team_code" resp @=? (invCode <&> (toStrict . toByteString))
+      getQueryParam "team" resp @=? (pure . encodeUtf8 . idToText) tid
+
+getQueryParam :: ByteString -> ResponseLBS -> Maybe ByteString
+getQueryParam name r = do
+  inv <- (eitherToMaybe . responseJsonEither) r
+  url <- inInviteeUrl inv
+  (lookup name . queryPairs . uriQuery) url
+
+-- | Mock the feature API because exposeInvitationURLsToTeamAdmin depends on
+-- static configuration that cannot be changed at runtime.
+invitationUrlGalleyMock ::
+  FeatureStatus ->
+  TeamId ->
+  UserId ->
+  ReceivedRequest ->
+  MockT IO Wai.Response
+invitationUrlGalleyMock featureStatus tid inviter (ReceivedRequest mth pth _body)
+  | mth == "GET"
+      && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"] =
+      pure . Wai.responseLBS HTTP.status200 mempty $
+        encode
+          ( withStatus
+              featureStatus
+              LockStatusUnlocked
+              ExposeInvitationURLsToTeamAdminConfig
+              FeatureTTLUnlimited
+          )
+  | mth == "GET"
+      && pth == ["i", "teams", Text.pack (show tid), "members", Text.pack (show inviter)] =
+      pure . Wai.responseLBS HTTP.status200 mempty $
+        encode (mkTeamMember inviter fullPermissions Nothing UserLegalHoldDisabled)
+  | otherwise = pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
+
+-- FUTUREWORK: This test should be rewritten to be free of mocks once Galley is
+-- inlined into Brig.
+testNoInvitationUrl :: Opt.Opts -> Brig -> Http ()
+testNoInvitationUrl opts brig = do
+  (inviter, tid) <- createUserWithTeam brig
+  invite <- stdInvitationRequest <$> randomEmail
+
+  void . withMockedGalley opts (invitationUrlGalleyMock FeatureStatusDisabled tid inviter) $ do
+    resp <-
+      postInvitation brig tid inviter invite
+        <!! (const 201 === statusCode)
+
+    inv :: Invitation <- responseJsonError resp
+    invCode <- getInvitationCode brig tid (inInvitation inv)
+    liftIO $ do
+      assertInvitationResponseInvariants invite inv
+      isJust invCode @? "Expect an invitation code in the backend"
+      Just inviter @=? inCreatedBy inv
+      tid @=? inTeam inv
+      (isNothing . inInviteeUrl) inv @? "No invitation url expected"
 
 testInvitationEmailLookup :: Brig -> Http ()
 testInvitationEmailLookup brig = do
@@ -366,7 +497,7 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
         inv <- responseJsonError =<< postInvitation brig tid inviter invite
         let invmeta = Just (inviter, inCreatedAt inv)
         Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-        Just invitation <- getInvitation brig inviteeCode
+        Just invitation <- getInvitationInfo brig inviteeCode
         rsp2 <-
           post
             ( brig
@@ -473,8 +604,7 @@ testTeamNoPassword brig = do
                 ]
           )
     )
-    !!! const 400
-      === statusCode
+    !!! const 400 === statusCode
   -- And so do any other binding team members
   code <- liftIO $ InvitationCode . Ascii.encodeBase64Url <$> randomBytes 24
   post
@@ -490,8 +620,7 @@ testTeamNoPassword brig = do
                 ]
           )
     )
-    !!! const 400
-      === statusCode
+    !!! const 400 === statusCode
 
 testInvitationCodeExists :: Brig -> Http ()
 testInvitationCodeExists brig = do
@@ -610,7 +739,8 @@ testInvitationPaging brig = do
         let range = queryRange (toByteString' <$> start) (Just step)
         r <-
           get (brig . paths ["teams", toByteString' tid, "invitations"] . zUser uid . range)
-            <!! const 200 === statusCode
+            <!! const 200
+              === statusCode
         let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> responseJsonMaybe r
         liftIO $ assertEqual "page size" actualPageLen (length invs)
         liftIO $ assertEqual "has more" (count' < total) more
@@ -637,7 +767,7 @@ testInvitationInfo brig = do
   let invite = stdInvitationRequest email
   inv <- responseJsonError =<< postInvitation brig tid uid invite
   Just invCode <- getInvitationCode brig tid (inInvitation inv)
-  Just invitation <- getInvitation brig invCode
+  Just invitation <- getInvitationInfo brig invCode
   liftIO $ assertEqual "Invitations differ" inv invitation
 
 testInvitationInfoBadCode :: Brig -> Http ()

@@ -279,7 +279,7 @@ onConversationUpdated requestingDomain cu = do
       SConversationMessageTimerUpdateTag -> pure (Just sca, [])
       SConversationReceiptModeUpdateTag -> pure (Just sca, [])
       SConversationAccessDataTag -> pure (Just sca, [])
-
+      SConversationSelfInviteTag -> pure (Nothing, [])
   unless allUsersArePresent $
     P.warn $
       Log.field "conversation" (toByteString' (F.cuConvId cu))
@@ -495,6 +495,8 @@ onUserDeleted origDomain udcn = do
             Public.ConnectConv -> pure ()
             -- The self conv cannot be on a remote backend.
             Public.SelfConv -> pure ()
+            -- The global team conv cannot be on a remote backend.
+            Public.GlobalTeamConv -> pure ()
             Public.RegularConv -> do
               let botsAndMembers = convBotsAndMembers conv
               removeUser (qualifyAs lc conv) (qUntagged deletedUser)
@@ -588,6 +590,8 @@ updateConversation origDomain updateRequest = do
           @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
           . fmap lcuUpdate
           $ updateLocalConversation @'ConversationAccessDataTag lcnv (qUntagged rusr) Nothing action
+      SConversationSelfInviteTag ->
+        throw InvalidOperation
   where
     mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
 
@@ -636,7 +640,7 @@ sendMLSCommitBundle remoteDomain msr =
         qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
         when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
         F.MLSMessageResponseUpdates . map lcuUpdate
-          <$> postMLSCommitBundle loc (qUntagged sender) qcnv Nothing bundle
+          <$> postMLSCommitBundle loc (qUntagged sender) Nothing qcnv Nothing bundle
 
 sendMLSMessage ::
   ( Members
@@ -680,7 +684,7 @@ sendMLSMessage remoteDomain msr =
             qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
             when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
             F.MLSMessageResponseUpdates . map lcuUpdate
-              <$> postMLSMessage loc (qUntagged sender) qcnv Nothing raw
+              <$> postMLSMessage loc (qUntagged sender) Nothing qcnv Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::

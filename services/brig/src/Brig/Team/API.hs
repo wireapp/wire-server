@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Team.API
-  ( routesPublic,
+  ( servantAPI,
     routesInternal,
   )
 where
@@ -47,12 +47,11 @@ import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson hiding (json)
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import qualified Data.List1 as List1
 import Data.Range
 import Data.String.Conversions (cs)
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports hiding (head)
@@ -61,14 +60,15 @@ import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
-import Network.Wai.Utilities.Swagger (document)
-import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy (Members)
+import Servant hiding (Handler, JSON, addHeader)
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
+import Wire.API.Routes.Named
+import Wire.API.Routes.Public.Brig
 import Wire.API.Team
 import Wire.API.Team.Invitation
 import qualified Wire.API.Team.Invitation as Public
@@ -77,125 +77,24 @@ import qualified Wire.API.Team.Member as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Role
 import qualified Wire.API.Team.Role as Public
-import qualified Wire.API.Team.Size as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
 
-routesPublic ::
+servantAPI ::
   Members
     '[ BlacklistStore,
        GalleyProvider
      ]
     r =>
-  Routes Doc.ApiBuilder (Handler r) ()
-routesPublic = do
-  post "/teams/:tid/invitations" (continue createInvitationPublicH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-      .&. jsonRequest @Public.InvitationRequest
-  document "POST" "sendTeamInvitation" $ do
-    Doc.summary "Create and send a new team invitation."
-    Doc.notes
-      "Invitations are sent by email. The maximum allowed number of \
-      \pending team invitations is equal to the team size."
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.body (Doc.ref Public.modelTeamInvitationRequest) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.modelTeamInvitation)
-    Doc.response 201 "Invitation was created and sent." Doc.end
-    Doc.errorResponse noEmail
-    Doc.errorResponse (errorToWai @'E.NoIdentity)
-    Doc.errorResponse (errorToWai @'E.InvalidEmail)
-    Doc.errorResponse (errorToWai @'E.BlacklistedEmail)
-    Doc.errorResponse (errorToWai @'E.TooManyTeamInvitations)
-
-  get "/teams/:tid/invitations" (continue listInvitationsH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-      .&. opt (query "start")
-      .&. def (unsafeRange 100) (query "size")
-  document "GET" "listTeamInvitations" $ do
-    Doc.summary "List the sent team invitations"
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.parameter Doc.Query "start" Doc.string' $ do
-      Doc.description "Invitation id to start from (ascending)."
-      Doc.optional
-    Doc.parameter Doc.Query "size" Doc.int32' $ do
-      Doc.description "Number of results to return (default 100, max 500)."
-      Doc.optional
-    Doc.returns (Doc.ref Public.modelTeamInvitationList)
-    Doc.response 200 "List of sent invitations" Doc.end
-
-  get "/teams/:tid/invitations/:iid" (continue getInvitationH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-      .&. capture "iid"
-  document "GET" "getInvitation" $ do
-    Doc.summary "Get a pending team invitation by ID."
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.parameter Doc.Path "id" Doc.bytes' $
-      Doc.description "Team Invitation ID"
-    Doc.returns (Doc.ref Public.modelTeamInvitation)
-    Doc.response 200 "Invitation" Doc.end
-
-  delete "/teams/:tid/invitations/:iid" (continue deleteInvitationH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-      .&. capture "iid"
-  document "DELETE" "deleteInvitation" $ do
-    Doc.summary "Delete a pending invitation by ID."
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.parameter Doc.Path "iid" Doc.bytes' $
-      Doc.description "Team Invitation ID"
-    Doc.response 200 "Invitation deleted." Doc.end
-
-  get "/teams/invitations/info" (continue getInvitationByCodeH) $
-    accept "application" "json"
-      .&. query "code"
-  document "GET" "getInvitationInfo" $ do
-    Doc.summary "Get invitation info given a code."
-    Doc.parameter Doc.Query "code" Doc.bytes' $
-      Doc.description "Invitation code"
-    Doc.returns (Doc.ref Public.modelTeamInvitation)
-    Doc.response 200 "Invitation successful." Doc.end
-    Doc.errorResponse (errorToWai @'E.InvalidInvitationCode)
-
-  -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
-  head "/teams/invitations/by-email" (continue headInvitationByEmailH) $
-    accept "application" "json"
-      .&. query "email"
-
-  document "HEAD" "headInvitationPending" $ do
-    Doc.summary "Check if there is an invitation pending given an email address."
-    Doc.parameter Doc.Query "email" Doc.bytes' $
-      Doc.description "Email address"
-    Doc.response 200 "Pending invitation exists." Doc.end
-    Doc.response 404 "No pending invitations exists." Doc.end
-    Doc.response 409 "Multiple conflicting invitations to different teams exists." Doc.end
-
-  get "/teams/:tid/size" (continue teamSizePublicH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-
-  document "GET" "teamSize" $ do
-    Doc.summary
-      "Returns the number of team members as an integer.  \
-      \Can be out of sync by roughly the `refresh_interval` \
-      \of the ES index."
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "Team ID"
-    Doc.returns (Doc.ref Public.modelTeamSize)
-    Doc.response 200 "Invitation successful." Doc.end
-    Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
+  ServerT TeamsAPI (Handler r)
+servantAPI =
+  Named @"send-team-invitation" createInvitationPublicH
+    :<|> Named @"get-team-invitations" listInvitations
+    :<|> Named @"get-team-invitation" getInvitation
+    :<|> Named @"delete-team-invitation" deleteInvitation
+    :<|> Named @"get-team-invitation-info" getInvitationByCode
+    :<|> Named @"head-team-invitations" headInvitationByEmail
+    :<|> Named @"get-team-size" teamSizePublic
 
 routesInternal ::
   Members
@@ -231,9 +130,6 @@ routesInternal = do
     accept "application" "json"
       .&. jsonRequest @NewUserScimInvitation
 
-teamSizePublicH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId -> (Handler r) Response
-teamSizePublicH (_ ::: uid ::: tid) = json <$> teamSizePublic uid tid
-
 teamSizePublic :: Members '[GalleyProvider] r => UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do
   ensurePermissions uid tid [AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
@@ -266,16 +162,17 @@ createInvitationPublicH ::
        GalleyProvider
      ]
     r =>
-  JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest ->
-  (Handler r) Response
-createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
-  body <- parseJsonBody req
-  newInv <- createInvitationPublic uid tid body
-  pure . setStatus status201 . loc (inInvitation newInv) . json $ newInv
+  UserId ->
+  TeamId ->
+  Public.InvitationRequest ->
+  Handler r (Public.Invitation, Public.InvitationLocation)
+createInvitationPublicH uid tid body = do
+  inv <- createInvitationPublic uid tid body
+  pure (inv, loc inv)
   where
-    loc iid =
-      addHeader "Location" $
-        "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' iid
+    loc :: Invitation -> InvitationLocation
+    loc inv =
+      InvitationLocation $ "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' (inInvitation inv)
 
 data CreateInvitationInviter = CreateInvitationInviter
   { inviterUid :: UserId,
@@ -298,7 +195,7 @@ createInvitationPublic uid tid body = do
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
     idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) pure =<< lift (fetchUserIdentity uid)
-    from <- maybe (throwStd noEmail) pure (emailIdentity idt)
+    from <- maybe (throwStd (errorToWai @'E.NoEmail)) pure (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
 
@@ -334,9 +231,9 @@ createInvitationViaScim ::
     r =>
   NewUserScimInvitation ->
   (Handler r) UserAccount
-createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
+createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email role) = do
   env <- ask
-  let inviteeRole = defaultRole
+  let inviteeRole = role
       fromEmail = env ^. emailSender
       invreq =
         InvitationRequest
@@ -436,32 +333,17 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
           timeout
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
-deleteInvitationH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
-deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
-  empty <$ deleteInvitation uid tid iid
-
 deleteInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   lift $ wrapClient $ DB.deleteInvitation tid iid
 
-listInvitationsH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> (Handler r) Response
-listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
-  json <$> listInvitations uid tid start size
-
-listInvitations :: Members '[GalleyProvider] r => UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
-listInvitations uid tid start size = do
+listInvitations :: Members '[GalleyProvider] r => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
+listInvitations uid tid start mSize = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
-  rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start size
+  rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start (fromMaybe (unsafeRange 100) mSize)
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
-
-getInvitationH :: Members '[GalleyProvider] r => JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
-getInvitationH (_ ::: uid ::: tid ::: iid) = do
-  inv <- getInvitation uid tid iid
-  pure $ case inv of
-    Just i -> json i
-    Nothing -> setStatus status404 empty
 
 getInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
@@ -469,22 +351,19 @@ getInvitation uid tid iid = do
   showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
   lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
 
-getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
-getInvitationByCodeH (_ ::: c) = do
-  json <$> getInvitationByCode c
-
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
   inv <- lift . wrapClient $ DB.lookupInvitationByCode HideInvitationUrl c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
 
-headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
-headInvitationByEmailH (_ ::: e) = do
-  inv <- lift $ wrapClient $ DB.lookupInvitationInfoByEmail e
-  pure $ case inv of
-    DB.InvitationByEmail _ -> setStatus status200 empty
-    DB.InvitationByEmailNotFound -> setStatus status404 empty
-    DB.InvitationByEmailMoreThanOne -> setStatus status409 empty
+headInvitationByEmail :: Email -> (Handler r) Public.HeadInvitationByEmailResult
+headInvitationByEmail e = do
+  lift $
+    wrapClient $
+      DB.lookupInvitationInfoByEmail e <&> \case
+        DB.InvitationByEmail _ -> Public.InvitationByEmail
+        DB.InvitationByEmailNotFound -> Public.InvitationByEmailNotFound
+        DB.InvitationByEmailMoreThanOne -> Public.InvitationByEmailMoreThanOne
 
 -- | FUTUREWORK: This should also respond with status 409 in case of
 -- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and

@@ -24,7 +24,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Create
   ( createGroupConversation,
-    createSelfConversation,
+    createProteusSelfConversation,
     createOne2OneConversation,
     createConnectConversation,
   )
@@ -71,7 +71,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
-import Wire.API.Routes.Public.Galley (ConversationResponse)
+import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -117,8 +117,7 @@ createGroupConversation lusr conn newConv = do
 
   case newConvProtocol newConv of
     ProtocolMLSTag -> do
-      haveKey <- isJust <$> getMLSRemovalKey
-      unless haveKey $
+      unlessM (isJust <$> getMLSRemovalKey) $
         -- We fail here to notify users early about this misconfiguration
         throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
     ProtocolProteusTag -> pure ()
@@ -127,11 +126,11 @@ createGroupConversation lusr conn newConv = do
   conv <- E.createConversation lcnv nc
 
   -- set creator client for MLS conversations
-  case (newConvProtocol newConv, newConvCreatorClient newConv) of
-    (ProtocolProteusTag, _) -> pure ()
-    (ProtocolMLSTag, Just c) ->
-      E.addMLSClients lcnv (qUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
-    (ProtocolMLSTag, Nothing) ->
+  case (convProtocol conv, newConvCreatorClient newConv) of
+    (ProtocolProteus, _) -> pure ()
+    (ProtocolMLS mlsMeta, Just c) ->
+      E.addMLSClients (cnvmlsGroupId mlsMeta) (qUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
+    (ProtocolMLS _mlsMeta, Nothing) ->
       throw (InvalidPayload "Missing creator_client field when creating an MLS conversation")
 
   now <- input
@@ -193,12 +192,12 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
 
-createSelfConversation ::
+createProteusSelfConversation ::
   forall r.
   Members '[ConversationStore, Error InternalError, P.TinyLog] r =>
   Local UserId ->
   Sem r ConversationResponse
-createSelfConversation lusr = do
+createProteusSelfConversation lusr = do
   let lcnv = fmap Data.selfConv lusr
   c <- E.getConversation (tUnqualified lcnv)
   maybe (create lcnv) (conversationExisted lusr) c
@@ -534,13 +533,6 @@ conversationCreated ::
   Data.Conversation ->
   Sem r ConversationResponse
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
-
-conversationExisted ::
-  Members '[Error InternalError, P.TinyLog] r =>
-  Local UserId ->
-  Data.Conversation ->
-  Sem r ConversationResponse
-conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
 
 notifyCreatedConversation ::
   Members '[Error InternalError, FederatorAccess, GundeckAccess, Input UTCTime, P.TinyLog] r =>

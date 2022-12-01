@@ -1,8 +1,6 @@
-{
-  buildPythonPackage,
-  fetchPypi,
-
-  reportlab
+{ buildPythonPackage
+, fetchPypi
+, reportlab
 }:
 buildPythonPackage rec {
   pname = "svg2rlg";
@@ -12,6 +10,6 @@ buildPythonPackage rec {
     sha256 = "sha256-BdtEgLkOkS4Icn1MskOF/jPoQ23vB5uPFJtho1Bji+4=";
   };
 
-  buildInputs = [reportlab];
+  buildInputs = [ reportlab ];
   doCheck = false;
 }

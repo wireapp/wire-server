@@ -20,9 +20,6 @@
 module Wire.API.Team.Role
   ( Role (..),
     defaultRole,
-
-    -- * Swagger
-    typeRole,
   )
 where
 
@@ -34,7 +31,6 @@ import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Model.Api as Doc
 import qualified Data.Text as T
 import Imports
 import Servant.API (FromHttpApiData, parseQueryParam)
@@ -100,17 +96,6 @@ instance FromHttpApiData Role where
     getAlt $
       flip foldMap [minBound .. maxBound] $ \s ->
         guard (T.pack (show s) == name) $> s
-
-typeRole :: Doc.DataType
-typeRole =
-  Doc.Prim $
-    Doc.Primitive
-      { Doc.primType = Doc.PrimString,
-        Doc.defaultValue = Just defaultRole,
-        Doc.enum = Just [minBound ..],
-        Doc.minVal = Just minBound,
-        Doc.maxVal = Just maxBound
-      }
 
 roleName :: IsString a => Role -> a
 roleName RoleOwner = "owner"

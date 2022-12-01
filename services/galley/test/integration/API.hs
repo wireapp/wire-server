@@ -1786,12 +1786,14 @@ listConvIdsOk = do
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
   let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
+  -- Each of the users has a Proteus self-conversation, an MLS self-conversation
+  -- and the one-to-one coversation.
   listConvIds alice paginationOpts !!! do
     const 200 === statusCode
-    const (Right 2) === fmap length . decodeQualifiedConvIdList
+    const (Right 3) === fmap length . decodeQualifiedConvIdList
   listConvIds bob paginationOpts !!! do
     const 200 === statusCode
-    const (Right 2) === fmap length . decodeQualifiedConvIdList
+    const (Right 3) === fmap length . decodeQualifiedConvIdList
 
 paginateConvListIds :: TestM ()
 paginateConvListIds = do
@@ -1802,7 +1804,7 @@ paginateConvListIds = do
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
 
-  replicateM_ 197 $
+  replicateM_ 196 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
 
@@ -1838,9 +1840,9 @@ paginateConvListIds = do
             }
     runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
-  -- 1 self conv + 2 convs with bob and eve + 197 local convs + 25 convs on
-  -- chad.example.com + 31 on dee.example = 256 convs. Getting them 16 at a time
-  -- should get all them in 16 times.
+  -- 1 Proteus self conv + 1 MLS self conv + 2 convs with bob and eve + 196
+  -- local convs + 25 convs on chad.example.com + 31 on dee.example = 256 convs.
+  -- Getting them 16 at a time should get all them in 16 times.
   foldM_ (getChunkedConvs 16 0 alice) Nothing [16, 15 .. 0 :: Int]
 
 -- This test ensures to setup conversations so that a page would end exactly
@@ -1856,9 +1858,9 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
 
-  -- With page size 16, 29 group convs + 2 one-to-one convs + 1 self conv, we
-  -- get 32 convs. The 2nd page should end here.
-  replicateM_ 29 $
+  -- With page size 16, 28 group convs + 2 one-to-one convs + 1 Proteus self
+  -- conv + 1 MLS self conv, we get 32 convs. The 2nd page should end here.
+  replicateM_ 28 $
     postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
       !!! const 201 === statusCode
 
@@ -2075,7 +2077,19 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  let conv =
+        NewConv
+          []
+          newUsers
+          (checked "gossip")
+          (Set.fromList [])
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -2104,7 +2118,19 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- viewGalley
   alice <- randomUser
-  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  let inv =
+        NewConv
+          [alice]
+          []
+          Nothing
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe

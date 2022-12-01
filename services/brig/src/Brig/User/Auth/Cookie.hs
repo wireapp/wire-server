@@ -193,7 +193,7 @@ newAccessToken ::
 newAccessToken c mt = do
   t' <- case mt of
     Nothing -> ZAuth.newAccessToken (cookieValue c)
-    Just t -> ZAuth.renewAccessToken t
+    Just t -> ZAuth.renewAccessToken (ZAuth.userTokenClient (cookieValue c)) t
   zSettings <- view (zauthEnv . ZAuth.settings)
   let ttl = view (ZAuth.settingsTTL (Proxy @a)) zSettings
   pure $

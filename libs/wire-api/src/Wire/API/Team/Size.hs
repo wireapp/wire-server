@@ -17,27 +17,24 @@
 
 module Wire.API.Team.Size
   ( TeamSize (TeamSize),
-    modelTeamSize,
   )
 where
 
-import Data.Aeson
-import qualified Data.Swagger.Build.Api as Doc
+import Control.Lens ((?~))
+import qualified Data.Aeson as A
+import Data.Schema
+import qualified Data.Swagger as S
 import Imports
 import Numeric.Natural
 
 newtype TeamSize = TeamSize Natural
   deriving (Show, Eq)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TeamSize)
 
-instance ToJSON TeamSize where
-  toJSON (TeamSize s) = object ["teamSize" .= s]
-
-instance FromJSON TeamSize where
-  parseJSON =
-    withObject "TeamSize" $ \o -> TeamSize <$> o .: "teamSize"
-
-modelTeamSize :: Doc.Model
-modelTeamSize = Doc.defineModel "TeamSize" $ do
-  Doc.description "A simple object with a total number of team members."
-  Doc.property "teamSize" Doc.int32' $ do
-    Doc.description "Team size."
+instance ToSchema TeamSize where
+  schema =
+    objectWithDocModifier "TeamSize" (description ?~ "A simple object with a total number of team members.") $
+      TeamSize <$> (unTeamSize .= fieldWithDocModifier "teamSize" (description ?~ "Team size.") schema)
+    where
+      unTeamSize :: TeamSize -> Natural
+      unTeamSize (TeamSize n) = n

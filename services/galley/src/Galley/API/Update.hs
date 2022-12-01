@@ -128,7 +128,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Provider.Service (ServiceRef)
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature hiding (setStatus)
@@ -1571,6 +1571,8 @@ addBot lusr zcon b = do
       unless (tUnqualified lusr `isMember` users) $ throwS @'ConvNotFound
       ensureGroupConversation c
       self <- getSelfMemberFromLocals (tUnqualified lusr) users
+      -- Note that in brig from where this internal handler is called, we additionally check for conversation admin role.
+      -- Remember to change this if we ever want to allow non admins to add bots.
       ensureActionAllowed SAddConversationMember self
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
@@ -1587,7 +1589,8 @@ rmBotH ::
        Input (Local ()),
        Input UTCTime,
        MemberStore,
-       WaiRoutes
+       WaiRoutes,
+       ErrorS ('ActionDenied 'RemoveConversationMember)
      ]
     r =>
   UserId ::: Maybe ConnId ::: JsonRequest RemoveBot ->
@@ -1605,7 +1608,8 @@ rmBot ::
        ExternalAccess,
        GundeckAccess,
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       ErrorS ('ActionDenied 'RemoveConversationMember)
      ]
     r =>
   Local UserId ->
@@ -1615,10 +1619,17 @@ rmBot ::
 rmBot lusr zcon b = do
   c <-
     E.getConversation (b ^. rmBotConv) >>= noteS @'ConvNotFound
-  let lcnv = qualifyAs lusr (Data.convId c)
+  let (bots, users) = localBotsAndUsers (Data.convLocalMembers c)
   unless (tUnqualified lusr `isMember` Data.convLocalMembers c) $
     throwS @'ConvNotFound
-  let (bots, users) = localBotsAndUsers (Data.convLocalMembers c)
+  -- A bot can remove itself (which will internally be triggered when a service is deleted),
+  -- otherwise we have to check for the correct permissions
+  unless (botUserId (b ^. rmBotId) == tUnqualified lusr) $ do
+    -- Note that in brig from where this internal handler is called, we additionally check for conversation admin role.
+    -- Remember to change this if we ever want to allow non admins to remove bots.
+    self <- getSelfMemberFromLocals (tUnqualified lusr) users
+    ensureActionAllowed SRemoveConversationMember self
+  let lcnv = qualifyAs lusr (Data.convId c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)
     then pure Unchanged
     else do

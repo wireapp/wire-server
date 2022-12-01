@@ -1,0 +1,12 @@
+{
+    "data": {
+        "config": {
+            "domains": []
+        },
+        "lockStatus": "unlocked",
+        "status": "enabled",
+        "ttl": "unlimited"
+    },
+    "name": "",
+    "type": "feature-config.update"
+}

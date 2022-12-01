@@ -41,6 +41,7 @@ import Data.Misc
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Text.Encoding
+import Data.Text.Lazy (toStrict)
 import Galley.API.Error
 import Galley.Effects
 import Galley.Env
@@ -53,6 +54,7 @@ import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error hiding (Error)
+import qualified Network.Wai.Utilities.Error as Error
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -227,7 +229,7 @@ updateKeyPackageRef keyPackageRef =
           . expect2xx
       )
 
-validateAndAddKeyPackageRef :: NewKeyPackage -> App (Maybe NewKeyPackageResult)
+validateAndAddKeyPackageRef :: NewKeyPackage -> App (Either Text NewKeyPackageResult)
 validateAndAddKeyPackageRef nkp = do
   res <-
     call
@@ -238,6 +240,8 @@ validateAndAddKeyPackageRef nkp = do
       )
   let statusCode = HTTP.statusCode (Rq.responseStatus res)
   if
-      | statusCode `div` 100 == 2 -> Just <$> parseResponse (mkError status502 "server-error") res
-      | statusCode `div` 100 == 4 -> pure Nothing
+      | statusCode `div` 100 == 2 -> Right <$> parseResponse (mkError status502 "server-error") res
+      | statusCode `div` 100 == 4 -> do
+          err <- parseResponse (mkError status502 "server-error") res
+          pure (Left ("Error validating keypackage: " <> toStrict (Error.label err) <> ": " <> toStrict (Error.message err)))
       | otherwise -> throwM (mkError status502 "server-error" "Unexpected http status returned from /i/mls/key-packages/add")

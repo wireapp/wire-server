@@ -113,7 +113,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
-import Wire.API.Routes.Named
+import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
@@ -195,6 +195,8 @@ servantSitemap =
     :<|> userHandleAPI
     :<|> searchAPI
     :<|> authAPI
+    :<|> callingAPI
+    :<|> Team.servantAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -312,6 +314,11 @@ servantSitemap =
         :<|> Named @"list-cookies" listCookies
         :<|> Named @"remove-cookies" removeCookies
 
+    callingAPI :: ServerT CallingAPI (Handler r)
+    callingAPI =
+      Named @"get-calls-config" Calling.getCallsConfig
+        :<|> Named @"get-calls-config-v2" Calling.getCallsConfigV2
+
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
 -- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
@@ -332,8 +339,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Provider.routesPublic
-  Team.routesPublic
-  Calling.routesPublic
 
 apiDocs ::
   forall r.

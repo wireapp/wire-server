@@ -17,8 +17,8 @@ readonly usage="USAGE: $0 <images_attr>"
 # nix attribute under wireServer from "$ROOT_DIR/nix" containing all the images
 readonly IMAGES_ATTR=${1:?$usage}
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &>/dev/null && pwd)
 readonly SCRIPT_DIR ROOT_DIR
 
 tmp_link_store=$(mktemp -d)
@@ -28,8 +28,12 @@ nix -v --show-trace -L build -f "$ROOT_DIR/nix" wireServer.imagesList -o "$image
 # Build everything first so we can benefit the most from having many cores.
 nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR" --no-link
 
-while IFS="" read -r image_name || [ -n "$image_name" ]
-do
+while IFS="" read -r image_name || [ -n "$image_name" ]; do
     printf '*** Uploading image %s\n' "$image_name"
     "$SCRIPT_DIR/upload-image.sh" "wireServer.$IMAGES_ATTR.$image_name"
-done < "$image_list_file"
+done <"$image_list_file"
+
+for image_name in nginz nginz-disco; do
+    printf '*** Uploading image %s\n' "$image_name"
+    "$SCRIPT_DIR/upload-image.sh" "$image_name"
+done

@@ -103,7 +103,8 @@ import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Conversation
+import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -302,7 +303,7 @@ type ITeamsAPIBase =
   Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
     :<|> Named
            "create-binding-team"
-           ( ZUser
+           ( ZLocalUser
                :> ReqBody '[Servant.JSON] BindingNewTeam
                :> MultiVerb1
                     'PUT
@@ -355,6 +356,17 @@ type ITeamsAPIBase =
                     ( "check"
                         :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
                         :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User can join")
+                    )
+             :<|> Named
+                    "unchecked-update-team-member"
+                    ( CanThrow 'AccessDenied
+                        :> CanThrow 'InvalidPermissions
+                        :> CanThrow 'TeamNotFound
+                        :> CanThrow 'TeamMemberNotFound
+                        :> CanThrow 'NotATeamMember
+                        :> CanThrow OperationDenied
+                        :> ReqBody '[Servant.JSON] NewTeamMember
+                        :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "")
                     )
          )
     :<|> Named
@@ -485,6 +497,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
               <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam @Cassandra tid)
+              <@> mkNamedAPI @"unchecked-update-team-member" (Teams.uncheckedUpdateTeamMember Nothing Nothing tid)
           )
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
@@ -640,19 +653,20 @@ rmUser ::
       '[ BrigAccess,
          ClientStore,
          ConversationStore,
+         Error InternalError,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
-         Input UTCTime,
          Input Env,
+         Input (Local ()),
+         Input UTCTime,
          ListItems p1 ConvId,
          ListItems p1 (Remote ConvId),
          ListItems p2 TeamId,
-         Input (Local ()),
          MemberStore,
          ProposalStore,
-         TeamStore,
-         P.TinyLog
+         P.TinyLog,
+         TeamStore
        ]
       r
   ) =>
@@ -690,28 +704,38 @@ rmUser lusr conn = do
       let qUser = qUntagged lusr
       cc <- getConversations ids
       now <- input
-      pp <- for cc $ \c -> case Data.convType c of
-        SelfConv -> pure Nothing
-        One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
-        ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
-        RegularConv
-          | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+      let deleteIfNeeded c = do
+            when (tUnqualified lusr `isMember` Data.convLocalMembers c) $ do
               runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
               deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
-              let e =
-                    Event
-                      (qUntagged (qualifyAs lusr (Data.convId c)))
-                      (qUntagged lusr)
-                      now
-                      (EdMembersLeave (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-              pure $
-                Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
-                  <&> set Intra.pushConn conn
-                    . set Intra.pushRoute Intra.RouteDirect
-          | otherwise -> pure Nothing
+            let e =
+                  Event
+                    (qUntagged (qualifyAs lusr (Data.convId c)))
+                    (qUntagged lusr)
+                    now
+                    (EdMembersLeave (QualifiedUserIdList [qUser]))
+            pure $
+              Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
+                <&> set Intra.pushConn conn
+                  . set Intra.pushRoute Intra.RouteDirect
+
+          deleteClientsFromGlobal c = do
+            runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
+              Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+              Right _ -> pure ()
+            deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
+            for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
+            pure Nothing
+
+      pp <- for cc $ \c -> case Data.convType c of
+        SelfConv -> pure Nothing
+        One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
+        RegularConv -> deleteIfNeeded c
+        GlobalTeamConv -> deleteClientsFromGlobal c
 
       for_
         (maybeList1 (catMaybes pp))

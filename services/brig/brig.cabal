@@ -534,6 +534,7 @@ executable brig-integration
     , data-timeout
     , email-validate
     , exceptions
+    , extra
     , federator
     , filepath               >=1.4
     , galley-types

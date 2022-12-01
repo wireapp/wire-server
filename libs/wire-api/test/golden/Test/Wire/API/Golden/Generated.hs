@@ -83,6 +83,8 @@ import qualified Test.Wire.API.Golden.Generated.EmailUpdate_user
 import qualified Test.Wire.API.Golden.Generated.Email_user
 import qualified Test.Wire.API.Golden.Generated.EventType_team
 import qualified Test.Wire.API.Golden.Generated.EventType_user
+import qualified Test.Wire.API.Golden.Generated.Event_conversation
+import qualified Test.Wire.API.Golden.Generated.Event_featureConfig
 import qualified Test.Wire.API.Golden.Generated.Event_team
 import qualified Test.Wire.API.Golden.Generated.Event_user
 import qualified Test.Wire.API.Golden.Generated.HandleUpdate_user
@@ -1389,5 +1391,34 @@ tests =
       testGroup
         "Golden: WithStatusPatch_team 19"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_19, "testObject_WithStatusPatch_team_19.json")]
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_19, "testObject_WithStatusPatch_team_19.json")],
+      testGroup
+        "Golden: Event_FeatureConfig"
+        $ testObjects
+          [ (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_1, "testObject_Event_featureConfig_1.json"),
+            (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_2, "testObject_Event_featureConfig_2.json"),
+            (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_3, "testObject_Event_featureConfig_3.json"),
+            (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_4, "testObject_Event_featureConfig_4.json"),
+            (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_5, "testObject_Event_featureConfig_5.json"),
+            (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_6, "testObject_Event_featureConfig_6.json"),
+            (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_7, "testObject_Event_featureConfig_7.json"),
+            (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_8, "testObject_Event_featureConfig_8.json"),
+            (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_9, "testObject_Event_featureConfig_9.json"),
+            (Test.Wire.API.Golden.Generated.Event_featureConfig.testObject_Event_featureConfig_10, "testObject_Event_featureConfig_10.json")
+          ],
+      testGroup
+        "Golden: Event_Conversation"
+        $ testObjects
+          [ (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_1, "testObject_Event_conversation_1.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_2, "testObject_Event_conversation_2.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_3, "testObject_Event_conversation_3.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_4, "testObject_Event_conversation_4.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_5, "testObject_Event_conversation_5.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_6, "testObject_Event_conversation_6.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_7, "testObject_Event_conversation_7.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_8, "testObject_Event_conversation_8.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_9, "testObject_Event_conversation_9.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_11, "testObject_Event_conversation_11.json"),
+            (Test.Wire.API.Golden.Generated.Event_conversation.testObject_Event_conversation_10, "testObject_Event_conversation_10.json")
+          ]
     ]

@@ -1,4 +1,4 @@
-{ libsodium, protobuf, hlib, mls-test-cli, openssl }:
+{ libsodium, protobuf, hlib, mls-test-cli }:
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
@@ -58,6 +58,4 @@ hself: hsuper: {
 
   # Make hoogle static to reduce size of the hoogle image
   hoogle = hlib.justStaticExecutables hsuper.hoogle;
-
-  HsOpenSSL = hsuper.HsOpenSSL.override { inherit openssl; };
 }

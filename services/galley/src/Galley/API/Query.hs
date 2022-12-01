@@ -1,19 +1,3 @@
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -37,8 +21,10 @@ module Galley.API.Query
   ( getBotConversationH,
     getUnqualifiedConversation,
     getConversation,
+    getGlobalTeamConversation,
     getConversationRoles,
     conversationIdsPageFromUnqualified,
+    conversationIdsPageFromV2,
     conversationIdsPageFrom,
     getConversations,
     listConversations,
@@ -50,6 +36,7 @@ module Galley.API.Query
     ensureGuestLinksEnabled,
     getConversationGuestLinksStatus,
     ensureConvAdmin,
+    getMLSSelfConversation,
   )
 where
 
@@ -65,7 +52,11 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Tagged
 import Galley.API.Error
+import Galley.API.MLS.Keys
+import Galley.API.MLS.Types
+import Galley.API.Mapping
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import qualified Galley.Data.Conversation as Data
@@ -77,6 +68,8 @@ import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import qualified Galley.Effects.TeamStore as E
+import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams
@@ -90,10 +83,9 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
-import Wire.API.Conversation (Access (CodeAccess), Conversation, ConversationCoverView (..), ConversationList (ConversationList), ConversationMetadata, convHasMore, convList)
+import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
@@ -101,6 +93,7 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import qualified Wire.API.MLS.GlobalTeamConversation as Public
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -120,7 +113,11 @@ getBotConversation ::
   Local ConvId ->
   Sem r Public.BotConvView
 getBotConversation zbot lcnv = do
-  (c, _) <- getConversationAndMemberWithError @'ConvNotFound (botUserId zbot) lcnv
+  (c, _) <-
+    getConversationAndMemberWithError
+      @'ConvNotFound
+      (qUntagged . qualifyAs lcnv . botUserId $ zbot)
+      lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
@@ -147,6 +144,25 @@ getUnqualifiedConversation ::
 getUnqualifiedConversation lusr cnv = do
   c <- getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
+
+getGlobalTeamConversation ::
+  Members
+    '[ ConversationStore,
+       ErrorS 'NotATeamMember,
+       MemberStore,
+       TeamStore
+     ]
+    r =>
+  Local UserId ->
+  TeamId ->
+  Sem r Public.GlobalTeamConversation
+getGlobalTeamConversation lusr tid = do
+  let ltid = qualifyAs lusr tid
+  void $ noteS @'NotATeamMember =<< E.getTeamMember tid (tUnqualified lusr)
+  E.getGlobalTeamConversation ltid >>= \case
+    Nothing ->
+      E.createGlobalTeamConversation (qualifyAs lusr tid)
+    Just conv -> pure conv
 
 getConversation ::
   forall r.
@@ -287,12 +303,24 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  Member (ListItems LegacyPaging ConvId) r =>
+  Members
+    [ ListItems LegacyPaging ConvId,
+      ConversationStore,
+      MemberStore,
+      TeamStore
+    ]
+    r =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
   Sem r (Public.ConversationList ConvId)
 conversationIdsPageFromUnqualified lusr start msize = do
+  void $
+    E.getUserTeams (tUnqualified lusr) >>= \tids ->
+      runError @InternalError $
+        runError @(Tagged 'NotATeamMember ())
+          (for_ tids $ \tid -> getGlobalTeamConversation lusr tid)
+
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- E.listItems (tUnqualified lusr) start size
   pure $
@@ -308,15 +336,27 @@ conversationIdsPageFromUnqualified lusr start msize = do
 --
 -- - After local conversations, remote conversations are listed ordered
 -- - lexicographically by their domain and then by their id.
-conversationIdsPageFrom ::
+--
+-- FUTUREWORK: Move the body of this function to 'conversationIdsPageFrom' once
+-- support for V2 is dropped.
+conversationIdsPageFromV2 ::
   forall p r.
   ( p ~ CassandraPaging,
-    Members '[ListItems p ConvId, ListItems p (Remote ConvId)] r
+    Members
+      '[ ConversationStore,
+         Error InternalError,
+         Input Env,
+         ListItems p ConvId,
+         ListItems p (Remote ConvId),
+         P.TinyLog
+       ]
+      r
   ) =>
+  ListGlobalSelfConvs ->
   Local UserId ->
   Public.GetPaginatedConversationIds ->
   Sem r Public.ConvIdsPage
-conversationIdsPageFrom lusr Public.GetMultiTablePageRequest {..} = do
+conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {..} = do
   let localDomain = tDomain lusr
   case gmtprState of
     Just (Public.ConversationPagingState Public.PagingRemotes stateBS) ->
@@ -337,11 +377,17 @@ conversationIdsPageFrom lusr Public.GetMultiTablePageRequest {..} = do
           <$> E.listItems (tUnqualified lusr) pagingState size
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
-        then pure localPage {Public.mtpHasMore = True} -- We haven't checked the remotes yet, so has_more must always be True here.
+        then -- We haven't checked the remotes yet, so has_more must always be True here.
+          pure (filterOut localPage) {Public.mtpHasMore = True}
         else do
           -- remainingSize <= size and remainingSize >= 1, so it is safe to convert to Range
           remotePage <- remotesOnly Nothing (unsafeRange remainingSize)
-          pure $ remotePage {Public.mtpResults = Public.mtpResults localPage <> Public.mtpResults remotePage}
+          pure $
+            remotePage
+              { Public.mtpResults =
+                  Public.mtpResults (filterOut localPage)
+                    <> Public.mtpResults remotePage
+              }
 
     remotesOnly ::
       Maybe C.PagingState ->
@@ -359,6 +405,53 @@ conversationIdsPageFrom lusr Public.GetMultiTablePageRequest {..} = do
           mtpHasMore = C.pwsHasMore page,
           mtpPagingState = Public.ConversationPagingState table (LBS.toStrict . C.unPagingState <$> pwsState)
         }
+
+    -- MLS self-conversation of this user
+    selfConvId = mlsSelfConvId (tUnqualified lusr)
+    isNotSelfConv = (/= selfConvId) . qUnqualified
+
+    -- If this is an old client making a request (i.e., a V1 or V2 client), make
+    -- sure to filter out the MLS global team conversation and the MLS
+    -- self-conversation.
+    --
+    -- FUTUREWORK: This is yet to be implemented for global team conversations.
+    filterOut :: ConvIdsPage -> ConvIdsPage
+    filterOut page | listGlobalSelf == ListGlobalSelf = page
+    filterOut page =
+      page
+        { Public.mtpResults = filter isNotSelfConv $ Public.mtpResults page
+        }
+
+-- | Lists conversation ids for the logged in user in a paginated way.
+--
+-- Pagination requires an order, in this case the order is defined as:
+--
+-- - First all the local conversations are listed ordered by their id
+--
+-- - After local conversations, remote conversations are listed ordered
+-- - lexicographically by their domain and then by their id.
+conversationIdsPageFrom ::
+  forall p r.
+  ( p ~ CassandraPaging,
+    Members
+      '[ ConversationStore,
+         Error InternalError,
+         Input Env,
+         ListItems p ConvId,
+         ListItems p (Remote ConvId),
+         P.TinyLog
+       ]
+      r
+  ) =>
+  Local UserId ->
+  Public.GetPaginatedConversationIds ->
+  Sem r Public.ConvIdsPage
+conversationIdsPageFrom lusr state = do
+  -- NOTE: Getting the MLS self-conversation creates it in case it does not
+  -- exist yet. This is to ensure it is automatically listed without needing to
+  -- create it separately.
+  void $ getMLSSelfConversation lusr
+  conversationIdsPageFromV2 ListGlobalSelf lusr state
 
 getConversations ::
   Members '[Error InternalError, ListItems LegacyPaging ConvId, ConversationStore, P.TinyLog] r =>
@@ -605,6 +698,39 @@ getConversationGuestLinksFeatureStatus mbTid = do
       mbConfigNoLock <- TeamFeatures.getFeatureConfig @db (Proxy @GuestLinksConfig) tid
       mbLockStatus <- TeamFeatures.getFeatureLockStatus @db (Proxy @GuestLinksConfig) tid
       pure $ computeFeatureConfigForTeamUser mbConfigNoLock mbLockStatus defaultStatus
+
+-- | Get an MLS self conversation. In case it does not exist, it is partially
+-- created in the database. The part that is not written is the epoch number;
+-- the number is inserted only upon the first commit. With this we avoid race
+-- conditions where two clients concurrently try to create or update the self
+-- conversation, where the only thing that can be updated is bumping the epoch
+-- number.
+getMLSSelfConversation ::
+  forall r.
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       Input Env,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
+  Sem r Conversation
+getMLSSelfConversation lusr = do
+  let selfConvId = mlsSelfConvId usr
+  mconv <- E.getConversation selfConvId
+  cnv <- maybe create pure mconv
+  conversationView lusr cnv
+  where
+    usr = tUnqualified lusr
+    create :: Sem r Data.Conversation
+    create = do
+      unlessM (isJust <$> getMLSRemovalKey) $
+        throw (InternalErrorWithDescription noKeyMsg)
+      E.createMLSSelfConversation lusr
+    noKeyMsg =
+      "No backend removal key is configured (See 'mlsPrivateKeyPaths'"
+        <> "in galley's config). Refusing to create MLS conversation."
 
 -------------------------------------------------------------------------------
 -- Helpers

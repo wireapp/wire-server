@@ -66,7 +66,7 @@ instance Arbitrary ReAuthUser where
   arbitrary = ReAuthUser <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary NewUserScimInvitation where
-  arbitrary = NewUserScimInvitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = NewUserScimInvitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 testCaseUserAccount :: TestTree
 testCaseUserAccount = testCase "UserAcccount" $ do

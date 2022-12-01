@@ -48,7 +48,7 @@ data:
 
     settings:
       httpPoolSize: {{ .settings.httpPoolSize }}
-      intraListing: false
+      intraListing: {{ .settings.intraListing }}
       maxTeamSize: {{ .settings.maxTeamSize }}
       maxConvSize: {{ .settings.maxConvSize }}
       {{- if .settings.maxFanoutSize }}

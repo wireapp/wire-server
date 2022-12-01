@@ -25,6 +25,7 @@ module Wire.API.Conversation
     ConversationMetadata (..),
     defConversationMetadata,
     Conversation (..),
+    conversationMetadataObjectSchema,
     cnvType,
     cnvCreator,
     cnvAccess,
@@ -44,6 +45,7 @@ module Wire.API.Conversation
     pattern ConversationPagingState,
     ConversationsResponse (..),
     GroupId (..),
+    mlsSelfConvId,
 
     -- * Conversation properties
     Access (..),
@@ -97,19 +99,22 @@ import Control.Applicative
 import Control.Lens (at, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as LBS
 import Data.Id
-import Data.List.Extra (disjointOrd)
+import Data.List.Extra (disjointOrd, enumerate)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
-import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range (Range, fromRange, rangedSchema)
+import Data.SOP
 import Data.Schema
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V5 as UUIDV5
 import Imports
 import System.Random (randomRIO)
 import Wire.API.Conversation.Member
@@ -117,6 +122,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.MultiVerb
 import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
@@ -431,6 +437,10 @@ data Access
     LinkAccess
   | -- | User can join knowing [changeable/revokable] code
     CodeAccess
+  | -- | In MLS the user can join the global team conversation with their
+    -- | clients via an external commit, thereby inviting their own clients to
+    -- | join.
+    SelfInviteAccess
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Access)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema Access
@@ -443,7 +453,8 @@ instance ToSchema Access where
           [ element "private" PrivateAccess,
             element "invite" InviteAccess,
             element "link" LinkAccess,
-            element "code" CodeAccess
+            element "code" CodeAccess,
+            element "self_invite" SelfInviteAccess
           ]
 
 typeAccess :: Doc.DataType
@@ -491,6 +502,7 @@ defRole = activatedAccessRole
 
 maybeRole :: ConvType -> Maybe (Set AccessRoleV2) -> Set AccessRoleV2
 maybeRole SelfConv _ = privateAccessRole
+maybeRole GlobalTeamConv _ = teamAccessRole
 maybeRole ConnectConv _ = privateAccessRole
 maybeRole One2OneConv _ = privateAccessRole
 maybeRole RegularConv Nothing = defRole
@@ -573,7 +585,8 @@ data ConvType
   | SelfConv
   | One2OneConv
   | ConnectConv
-  deriving stock (Eq, Show, Generic)
+  | GlobalTeamConv
+  deriving stock (Eq, Show, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform ConvType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvType
 
@@ -584,11 +597,12 @@ instance ToSchema ConvType where
         [ element 0 RegularConv,
           element 1 SelfConv,
           element 2 One2OneConv,
-          element 3 ConnectConv
+          element 3 ConnectConv,
+          element 4 GlobalTeamConv
         ]
 
 typeConversationType :: Doc.DataType
-typeConversationType = Doc.int32 $ Doc.enum [0, 1, 2, 3]
+typeConversationType = Doc.int32 $ Doc.enum $ fromIntegral . fromEnum <$> enumerate @ConvType
 
 -- | Define whether receipts should be sent in the given conversation
 --   This datatype is defined as an int32 but the Backend does not
@@ -934,3 +948,21 @@ instance ToSchema ConversationMemberUpdate where
       $ ConversationMemberUpdate
         <$> cmuTarget .= field "target" schema
         <*> cmuUpdate .= field "update" schema
+
+-- | The id of the MLS self conversation for a given user
+mlsSelfConvId :: UserId -> ConvId
+mlsSelfConvId uid =
+  let inputBytes = LBS.unpack . UUID.toByteString . toUUID $ uid
+   in Id (UUIDV5.generateNamed namespaceMLSSelfConv inputBytes)
+
+namespaceMLSSelfConv :: UUID.UUID
+namespaceMLSSelfConv =
+  -- a V5 uuid created with the nil namespace
+  fromJust . UUID.fromString $ "3eac2a2c-3850-510b-bd08-8a98e80dd4d9"
+
+--------------------------------------------------------------------------------
+-- MultiVerb instances
+
+instance AsHeaders '[ConvId] Conversation Conversation where
+  toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
+  fromHeaders = snd

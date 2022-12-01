@@ -15,6 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use head" #-}
 
 module API.Util where
 
@@ -141,13 +144,14 @@ import Wire.API.User.Client.Prekey
 -- API Operations
 
 addPrefix :: Request -> Request
-addPrefix r = r {HTTP.path = "v" <> toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}
+addPrefix = addPrefixAtVersion maxBound
+
+addPrefixAtVersion :: Version -> Request -> Request
+addPrefixAtVersion v r = r {HTTP.path = "v" <> toHeader v <> "/" <> removeSlash (HTTP.path r)}
   where
     removeSlash s = case B8.uncons s of
       Just ('/', s') -> s'
       _ -> s
-    latestVersion :: Version
-    latestVersion = maxBound
 
 -- | A class for monads with access to a Sem r instance
 class HasGalley m where
@@ -275,9 +279,17 @@ createBindingTeamInternalNoActivate name owner = do
   tid <- randomId
   let nt = BindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon
   _ <-
-    put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-      const 201 === statusCode
-      const True === isJust . getHeader "Location"
+    put
+      ( g
+          . paths ["/i/teams", toByteString' tid]
+          . zUser owner
+          . zConn "conn"
+          . zType "access"
+          . json nt
+      )
+      <!! do
+        const 201 === statusCode
+        const True === isJust . getHeader "Location"
   pure tid
 
 createBindingTeamInternalWithCurrency :: HasCallStack => Text -> UserId -> Currency.Alpha -> TestM TeamId
@@ -606,7 +618,18 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- viewGalley
   let tinfo = ConvTeamInfo tid
   let conv =
-        NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) ProtocolProteusTag Nothing
+        NewConv
+          us
+          []
+          (name >>= checked)
+          (fromMaybe (Set.fromList []) acc)
+          role
+          (Just tinfo)
+          mtimer
+          Nothing
+          (fromMaybe roleNameWireAdmin convRole)
+          ProtocolProteusTag
+          Nothing
   post
     ( g
         . path "/conversations"
@@ -673,7 +696,18 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
   g <- viewGalley
   let conv =
-        NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+        NewConv
+          [u2]
+          []
+          (n >>= checked)
+          mempty
+          Nothing
+          (Just $ ConvTeamInfo tid)
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -693,7 +727,8 @@ defNewMLSConv :: ClientId -> NewConv
 defNewMLSConv c =
   defNewProteusConv
     { newConvProtocol = ProtocolMLSTag,
-      newConvCreatorClient = Just c
+      newConvCreatorClient = Just c,
+      newConvName = Just (unsafeRange "Test conv")
     }
 
 postConvQualified ::
@@ -729,7 +764,19 @@ postConvWithRemoteUsers u n =
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  let conv =
+        NewConv
+          us
+          []
+          (name >>= checked)
+          (Set.fromList a)
+          r
+          (Just (ConvTeamInfo tid))
+          mtimer
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -766,7 +813,19 @@ postConvWithRole u members name access arole timer role =
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolProteusTag Nothing
+  let conv =
+        NewConv
+          us
+          []
+          (name >>= checked)
+          (Set.fromList a)
+          r
+          Nothing
+          mtimer
+          (Just rcpt)
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -777,7 +836,19 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- viewGalley
-  let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  let conv =
+        NewConv
+          [u2]
+          []
+          (n >>= checked)
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
@@ -1018,6 +1089,20 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
+getGlobalTeamConv ::
+  (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) =>
+  UserId ->
+  TeamId ->
+  m ResponseLBS
+getGlobalTeamConv u tid = do
+  g <- viewGalley
+  get $
+    g
+      . paths ["teams", toByteString' tid, "conversations", "global"]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+
 getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> Qualified ConvId -> m ResponseLBS
 getConvQualified u (Qualified conv domain) = do
   g <- viewGalley
@@ -1030,7 +1115,8 @@ getConvQualified u (Qualified conv domain) = do
 
 getConvIds :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
 getConvIds u r s = do
-  g <- viewGalley
+  -- The endpoint is removed starting V3
+  g <- fmap (addPrefixAtVersion V2 .) (view tsUnversionedGalley)
   get $
     g
       . path "/conversations/ids"
@@ -1042,6 +1128,15 @@ getConvIds u r s = do
 listConvIds :: UserId -> GetPaginatedConversationIds -> TestM ResponseLBS
 listConvIds u paginationOpts = do
   g <- viewGalley
+  post $
+    g
+      . path "/conversations/list-ids"
+      . zUser u
+      . json paginationOpts
+
+listConvIdsV2 :: UserId -> GetPaginatedConversationIds -> TestM ResponseLBS
+listConvIdsV2 u paginationOpts = do
+  g <- fmap (addPrefixAtVersion V2 .) (view tsUnversionedGalley)
   post $
     g
       . path "/conversations/list-ids"
@@ -1656,6 +1751,18 @@ wsAssertClientRemoved cid n = do
   etype @?= Just "user.client-remove"
   fmap ClientId eclient @?= Just cid
 
+wsAssertClientAdded ::
+  HasCallStack =>
+  ClientId ->
+  Notification ->
+  IO ()
+wsAssertClientAdded cid n = do
+  let j = Object $ List1.head (ntfPayload n)
+  let etype = j ^? key "type" . _String
+  let eclient = j ^? key "client" . key "id" . _String
+  etype @?= Just "user.client-add"
+  fmap ClientId eclient @?= Just cid
+
 assertMLSMessageEvent ::
   HasCallStack =>
   Qualified ConvId ->
@@ -1829,6 +1936,9 @@ decodeQualifiedConvIdList = fmap mtpResults . responseJsonEither @ConvIdsPage
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
+
+zClient :: ClientId -> Request -> Request
+zClient = header "Z-Client" . toByteString'
 
 zBot :: UserId -> Request -> Request
 zBot = header "Z-Bot" . toByteString'
@@ -2855,6 +2965,14 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtType e @?= ConvReceiptModeUpdate
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
+
+wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Epoch -> Notification -> IO ByteString
+wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
+  bs <- wsAssertBackendRemoveProposal fromUser convId kpref n
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @(Message 'MLSPlainText) bs
+  let tbs = rmValue . msgTBS $ msg
+  tbsMsgEpoch tbs @?= epoch
+  pure bs
 
 wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
 wsAssertBackendRemoveProposal fromUser convId kpref n = do

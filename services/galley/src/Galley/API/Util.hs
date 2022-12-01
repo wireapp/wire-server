@@ -36,6 +36,8 @@ import Data.Singletons
 import qualified Data.Text as T
 import Data.Time
 import Galley.API.Error
+import Galley.API.MLS.Util
+import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
@@ -63,6 +65,7 @@ import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
@@ -74,6 +77,8 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Routes.Public.Galley.Conversation
+import Wire.API.Routes.Public.Util
 import Wire.API.Team.Member
 import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
@@ -188,7 +193,7 @@ ensureActionAllowed action self = case isActionAllowed (fromSing action) (convMe
 ensureGroupConversation :: Member (ErrorS 'InvalidOperation) r => Data.Conversation -> Sem r ()
 ensureGroupConversation conv = do
   let ty = Data.convType conv
-  when (ty /= RegularConv) $ throwS @'InvalidOperation
+  unless (ty `elem` [RegularConv, GlobalTeamConv]) $ throwS @'InvalidOperation
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
@@ -504,7 +509,7 @@ getConversationAndCheckMembership uid lcnv = do
   (conv, _) <-
     getConversationAndMemberWithError
       @'ConvAccessDenied
-      uid
+      (qUntagged $ qualifyAs lcnv uid)
       lcnv
   pure conv
 
@@ -513,18 +518,27 @@ getConversationWithError ::
     Member (ErrorS 'ConvNotFound) r
   ) =>
   Local ConvId ->
+  UserId ->
   Sem r Data.Conversation
-getConversationWithError lcnv =
-  getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+getConversationWithError lcnv uid =
+  let cid = tUnqualified lcnv
+   in getConversation cid >>= \case
+        Just c -> pure c
+        Nothing -> do
+          gtc <- noteS @'ConvNotFound =<< getGlobalTeamConversationById lcnv
+          pure $ gtcToConv gtc uid mempty
 
 getConversationAndMemberWithError ::
   forall e uid mem r.
-  (Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r, IsConvMemberId uid mem) =>
+  ( Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r,
+    IsConvMemberId uid mem,
+    uid ~ Qualified UserId
+  ) =>
   uid ->
   Local ConvId ->
   Sem r (Data.Conversation, mem)
 getConversationAndMemberWithError usr lcnv = do
-  c <- getConversationWithError lcnv
+  c <- getConversationWithError lcnv (qUnqualified usr)
   member <- noteS @e $ getConvMember lcnv c usr
   pure (c, member)
 
@@ -837,6 +851,13 @@ ensureMemberLimit old new = do
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
   when (length old + length new > maxSize) $
     throwS @'TooManyMembers
+
+conversationExisted ::
+  Members '[Error InternalError, P.TinyLog] r =>
+  Local UserId ->
+  Data.Conversation ->
+  Sem r ConversationResponse
+conversationExisted lusr cnv = Existed <$> conversationView lusr cnv
 
 --------------------------------------------------------------------------------
 -- Handling remote errors
