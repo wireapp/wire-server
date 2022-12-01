@@ -19,7 +19,7 @@
 
 module Galley.API.Util where
 
-import Control.Lens (set, view, (.~), (^.))
+import Control.Lens (set, view, (.~), (?~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.ByteString.Conversion
@@ -881,3 +881,28 @@ instance
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
+
+isTyping ::
+  Members
+    '[ ErrorS 'ConvNotFound,
+       GundeckAccess,
+       Input UTCTime,
+       MemberStore
+     ]
+    r =>
+  Qualified UserId ->
+  ConnId ->
+  Local ConvId ->
+  TypingData ->
+  Sem r ()
+isTyping qusr zcon lcnv typingData = do
+  mm <- getLocalMembers (tUnqualified lcnv)
+  unless (qUnqualified qusr `isMember` mm) $ throwS @'ConvNotFound
+  now <- input
+  let e = Event (qUntagged lcnv) qusr now (EdTyping typingData)
+  for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
+    push1 $
+      p
+        & pushConn ?~ zcon
+        & pushRoute .~ RouteDirect
+        & pushTransient .~ True

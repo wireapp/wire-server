@@ -15,6 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Federation where
 
@@ -51,7 +52,6 @@ import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
-import Galley.Effects.ConversationStore (getConversation)
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
@@ -115,6 +115,7 @@ federationSitemap =
     :<|> Named @"send-mls-commit-bundle" sendMLSCommitBundle
     :<|> Named @"query-group-info" queryGroupInfo
     :<|> Named @"on-client-removed" onClientRemoved
+    :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
 
 onClientRemoved ::
   ( Members
@@ -138,7 +139,7 @@ onClientRemoved ::
 onClientRemoved domain req = do
   let qusr = Qualified (F.crrUser req) domain
   for_ (F.crrConvs req) $ \convId -> do
-    mConv <- getConversation convId
+    mConv <- E.getConversation convId
     for mConv $ \conv -> do
       lconv <- qualifyLocal conv
       removeClient lconv qusr (F.crrClient req)
@@ -802,3 +803,25 @@ queryGroupInfo origDomain req =
         . Base64ByteString
         . unOpaquePublicGroupState
         $ state
+
+onTypingIndicatorUpdated ::
+  ( Members
+      '[ ConversationStore,
+         MemberStore,
+         GundeckAccess,
+         Input UTCTime,
+         Input (Local ())
+       ]
+      r
+  ) =>
+  Domain ->
+  TypingDataUpdateRequest ->
+  Sem r EmptyResponse
+onTypingIndicatorUpdated origDomain TypingDataUpdateRequest {..} = do
+  let qusr = Qualified tdurUserId origDomain
+  lcnv <- qualifyLocal tdurConvId
+  -- FUTUREWORK: Consider if we should throw exceptions from this kind of function
+  void $
+    runError @(Tagged 'ConvNotFound ()) $
+      isTyping qusr tdurConnection lcnv tdurTypingData
+  pure EmptyResponse

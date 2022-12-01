@@ -56,6 +56,7 @@ module Galley.API.Update
     postProteusBroadcast,
     postOtrBroadcastUnqualified,
     isTypingUnqualified,
+    isTypingQualified,
 
     -- * External Services
     addServiceH,
@@ -1436,6 +1437,41 @@ updateLocalConversationName lusr zcon lcnv rename =
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationRenameTag lcnv (qUntagged lusr) (Just zcon) rename
 
+isTypingQualified ::
+  Members
+    '[ GundeckAccess,
+       ErrorS 'ConvNotFound,
+       Input (Local ()),
+       Input UTCTime,
+       MemberStore,
+       FederatorAccess,
+       WaiRoutes
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  Qualified ConvId ->
+  TypingData ->
+  Sem r ()
+isTypingQualified lusr zcon qcnv typingData = do
+  foldQualified
+    lusr
+    (\lcnv -> isTypingUnqualified lusr zcon (tUnqualified lcnv) typingData)
+    (\rcnv -> isTypingRemote rcnv)
+    qcnv
+  where
+    isTypingRemote rcnv = do
+      isMemberRemoteConv <- E.checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
+      unless isMemberRemoteConv $ throwS @'ConvNotFound
+      let rpc =
+            TypingDataUpdateRequest
+              { tdurTypingData = typingData,
+                tdurConnection = zcon,
+                tdurUserId = tUnqualified lusr,
+                tdurConvId = tUnqualified rcnv
+              }
+      void $ E.runFederated rcnv (fedClient @'Galley @"on-typing-indicator-updated" rpc)
+
 isTypingUnqualified ::
   Members
     '[ GundeckAccess,
@@ -1453,26 +1489,7 @@ isTypingUnqualified ::
   Sem r ()
 isTypingUnqualified lusr zcon cnv typingData = do
   lcnv <- qualifyLocal cnv
-  isTyping lusr zcon lcnv typingData
-
-isTyping ::
-  Members '[ErrorS 'ConvNotFound, GundeckAccess, Input UTCTime, MemberStore] r =>
-  Local UserId ->
-  ConnId ->
-  Local ConvId ->
-  TypingData ->
-  Sem r ()
-isTyping lusr zcon lcnv typingData = do
-  mm <- E.getLocalMembers (tUnqualified lcnv)
-  unless (tUnqualified lusr `isMember` mm) $ throwS @'ConvNotFound
-  now <- input
-  let e = Event (qUntagged lcnv) (qUntagged lusr) now (EdTyping typingData)
-  for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
-    E.push1 $
-      p
-        & pushConn ?~ zcon
-        & pushRoute .~ RouteDirect
-        & pushTransient .~ True
+  isTyping (qUntagged lusr) zcon lcnv typingData
 
 addServiceH ::
   Members

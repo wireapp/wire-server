@@ -3667,20 +3667,50 @@ putReceiptModeWithRemotesOk = do
 
 postTypingIndicators :: TestM ()
 postTypingIndicators = do
+  c <- view tsCannon
   g <- viewGalley
+
   alice <- randomUser
   bob <- randomUser
+
+  aliceL <- qualifyLocal alice
+  bobL <- qualifyLocal bob
+
   connectUsers alice (singleton bob)
+
   conv <- decodeConvId <$> postO2OConv alice bob Nothing
-  post
-    ( g
-        . paths ["conversations", toByteString' conv, "typing"]
-        . zUser bob
-        . zConn "conn"
-        . zType "access"
-        . json (TypingData StartedTyping)
-    )
-    !!! const 200 === statusCode
+  lcnv <- qualifyLocal conv
+
+  WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
+    post
+      ( g
+          . paths ["conversations", toByteString' conv, "typing"]
+          . zUser bob
+          . zConn "conn"
+          . zType "access"
+          . json (TypingData StartedTyping)
+      )
+      !!! const 200 === statusCode
+
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+        wsAssertTyping (qUntagged lcnv) (qUntagged bobL) StartedTyping n
+
+    post
+      ( g
+          . paths ["conversations", toByteString' conv, "typing"]
+          . zUser alice
+          . zConn "conn"
+          . zType "access"
+          . json (TypingData StoppedTyping)
+      )
+      !!! const 200 === statusCode
+
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
+        wsAssertTyping (qUntagged lcnv) (qUntagged aliceL) StoppedTyping n
+
+  -- Just making sure we don't respond to nonsense typing status
   post
     ( g
         . paths ["conversations", toByteString' conv, "typing"]

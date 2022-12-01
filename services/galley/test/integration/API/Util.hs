@@ -109,6 +109,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
@@ -1900,6 +1901,15 @@ wsAssertMemberLeave conv usr old n = do
   where
     sorted (EdMembersLeave (QualifiedUserIdList m)) = EdMembersLeave (QualifiedUserIdList (sort m))
     sorted x = x
+
+wsAssertTyping :: HasCallStack => Qualified ConvId -> Qualified UserId -> TypingStatus -> Notification -> IO ()
+wsAssertTyping conv usr ts n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= True
+  evtConv e @?= conv
+  evtType e @?= Conv.Typing
+  evtFrom e @?= usr
+  evtData e @?= EdTyping (TypingData ts)
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
 assertNoMsg ws f = do
