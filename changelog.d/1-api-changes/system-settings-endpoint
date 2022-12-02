@@ -1,0 +1,1 @@
+`GET /system/settings` returns a curated set of system settings from brig. The endpoint is reachable without authentication/authorization. It can be used by apps to adjust their behavior (e.g. to show a registration dialog if registrations are enabled on the backend.)
