@@ -672,17 +672,17 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
       qcid = Qualified cid localDomain
   -- Make the conversation team-only and check that the bot can't be added
   -- to the conversation
-  setAccessRole uid1 cid (Set.fromList [TeamMemberAccessRole])
+  setAccessRole uid1 qcid (Set.fromList [TeamMemberAccessRole])
   addBot brig uid1 pid sid cid !!! do
     const 403 === statusCode
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
   -- Make the conversation allowed for guests and add the bot successfully
-  setAccessRole uid1 cid (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
+  setAccessRole uid1 qcid (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   bid <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   let lbuid = qualifyAs luid1 . botUserId $ bid
   -- Make the conversation team-only again and check that the bot has been removed
   WS.bracketR cannon uid1 $ \ws -> do
-    setAccessRole uid1 cid (Set.fromList [TeamMemberAccessRole])
+    setAccessRole uid1 qcid (Set.fromList [TeamMemberAccessRole])
     _ <- waitFor (5 # Second) not (isMember galley lbuid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
@@ -694,8 +694,8 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
     svcAssertMemberLeave buf (qUntagged lbuid) [qUntagged lbuid] qcid
     wsAssertMemberLeave ws qcid (qUntagged lbuid) [qUntagged lbuid]
   where
-    setAccessRole uid cid role =
-      updateConversationAccess galley uid cid [InviteAccess] role
+    setAccessRole uid qcid role =
+      updateConversationAccess galley uid qcid [InviteAccess] role
         !!! const 200 === statusCode
 
 testMessageBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -1363,7 +1363,7 @@ createConv ::
 createConv = createConvWithAccessRoles Nothing
 
 createConvWithAccessRoles ::
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Galley ->
   UserId ->
   [UserId] ->
@@ -1443,14 +1443,19 @@ getBotConv galley bid cid =
 updateConversationAccess ::
   Galley ->
   UserId ->
-  ConvId ->
+  Qualified ConvId ->
   [Access] ->
-  Set AccessRoleV2 ->
+  Set AccessRole ->
   Http ResponseLBS
-updateConversationAccess galley uid cid access role =
+updateConversationAccess galley uid qcid access role =
   put $
     galley
-      . paths ["conversations", toByteString' cid, "access"]
+      . paths
+        [ "conversations",
+          toByteString' (qDomain qcid),
+          toByteString' (qUnqualified qcid),
+          "access"
+        ]
       . header "Z-Type" "access"
       . header "Z-User" (toByteString' uid)
       . header "Z-Connection" "conn"

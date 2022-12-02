@@ -363,9 +363,9 @@ wireAdminChecks cid admin otherAdmin mem = do
   putReceiptMode admin cid (ReceiptMode 0) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 1) !!! assertActionSucceeded
   let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-  putAccessUpdate admin cid nonActivatedAccess !!! assertActionSucceeded
+  putAccessUpdate admin qcid nonActivatedAccess !!! assertActionSucceeded
   let activatedAccess = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-  putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
+  putAccessUpdate admin qcid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
   putMember admin memUpdate qcid !!! assertActionSucceeded
@@ -411,7 +411,7 @@ wireMemberChecks cid mem admin otherMem = do
   putMessageTimerUpdate mem cid (ConversationMessageTimerUpdate Nothing) !!! assertActionDenied
   putReceiptMode mem cid (ReceiptMode 0) !!! assertActionDenied
   let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-  putAccessUpdate mem cid nonActivatedAccess !!! assertActionDenied
+  putAccessUpdate mem qcid nonActivatedAccess !!! assertActionDenied
   -- Finally, you can still do the following actions:
 
   -- Update your own member state

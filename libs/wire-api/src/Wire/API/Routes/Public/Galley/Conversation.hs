@@ -38,6 +38,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team.Feature
 
 type ConversationResponse = ResponseForExistedCreated Conversation
@@ -56,6 +57,21 @@ type ConversationVerb =
          ConversationHeaders
          Conversation
          (Respond 201 "Conversation created" Conversation)
+     ]
+    ConversationResponse
+
+type ConversationV2Verb =
+  MultiVerb
+    'POST
+    '[JSON]
+    '[ WithHeaders
+         ConversationHeaders
+         Conversation
+         (VersionedRespond 'V2 200 "Conversation existed" Conversation),
+       WithHeaders
+         ConversationHeaders
+         Conversation
+         (VersionedRespond 'V2 201 "Conversation created" Conversation)
      ]
     ConversationResponse
 
@@ -205,6 +221,7 @@ type ConversationAPI =
     :<|> Named
            "get-conversations"
            ( Summary "Get all *local* conversations."
+               :> Until 'V3
                :> Description
                     "Will not return remote conversations.\n\n\
                     \Use `POST /conversations/list-ids` followed by \
@@ -232,28 +249,55 @@ type ConversationAPI =
                     ]
                     "size"
                     (Range 1 500 Int32)
-               :> Get '[Servant.JSON] (ConversationList Conversation)
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    ( VersionedRespond
+                        'V2
+                        200
+                        "List of local conversations"
+                        (ConversationList Conversation)
+                    )
            )
     :<|> Named
-           "list-conversations-v1"
+           "list-conversations@v1"
            ( Summary "Get conversation metadata for a list of conversation ids"
                :> Until 'V2
                :> ZLocalUser
                :> "conversations"
                :> "list"
                :> "v2"
-               :> ReqBody '[Servant.JSON] ListConversations
-               :> Post '[Servant.JSON] ConversationsResponse
+               :> ReqBody '[JSON] ListConversations
+               :> Post '[JSON] ConversationsResponse
+           )
+    :<|> Named
+           "list-conversations@v2"
+           ( Summary "Get conversation metadata for a list of conversation ids"
+               :> From 'V2
+               :> Until 'V3
+               :> ZLocalUser
+               :> "conversations"
+               :> "list"
+               :> ReqBody '[JSON] ListConversations
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    ( VersionedRespond
+                        'V2
+                        200
+                        "Conversation page"
+                        ConversationsResponse
+                    )
            )
     :<|> Named
            "list-conversations"
            ( Summary "Get conversation metadata for a list of conversation ids"
-               :> From 'V2
+               :> From 'V3
                :> ZLocalUser
                :> "conversations"
                :> "list"
-               :> ReqBody '[Servant.JSON] ListConversations
-               :> Post '[Servant.JSON] ConversationsResponse
+               :> ReqBody '[JSON] ListConversations
+               :> Post '[JSON] ConversationsResponse
            )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
@@ -273,8 +317,26 @@ type ConversationAPI =
                :> Get '[Servant.JSON] ConversationCoverView
            )
     :<|> Named
+           "create-group-conversation@v2"
+           ( Summary "Create a new conversation"
+               :> Until 'V3
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
+               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
+               :> ConversationV2Verb
+           )
+    :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
+               :> From 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'NotConnected
@@ -289,8 +351,18 @@ type ConversationAPI =
                :> ConversationVerb
            )
     :<|> Named
+           "create-self-conversation@v2"
+           ( Summary "Create a self-conversation"
+               :> Until 'V3
+               :> ZLocalUser
+               :> "conversations"
+               :> "self"
+               :> ConversationV2Verb
+           )
+    :<|> Named
            "create-self-conversation"
            ( Summary "Create a self-conversation"
+               :> From 'V3
                :> ZLocalUser
                :> "conversations"
                :> "self"
@@ -315,8 +387,9 @@ type ConversationAPI =
     -- - ConvCreate event to members
     -- TODO: add note: "On 201, the conversation ID is the `Location` header"
     :<|> Named
-           "create-one-to-one-conversation"
+           "create-one-to-one-conversation@v2"
            ( Summary "Create a 1:1 conversation"
+               :> Until 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NoBindingTeamMembers
@@ -330,7 +403,27 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> ReqBody '[Servant.JSON] NewConv
+               :> VersionedReqBody 'V2 '[JSON] NewConv
+               :> ConversationV2Verb
+           )
+    :<|> Named
+           "create-one-to-one-conversation"
+           ( Summary "Create a 1:1 conversation"
+               :> From 'V3
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NoBindingTeamMembers
+               :> CanThrow 'NonBindingTeam
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'MissingLegalholdConsent
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> "one2one"
+               :> ReqBody '[JSON] NewConv
                :> ConversationVerb
            )
     -- This endpoint can lead to the following events being sent:
@@ -755,6 +848,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-access-unqualified"
            ( Summary "Update access modes for a conversation (deprecated)"
+               :> Until 'V2
                :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
                :> ZLocalUser
                :> ZConn
@@ -767,7 +861,29 @@ type ConversationAPI =
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "access"
-               :> ReqBody '[JSON] ConversationAccessData
+               :> VersionedReqBody 'V2 '[JSON] ConversationAccessData
+               :> MultiVerb
+                    'PUT
+                    '[JSON]
+                    (UpdateResponses "Access unchanged" "Access updated" Event)
+                    (UpdateResult Event)
+           )
+    :<|> Named
+           "update-conversation-access@v2"
+           ( Summary "Update access modes for a conversation"
+               :> Until 'V3
+               :> ZLocalUser
+               :> ZConn
+               :> CanThrow ('ActionDenied 'ModifyConversationAccess)
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'InvalidTargetAccess
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "access"
+               :> VersionedReqBody 'V2 '[JSON] ConversationAccessData
                :> MultiVerb
                     'PUT
                     '[JSON]
@@ -777,6 +893,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-access"
            ( Summary "Update access modes for a conversation"
+               :> From 'V3
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'ModifyConversationAccess)

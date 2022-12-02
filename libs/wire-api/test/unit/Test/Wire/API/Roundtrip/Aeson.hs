@@ -99,7 +99,7 @@ tests =
       testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
       testRoundTrip @Conversation.Access,
       testRoundTrip @Conversation.AccessRoleLegacy,
-      testRoundTrip @Conversation.AccessRoleV2,
+      testRoundTrip @Conversation.AccessRole,
       testRoundTrip @Conversation.ConvType,
       testRoundTrip @Conversation.ReceiptMode,
       testRoundTrip @Conversation.ConvTeamInfo,

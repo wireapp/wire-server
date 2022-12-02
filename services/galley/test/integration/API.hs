@@ -129,13 +129,14 @@ tests s =
           test s "create conversation with remote users" postConvWithRemoteUsersOk,
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
-          test s "fail to get >500 conversations" getConvsFailMaxSize,
-          test s "get conversation ids" getConvIdsOk,
-          test s "get conversation ids v2" listConvIdsOk,
-          test s "paginate through conversation ids" paginateConvIds,
+          test s "fail to get >500 conversations with v2 API" getConvsFailMaxSizeV2,
+          test s "get conversation ids with v2 API" testGetConvIdsV2,
+          test s "list conversation ids" testListConvIds,
+          test s "paginate through conversation ids with v2 API" paginateConvIds,
           test s "paginate through /conversations/list-ids" paginateConvListIds,
           test s "paginate through /conversations/list-ids - page ending at locals and remote domain" paginateConvListIdsPageEndingAtLocalsAndDomain,
           test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize,
+          test s "fail to get >1000 conversation ids with v2 API" getConvIdsFailMaxSizeV2,
           test s "page through conversations" getConvsPagingOk,
           test s "fail to create conversation when not connected" postConvFailNotConnected,
           test s "fail to create conversation with qualified users when not connected" postConvQualifiedFailNotConnected,
@@ -1382,13 +1383,13 @@ postJoinCodeConvOk = do
     -- changing access to non-activated should give eve access
     Right accessRolesWithGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
     let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRolesWithGuests
-    putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
+    putAccessUpdate alice qconv nonActivatedAccess !!! const 200 === statusCode
     postJoinCodeConv eve payload !!! const 200 === statusCode
     -- guest cannot create invite link
     postConvCode eve conv !!! const 403 === statusCode
     -- after removing CodeAccess, no further people can join
     let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
-    putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
+    putAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
     postJoinCodeConv dave payload !!! const 404 === statusCode
 
 -- @END
@@ -1406,16 +1407,16 @@ postConvertCodeConv = do
   getConvCode alice conv !!! const 403 === statusCode
   -- cannot change to (Set.fromList [TeamMemberAccessRole]) as not a team conversation
   let teamAccess = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole])
-  putAccessUpdate alice conv teamAccess !!! const 403 === statusCode
+  putAccessUpdate alice qconv teamAccess !!! const 403 === statusCode
   -- change access
   WS.bracketR c alice $ \wsA -> do
     let nonActivatedAccess =
           ConversationAccessData
             (Set.fromList [InviteAccess, CodeAccess])
             (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-    putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
+    putAccessUpdate alice qconv nonActivatedAccess !!! const 200 === statusCode
     -- test no-op
-    putAccessUpdate alice conv nonActivatedAccess !!! const 204 === statusCode
+    putAccessUpdate alice qconv nonActivatedAccess !!! const 204 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA] $
         wsAssertConvAccessUpdate qconv qalice nonActivatedAccess
@@ -1436,7 +1437,7 @@ postConvertCodeConv = do
         ConversationAccessData
           (Set.singleton InviteAccess)
           (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-  putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
+  putAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
   getConvCode alice conv !!! const 403 === statusCode
 
 postConvertTeamConv :: TestM ()
@@ -1477,7 +1478,7 @@ postConvertTeamConv = do
           ConversationAccessData
             (Set.fromList [InviteAccess, CodeAccess])
             (Set.fromList [TeamMemberAccessRole])
-    putAccessUpdate alice conv teamAccess !!! const 200 === statusCode
+    putAccessUpdate alice qconv teamAccess !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
         wsAssertConvAccessUpdate qconv qalice teamAccess
@@ -1591,15 +1592,15 @@ testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
 
   -- and given alice and bob are in a team conversation and alice created a guest link
   let accessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]
-  convId <- decodeConvId <$> postTeamConv tid alice [bob] (Just "chit chat") [CodeAccess] (Just accessRoles) Nothing
-  cCode <- decodeConvCodeEvent <$> postConvCode alice convId
+  qconvId <- decodeQualifiedConvId <$> postTeamConv tid alice [bob] (Just "chit chat") [CodeAccess] (Just accessRoles) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode alice (qUnqualified qconvId)
 
   -- then charlie can join via the guest link
   postJoinCodeConv charlie cCode !!! const 200 === statusCode
 
   -- when the guests are disabled for the conversation
   let accessData = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole, ServiceAccessRole])
-  putAccessUpdate alice convId accessData !!! const 200 === statusCode
+  putAccessUpdate alice qconvId accessData !!! const 200 === statusCode
 
   -- then dee cannot join via guest link
   postJoinCodeConv dee cCode !!! const 404 === statusCode
@@ -1686,9 +1687,10 @@ postJoinConvFail = do
 getConvsOk :: TestM ()
 getConvsOk = do
   usr <- randomUser
-  getConvs usr Nothing Nothing !!! do
-    const 200 === statusCode
-    const [toUUID usr] === map (toUUID . qUnqualified . cnvQualifiedId) . decodeConvList
+  convs <- getAllConvs usr
+  liftIO $
+    [selfConv usr, mlsSelfConvId usr]
+      @?= map (qUnqualified . cnvQualifiedId) convs
 
 getConvsOk2 :: TestM ()
 getConvsOk2 = do
@@ -1696,9 +1698,13 @@ getConvsOk2 = do
   connectUsers alice (singleton bob)
   -- create & get one2one conv
   cnv1 <- responseJsonError =<< postO2OConv alice bob (Just "gossip1") <!! const 200 === statusCode
-  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv1]) Nothing !!! do
-    const 200 === statusCode
-    const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
+  do
+    r <-
+      responseJsonError
+        =<< getConvs alice [cnvQualifiedId cnv1] <!! do
+          const 200 === statusCode
+    liftIO $
+      [cnvQualifiedId cnv1] @=? map cnvQualifiedId (crFound r)
   -- create & get group conv
   carl <- randomUser
   connectUsers alice (singleton carl)
@@ -1706,14 +1712,17 @@ getConvsOk2 = do
     responseJsonError
       =<< postConv alice [bob, carl] (Just "gossip2") [] Nothing Nothing
         <!! const 201 === statusCode
-  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv2]) Nothing !!! do
-    const 200 === statusCode
-    const (Just [cnvQualifiedId cnv2]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
+  do
+    r <-
+      responseJsonError
+        =<< getConvs alice [cnvQualifiedId cnv2] <!! do
+          const 200 === statusCode
+    liftIO $
+      [cnvQualifiedId cnv2] @=? map cnvQualifiedId (crFound r)
   -- get both
-  rs <- getConvs alice Nothing Nothing <!! const 200 === statusCode
-  let convs = convList <$> responseJsonUnsafe rs
-  let c1 = convs >>= find ((== cnvQualifiedId cnv1) . cnvQualifiedId)
-  let c2 = convs >>= find ((== cnvQualifiedId cnv2) . cnvQualifiedId)
+  convs <- getAllConvs alice
+  let c1 = find ((== cnvQualifiedId cnv1) . cnvQualifiedId) convs
+  let c2 = find ((== cnvQualifiedId cnv2) . cnvQualifiedId) convs
   liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"
@@ -1728,21 +1737,28 @@ getConvsOk2 = do
       (Just [])
       ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
 
-getConvsFailMaxSize :: TestM ()
-getConvsFailMaxSize = do
+getConvsFailMaxSizeV2 :: TestM ()
+getConvsFailMaxSizeV2 = do
   usr <- randomUser
-  getConvs usr Nothing (Just 501)
+  g <- view tsUnversionedGalley
+  get
+    ( g
+        . path "/v2/conversations"
+        . zUser usr
+        . zConn "conn"
+        . queryItem "size" (toByteString' (501 :: Int32))
+    )
     !!! const 400 === statusCode
 
-getConvIdsOk :: TestM ()
-getConvIdsOk = do
+testGetConvIdsV2 :: TestM ()
+testGetConvIdsV2 = do
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
-  getConvIds alice Nothing Nothing !!! do
+  getConvIdsV2 alice Nothing Nothing !!! do
     const 200 === statusCode
     const 2 === length . decodeConvIdList
-  getConvIds bob Nothing Nothing !!! do
+  getConvIdsV2 bob Nothing Nothing !!! do
     const 200 === statusCode
     const 2 === length . decodeConvIdList
 
@@ -1758,7 +1774,7 @@ paginateConvIds = do
   foldM_ (getChunk 16 alice) Nothing [15, 14 .. 0 :: Int]
   where
     getChunk size alice start n = do
-      resp <- getConvIds alice start (Just size) <!! const 200 === statusCode
+      resp <- getConvIdsV2 alice start (Just size) <!! const 200 === statusCode
       let c = fromMaybe (ConversationList [] False) (responseJsonUnsafe resp)
       liftIO $ do
         -- This is because of the way this test is setup, we always get 16
@@ -1774,26 +1790,32 @@ paginateConvIds = do
 
       pure (Just (Right (last (convList c))))
 
+getConvIdsFailMaxSizeV2 :: TestM ()
+getConvIdsFailMaxSizeV2 = do
+  usr <- randomUser
+  getConvIdsV2 usr Nothing (Just 1001)
+    !!! const 400 === statusCode
+
 getConvIdsFailMaxSize :: TestM ()
 getConvIdsFailMaxSize = do
   usr <- randomUser
-  getConvIds usr Nothing (Just 1001)
+  getConvPage usr Nothing (Just 1001)
     !!! const 400 === statusCode
 
-listConvIdsOk :: TestM ()
-listConvIdsOk = do
+testListConvIds :: TestM ()
+testListConvIds = do
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   void $ postO2OConv alice bob (Just "gossip")
-  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @5))
-  -- Each of the users has a Proteus self-conversation, an MLS self-conversation
-  -- and the one-to-one coversation.
-  listConvIds alice paginationOpts !!! do
-    const 200 === statusCode
-    const (Right 3) === fmap length . decodeQualifiedConvIdList
-  listConvIds bob paginationOpts !!! do
-    const 200 === statusCode
-    const (Right 3) === fmap length . decodeQualifiedConvIdList
+  -- Each user has a Proteus self-conversation and the one-to-one coversation.
+  for_ [alice, bob] $ \u -> do
+    r :: ConversationList ConvId <-
+      responseJsonError
+        =<< getConvIdsV2 u Nothing (Just 5)
+          <!! const 200 === statusCode
+    liftIO $ do
+      length (convList r) @?= 2
+      convHasMore r @?= False
 
 paginateConvListIds :: TestM ()
 paginateConvListIds = do
@@ -1912,8 +1934,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
 -- match @lastSize@.
 getChunkedConvs :: HasCallStack => Int32 -> Int -> UserId -> Maybe ConversationPagingState -> Int -> TestM (Maybe ConversationPagingState)
 getChunkedConvs size lastSize alice pagingState n = do
-  let paginationOpts = GetPaginatedConversationIds pagingState (unsafeRange size)
-  resp <- listConvIds alice paginationOpts <!! const 200 === statusCode
+  resp <- getConvPage alice pagingState (Just size) <!! const 200 === statusCode
   let c = responseJsonUnsafeWithMsg @ConvIdsPage "failed to parse ConvIdsPage" resp
   liftIO $ do
     if n > 0
@@ -1930,23 +1951,39 @@ getConvsPagingOk :: TestM ()
 getConvsPagingOk = do
   [ally, bill, carl] <- randomUsers 3
   connectUsers ally (list1 bill [carl])
-  replicateM_ 11 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
-  walk ally [3, 3, 3, 3, 2] -- 11 (group) + 2 (1:1) + 1 (self)
-  walk bill [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
-  walk carl [3, 3, 3, 3, 1] -- 11 (group) + 1 (1:1) + 1 (self)
+  replicateM_ 10 $ postConv ally [bill, carl] (Just "gossip") [] Nothing Nothing
+
+  walk ally [3, 3, 3, 3, 2] -- 10 (group) + 2 (1:1) + 2 (self)
+  walk bill [3, 3, 3, 3, 1] -- 10 (group) + 1 (1:1) + 2 (self)
+  walk carl [3, 3, 3, 3, 1] -- 10 (group) + 1 (1:1) + 2 (self)
   where
     walk :: Foldable t => UserId -> t Int -> TestM ()
     walk u = foldM_ (next u 3) Nothing
-    next :: UserId -> Int32 -> Maybe ConvId -> Int -> TestM (Maybe ConvId)
-    next u step start n = do
-      r1 <- getConvIds u (Right <$> start) (Just step) <!! const 200 === statusCode
-      let ids1 = convList <$> responseJsonUnsafe r1
-      liftIO $ assertEqual "unexpected length (getConvIds)" (Just n) (length <$> ids1)
-      r2 <- getConvs u (Right <$> start) (Just step) <!! const 200 === statusCode
-      let ids3 = map (qUnqualified . cnvQualifiedId) . convList <$> responseJsonUnsafe r2
-      liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
-      liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
-      pure $ ids1 >>= listToMaybe . reverse
+
+    next ::
+      UserId ->
+      Int32 ->
+      Maybe ConversationPagingState ->
+      Int ->
+      TestM (Maybe ConversationPagingState)
+    next u step state n = do
+      (ids1, state') <- do
+        r :: ConvIdsPage <-
+          responseJsonError
+            =<< getConvPage u state (Just step)
+              <!! const 200 === statusCode
+        pure (mtpResults r, mtpPagingState r)
+      liftIO $ assertEqual "unexpected length (getConvIds)" n (length ids1)
+
+      ids2 <- do
+        r <-
+          responseJsonError
+            =<< getConvs u ids1 <!! const 200 === statusCode
+        pure $ map cnvQualifiedId (crFound r)
+      liftIO $ assertEqual "unexpected length (getConvs)" n (length ids2)
+      liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids2)
+
+      pure (Just state')
 
 postConvFailNotConnected :: TestM ()
 postConvFailNotConnected = do

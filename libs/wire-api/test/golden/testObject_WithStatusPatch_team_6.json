@@ -3,5 +3,5 @@
         "enforcedTimeoutSeconds": 77
     },
     "status": "enabled",
-    "ttl" : "unlimited"
+    "ttl": "unlimited"
 }

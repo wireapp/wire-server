@@ -137,7 +137,7 @@ data ConversationCreated conv = ConversationCreated
     -- | The conversation type
     ccCnvType :: ConvType,
     ccCnvAccess :: [Access],
-    ccCnvAccessRoles :: Set AccessRoleV2,
+    ccCnvAccessRoles :: Set AccessRole,
     -- | The conversation name,
     ccCnvName :: Maybe Text,
     -- | Members of the conversation apart from the creator
