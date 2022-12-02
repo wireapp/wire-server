@@ -4,7 +4,7 @@ image:
   tag: do-not-use
 metrics:
   serviceMonitor:
-    enable: false
+    enabled: false
 resources:
   requests:
     memory: "25Mi"

@@ -24,7 +24,7 @@ config:
 
 metrics:
   serviceMonitor:
-    enable: false
+    enabled: false
 
 nginx_conf:
   user: nginx
