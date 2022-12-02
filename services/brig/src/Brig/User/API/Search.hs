@@ -114,7 +114,8 @@ searchRemotely domain searchTerm = do
         searchReturned = count,
         searchTook = 0,
         searchPolicy = S.searchPolicy searchResponse,
-        searchPagingState = Nothing
+        searchPagingState = Nothing,
+        searchHasMore = Nothing
       }
 
 searchLocally ::
@@ -137,7 +138,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
   esResult <-
     if esMaxResults > 0
       then Q.searchIndex (Q.LocalSearch searcherId searcherTeamId teamSearchInfo) searchTerm esMaxResults
-      else pure $ SearchResult 0 0 0 [] FullSearch Nothing
+      else pure $ SearchResult 0 0 0 [] FullSearch Nothing Nothing
 
   -- Prepend results matching exact handle and results from ES.
   pure $

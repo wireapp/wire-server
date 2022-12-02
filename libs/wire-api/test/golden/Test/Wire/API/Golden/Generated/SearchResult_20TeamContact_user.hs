@@ -22,7 +22,7 @@ module Test.Wire.API.Golden.Generated.SearchResult_20TeamContact_user where
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
 import qualified Data.UUID as UUID (fromString)
-import Imports (Maybe (Just, Nothing), fromJust)
+import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))
 import Wire.API.User (Email (Email, emailDomain, emailLocal), ManagedBy (ManagedByScim, ManagedByWire))
 import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), PagingState (..), SearchResult (..), Sso (..), TeamContact (..))
@@ -66,7 +66,8 @@ testObject_SearchResult_20TeamContact_user_1 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Just (PagingState "WzE2Njk5OTQ5MzIyNjdd")
+      searchPagingState = Just (PagingState "WzE2Njk5OTQ5MzIyNjdd"),
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_2 :: SearchResult TeamContact
@@ -77,7 +78,8 @@ testObject_SearchResult_20TeamContact_user_2 =
       searchTook = 6,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Just True
     }
 
 testObject_SearchResult_20TeamContact_user_3 :: SearchResult TeamContact
@@ -134,7 +136,8 @@ testObject_SearchResult_20TeamContact_user_3 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Just False
     }
 
 testObject_SearchResult_20TeamContact_user_4 :: SearchResult TeamContact
@@ -206,7 +209,8 @@ testObject_SearchResult_20TeamContact_user_4 =
             }
         ],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_5 :: SearchResult TeamContact
@@ -233,7 +237,8 @@ testObject_SearchResult_20TeamContact_user_5 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_6 :: SearchResult TeamContact
@@ -440,7 +445,8 @@ testObject_SearchResult_20TeamContact_user_6 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_7 :: SearchResult TeamContact
@@ -542,7 +548,8 @@ testObject_SearchResult_20TeamContact_user_7 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_8 :: SearchResult TeamContact
@@ -614,7 +621,8 @@ testObject_SearchResult_20TeamContact_user_8 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_9 :: SearchResult TeamContact
@@ -686,7 +694,8 @@ testObject_SearchResult_20TeamContact_user_9 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_10 :: SearchResult TeamContact
@@ -697,7 +706,8 @@ testObject_SearchResult_20TeamContact_user_10 =
       searchTook = -4,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_11 :: SearchResult TeamContact
@@ -829,7 +839,8 @@ testObject_SearchResult_20TeamContact_user_11 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_12 :: SearchResult TeamContact
@@ -856,7 +867,8 @@ testObject_SearchResult_20TeamContact_user_12 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_13 :: SearchResult TeamContact
@@ -913,7 +925,8 @@ testObject_SearchResult_20TeamContact_user_13 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_14 :: SearchResult TeamContact
@@ -940,7 +953,8 @@ testObject_SearchResult_20TeamContact_user_14 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_15 :: SearchResult TeamContact
@@ -967,7 +981,8 @@ testObject_SearchResult_20TeamContact_user_15 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_16 :: SearchResult TeamContact
@@ -1024,7 +1039,8 @@ testObject_SearchResult_20TeamContact_user_16 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_17 :: SearchResult TeamContact
@@ -1051,7 +1067,8 @@ testObject_SearchResult_20TeamContact_user_17 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_18 :: SearchResult TeamContact
@@ -1078,7 +1095,8 @@ testObject_SearchResult_20TeamContact_user_18 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_19 :: SearchResult TeamContact
@@ -1089,7 +1107,8 @@ testObject_SearchResult_20TeamContact_user_19 =
       searchTook = -2,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20TeamContact_user_20 :: SearchResult TeamContact
@@ -1100,5 +1119,6 @@ testObject_SearchResult_20TeamContact_user_20 =
       searchTook = 1,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }

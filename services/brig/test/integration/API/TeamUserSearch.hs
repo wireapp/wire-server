@@ -149,5 +149,7 @@ testEmptyQuerySortedWithPagination brig = do
   liftIO $ do
     searchReturned searchResultFirst10 @?= 10
     searchFound searchResultFirst10 @?= 21
+    searchHasMore searchResultFirst10 @?= Just True
     searchReturned searchResultLast11 @?= 11
     searchFound searchResultLast11 @?= 21
+    searchHasMore searchResultLast11 @?= Just False

@@ -50,12 +50,12 @@ teamUserSearch ::
   Range 1 500 Int32 ->
   Maybe PagingState ->
   m (SearchResult TeamContact)
-teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) mPagingState = liftIndexIO $ do
+teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> size) mPagingState = liftIndexIO $ do
   let (IndexQuery q f sortSpecs) = teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder
   idx <- asks idxName
   let search =
         (ES.mkSearch (Just q) (Just f))
-          { ES.size = ES.Size (fromIntegral s),
+          { ES.size = ES.Size (fromIntegral size + 1),
             ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs),
             ES.searchAfterKey = toSearchAfterKey =<< mPagingState
           }
@@ -71,8 +71,9 @@ teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) 
     fromSearchAfterKey = PagingState . encodeBase64Url . cs . encode
 
     mkResult es =
-      let hits = ES.hits . ES.searchHits $ es
-          mps = fmap fromSearchAfterKey . ES.hitSort =<< lastMay hits
+      let hitsPlusOne = ES.hits . ES.searchHits $ es
+          hits = take (fromIntegral size) hitsPlusOne
+          mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
           results = mapMaybe ES.hitSource hits
        in SearchResult
             { searchFound = ES.hitsTotal . ES.searchHits $ es,
@@ -80,7 +81,8 @@ teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) 
               searchTook = ES.took es,
               searchResults = results,
               searchPolicy = FullSearch,
-              searchPagingState = mps
+              searchPagingState = mps,
+              searchHasMore = Just $ length hitsPlusOne > length hits
             }
 
 -- FUTURWORK: Implement role filter (needs galley data)
