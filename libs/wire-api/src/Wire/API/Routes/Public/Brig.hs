@@ -1550,6 +1550,7 @@ type SystemSettingsAPI =
   Named
     "get-system-settings"
     ( Summary "Returns a curated set of system configuration settings."
+        :> From 'V3
         :> "system"
         :> "settings"
         :> Get '[JSON] SystemSettings
