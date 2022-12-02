@@ -55,6 +55,7 @@ import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Public.Brig.SystemSettings
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -71,7 +72,6 @@ import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, Password
 import Wire.API.User.RichInfo (RichInfoAssocList)
 import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
-import Wire.API.Routes.Public.Brig.SystemSettings
 
 type BrigAPI =
   UserAPI
@@ -553,9 +553,9 @@ instance ToSchema DeprecatedMatchingResult where
       "DeprecatedMatchingResult"
       $ DeprecatedMatchingResult
         <$ const []
-        .= field "results" (array (null_ @SwaggerDoc))
+          .= field "results" (array (null_ @SwaggerDoc))
         <* const []
-        .= field "auto-connects" (array (null_ @SwaggerDoc))
+          .= field "auto-connects" (array (null_ @SwaggerDoc))
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse
