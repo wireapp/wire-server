@@ -557,7 +557,8 @@ testSearchOtherDomain opts brig = do
             searchFound = length otherSearchResult,
             searchReturned = length otherSearchResult,
             searchTook = 0,
-            searchPolicy = ExactHandleSearch
+            searchPolicy = ExactHandleSearch,
+            searchPagingState = Nothing
           }
   liftIO $ do
     assertEqual "The search request should get its result from federator" expectedResult searchResult
