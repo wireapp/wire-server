@@ -70,6 +70,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 newtype PagingState = PagingState {unPagingState :: AsciiBase64Url}
   deriving newtype (Eq, Show, Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema PagingState
 
 instance ToSchema PagingState where
   schema = (toText . unPagingState) .= parsedText "PagingState" (fmap PagingState . validateBase64Url)
@@ -82,6 +83,12 @@ instance FromHttpApiData PagingState where
 
 instance ToHttpApiData PagingState where
   toQueryParam = toText . unPagingState
+
+instance ToByteString PagingState where
+  builder = builder . unPagingState
+
+instance FromByteString PagingState where
+  parser = fmap PagingState parser
 
 --------------------------------------------------------------------------------
 -- SearchResult
