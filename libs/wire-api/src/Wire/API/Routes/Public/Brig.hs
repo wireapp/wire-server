@@ -564,9 +564,9 @@ instance ToSchema DeprecatedMatchingResult where
       "DeprecatedMatchingResult"
       $ DeprecatedMatchingResult
         <$ const []
-          .= field "results" (array (null_ @SwaggerDoc))
+        .= field "results" (array (null_ @SwaggerDoc))
         <* const []
-          .= field "auto-connects" (array (null_ @SwaggerDoc))
+        .= field "auto-connects" (array (null_ @SwaggerDoc))
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse
@@ -1496,35 +1496,64 @@ instance Schema.ToSchema SystemSettings where
   schema =
     Schema.object "SystemSettings" $
       SystemSettings
-        <$> systemSettingsSetActivationTimeout Schema..= Schema.field "setActivationTimeout" Schema.schema
-        <*> systemSettingsSetVerificationCodeTimeoutInternal Schema..= Schema.maybe_ (Schema.optField "setVerificationCodeTimeoutInternal" Schema.schema)
-        <*> systemSettingsSetTeamInvitationTimeout Schema..= Schema.field "setTeamInvitationTimeout" Schema.schema
-        <*> systemSettingsSetExpiredUserCleanupTimeout Schema..= Schema.maybe_ (Schema.optField "setExpiredUserCleanupTimeout" Schema.schema)
-        <*> systemSettingsSetUserMaxConnections Schema..= Schema.field "setUserMaxConnections" Schema.schema
-        <*> systemSettingsSetUserMaxPermClients Schema..= Schema.maybe_ (Schema.optField "setUserMaxPermClients" Schema.schema)
-        <*> systemSettingsSetCookieInsecure Schema..= Schema.field "setCookieInsecure" Schema.schema
-        <*> systemSettingsSetUserCookieRenewAge Schema..= Schema.field "setUserCookieRenewAge" Schema.schema
-        <*> systemSettingsSetUserCookieLimit Schema..= Schema.field "setUserCookieLimit" Schema.schema
-        <*> systemSettingsSetUserCookieThrottle Schema..= Schema.field "setUserCookieThrottle" Schema.schema
-        <*> systemSettingsSetLimitFailedLogins Schema..= Schema.maybe_ (Schema.optField "setLimitFailedLogins" Schema.schema)
-        <*> systemSettingsSetSuspendInactiveUsers Schema..= Schema.maybe_ (Schema.optField "setSuspendInactiveUsers" Schema.schema)
-        <*> systemSettingsSetRichInfoLimit Schema..= Schema.field "setRichInfoLimit" Schema.schema
-        <*> systemSettingsSetDefaultTemplateLocaleInternal Schema..= Schema.maybe_ (Schema.optField "setDefaultTemplateLocaleInternal" Schema.schema)
-        <*> systemSettingsSetDefaultUserLocaleInternal Schema..= Schema.maybe_ (Schema.optField "setDefaultUserLocaleInternal" Schema.schema)
-        <*> systemSettingsSetMaxTeamSize Schema..= Schema.field "setMaxTeamSize" Schema.schema
-        <*> systemSettingsSetMaxConvSize Schema..= Schema.field "setMaxConvSize" Schema.schema
-        <*> systemSettingsSetEmailVisibility Schema..= Schema.field "setEmailVisibility" Schema.schema
-        <*> systemSettingsSetPropertyMaxKeyLen Schema..= Schema.maybe_ (Schema.optField "setPropertyMaxKeyLen" Schema.schema)
-        <*> systemSettingsSetPropertyMaxValueLen Schema..= Schema.maybe_ (Schema.optField "setPropertyMaxValueLen" Schema.schema)
-        <*> systemSettingsSetDeleteThrottleMillis Schema..= Schema.maybe_ (Schema.optField "setDeleteThrottleMillis" Schema.schema)
-        <*> systemSettingsSetSearchSameTeamOnly Schema..= Schema.maybe_ (Schema.optField "setSearchSameTeamOnly" Schema.schema)
-        <*> systemSettingsSetFederationDomain Schema..= Schema.field "setFederationDomain" Schema.schema
-        <*> systemSettingsSetSqsThrottleMillis Schema..= Schema.maybe_ (Schema.optField "setSqsThrottleMillis" Schema.schema)
-        <*> systemSettingsSetRestrictUserCreation Schema..= Schema.maybe_ (Schema.optField "setRestrictUserCreation" Schema.schema)
-        <*> systemSettingsSetFeatureFlags Schema..= Schema.maybe_ (Schema.optField "setFeatureFlags" Schema.schema)
-        <*> systemSettingsSetEnableDevelopmentVersions Schema..= Schema.maybe_ (Schema.optField "setEnableDevelopmentVersions" Schema.schema)
-        <*> systemSettingsSet2FACodeGenerationDelaySecsInternal Schema..= Schema.maybe_ (Schema.optField "set2FACodeGenerationDelaySecsInternal" Schema.schema)
-        <*> systemSettingsSetNonceTtlSecsInternal Schema..= Schema.maybe_ (Schema.optField "setNonceTtlSecsInternal" Schema.schema)
+        <$> systemSettingsSetActivationTimeout
+        Schema..= Schema.fieldWithDocModifier "setActivationTimeout" (description ?~ "Activation timeout, in seconds") Schema.schema
+        <*> systemSettingsSetVerificationCodeTimeoutInternal
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setVerificationCodeTimeoutInternal" (description ?~ "Default verification code timeout, in seconds") Schema.schema)
+        <*> systemSettingsSetTeamInvitationTimeout
+        Schema..= Schema.fieldWithDocModifier "setTeamInvitationTimeout" (description ?~ "Team invitation timeout, in seconds") Schema.schema
+        <*> systemSettingsSetExpiredUserCleanupTimeout
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setExpiredUserCleanupTimeout" (description ?~ "Check for expired users every so often, in seconds") Schema.schema)
+        <*> systemSettingsSetUserMaxConnections
+        Schema..= Schema.fieldWithDocModifier "setUserMaxConnections" (description ?~ "Max. number of sent/accepted connections per user") Schema.schema
+        <*> systemSettingsSetUserMaxPermClients
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setUserMaxPermClients" (description ?~ "Max. number of permanent clients per user") Schema.schema)
+        <*> systemSettingsSetCookieInsecure
+        Schema..= Schema.fieldWithDocModifier "setCookieInsecure" (description ?~ "Whether to allow plain HTTP transmission of cookies (for testing purposes only)") Schema.schema
+        <*> systemSettingsSetUserCookieRenewAge
+        Schema..= Schema.fieldWithDocModifier "setUserCookieRenewAge" (description ?~ "Minimum age of a user cookie before it is renewed during token refresh") Schema.schema
+        <*> systemSettingsSetUserCookieLimit
+        Schema..= Schema.fieldWithDocModifier "setUserCookieLimit" (description ?~ "Max. # of cookies per user and cookie type") Schema.schema
+        <*> systemSettingsSetUserCookieThrottle
+        Schema..= Schema.fieldWithDocModifier "setUserCookieThrottle" (description ?~ "Throttling settings") Schema.schema
+        <*> systemSettingsSetLimitFailedLogins
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setLimitFailedLogins" (description ?~ "Block user from logging in for m minutes after n failed logins") Schema.schema)
+        <*> systemSettingsSetSuspendInactiveUsers
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setSuspendInactiveUsers" (description ?~ "If last cookie renewal is too long ago, suspend the user.") Schema.schema)
+        <*> systemSettingsSetRichInfoLimit
+        Schema..= Schema.fieldWithDocModifier "setRichInfoLimit" (description ?~ "Max size of rich info (number of chars in field names and values)") Schema.schema
+        <*> systemSettingsSetDefaultTemplateLocaleInternal
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setDefaultTemplateLocaleInternal" (description ?~ "Default locale to use when selecting templates") Schema.schema)
+        <*> systemSettingsSetDefaultUserLocaleInternal
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setDefaultUserLocaleInternal" (description ?~ "Default locale to use for users") Schema.schema)
+        <*> systemSettingsSetMaxTeamSize
+        Schema..= Schema.fieldWithDocModifier "setMaxTeamSize" (description ?~ "Max. # of members in a team") Schema.schema
+        <*> systemSettingsSetMaxConvSize
+        Schema..= Schema.fieldWithDocModifier "setMaxConvSize" (description ?~ "Max. # of members in a conversation") Schema.schema
+        <*> systemSettingsSetEmailVisibility
+        Schema..= Schema.fieldWithDocModifier "setEmailVisibility" (description ?~ "Whether to expose user emails and to whom") Schema.schema
+        <*> systemSettingsSetPropertyMaxKeyLen
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setPropertyMaxKeyLen" (description ?~ "Max length of user properties keys (in characters)") Schema.schema)
+        <*> systemSettingsSetPropertyMaxValueLen
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setPropertyMaxValueLen" (description ?~ "Max length of user properties values (in characters)") Schema.schema)
+        <*> systemSettingsSetDeleteThrottleMillis
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setDeleteThrottleMillis" (description ?~ "How long, in milliseconds, to wait in between processing delete events from the internal delete queue") Schema.schema)
+        <*> systemSettingsSetSearchSameTeamOnly
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setSearchSameTeamOnly" (description ?~ "When true, search only returns users from the same team") Schema.schema)
+        <*> systemSettingsSetFederationDomain
+        Schema..= Schema.fieldWithDocModifier "setFederationDomain" (description ?~ "The system's federation domain; used to e.g. qualify local IDs and handles") Schema.schema
+        <*> systemSettingsSetSqsThrottleMillis
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setSqsThrottleMillis" (description ?~ "The amount of time in milliseconds to wait after reading from an SQS queue returns no message, before asking for messages from SQS again") Schema.schema)
+        <*> systemSettingsSetRestrictUserCreation
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setRestrictUserCreation" (description ?~ "Do not allow certain user creation flows") Schema.schema)
+        <*> systemSettingsSetFeatureFlags
+        Schema..= Schema.maybe_ (Schema.optField "setFeatureFlags" Schema.schema)
+        <*> systemSettingsSetEnableDevelopmentVersions
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setEnableDevelopmentVersions" (description ?~ "When set, development API versions are advertised to clients") Schema.schema)
+        <*> systemSettingsSet2FACodeGenerationDelaySecsInternal
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "set2FACodeGenerationDelaySecsInternal" (description ?~ "Minimum delay in seconds between consecutive attempts to generate a new verification code") Schema.schema)
+        <*> systemSettingsSetNonceTtlSecsInternal
+        Schema..= Schema.maybe_ (Schema.optFieldWithDocModifier "setNonceTtlSecsInternal" (description ?~ "The time-to-live of a nonce in seconds") Schema.schema)
 
 type SystemSettingsAPI =
   Named
@@ -1565,8 +1594,10 @@ instance A.FromJSON AccountFeatureConfigs where
             "conferenceCalling"
             ( \obj' -> do
                 AccountFeatureConfigs
-                  <$> obj' A..: "defaultForNew"
-                  <*> obj' A..: "defaultForNull"
+                  <$> obj'
+                  A..: "defaultForNew"
+                  <*> obj'
+                  A..: "defaultForNull"
             )
             confCallInit
       )
@@ -1606,6 +1637,7 @@ instance S.ToSchema AccountFeatureConfigs where
             <$> NamedSchema (Just "conferenceCalling")
             $ mempty
               & type_ ?~ SwaggerObject
+              & S.description ?~ "Default feature settings for conference calling"
               & S.properties
                 .~ InsOrdHashMap.fromList
                   [ ("defaultForNew", fieldSchemaRef),

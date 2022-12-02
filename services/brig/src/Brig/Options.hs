@@ -472,7 +472,9 @@ data Settings = Settings
     setProviderSearchFilter :: !(Maybe ProviderId),
     -- | Whether to expose user emails and to whom
     setEmailVisibility :: !EmailVisibility,
+    -- | Max length of user properties keys (in characters)
     setPropertyMaxKeyLen :: !(Maybe Int64),
+    -- | Max length of user properties values (in characters)
     setPropertyMaxValueLen :: !(Maybe Int64),
     -- | How long, in milliseconds, to wait
     -- in between processing delete events
