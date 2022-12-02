@@ -24,7 +24,7 @@ import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
-import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), SearchResult (..))
+import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), PagingState (..), SearchResult (..))
 
 testObject_SearchResult_20Contact_user_1 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_1 =
@@ -34,7 +34,7 @@ testObject_SearchResult_20Contact_user_1 =
       searchTook = 1,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Just (PagingState "WzE2Njk5OTQ5MzIyNjdd")
     }
 
 testObject_SearchResult_20Contact_user_2 :: SearchResult Contact

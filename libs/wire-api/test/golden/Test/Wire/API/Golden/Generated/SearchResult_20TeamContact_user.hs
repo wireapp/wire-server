@@ -25,7 +25,7 @@ import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))
 import Wire.API.User (Email (Email, emailDomain, emailLocal), ManagedBy (ManagedByScim, ManagedByWire))
-import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), SearchResult (..), Sso (..), TeamContact (..))
+import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), PagingState (..), SearchResult (..), Sso (..), TeamContact (..))
 
 testObject_SearchResult_20TeamContact_user_1 :: SearchResult TeamContact
 testObject_SearchResult_20TeamContact_user_1 =
@@ -66,7 +66,7 @@ testObject_SearchResult_20TeamContact_user_1 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Just (PagingState "WzE2Njk5OTQ5MzIyNjdd")
     }
 
 testObject_SearchResult_20TeamContact_user_2 :: SearchResult TeamContact
