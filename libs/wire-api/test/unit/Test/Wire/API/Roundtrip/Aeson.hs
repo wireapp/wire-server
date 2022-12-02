@@ -46,7 +46,7 @@ import qualified Wire.API.Provider.External as Provider.External
 import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Provider.Service.Tag as Provider.Service.Tag
 import qualified Wire.API.Push.Token as Push.Token
-import qualified Wire.API.Routes.Public.Brig
+import qualified Wire.API.Routes.Public.Brig.SystemSettings as Brig.SystemSettings
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
 import qualified Wire.API.Team.Feature as Team.Feature
@@ -312,7 +312,7 @@ tests =
       testRoundTrip @User.Search.TeamContact,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),
       testRoundTrip @Conversation.Action.SomeConversationAction,
-      testRoundTrip @Wire.API.Routes.Public.Brig.AccountFeatureConfigs
+      testRoundTrip @Brig.SystemSettings.AccountFeatureConfigs
     ]
 
 testRoundTrip ::

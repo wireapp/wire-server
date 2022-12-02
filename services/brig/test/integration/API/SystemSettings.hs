@@ -23,7 +23,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
-import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Brig.SystemSettings
 import Wire.API.Team.Feature
 import Wire.API.User.Profile
 import qualified Wire.Data.Timeout as WireTimeout

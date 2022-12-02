@@ -115,6 +115,7 @@ import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Brig.SystemSettings
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
