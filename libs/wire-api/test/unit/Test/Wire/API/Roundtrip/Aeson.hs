@@ -46,6 +46,7 @@ import qualified Wire.API.Provider.External as Provider.External
 import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Provider.Service.Tag as Provider.Service.Tag
 import qualified Wire.API.Push.Token as Push.Token
+import qualified Wire.API.Routes.Public.Brig
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
 import qualified Wire.API.Team.Feature as Team.Feature
@@ -69,7 +70,6 @@ import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Scim as Scim
 import qualified Wire.API.User.Search as User.Search
 import qualified Wire.API.Wrapped as Wrapped
-import qualified Wire.API.Routes.Public.Brig
 
 -- FUTUREWORK(#1446): fix tests marked as failing
 -- (either fixing Arbitrary or serialization instance)
