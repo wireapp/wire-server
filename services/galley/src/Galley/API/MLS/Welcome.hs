@@ -28,12 +28,14 @@ import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Time
+import Galley.API.MLS.Enabled
 import Galley.API.MLS.KeyPackage
 import Galley.API.Push
 import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
+import Galley.Env
 import Imports
 import Network.Wai.Utilities.Server
 import Polysemy
@@ -78,7 +80,9 @@ postMLSWelcomeFromLocalUser ::
        FederatorAccess,
        GundeckAccess,
        ErrorS 'MLSKeyPackageRefNotFound,
+       ErrorS 'MLSNotEnabled,
        Input UTCTime,
+       Input Env,
        P.TinyLog
      ]
     r =>
@@ -86,7 +90,9 @@ postMLSWelcomeFromLocalUser ::
   ConnId ->
   RawMLS Welcome ->
   Sem r ()
-postMLSWelcomeFromLocalUser loc con wel = postMLSWelcome loc (Just con) wel
+postMLSWelcomeFromLocalUser loc con wel = do
+  assertMLSEnabled
+  postMLSWelcome loc (Just con) wel
 
 welcomeRecipients ::
   Members

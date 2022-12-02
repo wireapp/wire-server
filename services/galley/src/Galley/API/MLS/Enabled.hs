@@ -15,16 +15,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.Keys (getMLSRemovalKey) where
+module Galley.API.MLS.Enabled
+  ( isMLSEnabled,
+    assertMLSEnabled,
+  )
+where
 
-import Control.Lens (view)
-import Crypto.PubKey.Ed25519 (PublicKey, SecretKey)
+import Galley.API.MLS.Keys
 import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Input
-import Wire.API.MLS.Credential (SignaturePurpose (RemovalPurpose))
-import Wire.API.MLS.Keys
+import Wire.API.Error
+import Wire.API.Error.Galley
 
-getMLSRemovalKey :: Member (Input Env) r => Sem r (Maybe (SecretKey, PublicKey))
-getMLSRemovalKey = mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
+isMLSEnabled :: Member (Input Env) r => Sem r Bool
+isMLSEnabled = isJust <$> getMLSRemovalKey
+
+-- | Fail if MLS is not enabled. Only use this function at the beginning of an
+-- MLS endpoint, NOT in utility functions.
+assertMLSEnabled ::
+  ( Member (Input Env) r,
+    Member (ErrorS 'MLSNotEnabled) r
+  ) =>
+  Sem r ()
+assertMLSEnabled =
+  unlessM isMLSEnabled $
+    throwS @'MLSNotEnabled
