@@ -122,9 +122,6 @@ instance ToSchema a => ToSchema (SearchResult a) where
         <*> searchResults .= fieldWithDocModifier "documents" (S.description ?~ "List of contacts found") (array schema)
         <*> searchPolicy .= fieldWithDocModifier "search_policy" (S.description ?~ "Search policy that was applied when searching for users") schema
         <*> searchPagingState .= maybe_ (optFieldWithDocModifier "paging_state" (S.description ?~ "Paging state for the next page of results") schema)
-        <* hasMore .= field "has_more" schema
-    where
-      hasMore result = searchFound result > searchReturned result
 
 deriving via (Schema (SearchResult Contact)) instance ToJSON (SearchResult Contact)
 

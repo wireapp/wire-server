@@ -24,7 +24,6 @@
         }
     ],
     "found": -1,
-    "has_more": false,
     "returned": 3,
     "search_policy": "exact_handle_search",
     "took": -7

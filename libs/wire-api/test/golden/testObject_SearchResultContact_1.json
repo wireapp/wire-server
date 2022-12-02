@@ -26,6 +26,5 @@
     "found": 2,
     "returned": 2,
     "search_policy": "full_search",
-    "took": 100,
-    "has_more": false
+    "took": 100
 }
