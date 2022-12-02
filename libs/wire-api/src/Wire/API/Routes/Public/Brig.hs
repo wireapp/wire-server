@@ -19,7 +19,9 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Control.Lens hiding ((.=))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as AT
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import qualified Data.Code as Code
@@ -28,6 +30,7 @@ import qualified Data.CookieThrottle as CookieThrottle
 import Data.Domain
 import qualified Data.EmailVisibility as EmailVisibility
 import Data.Handle
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import qualified Data.LimitFailedLogins as LimitFailedLogins
 import Data.Misc (IpAddr)
@@ -64,6 +67,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Invitation
 import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
@@ -1470,7 +1474,7 @@ data SystemSettings = SystemSettings
     systemSettingsSetFederationDomain :: !Domain,
     systemSettingsSetSqsThrottleMillis :: !(Maybe Int),
     systemSettingsSetRestrictUserCreation :: !(Maybe Bool),
-    --  systemSettings  setFeatureFlags :: !(Maybe AccountFeatureConfigs),
+    systemSettingsSetFeatureFlags :: !(Maybe AccountFeatureConfigs),
     systemSettingsSetEnableDevelopmentVersions :: Maybe Bool,
     systemSettingsSet2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
     systemSettingsSetNonceTtlSecsInternal :: !(Maybe Nonce.NonceTtlSecs)
@@ -1508,7 +1512,7 @@ instance Schema.ToSchema SystemSettings where
         <*> systemSettingsSetFederationDomain Schema..= Schema.field "setFederationDomain" Schema.schema
         <*> systemSettingsSetSqsThrottleMillis Schema..= Schema.maybe_ (Schema.optField "setSqsThrottleMillis" Schema.schema)
         <*> systemSettingsSetRestrictUserCreation Schema..= Schema.maybe_ (Schema.optField "setRestrictUserCreation" Schema.schema)
-        --        <*> systemSettingsSetFeatureFlags  Schema..= Schema.maybe_ (Schema.optField "setFeatureFlags" Schema.schema)
+        <*> systemSettingsSetFeatureFlags Schema..= Schema.maybe_ (Schema.optField "setFeatureFlags" Schema.schema)
         <*> systemSettingsSetEnableDevelopmentVersions Schema..= Schema.maybe_ (Schema.optField "setEnableDevelopmentVersions" Schema.schema)
         <*> systemSettingsSet2FACodeGenerationDelaySecsInternal Schema..= Schema.maybe_ (Schema.optField "set2FACodeGenerationDelaySecsInternal" Schema.schema)
         <*> systemSettingsSetNonceTtlSecsInternal Schema..= Schema.maybe_ (Schema.optField "setNonceTtlSecsInternal" Schema.schema)
@@ -1521,3 +1525,87 @@ type SystemSettingsAPI =
         :> "settings"
         :> Get '[JSON] SystemSettings
     )
+
+-- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
+-- express our current cloud business logic.
+--
+-- FUTUREWORK: it would be nice to have a system of feature configs that allows to coherently
+-- express arbitrary logic accross personal and team accounts, teams, and instances; including
+-- default values for new records, default for records that have a NULL value (eg., because
+-- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
+-- messages).  For now, we have something quick & simple.
+data AccountFeatureConfigs = AccountFeatureConfigs
+  { afcConferenceCallingDefNew :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig),
+    afcConferenceCallingDefNull :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig)
+  }
+  deriving (Show, Eq, Generic)
+
+instance Arbitrary AccountFeatureConfigs where
+  arbitrary = AccountFeatureConfigs <$> fmap unlocked arbitrary <*> fmap unlocked arbitrary
+    where
+      unlocked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
+      unlocked = Public.ImplicitLockStatus . Public.setLockStatus Public.LockStatusUnlocked . Public._unImplicitLockStatus
+
+instance A.FromJSON AccountFeatureConfigs where
+  parseJSON =
+    A.withObject
+      "AccountFeatureConfigs"
+      ( \obj -> do
+          confCallInit <- obj A..: "conferenceCalling"
+          A.withObject
+            "conferenceCalling"
+            ( \obj' -> do
+                AccountFeatureConfigs
+                  <$> obj' A..: "defaultForNew"
+                  <*> obj' A..: "defaultForNull"
+            )
+            confCallInit
+      )
+
+instance A.ToJSON AccountFeatureConfigs where
+  toJSON
+    AccountFeatureConfigs
+      { afcConferenceCallingDefNew,
+        afcConferenceCallingDefNull
+      } =
+      A.object
+        [ "conferenceCalling"
+            A..= A.object
+              [ "defaultForNew" A..= afcConferenceCallingDefNew,
+                "defaultForNull" A..= afcConferenceCallingDefNull
+              ]
+        ]
+
+instance ToSchema AccountFeatureConfigs where
+  schema =
+    mkSchema d parse serialize
+    where
+      d :: NamedSwaggerDoc
+      d = swaggerDoc @AccountFeatureConfigs
+      parse :: A.Value -> AT.Parser AccountFeatureConfigs
+      parse = A.parseJSON
+      serialize :: AccountFeatureConfigs -> Maybe A.Value
+      serialize = Just . A.toJSON
+
+instance S.ToSchema AccountFeatureConfigs where
+  declareNamedSchema _ = do
+    fieldSchemaRef <-
+      S.Inline . (^. S.schema)
+        <$> schemaToSwagger (Proxy :: Proxy Public.ConferenceCallingConfig)
+    let conferenceCallingRef =
+          S.Inline . (^. S.schema)
+            <$> NamedSchema (Just "conferenceCalling")
+            $ mempty
+              & type_ ?~ SwaggerObject
+              & S.properties
+                .~ InsOrdHashMap.fromList
+                  [ ("defaultForNew", fieldSchemaRef),
+                    ("defaultForNull", fieldSchemaRef)
+                  ]
+              & required .~ ["defaultForNew", "defaultForNull"]
+    pure $
+      NamedSchema (Just "AccountFeatureConfigs") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & S.properties .~ InsOrdHashMap.singleton "conferenceCalling" conferenceCallingRef
+          & required .~ ["conferenceCalling"]

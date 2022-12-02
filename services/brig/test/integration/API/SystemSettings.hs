@@ -24,6 +24,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Routes.Public.Brig
+import Wire.API.Team.Feature
 import Wire.API.User.Profile
 import qualified Wire.Data.Timeout as WireTimeout
 
@@ -65,7 +66,8 @@ testSettings1 =
       systemSettingsSetRestrictUserCreation = Nothing,
       systemSettingsSetEnableDevelopmentVersions = Nothing,
       systemSettingsSet2FACodeGenerationDelaySecsInternal = Nothing,
-      systemSettingsSetNonceTtlSecsInternal = Nothing
+      systemSettingsSetNonceTtlSecsInternal = Nothing,
+      systemSettingsSetFeatureFlags = Nothing
     }
 
 testSettings2 :: SystemSettings
@@ -110,7 +112,13 @@ testSettings2 =
       systemSettingsSetRestrictUserCreation = Just True,
       systemSettingsSetEnableDevelopmentVersions = Just True,
       systemSettingsSet2FACodeGenerationDelaySecsInternal = Just 19,
-      systemSettingsSetNonceTtlSecsInternal = (Just . NonceTtlSecs) 20
+      systemSettingsSetNonceTtlSecsInternal = (Just . NonceTtlSecs) 20,
+      systemSettingsSetFeatureFlags =
+        Just $
+          AccountFeatureConfigs
+            { afcConferenceCallingDefNew = ImplicitLockStatus (withStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig FeatureTTLUnlimited),
+              afcConferenceCallingDefNull = ImplicitLockStatus (withStatus FeatureStatusDisabled LockStatusUnlocked ConferenceCallingConfig FeatureTTLUnlimited)
+            }
     }
 
 mkWireTimeout :: Integer -> WireTimeout.Timeout
