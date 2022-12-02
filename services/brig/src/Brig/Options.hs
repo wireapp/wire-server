@@ -21,7 +21,6 @@
 
 module Brig.Options where
 
-import Wire.API.Routes.Public.Brig.SystemSettings
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.Whitelist (Whitelist (..))
@@ -53,6 +52,7 @@ import Imports
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Wire.API.Routes.Public.Brig.SystemSettings
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy)
