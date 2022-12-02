@@ -29,6 +29,7 @@ module Wire.API.User.Search
     TeamUserSearchSortOrder (..),
     TeamUserSearchSortBy (..),
     FederatedUserSearchPolicy (..),
+    PagingState (..),
 
     -- * Swagger
     modelSearchResult,
@@ -44,17 +45,20 @@ import qualified Data.Aeson as Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
+import Data.Either.Combinators (mapLeft)
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.Proxy
 import Data.Qualified
 import Data.Schema
+import Data.String.Conversions (cs)
+import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Imports
-import Servant.API (FromHttpApiData)
+import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
@@ -69,6 +73,15 @@ newtype PagingState = PagingState {unPagingState :: AsciiBase64Url}
 
 instance ToSchema PagingState where
   schema = (toText . unPagingState) .= parsedText "PagingState" (fmap PagingState . validateBase64Url)
+
+instance ToParamSchema PagingState where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance FromHttpApiData PagingState where
+  parseQueryParam s = mapLeft cs $ PagingState <$> validateBase64Url s
+
+instance ToHttpApiData PagingState where
+  toQueryParam = toText . unPagingState
 
 --------------------------------------------------------------------------------
 -- SearchResult

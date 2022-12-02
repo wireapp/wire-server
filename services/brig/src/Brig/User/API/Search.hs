@@ -113,7 +113,8 @@ searchRemotely domain searchTerm = do
         searchFound = count,
         searchReturned = count,
         searchTook = 0,
-        searchPolicy = S.searchPolicy searchResponse
+        searchPolicy = S.searchPolicy searchResponse,
+        searchPagingState = Nothing
       }
 
 searchLocally ::
@@ -136,7 +137,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
   esResult <-
     if esMaxResults > 0
       then Q.searchIndex (Q.LocalSearch searcherId searcherTeamId teamSearchInfo) searchTerm esMaxResults
-      else pure $ SearchResult 0 0 0 [] FullSearch
+      else pure $ SearchResult 0 0 0 [] FullSearch Nothing
 
   -- Prepend results matching exact handle and results from ES.
   pure $
@@ -181,7 +182,8 @@ teamUserSearch ::
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
   Maybe (Range 1 500 Int32) ->
+  Maybe PagingState ->
   (Handler r) (Public.SearchResult Public.TeamContact)
-teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size = do
+teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size mPagingState = do
   ensurePermissions uid tid [Public.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks.  (also, this way we don't need to worry about revealing confidential user data to other team members.)
-  Q.teamUserSearch tid mQuery mRoleFilter mSortBy mSortOrder $ fromMaybe (unsafeRange 15) size
+  Q.teamUserSearch tid mQuery mRoleFilter mSortBy mSortOrder (fromMaybe (unsafeRange 15) size) mPagingState
