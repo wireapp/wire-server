@@ -29,7 +29,6 @@ import Control.Applicative
 import qualified Control.Lens as Lens
 import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON)
 import qualified Data.Aeson as A
-import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
 import qualified Data.Code as Code
 import Data.CookieThrottle
@@ -53,10 +52,10 @@ import Imports
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
+import Wire.API.Routes.Public.Brig
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy)
-import Wire.Arbitrary (Arbitrary, arbitrary)
 import Wire.Data.Timeout
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -585,56 +584,6 @@ defaultDpopTokenExpirationTimeSecs = 30
 
 setDpopTokenExpirationTimeSecs :: Settings -> Word64
 setDpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . setDpopTokenExpirationTimeSecsInternal
-
--- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
--- express our current cloud business logic.
---
--- FUTUREWORK: it would be nice to have a system of feature configs that allows to coherently
--- express arbitrary logic accross personal and team accounts, teams, and instances; including
--- default values for new records, default for records that have a NULL value (eg., because
--- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
--- messages).  For now, we have something quick & simple.
-data AccountFeatureConfigs = AccountFeatureConfigs
-  { afcConferenceCallingDefNew :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig),
-    afcConferenceCallingDefNull :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig)
-  }
-  deriving (Show, Eq, Generic)
-
-instance Arbitrary AccountFeatureConfigs where
-  arbitrary = AccountFeatureConfigs <$> fmap unlocked arbitrary <*> fmap unlocked arbitrary
-    where
-      unlocked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
-      unlocked = Public.ImplicitLockStatus . Public.setLockStatus Public.LockStatusUnlocked . Public._unImplicitLockStatus
-
-instance FromJSON AccountFeatureConfigs where
-  parseJSON =
-    Aeson.withObject
-      "AccountFeatureConfigs"
-      ( \obj -> do
-          confCallInit <- obj Aeson..: "conferenceCalling"
-          Aeson.withObject
-            "conferenceCalling"
-            ( \obj' -> do
-                AccountFeatureConfigs
-                  <$> obj' Aeson..: "defaultForNew"
-                  <*> obj' Aeson..: "defaultForNull"
-            )
-            confCallInit
-      )
-
-instance ToJSON AccountFeatureConfigs where
-  toJSON
-    AccountFeatureConfigs
-      { afcConferenceCallingDefNew,
-        afcConferenceCallingDefNull
-      } =
-      Aeson.object
-        [ "conferenceCalling"
-            Aeson..= Aeson.object
-              [ "defaultForNew" Aeson..= afcConferenceCallingDefNew,
-                "defaultForNull" Aeson..= afcConferenceCallingDefNull
-              ]
-        ]
 
 getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (Public.WithStatus Public.ConferenceCallingConfig))
 getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew . unImplicitLockStatus))

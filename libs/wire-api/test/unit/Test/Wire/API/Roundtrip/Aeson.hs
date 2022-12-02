@@ -69,6 +69,7 @@ import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Scim as Scim
 import qualified Wire.API.User.Search as User.Search
 import qualified Wire.API.Wrapped as Wrapped
+import qualified Wire.API.Routes.Public.Brig
 
 -- FUTUREWORK(#1446): fix tests marked as failing
 -- (either fixing Arbitrary or serialization instance)
@@ -310,7 +311,8 @@ tests =
       testRoundTrip @User.Search.PagingState,
       testRoundTrip @User.Search.TeamContact,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),
-      testRoundTrip @Conversation.Action.SomeConversationAction
+      testRoundTrip @Conversation.Action.SomeConversationAction,
+      testRoundTrip @Wire.API.Routes.Public.Brig.AccountFeatureConfigs
     ]
 
 testRoundTrip ::

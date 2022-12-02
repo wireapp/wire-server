@@ -1129,7 +1129,7 @@ getSystemSettings = do
         systemSettingsSetFederationDomain = setFederationDomain optSettings,
         systemSettingsSetSqsThrottleMillis = setSqsThrottleMillis optSettings,
         systemSettingsSetRestrictUserCreation = setRestrictUserCreation optSettings,
-        --    systemSettingsSetFeatureFlags :: !(Maybe AccountFeatureConfigs),
+        systemSettingsSetFeatureFlags = setFeatureFlags optSettings,
         systemSettingsSetEnableDevelopmentVersions = setEnableDevelopmentVersions optSettings,
         systemSettingsSet2FACodeGenerationDelaySecsInternal = set2FACodeGenerationDelaySecsInternal optSettings,
         systemSettingsSetNonceTtlSecsInternal = setNonceTtlSecsInternal optSettings
