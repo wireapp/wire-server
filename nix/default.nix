@@ -36,6 +36,7 @@ let
         sphinx-multiversion
         sphinx_rtd_theme
         sphinx_reredirects
+        sphinx-copybutton
         sphinxcontrib-fulltoc
         sphinxcontrib-kroki
       ]))

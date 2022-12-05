@@ -46,6 +46,7 @@ extensions = [
     'rst2pdf.pdfbuilder',
     'sphinx_multiversion',
     'sphinx_reredirects',
+    'sphinx_copybutton',
 ]
 
 # Grouping the document tree into PDF files. List of tuples
