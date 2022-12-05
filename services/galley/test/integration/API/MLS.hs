@@ -45,8 +45,6 @@ import Data.Singletons
 import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
-import Federator.MockServer hiding (withTempMockFederator)
-import qualified Galley.Options as Opts
 -- import Galley.Data.Conversation
 -- import Galley.Options
 -- import Wire.API.MLS.CipherSuite
@@ -54,6 +52,7 @@ import qualified Galley.Options as Opts
 -- import Wire.API.MLS.Group
 -- import Wire.API.Team (teamCreator)
 import Federator.MockServer hiding (withTempMockFederator)
+import qualified Galley.Options as Opts
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
