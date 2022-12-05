@@ -77,6 +77,7 @@ tests =
       testRoundTrip @User.Profile.ManagedBy,
       testRoundTrip @User.Profile.Name,
       testRoundTrip @Team.Role.Role,
+      testRoundTrip @User.Search.PagingState,
       testRoundTrip @User.Search.TeamUserSearchSortBy,
       testRoundTrip @User.Search.TeamUserSearchSortOrder,
       testRoundTrip @User.Search.RoleFilter,

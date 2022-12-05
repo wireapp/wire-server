@@ -68,7 +68,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
 import Wire.API.User.RichInfo (RichInfoAssocList)
-import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
+import Wire.API.User.Search (Contact, PagingState, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
 
 type BrigAPI =
@@ -1159,6 +1159,13 @@ type SearchAPI =
              ]
              "size"
              (Range 1 500 Int32)
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Paging state for the next page of results"
+             ]
+             "pagingState"
+             PagingState
         :> MultiVerb
              'GET
              '[JSON]
