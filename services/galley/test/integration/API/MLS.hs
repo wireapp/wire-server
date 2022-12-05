@@ -49,6 +49,11 @@ import Federator.MockServer hiding (withTempMockFederator)
 import qualified Galley.Options as Opts
 -- import Galley.Data.Conversation
 -- import Galley.Options
+-- import Wire.API.MLS.CipherSuite
+-- import Wire.API.MLS.GlobalTeamConversation
+-- import Wire.API.MLS.Group
+-- import Wire.API.Team (teamCreator)
+import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
@@ -62,13 +67,11 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
--- import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
--- import Wire.API.MLS.GlobalTeamConversation
--- import Wire.API.MLS.Group
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
@@ -215,6 +218,11 @@ tests s =
           test s "listing conversations without MLS configured" testSelfConversationMLSNotConfigured,
           test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser,
           test s "attempt to leave fails" testSelfConversationLeave
+        ],
+      testGroup
+        "Typing indicators"
+        [ test s "POST /federation/on-typing-indicator-updated : Update typing indicator by remote user" updateTypingIndicatorFromRemoteUser,
+          test s "POST /federation/on-typing-indicator-updated : Update typing indicator to remote user" updateTypingIndicatorToRemoteUser
         ]
     ]
 
@@ -2482,3 +2490,183 @@ testAddTeamUserWithBundle = do
         <!! const 200 === statusCode
   liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpPublicGroupState commit))
   liftIO $ mpPublicGroupState commit @=? LBS.toStrict <$> returnedGS
+
+updateTypingIndicatorFromRemoteUser :: TestM ()
+updateTypingIndicatorFromRemoteUser = do
+  users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+  (events, reqs, qcnv) <- runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True . ciClient)
+              $ [bob1]
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    commit <- createAddCommit alice1 [bob]
+    (events, reqs) <-
+      withTempMockFederator' mock $
+        sendAndConsumeCommit commit
+    pure (events, reqs, qcnv)
+
+  -- traceM $ "\n----- reqs: " <> show reqs
+
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
+    frTargetDomain req @?= qDomain bob
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
+    cuOrigUserId bdy @?= alice
+    cuConvId bdy @?= qUnqualified qcnv
+    cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
+    cuAction bdy
+      @?= SomeConversationAction
+        SConversationJoinTag
+        ConversationJoin
+          { cjUsers = pure bob,
+            cjRole = roleNameWireMember
+          }
+
+  liftIO $ do
+    event <- assertOne events
+    assertJoinEvent qcnv alice [bob] roleNameWireMember event
+
+  c <- view tsCannon
+  WS.bracketR c (qUnqualified alice) $ \wsAlice -> do
+    -- Started
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from bob to alice
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StartedTyping,
+                  tdurConnection = ConnId "conn", -- Get the conn id somehow
+                  tdurUserId = qUnqualified bob,
+                  tdurConvId = qUnqualified qcnv
+                }
+
+        fedGalleyClient <- view tsFedGalleyClient
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain alice) tcReq
+
+    -- backend A generates a notification for alice
+    void $
+      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
+        liftIO $ wsAssertTyping qcnv alice StartedTyping n
+
+    -- stopped
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from bob to alice
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StoppedTyping,
+                  tdurConnection = ConnId "conn", -- Get the conn id somehow
+                  tdurUserId = qUnqualified bob,
+                  tdurConvId = qUnqualified qcnv
+                }
+
+        fedGalleyClient <- view tsFedGalleyClient
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain alice) tcReq
+
+    -- backend A generates a notification for alice
+    void $
+      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
+        liftIO $ wsAssertTyping qcnv alice StoppedTyping n
+
+updateTypingIndicatorToRemoteUser :: TestM ()
+updateTypingIndicatorToRemoteUser = do
+  users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+  (events, reqs, qcnv) <- runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True . ciClient)
+              $ [bob1]
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    commit <- createAddCommit alice1 [bob]
+    (events, reqs) <-
+      withTempMockFederator' mock $
+        sendAndConsumeCommit commit
+    pure (events, reqs, qcnv)
+
+  -- traceM $ "\n----- reqs: " <> show reqs
+
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
+    frTargetDomain req @?= qDomain bob
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
+    cuOrigUserId bdy @?= alice
+    cuConvId bdy @?= qUnqualified qcnv
+    cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
+    cuAction bdy
+      @?= SomeConversationAction
+        SConversationJoinTag
+        ConversationJoin
+          { cjUsers = pure bob,
+            cjRole = roleNameWireMember
+          }
+
+  liftIO $ do
+    event <- assertOne events
+    assertJoinEvent qcnv alice [bob] roleNameWireMember event
+
+  c <- view tsCannon
+  WS.bracketR c (qUnqualified bob) $ \wsBob -> do
+    -- started
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from alice to bob
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StartedTyping,
+                  tdurConnection = ConnId "conn", -- Get the conn id somehow
+                  tdurUserId = qUnqualified alice,
+                  tdurConvId = qUnqualified qcnv
+                }
+
+        fedGalleyClient <- view tsFedGalleyClient
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain bob) tcReq
+
+    -- backend A generates a notification for bob
+    void $
+      WS.awaitMatch (5 # Second) wsBob $ \n -> do
+        liftIO $ wsAssertTyping qcnv bob StartedTyping n
+
+    -- stopped
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from alice to bob
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StoppedTyping,
+                  tdurConnection = ConnId "conn", -- Get the conn id somehow
+                  tdurUserId = qUnqualified alice,
+                  tdurConvId = qUnqualified qcnv
+                }
+
+        fedGalleyClient <- view tsFedGalleyClient
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain bob) tcReq
+
+    -- backend A generates a notification for bob
+    void $
+      WS.awaitMatch (5 # Second) wsBob $ \n -> do
+        liftIO $ wsAssertTyping qcnv bob StoppedTyping n
