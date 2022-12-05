@@ -77,7 +77,6 @@ type GalleyApi =
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { tdurTypingData :: TypingData,
-    tdurConnection :: ConnId,
     tdurUserId :: UserId,
     tdurConvId :: ConvId
   }

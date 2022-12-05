@@ -1466,7 +1466,6 @@ isTypingQualified lusr zcon qcnv typingData = do
       let rpc =
             TypingDataUpdateRequest
               { tdurTypingData = typingData,
-                tdurConnection = zcon,
                 tdurUserId = tUnqualified lusr,
                 tdurConvId = tUnqualified rcnv
               }
@@ -1489,7 +1488,7 @@ isTypingUnqualified ::
   Sem r ()
 isTypingUnqualified lusr zcon cnv typingData = do
   lcnv <- qualifyLocal cnv
-  isTyping (qUntagged lusr) zcon lcnv typingData
+  isTyping (qUntagged lusr) (Just zcon) lcnv typingData
 
 addServiceH ::
   Members

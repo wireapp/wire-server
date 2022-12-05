@@ -2515,8 +2515,6 @@ updateTypingIndicatorFromRemoteUser = do
         sendAndConsumeCommit commit
     pure (events, reqs, qcnv)
 
-  -- traceM $ "\n----- reqs: " <> show reqs
-
   liftIO $ do
     req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
     frTargetDomain req @?= qDomain bob
@@ -2547,7 +2545,6 @@ updateTypingIndicatorFromRemoteUser = do
         let tcReq =
               TypingDataUpdateRequest
                 { tdurTypingData = TypingData StartedTyping,
-                  tdurConnection = ConnId "conn", -- Get the conn id somehow
                   tdurUserId = qUnqualified bob,
                   tdurConvId = qUnqualified qcnv
                 }
@@ -2567,7 +2564,6 @@ updateTypingIndicatorFromRemoteUser = do
         let tcReq =
               TypingDataUpdateRequest
                 { tdurTypingData = TypingData StoppedTyping,
-                  tdurConnection = ConnId "conn", -- Get the conn id somehow
                   tdurUserId = qUnqualified bob,
                   tdurConvId = qUnqualified qcnv
                 }
@@ -2605,8 +2601,6 @@ updateTypingIndicatorToRemoteUser = do
         sendAndConsumeCommit commit
     pure (events, reqs, qcnv)
 
-  -- traceM $ "\n----- reqs: " <> show reqs
-
   liftIO $ do
     req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
     frTargetDomain req @?= qDomain bob
@@ -2637,7 +2631,6 @@ updateTypingIndicatorToRemoteUser = do
         let tcReq =
               TypingDataUpdateRequest
                 { tdurTypingData = TypingData StartedTyping,
-                  tdurConnection = ConnId "conn", -- Get the conn id somehow
                   tdurUserId = qUnqualified alice,
                   tdurConvId = qUnqualified qcnv
                 }
@@ -2657,7 +2650,6 @@ updateTypingIndicatorToRemoteUser = do
         let tcReq =
               TypingDataUpdateRequest
                 { tdurTypingData = TypingData StoppedTyping,
-                  tdurConnection = ConnId "conn", -- Get the conn id somehow
                   tdurUserId = qUnqualified alice,
                   tdurConvId = qUnqualified qcnv
                 }

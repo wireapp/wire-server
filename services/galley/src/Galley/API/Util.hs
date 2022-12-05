@@ -19,7 +19,7 @@
 
 module Galley.API.Util where
 
-import Control.Lens (set, view, (.~), (?~), (^.))
+import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
 import Data.ByteString.Conversion
@@ -891,11 +891,11 @@ isTyping ::
      ]
     r =>
   Qualified UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Local ConvId ->
   TypingData ->
   Sem r ()
-isTyping qusr zcon lcnv typingData = do
+isTyping qusr mcon lcnv typingData = do
   mm <- getLocalMembers (tUnqualified lcnv)
   unless (qUnqualified qusr `isMember` mm) $ throwS @'ConvNotFound
   now <- input
@@ -903,6 +903,6 @@ isTyping qusr zcon lcnv typingData = do
   for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
-        & pushConn ?~ zcon
+        & pushConn .~ mcon
         & pushRoute .~ RouteDirect
         & pushTransient .~ True
