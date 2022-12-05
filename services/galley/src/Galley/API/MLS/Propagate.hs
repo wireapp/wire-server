@@ -32,12 +32,14 @@ import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Types.Conversations.Members
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger.Class as Logger
 import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -105,10 +107,18 @@ propagateMessage qusr lconv cm con raw = do
             (\(c, _) -> (remoteUserId, c))
             (toList (Map.findWithDefault mempty remoteUserQId cm))
 
-    handleError :: Member TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
-    handleError (Right _) = pure ()
-    handleError (Left (r, e)) =
+    handleError ::
+      Member TinyLog r =>
+      Either (Remote [a], FederationError) (Remote RemoteMLSMessageResponse) ->
+      Sem r ()
+    handleError (Right x) = case tUnqualified x of
+      RemoteMLSMessageOk -> pure ()
+      RemoteMLSMessageMLSNotEnabled -> logFedError x (errorToWai @'MLSNotEnabled)
+    handleError (Left (r, e)) = logFedError r (toWai e)
+
+    logFedError :: Member TinyLog r => Remote x -> Wai.Error -> Sem r ()
+    logFedError r e =
       warn $
         Logger.msg ("A message could not be delivered to a remote backend" :: ByteString)
           . Logger.field "remote_domain" (domainText (tDomain r))
-          . logErrorMsg (toWai e)
+          . logErrorMsg e
