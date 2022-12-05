@@ -31,19 +31,14 @@ import Cassandra
 import Cassandra.Util
 import Conduit
 import qualified Data.Aeson as Aeson
-import qualified Data.ByteString as B
 import qualified Data.ByteString as BS
-import Data.ByteString.Lazy (toStrict)
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
-import qualified Data.Multihash.Digest as MH
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as Text
 import Imports
-import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import System.Logger
 import qualified System.Logger as Log
 import UnliftIO.Async
@@ -161,64 +156,16 @@ checkKey l brig key repairData = do
 freeUserKey :: Logger -> UserKey -> Client ()
 freeUserKey l k = do
   Log.info l $ Log.msg (Log.val "Freeing key") . Log.field "key" (keyText k)
-  hk <- liftIO $ hashKey k
-  retry x5 $ write deleteHashed (params LocalQuorum (Identity hk))
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
   where
     keyDelete :: PrepQuery W (Identity Text) ()
     keyDelete = "DELETE FROM user_keys WHERE key = ?"
 
-
-    deleteHashed :: PrepQuery W (Identity UserKeyHash) ()
-    deleteHashed = "DELETE FROM user_keys_hash WHERE key = ?"
-
-hashKey :: UserKey -> IO UserKeyHash
-hashKey uk = do
-  Just d <- getDigestByName "SHA256"
-  let d' = digestBS d $ T.encodeUtf8 (keyText uk)
-  pure . UserKeyHash $
-    MH.MultihashDigest MH.SHA256 (B.length d') d'
-    
-data UKHashType
-  = UKHashPhone
-  | UKHashEmail
-  deriving (Eq)
-
-instance Cql UKHashType where
-  ctype = Tagged IntColumn
-
-  fromCql (CqlInt i) = case i of
-    0 -> pure UKHashPhone
-    1 -> pure UKHashEmail
-    n -> Left $ "unexpected hashtype: " ++ show n
-  fromCql _ = Left "userkeyhashtype: int expected"
-
-  toCql UKHashPhone = CqlInt 0
-  toCql UKHashEmail = CqlInt 1
-
-newtype UserKeyHash = UserKeyHash MH.MultihashDigest
-
-instance Cql UserKeyHash where
-  ctype = Tagged BlobColumn
-
-  fromCql (CqlBlob lbs) = case MH.decode (toStrict lbs) of
-    Left e -> Left ("userkeyhash: " ++ e)
-    Right h -> pure $ UserKeyHash h
-  fromCql _ = Left "userkeyhash: expected blob"
-
-  toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
-
 insertKey :: Logger -> UserId -> UserKey -> Client ()
 insertKey l u k = do
   Log.info l $ Log.msg (Log.val "Inserting key") . Log.field "key" (keyText k) . Log.field "userId" (show u)
-  hk <- liftIO $ hashKey k
-  let kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
-  retry x5 $ write insertHashed (params LocalQuorum (hk, kt, u))
   retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
   where
-    insertHashed :: PrepQuery W (UserKeyHash, UKHashType, UserId) ()
-    insertHashed = "INSERT INTO user_keys_hash(key, key_type, user) VALUES (?, ?, ?)"
-
     keyInsert :: PrepQuery W (Text, UserId) ()
     keyInsert = "INSERT INTO user_keys (key, user) VALUES (?, ?)"
 
