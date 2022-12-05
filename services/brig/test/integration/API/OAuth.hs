@@ -23,20 +23,25 @@ import Bilge
 import Bilge.Assert
 import Brig.API.OAuth
 import Brig.Options
-import Data.ByteString.Conversion (toByteString')
+import Control.Lens
+import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Id (OAuthClientId, UserId)
 import Data.Range (unsafeRange)
+import Data.Set as Set
+import Data.String.Conversions (cs)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
-import URI.ByteString (parseURI, strictURIParserOptions)
+import URI.ByteString
 import Util
 import Wire.API.User
 
 tests :: Manager -> Brig -> Opts -> TestTree
 tests m b _opts = do
   testGroup "oauth" $
-    [test m "register new OAuth client" $ testRegisterNewOAuthClient b]
+    [ test m "register new OAuth client" $ testRegisterNewOAuthClient b,
+      test m "create oauth code - success" $ testCreateOAuthCodeSuccess b
+    ]
 
 testRegisterNewOAuthClient :: Brig -> Http ()
 testRegisterNewOAuthClient brig = do
@@ -50,6 +55,33 @@ testRegisterNewOAuthClient brig = do
     applicationName @?= ocName oauthClientInfo
     redirectUrl @?= ocRedirectUrl oauthClientInfo
 
+testCreateOAuthCodeSuccess :: Brig -> Http ()
+testCreateOAuthCodeSuccess brig = do
+  let Right redirectUrl = RedirectUrl <$> parseURI strictURIParserOptions "https://example.com"
+  let applicationName = OAuthApplicationName (unsafeRange "E Corp")
+  let newOAuthClient = NewOAuthClient applicationName redirectUrl
+  cid <- occClientId <$> registerNewOAuthClient brig newOAuthClient
+  uid <- userId <$> randomUser brig
+  let scope = Set.fromList [ConversationCreate, ConversationCodeCreate]
+  let state = "foobar"
+  createOAuthCode brig uid (NewOAuthAuthCode cid scope OAuthResponseTypeCode redirectUrl state) !!! do
+    const 302 === statusCode
+    const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
+    const (Just $ ["code", "state"]) === (fmap (fmap fst . getQueryParams) . getLocation)
+    const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
+  where
+    getLocation :: ResponseLBS -> Maybe RedirectUrl
+    getLocation = getHeader "Location" >=> fromByteString
+
+    getPath :: RedirectUrl -> ByteString
+    getPath (RedirectUrl uri) = uri ^. pathL
+
+    getQueryParams :: RedirectUrl -> [(ByteString, ByteString)]
+    getQueryParams (RedirectUrl uri) = uri ^. (queryL . queryPairsL)
+
+    getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
+    getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
+
 -------------------------------------------------------------------------------
 -- Util
 
@@ -60,3 +92,6 @@ registerNewOAuthClient brig reqBody =
 getOAuthClientInfo :: HasCallStack => Brig -> UserId -> OAuthClientId -> Http OAuthClient
 getOAuthClientInfo brig uid cid =
   responseJsonError =<< get (brig . paths ["oauth", "clients", toByteString' cid] . zUser uid) <!! const 200 === statusCode
+
+createOAuthCode :: HasCallStack => Brig -> UserId -> NewOAuthAuthCode -> Http ResponseLBS
+createOAuthCode brig uid reqBody = post (brig . paths ["oauth", "authorization", "codes"] . zUser uid . json reqBody . noRedirect)

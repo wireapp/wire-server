@@ -51,6 +51,7 @@ import Wire.API.Routes.Public (ZUser)
 
 --------------------------------------------------------------------------------
 -- Types
+-- TODO(leif): add golden and roundtrip tests for these types
 
 newtype RedirectUrl = RedirectUrl {unRedirectUrl :: URIRef Absolute}
   deriving stock (Eq, Show, Generic)
