@@ -55,7 +55,8 @@ teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> siz
   idx <- asks idxName
   let search =
         (ES.mkSearch (Just q) (Just f))
-          { ES.size = ES.Size (fromIntegral size + 1),
+          { -- we are requesting one more result than the page size to determine if there is a next page
+            ES.size = ES.Size (fromIntegral size + 1),
             ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs),
             ES.searchAfterKey = toSearchAfterKey =<< mPagingState
           }
