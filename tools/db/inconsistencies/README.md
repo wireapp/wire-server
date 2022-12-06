@@ -1,11 +1,17 @@
 # inconsistencies
 
+This tool checks and can repair certain inconsistencies between the `user`, `user_keys` and `user_handle` tables in brig.
+
 More context on how this was/is useful under these issues:
 
 - https://wearezeta.atlassian.net/browse/SQSERVICES-1798
 - https://wearezeta.atlassian.net/browse/SQSERVICES-1797
 
-# How to run and make sense of data
+(A precursor tool to check inconsistencies between spar and brig tables, if deemed useful, could be exhumed from git history of [PR #2840](https://github.com/wireapp/wire-server/pull/2840) or [one commit](https://github.com/wireapp/wire-server/pull/2840/commits/2e06428d10508328bcf2d829b16a7cc75ee72386) and incorporated here)
+
+This tool writes findings into an output file as JSON lines, so it can be more easily analysed. The tool should run on a cluster (as opposted to through port-forwarding from a local machine) for speed. Though please do watch metrics when running this as a few thousand parallelized table scan pagination requests per second can have a performance impact on the whole database.
+
+## How to run and make sense of data
 
 1. Build image
 
