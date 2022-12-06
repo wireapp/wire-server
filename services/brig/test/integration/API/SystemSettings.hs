@@ -15,46 +15,28 @@ tests :: Opts -> Manager -> Brig -> IO TestTree
 tests opts m brig = pure $ do
   testGroup
     "settings"
-    [ test m "GET /system/settings - empty " $ testGetSettings opts brig testSettingsEmpty,
-      test m "GET /system/settings - set" $ testGetSettings opts brig testSettingsSet,
-      test m "GET /system/settings - unset" $ testGetSettings opts brig testSettingsUnset
+    [ test m "GET /system/settings" $ testGetSettings opts brig
     ]
 
-testSettingsEmpty :: SystemSettings
-testSettingsEmpty =
-  SystemSettings
-    {
-      systemSettingsSetRestrictUserCreation = Nothing
-    }
-
-testSettingsSet :: SystemSettings
-testSettingsSet =
-  SystemSettings
-    {
-      systemSettingsSetRestrictUserCreation = Just True
-    }
-
-testSettingsUnset :: SystemSettings
-testSettingsUnset =
-  SystemSettings
-    {
-      systemSettingsSetRestrictUserCreation = Just True
-    }
-
-testGetSettings :: Opts -> Brig -> SystemSettings -> Http ()
-testGetSettings opts brig testSettings = do
-  let newSettings =
-        (opts & optSettings)
-          {
-            setRestrictUserCreation = systemSettingsSetRestrictUserCreation testSettings
-          }
-  let newOpts =
-        opts
-          { optSettings = newSettings
-          }
-  queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings brig
-  liftIO $
-    systemSettingsSetRestrictUserCreation queriedSettings @?= systemSettingsSetRestrictUserCreation testSettings
+testGetSettings :: Opts -> Brig -> Http ()
+testGetSettings opts brig = liftIO $ do
+  expectResultForSetting Nothing False
+  expectResultForSetting (Just False) False
+  expectResultForSetting (Just True) True
+  where
+    expectResultForSetting :: Maybe Bool -> Bool -> IO ()
+    expectResultForSetting setting expectedRes = do
+      let newOpts = setRestrictUserCreationSetting setting
+      queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings brig
+      liftIO $
+        systemSettingsSetRestrictUserCreation queriedSettings @?= expectedRes
+    setRestrictUserCreationSetting :: Maybe Bool -> Opts
+    setRestrictUserCreationSetting setting =
+      let newSettings =
+            (opts & optSettings)
+              { setRestrictUserCreation = setting
+              }
+       in opts {optSettings = newSettings}
 
 getSystemSettings ::
   (HasCallStack, MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) =>

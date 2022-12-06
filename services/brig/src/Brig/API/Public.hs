@@ -1105,7 +1105,7 @@ getSystemSettings = do
   optSettings <- view settings
   pure $
     SystemSettings
-      { systemSettingsSetRestrictUserCreation = setRestrictUserCreation optSettings
+      { systemSettingsSetRestrictUserCreation = fromMaybe False (setRestrictUserCreation optSettings)
       }
 
 -- Deprecated

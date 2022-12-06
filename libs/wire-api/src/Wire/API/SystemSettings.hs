@@ -14,7 +14,7 @@ import Wire.Arbitrary
 -- Used to expose settings via the @/system/settings@ endpoint. Please check
 -- with security if you want to add settings here.
 data SystemSettings = SystemSettings
-  { systemSettingsSetRestrictUserCreation :: !(Maybe Bool)
+  { systemSettingsSetRestrictUserCreation :: !Bool
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema.Schema SystemSettings
@@ -25,9 +25,7 @@ instance Schema.ToSchema SystemSettings where
     Schema.object "SystemSettings" $
       SystemSettings
         <$> systemSettingsSetRestrictUserCreation
-        Schema..= Schema.maybe_
-          ( Schema.optFieldWithDocModifier
-              "setRestrictUserCreation"
-              (description ?~ "Do not allow certain user creation flows")
-              Schema.schema
-          )
+          Schema..= Schema.fieldWithDocModifier
+            "setRestrictUserCreation"
+            (description ?~ "Do not allow certain user creation flows")
+            Schema.schema
