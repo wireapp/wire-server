@@ -27,13 +27,13 @@ import Cassandra as C
 import Cassandra.Settings as C
 import qualified DanglingHandles
 import qualified DanglingUserKeys
+import qualified EmailLessUsers
 import qualified HandleLessUsers
 import Imports
 import Options as O
 import Options.Applicative
 import qualified System.Logger as Log
 import System.Logger.Extended (structuredJSONRenderer)
-import qualified EmailLessUsers
 
 main :: IO ()
 main = do
@@ -53,7 +53,7 @@ main = do
       DanglingUserKeys.runCommand workLogger brig outputFile
     DanglingUserKeys (Just (inputFile, repairData)) ->
       DanglingUserKeys.runRepair workLogger brig inputFile outputFile repairData
-    MissingEmailUserKeys (Just (inputFile, repairData)) -> 
+    MissingEmailUserKeys (Just (inputFile, repairData)) ->
       EmailLessUsers.runRepair workLogger brig inputFile outputFile repairData
     MissingEmailUserKeys Nothing ->
       EmailLessUsers.runCommand workLogger brig outputFile

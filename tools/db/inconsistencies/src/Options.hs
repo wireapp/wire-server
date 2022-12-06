@@ -56,10 +56,10 @@ danglingHandlesCommand :: Mod CommandFields Command
 danglingHandlesCommand = command "dangling-handles" (info (DanglingHandles <$> optional (inputFileRepairParser "handles")) (progDesc "find handle which shouldn't be claimed"))
 
 danglingKeysCommand :: Mod CommandFields Command
-danglingKeysCommand = command "dangling-keys" (info ( DanglingUserKeys <$> optional (inputFileRepairParser "keys")) (progDesc "find keys which shouldn't be there"))
+danglingKeysCommand = command "dangling-keys" (info (DanglingUserKeys <$> optional (inputFileRepairParser "keys")) (progDesc "find keys which shouldn't be there"))
 
 missingEmailsCommand :: Mod CommandFields Command
-missingEmailsCommand = command "missing-email-keys" (info ( MissingEmailUserKeys <$> optional (inputFileRepairParser "emails")) (progDesc "find missing email keys (users with emails inside user table but not inside user_keys table)"))
+missingEmailsCommand = command "missing-email-keys" (info (MissingEmailUserKeys <$> optional (inputFileRepairParser "emails")) (progDesc "find missing email keys (users with emails inside user table but not inside user_keys table)"))
 
 handleLessUsersCommand :: Mod CommandFields Command
 handleLessUsersCommand = command "handle-less-users" (info (pure HandleLessUsers) (progDesc "find users which have a handle in the user table but not in the user_handle table"))
