@@ -36,13 +36,15 @@ import Text.RawString.QQ
 -- backwards-incompatbile schema migration docs in
 -- https://docs.wire.com/developer/developer/cassandra-interaction.html?highlight=backwards+incompatbile#backwards-incompatible-schema-changes
 --
--- FUTUREWORK: uncomment the code below after July 2023, rename this module with a version number, and
+-- FUTUREWORK: remove futurework_number and replace its usage by the next matching number after July 2023, rename this module with a version number, and
 -- integrate it inside Main.hs and App.hs
-migration :: Migration
-migration = undefined
+futureworkNumber :: Integer
+futureworkNumber = undefined
 
--- Migration FUTUREWORK_NUMBER "Drop deprecated user_keys_hashed table" $ do
---   schema'
---     [r|
---       DROP TABLE IF EXISTS user_keys_hash
---    |]
+migration :: Migration
+
+migration futureworkNumber "Drop deprecated user_keys_hashed table" $ do
+  schema'
+    [r|
+      DROP TABLE IF EXISTS user_keys_hash
+   |]
