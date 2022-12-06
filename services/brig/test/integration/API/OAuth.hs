@@ -24,12 +24,13 @@ import Bilge.Assert
 import Brig.API.OAuth
 import Brig.Options
 import Control.Lens
-import Data.ByteString.Conversion (fromByteString, toByteString')
-import Data.Id (OAuthClientId, UserId)
+import Data.ByteString.Conversion (fromByteString, fromByteString', toByteString')
+import Data.Id (OAuthClientId, UserId, randomId)
 import Data.Range (unsafeRange)
 import Data.Set as Set
 import Data.String.Conversions (cs)
 import Imports
+import qualified Network.Wai.Utilities as Error
 import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString
@@ -40,26 +41,24 @@ tests :: Manager -> Brig -> Opts -> TestTree
 tests m b _opts = do
   testGroup "oauth" $
     [ test m "register new OAuth client" $ testRegisterNewOAuthClient b,
-      test m "create oauth code - success" $ testCreateOAuthCodeSuccess b
+      test m "create oauth code - success" $ testCreateOAuthCodeSuccess b,
+      test m "create oauth code - oauth client not found" $ testCreateOAuthCodeClientNotFound b,
+      test m "create oauth code - redirect url mismatch" $ testCreateOAuthCodeRedirectUrlMismatch b
     ]
 
 testRegisterNewOAuthClient :: Brig -> Http ()
 testRegisterNewOAuthClient brig = do
-  let Right redirectUrl = RedirectUrl <$> parseURI strictURIParserOptions "https://example.com"
-  let applicationName = OAuthApplicationName (unsafeRange "E Corp")
-  let newOAuthClient = NewOAuthClient applicationName redirectUrl
+  let newOAuthClient@(NewOAuthClient expectedAppName expectedUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   cid <- occClientId <$> registerNewOAuthClient brig newOAuthClient
   uid <- userId <$> randomUser brig
   oauthClientInfo <- getOAuthClientInfo brig uid cid
   liftIO $ do
-    applicationName @?= ocName oauthClientInfo
-    redirectUrl @?= ocRedirectUrl oauthClientInfo
+    expectedAppName @?= ocName oauthClientInfo
+    expectedUrl @?= ocRedirectUrl oauthClientInfo
 
 testCreateOAuthCodeSuccess :: Brig -> Http ()
 testCreateOAuthCodeSuccess brig = do
-  let Right redirectUrl = RedirectUrl <$> parseURI strictURIParserOptions "https://example.com"
-  let applicationName = OAuthApplicationName (unsafeRange "E Corp")
-  let newOAuthClient = NewOAuthClient applicationName redirectUrl
+  let newOAuthClient@(NewOAuthClient _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   cid <- occClientId <$> registerNewOAuthClient brig newOAuthClient
   uid <- userId <$> randomUser brig
   let scope = Set.fromList [ConversationCreate, ConversationCodeCreate]
@@ -82,8 +81,32 @@ testCreateOAuthCodeSuccess brig = do
     getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
     getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
 
+testCreateOAuthCodeRedirectUrlMismatch :: Brig -> Http ()
+testCreateOAuthCodeRedirectUrlMismatch brig = do
+  cid <- occClientId <$> registerNewOAuthClient brig (newOAuthClientRequestBody "E Corp" "https://example.com")
+  uid <- userId <$> randomUser brig
+  let Just invalidRedirectUrl = fromByteString' "https://wire.com"
+  createOAuthCode brig uid (NewOAuthAuthCode cid Set.empty OAuthResponseTypeCode invalidRedirectUrl "") !!! do
+    const 400 === statusCode
+    const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
+
+testCreateOAuthCodeClientNotFound :: Brig -> Http ()
+testCreateOAuthCodeClientNotFound brig = do
+  cid <- randomId
+  uid <- userId <$> randomUser brig
+  let Just redirectUrl = fromByteString' "https://example.com"
+  createOAuthCode brig uid (NewOAuthAuthCode cid Set.empty OAuthResponseTypeCode redirectUrl "") !!! do
+    const 404 === statusCode
+    const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
 -------------------------------------------------------------------------------
 -- Util
+
+newOAuthClientRequestBody :: Text -> Text -> NewOAuthClient
+newOAuthClientRequestBody name url =
+  let Just redirectUrl = fromByteString' (cs url)
+      applicationName = OAuthApplicationName (unsafeRange name)
+   in NewOAuthClient applicationName redirectUrl
 
 registerNewOAuthClient :: HasCallStack => Brig -> NewOAuthClient -> Http OAuthClientCredentials
 registerNewOAuthClient brig reqBody =
