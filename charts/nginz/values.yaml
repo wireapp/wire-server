@@ -385,6 +385,9 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
+    - path: /oauth/authorization/codes
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
