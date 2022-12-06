@@ -244,7 +244,10 @@ tests s =
             "Typing indicators"
             [ test s "send typing indicators" postTypingIndicators,
               test s "send typing indicators without domain" postTypingIndicatorsV2,
-              test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense
+              test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense,
+              test s "POST /federation/on-typing-indicator-updated : Update typing indicator by remote user" updateTypingIndicatorFromRemoteUser,
+              test s "POST /federation/on-typing-indicator-updated : Update typing indicator to remote user" updateTypingIndicatorToRemoteUser,
+              test s "send typing indicator update from local to remote on remote conv" updateTypingIndicatorToRemoteUserRemoteConv
             ]
         ]
 
@@ -3673,7 +3676,7 @@ putReceiptModeWithRemotesOk = do
 postTypingIndicatorsV2 :: TestM ()
 postTypingIndicatorsV2 = do
   c <- view tsCannon
-  g <- viewGalley
+  g <- view tsUnversionedGalley
 
   alice <- randomUser
   bob <- randomUser
@@ -3688,9 +3691,8 @@ postTypingIndicatorsV2 = do
 
   WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
     post
-      ( unversioned
-          . g
-          . paths ["conversations", toByteString' conv, "typing"]
+      ( g
+          . paths ["v2", "conversations", toByteString' conv, "typing"]
           . zUser alice
           . zConn "conn"
           . zType "access"
@@ -3703,9 +3705,8 @@ postTypingIndicatorsV2 = do
         wsAssertTyping (qUntagged lcnv) (qUntagged aliceL) StartedTyping n
 
     post
-      ( unversioned
-          . g
-          . paths ["conversations", toByteString' conv, "typing"]
+      ( g
+          . paths ["v2", "conversations", toByteString' conv, "typing"]
           . zUser bob
           . zConn "conn"
           . zType "access"
@@ -4035,3 +4036,196 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
             pure $ statusCode resp == 200
           liftIO $ found @?= ((actor, desired) == (LocalActor, Included))
       )
+
+updateTypingIndicatorToRemoteUserRemoteConv :: TestM ()
+updateTypingIndicatorToRemoteUserRemoteConv = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+
+  -- create a remote conversation with alice
+  let remoteDomain = Domain "bobland.example.com"
+  qbob <- Qualified <$> randomId <*> pure remoteDomain
+  qconv <- Qualified <$> randomId <*> pure remoteDomain
+  connectWithRemoteUser alice qbob
+
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cu =
+        F.ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = qbob,
+            cuConvId = qUnqualified qconv,
+            cuAlreadyPresentUsers = [],
+            cuAction =
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+          }
+  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
+
+  -- Fetch remote conversation
+  let bobAsLocal =
+        LocalMember
+          (qUnqualified qbob)
+          defMemberStatus
+          Nothing
+          roleNameWireAdmin
+  let mockConversation =
+        mkProteusConv
+          (qUnqualified qconv)
+          (qUnqualified qbob)
+          roleNameWireMember
+          [localMemberToOther remoteDomain bobAsLocal]
+      remoteConversationResponse = GetConversationsResponse [mockConversation]
+  void
+    $ withTempMockFederator
+      (const remoteConversationResponse)
+    $ getConvQualified alice qconv
+      <!! const 200 === statusCode
+
+  WS.bracketR c alice $ \wsAlice -> do
+    -- Started
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from bob to alice
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StartedTyping,
+                  tdurUserId = qUnqualified qbob,
+                  tdurConvId = qUnqualified qconv
+                }
+
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qalice) tcReq
+
+    -- backend A generates a notification for alice
+    void $
+      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
+        liftIO $ wsAssertTyping qconv qalice StartedTyping n
+
+    -- stopped
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from bob to alice
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StoppedTyping,
+                  tdurUserId = qUnqualified qbob,
+                  tdurConvId = qUnqualified qconv
+                }
+
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qalice) tcReq
+
+    -- backend A generates a notification for alice
+    void $
+      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
+        liftIO $ wsAssertTyping qconv qalice StoppedTyping n
+
+updateTypingIndicatorFromRemoteUser :: TestM ()
+updateTypingIndicatorFromRemoteUser = do
+  localDomain <- viewFederationDomain
+  [alice, bob] <- randomUsers 2
+  let qAlice = Qualified alice localDomain
+      remoteDomain = Domain "far-away.example.com"
+      qBob = Qualified bob remoteDomain
+
+  connectWithRemoteUser alice qBob
+  convId <-
+    decodeConvId
+      <$> postConvWithRemoteUsers
+        alice
+        defNewProteusConv {newConvQualifiedUsers = [qBob]}
+  let qconvId = Qualified convId localDomain
+
+  c <- view tsCannon
+  WS.bracketR c alice $ \wsAlice -> do
+    -- Started
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from bob to alice
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StartedTyping,
+                  tdurUserId = bob,
+                  tdurConvId = convId
+                }
+
+        fedGalleyClient <- view tsFedGalleyClient
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qAlice) tcReq
+
+    -- backend A generates a notification for alice
+    void $
+      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
+        liftIO $ wsAssertTyping qconvId qAlice StartedTyping n
+
+    -- stopped
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from bob to alice
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StoppedTyping,
+                  tdurUserId = bob,
+                  tdurConvId = convId
+                }
+
+        fedGalleyClient <- view tsFedGalleyClient
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qAlice) tcReq
+
+    -- backend A generates a notification for alice
+    void $
+      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
+        liftIO $ wsAssertTyping qconvId qAlice StoppedTyping n
+
+updateTypingIndicatorToRemoteUser :: TestM ()
+updateTypingIndicatorToRemoteUser = do
+  localDomain <- viewFederationDomain
+  [alice, bob] <- randomUsers 2
+  let remoteDomain = Domain "far-away.example.com"
+      qBob = Qualified bob remoteDomain
+
+  connectWithRemoteUser alice qBob
+  convId <-
+    decodeConvId
+      <$> postConvWithRemoteUsers
+        alice
+        defNewProteusConv {newConvQualifiedUsers = [qBob]}
+  let qconvId = Qualified convId localDomain
+
+  c <- view tsCannon
+  WS.bracketR c bob $ \wsBob -> do
+    -- started
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from alice to bob
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StartedTyping,
+                  tdurUserId = alice,
+                  tdurConvId = convId
+                }
+
+        fedGalleyClient <- view tsFedGalleyClient
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qBob) tcReq
+
+    -- backend A generates a notification for bob
+    void $
+      WS.awaitMatch (5 # Second) wsBob $ \n -> do
+        liftIO $ wsAssertTyping qconvId qBob StartedTyping n
+
+    -- stopped
+    void $
+      withTempMockFederator (const ()) $ do
+        -- post typing indicator from alice to bob
+        let tcReq =
+              TypingDataUpdateRequest
+                { tdurTypingData = TypingData StoppedTyping,
+                  tdurUserId = alice,
+                  tdurConvId = convId
+                }
+
+        fedGalleyClient <- view tsFedGalleyClient
+        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qBob) tcReq
+
+    -- backend A generates a notification for bob
+    void $
+      WS.awaitMatch (5 # Second) wsBob $ \n -> do
+        liftIO $ wsAssertTyping qconvId qBob StoppedTyping n

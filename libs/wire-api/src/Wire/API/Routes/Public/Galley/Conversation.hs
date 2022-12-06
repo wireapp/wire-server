@@ -614,7 +614,7 @@ type ConversationAPI =
     :<|> Named
            "member-typing-unqualified"
            ( Summary "Sending typing notifications"
-               :> Until 'V2
+               :> Until 'V3
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
                :> ZConn

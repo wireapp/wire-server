@@ -3093,35 +3093,3 @@ createAndConnectUsers domains = do
       (False, True) -> connectWithRemoteUser (qUnqualified b) a
       (False, False) -> pure ()
   pure users
-
--- | Note: Apply this function last when composing (Request -> Request) functions
-apiVersion :: ByteString -> Request -> Request
-apiVersion newVersion r = r {HTTP.path = setVersion newVersion (HTTP.path r)}
-  where
-    setVersion :: ByteString -> ByteString -> ByteString
-    setVersion v p =
-      let p' = removeSlash' p
-       in v <> "/" <> fromMaybe p' (removeVersionPrefix p')
-
-removeSlash' :: ByteString -> ByteString
-removeSlash' s = case B8.uncons s of
-  Just ('/', s') -> s'
-  _ -> s
-
-removeVersionPrefix :: ByteString -> Maybe ByteString
-removeVersionPrefix bs = do
-  let (x, s) = B8.splitAt 1 bs
-  guard (x == B8.pack "v")
-  (_, s') <- B8.readInteger s
-  pure (B8.tail s')
-
--- | Note: Apply this function last when composing (Request -> Request) functions
-unversioned :: Request -> Request
-unversioned r =
-  r
-    { HTTP.path =
-        maybe
-          (HTTP.path r)
-          (B8.pack "/" <>)
-          (removeVersionPrefix . removeSlash' $ HTTP.path r)
-    }
