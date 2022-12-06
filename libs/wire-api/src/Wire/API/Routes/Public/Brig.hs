@@ -57,6 +57,7 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.SystemSettings
 import Wire.API.Team.Invitation
 import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
@@ -86,6 +87,7 @@ type BrigAPI =
     :<|> AuthAPI
     :<|> CallingAPI
     :<|> TeamsAPI
+    :<|> SystemSettingsAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
@@ -1437,3 +1439,13 @@ type TeamsAPI =
                     '[JSON]
                     (Respond 200 "Number of team members" TeamSize)
            )
+
+type SystemSettingsAPI =
+  Named
+    "get-system-settings"
+    ( Summary "Returns a curated set of system configuration settings."
+        :> From 'V3
+        :> "system"
+        :> "settings"
+        :> Get '[JSON] SystemSettings
+    )
