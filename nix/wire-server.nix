@@ -82,7 +82,7 @@ let
     stern = [ "stern" ];
 
     billing-team-member-backfill = [ "billing-team-member-backfill" ];
-    inconsistencies = ["inconsistencies"];
+    inconsistencies = [ "inconsistencies" ];
     api-simulations = [ "api-smoketest" "api-loadtest" ];
     zauth = [ "zauth" ];
   };
@@ -301,7 +301,7 @@ let
     pkgs.helm
     pkgs.helmfile
     pkgs.hlint
-    ( hlib.justStaticExecutables pkgs.haskellPackages.apply-refact )
+    (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
     pkgs.jq
     pkgs.kubectl
     pkgs.nixpkgs-fmt

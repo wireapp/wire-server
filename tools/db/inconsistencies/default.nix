@@ -13,12 +13,15 @@
 , conduit
 , containers
 , extended
+, extra
 , galley-types
 , gitignoreSource
+, HsOpenSSL
 , http-client
 , imports
 , lens
 , lib
+, multihash
 , optparse-applicative
 , saml2-web-sso
 , string-conversions
@@ -48,10 +51,13 @@ mkDerivation {
     conduit
     containers
     extended
+    extra
     galley-types
+    HsOpenSSL
     http-client
     imports
     lens
+    multihash
     optparse-applicative
     saml2-web-sso
     string-conversions
