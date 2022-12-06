@@ -19,17 +19,20 @@ module Brig.API.OAuth where
 
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
-import Brig.App (Env, wrapClient)
+import Brig.App (Env, liftSem, wrapClient)
 import Brig.Password (Password, mkSafePassword)
 import Cassandra hiding (Set)
 import qualified Cassandra as C
-import Control.Lens ((.~))
+import Control.Lens ((.~), (?~), (^?))
 import Control.Monad.Except
+import Crypto.JWT hiding (params, uri)
 import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as M
 import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import Data.Id (OAuthClientId, UserId, randomId)
+import Data.Domain
+import Data.Id (OAuthClientId, UserId, idToText, randomId)
 import Data.Misc (PlainTextPassword (PlainTextPassword))
 import Data.Range
 import Data.Schema
@@ -40,14 +43,18 @@ import qualified Data.Text as T
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
 import Data.Text.Encoding.Error as TErr
-import Imports
+import Data.Time (NominalDiffTime, addUTCTime)
+import Imports hiding (exp)
 import OpenSSL.Random (randBytes)
+import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import URI.ByteString
 import Wire.API.Error
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public (ZUser)
+import Wire.Sem.Now (Now)
+import qualified Wire.Sem.Now as Now
 
 --------------------------------------------------------------------------------
 -- Types
@@ -166,6 +173,13 @@ instance FromByteString OAuthScope where
       "conversation-code:create" -> pure ConversationCodeCreate
       _ -> fail "invalid scope"
 
+newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
+  deriving stock (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthScopes)
+
+instance ToSchema OAuthScopes where
+  schema = OAuthScopes <$> (oauthScopesToText . unOAuthScopes) .= withParser schema oauthScopeParser
+
 oauthScopesToText :: Set OAuthScope -> Text
 oauthScopesToText = T.intercalate " " . fmap (cs . toByteString') . Set.toList
 
@@ -176,7 +190,7 @@ oauthScopeParser scope =
 
 data NewOAuthAuthCode = NewOAuthAuthCode
   { noacClientId :: OAuthClientId,
-    noacScope :: Set OAuthScope,
+    noacScope :: OAuthScopes,
     noacResponseType :: OAuthResponseType,
     noacRedirectUri :: RedirectUrl,
     noacState :: Text
@@ -189,7 +203,7 @@ instance ToSchema NewOAuthAuthCode where
     object "NewOAuthAuthCode" $
       NewOAuthAuthCode
         <$> noacClientId .= field "clientId" schema
-        <*> (oauthScopesToText . noacScope) .= field "scope" (withParser schema oauthScopeParser)
+        <*> noacScope .= field "scope" schema
         <*> noacResponseType .= field "responseType" schema
         <*> noacRedirectUri .= field "redirectUri" schema
         <*> noacState .= field "state" schema
@@ -228,12 +242,15 @@ data OAuthError
   = OAuthClientNotFound
   | RedirectUrlMissMatch
   | UnsupportedResponseType
+  | JwtError
 
 type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
 
 type instance MapError 'RedirectUrlMissMatch = 'StaticError 400 "redirect-url-miss-match" "Redirect URL miss match"
 
 type instance MapError 'UnsupportedResponseType = 'StaticError 400 "unsupported-response-type" "Unsupported response type"
+
+type instance MapError 'JwtError = 'StaticError 500 "jwt-error" "Internal error while creating JWT"
 
 type OAuthAPI =
   Named
@@ -304,6 +321,53 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
 rand32Bytes :: MonadIO m => m AsciiBase64Url
 rand32Bytes = liftIO . fmap encodeBase64Url $ randBytes 32
 
+createAccessToken :: IO ()
+createAccessToken = undefined
+
+data OAuthClaimSet = OAuthClaimSet {jwtClaims :: ClaimsSet, scope :: OAuthScopes}
+  deriving stock (Eq, Show, Generic)
+
+instance HasClaimsSet OAuthClaimSet where
+  claimsSet f s = fmap (\a' -> s {jwtClaims = a'}) (f (jwtClaims s))
+
+instance A.FromJSON OAuthClaimSet where
+  parseJSON = A.withObject "OAuthClaimSet" $ \o ->
+    OAuthClaimSet
+      <$> A.parseJSON (A.Object o)
+      <*> o A..: "scope"
+
+instance A.ToJSON OAuthClaimSet where
+  toJSON s =
+    ins "scope" (scope s) (A.toJSON (jwtClaims s))
+    where
+      ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
+      ins _ _ a = a
+
+mkClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimSet
+mkClaims uid domain scopes ttl = do
+  iat <- lift (liftSem Now.get)
+  uri <- maybe (throwStd $ errorToWai @'JwtError) pure $ domainText domain ^? stringOrUri
+  sub <- maybe (throwStd $ errorToWai @'JwtError) pure $ idToText uid ^? stringOrUri
+  let exp = addUTCTime ttl iat
+  let claimSet =
+        emptyClaimsSet
+          & claimIss ?~ uri
+          & claimAud ?~ Audience [uri]
+          & claimIat ?~ NumericDate iat
+          & claimSub ?~ sub
+          & claimExp ?~ NumericDate exp
+  pure $ OAuthClaimSet claimSet scopes
+
+doJwtSign :: JWK -> OAuthClaimSet -> (Handler r) SignedJWT
+doJwtSign key claims = do
+  jwtOrError <- liftIO $ doSignClaims
+  either (const $ throwStd $ errorToWai @'JwtError) pure jwtOrError
+  where
+    doSignClaims :: IO (Either JWTError SignedJWT)
+    doSignClaims = runJOSE $ do
+      algo <- bestJWSAlg key
+      signJWT key (newJWSHeader ((), algo)) claims
+
 --------------------------------------------------------------------------------
 -- DB
 
@@ -321,9 +385,9 @@ lookupOauthClient cid = do
     q :: PrepQuery R (Identity OAuthClientId) (OAuthApplicationName, RedirectUrl)
     q = "SELECT name, redirect_uri FROM oauth_client WHERE id = ?"
 
-insertOAuthAuthCode :: (MonadClient m, MonadReader Env m) => OAuthAuthCode -> OAuthClientId -> UserId -> Set OAuthScope -> RedirectUrl -> m ()
+insertOAuthAuthCode :: (MonadClient m, MonadReader Env m) => OAuthAuthCode -> OAuthClientId -> UserId -> OAuthScopes -> RedirectUrl -> m ()
 insertOAuthAuthCode code cid uid scope uri = do
-  let cqlScope = C.Set (Set.toList scope)
+  let cqlScope = C.Set (Set.toList (unOAuthScopes scope))
   retry x5 . write q $ params LocalQuorum (code, cid, uid, cqlScope, uri)
   where
     q :: PrepQuery W (OAuthAuthCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl) ()
