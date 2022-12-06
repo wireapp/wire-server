@@ -59,7 +59,7 @@ testCreateOAuthCodeSuccess brig = do
   let newOAuthClient@(NewOAuthClient _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   cid <- occClientId <$> registerNewOAuthClient brig newOAuthClient
   uid <- userId <$> randomUser brig
-  let scope = Set.fromList [ConversationCreate, ConversationCodeCreate]
+  let scope = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
   let state = "foobar"
   createOAuthCode brig uid (NewOAuthAuthCode cid scope OAuthResponseTypeCode redirectUrl state) !!! do
     const 302 === statusCode
@@ -84,7 +84,7 @@ testCreateOAuthCodeRedirectUrlMismatch brig = do
   cid <- occClientId <$> registerNewOAuthClient brig (newOAuthClientRequestBody "E Corp" "https://example.com")
   uid <- userId <$> randomUser brig
   let differentUrl = fromMaybe (error "invalid url") $ fromByteString' "https://wire.com"
-  createOAuthCode brig uid (NewOAuthAuthCode cid Set.empty OAuthResponseTypeCode differentUrl "") !!! do
+  createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode differentUrl "") !!! do
     const 400 === statusCode
     const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
 
@@ -93,7 +93,7 @@ testCreateOAuthCodeClientNotFound brig = do
   cid <- randomId
   uid <- userId <$> randomUser brig
   let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
-  createOAuthCode brig uid (NewOAuthAuthCode cid Set.empty OAuthResponseTypeCode redirectUrl "") !!! do
+  createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode redirectUrl "") !!! do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
