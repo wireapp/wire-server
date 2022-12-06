@@ -27,7 +27,7 @@ import Bilge.Assert
 import Cassandra
 -- import Control.Error.Util (hush)
 -- import Control.Lens (view, (^.))
-import Control.Lens (view)
+import Control.Lens (view, (%~), (.~))
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
@@ -48,6 +48,7 @@ import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
+import qualified Galley.Options as Opts
 -- import Galley.Data.Conversation
 -- import Galley.Options
 import Imports
@@ -213,6 +214,7 @@ tests s =
         [ test s "create a self conversation" testSelfConversation,
           test s "do not list a self conversation below v3" $ testSelfConversationList True,
           test s "list a self conversation automatically from v3" $ testSelfConversationList False,
+          test s "listing conversations without MLS configured" testSelfConversationMLSNotConfigured,
           test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser,
           test s "attempt to leave fails" testSelfConversationLeave
         ]
@@ -2415,6 +2417,16 @@ testSelfConversationList isBelowV3 = do
           =<< listEndpoint u paginationOpts
             <!! const 200 === statusCode
       pure $ foldr (<|>) Nothing $ guard . isMLSSelf u <$> mtpResults convIds
+
+testSelfConversationMLSNotConfigured :: TestM ()
+testSelfConversationMLSNotConfigured = do
+  alice <- randomUser
+  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
+      noMLS = Opts.optSettings %~ Opts.setMlsPrivateKeyPaths .~ Nothing
+  runMLSTest
+    . liftTest
+    . withSettingsOverrides noMLS
+    $ listConvIds alice paginationOpts !!! const 200 === statusCode
 
 testSelfConversationOtherUser :: TestM ()
 testSelfConversationOtherUser = do

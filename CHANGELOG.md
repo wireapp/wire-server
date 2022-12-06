@@ -1,4 +1,4 @@
-# [2022-12-01] (Chart Release 4.27.0)
+# [2022-12-01] (Chart Release 4.28.0)
 
 ## Release notes
 
@@ -26,6 +26,8 @@
 
 
 * Avoid client deletion edge case condition which can lead to inconsistent data between brig and galley's clients tables. (#2830)
+
+* Do not throw 500 when listing conversations and MLS is not configured (#2893)
 
 * Do not list MLS self-conversation in client API v1 and v2 if it exists (#2872)
 
