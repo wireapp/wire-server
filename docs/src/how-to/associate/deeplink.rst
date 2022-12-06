@@ -28,6 +28,10 @@ Connecting to a custom backend utilizing a Deep Link
 
 A deep link is a special link a user can click on after installing wire, but before setting it up. This link instructs their wire client to connect to your wire-server, rather than wire.com.
 
+With Added Proxy
+~~~~~~~~~~~~~~~~
+In addition to connect to a custom backend a user can specify a socks proxy to add another layer to the network and make the api calls go through the proxy.
+
 From a user's perspective:
 --------------------------
 
@@ -37,6 +41,14 @@ From a user's perspective:
 4. Assuming the user did not cancel, the app will download the file ``eu-north2.mycustomdomain.de/configs/backend1.json`` via HTTPS. If it can't download the file or the file doesn't match the expected structure, the wire client will display an error message (*'sInvalid link'*).
 5. The app will memorize the various hosts (REST, websocket, team settings, website, support) specified in the JSON and use those when talking to your backend.
 6. In the welcome page of the app, a "pill" (header) is shown at the top, to remind the user that they are now on a custom backend. A button "Show more" shows the URL of where the configuration was fetched from.
+
+With Added Proxy
+~~~~~~~~~~~~~~~~
+In addition to the previous points
+
+7. The app will remember the (proxy host, proxy port, if the proxy need authentication)
+8. In the login page the user will see new section to add the proxy credentials if the proxy need authentication
+
 
 From the administrator's (your) perspective:
 --------------------------------------------
@@ -66,6 +78,18 @@ Note on the meaning of the URLs used below:
 ``title``
    Arbitrary string that may show up in a few places in the app. Should be used as an identifier of the backend servers in question.
 
+With Added Proxy
+~~~~~~~~~~~~~~~~
+
+``apiProxy:host (optional)``
+   Is used to specify a proxy to be added to the network engine, so the API calls will go through it to add more security layer.
+
+``apiProxy:port (optional)``
+   Is used to specify the port number for the proxy when we create the proxy object in the network layer.
+
+``apiProxy:needsAuthentication (optional)``
+   Is used to specify if the proxy need an authentication, so we can show the section during the login to enter the proxy credentials.
+
 Host a deeplink together with your Wire installation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -85,6 +109,10 @@ As of release ``2.117.0`` from ``2021-10-29`` (see `release notes<release-notes>
             accountsURL: "https://account.example.com"
             blackListURL: "https://clientblacklist.wire.com/prod"
             websiteURL: "https://wire.com"
+          apiProxy: (optional)
+            host: "https://socks5.proxy.com"
+            port: 1080
+            needsAuthentication: true
           title: "My Custom Wire Backend"
 
 (As with any configuration changes, you need to apply them following your usual way of updating configuration (e.g. 'helm upgrade...'))
@@ -116,6 +144,11 @@ Otherwise you need to create a ``.json`` file, and host it somewhere users can g
          "teamsURL" : "https://teams.wire.com",
          "accountsURL" : "https://accounts.wire.com",
          "websiteURL" : "https://wire.com"
+      },
+      "apiProxy" : {
+         "host" : "https://socks5.proxy.com",
+         "port" : 1080,
+         "needsAuthentication" : true
       },
       "title" : "Production"
    }
