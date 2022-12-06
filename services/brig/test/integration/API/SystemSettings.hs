@@ -3,13 +3,13 @@ module API.SystemSettings (tests) where
 import Bilge
 import Bilge.Assert
 import Brig.Options
-import Control.Lens.Operators
 import Control.Monad.Catch
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Wire.API.SystemSettings
+import Control.Lens
 
 tests :: Opts -> Manager -> Brig -> IO TestTree
 tests opts m brig = pure $ do
@@ -25,18 +25,14 @@ testGetSettings opts brig = liftIO $ do
   expectResultForSetting (Just True) True
   where
     expectResultForSetting :: Maybe Bool -> Bool -> IO ()
-    expectResultForSetting setting expectedRes = do
-      let newOpts = setRestrictUserCreationSetting setting
+    expectResultForSetting s expectedRes = do
+      let newOpts = setRestrictUserCreationSetting s
       queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings brig
       liftIO $
         systemSettingsSetRestrictUserCreation queriedSettings @?= expectedRes
     setRestrictUserCreationSetting :: Maybe Bool -> Opts
-    setRestrictUserCreationSetting setting =
-      let newSettings =
-            (opts & optSettings)
-              { setRestrictUserCreation = setting
-              }
-       in opts {optSettings = newSettings}
+    setRestrictUserCreationSetting s =
+      set (optionSettings . restrictUserCreation) s opts
 
 getSystemSettings ::
   (HasCallStack, MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) =>
