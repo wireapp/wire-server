@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -85,8 +83,8 @@ testCreateOAuthCodeRedirectUrlMismatch :: Brig -> Http ()
 testCreateOAuthCodeRedirectUrlMismatch brig = do
   cid <- occClientId <$> registerNewOAuthClient brig (newOAuthClientRequestBody "E Corp" "https://example.com")
   uid <- userId <$> randomUser brig
-  let Just invalidRedirectUrl = fromByteString' "https://wire.com"
-  createOAuthCode brig uid (NewOAuthAuthCode cid Set.empty OAuthResponseTypeCode invalidRedirectUrl "") !!! do
+  let differentUrl = fromMaybe (error "invalid url") $ fromByteString' "https://wire.com"
+  createOAuthCode brig uid (NewOAuthAuthCode cid Set.empty OAuthResponseTypeCode differentUrl "") !!! do
     const 400 === statusCode
     const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
 
@@ -94,7 +92,7 @@ testCreateOAuthCodeClientNotFound :: Brig -> Http ()
 testCreateOAuthCodeClientNotFound brig = do
   cid <- randomId
   uid <- userId <$> randomUser brig
-  let Just redirectUrl = fromByteString' "https://example.com"
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
   createOAuthCode brig uid (NewOAuthAuthCode cid Set.empty OAuthResponseTypeCode redirectUrl "") !!! do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
@@ -104,7 +102,7 @@ testCreateOAuthCodeClientNotFound brig = do
 
 newOAuthClientRequestBody :: Text -> Text -> NewOAuthClient
 newOAuthClientRequestBody name url =
-  let Just redirectUrl = fromByteString' (cs url)
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' (cs url)
       applicationName = OAuthApplicationName (unsafeRange name)
    in NewOAuthClient applicationName redirectUrl
 
