@@ -158,6 +158,7 @@ type ConversationAPI =
            ( Summary "Get MLS group information"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'MLSMissingGroupInfo
+               :> CanThrow 'MLSNotEnabled
                :> ZLocalUser
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId

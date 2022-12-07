@@ -20,11 +20,13 @@ module Galley.API.MLS.GroupInfo where
 import Data.Id as Id
 import Data.Json.Util
 import Data.Qualified
+import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
+import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -38,7 +40,8 @@ import Wire.API.MLS.PublicGroupState
 
 type MLSGroupInfoStaticErrors =
   '[ ErrorS 'ConvNotFound,
-     ErrorS 'MLSMissingGroupInfo
+     ErrorS 'MLSMissingGroupInfo,
+     ErrorS 'MLSNotEnabled
    ]
 
 getGroupInfo ::
@@ -46,7 +49,7 @@ getGroupInfo ::
     '[ ConversationStore,
        Error FederationError,
        FederatorAccess,
-       Input (Local ()),
+       Input Env,
        MemberStore
      ]
     r =>
@@ -54,7 +57,8 @@ getGroupInfo ::
   Local UserId ->
   Qualified ConvId ->
   Sem r OpaquePublicGroupState
-getGroupInfo lusr qcnvId =
+getGroupInfo lusr qcnvId = do
+  assertMLSEnabled
   foldQualified
     lusr
     (getGroupInfoFromLocalConv . qUntagged $ lusr)

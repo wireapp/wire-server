@@ -139,11 +139,12 @@ onClientRemoved ::
   Sem r EmptyResponse
 onClientRemoved domain req = do
   let qusr = Qualified (F.crrUser req) domain
-  for_ (F.crrConvs req) $ \convId -> do
-    mConv <- E.getConversation convId
-    for mConv $ \conv -> do
-      lconv <- qualifyLocal conv
-      removeClient lconv qusr (F.crrClient req)
+  whenM isMLSEnabled $ do
+    for_ (F.crrConvs req) $ \convId -> do
+      mConv <- E.getConversation convId
+      for mConv $ \conv -> do
+        lconv <- qualifyLocal conv
+        removeClient lconv qusr (F.crrClient req)
   pure EmptyResponse
 
 onConversationCreated ::
@@ -633,16 +634,17 @@ sendMLSCommitBundle remoteDomain msr =
     . runError
     . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
     . runError
+    . mapToGalleyError @MLSBundleStaticErrors
     $ do
+      assertMLSEnabled
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
       bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.msrRawMessage msr))
-      mapToGalleyError @MLSBundleStaticErrors $ do
-        let msg = rmValue (cbCommitMsg bundle)
-        qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-        when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
-        F.MLSMessageResponseUpdates . map lcuUpdate
-          <$> postMLSCommitBundle loc (qUntagged sender) Nothing qcnv Nothing bundle
+      let msg = rmValue (cbCommitMsg bundle)
+      qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+      when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
+      F.MLSMessageResponseUpdates . map lcuUpdate
+        <$> postMLSCommitBundle loc (qUntagged sender) Nothing qcnv Nothing bundle
 
 sendMLSMessage ::
   ( Members
@@ -676,17 +678,18 @@ sendMLSMessage remoteDomain msr =
     . runError
     . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
     . runError
+    . mapToGalleyError @MLSMessageStaticErrors
     $ do
+      assertMLSEnabled
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
-      mapToGalleyError @MLSMessageStaticErrors $ do
-        case rmValue raw of
-          SomeMessage _ msg -> do
-            qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-            when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
-            F.MLSMessageResponseUpdates . map lcuUpdate
-              <$> postMLSMessage loc (qUntagged sender) Nothing qcnv Nothing raw
+      case rmValue raw of
+        SomeMessage _ msg -> do
+          qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+          when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
+          F.MLSMessageResponseUpdates . map lcuUpdate
+            <$> postMLSMessage loc (qUntagged sender) Nothing qcnv Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::
@@ -750,6 +753,7 @@ onMLSMessageSent ::
     '[ ExternalAccess,
        GundeckAccess,
        Input (Local ()),
+       Input Env,
        MemberStore,
        P.TinyLog
      ]
@@ -761,6 +765,7 @@ onMLSMessageSent domain rmm =
   fmap (either (const RemoteMLSMessageMLSNotEnabled) (const RemoteMLSMessageOk))
     . runError @(Tagged 'MLSNotEnabled ())
     $ do
+      assertMLSEnabled
       loc <- qualifyLocal ()
       let rcnv = toRemoteUnsafe domain (F.rmmConversation rmm)
       let users = Set.fromList (map fst (F.rmmRecipients rmm))
@@ -790,7 +795,8 @@ onMLSMessageSent domain rmm =
 queryGroupInfo ::
   ( Members
       '[ ConversationStore,
-         Input (Local ())
+         Input (Local ()),
+         Input Env
        ]
       r,
     Member MemberStore r
@@ -803,6 +809,7 @@ queryGroupInfo origDomain req =
     . runError @GalleyError
     . mapToGalleyError @MLSGroupInfoStaticErrors
     $ do
+      assertMLSEnabled
       lconvId <- qualifyLocal . ggireqConv $ req
       let sender = toRemoteUnsafe origDomain . ggireqSender $ req
       state <- getGroupInfoFromLocalConv (qUntagged sender) lconvId
