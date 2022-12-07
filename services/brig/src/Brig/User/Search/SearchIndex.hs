@@ -88,7 +88,8 @@ queryIndex (IndexQuery q f _) s = do
               searchTook = ES.took es,
               searchResults = results,
               searchPolicy = FullSearch,
-              searchPagingState = Nothing
+              searchPagingState = Nothing,
+              searchHasMore = Nothing
             }
 
 userDocToContact :: MonadThrow m => Domain -> UserDoc -> m Contact

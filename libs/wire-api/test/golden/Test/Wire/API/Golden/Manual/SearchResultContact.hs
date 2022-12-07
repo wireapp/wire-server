@@ -29,7 +29,8 @@ testObject_SearchResultContact_1 =
       searchTook = 100,
       searchResults = [testObject_Contact_1, testObject_Contact_2],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResultContact_2 :: SearchResult Contact
@@ -40,5 +41,6 @@ testObject_SearchResultContact_2 =
       searchTook = 100,
       searchResults = [testObject_Contact_1, testObject_Contact_2],
       searchPolicy = FullSearch,
-      searchPagingState = Just $ PagingState "WzE2Njk5OTQ5MzIyNjdd"
+      searchPagingState = Just $ PagingState "WzE2Njk5OTQ5MzIyNjdd",
+      searchHasMore = Just False
     }

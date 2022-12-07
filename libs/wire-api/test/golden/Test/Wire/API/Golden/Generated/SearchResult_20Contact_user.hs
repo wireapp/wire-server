@@ -23,7 +23,7 @@ import Data.Domain (Domain (Domain, _domainText))
 import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import qualified Data.UUID as UUID (fromString)
-import Imports (Maybe (Just, Nothing), fromJust)
+import Imports (Bool (..), Maybe (Just, Nothing), fromJust)
 import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), PagingState (..), SearchResult (..))
 
 testObject_SearchResult_20Contact_user_1 :: SearchResult Contact
@@ -34,7 +34,8 @@ testObject_SearchResult_20Contact_user_1 =
       searchTook = 1,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Just (PagingState "WzE2Njk5OTQ5MzIyNjdd")
+      searchPagingState = Just (PagingState "WzE2Njk5OTQ5MzIyNjdd"),
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_2 :: SearchResult Contact
@@ -45,7 +46,8 @@ testObject_SearchResult_20Contact_user_2 =
       searchTook = -5,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Just True
     }
 
 testObject_SearchResult_20Contact_user_3 :: SearchResult Contact
@@ -68,7 +70,8 @@ testObject_SearchResult_20Contact_user_3 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Just False
     }
 
 testObject_SearchResult_20Contact_user_4 :: SearchResult Contact
@@ -146,7 +149,8 @@ testObject_SearchResult_20Contact_user_4 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_5 :: SearchResult Contact
@@ -169,7 +173,8 @@ testObject_SearchResult_20Contact_user_5 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_6 :: SearchResult Contact
@@ -180,7 +185,8 @@ testObject_SearchResult_20Contact_user_6 =
       searchTook = 5,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_7 :: SearchResult Contact
@@ -214,7 +220,8 @@ testObject_SearchResult_20Contact_user_7 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_8 :: SearchResult Contact
@@ -237,7 +244,8 @@ testObject_SearchResult_20Contact_user_8 =
             }
         ],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_9 :: SearchResult Contact
@@ -248,7 +256,8 @@ testObject_SearchResult_20Contact_user_9 =
       searchTook = 3,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_10 :: SearchResult Contact
@@ -259,7 +268,8 @@ testObject_SearchResult_20Contact_user_10 =
       searchTook = -5,
       searchResults = [],
       searchPolicy = FullSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_11 :: SearchResult Contact
@@ -293,7 +303,8 @@ testObject_SearchResult_20Contact_user_11 =
             }
         ],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_12 :: SearchResult Contact
@@ -304,7 +315,8 @@ testObject_SearchResult_20Contact_user_12 =
       searchTook = 3,
       searchResults = [],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_13 :: SearchResult Contact
@@ -360,7 +372,8 @@ testObject_SearchResult_20Contact_user_13 =
             }
         ],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_14 :: SearchResult Contact
@@ -394,7 +407,8 @@ testObject_SearchResult_20Contact_user_14 =
             }
         ],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_15 :: SearchResult Contact
@@ -405,7 +419,8 @@ testObject_SearchResult_20Contact_user_15 =
       searchTook = 4,
       searchResults = [],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_16 :: SearchResult Contact
@@ -416,7 +431,8 @@ testObject_SearchResult_20Contact_user_16 =
       searchTook = -7,
       searchResults = [],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_17 :: SearchResult Contact
@@ -427,7 +443,8 @@ testObject_SearchResult_20Contact_user_17 =
       searchTook = -1,
       searchResults = [],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_18 :: SearchResult Contact
@@ -438,7 +455,8 @@ testObject_SearchResult_20Contact_user_18 =
       searchTook = -5,
       searchResults = [],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_19 :: SearchResult Contact
@@ -472,7 +490,8 @@ testObject_SearchResult_20Contact_user_19 =
             }
         ],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_20 :: SearchResult Contact
@@ -627,5 +646,6 @@ testObject_SearchResult_20Contact_user_20 =
             }
         ],
       searchPolicy = ExactHandleSearch,
-      searchPagingState = Nothing
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }

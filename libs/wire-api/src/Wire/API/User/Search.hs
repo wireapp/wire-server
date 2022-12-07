@@ -99,7 +99,8 @@ data SearchResult a = SearchResult
     searchTook :: Int,
     searchResults :: [a],
     searchPolicy :: FederatedUserSearchPolicy,
-    searchPagingState :: Maybe PagingState
+    searchPagingState :: Maybe PagingState,
+    searchHasMore :: Maybe Bool
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (SearchResult a))
@@ -121,7 +122,8 @@ instance ToSchema a => ToSchema (SearchResult a) where
         <*> searchTook .= fieldWithDocModifier "took" (S.description ?~ "Search time in ms") schema
         <*> searchResults .= fieldWithDocModifier "documents" (S.description ?~ "List of contacts found") (array schema)
         <*> searchPolicy .= fieldWithDocModifier "search_policy" (S.description ?~ "Search policy that was applied when searching for users") schema
-        <*> searchPagingState .= maybe_ (optFieldWithDocModifier "paging_state" (S.description ?~ "Paging state for the next page of results") schema)
+        <*> searchPagingState .= maybe_ (optFieldWithDocModifier "paging_state" (S.description ?~ "Paging state that should be supplied to retrieve the next page of results") schema)
+        <*> searchHasMore .= maybe_ (optFieldWithDocModifier "has_more" (S.description ?~ "Indicates whether there are more results to be fetched") schema)
 
 deriving via (Schema (SearchResult Contact)) instance ToJSON (SearchResult Contact)
 

@@ -1162,7 +1162,9 @@ type SearchAPI =
         :> QueryParam'
              [ Optional,
                Strict,
-               Description "Paging state for the next page of results"
+               Description
+                 "Optional, when not specified, the first page will be returned. \
+                 \Every returned page contains a `paging_state`, this should be supplied to retrieve the next page."
              ]
              "pagingState"
              PagingState
