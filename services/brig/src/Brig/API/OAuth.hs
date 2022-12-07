@@ -36,6 +36,7 @@ import qualified Data.Aeson.KeyMap as M
 import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
+import qualified Data.ByteString.Lazy as BL
 import Data.Domain
 import qualified Data.HashMap.Strict as HM
 import Data.Id (OAuthClientId, UserId, idToText, randomId)
@@ -259,7 +260,7 @@ instance FromByteString OAuthGrantType where
 
 instance ToByteString OAuthGrantType where
   builder = \case
-    OAuthGrantTypeAuthorizationCode -> "authorization"
+    OAuthGrantTypeAuthorizationCode -> "authorization_code"
 
 instance FromHttpApiData OAuthGrantType where
   parseQueryParam = maybe (Left "invalid OAuthGrantType") pure . fromByteString . cs
@@ -522,6 +523,12 @@ createAccessToken req = do
 
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
+
+verify :: JWK -> BL.ByteString -> IO (Either JWTError OAuthClaimSet)
+verify k s = runJOSE $ do
+  let audCheck = const True -- should be a proper audience check
+  jwt <- decodeCompact s -- decode JWT
+  verifyJWT (defaultJWTValidationSettings audCheck) k jwt
 
 --------------------------------------------------------------------------------
 -- DB

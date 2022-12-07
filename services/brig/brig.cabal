@@ -553,6 +553,7 @@ executable brig-integration
     , http-reverse-proxy
     , http-types
     , imports
+    , jose
     , lens                   >=3.9
     , lens-aeson
     , metrics-wai
