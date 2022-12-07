@@ -3736,7 +3736,7 @@ postTypingIndicators = do
   lcnv <- qualifyLocal conv
 
   WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
-    -- alice to bob
+    -- to alice from bob
     post
       ( g
           . paths ["conversations", toByteString' domain, toByteString' conv, "typing"]
@@ -3751,7 +3751,7 @@ postTypingIndicators = do
       WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
         wsAssertTyping (qUntagged lcnv) (qUntagged bobL) StoppedTyping n
 
-    -- bob to alice
+    -- to bob from alice
     post
       ( g
           . paths ["conversations", toByteString' domain, toByteString' conv, "typing"]

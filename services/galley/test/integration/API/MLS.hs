@@ -45,12 +45,6 @@ import Data.Singletons
 import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
--- import Galley.Data.Conversation
--- import Galley.Options
--- import Wire.API.MLS.CipherSuite
--- import Wire.API.MLS.GlobalTeamConversation
--- import Wire.API.MLS.Group
--- import Wire.API.Team (teamCreator)
 import Federator.MockServer hiding (withTempMockFederator)
 import qualified Galley.Options as Opts
 import Imports

@@ -882,6 +882,8 @@ instance
       then throwS @e
       else rethrowErrors @effs @r err'
 
+--------------------------------------------------------------------------------
+-- Send typing indicator events
 isTyping ::
   Members
     '[ ErrorS 'ConvNotFound,

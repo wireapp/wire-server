@@ -626,7 +626,7 @@ type ConversationAPI =
            )
     :<|> Named
            "member-typing-qualified"
-           ( Summary "Sending typing notifications with domain"
+           ( Summary "Sending typing notifications"
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
                :> ZConn
