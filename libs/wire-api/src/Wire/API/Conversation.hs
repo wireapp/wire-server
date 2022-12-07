@@ -706,7 +706,7 @@ data NewConv = NewConv
 instance ToSchema NewConv where
   schema =
     newConvSchema $
-      maybe_ (optField "access_roles" (set schema))
+      maybe_ (optField "access_role" (set schema))
 
 instance ToSchema (Versioned 'V2 NewConv) where
   schema = Versioned <$> unVersioned .= newConvSchema accessRolesSchemaOptV2

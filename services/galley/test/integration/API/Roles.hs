@@ -57,7 +57,8 @@ tests s =
       test s "conversation access update with remote users present" accessUpdateWithRemotes,
       test s "conversation role update of remote member" roleUpdateRemoteMember,
       test s "get all conversation roles" testAllConversationRoles,
-      test s "access role update with v2" testAccessRoleUpdateV2
+      test s "access role update with v2" testAccessRoleUpdateV2,
+      test s "test access roles of new conversations" testConversationAccessRole
     ]
 
 testAllConversationRoles :: TestM ()
@@ -423,11 +424,27 @@ wireMemberChecks cid mem admin otherMem = do
   -- Let's readd the user to make tests easier
   postMembersWithRole admin (pure qmem) qcid role !!! const 200 === statusCode
 
+-- create a conversation and check that the access roles match
+testConversationAccessRole :: TestM ()
+testConversationAccessRole = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  let nc =
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob],
+            newConvAccessRoles = Just (Set.singleton TeamMemberAccessRole)
+          }
+  conv <-
+    responseJsonError
+      =<< postConvQualified (qUnqualified alice) nc
+        <!! const 201 === statusCode
+  liftIO $
+    cnvAccessRoles conv @?= Set.singleton TeamMemberAccessRole
+
 testAccessRoleUpdateV2 :: TestM ()
 testAccessRoleUpdateV2 = do
   g <- view tsUnversionedGalley
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  conv :: Conversation <-
+  conv <-
     responseJsonError
       =<< postConvQualified
         (qUnqualified alice)
