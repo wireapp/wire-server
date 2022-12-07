@@ -9,6 +9,7 @@ import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider.RPC (interpretGalleyProviderToRPC)
+import Brig.Effects.Jwk
 import Brig.Effects.JwtTools
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
@@ -35,7 +36,8 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ PublicKeyBundle,
+  '[ Jwk,
+     PublicKeyBundle,
      JwtTools,
      BlacklistPhonePrefixStore,
      BlacklistStore,
@@ -76,6 +78,7 @@ runBrigToIO e (AppT ma) = do
               . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
               . interpretJwtTools
               . interpretPublicKeyBundle
+              . interpretFakeJwk
           )
     )
     $ runReaderT ma e

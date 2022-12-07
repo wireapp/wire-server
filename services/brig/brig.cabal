@@ -67,6 +67,7 @@ library
     Brig.Effects.Delay
     Brig.Effects.GalleyProvider
     Brig.Effects.GalleyProvider.RPC
+    Brig.Effects.Jwk
     Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
@@ -230,6 +231,7 @@ library
     , HsOpenSSL                  >=0.10
     , HsOpenSSL-x509-system      >=0.1
     , html-entities              >=1.1
+    , http-api-data
     , http-client                >=0.5
     , http-client-openssl        >=0.2
     , http-media
