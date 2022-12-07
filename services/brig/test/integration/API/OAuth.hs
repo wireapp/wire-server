@@ -20,19 +20,23 @@ module API.OAuth where
 import Bilge
 import Bilge.Assert
 import Brig.API.OAuth
+import Brig.Effects.Jwk (fakeJwk)
 import Brig.Options
 import Control.Lens
+import Crypto.JWT (Audience (Audience), NumericDate (NumericDate), claimAud, claimExp, claimIat, claimIss, claimSub, stringOrUri)
 import Data.ByteString.Conversion (fromByteString, fromByteString', toByteString')
-import Data.Id (OAuthClientId, UserId, randomId)
+import Data.Id (OAuthClientId, UserId, idToText, randomId)
 import Data.Range (unsafeRange)
 import Data.Set as Set
 import Data.String.Conversions (cs)
+import Data.Time
 import Imports
 import qualified Network.Wai.Utilities as Error
 import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString
 import Util
+import Web.FormUrlEncoded
 import Wire.API.User
 
 tests :: Manager -> Brig -> Opts -> TestTree
@@ -41,7 +45,8 @@ tests m b _opts = do
     [ test m "register new OAuth client" $ testRegisterNewOAuthClient b,
       test m "create oauth code - success" $ testCreateOAuthCodeSuccess b,
       test m "create oauth code - oauth client not found" $ testCreateOAuthCodeClientNotFound b,
-      test m "create oauth code - redirect url mismatch" $ testCreateOAuthCodeRedirectUrlMismatch b
+      test m "create oauth code - redirect url mismatch" $ testCreateOAuthCodeRedirectUrlMismatch b,
+      test m "create access token - success" $ testCreateAccessTokenSuccess b
     ]
 
 testRegisterNewOAuthClient :: Brig -> Http ()
@@ -97,6 +102,25 @@ testCreateOAuthCodeClientNotFound brig = do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
+testCreateAccessTokenSuccess :: Brig -> Http ()
+testCreateAccessTokenSuccess brig = do
+  now <- liftIO getCurrentTime
+  uid <- userId <$> randomUser brig
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  result <- liftIO $ verify (fromMaybe (error "invalid key") fakeJwk) (cs $ unOauthAccessToken $ oatAccessToken accessToken)
+  liftIO $ do
+    isRight result @?= True
+    scope <$> result @?= Right scopes
+    view claimIss <$> result @?= Right ("example.com" ^? stringOrUri @Text)
+    view claimAud <$> result @?= Right (Audience . (: []) <$> "example.com" ^? stringOrUri @Text)
+    view claimSub <$> result @?= Right (idToText uid ^? stringOrUri)
+    (\(NumericDate expTime) -> diffUTCTime expTime now > 0) . fromMaybe (error "exp claim missing") . view claimExp <$> result @?= Right True
+    (\(NumericDate issuingTime) -> diffUTCTime issuingTime now < 0) . fromMaybe (error "iat claim missing") . view claimIat <$> result @?= Right True
+
 -------------------------------------------------------------------------------
 -- Util
 
@@ -116,3 +140,24 @@ getOAuthClientInfo brig uid cid =
 
 createOAuthCode :: HasCallStack => Brig -> UserId -> NewOAuthAuthCode -> Http ResponseLBS
 createOAuthCode brig uid reqBody = post (brig . paths ["oauth", "authorization", "codes"] . zUser uid . json reqBody . noRedirect)
+
+createOAuthAccessToken :: HasCallStack => Brig -> OAuthAccessTokenRequest -> Http OAuthAccessTokenResponse
+createOAuthAccessToken brig reqBody = do
+  r <- post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
+  responseJsonError r
+
+generateOAuthClientAndAuthCode :: Brig -> UserId -> OAuthScopes -> RedirectUrl -> Http (OAuthClientId, OAuthClientPlainTextSecret, OAuthAuthCode)
+generateOAuthClientAndAuthCode brig uid scope url = do
+  let newOAuthClient = NewOAuthClient (OAuthApplicationName (unsafeRange "E Corp")) url
+  OAuthClientCredentials cid secret <- registerNewOAuthClient brig newOAuthClient
+  let state = "foobar"
+  response <-
+    createOAuthCode brig uid (NewOAuthAuthCode cid scope OAuthResponseTypeCode url state) <!! do
+      const 302 === statusCode
+  maybe (error "generating code failed") (pure . (,,) cid secret) $ (getHeader "Location" >=> fromByteString >=> getQueryParamValue "code" >=> fromByteString) response
+  where
+    getQueryParams :: RedirectUrl -> [(ByteString, ByteString)]
+    getQueryParams (RedirectUrl uri) = uri ^. (queryL . queryPairsL)
+
+    getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
+    getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
