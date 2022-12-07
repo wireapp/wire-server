@@ -1406,22 +1406,6 @@ postJoinCodeConv u j = do
       . zType "access"
       . json j
 
-putAccessUpdate :: UserId -> Qualified ConvId -> ConversationAccessData -> TestM ResponseLBS
-putAccessUpdate u qc acc = do
-  g <- viewGalley
-  put $
-    g
-      . paths
-        [ "/conversations",
-          toByteString' (qDomain qc),
-          toByteString' (qUnqualified qc),
-          "access"
-        ]
-      . zUser u
-      . zConn "conn"
-      . zType "access"
-      . json acc
-
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
   UserId ->

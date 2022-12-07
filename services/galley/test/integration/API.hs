@@ -1391,13 +1391,13 @@ postJoinCodeConvOk = do
     -- changing access to non-activated should give eve access
     Right accessRolesWithGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
     let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRolesWithGuests
-    putAccessUpdate alice qconv nonActivatedAccess !!! const 200 === statusCode
+    putQualifiedAccessUpdate alice qconv nonActivatedAccess !!! const 200 === statusCode
     postJoinCodeConv eve payload !!! const 200 === statusCode
     -- guest cannot create invite link
     postConvCode eve conv !!! const 403 === statusCode
     -- after removing CodeAccess, no further people can join
     let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
-    putAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
+    putQualifiedAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
     postJoinCodeConv dave payload !!! const 404 === statusCode
 
 -- @END
@@ -1415,16 +1415,16 @@ postConvertCodeConv = do
   getConvCode alice conv !!! const 403 === statusCode
   -- cannot change to (Set.fromList [TeamMemberAccessRole]) as not a team conversation
   let teamAccess = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole])
-  putAccessUpdate alice qconv teamAccess !!! const 403 === statusCode
+  putQualifiedAccessUpdate alice qconv teamAccess !!! const 403 === statusCode
   -- change access
   WS.bracketR c alice $ \wsA -> do
     let nonActivatedAccess =
           ConversationAccessData
             (Set.fromList [InviteAccess, CodeAccess])
             (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-    putAccessUpdate alice qconv nonActivatedAccess !!! const 200 === statusCode
+    putQualifiedAccessUpdate alice qconv nonActivatedAccess !!! const 200 === statusCode
     -- test no-op
-    putAccessUpdate alice qconv nonActivatedAccess !!! const 204 === statusCode
+    putQualifiedAccessUpdate alice qconv nonActivatedAccess !!! const 204 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA] $
         wsAssertConvAccessUpdate qconv qalice nonActivatedAccess
@@ -1445,7 +1445,7 @@ postConvertCodeConv = do
         ConversationAccessData
           (Set.singleton InviteAccess)
           (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-  putAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
+  putQualifiedAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
   getConvCode alice conv !!! const 403 === statusCode
 
 postConvertTeamConv :: TestM ()
@@ -1486,7 +1486,7 @@ postConvertTeamConv = do
           ConversationAccessData
             (Set.fromList [InviteAccess, CodeAccess])
             (Set.fromList [TeamMemberAccessRole])
-    putAccessUpdate alice qconv teamAccess !!! const 200 === statusCode
+    putQualifiedAccessUpdate alice qconv teamAccess !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
         wsAssertConvAccessUpdate qconv qalice teamAccess
@@ -1608,7 +1608,7 @@ testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
 
   -- when the guests are disabled for the conversation
   let accessData = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole, ServiceAccessRole])
-  putAccessUpdate alice qconvId accessData !!! const 200 === statusCode
+  putQualifiedAccessUpdate alice qconvId accessData !!! const 200 === statusCode
 
   -- then dee cannot join via guest link
   postJoinCodeConv dee cCode !!! const 404 === statusCode

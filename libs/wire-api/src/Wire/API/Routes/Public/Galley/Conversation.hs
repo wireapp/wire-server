@@ -860,7 +860,7 @@ type ConversationAPI =
     :<|> Named
            "update-conversation-access-unqualified"
            ( Summary "Update access modes for a conversation (deprecated)"
-               :> Until 'V2
+               :> Until 'V3
                :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
                :> ZLocalUser
                :> ZConn

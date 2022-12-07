@@ -4,7 +4,7 @@
         "link",
         "code"
     ],
-    "access_roles": [
+    "access_role": [
         "team_member",
         "guest"
     ],
