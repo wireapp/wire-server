@@ -8,7 +8,7 @@ service:
   internalPort: 8080
 metrics:
   serviceMonitor:
-    enable: false
+    enabled: false
 resources:
   requests:
     memory: "100Mi"
