@@ -74,7 +74,7 @@ fi
 if [ "$f" = "all" ] || [ "$f" = "" ]; then
     files=$(git ls-files | grep '\.hsc\?$')
 elif [ "$f" = "pr" ]; then
-    files=$(git diff --name-only origin/develop... | { grep '\.hsc\?$' || true; }; git diff --name-only HEAD | { grep \.hs\$ || true ; })
+    files=$(git diff --diff-filter=ACMR --name-only origin/develop... | { grep '\.hsc\?$' || true; }; git diff --diff-filter=ACMR --name-only HEAD | { grep \.hs\$ || true ; })
 fi
 
 count=$( echo "$files" | sed '/^\s*$/d' | wc -l )
