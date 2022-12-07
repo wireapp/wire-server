@@ -309,7 +309,10 @@ createEndpoint u tr arnEnv app token = do
           pure (Left (TokenTooLong $ tokenLength token))
       | is "SNS" 400 x
           && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
-          && isTokenError (e ^. serviceMessage) ->
+          && isTokenError (e ^. serviceMessage) -> do
+          debug $
+            msg @Text "InvalidParameter: InvalidToken"
+              . field "response" (show x)
           pure (Left (InvalidToken token))
       | is "SNS" 404 x ->
           pure (Left (AppNotFound app))
