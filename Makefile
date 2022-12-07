@@ -52,7 +52,7 @@ ifdef CABAL_DIR
 else
 	rm -rf ~/.cabal/store
 endif
-	rm -rf ./dist-newbuild ./.env
+	rm -rf ./dist-newstyle ./.env
 	direnv reload
 
 .PHONY: clean
