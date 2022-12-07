@@ -31,6 +31,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName)
+import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
@@ -72,6 +73,15 @@ type GalleyApi =
     :<|> FedEndpoint "send-mls-commit-bundle" MessageSendRequest MLSMessageResponse
     :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
     :<|> FedEndpoint "on-client-removed" ClientRemovedRequest EmptyResponse
+    :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
+
+data TypingDataUpdateRequest = TypingDataUpdateRequest
+  { tdurTypingData :: TypingData,
+    tdurUserId :: UserId,
+    tdurConvId :: ConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via (CustomEncoded TypingDataUpdateRequest)
 
 data ClientRemovedRequest = ClientRemovedRequest
   { crrUser :: UserId,

@@ -29,7 +29,6 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
--- import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Servant
 import Wire.API.Routes.MultiVerb
@@ -615,11 +614,24 @@ type ConversationAPI =
     :<|> Named
            "member-typing-unqualified"
            ( Summary "Sending typing notifications"
+               :> Until 'V3
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
                :> ZConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "typing"
+               :> ReqBody '[JSON] TypingData
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Notification sent"] ()
+           )
+    :<|> Named
+           "member-typing-qualified"
+           ( Summary "Sending typing notifications"
+               :> CanThrow 'ConvNotFound
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "typing"
                :> ReqBody '[JSON] TypingData
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Notification sent"] ()

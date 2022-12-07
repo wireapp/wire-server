@@ -881,3 +881,30 @@ instance
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
+
+--------------------------------------------------------------------------------
+-- Send typing indicator events
+isTyping ::
+  Members
+    '[ ErrorS 'ConvNotFound,
+       GundeckAccess,
+       Input UTCTime,
+       MemberStore
+     ]
+    r =>
+  Qualified UserId ->
+  Maybe ConnId ->
+  Local ConvId ->
+  TypingData ->
+  Sem r ()
+isTyping qusr mcon lcnv typingData = do
+  mm <- getLocalMembers (tUnqualified lcnv)
+  unless (qUnqualified qusr `isMember` mm) $ throwS @'ConvNotFound
+  now <- input
+  let e = Event (qUntagged lcnv) qusr now (EdTyping typingData)
+  for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
+    push1 $
+      p
+        & pushConn .~ mcon
+        & pushRoute .~ RouteDirect
+        & pushTransient .~ True

@@ -47,8 +47,6 @@ import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import qualified Galley.Options as Opts
--- import Galley.Data.Conversation
--- import Galley.Options
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
@@ -65,10 +63,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
--- import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
--- import Wire.API.MLS.GlobalTeamConversation
--- import Wire.API.MLS.Group
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome

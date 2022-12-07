@@ -61,6 +61,7 @@ conversationAPI =
     <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
     <@> mkNamedAPI @"get-code" (getCode @Cassandra)
     <@> mkNamedAPI @"member-typing-unqualified" isTypingUnqualified
+    <@> mkNamedAPI @"member-typing-qualified" isTypingQualified
     <@> mkNamedAPI @"remove-member-unqualified" removeMemberUnqualified
     <@> mkNamedAPI @"remove-member" removeMemberQualified
     <@> mkNamedAPI @"update-other-member-unqualified" updateOtherMemberUnqualified
