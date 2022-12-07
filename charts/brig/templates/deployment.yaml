@@ -133,18 +133,23 @@ spec:
           {{- end }} 
           ports:
             - containerPort: {{ .Values.service.internalPort }}
+          startupProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.service.internalPort }}
+            failureThreshold: 6
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
               port: {{ .Values.service.internalPort }}
-            initialDelaySeconds: 30
           readinessProbe:
             httpGet:
               scheme: HTTP
               path: /i/status
               port: {{ .Values.service.internalPort }}
-            initialDelaySeconds: 30
           resources:
 {{ toYaml .Values.resources | indent 12 }}
         {{- if .Values.config.geoip.enabled }}
