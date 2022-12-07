@@ -433,7 +433,8 @@ type OAuthAPI =
            )
     :<|> Named
            "create-oauth-access-token"
-           ( Summary "Create an OAuth access token"
+           ( -- TODO: add error responses and corresponding tests
+             Summary "Create an OAuth access token"
                :> "oauth"
                :> "token"
                :> ReqBody '[FormUrlEncoded] OAuthAccessTokenRequest
@@ -526,8 +527,8 @@ rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
 verify :: JWK -> BL.ByteString -> IO (Either JWTError OAuthClaimSet)
 verify k s = runJOSE $ do
-  let audCheck = const True -- should be a proper audience check
-  jwt <- decodeCompact s -- decode JWT
+  let audCheck = const True
+  jwt <- decodeCompact s
   verifyJWT (defaultJWTValidationSettings audCheck) k jwt
 
 --------------------------------------------------------------------------------
@@ -553,7 +554,7 @@ insertOAuthAuthCode code cid uid scope uri = do
   retry x5 . write q $ params LocalQuorum (code, cid, uid, cqlScope, uri)
   where
     q :: PrepQuery W (OAuthAuthCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl) ()
-    q = "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri) VALUES (?, ?, ?, ?, ?) USING TTL 300"
+    q = "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri) VALUES (?, ?, ?, ?, ?) USING TTL 300" -- TODO: make configurable
 
 lookupOAuthAuthCode :: (MonadClient m, MonadReader Env m) => OAuthAuthCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
 lookupOAuthAuthCode code = do
