@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,11 +21,14 @@ module Brig.API.OAuth where
 
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
-import Brig.App (Env, liftSem, wrapClient)
+import Brig.App
+import Brig.Effects.Jwk
+import qualified Brig.Effects.Jwk as Jwk
+import qualified Brig.Options as Opt
 import Brig.Password (Password, mkSafePassword)
 import Cassandra hiding (Set)
 import qualified Cassandra as C
-import Control.Lens ((.~), (?~), (^?))
+import Control.Lens (view, (.~), (?~), (^?))
 import Control.Monad.Except
 import Crypto.JWT hiding (params, uri)
 import qualified Data.Aeson as A
@@ -32,6 +37,7 @@ import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Domain
+import qualified Data.HashMap.Strict as HM
 import Data.Id (OAuthClientId, UserId, idToText, randomId)
 import Data.Misc (PlainTextPassword (PlainTextPassword))
 import Data.Range
@@ -49,6 +55,7 @@ import OpenSSL.Random (randBytes)
 import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import URI.ByteString
+import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named (Named (..))
@@ -60,7 +67,7 @@ import qualified Wire.Sem.Now as Now
 -- Types
 
 newtype RedirectUrl = RedirectUrl {unRedirectUrl :: URIRef Absolute}
-  deriving stock (Eq, Show, Generic)
+  deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RedirectUrl)
 
 instance ToByteString RedirectUrl where
@@ -83,7 +90,7 @@ instance FromHttpApiData RedirectUrl where
   parseHeader = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
 
 newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: Range 1 256 Text}
-  deriving stock (Eq, Show, Generic)
+  deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthApplicationName)
 
 instance ToSchema OAuthApplicationName where
@@ -93,7 +100,7 @@ data NewOAuthClient = NewOAuthClient
   { nocApplicationName :: OAuthApplicationName,
     nocRedirectUrl :: RedirectUrl
   }
-  deriving stock (Eq, Show, Generic)
+  deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOAuthClient)
 
 instance ToSchema NewOAuthClient where
@@ -104,7 +111,7 @@ instance ToSchema NewOAuthClient where
         <*> nocRedirectUrl .= field "redirectUrl" schema
 
 newtype OAuthClientPlainTextSecret = OAuthClientPlainTextSecret {unOAuthClientPlainTextSecret :: AsciiBase16}
-  deriving stock (Eq, Generic)
+  deriving (Eq, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClientPlainTextSecret)
 
 instance Show OAuthClientPlainTextSecret where
@@ -113,11 +120,17 @@ instance Show OAuthClientPlainTextSecret where
 instance ToSchema OAuthClientPlainTextSecret where
   schema = (toText . unOAuthClientPlainTextSecret) .= parsedText "OAuthClientPlainTextSecret" (fmap OAuthClientPlainTextSecret . validateBase16)
 
+instance FromHttpApiData OAuthClientPlainTextSecret where
+  parseQueryParam = bimap cs OAuthClientPlainTextSecret . validateBase16 . cs
+
+instance ToHttpApiData OAuthClientPlainTextSecret where
+  toQueryParam = toText . unOAuthClientPlainTextSecret
+
 data OAuthClientCredentials = OAuthClientCredentials
   { occClientId :: OAuthClientId,
     occClientSecret :: OAuthClientPlainTextSecret
   }
-  deriving stock (Eq, Show, Generic)
+  deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClientCredentials)
 
 instance ToSchema OAuthClientCredentials where
@@ -132,7 +145,7 @@ data OAuthClient = OAuthClient
     ocName :: OAuthApplicationName,
     ocRedirectUrl :: RedirectUrl
   }
-  deriving stock (Eq, Show, Generic)
+  deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClient)
 
 instance ToSchema OAuthClient where
@@ -144,7 +157,7 @@ instance ToSchema OAuthClient where
         <*> ocRedirectUrl .= field "redirectUrl" schema
 
 data OAuthResponseType = OAuthResponseTypeCode
-  deriving stock (Eq, Show, Generic)
+  deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthResponseType)
 
 instance ToSchema OAuthResponseType where
@@ -158,7 +171,7 @@ instance ToSchema OAuthResponseType where
 data OAuthScope
   = ConversationCreate
   | ConversationCodeCreate
-  deriving stock (Eq, Show, Generic, Ord)
+  deriving (Eq, Show, Generic, Ord)
 
 instance ToByteString OAuthScope where
   builder = \case
@@ -167,14 +180,14 @@ instance ToByteString OAuthScope where
 
 instance FromByteString OAuthScope where
   parser = do
-    s <- parser @Text
+    s <- parser
     case s & T.toLower of
       "conversation:create" -> pure ConversationCreate
       "conversation-code:create" -> pure ConversationCodeCreate
       _ -> fail "invalid scope"
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
-  deriving stock (Eq, Show, Generic)
+  deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthScopes)
 
 instance ToSchema OAuthScopes where
@@ -195,7 +208,7 @@ data NewOAuthAuthCode = NewOAuthAuthCode
     noacRedirectUri :: RedirectUrl,
     noacState :: Text
   }
-  deriving stock (Eq, Show, Generic)
+  deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOAuthAuthCode)
 
 instance ToSchema NewOAuthAuthCode where
@@ -208,14 +221,146 @@ instance ToSchema NewOAuthAuthCode where
         <*> noacRedirectUri .= field "redirectUri" schema
         <*> noacState .= field "state" schema
 
-newtype OAuthAuthCode = OAuthAuthCode {unOAuthAuthCode :: AsciiBase64Url}
-  deriving stock (Show, Eq, Generic)
+newtype OAuthAuthCode = OAuthAuthCode {unOAuthAuthCode :: AsciiBase16}
+  deriving (Show, Eq, Generic)
+
+instance ToSchema OAuthAuthCode where
+  schema = (toText . unOAuthAuthCode) .= parsedText "OAuthAuthCode" (fmap OAuthAuthCode . validateBase16)
 
 instance ToByteString OAuthAuthCode where
   builder = builder . unOAuthAuthCode
 
 instance FromByteString OAuthAuthCode where
   parser = OAuthAuthCode <$> parser
+
+instance FromHttpApiData OAuthAuthCode where
+  parseQueryParam = bimap cs OAuthAuthCode . validateBase16 . cs
+
+instance ToHttpApiData OAuthAuthCode where
+  toQueryParam = toText . unOAuthAuthCode
+
+data OAuthGrantType = OAuthGrantTypeAuthorizationCode
+  deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthGrantType)
+
+instance ToSchema OAuthGrantType where
+  schema =
+    enum @Text "OAuthGrantType" $
+      mconcat
+        [ element "authorization_code" OAuthGrantTypeAuthorizationCode
+        ]
+
+instance FromByteString OAuthGrantType where
+  parser = do
+    s <- parser
+    case s & T.toLower of
+      "authorization_code" -> pure OAuthGrantTypeAuthorizationCode
+      _ -> fail "invalid OAuthGrantType"
+
+instance ToByteString OAuthGrantType where
+  builder = \case
+    OAuthGrantTypeAuthorizationCode -> "authorization"
+
+instance FromHttpApiData OAuthGrantType where
+  parseQueryParam = maybe (Left "invalid OAuthGrantType") pure . fromByteString . cs
+
+instance ToHttpApiData OAuthGrantType where
+  toQueryParam = cs . toByteString
+
+data OAuthAccessTokenRequest = OAuthAccessTokenRequest
+  { oatGrantType :: OAuthGrantType,
+    oatClientId :: OAuthClientId,
+    oatClientSecret :: OAuthClientPlainTextSecret,
+    oatCode :: OAuthAuthCode,
+    oatRedirectUri :: RedirectUrl
+  }
+  deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthAccessTokenRequest)
+
+instance ToSchema OAuthAccessTokenRequest where
+  schema =
+    object "OAuthAccessTokenRequest" $
+      OAuthAccessTokenRequest
+        <$> oatGrantType .= field "grantType" schema
+        <*> oatClientId .= field "clientId" schema
+        <*> oatClientSecret .= field "clientSecret" schema
+        <*> oatCode .= field "code" schema
+        <*> oatRedirectUri .= field "redirectUri" schema
+
+instance FromForm OAuthAccessTokenRequest where
+  fromForm f =
+    OAuthAccessTokenRequest
+      <$> parseUnique "grant_type" f
+      <*> parseUnique "client_id" f
+      <*> parseUnique "client_secret" f
+      <*> parseUnique "code" f
+      <*> parseUnique "redirect_uri" f
+
+instance ToForm OAuthAccessTokenRequest where
+  toForm req =
+    Form $
+      mempty
+        & HM.insert "grant_type" [toQueryParam (oatGrantType req)]
+        & HM.insert "client_id" [toQueryParam (oatClientId req)]
+        & HM.insert "client_secret" [toQueryParam (oatClientSecret req)]
+        & HM.insert "code" [toQueryParam (oatCode req)]
+        & HM.insert "redirect_uri" [toQueryParam (oatRedirectUri req)]
+
+data OAuthAccessTokenType = OAuthAccessTokenTypeBearer
+  deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthAccessTokenType)
+
+instance ToSchema OAuthAccessTokenType where
+  schema =
+    enum @Text "OAuthAccessTokenType" $
+      mconcat
+        [ element "Bearer" OAuthAccessTokenTypeBearer
+        ]
+
+newtype OauthAccessToken = OauthAccessToken {unOauthAccessToken :: ByteString}
+  deriving (Show, Eq, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema OauthAccessToken
+
+instance ToSchema OauthAccessToken where
+  schema = (TE.decodeUtf8 . unOauthAccessToken) .= fmap (OauthAccessToken . TE.encodeUtf8) schema
+
+data OAuthAccessTokenResponse = OAuthAccessTokenResponse
+  { oatAccessToken :: OauthAccessToken,
+    oatTokenType :: OAuthAccessTokenType,
+    oatExpiresIn :: NominalDiffTime
+  }
+  deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthAccessTokenResponse)
+
+instance ToSchema OAuthAccessTokenResponse where
+  schema =
+    object "OAuthAccessTokenResponse" $
+      OAuthAccessTokenResponse
+        <$> oatAccessToken .= field "accessToken" schema
+        <*> oatTokenType .= field "tokenType" schema
+        <*> oatExpiresIn .= field "expiresIn" (fromIntegral <$> roundDiffTime .= schema)
+    where
+      roundDiffTime :: NominalDiffTime -> Int32
+      roundDiffTime = round
+
+data OAuthClaimSet = OAuthClaimSet {jwtClaims :: ClaimsSet, scope :: OAuthScopes}
+  deriving (Eq, Show, Generic)
+
+instance HasClaimsSet OAuthClaimSet where
+  claimsSet f s = fmap (\a' -> s {jwtClaims = a'}) (f (jwtClaims s))
+
+instance A.FromJSON OAuthClaimSet where
+  parseJSON = A.withObject "OAuthClaimSet" $ \o ->
+    OAuthClaimSet
+      <$> A.parseJSON (A.Object o)
+      <*> o A..: "scope"
+
+instance A.ToJSON OAuthClaimSet where
+  toJSON s =
+    ins "scope" (scope s) (A.toJSON (jwtClaims s))
+    where
+      ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
+      ins _ _ a = a
 
 --------------------------------------------------------------------------------
 -- API Internal
@@ -243,6 +388,7 @@ data OAuthError
   | RedirectUrlMissMatch
   | UnsupportedResponseType
   | JwtError
+  | OAuthAuthCodeNotFound
 
 type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
 
@@ -251,6 +397,8 @@ type instance MapError 'RedirectUrlMissMatch = 'StaticError 400 "redirect-url-mi
 type instance MapError 'UnsupportedResponseType = 'StaticError 400 "unsupported-response-type" "Unsupported response type"
 
 type instance MapError 'JwtError = 'StaticError 500 "jwt-error" "Internal error while creating JWT"
+
+type instance MapError 'OAuthAuthCodeNotFound = 'StaticError 404 "not-found" "OAuth authorization code not found"
 
 type OAuthAPI =
   Named
@@ -282,11 +430,20 @@ type OAuthAPI =
                     '[WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (RespondEmpty 302 "Found")]
                     RedirectUrl
            )
+    :<|> Named
+           "create-oauth-access-token"
+           ( Summary "Create an OAuth access token"
+               :> "oauth"
+               :> "token"
+               :> ReqBody '[FormUrlEncoded] OAuthAccessTokenRequest
+               :> Post '[JSON] OAuthAccessTokenResponse
+           )
 
-oauthAPI :: ServerT OAuthAPI (Handler r)
+oauthAPI :: (Member Now r, Member Jwk r) => ServerT OAuthAPI (Handler r)
 oauthAPI =
   Named @"get-oauth-client" getOAuthClient
     :<|> Named @"create-oauth-auth-code" createNewOAuthAuthCode
+    :<|> Named @"create-oauth-access-token" createAccessToken
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -299,7 +456,7 @@ createNewOAuthClient (NewOAuthClient name uri) = do
   pure credentials
   where
     createSecret :: MonadIO m => m OAuthClientPlainTextSecret
-    createSecret = OAuthClientPlainTextSecret <$> (liftIO . fmap encodeBase16 $ randBytes 32)
+    createSecret = OAuthClientPlainTextSecret <$> rand32Bytes
 
     hashClientSecret :: MonadIO m => OAuthClientPlainTextSecret -> m Password
     hashClientSecret = mkSafePassword . PlainTextPassword . toText . unOAuthClientPlainTextSecret
@@ -318,55 +475,53 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
       returnedRedirectUrl = redirectUrl & unRedirectUrl & (queryL . queryPairsL) .~ queryParams & RedirectUrl
   pure returnedRedirectUrl
 
-rand32Bytes :: MonadIO m => m AsciiBase64Url
-rand32Bytes = liftIO . fmap encodeBase64Url $ randBytes 32
+createAccessToken :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
+createAccessToken req = do
+  let exp :: NominalDiffTime = 60 * 60 * 24 * 7 * 3 -- (3 weeks) TODO: make configurable
+  let jwkFp :: FilePath = "" -- TODO: make configurable
+  (authCodeCid, authCodeUserId, authCodeScopes, authCodeRedirectUrl) <-
+    lift (wrapClient $ lookupAndDeleteOAuthAuthCode (oatCode req))
+      >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure
+  oauthClient <- getOAuthClient authCodeUserId (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
-createAccessToken :: IO ()
-createAccessToken = undefined
+  -- validate request
+  unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
+  unless (authCodeCid == oatClientId req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
+  unless (authCodeRedirectUrl == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
 
-data OAuthClaimSet = OAuthClaimSet {jwtClaims :: ClaimsSet, scope :: OAuthScopes}
-  deriving stock (Eq, Show, Generic)
-
-instance HasClaimsSet OAuthClaimSet where
-  claimsSet f s = fmap (\a' -> s {jwtClaims = a'}) (f (jwtClaims s))
-
-instance A.FromJSON OAuthClaimSet where
-  parseJSON = A.withObject "OAuthClaimSet" $ \o ->
-    OAuthClaimSet
-      <$> A.parseJSON (A.Object o)
-      <*> o A..: "scope"
-
-instance A.ToJSON OAuthClaimSet where
-  toJSON s =
-    ins "scope" (scope s) (A.toJSON (jwtClaims s))
-    where
-      ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
-      ins _ _ a = a
-
-mkClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimSet
-mkClaims uid domain scopes ttl = do
-  iat <- lift (liftSem Now.get)
-  uri <- maybe (throwStd $ errorToWai @'JwtError) pure $ domainText domain ^? stringOrUri
-  sub <- maybe (throwStd $ errorToWai @'JwtError) pure $ idToText uid ^? stringOrUri
-  let exp = addUTCTime ttl iat
-  let claimSet =
-        emptyClaimsSet
-          & claimIss ?~ uri
-          & claimAud ?~ Audience [uri]
-          & claimIat ?~ NumericDate iat
-          & claimSub ?~ sub
-          & claimExp ?~ NumericDate exp
-  pure $ OAuthClaimSet claimSet scopes
-
-doJwtSign :: JWK -> OAuthClaimSet -> (Handler r) SignedJWT
-doJwtSign key claims = do
-  jwtOrError <- liftIO $ doSignClaims
-  either (const $ throwStd $ errorToWai @'JwtError) pure jwtOrError
+  domain <- Opt.setFederationDomain <$> view settings
+  claims <- mkClaims authCodeUserId domain authCodeScopes exp
+  key <- lift (liftSem $ Jwk.get jwkFp) >>= maybe (throwStd $ errorToWai @'JwtError) pure
+  token <- OauthAccessToken . cs . encodeCompact <$> doJwtSign key claims
+  pure $ OAuthAccessTokenResponse token OAuthAccessTokenTypeBearer exp
   where
-    doSignClaims :: IO (Either JWTError SignedJWT)
-    doSignClaims = runJOSE $ do
-      algo <- bestJWSAlg key
-      signJWT key (newJWSHeader ((), algo)) claims
+    mkClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimSet
+    mkClaims u domain scopes ttl = do
+      iat <- lift (liftSem Now.get)
+      uri <- maybe (throwStd $ errorToWai @'JwtError) pure $ domainText domain ^? stringOrUri
+      sub <- maybe (throwStd $ errorToWai @'JwtError) pure $ idToText u ^? stringOrUri
+      let exp = addUTCTime ttl iat
+      let claimSet =
+            emptyClaimsSet
+              & claimIss ?~ uri
+              & claimAud ?~ Audience [uri]
+              & claimIat ?~ NumericDate iat
+              & claimSub ?~ sub
+              & claimExp ?~ NumericDate exp
+      pure $ OAuthClaimSet claimSet scopes
+
+    doJwtSign :: JWK -> OAuthClaimSet -> (Handler r) SignedJWT
+    doJwtSign key claims = do
+      jwtOrError <- liftIO $ doSignClaims
+      either (const $ throwStd $ errorToWai @'JwtError) pure jwtOrError
+      where
+        doSignClaims :: IO (Either JWTError SignedJWT)
+        doSignClaims = runJOSE $ do
+          algo <- bestJWSAlg key
+          signJWT key (newJWSHeader ((), algo)) claims
+
+rand32Bytes :: MonadIO m => m AsciiBase16
+rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
 --------------------------------------------------------------------------------
 -- DB
@@ -393,6 +548,23 @@ insertOAuthAuthCode code cid uid scope uri = do
     q :: PrepQuery W (OAuthAuthCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl) ()
     q = "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri) VALUES (?, ?, ?, ?, ?) USING TTL 300"
 
+lookupOAuthAuthCode :: (MonadClient m, MonadReader Env m) => OAuthAuthCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
+lookupOAuthAuthCode code = do
+  mTuple <- retry x5 . query1 q $ params LocalQuorum (Identity code)
+  pure $ mTuple <&> \(cid, uid, C.Set scope, uri) -> (cid, uid, OAuthScopes (Set.fromList scope), uri)
+  where
+    q :: PrepQuery R (Identity OAuthAuthCode) (OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl)
+    q = "SELECT client, user, scope, redirect_uri FROM oauth_auth_code WHERE code = ?"
+
+deleteOAuthAuthCode :: (MonadClient m, MonadReader Env m) => OAuthAuthCode -> m ()
+deleteOAuthAuthCode code = retry x5 . write q $ params LocalQuorum (Identity code)
+  where
+    q :: PrepQuery W (Identity OAuthAuthCode) ()
+    q = "DELETE FROM oauth_auth_code WHERE code = ?"
+
+lookupAndDeleteOAuthAuthCode :: (MonadClient m, MonadReader Env m) => OAuthAuthCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
+lookupAndDeleteOAuthAuthCode code = lookupOAuthAuthCode code <* deleteOAuthAuthCode code
+
 --------------------------------------------------------------------------------
 -- CQL instances
 
@@ -411,7 +583,7 @@ instance Cql RedirectUrl where
 instance Cql OAuthAuthCode where
   ctype = Tagged AsciiColumn
   toCql = CqlAscii . toText . unOAuthAuthCode
-  fromCql (CqlAscii t) = OAuthAuthCode <$> validateBase64Url t
+  fromCql (CqlAscii t) = OAuthAuthCode <$> validateBase16 t
   fromCql _ = Left "OAuthAuthCode: Ascii expected"
 
 instance Cql OAuthScope where

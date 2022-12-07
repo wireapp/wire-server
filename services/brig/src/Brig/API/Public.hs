@@ -52,6 +52,7 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import qualified Brig.Effects.GalleyProvider as GalleyProvider
+import Brig.Effects.Jwk (Jwk)
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -179,7 +180,8 @@ servantSitemap ::
        Now,
        PasswordResetStore,
        PublicKeyBundle,
-       UserPendingActivationStore p
+       UserPendingActivationStore p,
+       Jwk
      ]
     r =>
   ServerT (BrigAPI :<|> OAuthAPI) (Handler r)
