@@ -531,7 +531,6 @@ defRole = activatedAccessRole
 
 maybeRole :: ConvType -> Maybe (Set AccessRole) -> Set AccessRole
 maybeRole SelfConv _ = privateAccessRole
-maybeRole GlobalTeamConv _ = teamAccessRole
 maybeRole ConnectConv _ = privateAccessRole
 maybeRole One2OneConv _ = privateAccessRole
 maybeRole RegularConv Nothing = defRole
@@ -617,7 +616,6 @@ data ConvType
   | SelfConv
   | One2OneConv
   | ConnectConv
-  | GlobalTeamConv
   deriving stock (Eq, Show, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform ConvType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConvType
@@ -629,8 +627,7 @@ instance ToSchema ConvType where
         [ element 0 RegularConv,
           element 1 SelfConv,
           element 2 One2OneConv,
-          element 3 ConnectConv,
-          element 4 GlobalTeamConv
+          element 3 ConnectConv
         ]
 
 typeConversationType :: Doc.DataType

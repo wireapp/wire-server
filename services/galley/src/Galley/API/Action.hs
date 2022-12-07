@@ -277,13 +277,8 @@ ensureAllowed tag loc action conv origUser = do
           -- not a team conv, so one of the other access roles has to allow this.
           when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
             throwS @'InvalidTargetAccess
-    SConversationSelfInviteTag ->
-      unless
-        (convType conv == GlobalTeamConv)
-        $ throwS @'InvalidOperation
-    SConversationLeaveTag ->
-      when (convType conv == GlobalTeamConv) $
-        throwS @'InvalidOperation
+    SConversationSelfInviteTag -> pure ()
+    SConversationLeaveTag -> pure ()
     _ -> pure ()
 
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
@@ -634,10 +629,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
       conv = tUnqualified lconv
 
   -- retrieve member
-  self <-
-    if (cnvmType . convMetadata . tUnqualified $ lconv) == GlobalTeamConv
-      then pure $ Left $ localMemberFromUser (qUnqualified qusr)
-      else noteS @'ConvNotFound $ getConvMember lconv conv qusr
+  self <- noteS @'ConvNotFound $ getConvMember lconv conv qusr
 
   -- perform checks
   ensureConversationActionAllowed (sing @tag) lcnv action conv self
@@ -656,23 +648,6 @@ updateLocalConversationUnchecked lconv qusr con action = do
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
-
-localMemberFromUser :: UserId -> LocalMember
-localMemberFromUser uid =
-  LocalMember
-    { lmId = uid,
-      lmStatus =
-        MemberStatus
-          { msOtrMutedStatus = Nothing,
-            msOtrMutedRef = Nothing,
-            msOtrArchived = False,
-            msOtrArchivedRef = Nothing,
-            msHidden = False,
-            msHiddenRef = Nothing
-          },
-      lmService = Nothing,
-      lmConvRoleName = roleToRoleName convRoleWireMember
-    }
 
 ensureConversationActionAllowed ::
   forall tag mem x r.

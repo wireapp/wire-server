@@ -866,25 +866,6 @@ processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action sender
               -- this is a newly created conversation, and it should contain exactly one
               -- client (the creator)
               throwS @'MLSUnexpectedSenderClient
-            (Left _, GlobalTeamConv, []) -> do
-              creatorClient <- noteS @'MLSMissingSenderClient senderClient
-              creatorRef <-
-                maybe
-                  (pure senderRef)
-                  ( note (mlsProtocolError "Could not compute key package ref")
-                      . kpRef'
-                      . upLeaf
-                  )
-                  $ cPath commit
-              -- add user to global conv as a member as well
-              lusr <- qualifyLocal (qUnqualified qusr)
-              void $ createMember (convId <$> lconv) lusr
-              addMLSClients
-                (cnvmlsGroupId mlsMeta)
-                qusr
-                (Set.singleton (creatorClient, creatorRef))
-            (Left _, GlobalTeamConv, _) ->
-              throwS @'MLSUnexpectedSenderClient
             (Left lm, _, [(qu, (creatorClient, _))])
               | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender

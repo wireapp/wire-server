@@ -26,7 +26,6 @@ import Galley.Effects
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
-import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
@@ -36,7 +35,6 @@ import Wire.API.Conversation hiding (Conversation)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -52,13 +50,7 @@ getLocalConvForUser ::
   Local ConvId ->
   Sem r Data.Conversation
 getLocalConvForUser qusr lcnv = do
-  gtc <- getGlobalTeamConversationById lcnv
-  conv <- case gtc of
-    Just conv -> do
-      localMembers <- getLocalMembers (qUnqualified . gtcId $ conv)
-      pure $ gtcToConv conv (qUnqualified qusr) localMembers
-    Nothing -> do
-      getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+  conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
   -- check that sender is part of conversation
   isMember' <-
@@ -90,29 +82,3 @@ getPendingBackendRemoveProposals gid epoch = do
             TinyLog.warn $ Log.msg ("found pending proposal without origin, ignoring" :: ByteString)
             pure Nothing
       )
-
-gtcToConv ::
-  GlobalTeamConversation ->
-  UserId ->
-  [LocalMember] ->
-  Conversation
-gtcToConv gtc usr lm =
-  let mlsData = gtcMlsMetadata gtc
-   in Conversation
-        { convId = qUnqualified $ gtcId gtc,
-          convLocalMembers = lm,
-          convRemoteMembers = mempty,
-          convDeleted = False,
-          convMetadata =
-            ConversationMetadata
-              { cnvmType = GlobalTeamConv,
-                cnvmCreator = usr,
-                cnvmAccess = [SelfInviteAccess],
-                cnvmAccessRoles = mempty,
-                cnvmName = Just $ gtcName gtc,
-                cnvmTeam = Just $ gtcTeam gtc,
-                cnvmMessageTimer = Nothing,
-                cnvmReceiptMode = Nothing
-              },
-          convProtocol = ProtocolMLS mlsData
-        }

@@ -36,7 +36,6 @@ import Data.Singletons
 import qualified Data.Text as T
 import Data.Time
 import Galley.API.Error
-import Galley.API.MLS.Util
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
@@ -193,7 +192,7 @@ ensureActionAllowed action self = case isActionAllowed (fromSing action) (convMe
 ensureGroupConversation :: Member (ErrorS 'InvalidOperation) r => Data.Conversation -> Sem r ()
 ensureGroupConversation conv = do
   let ty = Data.convType conv
-  unless (ty `elem` [RegularConv, GlobalTeamConv]) $ throwS @'InvalidOperation
+  unless (ty `elem` [RegularConv]) $ throwS @'InvalidOperation
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
@@ -520,13 +519,9 @@ getConversationWithError ::
   Local ConvId ->
   UserId ->
   Sem r Data.Conversation
-getConversationWithError lcnv uid =
+getConversationWithError lcnv _uid =
   let cid = tUnqualified lcnv
-   in getConversation cid >>= \case
-        Just c -> pure c
-        Nothing -> do
-          gtc <- noteS @'ConvNotFound =<< getGlobalTeamConversationById lcnv
-          pure $ gtcToConv gtc uid mempty
+   in noteS @'ConvNotFound =<< getConversation cid
 
 getConversationAndMemberWithError ::
   forall e uid mem r.
