@@ -85,7 +85,7 @@ If a PR adds new configuration options for say brig, the following files need to
 * [ ] The charts: `charts/brig/templates/configmap.yaml`
 * [ ] The default values: `charts/brig/values.yaml`
 * [ ] The values files for CI: `hack/helm_vars/wire-server/values.yaml`
-* [ ] The configuration docs: `docs/legacy/reference/config-options.md`
+* [ ] The configuration docs: `docs/src/developer/reference/config-options.md`
 
 If any new configuration value is required and has no default, then:
 
