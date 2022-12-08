@@ -321,7 +321,7 @@ testRemoteWelcome = do
 
   let mockedResponse fedReq =
         case frRPC fedReq of
-          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
   runMLSTest $ do
@@ -645,7 +645,7 @@ testAddRemoteUser = do
               . Set.fromList
               . map (flip ClientInfo True . ciClient)
               $ [bob1]
-          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
     commit <- createAddCommit alice1 [bob]
@@ -829,8 +829,8 @@ testRemoteAppMessage = do
     let mock req = case frRPC req of
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
-          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "on-mls-message-sent" -> pure (Aeson.encode RemoteMLSMessageOk)
+          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -1216,7 +1216,7 @@ testRemoteToLocal = do
 
     let mockedResponse fedReq =
           case frRPC fedReq of
-            "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+            "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
             "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
             "on-conversation-updated" -> pure (Aeson.encode ())
             "get-mls-clients" ->
@@ -1274,7 +1274,7 @@ testRemoteToLocalWrongConversation = do
 
     let mockedResponse fedReq =
           case frRPC fedReq of
-            "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+            "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
             "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
             "on-conversation-updated" -> pure (Aeson.encode ())
             "get-mls-clients" ->
@@ -1645,8 +1645,8 @@ testBackendRemoveProposalLocalConvRemoteUser = do
     let mock req = case frRPC req of
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
-          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "on-mls-message-sent" -> pure (Aeson.encode RemoteMLSMessageOk)
+          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -1822,8 +1822,8 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
     let mock req = case frRPC req of
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
-          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "on-mls-message-sent" -> pure (Aeson.encode RemoteMLSMessageOk)
+          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -1898,8 +1898,8 @@ testBackendRemoveProposalLocalConvRemoteClient = do
     let mock req = case frRPC req of
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
-          "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
+          "on-mls-message-sent" -> pure (Aeson.encode RemoteMLSMessageOk)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -2003,7 +2003,7 @@ testFederatedGetGroupInfo = do
     let mock req = case frRPC req of
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
           "on-conversation-updated" -> pure (Aeson.encode ())
-          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -2124,7 +2124,7 @@ testRemoteUserPostsCommitBundle = do
               . Set.fromList
               . map (flip ClientInfo True . ciClient)
               $ [bob1]
-          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
     commit <- createAddCommit alice1 [bob]
