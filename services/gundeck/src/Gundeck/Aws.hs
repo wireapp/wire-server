@@ -283,18 +283,17 @@ lookupEndpoint arn = do
       pure (SNSEndpoint (Push.Token t) (fromMaybe False e) d)
     mkUsers = Set.fromList . mapMaybe (hush . fromText) . Text.split (== ':')
 
-createEndpoint :: Push.Transport -> ArnEnv -> AppName -> Push.Token -> Amazon (Either CreateEndpointError EndpointArn)
-createEndpoint tr arnEnv app token = do
+createEndpoint :: UserId -> Push.Transport -> ArnEnv -> AppName -> Push.Token -> Amazon (Either CreateEndpointError EndpointArn)
+createEndpoint u tr arnEnv app token = do
   env <- ask
   let top = mkAppTopic arnEnv tr app
   let arn = mkSnsArn (env ^. region) (env ^. account) top
   let tkn = Push.tokenText token
   let req =
         SNS.newCreatePlatformEndpoint (toText arn) tkn
+          & set SNS.createPlatformEndpoint_customUserData (Just (toText u))
           & set SNS.createPlatformEndpoint_attributes (Just $ Map.insert "Enabled" "true" Map.empty)
-  logRequest req tkn arn
   res <- retrying (limitRetries 2) (const isTimeout) (const (sendCatch (env ^. awsEnv) req))
-  logResponse res tkn arn
   case res of
     Right r ->
       case view SNS.createPlatformEndpointResponse_endpointArn r of
@@ -314,7 +313,6 @@ createEndpoint tr arnEnv app token = do
           debug $
             msg @Text "InvalidParameter: InvalidToken"
               . field "response" (show x)
-              . logFields tkn arn
           pure (Left (InvalidToken token))
       | is "SNS" 404 x ->
           pure (Left (AppNotFound app))
@@ -345,22 +343,6 @@ createEndpoint tr arnEnv app token = do
         string "must be at most 8192 bytes long in UTF-8 encoding"
           <|> string "iOS device tokens must be no more than 400 hexadecimal characters"
       pure ()
-    logRequest req tkn arn =
-      trace $
-        msg @Text "AWS/SNS endpoint creation request"
-          . field "request" (show req)
-          . logFields tkn arn
-    logResponse res tkn arn =
-      trace $
-        msg @Text "AWS/SNS endpoint creation response"
-          . field "response" (show res)
-          . logFields tkn arn
-    logFields tkn arn =
-      field "transport" (show tr)
-        . field "appName" (show app)
-        . field "arnEnv" (show arnEnv)
-        . field "token" tkn
-        . field "arn" (toText arn)
 
 --------------------------------------------------------------------------------
 -- Publish
