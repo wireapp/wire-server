@@ -1,1 +1,1 @@
-New OAuth endpoints for registering an OAuth app and for retrieving an authorization code (#2882, #2901)
+New OAuth endpoints for registering an OAuth app, for retrieving an authorization code, and for retrieving an access token (#2882, #2901, #2907)
