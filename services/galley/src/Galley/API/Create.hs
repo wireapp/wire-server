@@ -40,6 +40,7 @@ import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
+import Galley.API.MLS
 import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.Mapping
@@ -93,6 +94,7 @@ createGroupConversation ::
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ErrorS 'NotConnected,
+       ErrorS 'MLSNotEnabled,
        ErrorS 'MLSNonEmptyMemberList,
        ErrorS 'MissingLegalholdConsent,
        FederatorAccess,
@@ -117,8 +119,9 @@ createGroupConversation lusr conn newConv = do
 
   case newConvProtocol newConv of
     ProtocolMLSTag -> do
+      -- Here we fail early in order to notify users of this misconfiguration
+      assertMLSEnabled
       unlessM (isJust <$> getMLSRemovalKey) $
-        -- We fail here to notify users early about this misconfiguration
         throw (InternalErrorWithDescription "No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Refusing to create MLS conversation.")
     ProtocolProteusTag -> pure ()
 

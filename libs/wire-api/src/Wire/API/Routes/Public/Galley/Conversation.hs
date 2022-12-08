@@ -158,6 +158,7 @@ type ConversationAPI =
            ( Summary "Get MLS group information"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'MLSMissingGroupInfo
+               :> CanThrow 'MLSNotEnabled
                :> ZLocalUser
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
@@ -321,6 +322,7 @@ type ConversationAPI =
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
@@ -338,6 +340,7 @@ type ConversationAPI =
                :> From 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'MLSNotEnabled
                :> CanThrow 'NotConnected
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
@@ -373,6 +376,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> "conversations"
                :> "mls-self"
+               :> CanThrow 'MLSNotEnabled
                :> MultiVerb1
                     'GET
                     '[JSON]

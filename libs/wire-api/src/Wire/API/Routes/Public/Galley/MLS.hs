@@ -38,6 +38,7 @@ type MLSMessagingAPI =
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
         :> CanThrow 'MLSKeyPackageRefNotFound
+        :> CanThrow 'MLSNotEnabled
         :> "welcome"
         :> ZConn
         :> ReqBody '[MLS] (RawMLS Welcome)
@@ -54,6 +55,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSSelfRemovalNotAllowed
@@ -83,6 +85,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSSelfRemovalNotAllowed
@@ -112,6 +115,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSSelfRemovalNotAllowed
@@ -134,6 +138,7 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-public-keys"
            ( Summary "Get public keys used by the backend to sign external proposals"
+               :> CanThrow 'MLSNotEnabled
                :> "public-keys"
                :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" MLSPublicKeys)
            )

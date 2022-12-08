@@ -24,7 +24,7 @@ import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Error.Util
-import Control.Lens (preview, to, view, (^..))
+import Control.Lens (preview, to, view, (.~), (^..))
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
@@ -48,6 +48,7 @@ import qualified Data.Text.Encoding as T
 import Data.Time.Clock (getCurrentTime)
 import Galley.Keys
 import Galley.Options
+import qualified Galley.Options as Opts
 import Imports hiding (getSymbolicLinkTarget)
 import System.Directory (getSymbolicLinkTarget)
 import System.FilePath
@@ -1047,3 +1048,8 @@ getSelfConv u = do
       . zUser u
       . zConn "conn"
       . zType "access"
+
+withMLSDisabled :: HasSettingsOverrides m => m a -> m a
+withMLSDisabled = withSettingsOverrides noMLS
+  where
+    noMLS = Opts.optSettings . Opts.setMlsPrivateKeyPaths .~ Nothing

@@ -67,8 +67,8 @@ type GalleyApi =
     :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
-    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest EmptyResponse
-    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
+    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
+    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage RemoteMLSMessageResponse
     :<|> FedEndpoint "send-mls-message" MessageSendRequest MLSMessageResponse
     :<|> FedEndpoint "send-mls-commit-bundle" MessageSendRequest MLSMessageResponse
     :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
@@ -244,6 +244,12 @@ data RemoteMLSMessage = RemoteMLSMessage
   deriving (Arbitrary) via (GenericUniform RemoteMLSMessage)
   deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessage)
 
+data RemoteMLSMessageResponse
+  = RemoteMLSMessageOk
+  | RemoteMLSMessageMLSNotEnabled
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessageResponse)
+
 data MessageSendRequest = MessageSendRequest
   { -- | Conversation is assumed to be owned by the target domain, this allows
     -- us to protect against relay attacks
@@ -315,6 +321,12 @@ newtype MLSWelcomeRequest = MLSWelcomeRequest
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
+
+data MLSWelcomeResponse
+  = MLSWelcomeSent
+  | MLSWelcomeMLSNotEnabled
+  deriving stock (Eq, Generic, Show)
+  deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeResponse)
 
 data MLSMessageResponse
   = MLSMessageResponseError GalleyError

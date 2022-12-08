@@ -55,6 +55,7 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.Tagged
 import Galley.API.Error
+import Galley.API.MLS
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Types
 import Galley.API.Mapping
@@ -715,6 +716,7 @@ getMLSSelfConversationWithError ::
   Members
     '[ ConversationStore,
        Error InternalError,
+       ErrorS 'MLSNotEnabled,
        Input Env,
        P.TinyLog
      ]
@@ -722,13 +724,8 @@ getMLSSelfConversationWithError ::
   Local UserId ->
   Sem r Conversation
 getMLSSelfConversationWithError lusr = do
-  unlessM (isJust <$> getMLSRemovalKey) $
-    throw (InternalErrorWithDescription noKeyMsg)
+  assertMLSEnabled
   getMLSSelfConversation lusr
-  where
-    noKeyMsg =
-      "No backend removal key is configured (See 'mlsPrivateKeyPaths'"
-        <> "in galley's config). Refusing to create MLS conversation."
 
 -- | Get an MLS self conversation. In case it does not exist, it is partially
 -- created in the database. The part that is not written is the epoch number;

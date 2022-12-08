@@ -28,13 +28,16 @@ import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Time
+import Galley.API.MLS.Enabled
 import Galley.API.MLS.KeyPackage
 import Galley.API.Push
 import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
+import Galley.Env
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
@@ -78,7 +81,9 @@ postMLSWelcomeFromLocalUser ::
        FederatorAccess,
        GundeckAccess,
        ErrorS 'MLSKeyPackageRefNotFound,
+       ErrorS 'MLSNotEnabled,
        Input UTCTime,
+       Input Env,
        P.TinyLog
      ]
     r =>
@@ -86,7 +91,9 @@ postMLSWelcomeFromLocalUser ::
   ConnId ->
   RawMLS Welcome ->
   Sem r ()
-postMLSWelcomeFromLocalUser loc con wel = postMLSWelcome loc (Just con) wel
+postMLSWelcomeFromLocalUser loc con wel = do
+  assertMLSEnabled
+  postMLSWelcome loc (Just con) wel
 
 welcomeRecipients ::
   Members
@@ -138,10 +145,18 @@ sendRemoteWelcomes rawWelcome clients = do
   traverse_ handleError <=< runFederatedConcurrentlyEither clients $
     const rpc
   where
-    handleError :: Member P.TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
-    handleError (Right _) = pure ()
-    handleError (Left (r, e)) =
+    handleError ::
+      Member P.TinyLog r =>
+      Either (Remote [a], FederationError) (Remote MLSWelcomeResponse) ->
+      Sem r ()
+    handleError (Right x) = case tUnqualified x of
+      MLSWelcomeSent -> pure ()
+      MLSWelcomeMLSNotEnabled -> logFedError x (errorToWai @'MLSNotEnabled)
+    handleError (Left (r, e)) = logFedError r (toWai e)
+
+    logFedError :: Member P.TinyLog r => Remote x -> Wai.Error -> Sem r ()
+    logFedError r e =
       P.warn $
         Logger.msg ("A welcome message could not be delivered to a remote backend" :: ByteString)
           . Logger.field "remote_domain" (domainText (tDomain r))
-          . logErrorMsg (toWai e)
+          . logErrorMsg e

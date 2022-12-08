@@ -39,6 +39,7 @@ import qualified Data.Text as T
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.Enabled
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Removal
@@ -95,6 +96,7 @@ type MLSMessageStaticErrors =
   '[ ErrorS 'ConvAccessDenied,
      ErrorS 'ConvMemberNotFound,
      ErrorS 'ConvNotFound,
+     ErrorS 'MLSNotEnabled,
      ErrorS 'MLSUnsupportedMessage,
      ErrorS 'MLSStaleMessage,
      ErrorS 'MLSProposalNotFound,
@@ -127,6 +129,7 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MLSMissingSenderClient,
+         ErrorS 'MLSNotEnabled,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
@@ -145,11 +148,13 @@ postMLSMessageFromLocalUserV1 ::
   ConnId ->
   RawMLS SomeMessage ->
   Sem r [Event]
-postMLSMessageFromLocalUserV1 lusr mc conn smsg = case rmValue smsg of
-  SomeMessage _ msg -> do
-    qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-    map lcuEvent
-      <$> postMLSMessage lusr (qUntagged lusr) mc qcnv (Just conn) smsg
+postMLSMessageFromLocalUserV1 lusr mc conn smsg = do
+  assertMLSEnabled
+  case rmValue smsg of
+    SomeMessage _ msg -> do
+      qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+      map lcuEvent
+        <$> postMLSMessage lusr (qUntagged lusr) mc qcnv (Just conn) smsg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -163,6 +168,7 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MLSMissingSenderClient,
+         ErrorS 'MLSNotEnabled,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
@@ -184,6 +190,7 @@ postMLSMessageFromLocalUser ::
 postMLSMessageFromLocalUser lusr mc conn msg = do
   -- FUTUREWORK: Inline the body of 'postMLSMessageFromLocalUserV1' once version
   -- V1 is dropped
+  assertMLSEnabled
   events <- postMLSMessageFromLocalUserV1 lusr mc conn msg
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t
@@ -227,6 +234,7 @@ postMLSCommitBundleFromLocalUser ::
       '[ BrigAccess,
          Error FederationError,
          Error InternalError,
+         ErrorS 'MLSNotEnabled,
          Input (Local ()),
          Input Opts,
          Input UTCTime,
@@ -243,6 +251,7 @@ postMLSCommitBundleFromLocalUser ::
   CommitBundle ->
   Sem r MLSMessageSendingStatus
 postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
+  assertMLSEnabled
   let msg = rmValue (cbCommitMsg bundle)
   qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
   events <-
@@ -370,6 +379,7 @@ postMLSMessage ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvMemberNotFound,
          ErrorS 'ConvNotFound,
+         ErrorS 'MLSNotEnabled,
          ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSGroupConversationMismatch,
