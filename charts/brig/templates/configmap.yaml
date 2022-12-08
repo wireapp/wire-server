@@ -296,5 +296,8 @@ data:
       {{- if $.Values.secrets.dpopSigKeyBundle }}
       setPublicKeyBundle: /etc/wire/brig/secrets/dpop_sig_key_bundle.pem
       {{- end }}
+      {{- if $.Values.secrets.oauthJwkKeyPair }}
+      setOAuthJwkKeyPair: /etc/wire/brig/secrets/jwk_oauth.json
+      {{- end }}      
     {{- end }}
   {{- end }}
