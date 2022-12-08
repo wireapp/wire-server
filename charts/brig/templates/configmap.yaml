@@ -299,5 +299,8 @@ data:
       {{- if .setEnableMLS }}
       setEnableMLS: {{ .setEnableMLS }}
       {{- end }}
+      {{- if $.Values.secrets.oauthJwkKeyPair }}
+      setOAuthJwkKeyPair: /etc/wire/brig/secrets/jwk_oauth.json
+      {{- end }}
     {{- end }}
   {{- end }}
