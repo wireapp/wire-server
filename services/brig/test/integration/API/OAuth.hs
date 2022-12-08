@@ -20,8 +20,9 @@ module API.OAuth where
 import Bilge
 import Bilge.Assert
 import Brig.API.OAuth
-import Brig.Effects.Jwk (fakeJwk)
+import Brig.Effects.Jwk (readJwk)
 import Brig.Options
+import qualified Brig.Options as Opt
 import Control.Lens
 import Crypto.JOSE (JWK)
 import Crypto.JWT (Audience (Audience), NumericDate (NumericDate), claimAud, claimExp, claimIat, claimIss, claimSub, stringOrUri)
@@ -43,7 +44,7 @@ import Web.FormUrlEncoded
 import Wire.API.User
 
 tests :: Manager -> Brig -> Opts -> TestTree
-tests m b _opts = do
+tests m b opts = do
   testGroup "oauth" $
     [ test m "register new OAuth client" $ testRegisterNewOAuthClient b,
       testGroup "create oauth code" $
@@ -52,7 +53,7 @@ tests m b _opts = do
           test m "redirect url mismatch" $ testCreateOAuthCodeRedirectUrlMismatch b
         ],
       testGroup "create access token" $
-        [ test m "success" $ testCreateAccessTokenSuccess b,
+        [ test m "success" $ testCreateAccessTokenSuccess opts b,
           test m "wrong client id fail" $ testCreateAccessTokenWrongClientId b,
           test m "wrong client secret fail" $ testCreateAccessTokenWrongClientSecret b,
           test m "wrong code fail" $ testCreateAccessTokenWrongAuthCode b,
@@ -113,8 +114,8 @@ testCreateOAuthCodeClientNotFound brig = do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
-testCreateAccessTokenSuccess :: Brig -> Http ()
-testCreateAccessTokenSuccess brig = do
+testCreateAccessTokenSuccess :: Opt.Opts -> Brig -> Http ()
+testCreateAccessTokenSuccess opts brig = do
   now <- liftIO getCurrentTime
   uid <- userId <$> randomUser brig
   let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
@@ -126,7 +127,8 @@ testCreateAccessTokenSuccess brig = do
   createOAuthAccessToken' brig accessTokenRequest !!! do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
-  verifiedOrError <- liftIO $ verify (fromMaybe (error "invalid key") fakeJwk) (cs $ unOauthAccessToken $ oatAccessToken accessToken)
+  k <- liftIO $ readJwk (fromMaybe "" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  verifiedOrError <- liftIO $ verify k (cs $ unOauthAccessToken $ oatAccessToken accessToken)
   verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (cs $ unOauthAccessToken $ oatAccessToken accessToken)
   liftIO $ do
     isRight verifiedOrError @?= True

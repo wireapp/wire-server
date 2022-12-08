@@ -602,7 +602,9 @@ data Settings = Settings
     setDpopTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | Path to a .pem file containing the server's public key and private key
     -- e.g. to sign JWT tokens
-    setPublicKeyBundle :: !(Maybe FilePath)
+    setPublicKeyBundle :: !(Maybe FilePath),
+    -- | Path to the public and private JSON web key pair used to sign OAuth access tokens
+    setOAuthJwkKeyPair :: !(Maybe FilePath)
   }
   deriving (Show, Generic)
 

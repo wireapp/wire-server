@@ -484,7 +484,6 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
 createAccessToken :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessToken req = do
   let exp :: NominalDiffTime = 60 * 60 * 24 * 7 * 3 -- (3 weeks) TODO: make configurable
-  let jwkFp :: FilePath = "" -- TODO: make configurable
   (authCodeCid, authCodeUserId, authCodeScopes, authCodeRedirectUrl) <-
     lift (wrapClient $ lookupAndDeleteOAuthAuthCode (oatCode req))
       >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure
@@ -497,7 +496,8 @@ createAccessToken req = do
 
   domain <- Opt.setFederationDomain <$> view settings
   claims <- mkClaims authCodeUserId domain authCodeScopes exp
-  key <- lift (liftSem $ Jwk.get jwkFp) >>= maybe (throwStd $ errorToWai @'JwtError) pure
+  fp <- view settings >>= maybe (throwStd $ errorToWai @'JwtError) pure . Opt.setOAuthJwkKeyPair
+  key <- lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'JwtError) pure
   token <- OauthAccessToken . cs . encodeCompact <$> signJwtToken key claims
   pure $ OAuthAccessTokenResponse token OAuthAccessTokenTypeBearer exp
   where
