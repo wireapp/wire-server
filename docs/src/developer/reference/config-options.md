@@ -607,11 +607,21 @@ This options determines whether development versions should be enabled. If set t
 
 ### OAuth
 
-Configure the JWK to sign and verify OAuth access tokens for local testing as follows:
+Optionally, configure the JWK to sign and verify OAuth access tokens for local testing as follows:
 
 ```yaml
 # [brig.yaml]
 optSettings:
   # ...
   setOAuthJwkKeyPair: test/resources/oauth/jwk.json
+```
+
+Optionally, configure the OAuth authorization code and access token expiration time in seconds as follows:
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
+  setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
 ```

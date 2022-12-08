@@ -86,6 +86,8 @@ brig:
       setDpopMaxSkewSecs: 1
       setDpopTokenExpirationTimeSecs: 300
       setEnableMLS: true
+      setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
+      setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks      
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568

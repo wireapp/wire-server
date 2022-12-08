@@ -194,6 +194,8 @@ optSettings:
   setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
   setEnableMLS: true
   setOAuthJwkKeyPair: test/resources/oauth/jwk.json
+  setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
+  setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
