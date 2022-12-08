@@ -36,7 +36,6 @@ import qualified Data.Aeson.KeyMap as M
 import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import qualified Data.ByteString.Lazy as BL
 import Data.Domain
 import qualified Data.HashMap.Strict as HM
 import Data.Id (OAuthClientId, UserId, idToText, randomId)
@@ -486,7 +485,6 @@ createAccessToken req = do
       >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure
   oauthClient <- getOAuthClient authCodeUserId (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
-  -- validate request
   unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
   unless (authCodeCid == oatClientId req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
   unless (authCodeRedirectUrl == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
@@ -494,7 +492,7 @@ createAccessToken req = do
   domain <- Opt.setFederationDomain <$> view settings
   claims <- mkClaims authCodeUserId domain authCodeScopes exp
   key <- lift (liftSem $ Jwk.get jwkFp) >>= maybe (throwStd $ errorToWai @'JwtError) pure
-  token <- OauthAccessToken . cs . encodeCompact <$> doJwtSign key claims
+  token <- OauthAccessToken . cs . encodeCompact <$> signJwtToken key claims
   pure $ OAuthAccessTokenResponse token OAuthAccessTokenTypeBearer exp
   where
     mkClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimSet
@@ -512,8 +510,8 @@ createAccessToken req = do
               & claimExp ?~ NumericDate exp
       pure $ OAuthClaimSet claimSet scopes
 
-    doJwtSign :: JWK -> OAuthClaimSet -> (Handler r) SignedJWT
-    doJwtSign key claims = do
+    signJwtToken :: JWK -> OAuthClaimSet -> (Handler r) SignedJWT
+    signJwtToken key claims = do
       jwtOrError <- liftIO $ doSignClaims
       either (const $ throwStd $ errorToWai @'JwtError) pure jwtOrError
       where
@@ -525,10 +523,10 @@ createAccessToken req = do
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
-verify :: JWK -> BL.ByteString -> IO (Either JWTError OAuthClaimSet)
+verify :: JWK -> ByteString -> IO (Either JWTError OAuthClaimSet)
 verify k s = runJOSE $ do
   let audCheck = const True
-  jwt <- decodeCompact s
+  jwt <- decodeCompact (cs s)
   verifyJWT (defaultJWTValidationSettings audCheck) k jwt
 
 --------------------------------------------------------------------------------
