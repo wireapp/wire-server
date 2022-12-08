@@ -193,6 +193,7 @@ optSettings:
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
   setEnableMLS: true
+  setOAuthJwkKeyPair: test/resources/oauth/jwk.json
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
