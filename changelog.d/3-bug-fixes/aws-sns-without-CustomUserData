@@ -1,1 +1,0 @@
-Previously, AWS/SNS endpoint creation included `CustomUserData` which was the `UserId`. This doesn't make sense anymore; given that a user may be attached with the same device (Android or iOS) and several accounts (several `UserId`s!) to the same backend. So, `CustomUserData` isn't added to the request, anymore.
