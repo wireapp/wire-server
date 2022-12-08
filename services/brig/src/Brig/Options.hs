@@ -604,7 +604,13 @@ data Settings = Settings
     -- e.g. to sign JWT tokens
     setPublicKeyBundle :: !(Maybe FilePath),
     -- | Path to the public and private JSON web key pair used to sign OAuth access tokens
-    setOAuthJwkKeyPair :: !(Maybe FilePath)
+    setOAuthJwkKeyPair :: !(Maybe FilePath),
+    -- | The expiration time of an OAuth access token in seconds.
+    -- use `setOAuthAccessTokenExpirationTimeSecs` as the getter function which always provides a default value
+    setOAuthAccessTokenExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- | The expiration time of an OAuth refresh token in seconds.
+    -- use `setOAuthAuthCodeExpirationTimeSecs` as the getter function which always provides a default value
+    setOAuthAuthCodeExpirationTimeSecsInternal :: !(Maybe Word64)
   }
   deriving (Show, Generic)
 
@@ -649,6 +655,18 @@ defaultDpopTokenExpirationTimeSecs = 30
 
 setDpopTokenExpirationTimeSecs :: Settings -> Word64
 setDpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . setDpopTokenExpirationTimeSecsInternal
+
+defaultOAuthAccessTokenExpirationTimeSecs :: Word64
+defaultOAuthAccessTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 3 -- 3 weeks
+
+setOAuthAccessTokenExpirationTimeSecs :: Settings -> Word64
+setOAuthAccessTokenExpirationTimeSecs = fromMaybe defaultOAuthAccessTokenExpirationTimeSecs . setOAuthAccessTokenExpirationTimeSecsInternal
+
+defaultOAuthAuthCodeExpirationTimeSecs :: Word64
+defaultOAuthAuthCodeExpirationTimeSecs = 300 -- 5 minutes
+
+setOAuthAuthCodeExpirationTimeSecs :: Settings -> Word64
+setOAuthAuthCodeExpirationTimeSecs = fromMaybe defaultOAuthAuthCodeExpirationTimeSecs . setOAuthAuthCodeExpirationTimeSecsInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -833,6 +851,8 @@ instance FromJSON Settings where
               "setNonceTtlSecsInternal" -> "setNonceTtlSecs"
               "setDpopMaxSkewSecsInternal" -> "setDpopMaxSkewSecs"
               "setDpopTokenExpirationTimeSecsInternal" -> "setDpopTokenExpirationTimeSecs"
+              "setOAuthAuthCodeExpirationTimeSecsInternal" -> "setOAuthAuthCodeExpirationTimeSecs"
+              "setOAuthAccessTokenExpirationTimeSecsInternal" -> "setOAuthAccessTokenExpirationTimeSecs"
               other -> other
           }
 

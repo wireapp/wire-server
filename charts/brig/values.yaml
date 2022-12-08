@@ -87,6 +87,8 @@ config:
     setNonceTtlSecs: 300 # 5 minutes
     setDpopMaxSkewSecs: 1
     setDpopTokenExpirationTimeSecs: 300 # 5 minutes
+    setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
+    setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks    
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

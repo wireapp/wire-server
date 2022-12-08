@@ -476,14 +476,14 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
   OAuthClient _ _ uri <- getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
   unless (uri == redirectUrl) $ throwStd $ errorToWai @'RedirectUrlMissMatch
   oauthCode <- OAuthAuthCode <$> rand32Bytes
-  lift $ wrapClient $ insertOAuthAuthCode oauthCode cid uid scope redirectUrl
+  ttl <- Opt.setOAuthAuthCodeExpirationTimeSecs <$> view settings
+  lift $ wrapClient $ insertOAuthAuthCode ttl oauthCode cid uid scope redirectUrl
   let queryParams = [("code", toByteString' oauthCode), ("state", cs state)]
       returnedRedirectUrl = redirectUrl & unRedirectUrl & (queryL . queryPairsL) .~ queryParams & RedirectUrl
   pure returnedRedirectUrl
 
 createAccessToken :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessToken req = do
-  let exp :: NominalDiffTime = 60 * 60 * 24 * 7 * 3 -- (3 weeks) TODO: make configurable
   (authCodeCid, authCodeUserId, authCodeScopes, authCodeRedirectUrl) <-
     lift (wrapClient $ lookupAndDeleteOAuthAuthCode (oatCode req))
       >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure
@@ -495,6 +495,7 @@ createAccessToken req = do
   unless (authCodeRedirectUrl == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
 
   domain <- Opt.setFederationDomain <$> view settings
+  exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
   claims <- mkClaims authCodeUserId domain authCodeScopes exp
   fp <- view settings >>= maybe (throwStd $ errorToWai @'JwtError) pure . Opt.setOAuthJwkKeyPair
   key <- lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'JwtError) pure
@@ -568,13 +569,13 @@ lookupOAuthClientSecret cid = do
     q :: PrepQuery R (Identity OAuthClientId) (Identity Password)
     q = "SELECT secret FROM oauth_client WHERE id = ?"
 
-insertOAuthAuthCode :: (MonadClient m, MonadReader Env m) => OAuthAuthCode -> OAuthClientId -> UserId -> OAuthScopes -> RedirectUrl -> m ()
-insertOAuthAuthCode code cid uid scope uri = do
+insertOAuthAuthCode :: (MonadClient m, MonadReader Env m) => Word64 -> OAuthAuthCode -> OAuthClientId -> UserId -> OAuthScopes -> RedirectUrl -> m ()
+insertOAuthAuthCode ttl code cid uid scope uri = do
   let cqlScope = C.Set (Set.toList (unOAuthScopes scope))
   retry x5 . write q $ params LocalQuorum (code, cid, uid, cqlScope, uri)
   where
     q :: PrepQuery W (OAuthAuthCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl) ()
-    q = "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri) VALUES (?, ?, ?, ?, ?) USING TTL 300" -- TODO: make configurable
+    q = fromString $ "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri) VALUES (?, ?, ?, ?, ?) USING TTL " <> show ttl
 
 lookupOAuthAuthCode :: (MonadClient m, MonadReader Env m) => OAuthAuthCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
 lookupOAuthAuthCode code = do

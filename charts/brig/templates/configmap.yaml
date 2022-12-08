@@ -298,6 +298,12 @@ data:
       {{- end }}
       {{- if $.Values.secrets.oauthJwkKeyPair }}
       setOAuthJwkKeyPair: /etc/wire/brig/secrets/jwk_oauth.json
-      {{- end }}      
+      {{- end }}
+      {{- if .setOAuthAuthCodeExpirationTimeSecs }}
+      setOAuthAuthCodeExpirationTimeSecs: {{ .setOAuthAuthCodeExpirationTimeSecs }}
+      {{- end }}
+      {{- if .setOAuthAccessTokenExpirationTimeSecs }}
+      setOAuthAccessTokenExpirationTimeSecs: {{ .setOAuthAccessTokenExpirationTimeSecs }}
+      {{- end }}
     {{- end }}
   {{- end }}

@@ -25,6 +25,21 @@ brig:
       }
 ```
 
-Note that the JWK is a sensitive configuration value, so it is recommended to use helm's support for managing secrets instead of including it in a plaintext values.yaml file.
+Note that the JWK is a sensitive configuration value, so it is recommended to use Helm's support for managing secrets instead of including it in a plaintext values.yaml file.
 
 Please keep in mind that OAuth is currently under development and may not be available for use yet. Once it is ready, you will be able to use the OAuth functionality by setting up the JWK as described above.
+
+### OAuth authorization code and access token expiration
+
+The the OAuth authorization code expiration (default 5 minutes) and access token expiration (default 3 weeks) can be overridden in the Helm file as follows:
+
+```yaml
+brig:
+  # ...
+  config:
+    # ...
+    optSettings:
+      # ...
+      setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
+      setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
+```
