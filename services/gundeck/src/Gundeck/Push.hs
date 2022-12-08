@@ -450,7 +450,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 (Left Public.AddTokenErrorNoBudget)
       let tok = t ^. token
       env <- view (options . optAws . awsArnEnv)
       aws <- view awsEnv
-      ept <- Aws.execute aws (Aws.createEndpoint uid trp env app tok)
+      ept <- Aws.execute aws (Aws.createEndpoint trp env app tok)
       case ept of
         Left (Aws.EndpointInUse arn) -> do
           Log.info $ "arn" .= toText arn ~~ msg (val "ARN in use")
