@@ -604,3 +604,14 @@ If there is no configuration for a domain, it's defaulted to `no_search`.
 #### `setEnableDevelopmentVersions`
 
 This options determines whether development versions should be enabled. If set to `False`, all development versions are removed from the `supported` field of the `/api-version` endpoint. Note that they are still listed in the `development` field, and continue to work normally.
+
+### OAuth
+
+Configure the JWK to sign and verify OAuth access tokens for local testing as follows:
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthJwkKeyPair: test/resources/oauth/jwk.json
+```
