@@ -111,15 +111,18 @@ testCreateAccessTokenSuccess brig = do
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   accessToken <- createOAuthAccessToken brig accessTokenRequest
-  result <- liftIO $ verify (fromMaybe (error "invalid key") fakeJwk) (cs $ unOauthAccessToken $ oatAccessToken accessToken)
+  verifiedOrError <- liftIO $ verify (fromMaybe (error "invalid key") fakeJwk) (cs $ unOauthAccessToken $ oatAccessToken accessToken)
   liftIO $ do
-    isRight result @?= True
-    scope <$> result @?= Right scopes
-    view claimIss <$> result @?= Right ("example.com" ^? stringOrUri @Text)
-    view claimAud <$> result @?= Right (Audience . (: []) <$> "example.com" ^? stringOrUri @Text)
-    view claimSub <$> result @?= Right (idToText uid ^? stringOrUri)
-    (\(NumericDate expTime) -> diffUTCTime expTime now > 0) . fromMaybe (error "exp claim missing") . view claimExp <$> result @?= Right True
-    (\(NumericDate issuingTime) -> diffUTCTime issuingTime now < 0) . fromMaybe (error "iat claim missing") . view claimIat <$> result @?= Right True
+    isRight verifiedOrError @?= True
+    let claims = either (error "invalid token") id verifiedOrError
+    scope claims @?= scopes
+    (view claimIss $ claims) @?= ("example.com" ^? stringOrUri @Text)
+    (view claimAud $ claims) @?= (Audience . (: []) <$> "example.com" ^? stringOrUri @Text)
+    (view claimSub $ claims) @?= (idToText uid ^? stringOrUri)
+    let expTime = (\(NumericDate x) -> x) . fromMaybe (error "exp claim missing") . view claimExp $ claims
+    diffUTCTime expTime now > 0 @?= True
+    let issuingTime = (\(NumericDate x) -> x) . fromMaybe (error "iat claim missing") . view claimIat $ claims
+    diffUTCTime issuingTime now < 0 @?= True
 
 -------------------------------------------------------------------------------
 -- Util
