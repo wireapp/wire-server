@@ -378,6 +378,10 @@ nginx_conf:
     - path: /oauth/authorization/codes
       envs:
       - all
+    - path: /oauth/token
+      envs:
+      - all
+      disable_zauth: true
     galley:
     - path: /conversations/code-check
       disable_zauth: true
