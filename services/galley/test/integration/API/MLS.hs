@@ -25,7 +25,7 @@ import API.Util as Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
-import Control.Lens (view, (%~), (.~))
+import Control.Lens (view)
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
@@ -46,7 +46,6 @@ import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
-import qualified Galley.Options as Opts
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
@@ -210,6 +209,13 @@ tests s =
           test s "listing conversations without MLS configured" testSelfConversationMLSNotConfigured,
           test s "attempt to add another user to a conversation fails" testSelfConversationOtherUser,
           test s "attempt to leave fails" testSelfConversationLeave
+        ],
+      testGroup
+        "MLS disabled"
+        [ test s "cannot create MLS conversations" postMLSConvDisabled,
+          test s "cannot send an MLS message" postMLSMessageDisabled,
+          test s "cannot send a commit bundle" postMLSBundleDisabled,
+          test s "cannot get group info" getGroupInfoDisabled
         ]
     ]
 
@@ -2404,8 +2410,7 @@ testSelfConversationList isBelowV3 = do
 testSelfConversationMLSNotConfigured :: TestM ()
 testSelfConversationMLSNotConfigured = do
   alice <- randomUser
-  let noMLS = Opts.optSettings %~ Opts.setMlsPrivateKeyPaths .~ Nothing
-  withSettingsOverrides noMLS $
+  withMLSDisabled $
     getConvPage alice Nothing (Just 100) !!! const 200 === statusCode
 
 testSelfConversationOtherUser :: TestM ()
@@ -2477,3 +2482,55 @@ testAddTeamUserWithBundle = do
         <!! const 200 === statusCode
   liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpPublicGroupState commit))
   liftIO $ mpPublicGroupState commit @=? LBS.toStrict <$> returnedGS
+
+assertMLSNotEnabled :: Assertions ()
+assertMLSNotEnabled = do
+  const 400 === statusCode
+  const (Just "mls-not-enabled") === fmap Wai.label . responseJsonError
+
+postMLSConvDisabled :: TestM ()
+postMLSConvDisabled = do
+  alice <- randomQualifiedUser
+  withMLSDisabled $
+    postConvQualified
+      (qUnqualified alice)
+      (defNewMLSConv (newClientId 0))
+      !!! assertMLSNotEnabled
+
+postMLSMessageDisabled :: TestM ()
+postMLSMessageDisabled = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    void $ setupMLSGroup alice1
+    mp <- createAddCommit alice1 [bob]
+    withMLSDisabled $
+      postMessage (mpSender mp) (mpMessage mp)
+        !!! assertMLSNotEnabled
+
+postMLSBundleDisabled :: TestM ()
+postMLSBundleDisabled = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    void $ setupMLSGroup alice1
+    mp <- createAddCommit alice1 [bob]
+    withMLSDisabled $ do
+      bundle <- createBundle mp
+      postCommitBundle (mpSender mp) bundle
+        !!! assertMLSNotEnabled
+
+getGroupInfoDisabled :: TestM ()
+getGroupInfoDisabled = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+    withMLSDisabled $
+      getGroupInfo (qUnqualified alice) qcnv
+        !!! assertMLSNotEnabled
