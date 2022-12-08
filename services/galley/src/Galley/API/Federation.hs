@@ -497,6 +497,7 @@ onUserDeleted origDomain udcn = do
             -- The self conv cannot be on a remote backend.
             Public.SelfConv -> pure ()
             -- The global team conv cannot be on a remote backend.
+            Public.GlobalTeamConv -> pure ()
             Public.RegularConv -> do
               let botsAndMembers = convBotsAndMembers conv
               removeUser (qualifyAs lc conv) (qUntagged deletedUser)

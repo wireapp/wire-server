@@ -52,10 +52,12 @@ deriving instance Cql ReceiptMode
 instance Cql ConvType where
   ctype = Tagged IntColumn
 
+  -- FUTUREWORK: rely on bounded enum typeclass instead of by hand?
   toCql RegularConv = CqlInt 0
   toCql SelfConv = CqlInt 1
   toCql One2OneConv = CqlInt 2
   toCql ConnectConv = CqlInt 3
+  toCql GlobalTeamConv = CqlInt 4
 
   fromCql (CqlInt i) = case i of
     0 -> pure RegularConv

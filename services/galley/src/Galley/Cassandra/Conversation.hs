@@ -188,10 +188,13 @@ conversationMeta conv =
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
     toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _) = do
-      c <- mc
-      let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
-          accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
+      if t == GlobalTeamConv
+        then Nothing
+        else do
+          c <- mc
+          let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
+              accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
+          pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
 
 getPublicGroupState :: ConvId -> Client (Maybe OpaquePublicGroupState)
 getPublicGroupState cid = do
@@ -341,29 +344,32 @@ toConv ::
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
   (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mcs) <- mconv
-  uid <- muid
-  let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
-      accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-  proto <- toProtocol ptag mgid mep mcs
-  pure
-    Conversation
-      { convId = cid,
-        convDeleted = fromMaybe False del,
-        convLocalMembers = ms,
-        convRemoteMembers = remoteMems,
-        convProtocol = proto,
-        convMetadata =
-          ConversationMetadata
-            { cnvmType = cty,
-              cnvmCreator = uid,
-              cnvmAccess = defAccess cty acc,
-              cnvmAccessRoles = accessRoles,
-              cnvmName = nme,
-              cnvmTeam = ti,
-              cnvmMessageTimer = timer,
-              cnvmReceiptMode = rm
-            }
-      }
+  if cty == GlobalTeamConv
+    then Nothing
+    else do
+      uid <- muid
+      let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
+          accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
+      proto <- toProtocol ptag mgid mep mcs
+      pure
+        Conversation
+          { convId = cid,
+            convDeleted = fromMaybe False del,
+            convLocalMembers = ms,
+            convRemoteMembers = remoteMems,
+            convProtocol = proto,
+            convMetadata =
+              ConversationMetadata
+                { cnvmType = cty,
+                  cnvmCreator = uid,
+                  cnvmAccess = defAccess cty acc,
+                  cnvmAccessRoles = accessRoles,
+                  cnvmName = nme,
+                  cnvmTeam = ti,
+                  cnvmMessageTimer = timer,
+                  cnvmReceiptMode = rm
+                }
+          }
 
 mapGroupId :: GroupId -> Qualified ConvId -> Client ()
 mapGroupId gId conv =
