@@ -3,12 +3,12 @@
 # 1. If your target git repository has only package with the cabal file at the
 # root, add it like this under 'gitPins':
 #     <name-of-the-package> = {
-#       src = fetchgit = {
-#          url = "<https-url-to-git>"
+#       src = fetchgit {
+#          url = "<https-url-to-git>";
 #          rev = "<commit-id/sha>";
 #          sha256 = "";
-#       }
-#     }
+#       };
+#     };
 #
 # 2. If your target git repsitory has many packages, add it like this under 'gitPins':
 #
@@ -227,6 +227,22 @@ let
         sha256 = "sha256-8XeCeJWbkdqrUf6tERFMoGM8xRI5l/nKNqI810kzMs0=";
       };
     };
+    tasty-hedgehog = {
+      src = fetchgit {
+          url = "https://github.com/qfpl/tasty-hedgehog";
+          rev = "729617f82699be189954825920d6f30985e1cfa7";
+          sha256 = "sha256-O81wlQbzwCOWLueDLiqf/K2g9XWvSNWgHv7IbYmLsgI=";
+      };
+    };    
+    jose = {
+      src = fetchgit {
+          url = "https://github.com/frasertweedale/hs-jose";
+          rev = "a7f919b19f667dfbb4d5c989ce620d3e75af8247";
+          sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
+      };
+    };
+  };
+  hackagePins = {
     kind-generics = {
       src = fetchgit {
         url = "https://gitlab.com/trupill/kind-generics.git";
