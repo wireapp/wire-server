@@ -25,7 +25,7 @@ import Brig.App
 import Brig.Effects.Jwk
 import qualified Brig.Effects.Jwk as Jwk
 import qualified Brig.Options as Opt
-import Brig.Password (Password, mkSafePassword)
+import Brig.Password (Password, mkSafePassword, verifyPassword)
 import Cassandra hiding (Set)
 import qualified Cassandra as C
 import Control.Lens (view, (.~), (?~), (^?))
@@ -419,6 +419,9 @@ type OAuthAPI =
     :<|> Named
            "create-oauth-auth-code"
            ( Summary ""
+               :> CanThrow 'UnsupportedResponseType
+               :> CanThrow 'RedirectUrlMissMatch
+               :> CanThrow 'OAuthClientNotFound
                :> ZUser
                :> "oauth"
                :> "authorization"
@@ -432,8 +435,10 @@ type OAuthAPI =
            )
     :<|> Named
            "create-oauth-access-token"
-           ( -- TODO: add error responses and corresponding tests
-             Summary "Create an OAuth access token"
+           ( Summary "Create an OAuth access token"
+               :> CanThrow 'JwtError
+               :> CanThrow 'OAuthAuthCodeNotFound
+               :> CanThrow 'OAuthClientNotFound
                :> "oauth"
                :> "token"
                :> ReqBody '[FormUrlEncoded] OAuthAccessTokenRequest
@@ -485,6 +490,7 @@ createAccessToken req = do
       >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure
   oauthClient <- getOAuthClient authCodeUserId (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
+  unlessM (verifyClientSecret (oatClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'OAuthClientNotFound
   unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
   unless (authCodeCid == oatClientId req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
   unless (authCodeRedirectUrl == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
@@ -520,6 +526,15 @@ createAccessToken req = do
           algo <- bestJWSAlg key
           signJWT key (newJWSHeader ((), algo)) claims
 
+    verifyClientSecret :: OAuthClientPlainTextSecret -> OAuthClientId -> (Handler r) Bool
+    verifyClientSecret secret cid = do
+      let plainTextPw = PlainTextPassword $ toText $ unOAuthClientPlainTextSecret secret
+      lift $
+        wrapClient $
+          lookupOAuthClientSecret cid <&> \case
+            Nothing -> False
+            Just pw -> verifyPassword plainTextPw pw
+
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
@@ -545,6 +560,13 @@ lookupOauthClient cid = do
   where
     q :: PrepQuery R (Identity OAuthClientId) (OAuthApplicationName, RedirectUrl)
     q = "SELECT name, redirect_uri FROM oauth_client WHERE id = ?"
+
+lookupOAuthClientSecret :: (MonadClient m, MonadReader Env m) => OAuthClientId -> m (Maybe Password)
+lookupOAuthClientSecret cid = do
+  runIdentity <$$> retry x5 (query1 q (params LocalQuorum (Identity cid)))
+  where
+    q :: PrepQuery R (Identity OAuthClientId) (Identity Password)
+    q = "SELECT secret FROM oauth_client WHERE id = ?"
 
 insertOAuthAuthCode :: (MonadClient m, MonadReader Env m) => OAuthAuthCode -> OAuthClientId -> UserId -> OAuthScopes -> RedirectUrl -> m ()
 insertOAuthAuthCode code cid uid scope uri = do

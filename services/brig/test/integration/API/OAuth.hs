@@ -31,6 +31,7 @@ import Data.Id (OAuthClientId, UserId, idToText, randomId)
 import Data.Range (unsafeRange)
 import Data.Set as Set
 import Data.String.Conversions (cs)
+import Data.Text.Ascii (encodeBase16)
 import Data.Time
 import Imports
 import qualified Network.Wai.Utilities as Error
@@ -45,10 +46,18 @@ tests :: Manager -> Brig -> Opts -> TestTree
 tests m b _opts = do
   testGroup "oauth" $
     [ test m "register new OAuth client" $ testRegisterNewOAuthClient b,
-      test m "create oauth code - success" $ testCreateOAuthCodeSuccess b,
-      test m "create oauth code - oauth client not found" $ testCreateOAuthCodeClientNotFound b,
-      test m "create oauth code - redirect url mismatch" $ testCreateOAuthCodeRedirectUrlMismatch b,
-      test m "create access token - success" $ testCreateAccessTokenSuccess b
+      testGroup "create oauth code" $
+        [ test m "success" $ testCreateOAuthCodeSuccess b,
+          test m "oauth client not found" $ testCreateOAuthCodeClientNotFound b,
+          test m "redirect url mismatch" $ testCreateOAuthCodeRedirectUrlMismatch b
+        ],
+      testGroup "create access token" $
+        [ test m "success" $ testCreateAccessTokenSuccess b,
+          test m "wrong client id fail" $ testCreateAccessTokenWrongClientId b,
+          test m "wrong client secret fail" $ testCreateAccessTokenWrongClientSecret b,
+          test m "wrong code fail" $ testCreateAccessTokenWrongAuthCode b,
+          test m "wrong redirect url fail" $ testCreateAccessTokenWrongUrl b
+        ]
     ]
 
 testRegisterNewOAuthClient :: Brig -> Http ()
@@ -113,6 +122,10 @@ testCreateAccessTokenSuccess brig = do
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   accessToken <- createOAuthAccessToken brig accessTokenRequest
+  -- authorization code should be deleted and can only be used once
+  createOAuthAccessToken' brig accessTokenRequest !!! do
+    const 404 === statusCode
+    const (Just "not-found") === fmap Error.label . responseJsonMaybe
   verifiedOrError <- liftIO $ verify (fromMaybe (error "invalid key") fakeJwk) (cs $ unOauthAccessToken $ oatAccessToken accessToken)
   verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (cs $ unOauthAccessToken $ oatAccessToken accessToken)
   liftIO $ do
@@ -126,7 +139,55 @@ testCreateAccessTokenSuccess brig = do
     let expTime = (\(NumericDate x) -> x) . fromMaybe (error "exp claim missing") . view claimExp $ claims
     diffUTCTime expTime now > 0 @?= True
     let issuingTime = (\(NumericDate x) -> x) . fromMaybe (error "iat claim missing") . view claimIat $ claims
-    diffUTCTime issuingTime now < 0 @?= True
+    abs (diffUTCTime issuingTime now) < 5 @?= True -- allow for some generous clock skew
+
+testCreateAccessTokenWrongClientId :: Brig -> Http ()
+testCreateAccessTokenWrongClientId brig = do
+  uid <- userId <$> randomUser brig
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+  (_, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  cid <- randomId
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  createOAuthAccessToken' brig accessTokenRequest !!! do
+    const 404 === statusCode
+    const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
+testCreateAccessTokenWrongClientSecret :: Brig -> Http ()
+testCreateAccessTokenWrongClientSecret brig = do
+  uid <- userId <$> randomUser brig
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+  (cid, _, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let secret = OAuthClientPlainTextSecret $ encodeBase16 "ee2316e304f5c318e4607d86748018eb9c66dc4f391c31bcccd9291d24b4c7e"
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  createOAuthAccessToken' brig accessTokenRequest !!! do
+    const 404 === statusCode
+    const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
+testCreateAccessTokenWrongAuthCode :: Brig -> Http ()
+testCreateAccessTokenWrongAuthCode brig = do
+  uid <- userId <$> randomUser brig
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+  (cid, secret, _) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let code = OAuthAuthCode $ encodeBase16 "eb32eb9e2aa36c081c89067dddf81bce83c1c57e0b74cfb14c9f026f145f2b1f"
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  createOAuthAccessToken' brig accessTokenRequest !!! do
+    const 404 === statusCode
+    const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
+testCreateAccessTokenWrongUrl :: Brig -> Http ()
+testCreateAccessTokenWrongUrl brig = do
+  uid <- userId <$> randomUser brig
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://wire.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let wrongUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code wrongUrl
+  createOAuthAccessToken' brig accessTokenRequest !!! do
+    const 404 === statusCode
+    const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
 -------------------------------------------------------------------------------
 -- Util
@@ -149,9 +210,11 @@ createOAuthCode :: HasCallStack => Brig -> UserId -> NewOAuthAuthCode -> Http Re
 createOAuthCode brig uid reqBody = post (brig . paths ["oauth", "authorization", "codes"] . zUser uid . json reqBody . noRedirect)
 
 createOAuthAccessToken :: HasCallStack => Brig -> OAuthAccessTokenRequest -> Http OAuthAccessTokenResponse
-createOAuthAccessToken brig reqBody = do
-  r <- post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
-  responseJsonError r
+createOAuthAccessToken brig reqBody = responseJsonError =<< createOAuthAccessToken' brig reqBody
+
+createOAuthAccessToken' :: HasCallStack => Brig -> OAuthAccessTokenRequest -> Http ResponseLBS
+createOAuthAccessToken' brig reqBody = do
+  post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
 
 generateOAuthClientAndAuthCode :: Brig -> UserId -> OAuthScopes -> RedirectUrl -> Http (OAuthClientId, OAuthClientPlainTextSecret, OAuthAuthCode)
 generateOAuthClientAndAuthCode brig uid scope url = do
