@@ -23,7 +23,9 @@ import Brig.API.OAuth
 import Brig.Effects.Jwk (fakeJwk)
 import Brig.Options
 import Control.Lens
+import Crypto.JOSE (JWK)
 import Crypto.JWT (Audience (Audience), NumericDate (NumericDate), claimAud, claimExp, claimIat, claimIss, claimSub, stringOrUri)
+import qualified Data.Aeson as A
 import Data.ByteString.Conversion (fromByteString, fromByteString', toByteString')
 import Data.Id (OAuthClientId, UserId, idToText, randomId)
 import Data.Range (unsafeRange)
@@ -112,8 +114,10 @@ testCreateAccessTokenSuccess brig = do
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   accessToken <- createOAuthAccessToken brig accessTokenRequest
   verifiedOrError <- liftIO $ verify (fromMaybe (error "invalid key") fakeJwk) (cs $ unOauthAccessToken $ oatAccessToken accessToken)
+  verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (cs $ unOauthAccessToken $ oatAccessToken accessToken)
   liftIO $ do
     isRight verifiedOrError @?= True
+    isLeft verifiedOrErrorWithWrongKey @?= True
     let claims = either (error "invalid token") id verifiedOrError
     scope claims @?= scopes
     (view claimIss $ claims) @?= ("example.com" ^? stringOrUri @Text)
@@ -164,3 +168,6 @@ generateOAuthClientAndAuthCode brig uid scope url = do
 
     getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
     getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
+
+wrongKey :: JWK
+wrongKey = fromMaybe (error "invalid jwk") $ A.decode "{\"p\":\"-Ahl1aNMOqXLUtJHVO1OLGt92EOrjzcNlwB5AL9hp8-GykJIK6BIfDvCCJgDUX-8ZZ-1R485XFVtUiI5W72MKbJ-qicTB7Smzd7St_zO6PZUbkgQoJiosAOMjP_8DBs9CbMl9FqUfE1pNo4O0gYHslUoCKwS5IsAB9HjuHGEQ38\",\"kty\":\"RSA\",\"q\":\"qRih0wBK2xg2wyJcBN6dDpUHTBxNEt8jxmvy33oMU-_Vx0hFLVeAqDYK-awlHGtJQJKp1mXdURXocKXKPukVitnfEH8nvl6vQIr4-uXyENe3yLgADi8VRDZCbWuDVWYAlYlFgdNODZ_A_fIqCmGAw27bwXyZZ3IRusnipyFN6iM\",\"d\":\"L0uBKJrI4I-_X9KPQawrLDEnPT7msevOH5Rf264CPZgwe8B9M0mbGmhIzYFIThNSaEzGoEtyJdTf27zoawh3O3KQO0aJr2HKSCTMZUh7fpqIjYlu5jA_dT3k7yHHMIR4lRLQV0vb936Mu09kTkRqMZ0jSo46dJ5iw0wnuSF0dAiqVG0rSJK-gVBdIbzZYxhSBW4ZF3n4CqtFb6lc1stfZHcnzWHyF6Cofzup6pJumeFe7xXF9-aGU-3UcTSzTnMa21NVP-vT2CXkH8dSfwLI-PuJwlW6tcpBwT2PXrCGyAGqQ3h5cdAmwcgfbla8wqrzj1A08SlkKHvTDixVvnnzpQ\",\"e\":\"AQAB\",\"use\":\"sig\",\"kid\":\"0makAydOdX3vNv4YTToO45ccQUCOoLisvAFVyhiKA4c\",\"qi\":\"phNbA_tiDLQq1omVgM1dHtOe6Dd7J_ZoRdz1Rmc4uaSQyJe-yn88DxXlX10DJkM9uqyzcojOtD5awBUXgYSzmasZvcZ0e2XNi7iXmSwsggTux3lUVVqKWV8HreaSywJ-HqitxjitooWSWOyD9o8yq9RS4r2QdXyuCfthwnEZdpc\",\"dp\":\"q0IJJmjZYolFiYsdq5sq5erWerPGyl0l6gRuiECcqiTVmeQINu81_Wm5gPuNFwHO0JBkt-NBpOprUFHHLvwCwmu3n77ZGfH3VqCq-FT7fMlQ5NCngmvF1bqtmlHJ84X_MCpdY4oDioxcwEl4HDYDrHO17774UItVWxDmXl0rCPs\",\"alg\":\"PS512\",\"dq\":\"NznQQDVsPTofSIPEQeLisIyDoZvsoCk4ael_nPUjaZZ-32L_FNvrLQTZeMl8JVf0yJ4d0ePa8EyTaZb8AqflXT_i1mRw-n-6BP5earMG5_FMGMXfXsKJ04lVEJ94eT-jGTOH--qjJ1fxk_6vNEy73RgrtXmYMGzU1Yhx-duqsrk\",\"n\":\"o9VozUwUc1mQMrAH2fEna_ihmNa3CVRzK7MUgDHEbfY0T71wREpK4f4fOkDysKIqnmMdxRzJhsXTDpxX8_8AlKcimPgR8Qb2z7GwDsnDZOdgAYrZ7l7gj0nX02IX35MBk7a7tWr0nILFLV9SxEu6UFcZo0bL2Rhck81TRqLbomJpIzAq8VCS8uMQeg6hEMarl9tGvSKyFuMdTCV3JE9dSv_NErAWx7uBIgkai3Imjs4ufatvRsi9ZHaUV5V3NtrFbYDulg-GOH1eXZwnO6UrKgcAdB3nS1WKL-vcxqupceAHeFHRjARm6AV07hJyXVOVHxdffv6BFX5GihFPFvpQXQ\"}"
