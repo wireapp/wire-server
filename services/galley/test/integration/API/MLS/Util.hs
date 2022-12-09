@@ -426,19 +426,6 @@ setupMLSGroup creator = setupMLSGroupWithConv action creator
           )
           <!! const 201 === statusCode
 
--- | Create conversation and corresponding group with a team conversation
-setupMLSGroupWithTeam :: HasCallStack => TeamId -> ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
-setupMLSGroupWithTeam tid creator = setupMLSGroupWithConv action creator
-  where
-    action =
-      responseJsonError
-        =<< liftTest
-          ( postConvQualified
-              (ciUser creator)
-              (defNewMLSConv (ciClient creator)) {newConvTeam = Just $ ConvTeamInfo tid}
-          )
-          <!! const 201 === statusCode
-
 -- | Create self-conversation and corresponding group.
 setupMLSSelfGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
 setupMLSSelfGroup creator = setupMLSGroupWithConv action creator

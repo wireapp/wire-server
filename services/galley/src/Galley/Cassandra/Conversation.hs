@@ -268,8 +268,7 @@ getGlobalTeamConversationById lconv = do
   pure $ toGlobalConv mconv
   where
     toGlobalConv mconv = do
-      (muid, mname, mtid, mty, mgid, mepoch, mcs) <- mconv
-      guard (mty == Just GlobalTeamConv)
+      (muid, mname, mtid, mgid, mepoch, mcs) <- mconv
       tid <- mtid
       name <- mname
       mlsData <- ConversationMLSData <$> mgid <*> (mepoch <|> Just (Epoch 0)) <*> mcs

@@ -20,12 +20,13 @@
 module API.MLS (tests) where
 
 import API.MLS.Util
-import API.SQS
+-- import API.SQS
 import API.Util as Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
-import Control.Lens (view)
+-- import Control.Error.Util (hush)
+import Control.Lens (view) -- , (^.))
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
@@ -187,8 +188,7 @@ tests s =
         "CommitBundle"
         [ test s "add user with a commit bundle" testAddUserWithBundle,
           test s "add user with a commit bundle to a remote conversation" testAddUserToRemoteConvWithBundle,
-          test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle,
-          test s "add user with a commit bundle and a team conv" testAddTeamUserWithBundle
+          test s "remote user posts commit bundle" testRemoteUserPostsCommitBundle
         ],
       -- testGroup
       --   "GlobalTeamConv"
@@ -2443,45 +2443,6 @@ testSelfConversationLeave = do
             const 403 === statusCode
             const (Just "invalid-op") === fmap Wai.label . responseJsonError
       WS.assertNoEvent (1 # WS.Second) wss
-
-testAddTeamUserWithBundle :: TestM ()
-testAddTeamUserWithBundle = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
-  tid <- createBindingTeamInternal "sample-team" (qUnqualified alice)
-  assertQueue "create team" tActivate
-  assertQueueEmpty
-
-  (qcnv, commit) <- runMLSTest $ do
-    (alice1 : bobClients) <- traverse createMLSClient [alice, bob, bob]
-    traverse_ uploadNewKeyPackage bobClients
-    (_, qcnv) <- setupMLSGroupWithTeam tid alice1
-    commit <- createAddCommit alice1 [bob]
-    welcome <- assertJust (mpWelcome commit)
-
-    events <- mlsBracket bobClients $ \wss -> do
-      events <- sendAndConsumeCommitBundle commit
-      for_ (zip bobClients wss) $ \(c, ws) ->
-        WS.assertMatch (5 # Second) ws $
-          wsAssertMLSWelcome (cidQualifiedUser c) welcome
-      pure events
-
-    event <- assertOne events
-    liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
-    pure (qcnv, commit)
-
-  -- check that bob can now see the conversation
-  convs <- getAllConvs (qUnqualified bob)
-  liftIO $
-    assertBool
-      "Users added to an MLS group should find it when listing conversations"
-      (qcnv `elem` map cnvQualifiedId convs)
-
-  returnedGS <-
-    fmap responseBody $
-      getGroupInfo (qUnqualified alice) qcnv
-        <!! const 200 === statusCode
-  liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpPublicGroupState commit))
-  liftIO $ mpPublicGroupState commit @=? LBS.toStrict <$> returnedGS
 
 assertMLSNotEnabled :: Assertions ()
 assertMLSNotEnabled = do
