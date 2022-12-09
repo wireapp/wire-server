@@ -57,7 +57,8 @@ tests m b opts = do
           test m "wrong client id fail" $ testCreateAccessTokenWrongClientId b,
           test m "wrong client secret fail" $ testCreateAccessTokenWrongClientSecret b,
           test m "wrong code fail" $ testCreateAccessTokenWrongAuthCode b,
-          test m "wrong redirect url fail" $ testCreateAccessTokenWrongUrl b
+          test m "wrong redirect url fail" $ testCreateAccessTokenWrongUrl b,
+          test m "expired code fail" $ testCreateAccessTokenExpiredCode b
         ]
     ]
 
@@ -187,6 +188,19 @@ testCreateAccessTokenWrongUrl brig = do
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let wrongUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code wrongUrl
+  createOAuthAccessToken' brig accessTokenRequest !!! do
+    const 404 === statusCode
+    const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
+testCreateAccessTokenExpiredCode :: Brig -> Http ()
+testCreateAccessTokenExpiredCode brig = do
+  uid <- userId <$> randomUser brig
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  -- assuming that the code is valid for 3 seconds
+  liftIO $ threadDelay (4 * 1000 * 1000)
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
