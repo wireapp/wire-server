@@ -226,7 +226,7 @@ createOAuthCode :: HasCallStack => Brig -> UserId -> NewOAuthAuthCode -> Http Re
 createOAuthCode brig uid reqBody = post (brig . paths ["oauth", "authorization", "codes"] . zUser uid . json reqBody . noRedirect)
 
 createOAuthAccessToken :: HasCallStack => Brig -> OAuthAccessTokenRequest -> Http OAuthAccessTokenResponse
-createOAuthAccessToken brig reqBody = responseJsonError =<< createOAuthAccessToken' brig reqBody
+createOAuthAccessToken brig reqBody = responseJsonError =<< createOAuthAccessToken' brig reqBody <!! const 200 === statusCode
 
 createOAuthAccessToken' :: HasCallStack => Brig -> OAuthAccessTokenRequest -> Http ResponseLBS
 createOAuthAccessToken' brig reqBody = do
