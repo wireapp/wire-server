@@ -219,19 +219,6 @@ selectConv ::
     )
 selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite from conversation where conv = ?"
 
-selectGlobalTeamConv ::
-  PrepQuery
-    R
-    (Identity ConvId)
-    ( Maybe UserId,
-      Maybe Text,
-      Maybe TeamId,
-      Maybe GroupId,
-      Maybe Epoch,
-      Maybe CipherSuiteTag
-    )
-selectGlobalTeamConv = "select creator, name, team, group_id, epoch, cipher_suite from conversation where conv = ?"
-
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 
@@ -265,12 +252,6 @@ insertMLSSelfConv =
     \ (?, ?, ?, ?, ?, ?, ?, ?, ?, "
       <> show (fromEnum ProtocolMLSTag)
       <> ", ?, ?)"
-
-insertGlobalTeamConv :: PrepQuery W (ConvId, C.Set Access, Text, TeamId, Maybe GroupId, Maybe CipherSuiteTag) ()
-insertGlobalTeamConv = "insert into conversation (conv, type, access, name, team, group_id, cipher_suite) values (?, 4, ?, ?, ?, ?, ?)"
-
-setGlobalTeamConvCreator :: PrepQuery W (UserId, ConvId) ()
-setGlobalTeamConvCreator = "update conversation set creator = ? where conv = ?"
 
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRole, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
