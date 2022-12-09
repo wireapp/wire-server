@@ -28,7 +28,6 @@ module Wire.API.Conversation.Protocol
     _ProtocolMLS,
     _ProtocolProteus,
     protocolSchema,
-    mlsDataSchema,
     ConversationMLSData (..),
   )
 where

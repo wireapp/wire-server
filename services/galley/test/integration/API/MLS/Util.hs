@@ -426,19 +426,6 @@ setupMLSGroup creator = setupMLSGroupWithConv action creator
           )
           <!! const 201 === statusCode
 
--- | Create conversation and corresponding group with a team conversation
-setupMLSGroupWithTeam :: HasCallStack => TeamId -> ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
-setupMLSGroupWithTeam tid creator = setupMLSGroupWithConv action creator
-  where
-    action =
-      responseJsonError
-        =<< liftTest
-          ( postConvQualified
-              (ciUser creator)
-              (defNewMLSConv (ciClient creator)) {newConvTeam = Just $ ConvTeamInfo tid}
-          )
-          <!! const 201 === statusCode
-
 -- | Create self-conversation and corresponding group.
 setupMLSSelfGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
 setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
@@ -656,13 +643,13 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
       { mlsNewMembers = Set.fromList (map fst clientsAndKeyPackages)
       }
 
-  welcome <- liftIO $ readWelcome welcomeFile
+  welcome <- liftIO $ BS.readFile welcomeFile
   pgs <- liftIO $ BS.readFile pgsFile
   pure $
     MessagePackage
       { mpSender = qcid,
         mpMessage = commit,
-        mpWelcome = welcome,
+        mpWelcome = Just welcome,
         mpPublicGroupState = Just pgs
       }
 
@@ -877,7 +864,7 @@ sendAndConsumeCommit mp = do
 
   pure events
 
-mkBundle :: HasCallStack => MessagePackage -> Either Text CommitBundle
+mkBundle :: MessagePackage -> Either Text CommitBundle
 mkBundle mp = do
   commitB <- decodeMLS' (mpMessage mp)
   welcomeB <- traverse decodeMLS' (mpWelcome mp)
@@ -887,7 +874,7 @@ mkBundle mp = do
     CommitBundle commitB welcomeB $
       GroupInfoBundle UnencryptedGroupInfo TreeFull pgsB
 
-createBundle :: (HasCallStack, MonadIO m) => MessagePackage -> m ByteString
+createBundle :: MonadIO m => MessagePackage -> m ByteString
 createBundle mp = do
   bundle <-
     either (liftIO . assertFailure . T.unpack) pure $

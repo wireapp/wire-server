@@ -36,7 +36,6 @@ import Data.Singletons
 import qualified Data.Text as T
 import Data.Time
 import Galley.API.Error
-import Galley.API.MLS.Util
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember, newBotMember)
@@ -193,7 +192,7 @@ ensureActionAllowed action self = case isActionAllowed (fromSing action) (convMe
 ensureGroupConversation :: Member (ErrorS 'InvalidOperation) r => Data.Conversation -> Sem r ()
 ensureGroupConversation conv = do
   let ty = Data.convType conv
-  unless (ty `elem` [RegularConv, GlobalTeamConv]) $ throwS @'InvalidOperation
+  when (ty /= RegularConv) $ throwS @'InvalidOperation
 
 -- | Ensure that the set of actions provided are not "greater" than the user's
 --   own. This is used to ensure users cannot "elevate" allowed actions
@@ -509,7 +508,7 @@ getConversationAndCheckMembership uid lcnv = do
   (conv, _) <-
     getConversationAndMemberWithError
       @'ConvAccessDenied
-      (qUntagged $ qualifyAs lcnv uid)
+      uid
       lcnv
   pure conv
 
@@ -518,27 +517,18 @@ getConversationWithError ::
     Member (ErrorS 'ConvNotFound) r
   ) =>
   Local ConvId ->
-  UserId ->
   Sem r Data.Conversation
-getConversationWithError lcnv uid =
-  let cid = tUnqualified lcnv
-   in getConversation cid >>= \case
-        Just c -> pure c
-        Nothing -> do
-          gtc <- noteS @'ConvNotFound =<< getGlobalTeamConversationById lcnv
-          pure $ gtcToConv gtc uid mempty
+getConversationWithError lcnv =
+  getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
 getConversationAndMemberWithError ::
   forall e uid mem r.
-  ( Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r,
-    IsConvMemberId uid mem,
-    uid ~ Qualified UserId
-  ) =>
+  (Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r, IsConvMemberId uid mem) =>
   uid ->
   Local ConvId ->
   Sem r (Data.Conversation, mem)
 getConversationAndMemberWithError usr lcnv = do
-  c <- getConversationWithError lcnv (qUnqualified usr)
+  c <- getConversationWithError lcnv
   member <- noteS @e $ getConvMember lcnv c usr
   pure (c, member)
 

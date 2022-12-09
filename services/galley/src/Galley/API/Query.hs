@@ -21,7 +21,6 @@ module Galley.API.Query
   ( getBotConversationH,
     getUnqualifiedConversation,
     getConversation,
-    getGlobalTeamConversation,
     getConversationRoles,
     conversationIdsPageFromUnqualified,
     conversationIdsPageFromV2,
@@ -53,7 +52,6 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged
 import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.Keys
@@ -70,7 +68,6 @@ import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
-import qualified Galley.Effects.TeamStore as E
 import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -95,7 +92,6 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import qualified Wire.API.MLS.GlobalTeamConversation as Public
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -115,11 +111,7 @@ getBotConversation ::
   Local ConvId ->
   Sem r Public.BotConvView
 getBotConversation zbot lcnv = do
-  (c, _) <-
-    getConversationAndMemberWithError
-      @'ConvNotFound
-      (qUntagged . qualifyAs lcnv . botUserId $ zbot)
-      lcnv
+  (c, _) <- getConversationAndMemberWithError @'ConvNotFound (botUserId zbot) lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
@@ -146,25 +138,6 @@ getUnqualifiedConversation ::
 getUnqualifiedConversation lusr cnv = do
   c <- getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
-
-getGlobalTeamConversation ::
-  Members
-    '[ ConversationStore,
-       ErrorS 'NotATeamMember,
-       MemberStore,
-       TeamStore
-     ]
-    r =>
-  Local UserId ->
-  TeamId ->
-  Sem r Public.GlobalTeamConversation
-getGlobalTeamConversation lusr tid = do
-  let ltid = qualifyAs lusr tid
-  void $ noteS @'NotATeamMember =<< E.getTeamMember tid (tUnqualified lusr)
-  E.getGlobalTeamConversation ltid >>= \case
-    Nothing ->
-      E.createGlobalTeamConversation (qualifyAs lusr tid)
-    Just conv -> pure conv
 
 getConversation ::
   forall r.
@@ -305,24 +278,12 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  Members
-    [ ListItems LegacyPaging ConvId,
-      ConversationStore,
-      MemberStore,
-      TeamStore
-    ]
-    r =>
+  Member (ListItems LegacyPaging ConvId) r =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
   Sem r (Public.ConversationList ConvId)
 conversationIdsPageFromUnqualified lusr start msize = do
-  void $
-    E.getUserTeams (tUnqualified lusr) >>= \tids ->
-      runError @InternalError $
-        runError @(Tagged 'NotATeamMember ())
-          (for_ tids $ \tid -> getGlobalTeamConversation lusr tid)
-
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- E.listItems (tUnqualified lusr) start size
   pure $

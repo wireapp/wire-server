@@ -303,7 +303,7 @@ type ITeamsAPIBase =
   Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
     :<|> Named
            "create-binding-team"
-           ( ZLocalUser
+           ( ZUser
                :> ReqBody '[Servant.JSON] BindingNewTeam
                :> MultiVerb1
                     'PUT
@@ -704,38 +704,28 @@ rmUser lusr conn = do
       let qUser = qUntagged lusr
       cc <- getConversations ids
       now <- input
-      let deleteIfNeeded c = do
-            when (tUnqualified lusr `isMember` Data.convLocalMembers c) $ do
-              runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
-                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
-                Right _ -> pure ()
-              deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
-              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-            let e =
-                  Event
-                    (qUntagged (qualifyAs lusr (Data.convId c)))
-                    (qUntagged lusr)
-                    now
-                    (EdMembersLeave (QualifiedUserIdList [qUser]))
-            pure $
-              Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
-                <&> set Intra.pushConn conn
-                  . set Intra.pushRoute Intra.RouteDirect
-
-          deleteClientsFromGlobal c = do
-            runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
-              Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
-              Right _ -> pure ()
-            deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
-            for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-            pure Nothing
-
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
         One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
-        RegularConv -> deleteIfNeeded c
-        GlobalTeamConv -> deleteClientsFromGlobal c
+        RegularConv
+          | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+              runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
+                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+                Right _ -> pure ()
+              deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
+              let e =
+                    Event
+                      (qUntagged (qualifyAs lusr (Data.convId c)))
+                      (qUntagged lusr)
+                      now
+                      (EdMembersLeave (QualifiedUserIdList [qUser]))
+              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
+              pure $
+                Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
+                  <&> set Intra.pushConn conn
+                    . set Intra.pushRoute Intra.RouteDirect
+          | otherwise -> pure Nothing
 
       for_
         (maybeList1 (catMaybes pp))
