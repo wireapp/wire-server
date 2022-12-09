@@ -192,6 +192,7 @@ optSettings:
   setDpopMaxSkewSecs: 1
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
+  setMLSEnabled: true
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

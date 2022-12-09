@@ -19,12 +19,15 @@ module Brig.API.MLS.Util where
 
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.App
 import Brig.Data.Client
+import Brig.Options
 import Control.Error
+import Control.Lens (view)
 import Imports
 
 isMLSEnabled :: Handler r Bool
-isMLSEnabled = pure False
+isMLSEnabled = fromMaybe False . setMLSEnabled <$> view settings
 
 assertMLSEnabled :: Handler r ()
 assertMLSEnabled =
