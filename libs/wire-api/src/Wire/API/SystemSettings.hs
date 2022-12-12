@@ -11,8 +11,8 @@ import Wire.Arbitrary
 
 -- | Subset of `Brig.Options.Settings` that is safe to be shown in public.
 --
--- Used to expose settings via the @/system/settings@ endpoint. Please check
--- with security if you want to add settings here.
+-- Used to expose settings via the @/system/settings@ endpoint. ALWAYS CHECK
+-- WITH SECURITY IF YOU WANT TO ADD SETTINGS HERE.
 data SystemSettings = SystemSettings
   { systemSettingsSetRestrictUserCreation :: !Bool
   }
