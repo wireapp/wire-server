@@ -367,6 +367,7 @@ type IOAuthAPI =
   Named
     "create-oauth-client"
     ( Summary "Register an OAuth client"
+        :> CanThrow 'OAuthFeatureDisabled
         :> "i"
         :> "oauth"
         :> "clients"
@@ -381,27 +382,11 @@ internalOauthAPI =
 --------------------------------------------------------------------------------
 -- API Public
 
-data OAuthError
-  = OAuthClientNotFound
-  | RedirectUrlMissMatch
-  | UnsupportedResponseType
-  | JwtError
-  | OAuthAuthCodeNotFound
-
-type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
-
-type instance MapError 'RedirectUrlMissMatch = 'StaticError 400 "redirect-url-miss-match" "Redirect URL miss match"
-
-type instance MapError 'UnsupportedResponseType = 'StaticError 400 "unsupported-response-type" "Unsupported response type"
-
-type instance MapError 'JwtError = 'StaticError 500 "jwt-error" "Internal error while creating JWT"
-
-type instance MapError 'OAuthAuthCodeNotFound = 'StaticError 404 "not-found" "OAuth authorization code not found"
-
 type OAuthAPI =
   Named
     "get-oauth-client"
     ( Summary "Get OAuth client information"
+        :> CanThrow 'OAuthFeatureDisabled
         :> ZUser
         :> "oauth"
         :> "clients"
@@ -420,6 +405,7 @@ type OAuthAPI =
                :> CanThrow 'UnsupportedResponseType
                :> CanThrow 'RedirectUrlMissMatch
                :> CanThrow 'OAuthClientNotFound
+               :> CanThrow 'OAuthFeatureDisabled
                :> ZUser
                :> "oauth"
                :> "authorization"
@@ -437,6 +423,7 @@ type OAuthAPI =
                :> CanThrow 'JwtError
                :> CanThrow 'OAuthAuthCodeNotFound
                :> CanThrow 'OAuthClientNotFound
+               :> CanThrow 'OAuthFeatureDisabled
                :> "oauth"
                :> "token"
                :> ReqBody '[FormUrlEncoded] OAuthAccessTokenRequest
@@ -450,10 +437,34 @@ oauthAPI =
     :<|> Named @"create-oauth-access-token" createAccessToken
 
 --------------------------------------------------------------------------------
+-- Errors
+
+data OAuthError
+  = OAuthClientNotFound
+  | RedirectUrlMissMatch
+  | UnsupportedResponseType
+  | JwtError
+  | OAuthAuthCodeNotFound
+  | OAuthFeatureDisabled
+
+type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
+
+type instance MapError 'RedirectUrlMissMatch = 'StaticError 400 "redirect-url-miss-match" "Redirect URL miss match"
+
+type instance MapError 'UnsupportedResponseType = 'StaticError 400 "unsupported-response-type" "Unsupported response type"
+
+type instance MapError 'JwtError = 'StaticError 500 "jwt-error" "Internal error while creating JWT"
+
+type instance MapError 'OAuthAuthCodeNotFound = 'StaticError 404 "not-found" "OAuth authorization code not found"
+
+type instance MapError 'OAuthFeatureDisabled = 'StaticError 403 "forbidden" "OAuth is disabled"
+
+--------------------------------------------------------------------------------
 -- Handlers
 
 createNewOAuthClient :: NewOAuthClient -> (Handler r) OAuthClientCredentials
 createNewOAuthClient (NewOAuthClient name uri) = do
+  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   credentials@(OAuthClientCredentials cid secret) <- OAuthClientCredentials <$> randomId <*> createSecret
   safeSecret <- liftIO $ hashClientSecret secret
   lift $ wrapClient $ insertOAuthClient cid name uri safeSecret
@@ -466,10 +477,13 @@ createNewOAuthClient (NewOAuthClient name uri) = do
     hashClientSecret = mkSafePassword . PlainTextPassword . toText . unOAuthClientPlainTextSecret
 
 getOAuthClient :: UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
-getOAuthClient _ cid = lift $ wrapClient $ lookupOauthClient cid
+getOAuthClient _ cid = do
+  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  lift $ wrapClient $ lookupOauthClient cid
 
 createNewOAuthAuthCode :: UserId -> NewOAuthAuthCode -> (Handler r) RedirectUrl
 createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl state) = do
+  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   unless (responseType == OAuthResponseTypeCode) $ throwStd (errorToWai @'UnsupportedResponseType)
   OAuthClient _ _ uri <- getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
   unless (uri == redirectUrl) $ throwStd $ errorToWai @'RedirectUrlMissMatch
@@ -482,6 +496,7 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
 
 createAccessToken :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessToken req = do
+  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   (authCodeCid, authCodeUserId, authCodeScopes, authCodeRedirectUrl) <-
     lift (wrapClient $ lookupAndDeleteOAuthAuthCode (oatCode req))
       >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure

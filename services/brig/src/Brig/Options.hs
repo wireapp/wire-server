@@ -891,7 +891,8 @@ Lens.makeLensesFor
     ("setFederationDomainConfigs", "federationDomainConfigs"),
     ("setEnableDevelopmentVersions", "enableDevelopmentVersions"),
     ("setRestrictUserCreation", "restrictUserCreation"),
-    ("setEnableMLS", "enableMLS")
+    ("setEnableMLS", "enableMLS"),
+    ("setOAuthEnabledInternal", "oauthEnabledInternal")
   ]
   ''Settings
 
