@@ -73,7 +73,7 @@ conversationViewMaybe luid conv = do
           <> map remoteMemberToOther rothers
   pure $
     Conversation
-      (qUntagged . qualifyAs luid . convId $ conv)
+      (tUntagged . qualifyAs luid . convId $ conv)
       (Data.convMetadata conv)
       (ConvMembers self others)
       (Data.convProtocol conv)
@@ -84,7 +84,7 @@ remoteConversationView ::
   MemberStatus ->
   Remote RemoteConversation ->
   Conversation
-remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) =
+remoteConversationView uid status (tUntagged -> Qualified rconv rDomain) =
   let mems = rcnvMembers rconv
       others = rcmOthers mems
       self =
@@ -135,7 +135,7 @@ conversationToRemote localDomain ruid conv = do
 localMemberToSelf :: Local x -> LocalMember -> Conversation.Member
 localMemberToSelf loc lm =
   Conversation.Member
-    { memId = qUntagged . qualifyAs loc . lmId $ lm,
+    { memId = tUntagged . qualifyAs loc . lmId $ lm,
       memService = lmService lm,
       memOtrMutedStatus = msOtrMutedStatus st,
       memOtrMutedRef = msOtrMutedRef st,

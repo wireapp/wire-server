@@ -1333,7 +1333,7 @@ deleteAccount account@(accountUser -> user) = do
   Intra.rmUser uid (userAssets user)
   Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   luid <- qualifyLocal uid
-  Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
+  Intra.onUserEvent uid Nothing (UserDeleted (tUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
   Data.deleteConnections uid
@@ -1472,7 +1472,7 @@ lookupRemoteProfiles ::
   ) =>
   Remote [UserId] ->
   ExceptT FederationError m [UserProfile]
-lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
+lookupRemoteProfiles (tUntagged -> Qualified uids domain) =
   Federation.getUsersByIds domain uids
 
 -- FUTUREWORK: This function encodes a few business rules about exposing email

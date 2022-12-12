@@ -701,7 +701,7 @@ rmUser lusr conn = do
 
     leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
-      let qUser = qUntagged lusr
+      let qUser = tUntagged lusr
       cc <- getConversations ids
       now <- input
       pp <- for cc $ \c -> case Data.convType c of
@@ -710,14 +710,14 @@ rmUser lusr conn = do
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
-              runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
+              runError (removeUser (qualifyAs lusr c) (tUntagged lusr)) >>= \case
                 Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
                 Right _ -> pure ()
               deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
               let e =
                     Event
-                      (qUntagged (qualifyAs lusr (Data.convId c)))
-                      (qUntagged lusr)
+                      (tUntagged (qualifyAs lusr (Data.convId c)))
+                      (tUntagged lusr)
                       now
                       (EdMembersLeave (QualifiedUserIdList [qUser]))
               for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)

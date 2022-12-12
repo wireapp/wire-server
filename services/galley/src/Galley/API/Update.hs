@@ -298,7 +298,7 @@ updateConversationAccess ::
 updateConversationAccess lusr con qcnv update = do
   lcnv <- ensureLocal lusr qcnv
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversation @'ConversationAccessDataTag lcnv (qUntagged lusr) (Just con) update
+    updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged lusr) (Just con) update
 
 updateConversationAccessUnqualified ::
   Members UpdateConversationAccessEffects r =>
@@ -311,7 +311,7 @@ updateConversationAccessUnqualified lusr con cnv update =
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationAccessDataTag
       (qualifyAs lusr cnv)
-      (qUntagged lusr)
+      (tUntagged lusr)
       (Just con)
       update
 
@@ -346,7 +346,7 @@ updateConversationReceiptMode lusr zcon qcnv update =
           updateLocalConversation
             @'ConversationReceiptModeUpdateTag
             lcnv
-            (qUntagged lusr)
+            (tUntagged lusr)
             (Just zcon)
             update
     )
@@ -414,7 +414,7 @@ updateConversationReceiptModeUnqualified ::
   ConvId ->
   ConversationReceiptModeUpdate ->
   Sem r (UpdateResult Event)
-updateConversationReceiptModeUnqualified lusr zcon cnv = updateConversationReceiptMode lusr zcon (qUntagged (qualifyAs lusr cnv))
+updateConversationReceiptModeUnqualified lusr zcon cnv = updateConversationReceiptMode lusr zcon (tUntagged (qualifyAs lusr cnv))
 
 updateConversationMessageTimer ::
   Members
@@ -444,7 +444,7 @@ updateConversationMessageTimer lusr zcon qcnv update =
             <$> updateLocalConversation
               @'ConversationMessageTimerUpdateTag
               lcnv
-              (qUntagged lusr)
+              (tUntagged lusr)
               (Just zcon)
               update
       )
@@ -470,7 +470,7 @@ updateConversationMessageTimerUnqualified ::
   ConvId ->
   ConversationMessageTimerUpdate ->
   Sem r (UpdateResult Event)
-updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMessageTimer lusr zcon (qUntagged (qualifyAs lusr cnv))
+updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMessageTimer lusr zcon (tUntagged (qualifyAs lusr cnv))
 
 deleteLocalConversation ::
   Members
@@ -495,7 +495,7 @@ deleteLocalConversation ::
   Sem r (UpdateResult Event)
 deleteLocalConversation lusr con lcnv =
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversation @'ConversationDeleteTag lcnv (qUntagged lusr) (Just con) ()
+    updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged lusr) (Just con) ()
 
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
@@ -557,7 +557,7 @@ addCode lusr zcon lcnv = do
       E.createCode code
       now <- input
       conversationCode <- createCode code
-      let event = Event (qUntagged lcnv) (qUntagged lusr) now (EdConvCodeUpdate conversationCode)
+      let event = Event (tUntagged lcnv) (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
       pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
     Just code -> do
@@ -619,7 +619,7 @@ rmCode lusr zcon lcnv = do
   key <- E.makeKey (tUnqualified lcnv)
   E.deleteCode key ReusableCode
   now <- input
-  let event = Event (qUntagged lcnv) (qUntagged lusr) now EdConvCodeDelete
+  let event = Event (tUntagged lcnv) (tUntagged lusr) now EdConvCodeDelete
   pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
   pure event
 
@@ -776,7 +776,7 @@ joinConversation lusr zcon conv access = do
     lcuEvent
       <$> notifyConversationAction
         (sing @'ConversationJoinTag)
-        (qUntagged lusr)
+        (tUntagged lusr)
         False
         (Just zcon)
         (qualifyAs lusr conv)
@@ -819,7 +819,7 @@ addMembers ::
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversation @'ConversationJoinTag lcnv (qUntagged lusr) (Just zcon) $
+    updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
 addMembersUnqualifiedV2 ::
@@ -858,7 +858,7 @@ addMembersUnqualifiedV2 ::
 addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversation @'ConversationJoinTag lcnv (qUntagged lusr) (Just zcon) $
+    updateLocalConversation @'ConversationJoinTag lcnv (tUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
 addMembersUnqualified ::
@@ -895,8 +895,8 @@ addMembersUnqualified ::
   Invite ->
   Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
-  let qusers = fmap (qUntagged . qualifyAs lusr) (toNonEmpty users)
-  addMembers lusr zcon (qUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
+  let qusers = fmap (tUntagged . qualifyAs lusr) (toNonEmpty users)
+  addMembers lusr zcon (tUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
 
 updateSelfMember ::
   Members
@@ -918,7 +918,7 @@ updateSelfMember lusr zcon qcnv update = do
   unless exists $ throwS @'ConvNotFound
   E.setSelfMember qcnv lusr update
   now <- input
-  let e = Event qcnv (qUntagged lusr) now (EdMemberUpdate (updateData lusr))
+  let e = Event qcnv (tUntagged lusr) now (EdMemberUpdate (updateData lusr))
   pushConversationEvent (Just zcon) e (fmap pure lusr) []
   where
     checkLocalMembership ::
@@ -937,7 +937,7 @@ updateSelfMember lusr zcon qcnv update = do
         <$> E.getRemoteConversationStatus (tUnqualified lusr) [rcnv]
     updateData luid =
       MemberUpdateData
-        { misTarget = qUntagged luid,
+        { misTarget = tUntagged luid,
           misOtrMutedStatus = mupOtrMuteStatus update,
           misOtrMutedRef = mupOtrMuteRef update,
           misOtrArchived = mupOtrArchive update,
@@ -964,7 +964,7 @@ updateUnqualifiedSelfMember ::
   Sem r ()
 updateUnqualifiedSelfMember lusr zcon cnv update = do
   let lcnv = qualifyAs lusr cnv
-  updateSelfMember lusr zcon (qUntagged lcnv) update
+  updateSelfMember lusr zcon (tUntagged lcnv) update
 
 updateOtherMemberLocalConv ::
   Members
@@ -989,9 +989,9 @@ updateOtherMemberLocalConv ::
   OtherMemberUpdate ->
   Sem r ()
 updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap lcuEvent $ do
-  when (qUntagged lusr == qvictim) $
+  when (tUntagged lusr == qvictim) $
     throwS @'InvalidTarget
-  updateLocalConversation @'ConversationMemberUpdateTag lcnv (qUntagged lusr) (Just con) $
+  updateLocalConversation @'ConversationMemberUpdateTag lcnv (tUntagged lusr) (Just con) $
     ConversationMemberUpdate qvictim update
 
 updateOtherMemberUnqualified ::
@@ -1019,7 +1019,7 @@ updateOtherMemberUnqualified ::
 updateOtherMemberUnqualified lusr zcon cnv victim update = do
   let lcnv = qualifyAs lusr cnv
   let lvictim = qualifyAs lusr victim
-  updateOtherMemberLocalConv lcnv lusr zcon (qUntagged lvictim) update
+  updateOtherMemberLocalConv lcnv lusr zcon (tUntagged lvictim) update
 
 updateOtherMember ::
   Members
@@ -1083,7 +1083,7 @@ removeMemberUnqualified ::
 removeMemberUnqualified lusr con cnv victim = do
   let lvictim = qualifyAs lusr victim
       lcnv = qualifyAs lusr cnv
-  removeMemberQualified lusr con (qUntagged lcnv) (qUntagged lvictim)
+  removeMemberQualified lusr con (tUntagged lcnv) (tUntagged lvictim)
 
 removeMemberQualified ::
   Members
@@ -1129,7 +1129,7 @@ removeMemberFromRemoteConv ::
   Qualified UserId ->
   Sem r (Maybe Event)
 removeMemberFromRemoteConv cnv lusr victim
-  | qUntagged lusr == victim = do
+  | tUntagged lusr == victim = do
       let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
       let rpc = fedClient @'Galley @"leave-conversation" lc
       (either handleError handleSuccess . leaveResponse =<<) $
@@ -1149,7 +1149,7 @@ removeMemberFromRemoteConv cnv lusr victim
     handleSuccess _ = do
       t <- input
       pure . Just $
-        Event (qUntagged cnv) (qUntagged lusr) t $
+        Event (tUntagged cnv) (tUntagged lusr) t $
           EdMembersLeave (QualifiedUserIdList [victim])
 
 -- | Remove a member from a local conversation.
@@ -1177,15 +1177,15 @@ removeMemberFromLocalConv ::
   Qualified UserId ->
   Sem r (Maybe Event)
 removeMemberFromLocalConv lcnv lusr con victim
-  | qUntagged lusr == victim =
+  | tUntagged lusr == victim =
       fmap (fmap lcuEvent . hush)
         . runError @NoChanges
-        . updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged lusr) con
+        . updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged lusr) con
         $ ()
   | otherwise =
       fmap (fmap lcuEvent . hush)
         . runError @NoChanges
-        . updateLocalConversation @'ConversationRemoveMembersTag lcnv (qUntagged lusr) con
+        . updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged lusr) con
         . pure
         $ victim
 
@@ -1215,8 +1215,8 @@ postProteusMessage ::
 postProteusMessage sender zcon conv msg = runLocalInput sender $ do
   foldQualified
     sender
-    (\c -> postQualifiedOtrMessage User (qUntagged sender) (Just zcon) c (rpValue msg))
-    (\c -> postRemoteOtrMessage (qUntagged sender) c (rpRaw msg))
+    (\c -> postQualifiedOtrMessage User (tUntagged sender) (Just zcon) c (rpValue msg))
+    (\c -> postRemoteOtrMessage (tUntagged sender) c (rpRaw msg))
     conv
 
 postProteusBroadcast ::
@@ -1304,7 +1304,7 @@ postBotMessageUnqualified sender cnv ignoreMissing reportMissing message = do
   lcnv <- qualifyLocal cnv
   unqualifyEndpoint
     lusr
-    (runLocalInput lusr . postQualifiedOtrMessage Bot (qUntagged lusr) Nothing lcnv)
+    (runLocalInput lusr . postQualifiedOtrMessage Bot (tUntagged lusr) Nothing lcnv)
     ignoreMissing
     reportMissing
     message
@@ -1361,7 +1361,7 @@ postOtrMessageUnqualified sender zcon cnv =
   let lcnv = qualifyAs sender cnv
    in unqualifyEndpoint
         sender
-        (runLocalInput sender . postQualifiedOtrMessage User (qUntagged sender) (Just zcon) lcnv)
+        (runLocalInput sender . postQualifiedOtrMessage User (tUntagged sender) (Just zcon) lcnv)
 
 updateConversationName ::
   Members
@@ -1435,7 +1435,7 @@ updateLocalConversationName ::
   Sem r (UpdateResult Event)
 updateLocalConversationName lusr zcon lcnv rename =
   getUpdateResult . fmap lcuEvent $
-    updateLocalConversation @'ConversationRenameTag lcnv (qUntagged lusr) (Just zcon) rename
+    updateLocalConversation @'ConversationRenameTag lcnv (tUntagged lusr) (Just zcon) rename
 
 isTypingQualified ::
   Members
@@ -1488,7 +1488,7 @@ isTypingUnqualified ::
   Sem r ()
 isTypingUnqualified lusr zcon cnv typingData = do
   lcnv <- qualifyLocal cnv
-  isTyping (qUntagged lusr) (Just zcon) lcnv typingData
+  isTyping (tUntagged lusr) (Just zcon) lcnv typingData
 
 addServiceH ::
   Members
@@ -1566,13 +1566,13 @@ addBot lusr zcon b = do
   bm <- E.createBotMember (b ^. addBotService) (b ^. addBotId) (b ^. addBotConv)
   let e =
         Event
-          (qUntagged (qualifyAs lusr (b ^. addBotConv)))
-          (qUntagged lusr)
+          (tUntagged (qualifyAs lusr (b ^. addBotConv)))
+          (tUntagged lusr)
           t
           ( EdMembersJoin
               ( SimpleMembers
                   [ SimpleMember
-                      (qUntagged (qualifyAs lusr (botUserId (botMemId bm))))
+                      (tUntagged (qualifyAs lusr (botUserId (botMemId bm))))
                       roleNameWireAdmin
                   ]
               )
@@ -1592,7 +1592,7 @@ addBot lusr zcon b = do
       ensureActionAllowed SAddConversationMember self
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
-        ensureMemberLimit (toList $ Data.convLocalMembers c) [qUntagged botId]
+        ensureMemberLimit (toList $ Data.convLocalMembers c) [tUntagged botId]
       pure (bots, users)
 
 rmBotH ::
@@ -1651,8 +1651,8 @@ rmBot lusr zcon b = do
     else do
       t <- input
       do
-        let evd = EdMembersLeave (QualifiedUserIdList [qUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
-        let e = Event (qUntagged lcnv) (qUntagged lusr) t evd
+        let evd = EdMembersLeave (QualifiedUserIdList [tUntagged (qualifyAs lusr (botUserId (b ^. rmBotId)))])
+        let e = Event (tUntagged lcnv) (tUntagged lusr) t evd
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> users)) $ \p ->
           E.push1 $ p & pushConn .~ zcon
         E.deleteMembers (Data.convId c) (UserList [botUserId (b ^. rmBotId)] [])

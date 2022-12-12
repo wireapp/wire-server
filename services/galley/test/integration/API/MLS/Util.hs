@@ -279,7 +279,7 @@ initMLSClient cid = do
   void $ mlscli cid ["init", cid2Str cid] Nothing
 
 createLocalMLSClient :: Local UserId -> MLSTest ClientIdentity
-createLocalMLSClient (qUntagged -> qusr) = do
+createLocalMLSClient (tUntagged -> qusr) = do
   qcid <- createWireClient qusr
   initMLSClient qcid
 
@@ -301,7 +301,7 @@ createLocalMLSClient (qUntagged -> qusr) = do
 createMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
 createMLSClient qusr = do
   loc <- liftTest $ qualifyLocal ()
-  foldQualified loc createLocalMLSClient (createFakeMLSClient . qUntagged) qusr
+  foldQualified loc createLocalMLSClient (createFakeMLSClient . tUntagged) qusr
 
 -- | Like 'createMLSClient', but do not actually register client with backend.
 createFakeMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
@@ -493,7 +493,7 @@ getUserClients qusr = do
 
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
-claimRemoteKeyPackages (qUntagged -> qusr) = do
+claimRemoteKeyPackages (tUntagged -> qusr) = do
   brig <- viewBrig
   clients <- getUserClients qusr
   bundle <- fmap (KeyPackageBundle . Set.fromList) $

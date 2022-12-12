@@ -209,7 +209,7 @@ throwFgcError (FailedGetConversation _ r) = throwFgcrError r
 failedGetConversationRemotely ::
   [Remote ConvId] -> FederationError -> FailedGetConversation
 failedGetConversationRemotely qconvs =
-  FailedGetConversation (map qUntagged qconvs) . FailedGetConversationRemotely
+  FailedGetConversation (map tUntagged qconvs) . FailedGetConversationRemotely
 
 failedGetConversationLocally ::
   [Qualified ConvId] -> FailedGetConversation
@@ -244,7 +244,7 @@ getRemoteConversationsWithFailures lusr convs = do
       (locallyFound, locallyNotFound) = partition (flip Map.member statusMap) convs
       localFailures
         | null locallyNotFound = []
-        | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
+        | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
   let rpc = fedClient @'Galley @"get-conversations"
@@ -358,7 +358,7 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
       Sem r Public.ConvIdsPage
     remotesOnly pagingState size =
       pageToConvIdPage Public.PagingRemotes
-        . fmap (qUntagged @'QRemote)
+        . fmap (tUntagged @'QRemote)
         <$> E.listItems (tUnqualified lusr) pagingState size
 
     pageToConvIdPage :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
@@ -495,7 +495,7 @@ listConversations luser (Public.ListConversations ids) = do
   let (failedConvsLocally, failedConvsRemotely) = partitionGetConversationFailures remoteFailures
       failedConvs = failedConvsLocally <> failedConvsRemotely
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
-      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map qUntagged remoteIds
+      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map tUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
@@ -511,7 +511,7 @@ listConversations luser (Public.ListConversations ids) = do
         crNotFound =
           failedConvsLocally
             <> remoteNotFoundRemoteIds
-            <> map (qUntagged . qualifyAs luser) notFoundLocalIds,
+            <> map (tUntagged . qualifyAs luser) notFoundLocalIds,
         crFailed = failedConvsRemotely
       }
   where

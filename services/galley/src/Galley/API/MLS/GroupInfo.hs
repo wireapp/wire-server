@@ -61,7 +61,7 @@ getGroupInfo lusr qcnvId = do
   assertMLSEnabled
   foldQualified
     lusr
-    (getGroupInfoFromLocalConv . qUntagged $ lusr)
+    (getGroupInfoFromLocalConv . tUntagged $ lusr)
     (getGroupInfoFromRemoteConv lusr)
     qcnvId
 

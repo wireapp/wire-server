@@ -134,7 +134,7 @@ uploadAssetV3 ::
 uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
   asset <- V3.upload principal (getAssetSource req)
-  pure (fmap qUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
+  pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
 
 downloadAssetV3 ::
   MakePrincipal tag id =>

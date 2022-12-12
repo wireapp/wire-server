@@ -127,7 +127,7 @@ sendLocalWelcomes con now rawWelcome lclients = do
       -- FUTUREWORK: use the conversation ID stored in the key package mapping table
       let lcnv = qualifyAs lclients (selfConv u)
           lusr = qualifyAs lclients u
-          e = Event (qUntagged lcnv) (qUntagged lusr) now $ EdMLSWelcome rawWelcome
+          e = Event (tUntagged lcnv) (tUntagged lusr) now $ EdMLSWelcome rawWelcome
        in newMessagePush lclients mempty con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::

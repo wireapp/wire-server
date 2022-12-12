@@ -885,7 +885,7 @@ createConnectionUnqualified ::
 createConnectionUnqualified self conn cr = do
   lself <- qualifyLocal self
   target <- qualifyLocal (Public.crUser cr)
-  API.createConnection lself conn (qUntagged target) !>> connError
+  API.createConnection lself conn (tUntagged target) !>> connError
 
 createConnection ::
   Members
@@ -903,7 +903,7 @@ createConnection self conn target = do
 updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
   lother <- qualifyLocal other
-  updateConnection self conn (qUntagged lother) update
+  updateConnection self conn (tUntagged lother) update
 
 updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
 updateConnection self conn other update = do
@@ -963,7 +963,7 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
 getLocalConnection :: UserId -> UserId -> (Handler r) (Maybe Public.UserConnection)
 getLocalConnection self other = do
   lother <- qualifyLocal other
-  getConnection self (qUntagged lother)
+  getConnection self (tUntagged lother)
 
 getConnection :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserConnection)
 getConnection self other = do

@@ -819,8 +819,8 @@ handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
             then do
               for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
                 let lusr = qualifyAs luid (lmId memberNoConsent)
-                removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)
+                removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)
             else do
               for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
                 let lusr = qualifyAs luid (lmId legalholder)
-                removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)
+                removeMemberFromLocalConv lcnv lusr Nothing (tUntagged lusr)

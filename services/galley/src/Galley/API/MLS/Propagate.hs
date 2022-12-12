@@ -70,7 +70,7 @@ propagateMessage qusr lconv cm con raw = do
       mm = defMessageMetadata
   now <- input @UTCTime
   let lcnv = fmap Data.convId lconv
-      qcnv = qUntagged lcnv
+      qcnv = tUntagged lcnv
       e = Event qcnv qusr now $ EdMLSMessage raw
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
@@ -93,7 +93,7 @@ propagateMessage qusr lconv cm con raw = do
   where
     localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
     localMemberMLSClients loc lm =
-      let localUserQId = qUntagged (qualifyAs loc localUserId)
+      let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lmId lm
        in map
             (\(c, _) -> (localUserId, c))
@@ -101,7 +101,7 @@ propagateMessage qusr lconv cm con raw = do
 
     remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients rm =
-      let remoteUserQId = qUntagged (rmId rm)
+      let remoteUserQId = tUntagged (rmId rm)
           remoteUserId = qUnqualified remoteUserQId
        in map
             (\(c, _) -> (remoteUserId, c))

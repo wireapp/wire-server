@@ -136,7 +136,7 @@ lookupPubClientsBulk qualifiedUids = do
   remoteUserClientMap <-
     traverseWithKey
       (\domain' uids -> getUserClients domain' (GetUserClients uids))
-      (indexQualified (fmap qUntagged remoteUsers))
+      (indexQualified (fmap tUntagged remoteUsers))
       !>> ClientFederationError
   localUserClientMap <- Map.singleton (tDomain loc) <$> lookupLocalPubClientsBulk localUsers
   pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
@@ -320,12 +320,12 @@ claimMultiPrekeyBundles protectee quc = do
       Remote UserClients ->
       ExceptT FederationError m (Qualified UserClientPrekeyMap)
     claimRemote ruc =
-      qUntagged . qualifyAs ruc
+      tUntagged . qualifyAs ruc
         <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)
 
     claimLocal :: Local UserClients -> ExceptT ClientError (AppT r) (Qualified UserClientPrekeyMap)
     claimLocal luc =
-      qUntagged . qualifyAs luc
+      tUntagged . qualifyAs luc
         <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
 
 claimLocalMultiPrekeyBundles ::

@@ -48,7 +48,7 @@ data RemoteMember = RemoteMember
 remoteMemberToOther :: RemoteMember -> OtherMember
 remoteMemberToOther x =
   OtherMember
-    { omQualifiedId = qUntagged (rmId x),
+    { omQualifiedId = tUntagged (rmId x),
       omService = Nothing,
       omConvRoleName = rmConvRoleName x
     }
