@@ -888,7 +888,8 @@ Lens.makeLensesFor
     ("setSftStaticUrl", "sftStaticUrl"),
     ("setSftListAllServers", "sftListAllServers"),
     ("setFederationDomainConfigs", "federationDomainConfigs"),
-    ("setEnableDevelopmentVersions", "enableDevelopmentVersions")
+    ("setEnableDevelopmentVersions", "enableDevelopmentVersions"),
+    ("setOAuthEnabledInternal", "oauthEnabledInternal")
   ]
   ''Settings
 
