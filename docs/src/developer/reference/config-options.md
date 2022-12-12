@@ -562,7 +562,7 @@ optSettings:
 
 ### MLS settings
 
-#### `setMLSEnabled`
+#### `setEnableMLS`
 
 This option determines whether MLS is supported on this backend. When set to false (or absent), MLS endpoints will fail without performing any action.
 

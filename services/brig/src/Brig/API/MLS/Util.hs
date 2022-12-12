@@ -27,7 +27,7 @@ import Control.Lens (view)
 import Imports
 
 isMLSEnabled :: Handler r Bool
-isMLSEnabled = fromMaybe False . setMLSEnabled <$> view settings
+isMLSEnabled = fromMaybe False . setEnableMLS <$> view settings
 
 assertMLSEnabled :: Handler r ()
 assertMLSEnabled =

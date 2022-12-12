@@ -585,7 +585,7 @@ data Settings = Settings
     -- field. The default setting is to exclude and omit the field from the
     -- response.
     setSftListAllServers :: Maybe ListAllSFTServers,
-    setMLSEnabled :: Maybe Bool,
+    setEnableMLS :: Maybe Bool,
     setKeyPackageMaximumLifetime :: Maybe NominalDiffTime,
     -- | When set, development API versions are advertised to clients.
     setEnableDevelopmentVersions :: Maybe Bool,
