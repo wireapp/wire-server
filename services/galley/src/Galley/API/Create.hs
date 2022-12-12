@@ -132,7 +132,7 @@ createGroupConversation lusr conn newConv = do
   case (convProtocol conv, newConvCreatorClient newConv) of
     (ProtocolProteus, _) -> pure ()
     (ProtocolMLS mlsMeta, Just c) ->
-      E.addMLSClients (cnvmlsGroupId mlsMeta) (qUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
+      E.addMLSClients (cnvmlsGroupId mlsMeta) (tUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
     (ProtocolMLS _mlsMeta, Nothing) ->
       throw (InvalidPayload "Missing creator_client field when creating an MLS conversation")
 
@@ -248,7 +248,7 @@ createOne2OneConversation ::
 createOne2OneConversation lusr zcon j = do
   let allUsers = newConvMembers lusr j
   other <- ensureOne (ulAll lusr allUsers)
-  when (qUntagged lusr == other) $
+  when (tUntagged lusr == other) $
     throwS @'InvalidOperation
   mtid <- case newConvTeam j of
     Just ti -> do
@@ -261,7 +261,7 @@ createOne2OneConversation lusr zcon j = do
   foldQualified
     lusr
     (createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
-    (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . qUntagged)
+    (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . tUntagged)
     other
   where
     verifyMembership :: TeamId -> UserId -> Sem r ()
@@ -347,7 +347,7 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
           self
           createOne2OneConversationLocally
           createOne2OneConversationRemotely
-  create (one2OneConvId (qUntagged self) other) self zcon name mtid other
+  create (one2OneConvId (tUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
   Members
@@ -381,7 +381,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
       let nc =
             NewConversation
               { ncMetadata = meta,
-                ncUsers = fmap toUserRole (toUserList lcnv [qUntagged self, other]),
+                ncUsers = fmap toUserRole (toUserList lcnv [tUntagged self, other]),
                 ncProtocol = ProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
@@ -443,7 +443,7 @@ createConnectConversation lusr conn j = do
     create lcnv nc = do
       c <- E.createConversation lcnv nc
       now <- input
-      let e = Event (qUntagged lcnv) (qUntagged lusr) now (EdConnect j)
+      let e = Event (tUntagged lcnv) (tUntagged lusr) now (EdConnect j)
       notifyCreatedConversation Nothing lusr conn c
       for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         E.push1 $
@@ -483,7 +483,7 @@ createConnectConversation lusr conn j = do
               pure . Just $ fromRange x
             Nothing -> pure $ Data.convName conv
           t <- input
-          let e = Event (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
+          let e = Event (tUntagged lcnv) (tUntagged lusr) t (EdConnect j)
           for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
             E.push1 $
               p
@@ -561,7 +561,7 @@ notifyCreatedConversation dtime lusr conn c = do
     toPush t m = do
       let lconv = qualifyAs lusr (Data.convId c)
       c' <- conversationView (qualifyAs lusr (lmId m)) c
-      let e = Event (qUntagged lconv) (qUntagged lusr) t (EdConversation c')
+      let e = Event (tUntagged lconv) (tUntagged lusr) t (EdConversation c')
       pure $
         newPushLocal1 ListComplete (tUnqualified lusr) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn

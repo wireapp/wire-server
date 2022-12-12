@@ -3678,7 +3678,7 @@ postTypingIndicatorsV2 = do
 
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
-        wsAssertTyping (qUntagged lcnv) (qUntagged aliceL) StartedTyping n
+        wsAssertTyping (tUntagged lcnv) (tUntagged aliceL) StartedTyping n
 
     post
       ( g
@@ -3686,13 +3686,13 @@ postTypingIndicatorsV2 = do
           . zUser bob
           . zConn "conn"
           . zType "access"
-          . json  StoppedTyping
+          . json StoppedTyping
       )
       !!! const 200 === statusCode
 
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
-        wsAssertTyping (qUntagged lcnv) (qUntagged bobL) StoppedTyping n
+        wsAssertTyping (tUntagged lcnv) (tUntagged bobL) StoppedTyping n
 
 postTypingIndicators :: TestM ()
 postTypingIndicators = do
@@ -3719,13 +3719,13 @@ postTypingIndicators = do
           . zUser bob
           . zConn "conn"
           . zType "access"
-          . json  StoppedTyping
+          . json StoppedTyping
       )
       !!! const 200 === statusCode
 
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
-        wsAssertTyping (qUntagged lcnv) (qUntagged bobL) StoppedTyping n
+        wsAssertTyping (tUntagged lcnv) (tUntagged bobL) StoppedTyping n
 
     -- to bob from alice
     post
@@ -3740,7 +3740,7 @@ postTypingIndicators = do
 
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsAlice, wsBob] $ \n ->
-        wsAssertTyping (qUntagged lcnv) (qUntagged aliceL) StartedTyping n
+        wsAssertTyping (tUntagged lcnv) (tUntagged aliceL) StartedTyping n
 
 postTypingIndicatorsHandlesNonsense :: TestM ()
 postTypingIndicatorsHandlesNonsense = do

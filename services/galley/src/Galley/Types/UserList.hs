@@ -49,7 +49,7 @@ ulAddLocal :: a -> UserList a -> UserList a
 ulAddLocal x ul = ul {ulLocals = x : ulLocals ul}
 
 ulAll :: Local x -> UserList a -> [Qualified a]
-ulAll loc ul = map (qUntagged . qualifyAs loc) (ulLocals ul) <> map qUntagged (ulRemotes ul)
+ulAll loc ul = map (tUntagged . qualifyAs loc) (ulLocals ul) <> map tUntagged (ulRemotes ul)
 
 ulFromLocals :: [a] -> UserList a
 ulFromLocals = flip UserList []

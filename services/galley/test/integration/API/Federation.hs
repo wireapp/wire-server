@@ -96,7 +96,7 @@ getConversationsAllFound = do
   let bob = qUnqualified bobQ
       lBob = toLocalUnsafe (qDomain bobQ) (qUnqualified bobQ)
   (rAlice, cnv1Id) <- generateRemoteAndConvId True lBob
-  let aliceQ = qUntagged rAlice
+  let aliceQ = tUntagged rAlice
   carlQ <- randomQualifiedUser
 
   connectUsers bob (singleton (qUnqualified carlQ))
@@ -719,7 +719,7 @@ leaveConversationInvalidType = do
   alice <- qTagUnsafe <$> randomQualifiedUser
 
   (bob, conv) <- generateRemoteAndConvIdWithDomain remoteDomain True alice
-  connectWithRemoteUser (tUnqualified alice) (qUntagged bob)
+  connectWithRemoteUser (tUnqualified alice) (tUntagged bob)
   createOne2OneConvWithRemote alice bob
 
   g <- viewGalley
@@ -955,7 +955,7 @@ onUserDeleted = do
   bart <- randomQualifiedId bDomain
   carl <- randomQualifiedId cDomain
 
-  connectWithRemoteUser (tUnqualified alice) (qUntagged bob)
+  connectWithRemoteUser (tUnqualified alice) (tUntagged bob)
   connectUsers (tUnqualified alice) (pure (qUnqualified alex))
   connectWithRemoteUser (tUnqualified alice) bart
   connectWithRemoteUser (tUnqualified alice) carl
@@ -968,7 +968,7 @@ onUserDeleted = do
     decodeQualifiedConvId
       <$> ( postConvWithRemoteUsers
               (tUnqualified alice)
-              defNewProteusConv {newConvQualifiedUsers = [qUntagged bob, alex, bart, carl]}
+              defNewProteusConv {newConvQualifiedUsers = [tUntagged bob, alex, bart, carl]}
               <!! const 201 === statusCode
           )
 
@@ -1018,9 +1018,9 @@ onUserDeleted = do
       -- Assert that local user's get notifications only for the conversation
       -- bob was part of and it wasn't a One2OneConv
       void . WS.assertMatch (3 # Second) wsAlice $
-        wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
+        wsAssertMembersLeave groupConvId (tUntagged bob) [tUntagged bob]
       void . WS.assertMatch (3 # Second) wsAlex $
-        wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
+        wsAssertMembersLeave groupConvId (tUntagged bob) [tUntagged bob]
       -- Alice shouldn't get any other notifications because we don't notify
       -- on One2One convs.
       --
@@ -1036,7 +1036,7 @@ onUserDeleted = do
       -- Assertions about RPC to 'cDomain'
       cDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
       cDomainRPCReq <- assertRight $ parseFedRequest cDomainRPC
-      FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
+      FedGalley.cuOrigUserId cDomainRPCReq @?= tUntagged bob
       FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
       FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
       FedGalley.cuAction cDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) ()

@@ -125,7 +125,7 @@ rmClientH (usr ::: cid) = do
         mConv <- getConversation convId
         for_ mConv $ \conv -> do
           lconv <- qualifyLocal conv
-          removeClient lconv (qUntagged lusr) cid
+          removeClient lconv (tUntagged lusr) cid
       traverse_ removeRemoteMLSClients (rangedChunks remoteConvs)
       when (mtpHasMore page) $ do
         let nextState = mtpPagingState page

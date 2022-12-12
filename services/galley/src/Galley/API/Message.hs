@@ -222,7 +222,7 @@ getRemoteClients remoteMembers =
   mconcat . map tUnqualified
     <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
   where
-    getRemoteClientsFromDomain (qUntagged -> Qualified uids domain) =
+    getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
@@ -313,7 +313,7 @@ postBroadcast lusr con msg = runError $ do
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus (toUTCTimeMillis now) mismatch mempty
   unless sendMessage $ do
-    let lhProtectee = qualifiedUserToProtectee (tDomain lusr) User (qUntagged lusr)
+    let lhProtectee = qualifiedUserToProtectee (tDomain lusr) User (tUntagged lusr)
         missingClients = qmMissing mismatch
 
     mapError @LegalholdConflicts @(MessageNotSent MessageSendingStatus)
@@ -326,7 +326,7 @@ postBroadcast lusr con msg = runError $ do
     sendBroadcastMessages
       lusr
       now
-      (qUntagged lusr)
+      (tUntagged lusr)
       senderClient
       con
       (qualifiedNewOtrMetadata msg)
@@ -403,8 +403,8 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           members :: Set (Qualified UserId)
           members =
             Set.fromList $
-              map (qUntagged . qualifyAs lcnv) localMemberIds
-                <> map (qUntagged . rmId) (convRemoteMembers conv)
+              map (tUntagged . qualifyAs lcnv) localMemberIds
+                <> map (tUntagged . rmId) (convRemoteMembers conv)
       isInternal <- view (optSettings . setIntraListing) <$> input
 
       -- check if the sender is part of the conversation
@@ -489,7 +489,7 @@ sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   let send dom =
         foldQualified
           lcnv
-          (\l -> sendLocalMessages @t l now sender senderClient mconn (Just (qUntagged lcnv)) botMap metadata)
+          (\l -> sendLocalMessages @t l now sender senderClient mconn (Just (tUntagged lcnv)) botMap metadata)
           (\r -> sendRemoteMessages r now sender senderClient lcnv metadata)
           (Qualified () dom)
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
@@ -605,7 +605,7 @@ newMessageEvent ::
   Text ->
   Event
 newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) cipherText =
-  let convId = fromMaybe (qUntagged (fmap selfConv receiver)) mconvId
+  let convId = fromMaybe (tUntagged (fmap selfConv receiver)) mconvId
    in Event convId sender time . EdOtrMessage $
         OtrMessage
           { otrSender = senderClient,

@@ -169,7 +169,7 @@ onConversationCreated domain rc = do
   addedUserIds <-
     addLocalUsersToRemoteConv
       (F.ccCnvId qrc)
-      (qUntagged (F.ccRemoteOrigUserId qrc))
+      (tUntagged (F.ccRemoteOrigUserId qrc))
       localUserIds
 
   let connectedMembers =
@@ -187,8 +187,8 @@ onConversationCreated domain rc = do
   for_ (fromConversationCreated loc qrcConnected) $ \(mem, c) -> do
     let event =
           Event
-            (qUntagged (F.ccCnvId qrcConnected))
-            (qUntagged (F.ccRemoteOrigUserId qrcConnected))
+            (tUntagged (F.ccCnvId qrcConnected))
+            (tUntagged (F.ccRemoteOrigUserId qrcConnected))
             (F.ccTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
@@ -238,7 +238,7 @@ onConversationUpdated ::
 onConversationUpdated requestingDomain cu = do
   loc <- qualifyLocal ()
   let rconvId = toRemoteUnsafe requestingDomain (F.cuConvId cu)
-      qconvId = qUntagged rconvId
+      qconvId = tUntagged rconvId
 
   -- Note: we generally do not send notifications to users that are not part of
   -- the conversation (from our point of view), to prevent spam from the remote
@@ -261,7 +261,7 @@ onConversationUpdated requestingDomain cu = do
         let ConversationJoin toAdd role = action
         let (localUsers, remoteUsers) = partitionQualified loc toAdd
         addedLocalUsers <- Set.toList <$> addLocalUsersToRemoteConv rconvId (F.cuOrigUserId cu) localUsers
-        let allAddedUsers = map (qUntagged . qualifyAs loc) addedLocalUsers <> map qUntagged remoteUsers
+        let allAddedUsers = map (tUntagged . qualifyAs loc) addedLocalUsers <> map tUntagged remoteUsers
         case allAddedUsers of
           [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
           (u : us) -> pure (Just (SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (u :| us) role)), addedLocalUsers)
@@ -357,13 +357,13 @@ leaveConversation requestingDomain lc = do
       . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
       $ do
-        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound (qUntagged leaver) lcnv
+        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound (tUntagged leaver) lcnv
         update <-
           lcuUpdate
             <$> updateLocalConversation
               @'ConversationLeaveTag
               lcnv
-              (qUntagged leaver)
+              (tUntagged leaver)
               Nothing
               ()
         pure (update, conv)
@@ -376,7 +376,7 @@ leaveConversation requestingDomain lc = do
       _ <-
         notifyConversationAction
           SConversationLeaveTag
-          (qUntagged leaver)
+          (tUntagged leaver)
           False
           Nothing
           (qualifyAs lcnv conv)
@@ -395,7 +395,7 @@ onMessageSent ::
   Sem r ()
 onMessageSent domain rmUnqualified = do
   let rm = fmap (toRemoteUnsafe domain) rmUnqualified
-      convId = qUntagged $ F.rmConversation rm
+      convId = tUntagged $ F.rmConversation rm
       msgMetadata =
         MessageMetadata
           { mmNativePush = F.rmPush rm,
@@ -479,7 +479,7 @@ onUserDeleted ::
   Sem r EmptyResponse
 onUserDeleted origDomain udcn = do
   let deletedUser = toRemoteUnsafe origDomain (F.udcvUser udcn)
-      untaggedDeletedUser = qUntagged deletedUser
+      untaggedDeletedUser = tUntagged deletedUser
       convIds = F.udcvConversations udcn
 
   E.spawnMany $
@@ -500,7 +500,7 @@ onUserDeleted origDomain udcn = do
             Public.SelfConv -> pure ()
             Public.RegularConv -> do
               let botsAndMembers = convBotsAndMembers conv
-              removeUser (qualifyAs lc conv) (qUntagged deletedUser)
+              removeUser (qualifyAs lc conv) (tUntagged deletedUser)
               void $
                 notifyConversationAction
                   (sing @'ConversationLeaveTag)
@@ -551,46 +551,46 @@ updateConversation origDomain updateRequest = do
       SConversationJoinTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationJoinTag lcnv (qUntagged rusr) Nothing action
+          $ updateLocalConversation @'ConversationJoinTag lcnv (tUntagged rusr) Nothing action
       SConversationLeaveTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged rusr) Nothing action
+          $ updateLocalConversation @'ConversationLeaveTag lcnv (tUntagged rusr) Nothing action
       SConversationRemoveMembersTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationRemoveMembersTag lcnv (qUntagged rusr) Nothing action
+          $ updateLocalConversation @'ConversationRemoveMembersTag lcnv (tUntagged rusr) Nothing action
       SConversationMemberUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationMemberUpdateTag lcnv (qUntagged rusr) Nothing action
+          $ updateLocalConversation @'ConversationMemberUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationDeleteTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationDeleteTag lcnv (qUntagged rusr) Nothing action
+          $ updateLocalConversation @'ConversationDeleteTag lcnv (tUntagged rusr) Nothing action
       SConversationRenameTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationRenameTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationRenameTag lcnv (qUntagged rusr) Nothing action
+          $ updateLocalConversation @'ConversationRenameTag lcnv (tUntagged rusr) Nothing action
       SConversationMessageTimerUpdateTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationMessageTimerUpdateTag lcnv (qUntagged rusr) Nothing action
+          $ updateLocalConversation @'ConversationMessageTimerUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationReceiptModeUpdateTag ->
         mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationReceiptModeUpdateTag lcnv (qUntagged rusr) Nothing action
+          $ updateLocalConversation @'ConversationReceiptModeUpdateTag lcnv (tUntagged rusr) Nothing action
       SConversationAccessDataTag ->
         mapToGalleyError
           @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
           . fmap lcuUpdate
-          $ updateLocalConversation @'ConversationAccessDataTag lcnv (qUntagged rusr) Nothing action
+          $ updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged rusr) Nothing action
   where
     mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
 
@@ -640,7 +640,7 @@ sendMLSCommitBundle remoteDomain msr =
       qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
       when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
       F.MLSMessageResponseUpdates . map lcuUpdate
-        <$> postMLSCommitBundle loc (qUntagged sender) Nothing qcnv Nothing bundle
+        <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
 
 sendMLSMessage ::
   ( Members
@@ -685,7 +685,7 @@ sendMLSMessage remoteDomain msr =
           qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
           when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
           F.MLSMessageResponseUpdates . map lcuUpdate
-            <$> postMLSMessage loc (qUntagged sender) Nothing qcnv Nothing raw
+            <$> postMLSMessage loc (tUntagged sender) Nothing qcnv Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::
@@ -780,12 +780,12 @@ onMLSMessageSent domain rmm =
       let recipients = filter (\(u, _) -> Set.member u members) (F.rmmRecipients rmm)
       -- FUTUREWORK: support local bots
       let e =
-            Event (qUntagged rcnv) (F.rmmSender rmm) (F.rmmTime rmm) $
+            Event (tUntagged rcnv) (F.rmmSender rmm) (F.rmmTime rmm) $
               EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
       let mkPush :: (UserId, ClientId) -> MessagePush 'NormalMessage
           mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e
 
-      runMessagePush loc (Just (qUntagged rcnv)) $
+      runMessagePush loc (Just (tUntagged rcnv)) $
         foldMap mkPush recipients
 
 queryGroupInfo ::
@@ -808,7 +808,7 @@ queryGroupInfo origDomain req =
       assertMLSEnabled
       lconvId <- qualifyLocal . ggireqConv $ req
       let sender = toRemoteUnsafe origDomain . ggireqSender $ req
-      state <- getGroupInfoFromLocalConv (qUntagged sender) lconvId
+      state <- getGroupInfoFromLocalConv (tUntagged sender) lconvId
       pure
         . Base64ByteString
         . unOpaquePublicGroupState
