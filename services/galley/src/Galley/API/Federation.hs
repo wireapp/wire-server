@@ -833,5 +833,5 @@ onTypingIndicatorUpdated origDomain TypingDataUpdateRequest {..} = do
   -- FUTUREWORK: Consider if we should throw exceptions from this kind of function
   void $
     runError @(Tagged 'ConvNotFound ()) $
-      isTyping qusr Nothing lcnv tdurTypingData
+      isTyping qusr Nothing lcnv tdurTypingStatus
   pure EmptyResponse

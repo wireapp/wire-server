@@ -32,7 +32,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Code (Key (..), Value (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
-import Wire.API.Conversation.Typing (TypingStatus (..))
+import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 
@@ -126,7 +126,7 @@ testObject_Event_user_7 =
     (Qualified (Id (fromJust (UUID.fromString "00006ac1-0000-543e-0000-7c8f00000be7"))) (Domain "faraway.example.com"))
     (Qualified (Id (fromJust (UUID.fromString "0000355a-0000-2979-0000-083000002d5e"))) (Domain "faraway.example.com"))
     (read "1864-04-18 05:01:13.761 UTC")
-    (EdTyping (TypingData {tdStatus = StoppedTyping}))
+    (EdTyping StoppedTyping)
 
 testObject_Event_user_8 :: Event
 testObject_Event_user_8 =

@@ -1809,7 +1809,7 @@ wsAssertTyping conv usr ts n = do
   evtConv e @?= conv
   evtType e @?= Conv.Typing
   evtFrom e @?= usr
-  evtData e @?= EdTyping (TypingData ts)
+  evtData e @?= EdTyping ts
 
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
 assertNoMsg ws f = do

@@ -488,7 +488,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.TurnHost_user
     Test.Wire.API.Golden.Generated.TurnURI_user
     Test.Wire.API.Golden.Generated.TurnUsername_user
-    Test.Wire.API.Golden.Generated.TypingData_user
     Test.Wire.API.Golden.Generated.TypingStatus_user
     Test.Wire.API.Golden.Generated.UpdateBotPrekeys_user
     Test.Wire.API.Golden.Generated.UpdateClient_user

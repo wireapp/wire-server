@@ -126,7 +126,6 @@ tests =
       testRoundTrip @Conversation.Role.ConversationRole,
       testRoundTrip @Conversation.Role.ConversationRolesList,
       testRoundTrip @Conversation.Typing.TypingStatus,
-      testRoundTrip @Conversation.Typing.TypingData,
       testRoundTrip @CustomBackend.CustomBackend,
       testRoundTrip @Event.Conversation.Event,
       testRoundTrip @Event.Conversation.EventType,
