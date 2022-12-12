@@ -305,5 +305,8 @@ data:
       {{- if .setOAuthAccessTokenExpirationTimeSecs }}
       setOAuthAccessTokenExpirationTimeSecs: {{ .setOAuthAccessTokenExpirationTimeSecs }}
       {{- end }}
+      {{- if .setOAuthEnabled }}
+      setOAuthEnabled: {{ .setOAuthEnabled }}
+      {{- end }}      
     {{- end }}
   {{- end }}
