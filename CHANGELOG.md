@@ -1,3 +1,14 @@
+# [2022-12-09] (Chart Release )
+
+## Bug fixes and other updates
+
+* Prevention of storing unnecessary data in the database if adding a bot to a conversation fails. (#2870)
+
+## Internal changes
+
+* bump nginx-module-vts from v0.1.15 to v0.2.1 (#2827)
+* Build nginz and nginz_disco docker images using nix (#2796)
+
 # [2022-11-03] (Chart Release 4.26.0)
 
 ## Release notes

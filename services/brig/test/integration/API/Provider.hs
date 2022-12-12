@@ -148,6 +148,7 @@ tests dom conf p db b c g = do
         testGroup
           "bot-teams"
           [ test p "add-remove" $ testAddRemoveBotTeam conf db b g c,
+            test p "add-remove-access-denied-for-non-conv-admin" $ testNonConvAdminCannotAddRemoveBot conf db b g,
             test p "team-only" $ testBotTeamOnlyConv conf db b g c,
             test p "message" $ testMessageBotTeam conf db b g c,
             test p "delete conv" $ testDeleteConvBotTeam conf db b g c,
@@ -565,6 +566,30 @@ testAddBotBlocked config db brig galley = withTestService config db brig defServ
   addBot brig u1 pid sid cid !!! do
     const 403 === statusCode
     const (Just "access-denied") === fmap Error.label . responseJsonMaybe
+
+testNonConvAdminCannotAddRemoveBot :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testNonConvAdminCannotAddRemoveBot config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
+  let pid = sref ^. serviceRefProvider
+  let sid = sref ^. serviceRefId
+  (ownerId, tid) <- Team.createUserWithTeam brig
+  member <- Team.createTeamMember brig galley ownerId tid fullPermissions
+  let memberId = userId member
+  whitelistService brig ownerId tid pid sid
+  cid <- Team.createTeamConvWithRole roleNameWireMember galley tid ownerId [memberId] Nothing
+  addBot brig memberId pid sid cid !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === fmap Error.label . responseJsonMaybe
+  rs <- responseJsonError =<< addBot brig ownerId pid sid cid <!! const 201 === statusCode
+  let bid = rsAddBotId rs
+      buid = botUserId bid
+  getUser brig ownerId buid !!! const 200 === statusCode
+  removeBot brig memberId cid bid !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === fmap Error.label . responseJsonMaybe
+  -- also check the internal galley API
+  removeBotInternal galley memberId cid bid !!! do
+    const 403 === statusCode
+    const (Just "action-denied") === fmap Error.label . responseJsonMaybe
 
 testGetBotConvBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testGetBotConvBlocked config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -1304,6 +1329,31 @@ removeBot brig uid cid bid =
       . header "Z-Type" "access"
       . header "Z-User" (toByteString' uid)
       . header "Z-Connection" "conn"
+
+data RemoveBot = RemoveBot
+  { _rmBotConv :: !ConvId,
+    _rmBotId :: !BotId
+  }
+
+instance ToJSON RemoveBot where
+  toJSON a =
+    object
+      [ "conversation" .= _rmBotConv a,
+        "bot" .= _rmBotId a
+      ]
+
+removeBotInternal ::
+  Galley ->
+  UserId ->
+  ConvId ->
+  BotId ->
+  Http ResponseLBS
+removeBotInternal galley uid cid bid =
+  delete $
+    galley
+      . paths ["i", "bots"]
+      . header "Z-User" (toByteString' uid)
+      . Bilge.json (RemoveBot cid bid)
 
 createConv ::
   Galley ->
