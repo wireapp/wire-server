@@ -1159,3 +1159,5 @@ getConvAction tquery (SomeConversationAction tag action) =
     (SConversationAccessDataTag, _) -> Nothing
     (SConversationRemoveMembersTag, SConversationRemoveMembersTag) -> Just action
     (SConversationRemoveMembersTag, _) -> Nothing
+    (SConversationSelfInviteTag, SConversationSelfInviteTag) -> Just action
+    (SConversationSelfInviteTag, _) -> Nothing

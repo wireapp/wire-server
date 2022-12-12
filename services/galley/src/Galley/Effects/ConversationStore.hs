@@ -28,6 +28,9 @@ module Galley.Effects.ConversationStore
 
     -- * Read conversation
     getConversation,
+    getGlobalTeamConversation,
+    getGlobalTeamConversationById,
+    createGlobalTeamConversation,
     getConversationIdByGroupId,
     getConversations,
     getConversationMetadata,
@@ -68,6 +71,7 @@ import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.MLS.Epoch
+import Wire.API.MLS.GlobalTeamConversation
 import Wire.API.MLS.PublicGroupState
 
 data ConversationStore m a where
@@ -78,6 +82,9 @@ data ConversationStore m a where
     ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
+  GetGlobalTeamConversation :: Local TeamId -> ConversationStore m (Maybe GlobalTeamConversation)
+  GetGlobalTeamConversationById :: Local ConvId -> ConversationStore m (Maybe GlobalTeamConversation)
+  CreateGlobalTeamConversation :: Local TeamId -> ConversationStore m GlobalTeamConversation
   GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)

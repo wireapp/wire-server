@@ -15,6 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use head" #-}
 
 module API.Util where
 
@@ -277,9 +280,17 @@ createBindingTeamInternalNoActivate name owner = do
   tid <- randomId
   let nt = BindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon
   _ <-
-    put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-      const 201 === statusCode
-      const True === isJust . getHeader "Location"
+    put
+      ( g
+          . paths ["/i/teams", toByteString' tid]
+          . zUser owner
+          . zConn "conn"
+          . zType "access"
+          . json nt
+      )
+      <!! do
+        const 201 === statusCode
+        const True === isJust . getHeader "Location"
   pure tid
 
 createBindingTeamInternalWithCurrency :: HasCallStack => Text -> UserId -> Currency.Alpha -> TestM TeamId
@@ -608,7 +619,18 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- viewGalley
   let tinfo = ConvTeamInfo tid
   let conv =
-        NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) ProtocolProteusTag Nothing
+        NewConv
+          us
+          []
+          (name >>= checked)
+          (fromMaybe (Set.fromList []) acc)
+          role
+          (Just tinfo)
+          mtimer
+          Nothing
+          (fromMaybe roleNameWireAdmin convRole)
+          ProtocolProteusTag
+          Nothing
   post
     ( g
         . path "/conversations"
@@ -675,7 +697,18 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
   g <- viewGalley
   let conv =
-        NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+        NewConv
+          [u2]
+          []
+          (n >>= checked)
+          mempty
+          Nothing
+          (Just $ ConvTeamInfo tid)
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -695,7 +728,8 @@ defNewMLSConv :: ClientId -> NewConv
 defNewMLSConv c =
   defNewProteusConv
     { newConvProtocol = ProtocolMLSTag,
-      newConvCreatorClient = Just c
+      newConvCreatorClient = Just c,
+      newConvName = Just (unsafeRange "Test conv")
     }
 
 postConvQualified ::
@@ -731,7 +765,19 @@ postConvWithRemoteUsers u n =
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  let conv =
+        NewConv
+          us
+          []
+          (name >>= checked)
+          (Set.fromList a)
+          r
+          (Just (ConvTeamInfo tid))
+          mtimer
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -768,7 +814,19 @@ postConvWithRole u members name access arole timer role =
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- viewGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolProteusTag Nothing
+  let conv =
+        NewConv
+          us
+          []
+          (name >>= checked)
+          (Set.fromList a)
+          r
+          Nothing
+          mtimer
+          (Just rcpt)
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -779,7 +837,19 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- viewGalley
-  let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  let conv =
+        NewConv
+          [u2]
+          []
+          (n >>= checked)
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
+          Nothing
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
@@ -1039,6 +1109,20 @@ getConv u c = do
   get $
     g
       . paths ["conversations", toByteString' c]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+
+getGlobalTeamConv ::
+  (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) =>
+  UserId ->
+  TeamId ->
+  m ResponseLBS
+getGlobalTeamConv u tid = do
+  g <- viewGalley
+  get $
+    g
+      . paths ["teams", toByteString' tid, "conversations", "global"]
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -1883,11 +1967,11 @@ decodeQualifiedConvIdList = fmap mtpResults . responseJsonEither @ConvIdsPage
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
 
-zBot :: UserId -> Request -> Request
-zBot = header "Z-Bot" . toByteString'
-
 zClient :: ClientId -> Request -> Request
 zClient = header "Z-Client" . toByteString'
+
+zBot :: UserId -> Request -> Request
+zBot = header "Z-Bot" . toByteString'
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"

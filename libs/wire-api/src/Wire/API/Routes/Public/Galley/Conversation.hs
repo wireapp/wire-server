@@ -130,6 +130,18 @@ type ConversationAPI =
                :> QualifiedCapture "cnv" ConvId
                :> Get '[Servant.JSON] Conversation
            )
+    -- :<|> Named
+    --        "get-global-team-conversation"
+    --        ( Summary "Get the global conversation for a given team ID"
+    --            :> CanThrow 'ConvNotFound
+    --            :> CanThrow 'NotATeamMember
+    --            :> ZLocalUser
+    --            :> "teams"
+    --            :> Capture "tid" TeamId
+    --            :> "conversations"
+    --            :> "global"
+    --            :> Get '[Servant.JSON] GlobalTeamConversation
+    --        )
     :<|> Named
            "get-conversation-roles"
            ( Summary "Get existing roles available for the given conversation"
