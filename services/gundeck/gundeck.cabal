@@ -414,6 +414,7 @@ test-suite gundeck-tests
     Json
     MockGundeck
     Native
+    ParseExistsError
     Paths_gundeck
     Push
     ThreadBudget

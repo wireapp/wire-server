@@ -48,6 +48,9 @@ module Gundeck.Aws
 
     -- * Feedback
     listen,
+
+    -- * Exported for testing purposes
+    parseExistsError,
   )
 where
 
@@ -323,14 +326,6 @@ createEndpoint u tr arnEnv app token = do
   where
     readArn r = either (throwM . InvalidArn r) pure (fromText r)
     tokenLength = toInteger . Text.length . Push.tokenText
-    -- Thank you Amazon for not having granular error codes!
-    parseExistsError Nothing = Nothing
-    parseExistsError (Just s) = hush . flip parseOnly (toText s) $ do
-      _ <- string "Invalid parameter: Token Reason: Endpoint "
-      let endParser = string " already exists with the same Token, but different attributes."
-      a <- manyTill anyChar endParser >>= either fail pure . AWS.fromText . Text.pack
-      _ <- endParser
-      pure a
     isTokenError Nothing = False
     isTokenError (Just s) = isRight . flip parseOnly (toText s) $ do
       _ <- string "Invalid parameter: Token"
@@ -343,6 +338,14 @@ createEndpoint u tr arnEnv app token = do
         string "must be at most 8192 bytes long in UTF-8 encoding"
           <|> string "iOS device tokens must be no more than 400 hexadecimal characters"
       pure ()
+
+-- Thank you Amazon for not having granular error codes!
+parseExistsError :: Maybe AWS.ErrorMessage -> Maybe EndpointArn
+parseExistsError Nothing = Nothing
+parseExistsError (Just s) = hush . flip parseOnly (toText s) $ do
+  _ <- string "Invalid parameter: Token Reason: Endpoint "
+  let endParser = string " already exists with the same Token, but different attributes."
+  manyTill anyChar endParser >>= either fail pure . AWS.fromText . Text.pack
 
 --------------------------------------------------------------------------------
 -- Publish
