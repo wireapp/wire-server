@@ -161,7 +161,7 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
     wrapClient $
       Data.insertConnection
         self
-        (qUntagged other)
+        (tUntagged other)
         (relationWithHistory rel)
         qcnv
 
@@ -201,7 +201,7 @@ performLocalAction self mzcon other mconnection action = do
       response <- sendConnectionAction self other ra !>> ConnectFederationError
       case (response :: NewConnectionResponse) of
         NewConnectionResponseOk reaction -> pure reaction
-        NewConnectionResponseUserNotActivated -> throwE (InvalidUser (qUntagged other))
+        NewConnectionResponseUserNotActivated -> throwE (InvalidUser (tUntagged other))
     pure $
       fromMaybe rel1 $ do
         reactionAction <- (mreaction :: Maybe RemoteConnectionAction)
@@ -256,7 +256,7 @@ createConnectionToRemoteUser ::
   Remote UserId ->
   (ConnectionM r) (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
-  mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
+  mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
@@ -266,7 +266,7 @@ updateConnectionToRemoteUser ::
   Maybe ConnId ->
   (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
-  mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
+  mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   action <-
     actionForTransition rel1
       ?? InvalidTransition (tUnqualified self)

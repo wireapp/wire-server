@@ -48,7 +48,7 @@ import Wire.API.User.Client
 
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
-  let identity = mkClientIdentity (qUntagged lusr) cid
+  let identity = mkClientIdentity (tUntagged lusr) cid
   kps' <- traverse (validateKeyPackage identity) kps
   lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
@@ -60,7 +60,7 @@ claimKeyPackages ::
 claimKeyPackages lusr target skipOwn =
   foldQualified
     lusr
-    (withExceptT clientError . claimLocalKeyPackages (qUntagged lusr) skipOwn)
+    (withExceptT clientError . claimLocalKeyPackages (tUntagged lusr) skipOwn)
     (claimRemoteKeyPackages lusr)
     target
 
@@ -71,7 +71,7 @@ claimLocalKeyPackages ::
   ExceptT ClientError (AppT r) KeyPackageBundle
 claimLocalKeyPackages qusr skipOwn target = do
   -- skip own client when the target is the requesting user itself
-  let own = guard (qusr == qUntagged target) *> skipOwn
+  let own = guard (qusr == tUntagged target) *> skipOwn
   clients <- map clientId <$> wrapClientE (Data.lookupClients (tUnqualified target))
   foldQualified
     target
@@ -89,7 +89,7 @@ claimLocalKeyPackages qusr skipOwn target = do
     mkEntry own c =
       runMaybeT $ do
         guard $ Just c /= own
-        uncurry (KeyPackageBundleEntry (qUntagged target) c)
+        uncurry (KeyPackageBundleEntry (tUntagged target) c)
           <$> wrapClientM (Data.claimKeyPackage target c)
 
 claimRemoteKeyPackages ::

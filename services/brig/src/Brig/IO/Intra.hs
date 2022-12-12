@@ -688,7 +688,7 @@ createLocalConnectConv ::
   m ConvId
 createLocalConnectConv from to cname conn = do
   debug $
-    logConnection (tUnqualified from) (qUntagged to)
+    logConnection (tUnqualified from) (tUntagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
   let req =
@@ -696,7 +696,7 @@ createLocalConnectConv from to cname conn = do
           . zUser (tUnqualified from)
           . maybe id (header "Z-Connection" . fromConnId) conn
           . contentJson
-          . lbytes (encode $ Connect (qUntagged to) Nothing cname Nothing)
+          . lbytes (encode $ Connect (tUntagged to) Nothing cname Nothing)
           . expect2xx
   r <- galleyRequest POST req
   maybe (error "invalid conv id") pure $
@@ -712,7 +712,7 @@ createConnectConv ::
 createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
-  qUntagged . qualifyAs lfrom
+  tUntagged . qualifyAs lfrom
     <$> wrapHttp (createLocalConnectConv lfrom lto cname conn)
 
 -- | Calls 'Galley.API.acceptConvH'.

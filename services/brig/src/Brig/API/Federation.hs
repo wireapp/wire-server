@@ -96,7 +96,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     then do
       self <- qualifyLocal ncrTo
       let other = toRemoteUnsafe originDomain ncrFrom
-      mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
+      mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
       maction <- lift $ performRemoteAction self other mconnection ncrAction
       pure $ NewConnectionResponseOk maction
     else pure NewConnectionResponseUserNotActivated
@@ -158,7 +158,7 @@ fedClaimKeyPackages domain ckpr = do
   ltarget <- qualifyLocal (ckprTarget ckpr)
   let rusr = toRemoteUnsafe domain (ckprClaimant ckpr)
   lift . fmap hush . runExceptT $
-    claimLocalKeyPackages (qUntagged rusr) Nothing ltarget
+    claimLocalKeyPackages (tUntagged rusr) Nothing ltarget
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
@@ -214,7 +214,7 @@ onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) Emp
 onUserDeleted origDomain udcn = lift $ do
   let deletedUser = toRemoteUnsafe origDomain (udcnUser udcn)
       connections = udcnConnections udcn
-      event = pure . UserEvent $ UserDeleted (qUntagged deletedUser)
+      event = pure . UserEvent $ UserDeleted (tUntagged deletedUser)
   acceptedLocals <-
     map csv2From
       . filter (\x -> csv2Status x == Accepted)

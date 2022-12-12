@@ -461,7 +461,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
                   qusr
                   lconv
                   (convBotsAndMembers (tUnqualified lconv))
-                  (qUntagged (qualifyAs lconv (lmId mem)))
+                  (tUntagged (qualifyAs lconv (lmId mem)))
           else throwS @'MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote ::
@@ -694,7 +694,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
       conv = tUnqualified lconv
-      e = conversationActionToEvent tag now quid (qUntagged lcnv) action
+      e = conversationActionToEvent tag now quid (tUntagged lcnv) action
 
   let mkUpdate uids =
         ConversationUpdate
@@ -758,7 +758,7 @@ notifyRemoteConversationAction loc rconvUpdate con = do
   let event =
         case cuAction convUpdate of
           SomeConversationAction tag action ->
-            conversationActionToEvent tag (cuTime convUpdate) (cuOrigUserId convUpdate) (qUntagged rconvId) action
+            conversationActionToEvent tag (cuTime convUpdate) (cuOrigUserId convUpdate) (tUntagged rconvId) action
 
   -- Note: we generally do not send notifications to users that are not part of
   -- the conversation (from our point of view), to prevent spam from the remote

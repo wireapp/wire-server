@@ -152,7 +152,7 @@ postMLSMessageFromLocalUserV1 lusr mc conn smsg = do
     SomeMessage _ msg -> do
       qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
       map lcuEvent
-        <$> postMLSMessage lusr (qUntagged lusr) mc qcnv (Just conn) smsg
+        <$> postMLSMessage lusr (tUntagged lusr) mc qcnv (Just conn) smsg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -253,7 +253,7 @@ postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
   qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
   events <-
     map lcuEvent
-      <$> postMLSCommitBundle lusr (qUntagged lusr) mc qcnv (Just conn) bundle
+      <$> postMLSCommitBundle lusr (tUntagged lusr) mc qcnv (Just conn) bundle
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t
 
@@ -710,7 +710,7 @@ processExternalCommit qusr mSenderClient lconv mlsMeta cm epoch action updatePat
     nkpresClientIdentity
       <$$> validateAndAddKeyPackageRef
         NewKeyPackage
-          { nkpConversation = Data.convId <$> qUntagged lconv,
+          { nkpConversation = Data.convId <$> tUntagged lconv,
             nkpKeyPackage = KeyPackageData (rmRaw newKeyPackage)
           }
   cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
@@ -860,7 +860,7 @@ processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action sender
             -- this is a newly created conversation, and it should contain exactly one
             -- client (the creator)
             (Left lm, _, [(qu, (creatorClient, _))])
-              | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
+              | qu == tUntagged (qualifyAs lconv (lmId lm)) -> do
                   -- use update path as sender reference and if not existing fall back to sender
                   senderRef' <-
                     maybe
@@ -918,7 +918,7 @@ updateKeyPackageMapping lconv groupId qusr cid mOld new = do
   -- update actual mapping in brig
   case mOld of
     Nothing ->
-      addKeyPackageRef new qusr cid (qUntagged lcnv)
+      addKeyPackageRef new qusr cid (tUntagged lcnv)
     Just old ->
       updateKeyPackageRef
         KeyPackageUpdate
@@ -984,7 +984,7 @@ applyProposal convId groupId (AddProposal kp) = do
         nkpresClientIdentity
           <$$> validateAndAddKeyPackageRef
             NewKeyPackage
-              { nkpConversation = qUntagged lconv,
+              { nkpConversation = tUntagged lconv,
                 nkpKeyPackage = kpdata
               }
       cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
@@ -1251,11 +1251,11 @@ executeProposalAction qusr con lconv mlsMeta cm action = do
 
     existingLocalMembers :: Set (Qualified UserId)
     existingLocalMembers =
-      (Set.fromList . map (fmap lmId . qUntagged)) (traverse convLocalMembers lconv)
+      (Set.fromList . map (fmap lmId . tUntagged)) (traverse convLocalMembers lconv)
 
     existingRemoteMembers :: Set (Qualified UserId)
     existingRemoteMembers =
-      Set.fromList . map (qUntagged . rmId) . convRemoteMembers . tUnqualified $
+      Set.fromList . map (tUntagged . rmId) . convRemoteMembers . tUnqualified $
         lconv
 
     existingMembers :: Set (Qualified UserId)

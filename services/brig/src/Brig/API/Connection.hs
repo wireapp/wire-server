@@ -82,7 +82,7 @@ createConnection ::
   (ConnectionM r) (ResponseForExistedCreated UserConnection)
 createConnection self con target = do
   -- basic checks: no need to distinguish between local and remote at this point
-  when (qUntagged self == target) $
+  when (tUntagged self == target) $
     throwE (InvalidUser target)
   noteT ConnectNoIdentity $
     ensureIsActivated self
@@ -101,12 +101,12 @@ createConnectionToLocalUser ::
   Local UserId ->
   (ConnectionM r) (ResponseForExistedCreated UserConnection)
 createConnectionToLocalUser self conn target = do
-  noteT (InvalidUser (qUntagged target)) $
+  noteT (InvalidUser (tUntagged target)) $
     ensureIsActivated target
   checkLegalholdPolicyConflict (tUnqualified self) (tUnqualified target)
   ensureNotSameTeam self target
-  s2o <- lift . wrapClient $ Data.lookupConnection self (qUntagged target)
-  o2s <- lift . wrapClient $ Data.lookupConnection target (qUntagged self)
+  s2o <- lift . wrapClient $ Data.lookupConnection self (tUntagged target)
+  o2s <- lift . wrapClient $ Data.lookupConnection target (tUntagged self)
 
   case update <$> s2o <*> o2s of
     Just rs -> rs
@@ -117,11 +117,11 @@ createConnectionToLocalUser self conn target = do
     insert :: Maybe UserConnection -> Maybe UserConnection -> ExceptT ConnectionError (AppT r) UserConnection
     insert s2o o2s = lift $ do
       Log.info $
-        logConnection (tUnqualified self) (qUntagged target)
+        logConnection (tUnqualified self) (tUntagged target)
           . msg (val "Creating connection")
-      qcnv <- Intra.createConnectConv (qUntagged self) (qUntagged target) Nothing (Just conn)
-      s2o' <- wrapClient $ Data.insertConnection self (qUntagged target) SentWithHistory qcnv
-      o2s' <- wrapClient $ Data.insertConnection target (qUntagged self) PendingWithHistory qcnv
+      qcnv <- Intra.createConnectConv (tUntagged self) (tUntagged target) Nothing (Just conn)
+      s2o' <- wrapClient $ Data.insertConnection self (tUntagged target) SentWithHistory qcnv
+      o2s' <- wrapClient $ Data.insertConnection target (tUntagged self) PendingWithHistory qcnv
       e2o <-
         ConnectionUpdated o2s' (ucStatus <$> o2s)
           <$> wrapClient (Data.lookupName (tUnqualified self))
@@ -364,8 +364,8 @@ localConnection ::
   Local UserId ->
   ExceptT ConnectionError (AppT r) UserConnection
 localConnection la lb = do
-  lift (wrapClient $ Data.lookupConnection la (qUntagged lb))
-    >>= tryJust (NotConnected (tUnqualified la) (qUntagged lb))
+  lift (wrapClient $ Data.lookupConnection la (tUntagged lb))
+    >>= tryJust (NotConnected (tUnqualified la) (tUntagged lb))
 
 mkRelationWithHistory :: HasCallStack => Relation -> Relation -> RelationWithHistory
 mkRelationWithHistory oldRel = \case
@@ -408,7 +408,7 @@ updateConnectionInternal = \case
     blockForMissingLegalholdConsent self others = do
       for_ others $ \(qualifyAs self -> other) -> do
         lift . Log.info $
-          logConnection (tUnqualified self) (qUntagged other)
+          logConnection (tUnqualified self) (tUntagged other)
             . msg (val "Blocking connection (legalhold device present, but missing consent)")
 
         s2o <- localConnection self other
@@ -489,15 +489,15 @@ updateConnectionInternal = \case
 
 createLocalConnectionUnchecked :: Local UserId -> Local UserId -> (AppT r) ()
 createLocalConnectionUnchecked self other = do
-  qcnv <- liftIO $ qUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
+  qcnv <- liftIO $ tUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
   wrapClient $ do
-    void $ Data.insertConnection self (qUntagged other) AcceptedWithHistory qcnv
-    void $ Data.insertConnection other (qUntagged self) AcceptedWithHistory qcnv
+    void $ Data.insertConnection self (tUntagged other) AcceptedWithHistory qcnv
+    void $ Data.insertConnection other (tUntagged self) AcceptedWithHistory qcnv
 
 createRemoteConnectionUnchecked :: Local UserId -> Remote UserId -> (AppT r) ()
 createRemoteConnectionUnchecked self other = do
-  qcnv <- liftIO $ qUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
-  void . wrapClient $ Data.insertConnection self (qUntagged other) AcceptedWithHistory qcnv
+  qcnv <- liftIO $ tUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
+  void . wrapClient $ Data.insertConnection self (tUntagged other) AcceptedWithHistory qcnv
 
 lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> (AppT r) UserConnectionList
 lookupConnections from start size = do

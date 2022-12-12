@@ -51,7 +51,7 @@ getUserHandleInfo ::
   ) =>
   Remote Handle ->
   ExceptT FederationError m (Maybe UserProfile)
-getUserHandleInfo (qUntagged -> Qualified handle domain) = do
+getUserHandleInfo (tUntagged -> Qualified handle domain) = do
   lift $ Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   runBrigFederatorClient domain $ fedClient @'Brig @"get-user-by-handle" handle
 
@@ -129,7 +129,7 @@ sendConnectionAction ::
   Remote UserId ->
   RemoteConnectionAction ->
   ExceptT FederationError m NewConnectionResponse
-sendConnectionAction self (qUntagged -> other) action = do
+sendConnectionAction self (tUntagged -> other) action = do
   let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
   lift $ Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
   runBrigFederatorClient (qDomain other) $ fedClient @'Brig @"send-connection-action" req
