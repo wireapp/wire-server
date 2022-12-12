@@ -53,7 +53,6 @@ import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
-import Galley.Effects.ConversationStore (lookupConvByGroupId)
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
@@ -642,7 +641,7 @@ sendMLSCommitBundle remoteDomain msr =
       -- TODO: remove this before the rebase
       -- mapToGalleyError @MLSBundleStaticErrors $ do
       let msg = rmValue (cbCommitMsg bundle)
-      qConvOrSub <- lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+      qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       F.MLSMessageResponseUpdates . map lcuUpdate
         <$> postMLSCommitBundle loc (tUntagged sender) Nothing qConvOrSub Nothing bundle
@@ -688,7 +687,7 @@ sendMLSMessage remoteDomain msr =
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
       case rmValue raw of
         SomeMessage _ msg -> do
-          qConvOrSub <- lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+          qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
           when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
           F.MLSMessageResponseUpdates . map lcuUpdate
             <$> postMLSMessage loc (tUntagged sender) Nothing qConvOrSub Nothing raw
