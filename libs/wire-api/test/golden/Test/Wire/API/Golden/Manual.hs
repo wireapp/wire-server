@@ -33,6 +33,7 @@ import Test.Wire.API.Golden.Manual.GroupId
 import Test.Wire.API.Golden.Manual.ListConversations
 import Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.SearchResultContact
+import Test.Wire.API.Golden.Manual.SubConversation
 import Test.Wire.API.Golden.Manual.TeamSize
 import Test.Wire.API.Golden.Manual.Token
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
@@ -139,5 +140,10 @@ tests =
           [ (testObject_TeamSize_1, "testObject_TeamSize_1.json"),
             (testObject_TeamSize_2, "testObject_TeamSize_2.json"),
             (testObject_TeamSize_3, "testObject_TeamSize_3.json")
+          ],
+      testGroup "PublicSubConversation" $
+        testObjects
+          [ (testObject_PublicSubConversation_1, "testObject_PublicSubConversation_1.json"),
+            (testObject_PublicSubConversation_2, "testObject_PublicSubConversation_2.json")
           ]
     ]
