@@ -29,7 +29,7 @@ testGetSettings opts brig = liftIO $ do
       let newOpts = opts & (optionSettings . restrictUserCreation) .~ s
       queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings brig
       liftIO $
-        systemSettingsSetRestrictUserCreation queriedSettings @?= expectedRes
+        queriedSettings @?= SystemSettings expectedRes
 
 getSystemSettings ::
   (HasCallStack, MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) =>
