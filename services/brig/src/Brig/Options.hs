@@ -611,7 +611,10 @@ data Settings = Settings
     setOAuthAccessTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | The expiration time of an OAuth refresh token in seconds.
     -- use `setOAuthAuthCodeExpirationTimeSecs` as the getter function which always provides a default value
-    setOAuthAuthCodeExpirationTimeSecsInternal :: !(Maybe Word64)
+    setOAuthAuthCodeExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- | En-/Disable OAuth
+    -- use `setOAuthEnabled` as the getter function which always provides a default value
+    setOAuthEnabledInternal :: !(Maybe Bool)
   }
   deriving (Show, Generic)
 
@@ -668,6 +671,12 @@ defaultOAuthAuthCodeExpirationTimeSecs = 300 -- 5 minutes
 
 setOAuthAuthCodeExpirationTimeSecs :: Settings -> Word64
 setOAuthAuthCodeExpirationTimeSecs = fromMaybe defaultOAuthAuthCodeExpirationTimeSecs . setOAuthAuthCodeExpirationTimeSecsInternal
+
+defaultOAuthEnabled :: Bool
+defaultOAuthEnabled = False
+
+setOAuthEnabled :: Settings -> Bool
+setOAuthEnabled = fromMaybe defaultOAuthEnabled . setOAuthEnabledInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -854,6 +863,7 @@ instance FromJSON Settings where
               "setDpopTokenExpirationTimeSecsInternal" -> "setDpopTokenExpirationTimeSecs"
               "setOAuthAuthCodeExpirationTimeSecsInternal" -> "setOAuthAuthCodeExpirationTimeSecs"
               "setOAuthAccessTokenExpirationTimeSecsInternal" -> "setOAuthAccessTokenExpirationTimeSecs"
+              "setOAuthEnabledInternal" -> "setOAuthEnabled"
               other -> other
           }
 

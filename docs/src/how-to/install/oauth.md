@@ -1,8 +1,20 @@
 # OAuth
 
-To use the OAuth functionality, you will need to set up a public and private JSON web key pair (JWK) in the wire-server helm chart. This key pair will be used to sign and verify OAuth access tokens.
+If not configured, OAuth is disabled per default. OAuth can be enabled in the wire-server Helm as follows:
 
-To configure the JWK, go to `brig.secrets.oauthJwkKeyPair` in the wire-server helm chart and provide the JWK information, as shown in the example below:
+```yaml
+brig:
+  # ...
+  config:
+    # ...
+    optSettings:
+      # ...
+      setOAuthEnabled: true
+```
+
+To use the OAuth functionality, you will need to set up a public and private JSON web key pair (JWK) in the wire-server Helm chart. This key pair will be used to sign and verify OAuth access tokens.
+
+To configure the JWK, go to the wire-server Helm chart and provide the JWK information, as shown in the example below:
 
 ```yaml
 # values.yaml or secrets.yaml

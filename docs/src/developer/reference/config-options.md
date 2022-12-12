@@ -629,3 +629,12 @@ optSettings:
   setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
   setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
 ```
+
+En-/Disable OAuth as follows (if not set the default is disabled):
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthEnabled: [true|false]
+```
