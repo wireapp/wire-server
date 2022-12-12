@@ -59,7 +59,6 @@ module Wire.API.Event.Conversation
     ConversationAccessData (..),
     ConversationMessageTimerUpdate (..),
     ConversationCode (..),
-    TypingData (..),
     QualifiedUserIdList (..),
   )
 where
@@ -83,7 +82,7 @@ import URI.ByteString ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..))
 import Wire.API.Conversation.Role
-import Wire.API.Conversation.Typing (TypingData (..))
+import Wire.API.Conversation.Typing
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 import Wire.API.User (QualifiedUserIdList (..))
@@ -170,7 +169,7 @@ data EventData
   | EdConvCodeDelete
   | EdMemberUpdate MemberUpdateData
   | EdConversation Conversation
-  | EdTyping TypingData
+  | EdTyping TypingStatus
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
   | EdMLSWelcome ByteString

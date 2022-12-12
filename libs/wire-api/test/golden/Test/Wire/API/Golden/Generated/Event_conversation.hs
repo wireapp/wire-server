@@ -123,7 +123,7 @@ testObject_Event_conversation_8 =
     { evtConv = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "36.e9.s-o-17"}},
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "0--gy.705nsa8.j4m"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdTyping (TypingData {tdStatus = StartedTyping})
+      evtData = EdTyping StartedTyping
     }
 
 testObject_Event_conversation_9 :: Event
@@ -174,5 +174,5 @@ testObject_Event_conversation_11 =
     { evtConv = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "wwzw-ly4jk5.6790-y.j04o-21.ltl"}},
       evtFrom = Qualified {qUnqualified = Id (fromJust (UUID.fromString "2126ea99-ca79-43ea-ad99-a59616468e8e")), qDomain = Domain {_domainText = "70-o.ncd"}},
       evtTime = UTCTime {utctDay = ModifiedJulianDay 58119, utctDayTime = 0},
-      evtData = EdTyping (TypingData {tdStatus = StoppedTyping})
+      evtData = EdTyping StoppedTyping
     }

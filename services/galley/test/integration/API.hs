@@ -3672,7 +3672,7 @@ postTypingIndicatorsV2 = do
           . zUser alice
           . zConn "conn"
           . zType "access"
-          . json (TypingData StartedTyping)
+          . json StartedTyping
       )
       !!! const 200 === statusCode
 
@@ -3686,7 +3686,7 @@ postTypingIndicatorsV2 = do
           . zUser bob
           . zConn "conn"
           . zType "access"
-          . json (TypingData StoppedTyping)
+          . json StoppedTyping
       )
       !!! const 200 === statusCode
 
@@ -3719,7 +3719,7 @@ postTypingIndicators = do
           . zUser bob
           . zConn "conn"
           . zType "access"
-          . json (TypingData StoppedTyping)
+          . json StoppedTyping
       )
       !!! const 200 === statusCode
 
@@ -3734,7 +3734,7 @@ postTypingIndicators = do
           . zUser alice
           . zConn "conn"
           . zType "access"
-          . json (TypingData StartedTyping)
+          . json StartedTyping
       )
       !!! const 200 === statusCode
 
@@ -4065,7 +4065,7 @@ updateTypingIndicatorToRemoteUserRemoteConv = do
         -- post typing indicator from bob to alice
         let tcReq =
               TypingDataUpdateRequest
-                { tdurTypingData = TypingData StartedTyping,
+                { tdurTypingStatus = StartedTyping,
                   tdurUserId = qUnqualified qbob,
                   tdurConvId = qUnqualified qconv
                 }
@@ -4083,7 +4083,7 @@ updateTypingIndicatorToRemoteUserRemoteConv = do
         -- post typing indicator from bob to alice
         let tcReq =
               TypingDataUpdateRequest
-                { tdurTypingData = TypingData StoppedTyping,
+                { tdurTypingStatus = StoppedTyping,
                   tdurUserId = qUnqualified qbob,
                   tdurConvId = qUnqualified qconv
                 }
@@ -4119,7 +4119,7 @@ updateTypingIndicatorFromRemoteUser = do
         -- post typing indicator from bob to alice
         let tcReq =
               TypingDataUpdateRequest
-                { tdurTypingData = TypingData StartedTyping,
+                { tdurTypingStatus = StartedTyping,
                   tdurUserId = bob,
                   tdurConvId = convId
                 }
@@ -4138,7 +4138,7 @@ updateTypingIndicatorFromRemoteUser = do
         -- post typing indicator from bob to alice
         let tcReq =
               TypingDataUpdateRequest
-                { tdurTypingData = TypingData StoppedTyping,
+                { tdurTypingStatus = StoppedTyping,
                   tdurUserId = bob,
                   tdurConvId = convId
                 }
@@ -4174,7 +4174,7 @@ updateTypingIndicatorToRemoteUser = do
         -- post typing indicator from alice to bob
         let tcReq =
               TypingDataUpdateRequest
-                { tdurTypingData = TypingData StartedTyping,
+                { tdurTypingStatus = StartedTyping,
                   tdurUserId = alice,
                   tdurConvId = convId
                 }
@@ -4193,7 +4193,7 @@ updateTypingIndicatorToRemoteUser = do
         -- post typing indicator from alice to bob
         let tcReq =
               TypingDataUpdateRequest
-                { tdurTypingData = TypingData StoppedTyping,
+                { tdurTypingStatus = StoppedTyping,
                   tdurUserId = alice,
                   tdurConvId = convId
                 }

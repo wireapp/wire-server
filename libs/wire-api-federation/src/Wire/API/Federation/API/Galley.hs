@@ -76,7 +76,7 @@ type GalleyApi =
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
-  { tdurTypingData :: TypingData,
+  { tdurTypingStatus :: TypingStatus,
     tdurUserId :: UserId,
     tdurConvId :: ConvId
   }

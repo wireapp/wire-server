@@ -121,6 +121,7 @@ import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -1451,12 +1452,12 @@ isTypingQualified ::
   Local UserId ->
   ConnId ->
   Qualified ConvId ->
-  TypingData ->
+  TypingStatus ->
   Sem r ()
-isTypingQualified lusr zcon qcnv typingData = do
+isTypingQualified lusr zcon qcnv ts = do
   foldQualified
     lusr
-    (\lcnv -> isTypingUnqualified lusr zcon (tUnqualified lcnv) typingData)
+    (\lcnv -> isTypingUnqualified lusr zcon (tUnqualified lcnv) ts)
     (\rcnv -> isTypingRemote rcnv)
     qcnv
   where
@@ -1465,7 +1466,7 @@ isTypingQualified lusr zcon qcnv typingData = do
       unless isMemberRemoteConv $ throwS @'ConvNotFound
       let rpc =
             TypingDataUpdateRequest
-              { tdurTypingData = typingData,
+              { tdurTypingStatus = ts,
                 tdurUserId = tUnqualified lusr,
                 tdurConvId = tUnqualified rcnv
               }
@@ -1484,11 +1485,11 @@ isTypingUnqualified ::
   Local UserId ->
   ConnId ->
   ConvId ->
-  TypingData ->
+  TypingStatus ->
   Sem r ()
-isTypingUnqualified lusr zcon cnv typingData = do
+isTypingUnqualified lusr zcon cnv ts = do
   lcnv <- qualifyLocal cnv
-  isTyping (tUntagged lusr) (Just zcon) lcnv typingData
+  isTyping (tUntagged lusr) (Just zcon) lcnv ts
 
 addServiceH ::
   Members

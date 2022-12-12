@@ -75,5 +75,5 @@ testObject_AddBotResponse_user_2 =
           (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000300000001"))) (Domain "faraway.example.com"))
           (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000300000001"))) (Domain "faraway.example.com"))
           (read "1864-05-08 19:02:58.6 UTC")
-          (EdTyping (TypingData {tdStatus = StartedTyping}))
+          (EdTyping StartedTyping)
     }

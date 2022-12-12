@@ -26,6 +26,7 @@ import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -613,7 +614,7 @@ type ConversationAPI =
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "typing"
-               :> ReqBody '[JSON] TypingData
+               :> ReqBody '[JSON] TypingStatus
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Notification sent"] ()
            )
     :<|> Named
@@ -625,7 +626,7 @@ type ConversationAPI =
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "typing"
-               :> ReqBody '[JSON] TypingData
+               :> ReqBody '[JSON] TypingStatus
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Notification sent"] ()
            )
     -- This endpoint can lead to the following events being sent:

@@ -209,7 +209,6 @@ import qualified Test.Wire.API.Golden.Generated.Transport_user
 import qualified Test.Wire.API.Golden.Generated.TurnHost_user
 import qualified Test.Wire.API.Golden.Generated.TurnURI_user
 import qualified Test.Wire.API.Golden.Generated.TurnUsername_user
-import qualified Test.Wire.API.Golden.Generated.TypingData_user
 import qualified Test.Wire.API.Golden.Generated.TypingStatus_user
 import qualified Test.Wire.API.Golden.Generated.UpdateBotPrekeys_user
 import qualified Test.Wire.API.Golden.Generated.UpdateClient_user
@@ -621,12 +620,6 @@ tests =
             ),
             ( Test.Wire.API.Golden.Generated.TypingStatus_user.testObject_TypingStatus_user_2,
               "testObject_TypingStatus_user_2.json"
-            )
-          ],
-      testGroup "Golden: TypingData_user" $
-        testObjects
-          [ ( Test.Wire.API.Golden.Generated.TypingData_user.testObject_TypingData_user_1,
-              "testObject_TypingData_user_1.json"
             )
           ],
       testGroup "Golden: CustomBackend_user" $
