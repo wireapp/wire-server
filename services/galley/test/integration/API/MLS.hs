@@ -2021,7 +2021,7 @@ testFederatedGetGroupInfo = do
             @"query-group-info"
             fedGalleyClient
             (ciDomain bob1)
-            (GetGroupInfoRequest (qUnqualified qcnv) (qUnqualified bob))
+            (GetGroupInfoRequest (Conv (qUnqualified qcnv)) (qUnqualified bob))
 
         liftIO $ case resp of
           GetGroupInfoResponseError err -> assertFailure ("Unexpected error: " <> show err)
@@ -2034,7 +2034,7 @@ testFederatedGetGroupInfo = do
             @"query-group-info"
             fedGalleyClient
             (ciDomain bob1)
-            (GetGroupInfoRequest (qUnqualified qcnv) (qUnqualified charlie))
+            (GetGroupInfoRequest (Conv (qUnqualified qcnv)) (qUnqualified charlie))
 
         liftIO $ case resp of
           GetGroupInfoResponseError err ->

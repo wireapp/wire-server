@@ -44,6 +44,7 @@ import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
 import Galley.API.MLS.Removal
+import Galley.API.MLS.SubConversation
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
@@ -91,6 +92,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig.Connection
@@ -795,7 +797,8 @@ queryGroupInfo ::
   ( Members
       '[ ConversationStore,
          Input (Local ()),
-         Input Env
+         Input Env,
+         SubConversationStore
        ]
       r,
     Member MemberStore r
@@ -809,9 +812,14 @@ queryGroupInfo origDomain req =
     . mapToGalleyError @MLSGroupInfoStaticErrors
     $ do
       assertMLSEnabled
-      lconvId <- qualifyLocal . ggireqConv $ req
       let sender = toRemoteUnsafe origDomain . ggireqSender $ req
-      state <- getGroupInfoFromLocalConv (tUntagged sender) lconvId
+      state <- case ggireqConv req of
+        Conv convId -> do
+          lconvId <- qualifyLocal convId
+          getGroupInfoFromLocalConv (tUntagged sender) lconvId
+        SubConv convId subConvId -> do
+          lconvId <- qualifyLocal convId
+          getSubConversationGroupInfoFromLocalConv (tUntagged sender) subConvId lconvId
       pure
         . Base64ByteString
         . unOpaquePublicGroupState

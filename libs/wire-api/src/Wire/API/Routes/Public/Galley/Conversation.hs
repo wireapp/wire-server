@@ -396,6 +396,27 @@ type ConversationAPI =
                         PublicSubConversation
                     )
            )
+    :<|> Named
+           "get-subconversation-group-info"
+           ( Summary "Get MLS group information of subconversation"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'MLSMissingGroupInfo
+               :> CanThrow 'MLSNotEnabled
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "subconversations"
+               :> Capture "subconv" SubConvId
+               :> "groupinfo"
+               :> MultiVerb1
+                    'GET
+                    '[MLS]
+                    ( Respond
+                        200
+                        "The group information"
+                        OpaquePublicGroupState
+                    )
+           )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCreate event to members
     -- TODO: add note: "On 201, the conversation ID is the `Location` header"

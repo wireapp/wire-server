@@ -37,6 +37,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.SubConversation
 
 type MLSGroupInfoStaticErrors =
   '[ ErrorS 'ConvNotFound,
@@ -90,7 +91,7 @@ getGroupInfoFromRemoteConv lusr rcnv = do
   let getRequest =
         GetGroupInfoRequest
           { ggireqSender = tUnqualified lusr,
-            ggireqConv = tUnqualified rcnv
+            ggireqConv = Conv (tUnqualified rcnv)
           }
   response <- E.runFederated rcnv (fedClient @'Galley @"query-group-info" getRequest)
   case response of
