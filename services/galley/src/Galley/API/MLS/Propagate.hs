@@ -63,6 +63,7 @@ propagateMessage ::
 propagateMessage qusr lConvOrSub con raw = do
   case tUnqualified lConvOrSub of
     (SubConv _ _) -> do
+      -- FUTUREWORK: Implement propagating the message to the subconversation
       pure ()
     (Conv mlsMessage) -> do
       let lMlsMessage = qualifyAs lConvOrSub mlsMessage
