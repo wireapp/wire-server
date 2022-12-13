@@ -35,6 +35,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
+import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Util.Aeson (CustomEncoded (..))
@@ -64,13 +65,13 @@ type GalleyApi =
     :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) ()
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
-    :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
+    :<|> FedEndpoint "send-message" ProteusMessageSendRequest MessageSendResponse
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
     :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage RemoteMLSMessageResponse
-    :<|> FedEndpoint "send-mls-message" MessageSendRequest MLSMessageResponse
-    :<|> FedEndpoint "send-mls-commit-bundle" MessageSendRequest MLSMessageResponse
+    :<|> FedEndpoint "send-mls-message" MLSMessageSendRequest MLSMessageResponse
+    :<|> FedEndpoint "send-mls-commit-bundle" MLSMessageSendRequest MLSMessageResponse
     :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
     :<|> FedEndpoint "on-client-removed" ClientRemovedRequest EmptyResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
@@ -250,18 +251,31 @@ data RemoteMLSMessageResponse
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessageResponse)
 
-data MessageSendRequest = MessageSendRequest
+data ProteusMessageSendRequest = ProteusMessageSendRequest
   { -- | Conversation is assumed to be owned by the target domain, this allows
     -- us to protect against relay attacks
-    msrConvId :: ConvId,
+    pmsrConvId :: ConvId,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
-    msrSender :: UserId,
-    msrRawMessage :: Base64ByteString
+    pmsrSender :: UserId,
+    pmsrRawMessage :: Base64ByteString
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform MessageSendRequest)
-  deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
+  deriving (Arbitrary) via (GenericUniform ProteusMessageSendRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ProteusMessageSendRequest)
+
+data MLSMessageSendRequest = MLSMessageSendRequest
+  { -- | Conversation (or sub conversation) is assumed to be owned by the target
+    -- domain, this allows us to protect against relay attacks
+    mmsrConvOrSubId :: ConvOrSubConvId,
+    -- | Sender is assumed to be owned by the origin domain, this allows us to
+    -- protect against spoofing attacks
+    mmsrSender :: UserId,
+    mmsrRawMessage :: Base64ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MLSMessageSendRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageSendRequest)
 
 newtype MessageSendResponse = MessageSendResponse
   {msResponse :: PostOtrResponse MessageSendingStatus}

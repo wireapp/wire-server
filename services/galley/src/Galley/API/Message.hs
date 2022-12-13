@@ -235,10 +235,10 @@ postRemoteOtrMessage ::
   Sem r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
-        MessageSendRequest
-          { msrConvId = tUnqualified conv,
-            msrSender = qUnqualified sender,
-            msrRawMessage = Base64ByteString rawMsg
+        ProteusMessageSendRequest
+          { pmsrConvId = tUnqualified conv,
+            pmsrSender = qUnqualified sender,
+            pmsrRawMessage = Base64ByteString rawMsg
           }
       rpc = fedClient @'Galley @"send-message" msr
   msResponse <$> runFederated conv rpc
