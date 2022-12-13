@@ -156,7 +156,6 @@ runFullScans env@Env {..} users = do
     readBrigUserKeysAll env
       .| mapC (filter (haveId . view _2))
 
-  -- FUTUREWORK: no need to read this table, it can be populated from `brig.user`
   appendJsonLines (envTargetPath </> "spar.user") $
     readSparUserAll env
       .| mapC (filter (haveId . view _3))
