@@ -1447,5 +1447,6 @@ type SystemSettingsAPI =
         :> From 'V3
         :> "system"
         :> "settings"
+        :> "unauthorized"
         :> Get '[JSON] SystemSettings
     )

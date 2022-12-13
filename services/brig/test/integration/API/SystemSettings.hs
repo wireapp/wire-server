@@ -36,7 +36,7 @@ testGetSettings opts = liftIO $ do
 getSystemSettings :: WaiTest.Session SystemSettings
 getSystemSettings =
   responseJsonError
-    =<< get (path (BS.pack ("/" ++ latestVersion ++ "/system/settings")))
+    =<< get (path (BS.pack ("/" ++ latestVersion ++ "/system/settings/unauthorized")))
       <!! statusCode
         Bilge.Assert.=== const 200
   where
