@@ -25,8 +25,8 @@ testGetSettings opts brig = liftIO $ do
   expectResultForSetting (Just True) True
   where
     expectResultForSetting :: Maybe Bool -> Bool -> IO ()
-    expectResultForSetting s expectedRes = do
-      let newOpts = opts & (optionSettings . restrictUserCreation) .~ s
+    expectResultForSetting restrictUserCreationSetting expectedRes = do
+      let newOpts = opts & (optionSettings . restrictUserCreation) .~ restrictUserCreationSetting
       queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings brig
       liftIO $
         queriedSettings @?= SystemSettings expectedRes
