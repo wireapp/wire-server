@@ -4,22 +4,24 @@ import Bilge
 import Bilge.Assert
 import Brig.Options
 import Control.Lens
-import Control.Monad.Catch
+import qualified Data.ByteString.Char8 as BS
 import Imports
+import Network.Wai.Test as WaiTest
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Routes.Version
 import Wire.API.SystemSettings
 
-tests :: Opts -> Manager -> Brig -> IO TestTree
-tests opts m brig = pure $ do
+tests :: Opts -> Manager -> IO TestTree
+tests opts m = pure $ do
   testGroup
     "settings"
-    [ test m "GET /system/settings" $ testGetSettings opts brig
+    [ test m "GET /system/settings" $ testGetSettings opts
     ]
 
-testGetSettings :: Opts -> Brig -> Http ()
-testGetSettings opts brig = liftIO $ do
+testGetSettings :: Opts -> Http ()
+testGetSettings opts = liftIO $ do
   expectResultForSetting Nothing False
   expectResultForSetting (Just False) False
   expectResultForSetting (Just True) True
@@ -27,16 +29,16 @@ testGetSettings opts brig = liftIO $ do
     expectResultForSetting :: Maybe Bool -> Bool -> IO ()
     expectResultForSetting restrictUserCreationSetting expectedRes = do
       let newOpts = opts & (optionSettings . restrictUserCreation) .~ restrictUserCreationSetting
-      queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings brig
+      queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings
       liftIO $
         queriedSettings @?= SystemSettings expectedRes
 
-getSystemSettings ::
-  (HasCallStack, MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) =>
-  Brig ->
-  m SystemSettings
-getSystemSettings brig =
+getSystemSettings :: WaiTest.Session SystemSettings
+getSystemSettings =
   responseJsonError
-    =<< get (brig . path "/system/settings")
+    =<< get (path (BS.pack ("/" ++ latestVersion ++ "/system/settings")))
       <!! statusCode
         Bilge.Assert.=== const 200
+  where
+    latestVersion :: String
+    latestVersion = map toLower $ show (maxBound :: Version)

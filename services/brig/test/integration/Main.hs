@@ -143,7 +143,7 @@ runTests iConf brigOpts otherArgs = do
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
   metricsApi <- Metrics.tests mg b
-  systemSettingsApi <- SystemSettings.tests brigOpts mg b
+  systemSettingsApi <- SystemSettings.tests brigOpts mg
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
