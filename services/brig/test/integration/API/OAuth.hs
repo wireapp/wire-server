@@ -45,7 +45,7 @@ import Util
 import Web.FormUrlEncoded
 
 tests :: Manager -> Brig -> Opts -> TestTree
-tests m b opts = do
+tests m b o = do
   testGroup "oauth" $
     [ test m "register new oauth client" $ testRegisterNewOAuthClient b,
       testGroup "create oauth code" $
@@ -54,18 +54,18 @@ tests m b opts = do
           test m "redirect url mismatch" $ testCreateOAuthCodeRedirectUrlMismatch b
         ],
       testGroup "create access token" $
-        [ test m "success" $ testCreateAccessTokenSuccess opts b,
+        [ test m "success" $ testCreateAccessTokenSuccess o b,
           test m "wrong client id fail" $ testCreateAccessTokenWrongClientId b,
           test m "wrong client secret fail" $ testCreateAccessTokenWrongClientSecret b,
           test m "wrong code fail" $ testCreateAccessTokenWrongAuthCode b,
           test m "wrong redirect url fail" $ testCreateAccessTokenWrongUrl b,
-          test m "expired code fail" $ testCreateAccessTokenExpiredCode b
+          test m "expired code fail" $ testCreateAccessTokenExpiredCode o b
         ],
       testGroup "access denied when disabled" $
-        [ test m "register" $ testRegisterOAuthClientAccessDeniedWhenDisabled opts b,
-          test m "get client info" $ testGetOAuthClientInfoAccessDeniedWhenDisabled opts b,
-          test m "create code" $ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts b,
-          test m "create token" $ testCreateAccessTokenAccessDeniedWhenDisabled opts b
+        [ test m "register" $ testRegisterOAuthClientAccessDeniedWhenDisabled o b,
+          test m "get client info" $ testGetOAuthClientInfoAccessDeniedWhenDisabled o b,
+          test m "create code" $ testCreateCodeOAuthClientAccessDeniedWhenDisabled o b,
+          test m "create token" $ testCreateAccessTokenAccessDeniedWhenDisabled o b
         ]
     ]
 
@@ -200,18 +200,18 @@ testCreateAccessTokenWrongUrl brig = do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
-testCreateAccessTokenExpiredCode :: Brig -> Http ()
-testCreateAccessTokenExpiredCode brig = do
-  uid <- randomId
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
-  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
-  -- assuming that the code is valid for 3 seconds
-  liftIO $ threadDelay (4 * 1000 * 1000)
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
-  createOAuthAccessToken' brig accessTokenRequest !!! do
-    const 404 === statusCode
-    const (Just "not-found") === fmap Error.label . responseJsonMaybe
+testCreateAccessTokenExpiredCode :: Opt.Opts -> Brig -> Http ()
+testCreateAccessTokenExpiredCode opts brig =
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAuthCodeExpirationTimeSecsInternal ?~ 1) $ do
+    uid <- randomId
+    let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+    let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+    (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+    liftIO $ threadDelay (1 * 1200 * 1000)
+    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+    createOAuthAccessToken' brig accessTokenRequest !!! do
+      const 404 === statusCode
+      const (Just "not-found") === fmap Error.label . responseJsonMaybe
 
 testGetOAuthClientInfoAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testGetOAuthClientInfoAccessDeniedWhenDisabled opts brig =
