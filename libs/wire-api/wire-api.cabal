@@ -57,6 +57,7 @@ library
     Wire.API.MLS.PublicGroupState
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
+    Wire.API.MLS.SubConversation
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.Properties

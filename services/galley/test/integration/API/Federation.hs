@@ -873,10 +873,10 @@ sendMessage = do
         ]
       msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
       msr =
-        FedGalley.MessageSendRequest
-          { FedGalley.msrConvId = convId,
-            FedGalley.msrSender = bobId,
-            FedGalley.msrRawMessage = Base64ByteString (Protolens.encodeMessage msg)
+        FedGalley.ProteusMessageSendRequest
+          { FedGalley.pmsrConvId = convId,
+            FedGalley.pmsrSender = bobId,
+            FedGalley.pmsrRawMessage = Base64ByteString (Protolens.encodeMessage msg)
           }
   let responses2 req
         | frComponent req == Brig =

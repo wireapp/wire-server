@@ -64,6 +64,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
@@ -921,9 +922,9 @@ testLocalToRemote = do
       bdy <- case Aeson.eitherDecode (frBody req) of
         Right b -> pure b
         Left e -> assertFailure $ "Could not parse send-mls-message request body: " <> e
-      msrConvId bdy @?= qUnqualified qcnv
-      msrSender bdy @?= qUnqualified bob
-      msrRawMessage bdy @?= Base64ByteString (mpMessage message)
+      mmsrConvOrSubId bdy @?= Conv (qUnqualified qcnv)
+      mmsrSender bdy @?= qUnqualified bob
+      mmsrRawMessage bdy @?= Base64ByteString (mpMessage message)
 
 testLocalToRemoteNonMember :: TestM ()
 testLocalToRemoteNonMember = do
@@ -1232,10 +1233,10 @@ testRemoteToLocal = do
     -- actual test
 
     let msr =
-          MessageSendRequest
-            { msrConvId = qUnqualified qcnv,
-              msrSender = qUnqualified bob,
-              msrRawMessage = Base64ByteString (mpMessage message)
+          MLSMessageSendRequest
+            { mmsrConvOrSubId = Conv (qUnqualified qcnv),
+              mmsrSender = qUnqualified bob,
+              mmsrRawMessage = Base64ByteString (mpMessage message)
             }
 
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
@@ -1286,10 +1287,10 @@ testRemoteToLocalWrongConversation = do
     -- actual test
     randomConfId <- randomId
     let msr =
-          MessageSendRequest
-            { msrConvId = randomConfId,
-              msrSender = qUnqualified bob,
-              msrRawMessage = Base64ByteString (mpMessage message)
+          MLSMessageSendRequest
+            { mmsrConvOrSubId = Conv randomConfId,
+              mmsrSender = qUnqualified bob,
+              mmsrRawMessage = Base64ByteString (mpMessage message)
             }
 
     resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
@@ -1319,10 +1320,10 @@ testRemoteNonMemberToLocal = do
     message <- createApplicationMessage bob1 "hello from another backend"
 
     let msr =
-          MessageSendRequest
-            { msrConvId = qUnqualified qcnv,
-              msrSender = qUnqualified bob,
-              msrRawMessage = Base64ByteString (mpMessage message)
+          MLSMessageSendRequest
+            { mmsrConvOrSubId = Conv (qUnqualified qcnv),
+              mmsrSender = qUnqualified bob,
+              mmsrRawMessage = Base64ByteString (mpMessage message)
             }
 
     fedGalleyClient <- view tsFedGalleyClient
@@ -2094,9 +2095,9 @@ testAddUserToRemoteConvWithBundle = do
         Right b -> pure b
         Left e -> assertFailure $ "Could not parse send-mls-commit-bundle request body: " <> e
 
-      msrConvId msr @?= qUnqualified qcnv
-      msrSender msr @?= qUnqualified bob
-      fromBase64ByteString (msrRawMessage msr) @?= commitBundle
+      mmsrConvOrSubId msr @?= Conv (qUnqualified qcnv)
+      mmsrSender msr @?= qUnqualified bob
+      fromBase64ByteString (mmsrRawMessage msr) @?= commitBundle
 
 testRemoteUserPostsCommitBundle :: TestM ()
 testRemoteUserPostsCommitBundle = do
@@ -2131,7 +2132,7 @@ testRemoteUserPostsCommitBundle = do
         commitAddCharlie <- createAddCommit bob1 [charlie]
         commitBundle <- createBundle commitAddCharlie
 
-        let msr = MessageSendRequest (qUnqualified qcnv) (qUnqualified bob) (Base64ByteString commitBundle)
+        let msr = MLSMessageSendRequest (Conv (qUnqualified qcnv)) (qUnqualified bob) (Base64ByteString commitBundle)
         -- we can't fully test it, because remote admins are not implemeted, but
         -- at least this proves that proposal processing has started on the
         -- backend

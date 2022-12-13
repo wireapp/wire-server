@@ -87,6 +87,7 @@ import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig
@@ -353,10 +354,10 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
   resp <-
     runFederated rcnv $
       fedClient @'Galley @"send-mls-commit-bundle" $
-        MessageSendRequest
-          { msrConvId = tUnqualified rcnv,
-            msrSender = tUnqualified lusr,
-            msrRawMessage = Base64ByteString (serializeCommitBundle bundle)
+        MLSMessageSendRequest
+          { mmsrConvOrSubId = Conv $ tUnqualified rcnv,
+            mmsrSender = tUnqualified lusr,
+            mmsrRawMessage = Base64ByteString (serializeCommitBundle bundle)
           }
   updates <- case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
@@ -534,10 +535,10 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
   resp <-
     runFederated rcnv $
       fedClient @'Galley @"send-mls-message" $
-        MessageSendRequest
-          { msrConvId = tUnqualified rcnv,
-            msrSender = tUnqualified lusr,
-            msrRawMessage = Base64ByteString (rmRaw smsg)
+        MLSMessageSendRequest
+          { mmsrConvOrSubId = Conv $ tUnqualified rcnv,
+            mmsrSender = tUnqualified lusr,
+            mmsrRawMessage = Base64ByteString (rmRaw smsg)
           }
   updates <- case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e

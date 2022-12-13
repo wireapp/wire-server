@@ -90,6 +90,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig.Connection
@@ -448,12 +449,12 @@ sendMessage ::
      ]
     r =>
   Domain ->
-  F.MessageSendRequest ->
+  F.ProteusMessageSendRequest ->
   Sem r F.MessageSendResponse
 sendMessage originDomain msr = do
-  let sender = Qualified (F.msrSender msr) originDomain
-  msg <- either throwErr pure (fromProto (fromBase64ByteString (F.msrRawMessage msr)))
-  lcnv <- qualifyLocal (F.msrConvId msr)
+  let sender = Qualified (F.pmsrSender msr) originDomain
+  msg <- either throwErr pure (fromProto (fromBase64ByteString (F.pmsrRawMessage msr)))
+  lcnv <- qualifyLocal (F.pmsrConvId msr)
   F.MessageSendResponse <$> postQualifiedOtrMessage User sender Nothing lcnv msg
   where
     throwErr = throw . InvalidPayload . LT.pack
@@ -621,7 +622,7 @@ sendMLSCommitBundle ::
       r
   ) =>
   Domain ->
-  F.MessageSendRequest ->
+  F.MLSMessageSendRequest ->
   Sem r F.MLSMessageResponse
 sendMLSCommitBundle remoteDomain msr =
   fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
@@ -634,11 +635,11 @@ sendMLSCommitBundle remoteDomain msr =
     $ do
       assertMLSEnabled
       loc <- qualifyLocal ()
-      let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
-      bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.msrRawMessage msr))
+      let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
+      bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.mmsrRawMessage msr))
       let msg = rmValue (cbCommitMsg bundle)
       qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-      when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
+      when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       F.MLSMessageResponseUpdates . map lcuUpdate
         <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
 
@@ -665,7 +666,7 @@ sendMLSMessage ::
       r
   ) =>
   Domain ->
-  F.MessageSendRequest ->
+  F.MLSMessageSendRequest ->
   Sem r F.MLSMessageResponse
 sendMLSMessage remoteDomain msr =
   fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
@@ -678,12 +679,12 @@ sendMLSMessage remoteDomain msr =
     $ do
       assertMLSEnabled
       loc <- qualifyLocal ()
-      let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
-      raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
+      let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
+      raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
       case rmValue raw of
         SomeMessage _ msg -> do
           qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-          when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
+          when (Conv (qUnqualified qcnv) /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
           F.MLSMessageResponseUpdates . map lcuUpdate
             <$> postMLSMessage loc (tUntagged sender) Nothing qcnv Nothing raw
 
