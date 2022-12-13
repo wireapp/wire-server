@@ -81,17 +81,17 @@ import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Builder.Int
 import Data.UUID (UUID)
 import qualified Data.UUID as UUID
+import Data.UUID.Namespaced
 import Data.UUID.V4
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
-data IdTag = A | C | I | U | P | S | T | STo
+data IdTag = A | I | U | P | S | T | STo
 
 idTagName :: IdTag -> Text
 idTagName A = "Asset"
-idTagName C = "Conv"
 idTagName I = "Invitation"
 idTagName U = "User"
 idTagName P = "Provider"
@@ -103,8 +103,6 @@ class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
 
 instance KnownIdTag 'A where idTagValue = A
-
-instance KnownIdTag 'C where idTagValue = C
 
 instance KnownIdTag 'I where idTagValue = I
 
@@ -121,9 +119,6 @@ instance KnownIdTag 'STo where idTagValue = STo
 type AssetId = Id 'A
 
 type InvitationId = Id 'I
-
--- | A local conversation ID
-type ConvId = Id 'C
 
 -- | A local user ID
 type UserId = Id 'U
@@ -149,24 +144,24 @@ newtype Id a = Id
   deriving newtype (Hashable, NFData, ToParamSchema, Binary)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema (Id a)
 
-instance ToSchema (Id a) where
-  schema = Id <$> toUUID .= uuid
-    where
-      uuid :: ValueSchema NamedSwaggerDoc UUID
-      uuid =
-        mkSchema
-          (addExample (swaggerDoc @UUID))
-          ( A.withText
-              "UUID"
-              ( maybe (fail "Invalid UUID") pure
-                  . UUID.fromText
-              )
-          )
-          (pure . A.toJSON . UUID.toText)
+uuidSchema :: ValueSchema NamedSwaggerDoc UUID
+uuidSchema =
+  mkSchema
+    (addExample (swaggerDoc @UUID))
+    ( A.withText
+        "UUID"
+        ( maybe (fail "Invalid UUID") pure
+            . UUID.fromText
+        )
+    )
+    (pure . A.toJSON . UUID.toText)
+  where
+    addExample =
+      S.schema . S.example
+        ?~ toJSON ("99db9768-04e3-4b5d-9268-831b6a25c4ab" :: Text)
 
-      addExample =
-        S.schema . S.example
-          ?~ toJSON ("99db9768-04e3-4b5d-9268-831b6a25c4ab" :: Text)
+instance ToSchema (Id a) where
+  schema = Id <$> toUUID .= uuidSchema
 
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
@@ -395,3 +390,42 @@ instance ToSchema a => ToSchema (IdObject a) where
     object "Id" $
       IdObject
         <$> fromIdObject .= field "id" schema
+
+-- Conversation ID -------------------------------------------------------------
+
+newtype ConvId = ConvId {unConvId :: UUID}
+  deriving (FromJSON, ToJSON) via Schema ConvId
+  deriving newtype (Arbitrary)
+
+instance ToSchema ConvId where
+  schema = withParser (unConvId .= uuidSchema) $ \uuid ->
+    case uuidToNamespacedUUID @Word8 uuid of
+      Just _ -> fail "Unsupported UUID version 3"
+      Nothing -> pure (ConvId uuid)
+
+instance Show ConvId where
+  show = UUID.toString . unConvId
+
+instance Read ConvId where
+  readsPrec n = map (first ConvId) . readsPrec n
+
+instance ToByteString ConvId where
+  builder = byteString . UUID.toASCIIBytes . unConvId
+
+instance FromHttpApiData ConvId where
+  parseUrlPiece = fmap ConvId . parseUrlPiece
+
+instance ToHttpApiData ConvId where
+  toUrlPiece = toUrlPiece . show
+
+instance A.ToJSONKey ConvId where
+  toJSONKey =
+    A.ToJSONKeyText
+      (Key.fromText . UUID.toText . unConvId)
+      (A.text . UUID.toText . unConvId)
+
+instance A.FromJSONKey ConvId where
+  fromJSONKey = A.FromJSONKeyTextParser $ \t ->
+    case UUID.fromText t of
+      Nothing -> fail "Invalid conversation UUID"
+      Just c -> pure (ConvId c)

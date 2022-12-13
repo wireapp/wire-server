@@ -12,6 +12,7 @@ license-file:  LICENSE
 build-type:    Simple
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
     Data.Code
     Data.CommaSeparatedList
@@ -30,6 +31,7 @@ library
     Data.RetryAfter
     Data.SizedHashMap
     Data.Text.Ascii
+    Data.UUID.Namespaced
     Data.UUID.Tagged
     Util.Attoparsec
     Util.Logging
