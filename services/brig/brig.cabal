@@ -29,6 +29,7 @@ library
     Brig.API.Internal
     Brig.API.MLS.KeyPackages
     Brig.API.MLS.KeyPackages.Validation
+    Brig.API.MLS.Util
     Brig.API.Properties
     Brig.API.Public
     Brig.API.Public.Swagger

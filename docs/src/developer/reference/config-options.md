@@ -562,6 +562,10 @@ optSettings:
 
 ### MLS settings
 
+#### `setEnableMLS`
+
+This option determines whether MLS is supported on this backend. When set to false (or absent), MLS endpoints will fail without performing any action.
+
 #### `setKeyPackageMaximumLifetime`
 
 This option specifies the maximum accepted lifetime of a key package from the moment it is uploaded, in seconds. For example, when brig is configured as follows:

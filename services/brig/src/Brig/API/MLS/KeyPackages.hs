@@ -26,6 +26,7 @@ where
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages.Validation
+import Brig.API.MLS.Util
 import Brig.API.Types
 import Brig.App
 import qualified Brig.Data.Client as Data
@@ -48,6 +49,7 @@ import Wire.API.User.Client
 
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
+  assertMLSEnabled
   let identity = mkClientIdentity (tUntagged lusr) cid
   kps' <- traverse (validateKeyPackage identity) kps
   lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
@@ -57,7 +59,8 @@ claimKeyPackages ::
   Qualified UserId ->
   Maybe ClientId ->
   Handler r KeyPackageBundle
-claimKeyPackages lusr target skipOwn =
+claimKeyPackages lusr target skipOwn = do
+  assertMLSEnabled
   foldQualified
     lusr
     (withExceptT clientError . claimLocalKeyPackages (tUntagged lusr) skipOwn)
@@ -131,7 +134,8 @@ claimRemoteKeyPackages lusr target = do
     handleFailure = maybe (throwE (ClientUserNotFound (tUnqualified target))) pure
 
 countKeyPackages :: Local UserId -> ClientId -> Handler r KeyPackageCount
-countKeyPackages lusr c =
+countKeyPackages lusr c = do
+  assertMLSEnabled
   lift $
     KeyPackageCount . fromIntegral
       <$> wrapClient (Data.countKeyPackages lusr c)
