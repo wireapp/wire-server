@@ -2284,15 +2284,17 @@ getGroupInfoDisabled = do
 
 testCreateSubConv :: Bool -> TestM ()
 testCreateSubConv parentIsMLSConv = do
-  [alice] <- createAndConnectUsers [Nothing]
+  alice <- randomQualifiedUser
   runMLSTest $ do
     qcnv <-
       if parentIsMLSConv
         then do
-          (creator : _) <- traverse createMLSClient (replicate 2 alice)
+          creator <- createMLSClient alice
           (_, qcnv) <- setupMLSGroup creator
           pure qcnv
-        else cnvQualifiedId <$> liftTest (postConvQualified (qUnqualified alice) defNewProteusConv >>= responseJsonError)
+        else
+          cnvQualifiedId
+            <$> liftTest (postConvQualified (qUnqualified alice) defNewProteusConv >>= responseJsonError)
     let sconv = SubConvId "call"
     liftTest $
       getSubConv (qUnqualified alice) qcnv sconv

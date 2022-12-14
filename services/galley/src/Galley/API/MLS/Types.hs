@@ -85,8 +85,9 @@ initialGroupId lcnv sconv =
   GroupId
     . convert
     . Crypto.hash @ByteString @Crypto.SHA256
-    -- TODO(md): this has to depend on the domain too
-    $ toByteString' (tUnqualified lcnv) <> toByteString' (unSubConvId sconv)
+    $ toByteString' (tUnqualified lcnv)
+      <> toByteString' (tDomain lcnv)
+      <> toByteString' (unSubConvId sconv)
 
 type ConvOrSubConv = ConvOrSubChoice MLSConversation SubConversation
 
