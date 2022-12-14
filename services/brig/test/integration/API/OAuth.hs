@@ -137,11 +137,11 @@ testCreateAccessTokenSuccess opts brig = do
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
   k <- liftIO $ readJwk (fromMaybe "" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   verifiedOrError <- liftIO $ verify k (cs $ unOauthAccessToken $ oatAccessToken accessToken)
-  -- verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (cs $ unOauthAccessToken $ oatAccessToken accessToken)
+  verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (cs $ unOauthAccessToken $ oatAccessToken accessToken)
   let expectedDomain = domainText $ Opt.setFederationDomain $ Opt.optSettings opts
   liftIO $ do
     isRight verifiedOrError @?= True
-    -- isLeft verifiedOrErrorWithWrongKey @?= True
+    isLeft verifiedOrErrorWithWrongKey @?= True
     let claims = either (error "invalid token") id verifiedOrError
     scope claims @?= scopes
     (view claimIss $ claims) @?= (expectedDomain ^? stringOrUri @Text)
