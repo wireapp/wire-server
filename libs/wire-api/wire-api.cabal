@@ -295,6 +295,7 @@ test-suite wire-api-golden-tests
   other-modules:
     Main
     Paths_wire_api
+    TastyGolden
     Test.Wire.API.Golden.FromJSON
     Test.Wire.API.Golden.Generated
     Test.Wire.API.Golden.Generated.Access_user
@@ -615,6 +616,7 @@ test-suite wire-api-golden-tests
     , swagger2
     , tasty
     , tasty-expected-failure
+    , tasty-golden
     , tasty-hunit
     , tasty-quickcheck
     , text

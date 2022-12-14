@@ -21,6 +21,7 @@ module Main
 where
 
 import Imports
+import TastyGolden
 import Test.Tasty
 import qualified Test.Wire.API.Golden.FromJSON as Golden.FromJSON
 import qualified Test.Wire.API.Golden.Generated as Golden.Generated
@@ -35,5 +36,6 @@ main =
       [ Golden.Generated.tests,
         Golden.Manual.tests,
         Golden.FromJSON.tests,
-        Golden.Protobuf.tests
+        Golden.Protobuf.tests,
+        TastyGolden.tests
       ]
