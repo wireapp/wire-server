@@ -52,16 +52,6 @@ newtype SubConvId = SubConvId {unSubConvId :: Text}
   deriving newtype (S.ToParamSchema)
   deriving stock (Show)
 
--- | Compute the inital group ID for a subconversation
-initialGroupId :: Local ConvId -> SubConvId -> GroupId
-initialGroupId lcnv sconv =
-  GroupId
-    . convert
-    . Crypto.hash @ByteString @Crypto.SHA256
-    $ toByteString' (tUnqualified lcnv)
-      <> toByteString' (tDomain lcnv)
-      <> toByteString' (unSubConvId sconv)
-
 instance FromHttpApiData SubConvId where
   parseQueryParam s = do
     unless (T.length s > 0) $ throwError "The subconversation ID cannot be empty"
@@ -72,6 +62,16 @@ instance FromHttpApiData SubConvId where
 
 instance ToHttpApiData SubConvId where
   toQueryParam = unSubConvId
+
+-- | Compute the inital group ID for a subconversation
+initialGroupId :: Local ConvId -> SubConvId -> GroupId
+initialGroupId lcnv sconv =
+  GroupId
+    . convert
+    . Crypto.hash @ByteString @Crypto.SHA256
+    $ toByteString' (tUnqualified lcnv)
+      <> toByteString' (tDomain lcnv)
+      <> toByteString' (unSubConvId sconv)
 
 data PublicSubConversation = PublicSubConversation
   { pscParentConvId :: Qualified ConvId,
