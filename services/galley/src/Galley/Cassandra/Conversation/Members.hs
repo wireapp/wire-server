@@ -32,7 +32,7 @@ import qualified Data.List.Extra as List
 import Data.Monoid
 import Data.Qualified
 import qualified Data.Set as Set
-import Galley.API.MLS.Types
+import Galley.Cassandra.Conversation.MLS (lookupMLSClients)
 import Galley.Cassandra.Instances ()
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Services
@@ -355,13 +355,6 @@ removeMLSClients groupId (Qualified usr domain) cs = retry x5 . batch $ do
   setConsistency LocalQuorum
   for_ cs $ \c ->
     addPrepQuery Cql.removeMLSClient (groupId, domain, usr, c)
-
-lookupMLSClients :: GroupId -> Client ClientMap
-lookupMLSClients groupId =
-  mkClientMap
-    <$> retry
-      x5
-      (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
 
 interpretMemberStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>

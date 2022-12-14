@@ -70,6 +70,7 @@ import Galley.Cassandra.LegalHold
 import Galley.Cassandra.Proposal
 import Galley.Cassandra.SearchVisibility
 import Galley.Cassandra.Services
+import Galley.Cassandra.SubConversation (interpretSubConversationStoreToCassandra)
 import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
@@ -257,6 +258,7 @@ evalGalley e =
     . interpretMemberStoreToCassandra
     . interpretLegalHoldStoreToCassandra lh
     . interpretCustomBackendStoreToCassandra
+    . interpretSubConversationStoreToCassandra
     . interpretConversationStoreToCassandra
     . interpretProposalStoreToCassandra
     . interpretCodeStoreToCassandra

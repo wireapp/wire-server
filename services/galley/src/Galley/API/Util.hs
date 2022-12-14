@@ -22,7 +22,7 @@ module Galley.API.Util where
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.Bifunctor
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion (ToByteString, toByteString')
 import qualified Data.Code as Code
 import Data.Domain (Domain)
 import Data.Id as Id

@@ -44,6 +44,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.SubConversation
 import Wire.API.Message
 
 -- | Propagate a message.
@@ -55,52 +56,59 @@ propagateMessage ::
     Member TinyLog r
   ) =>
   Qualified UserId ->
-  Local Data.Conversation ->
-  ClientMap ->
+  Local ConvOrSubConv ->
   Maybe ConnId ->
   ByteString ->
   Sem r ()
-propagateMessage qusr lconv cm con raw = do
-  -- FUTUREWORK: check the epoch
-  let lmems = Data.convLocalMembers . tUnqualified $ lconv
-      botMap = Map.fromList $ do
-        m <- lmems
-        b <- maybeToList $ newBotMember m
-        pure (lmId m, b)
-      mm = defMessageMetadata
-  now <- input @UTCTime
-  let lcnv = fmap Data.convId lconv
-      qcnv = tUntagged lcnv
-      e = Event qcnv qusr now $ EdMLSMessage raw
-      mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
-      mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
-  runMessagePush lconv (Just qcnv) $
-    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv)
+propagateMessage qusr lConvOrSub con raw = do
+  case tUnqualified lConvOrSub of
+    (SubConv _ _) -> do
+      -- FUTUREWORK: Implement propagating the message to the subconversation
+      pure ()
+    (Conv mlsMessage) -> do
+      let lMlsMessage = qualifyAs lConvOrSub mlsMessage
+      let cm = mcMembers mlsMessage
+          lconv = mcConv <$> lMlsMessage
+      -- FUTUREWORK: check the epoch
+      let lmems = Data.convLocalMembers . tUnqualified $ lconv
+          botMap = Map.fromList $ do
+            m <- lmems
+            b <- maybeToList $ newBotMember m
+            pure (lmId m, b)
+          mm = defMessageMetadata
+      now <- input @UTCTime
+      let lcnv = fmap Data.convId lconv
+          qcnv = tUntagged lcnv
+          e = Event qcnv qusr now $ EdMLSMessage raw
+          mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
+          mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
+      runMessagePush lconv (Just qcnv) $
+        foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv cm)
 
-  -- send to remotes
-  traverse_ handleError
-    <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers . tUnqualified $ lconv))
-    $ \(tUnqualified -> rs) ->
-      fedClient @'Galley @"on-mls-message-sent" $
-        RemoteMLSMessage
-          { rmmTime = now,
-            rmmSender = qusr,
-            rmmMetadata = mm,
-            rmmConversation = tUnqualified lcnv,
-            rmmRecipients = rs >>= remoteMemberMLSClients,
-            rmmMessage = Base64ByteString raw
-          }
+      -- send to remotes
+      traverse_ handleError
+        <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers . tUnqualified $ lconv))
+        $ \(tUnqualified -> rs) ->
+          fedClient @'Galley @"on-mls-message-sent" $
+            RemoteMLSMessage
+              { rmmTime = now,
+                rmmSender = qusr,
+                rmmMetadata = mm,
+                rmmConversation = tUnqualified lcnv,
+                rmmRecipients = rs >>= remoteMemberMLSClients cm,
+                rmmMessage = Base64ByteString raw
+              }
   where
-    localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
-    localMemberMLSClients loc lm =
+    localMemberMLSClients :: Local x -> ClientMap -> LocalMember -> [(UserId, ClientId)]
+    localMemberMLSClients loc cm lm =
       let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lmId lm
        in map
             (\(c, _) -> (localUserId, c))
             (toList (Map.findWithDefault mempty localUserQId cm))
 
-    remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
-    remoteMemberMLSClients rm =
+    remoteMemberMLSClients :: ClientMap -> RemoteMember -> [(UserId, ClientId)]
+    remoteMemberMLSClients cm rm =
       let remoteUserQId = tUntagged (rmId rm)
           remoteUserId = qUnqualified remoteUserQId
        in map

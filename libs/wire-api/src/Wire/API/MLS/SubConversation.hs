@@ -20,17 +20,26 @@
 
 module Wire.API.MLS.SubConversation where
 
-import Control.Lens (makePrisms)
+import Control.Lens (makePrisms, (?~))
 import Control.Lens.Tuple (_1)
 import Control.Monad.Except
+import qualified Crypto.Hash as Crypto
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
+import Data.ByteArray
+import Data.ByteString.Conversion
 import Data.Id
+import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 import Test.QuickCheck
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Credential
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Group
 import Wire.Arbitrary
 
 -- | An MLS subconversation ID, which identifies a subconversation within a
@@ -53,6 +62,40 @@ instance FromHttpApiData SubConvId where
 
 instance ToHttpApiData SubConvId where
   toQueryParam = unSubConvId
+
+-- | Compute the inital group ID for a subconversation
+initialGroupId :: Local ConvId -> SubConvId -> GroupId
+initialGroupId lcnv sconv =
+  GroupId
+    . convert
+    . Crypto.hash @ByteString @Crypto.SHA256
+    $ toByteString' (tUnqualified lcnv)
+      <> toByteString' (tDomain lcnv)
+      <> toByteString' (unSubConvId sconv)
+
+data PublicSubConversation = PublicSubConversation
+  { pscParentConvId :: Qualified ConvId,
+    pscSubConvId :: SubConvId,
+    pscGroupId :: GroupId,
+    pscEpoch :: Epoch,
+    pscCipherSuite :: CipherSuiteTag,
+    pscMembers :: [ClientIdentity]
+  }
+  deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema PublicSubConversation)
+
+instance ToSchema PublicSubConversation where
+  schema =
+    objectWithDocModifier
+      "PublicSubConversation"
+      (description ?~ "A MLS subconversation")
+      $ PublicSubConversation
+        <$> pscParentConvId .= field "parent_qualified_id" schema
+        <*> pscSubConvId .= field "subconv_id" schema
+        <*> pscGroupId .= field "group_id" schema
+        <*> pscEpoch .= field "epoch" schema
+        <*> pscCipherSuite .= field "cipher_suite" schema
+        <*> pscMembers .= field "members" (array schema)
 
 data ConvOrSubTag = ConvTag | SubConvTag
   deriving (Eq, Enum, Bounded)

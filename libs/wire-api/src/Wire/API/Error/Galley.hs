@@ -85,6 +85,8 @@ data GalleyError
   | MLSWelcomeMismatch
   | MLSMissingGroupInfo
   | MLSMissingSenderClient
+  | MLSUnexpectedSenderClient
+  | MLSSubConvUnsupportedConvType
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -216,6 +218,8 @@ type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-misma
 type instance MapError 'MLSMissingGroupInfo = 'StaticError 404 "mls-missing-group-info" "The conversation has no group information"
 
 type instance MapError 'MLSMissingSenderClient = 'StaticError 403 "mls-missing-sender-client" "The client has to refresh their access token and provide their client ID"
+
+type instance MapError 'MLSSubConvUnsupportedConvType = 'StaticError 403 "mls-subconv-unsupported-convtype" "MLS subconversations are only supported for regular conversations"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

@@ -31,6 +31,7 @@ import qualified Control.Monad.State as State
 import Control.Monad.Trans.Maybe
 import Crypto.PubKey.Ed25519
 import Data.Aeson.Lens
+import Data.Binary.Builder (toLazyByteString)
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64.URL as B64U
@@ -60,6 +61,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Web.HttpApiData
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
@@ -75,6 +77,7 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
@@ -1040,3 +1043,21 @@ withMLSDisabled :: HasSettingsOverrides m => m a -> m a
 withMLSDisabled = withSettingsOverrides noMLS
   where
     noMLS = Opts.optSettings . Opts.setMlsPrivateKeyPaths .~ Nothing
+
+getSubConv ::
+  UserId ->
+  Qualified ConvId ->
+  SubConvId ->
+  TestM ResponseLBS
+getSubConv u qcnv sconv = do
+  g <- viewGalley
+  get $
+    g
+      . paths
+        [ "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "subconversations",
+          LBS.toStrict (toLazyByteString (toEncodedUrlPiece sconv))
+        ]
+      . zUser u

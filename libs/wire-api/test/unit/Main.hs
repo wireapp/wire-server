@@ -25,6 +25,7 @@ import Test.Tasty
 import qualified Test.Wire.API.Call.Config as Call.Config
 import qualified Test.Wire.API.Conversation as Conversation
 import qualified Test.Wire.API.MLS as MLS
+import qualified Test.Wire.API.MLS.SubConversation as SubConversation
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
@@ -59,5 +60,6 @@ main =
         Roundtrip.CSV.tests,
         Routes.tests,
         Conversation.tests,
-        MLS.tests
+        MLS.tests,
+        SubConversation.tests
       ]
