@@ -43,6 +43,9 @@ nginx_conf:
   #     accountsURL: "https://accounts.wire.com"
   #     websiteURL: "https://wire.com"
   #   title: "Production"
+
+  # api_versions_disabled : [ v3 ]
+
   disabled_paths:
   - /conversations/last-events
   - /conversations/([^/]*)/knock

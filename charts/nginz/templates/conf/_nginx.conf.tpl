@@ -206,6 +206,22 @@ http {
         return 403;
     }
 
+    # leading zeros in version number are disallowed
+
+    location ~* ^/v0+ {
+      return 404;
+    };
+
+    # disabled api versions
+
+    {{ range $api_version := .Values.nginx_conf.api_versions_disabled }}
+      location ~* ^/{{ $api_version }}/ {
+        return 404;
+      };
+    {{ end -}}
+
+    # disabled paths
+
     {{ range $path := .Values.nginx_conf.disabled_paths }}
       location ~* ^(/v[0-9]+)?{{ $path }} {
 
