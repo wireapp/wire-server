@@ -44,7 +44,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.SubConversation
 import Wire.API.Message
 
 -- | Propagate a message.
@@ -61,43 +60,37 @@ propagateMessage ::
   ByteString ->
   Sem r ()
 propagateMessage qusr lConvOrSub con raw = do
-  case tUnqualified lConvOrSub of
-    (SubConv _ _) -> do
-      -- FUTUREWORK: Implement propagating the message to the subconversation
-      pure ()
-    (Conv mlsMessage) -> do
-      let lMlsMessage = qualifyAs lConvOrSub mlsMessage
-      let cm = mcMembers mlsMessage
-          lconv = mcConv <$> lMlsMessage
-      -- FUTUREWORK: check the epoch
-      let lmems = Data.convLocalMembers . tUnqualified $ lconv
-          botMap = Map.fromList $ do
-            m <- lmems
-            b <- maybeToList $ newBotMember m
-            pure (lmId m, b)
-          mm = defMessageMetadata
-      now <- input @UTCTime
-      let lcnv = fmap Data.convId lconv
-          qcnv = tUntagged lcnv
-          e = Event qcnv qusr now $ EdMLSMessage raw
-          mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
-          mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
-      runMessagePush lconv (Just qcnv) $
-        foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv cm)
+  now <- input @UTCTime
+  let cm = membersConvOrSub (tUnqualified lConvOrSub)
+      lconv = mcConv . convOfConvOrSub <$> lConvOrSub
+      lmems = Data.convLocalMembers . tUnqualified $ lconv
+      botMap = Map.fromList $ do
+        m <- lmems
+        b <- maybeToList $ newBotMember m
+        pure (lmId m, b)
+      mm = defMessageMetadata
+      lcnv = fmap Data.convId lconv
+      qcnv = tUntagged lcnv
+      -- TODO: Add subconv field
+      e = Event qcnv qusr now $ EdMLSMessage raw
+      mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
+      mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
+  runMessagePush lconv (Just qcnv) $
+    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv cm)
 
-      -- send to remotes
-      traverse_ handleError
-        <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers . tUnqualified $ lconv))
-        $ \(tUnqualified -> rs) ->
-          fedClient @'Galley @"on-mls-message-sent" $
-            RemoteMLSMessage
-              { rmmTime = now,
-                rmmSender = qusr,
-                rmmMetadata = mm,
-                rmmConversation = tUnqualified lcnv,
-                rmmRecipients = rs >>= remoteMemberMLSClients cm,
-                rmmMessage = Base64ByteString raw
-              }
+  -- send to remotes
+  traverse_ handleError
+    <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers . tUnqualified $ lconv))
+    $ \(tUnqualified -> rs) ->
+      fedClient @'Galley @"on-mls-message-sent" $
+        RemoteMLSMessage
+          { rmmTime = now,
+            rmmSender = qusr,
+            rmmMetadata = mm,
+            rmmConversation = tUnqualified lcnv,
+            rmmRecipients = rs >>= remoteMemberMLSClients cm,
+            rmmMessage = Base64ByteString raw
+          }
   where
     localMemberMLSClients :: Local x -> ClientMap -> LocalMember -> [(UserId, ClientId)]
     localMemberMLSClients loc cm lm =

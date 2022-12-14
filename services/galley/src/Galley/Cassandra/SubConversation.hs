@@ -68,6 +68,10 @@ setGroupIdForSubConversation :: GroupId -> Qualified ConvId -> SubConvId -> Clie
 setGroupIdForSubConversation groupId qconv sconv =
   retry x5 (write Cql.insertGroupIdForSubConversation (params LocalQuorum (groupId, qUnqualified qconv, qDomain qconv, sconv)))
 
+setEpochForSubConversation :: ConvId -> SubConvId -> Epoch -> Client ()
+setEpochForSubConversation cid sconv epoch =
+  retry x5 (write Cql.insertEpochForSubConversation (params LocalQuorum (epoch, cid, sconv)))
+
 interpretSubConversationStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
   Sem (SubConversationStore ': r) a ->
@@ -78,3 +82,4 @@ interpretSubConversationStoreToCassandra = interpret $ \case
   SetSubConversationPublicGroupState convId subConvId mPgs -> embedClient (updateSubConvPublicGroupState convId subConvId mPgs)
   GetSubConversationPublicGroupState convId subConvId -> embedClient (selectSubConvPublicGroupState convId subConvId)
   SetGroupIdForSubConversation gId cid sconv -> embedClient $ setGroupIdForSubConversation gId cid sconv
+  SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch

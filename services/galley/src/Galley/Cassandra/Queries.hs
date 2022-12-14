@@ -340,6 +340,9 @@ insertGroupIdForSubConversation = "INSERT INTO group_id_conv_id (group_id, conv_
 lookupGroupIdForSubConversation :: PrepQuery R (Identity GroupId) (ConvId, Domain, SubConvId)
 lookupGroupIdForSubConversation = "SELECT conv_id, domain, subconv_id from group_id_conv_id where group_id = ?"
 
+insertEpochForSubConversation :: PrepQuery W (Epoch, ConvId, SubConvId) ()
+insertEpochForSubConversation = "INSERT INTO subconversation (epoch) VALUES (?) WHERE  conv_id = ? and subconv_id = ?"
+
 -- Members ------------------------------------------------------------------
 
 type MemberStatus = Int32

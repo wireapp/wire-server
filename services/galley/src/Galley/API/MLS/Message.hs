@@ -826,6 +826,7 @@ processInternalCommit ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Input (Local ())) r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member BrigAccess r,
     Member Resource r
   ) =>
@@ -1479,9 +1480,16 @@ fetchConvOrSub qusr convOrSubId = for convOrSubId $ \case
       cm <- lookupMLSClients (cnvmlsGroupId meta)
       pure $ MLSConversation c meta cm
 
-setConvOrSubEpoch :: Members '[ConversationStore] r => ConvOrSubConvId -> Epoch -> Sem r ()
+setConvOrSubEpoch ::
+  Members
+    '[ ConversationStore,
+       SubConversationStore
+     ]
+    r =>
+  ConvOrSubConvId ->
+  Epoch ->
+  Sem r ()
 setConvOrSubEpoch (Conv cid) epoch =
   setConversationEpoch cid epoch
-setConvOrSubEpoch (SubConv _ _) _epoch =
-  -- FUTUREWORK: Write to subconversation
-  pure ()
+setConvOrSubEpoch (SubConv cid sconv) epoch =
+  setSubConversationEpoch cid sconv epoch
