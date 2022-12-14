@@ -661,10 +661,7 @@ processCommit ::
   Commit ->
   Sem r [LocalConversationUpdate]
 processCommit qusr senderClient con lConvOrSub epoch sender commit = do
-  -- NOTE(md): This one doesn't need the whole conversation 'lConvOrSub', but only its 'convId'.
   action <- getCommitData lConvOrSub epoch commit
-  -- NOTE(md): This one needs the whole conversation because
-  -- 'processInternalCommit' uses 'getConvMember', but 'processExternalCommit' needs only the 'Local convId'
   processCommitWithAction qusr senderClient con lConvOrSub epoch action sender commit
 
 processExternalCommit ::
@@ -872,8 +869,8 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
                 qusr
                 (Set.singleton (creatorClient, creatorRef))
             (Left _, SelfConv, _, _) ->
-              -- this is a newly created conversation, and it should contain exactly one
-              -- client (the creator)
+              -- this is a newly created (sub)conversation, and it should
+              -- contain exactly one client (the creator)
               throw (InternalErrorWithDescription "Unexpected creator client set")
             (Left lm, _, [(qu, (creatorClient, _))], Conv _)
               | qu == tUntagged (qualifyAs lConvOrSub (lmId lm)) -> do
