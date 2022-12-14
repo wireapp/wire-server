@@ -641,6 +641,7 @@ test-suite wire-api-tests
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
     Test.Wire.API.MLS
+    Test.Wire.API.MLS.SubConversation
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString
     Test.Wire.API.Roundtrip.CSV
