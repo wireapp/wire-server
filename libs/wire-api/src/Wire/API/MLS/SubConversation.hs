@@ -23,8 +23,11 @@ module Wire.API.MLS.SubConversation where
 import Control.Lens (makePrisms, (?~))
 import Control.Lens.Tuple (_1)
 import Control.Monad.Except
+import qualified Crypto.Hash as Crypto
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import Data.ByteArray
+import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
 import Data.Schema
@@ -48,6 +51,16 @@ newtype SubConvId = SubConvId {unSubConvId :: Text}
   deriving (Arbitrary) via (GenericUniform SubConvId)
   deriving newtype (S.ToParamSchema)
   deriving stock (Show)
+
+-- | Compute the inital group ID for a subconversation
+initialGroupId :: Local ConvId -> SubConvId -> GroupId
+initialGroupId lcnv sconv =
+  GroupId
+    . convert
+    . Crypto.hash @ByteString @Crypto.SHA256
+    $ toByteString' (tUnqualified lcnv)
+      <> toByteString' (tDomain lcnv)
+      <> toByteString' (unSubConvId sconv)
 
 instance FromHttpApiData SubConvId where
   parseQueryParam s = do

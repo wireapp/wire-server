@@ -18,9 +18,6 @@
 
 module Galley.API.MLS.Types where
 
-import qualified Crypto.Hash as Crypto
-import Data.ByteArray (convert)
-import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
@@ -31,7 +28,6 @@ import qualified Galley.Data.Conversation as Data
 import Imports
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.SubConversation
 
@@ -79,15 +75,6 @@ toPublicSubConv SubConversation {..} =
           pscCipherSuite = cnvmlsCipherSuite scMLSData,
           pscMembers = members
         }
-
-initialGroupId :: Local ConvId -> SubConvId -> GroupId
-initialGroupId lcnv sconv =
-  GroupId
-    . convert
-    . Crypto.hash @ByteString @Crypto.SHA256
-    $ toByteString' (tUnqualified lcnv)
-      <> toByteString' (tDomain lcnv)
-      <> toByteString' (unSubConvId sconv)
 
 type ConvOrSubConv = ConvOrSubChoice MLSConversation SubConversation
 
