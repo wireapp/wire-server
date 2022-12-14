@@ -98,7 +98,7 @@ propagateMessage qusr lConvOrSub con raw = do
           localUserId = lmId lm
        in map
             (\(c, _) -> (localUserId, c))
-            (toList (Map.findWithDefault mempty localUserQId cm))
+            (Map.assocs (Map.findWithDefault mempty localUserQId cm))
 
     remoteMemberMLSClients :: ClientMap -> RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients cm rm =
@@ -106,7 +106,7 @@ propagateMessage qusr lConvOrSub con raw = do
           remoteUserId = qUnqualified remoteUserQId
        in map
             (\(c, _) -> (remoteUserId, c))
-            (toList (Map.findWithDefault mempty remoteUserQId cm))
+            (Map.assocs (Map.findWithDefault mempty remoteUserQId cm))
 
     handleError ::
       Member TinyLog r =>

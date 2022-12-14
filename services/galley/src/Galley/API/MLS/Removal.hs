@@ -25,7 +25,6 @@ where
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
-import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
 import Galley.API.MLS.Keys (getMLSRemovalKey)
@@ -43,6 +42,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -110,8 +110,8 @@ removeClient lc qusr cid = do
     -- FUTUREWORK: also remove the client from from subconversations of lc
     cm <- lookupMLSClients (cnvmlsGroupId mlsMeta)
     let mlsConv = MLSConversation (tUnqualified lc) mlsMeta cm
-    let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
-    removeClientsWithClientMap (qualifyAs lc (Conv mlsConv)) cidAndKP qusr
+    let cidAndKPs = maybeToList (cmLookupRef (mkClientIdentity qusr cid) cm)
+    removeClientsWithClientMap (qualifyAs lc (Conv mlsConv)) cidAndKPs qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
@@ -136,4 +136,5 @@ removeUser lc qusr = do
     -- FUTUREWORK: also remove the client from from subconversations of lc
     cm <- lookupMLSClients (cnvmlsGroupId mlsMeta)
     let mlsConv = MLSConversation (tUnqualified lc) mlsMeta cm
-    removeClientsWithClientMap (qualifyAs lc (Conv mlsConv)) (Set.toList . Set.map snd $ Map.findWithDefault mempty qusr cm) qusr
+    let kprefs = map snd (Map.assocs (Map.findWithDefault mempty qusr cm))
+    removeClientsWithClientMap (qualifyAs lc (Conv mlsConv)) kprefs qusr

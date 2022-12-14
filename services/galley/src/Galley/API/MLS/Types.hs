@@ -22,7 +22,6 @@ import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
-import qualified Data.Set as Set
 import Galley.Data.Conversation
 import qualified Galley.Data.Conversation as Data
 import Imports
@@ -31,17 +30,28 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.SubConversation
 
-type ClientMap = Map (Qualified UserId) (Set (ClientId, KeyPackageRef))
+type ClientMap = Map (Qualified UserId) (Map ClientId KeyPackageRef)
 
 mkClientMap :: [(Domain, UserId, ClientId, KeyPackageRef)] -> ClientMap
 mkClientMap = foldr addEntry mempty
   where
     addEntry :: (Domain, UserId, ClientId, KeyPackageRef) -> ClientMap -> ClientMap
     addEntry (dom, usr, c, kpr) =
-      Map.insertWith (<>) (Qualified usr dom) (Set.singleton (c, kpr))
+      Map.insertWith (<>) (Qualified usr dom) (Map.singleton c kpr)
+
+cmLookupRef :: ClientIdentity -> ClientMap -> Maybe KeyPackageRef
+cmLookupRef cid cm = do
+  clients <- Map.lookup (cidQualifiedUser cid) cm
+  Map.lookup (ciClient cid) clients
+
+isClientMember :: ClientIdentity -> ClientMap -> Bool
+isClientMember ci = isJust . cmLookupRef ci
 
 cmAssocs :: ClientMap -> [(Qualified UserId, (ClientId, KeyPackageRef))]
-cmAssocs cm = Map.assocs cm >>= traverse toList
+cmAssocs cm = do
+  (quid, clients) <- Map.assocs cm
+  (clientId, ref) <- Map.assocs clients
+  pure (quid, (clientId, ref))
 
 -- | Inform a handler for 'POST /conversations/list-ids' if the MLS global team
 -- conversation and the MLS self-conversation should be included in the

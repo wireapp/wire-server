@@ -599,10 +599,10 @@ instance Monoid ProposalAction where
   mempty = ProposalAction mempty mempty mempty
 
 paAddClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
-paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
+paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (uncurry Map.singleton (snd (qUnqualified quc)))}
 
 paRemoveClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
-paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
+paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (uncurry Map.singleton (snd (qUnqualified quc)))}
 
 paExternalInitPresent :: ProposalAction
 paExternalInitPresent = mempty {paExternalInit = Any True}
@@ -733,6 +733,12 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
     throw . mlsProtocolError $
       "The external commit attempts to add another client of the user, it must only add itself"
 
+  case convOrSub of
+    Conv _ -> pure ()
+    SubConv mlsConv _ ->
+      unless (isJust (cmLookupRef cid (mcMembers mlsConv))) $
+        pure (error "TODO: throw exception")
+
   -- check if there is a key package ref in the remove proposal
   remRef <-
     if Map.null (paRemove action)
@@ -759,18 +765,18 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
   removeClientsWithClientMap lConvOrSub' kpRefs qusr
   where
     derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
-    derefUser (Map.toList -> l) user = case l of
-      [(u, s)] -> do
+    derefUser cm user = case Map.assocs cm of
+      [(u, clients)] -> do
         unless (user == u) $
           throwS @'MLSClientSenderUserMismatch
-        ref <- snd <$> ensureSingleton s
+        ref <- ensureSingleton clients
         ci <- derefKeyPackage ref
         unless (cidQualifiedUser ci == user) $
           throwS @'MLSClientSenderUserMismatch
         pure (ci, ref)
       _ -> throwRemProposal
-    ensureSingleton :: Set a -> Sem r a
-    ensureSingleton (Set.toList -> l) = case l of
+    ensureSingleton :: Map k a -> Sem r a
+    ensureSingleton m = case Map.elems m of
       [e] -> pure e
       _ -> throwRemProposal
     throwRemProposal =
@@ -1207,7 +1213,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
   -- out all removals of that type, so that further checks and processing can
   -- be applied only to type 1 removals.
   removedUsers <- mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
-    \(qtarget, Set.map fst -> clients) -> runError @() $ do
+    \(qtarget, Map.keysSet -> clients) -> runError @() $ do
       -- fetch clients from brig
       clientInfo <- Set.map ciId <$> getClientInfo lconv qtarget ss
       -- if the clients being removed don't exist, consider this as a removal of
@@ -1226,7 +1232,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
     -- new user
     Nothing -> do
       -- final set of clients in the conversation
-      let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
+      let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
       -- get list of mls clients from brig
       clientInfo <- getClientInfo lconv qtarget ss
       let allClients = Set.map ciId clientInfo
@@ -1256,7 +1262,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
 
   -- add clients in the conversation state
   for_ newUserClients $ \(qtarget, newClients) -> do
-    addMLSClients (cnvmlsGroupId mlsMeta) qtarget newClients
+    addMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
 
   -- remove users from the conversation and send events
   removeEvents <- foldMap (removeMembers lconv) (nonEmpty membersToRemove)
@@ -1264,7 +1270,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
   -- Remove clients from the conversation state. This includes client removals
   -- of all types (see Note [client removal]).
   for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
-    removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.map fst clients)
+    removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Map.keysSet clients)
 
   pure (addEvents <> removeEvents)
   where
@@ -1274,7 +1280,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
       Set ClientId ->
       Sem r (Maybe (Qualified UserId))
     checkRemoval cm qtarget clients = do
-      let clientsInConv = Set.map fst (Map.findWithDefault mempty qtarget cm)
+      let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
       when (clients /= clientsInConv) $ do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch
