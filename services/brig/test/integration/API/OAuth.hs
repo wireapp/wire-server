@@ -28,6 +28,7 @@ import Crypto.JOSE (JWK)
 import Crypto.JWT (Audience (Audience), NumericDate (NumericDate), claimAud, claimExp, claimIat, claimIss, claimSub, stringOrUri)
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (fromByteString, fromByteString', toByteString')
+import Data.Domain (domainText)
 import Data.Id (OAuthClientId, UserId, idToText, randomId)
 import Data.Range (unsafeRange)
 import Data.Set as Set
@@ -131,13 +132,14 @@ testCreateAccessTokenSuccess opts brig = do
   k <- liftIO $ readJwk (fromMaybe "" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   verifiedOrError <- liftIO $ verify k (cs $ unOauthAccessToken $ oatAccessToken accessToken)
   verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (cs $ unOauthAccessToken $ oatAccessToken accessToken)
+  let expectedDomain = domainText $ Opt.setFederationDomain $ Opt.optSettings opts
   liftIO $ do
     isRight verifiedOrError @?= True
     isLeft verifiedOrErrorWithWrongKey @?= True
     let claims = either (error "invalid token") id verifiedOrError
     scope claims @?= scopes
-    (view claimIss $ claims) @?= ("example.com" ^? stringOrUri @Text)
-    (view claimAud $ claims) @?= (Audience . (: []) <$> "example.com" ^? stringOrUri @Text)
+    (view claimIss $ claims) @?= (expectedDomain ^? stringOrUri @Text)
+    (view claimAud $ claims) @?= (Audience . (: []) <$> expectedDomain ^? stringOrUri @Text)
     (view claimSub $ claims) @?= (idToText uid ^? stringOrUri)
     let expTime = (\(NumericDate x) -> x) . fromMaybe (error "exp claim missing") . view claimExp $ claims
     diffUTCTime expTime now > 0 @?= True
