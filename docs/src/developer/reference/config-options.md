@@ -607,6 +607,8 @@ This options determines whether development versions should be enabled. If set t
 
 ### OAuth
 
+#### JWK
+
 Optionally, configure the JWK to sign and verify OAuth access tokens for local testing as follows:
 
 ```yaml
@@ -615,6 +617,8 @@ optSettings:
   # ...
   setOAuthJwkKeyPair: test/resources/oauth/jwk.json
 ```
+
+#### Expiration time
 
 Optionally, configure the OAuth authorization code and access token expiration time in seconds as follows:
 
