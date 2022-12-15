@@ -31,7 +31,7 @@ import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.SubConversation
 
 data SubConversationStore m a where
-  GetSubConversation :: Local ConvId -> SubConvId -> SubConversationStore m (Maybe SubConversation)
+  GetSubConversation :: ConvId -> SubConvId -> SubConversationStore m (Maybe SubConversation)
   CreateSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Epoch -> GroupId -> Maybe OpaquePublicGroupState -> SubConversationStore m ()
   SetSubConversationPublicGroupState :: ConvId -> SubConvId -> Maybe OpaquePublicGroupState -> SubConversationStore m ()
   GetSubConversationPublicGroupState :: ConvId -> SubConvId -> SubConversationStore m (Maybe OpaquePublicGroupState)

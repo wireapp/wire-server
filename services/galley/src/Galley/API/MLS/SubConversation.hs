@@ -93,7 +93,7 @@ getLocalSubConversation lusr lconv sconv = do
   unless (Data.convType c == RegularConv) $
     throwS @'MLSSubConvUnsupportedConvType
 
-  msub <- Eff.getSubConversation lconv sconv
+  msub <- Eff.getSubConversation (tUnqualified lconv) sconv
   sub <- case msub of
     Nothing -> do
       mlsMeta <- noteS @'ConvNotFound (mlsMetadata c)
@@ -106,7 +106,7 @@ getLocalSubConversation lusr lconv sconv = do
       setGroupIdForSubConversation groupId (tUntagged lconv) sconv
       let sub =
             SubConversation
-              { scParentConvId = lconv,
+              { scParentConvId = tUnqualified lconv,
                 scSubConvId = sconv,
                 scMLSData =
                   ConversationMLSData
@@ -118,7 +118,7 @@ getLocalSubConversation lusr lconv sconv = do
               }
       pure sub
     Just sub -> pure sub
-  pure (toPublicSubConv sub)
+  pure (toPublicSubConv (tUntagged (qualifyAs lusr sub)))
 
 getSubConversationGroupInfo ::
   Members

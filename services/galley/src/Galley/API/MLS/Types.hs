@@ -70,18 +70,18 @@ data MLSConversation = MLSConversation
   deriving (Show)
 
 data SubConversation = SubConversation
-  { scParentConvId :: Local ConvId,
+  { scParentConvId :: ConvId,
     scSubConvId :: SubConvId,
     scMLSData :: ConversationMLSData,
     scMembers :: ClientMap
   }
   deriving (Eq, Show)
 
-toPublicSubConv :: SubConversation -> PublicSubConversation
-toPublicSubConv SubConversation {..} =
+toPublicSubConv :: Qualified SubConversation -> PublicSubConversation
+toPublicSubConv (Qualified (SubConversation {..}) domain) =
   let members = fmap (\(quid, (cid, _kp)) -> mkClientIdentity quid cid) (cmAssocs scMembers)
    in PublicSubConversation
-        { pscParentConvId = tUntagged scParentConvId,
+        { pscParentConvId = Qualified scParentConvId domain,
           pscSubConvId = scSubConvId,
           pscGroupId = cnvmlsGroupId scMLSData,
           pscEpoch = cnvmlsEpoch scMLSData,

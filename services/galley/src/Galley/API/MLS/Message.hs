@@ -1470,7 +1470,7 @@ fetchConvOrSub qusr convOrSubId = for convOrSubId $ \case
   SubConv convId sconvId -> do
     let lconv = qualifyAs convOrSubId convId
     c <- getMLSConv qusr lconv
-    subconv <- getSubConversation lconv sconvId >>= noteS @'ConvNotFound
+    subconv <- getSubConversation convId sconvId >>= noteS @'ConvNotFound
     pure (SubConv c subconv)
   where
     getMLSConv :: Qualified UserId -> Local ConvId -> Sem r MLSConversation
@@ -1493,6 +1493,6 @@ incrementEpoch (Conv c) = do
   pure $ Conv c {mcMLSData = (mcMLSData c) {cnvmlsEpoch = epoch'}}
 incrementEpoch (SubConv c s) = do
   let epoch' = succ (cnvmlsEpoch (scMLSData s))
-  setSubConversationEpoch (tUnqualified (scParentConvId s)) (scSubConvId s) epoch'
+  setSubConversationEpoch (scParentConvId s) (scSubConvId s) epoch'
   let s' = s {scMLSData = (scMLSData s) {cnvmlsEpoch = epoch'}}
   pure (SubConv c s')

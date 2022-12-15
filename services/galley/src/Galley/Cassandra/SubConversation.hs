@@ -34,9 +34,9 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.SubConversation
 
-selectSubConversation :: Local ConvId -> SubConvId -> Client (Maybe SubConversation)
+selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = do
-  m <- retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (tUnqualified convId, subConvId)))
+  m <- retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
   for m $ \(suite, epoch, groupId) -> do
     cm <- lookupMLSClients groupId
     pure $
