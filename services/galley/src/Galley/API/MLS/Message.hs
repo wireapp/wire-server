@@ -737,7 +737,8 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
     Conv _ -> pure ()
     SubConv mlsConv _ ->
       unless (isJust (cmLookupRef cid (mcMembers mlsConv))) $
-        pure (error "TODO: throw exception")
+        throw . mlsProtocolError $
+          "Cannot join a subconversation before joining the parent conversation"
 
   -- check if there is a key package ref in the remove proposal
   remRef <-
