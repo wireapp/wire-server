@@ -21,7 +21,7 @@ import Imports
 import Servant
 
 -- | Wrap json content as plain 'LByteString'
--- This type is intented to be used to receive json content as 'LByteString'.
+-- This type is intended to be used to receive json content as 'LByteString'.
 -- Warning: There is no validation of the json content. It may be any string.
 newtype RawJson = RawJson {rawJsonBytes :: LByteString}
 

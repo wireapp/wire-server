@@ -43,6 +43,7 @@ import Test.Tasty.HUnit
 import URI.ByteString
 import Util
 import Web.FormUrlEncoded
+import Wire.API.OAuth
 
 tests :: Manager -> Brig -> Opts -> TestTree
 tests m b o = do

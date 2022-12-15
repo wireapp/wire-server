@@ -28,7 +28,6 @@ import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
 import qualified Brig.API.Internal as IAPI
-import Brig.API.OAuth (IOAuthAPI, OAuthAPI)
 import Brig.API.Public (DocsAPI, docsAPI, servantSitemap)
 import qualified Brig.API.User as API
 import Brig.AWS (amazonkaEnv, sesQueue)
@@ -74,6 +73,7 @@ import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Wire.API.OAuth (IOAuthAPI, OAuthAPI)
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version

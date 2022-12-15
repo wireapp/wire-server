@@ -30,7 +30,7 @@ import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages.Validation
-import Brig.API.OAuth (IOAuthAPI, internalOauthAPI)
+import Brig.API.OAuth (internalOauthAPI)
 import Brig.API.Types
 import qualified Brig.API.User as API
 import qualified Brig.API.User as Api
@@ -91,6 +91,7 @@ import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
+import Wire.API.OAuth
 import Wire.API.Routes.Internal.Brig
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection

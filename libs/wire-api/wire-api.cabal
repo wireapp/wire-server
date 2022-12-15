@@ -60,6 +60,7 @@ library
     Wire.API.MLS.Servant
     Wire.API.MLS.Welcome
     Wire.API.Notification
+    Wire.API.OAuth
     Wire.API.Properties
     Wire.API.Provider
     Wire.API.Provider.Bot
@@ -238,6 +239,7 @@ library
     , iproute                    >=1.5
     , iso3166-country-codes      >=0.2
     , iso639                     >=0.1
+    , jose
     , lens                       >=4.12
     , memory
     , metrics-wai
