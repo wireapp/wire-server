@@ -756,13 +756,10 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
   updateKeyPackageMapping lConvOrSub qusr (ciClient cid) remRef newRef
 
   -- increment epoch number
-  setConvOrSubEpoch (idForConvOrSub convOrSub) (succ epoch)
-  -- fetch conversation or sub with new epoch
-  lConvOrSub' <- fetchConvOrSub qusr (idForConvOrSub <$> lConvOrSub)
-  let convOrSub' = tUnqualified lConvOrSub
+  lConvOrSub' <- for lConvOrSub incrementEpoch
 
   -- fetch backend remove proposals of the previous epoch
-  kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub $ convOrSub') epoch
+  kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
   -- requeue backend remove proposals for the current epoch
   removeClientsWithClientMap lConvOrSub' kpRefs qusr
   where
@@ -930,7 +927,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
     -- update key package ref if necessary
     postponedKeyPackageRefUpdate
     -- increment epoch number
-    setConvOrSubEpoch (idForConvOrSub convOrSub) (succ epoch)
+    for_ lConvOrSub incrementEpoch
 
     pure updates
 
@@ -1482,16 +1479,20 @@ fetchConvOrSub qusr convOrSubId = for convOrSubId $ \case
         >=> mkMLSConversation
         >=> noteS @'ConvNotFound
 
-setConvOrSubEpoch ::
+incrementEpoch ::
   Members
     '[ ConversationStore,
        SubConversationStore
      ]
     r =>
-  ConvOrSubConvId ->
-  Epoch ->
-  Sem r ()
-setConvOrSubEpoch (Conv cid) epoch =
-  setConversationEpoch cid epoch
-setConvOrSubEpoch (SubConv cid sconv) epoch =
-  setSubConversationEpoch cid sconv epoch
+  ConvOrSubConv ->
+  Sem r ConvOrSubConv
+incrementEpoch (Conv c) = do
+  let epoch' = succ (cnvmlsEpoch (mcMLSData c))
+  setConversationEpoch (mcId c) epoch'
+  pure $ Conv c {mcMLSData = (mcMLSData c) {cnvmlsEpoch = epoch'}}
+incrementEpoch (SubConv c s) = do
+  let epoch' = succ (cnvmlsEpoch (scMLSData s))
+  setSubConversationEpoch (tUnqualified (scParentConvId s)) (scSubConvId s) epoch'
+  let s' = s {scMLSData = (scMLSData s) {cnvmlsEpoch = epoch'}}
+  pure (SubConv c s')
