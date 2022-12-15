@@ -39,6 +39,7 @@ import qualified Data.Text as T
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.Conversation
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Propagate
@@ -849,20 +850,15 @@ processInternalCommit ::
 processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef commit = do
   let convOrSub = tUnqualified lConvOrSub
       mlsMeta = mlsMetaConvOrSub convOrSub
-  self <-
-    noteS @'ConvNotFound $
-      getConvMember
-        lConvOrSub
-        (mcConv . convOfConvOrSub $ convOrSub)
-        qusr
+      localSelf = isLocal lConvOrSub qusr
 
   withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub $ convOrSub) epoch $ do
     postponedKeyPackageRefUpdate <-
       if epoch == Epoch 0
         then do
-          let cType = cnvmType . convMetadata . mcConv . convOfConvOrSub $ convOrSub
-          case (self, cType, cmAssocs . membersConvOrSub $ convOrSub, convOrSub) of
-            (Left _, SelfConv, [], Conv _) -> do
+          let cType = cnvmType . mcMetadata . convOfConvOrSub $ convOrSub
+          case (localSelf, cType, cmAssocs . membersConvOrSub $ convOrSub, convOrSub) of
+            (True, SelfConv, [], Conv _) -> do
               creatorClient <- noteS @'MLSMissingSenderClient senderClient
               creatorRef <-
                 maybe
@@ -876,12 +872,12 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
                 (cnvmlsGroupId mlsMeta)
                 qusr
                 (Set.singleton (creatorClient, creatorRef))
-            (Left _, SelfConv, _, _) ->
+            (True, SelfConv, _, _) ->
               -- this is a newly created (sub)conversation, and it should
               -- contain exactly one client (the creator)
               throw (InternalErrorWithDescription "Unexpected creator client set")
-            (Left lm, _, [(qu, (creatorClient, _))], Conv _)
-              | qu == tUntagged (qualifyAs lConvOrSub (lmId lm)) -> do
+            (True, _, [(qu, (creatorClient, _))], Conv _)
+              | qu == qusr -> do
                   -- use update path as sender reference and if not existing fall back to sender
                   senderRef' <-
                     maybe
@@ -899,7 +895,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
                     Nothing
                     senderRef'
             -- remote clients cannot send the first commit
-            (Right _, _, _, _) -> throwS @'MLSStaleMessage
+            (False, _, _, _) -> throwS @'MLSStaleMessage
             (_, _, _, SubConv _ _) -> pure ()
             -- uninitialised conversations should contain exactly one client
             (_, _, _, Conv _) ->
@@ -1079,7 +1075,7 @@ processProposal qusr lConvOrSub msg prop = do
   checkEpoch (msgEpoch msg) mlsMeta
   checkGroup (msgGroupId msg) mlsMeta
   let suiteTag = cnvmlsCipherSuite mlsMeta
-  let cid = convId . mcConv . convOfConvOrSub . tUnqualified $ lConvOrSub
+  let cid = mcId . convOfConvOrSub . tUnqualified $ lConvOrSub
 
   -- validate the proposal
   --
@@ -1481,11 +1477,10 @@ fetchConvOrSub qusr convOrSubId = for convOrSubId $ \case
     pure (SubConv c subconv)
   where
     getMLSConv :: Qualified UserId -> Local ConvId -> Sem r MLSConversation
-    getMLSConv u lconv = do
-      c <- getLocalConvForUser u lconv
-      meta <- mlsMetadata c & noteS @'ConvNotFound
-      cm <- lookupMLSClients (cnvmlsGroupId meta)
-      pure $ MLSConversation c meta cm
+    getMLSConv u =
+      getLocalConvForUser u
+        >=> mkMLSConversation
+        >=> noteS @'ConvNotFound
 
 setConvOrSubEpoch ::
   Members

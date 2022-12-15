@@ -31,6 +31,7 @@ library
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
+    Galley.API.MLS.Conversation
     Galley.API.MLS.Enabled
     Galley.API.MLS.GroupInfo
     Galley.API.MLS.KeyPackage

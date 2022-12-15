@@ -635,8 +635,8 @@ updateLocalConversationUnchecked lconv qusr con action = do
     (convBotsAndMembers conv <> extraTargets)
     action'
 
--- --------------------------------------------------------------------------------
--- -- Utilities
+--------------------------------------------------------------------------------
+-- Utilities
 
 ensureConversationActionAllowed ::
   forall tag mem x r.

@@ -22,9 +22,9 @@ import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
-import Galley.Data.Conversation
-import qualified Galley.Data.Conversation as Data
+import Galley.Types.Conversations.Members
 import Imports
+import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -60,8 +60,11 @@ data ListGlobalSelfConvs = ListGlobalSelf | DoNotListGlobalSelf
   deriving (Eq)
 
 data MLSConversation = MLSConversation
-  { mcConv :: Conversation,
+  { mcId :: ConvId,
+    mcMetadata :: ConversationMetadata,
     mcMLSData :: ConversationMLSData,
+    mcLocalMembers :: [LocalMember],
+    mcRemoteMembers :: [RemoteMember],
     mcMembers :: ClientMap
   }
   deriving (Show)
@@ -101,5 +104,5 @@ convOfConvOrSub (Conv c) = c
 convOfConvOrSub (SubConv c _) = c
 
 idForConvOrSub :: ConvOrSubConv -> ConvOrSubConvId
-idForConvOrSub (Conv c) = Conv (Data.convId . mcConv $ c)
-idForConvOrSub (SubConv c s) = SubConv (Data.convId . mcConv $ c) (scSubConvId s)
+idForConvOrSub (Conv c) = Conv (mcId c)
+idForConvOrSub (SubConv c s) = SubConv (mcId c) (scSubConvId s)

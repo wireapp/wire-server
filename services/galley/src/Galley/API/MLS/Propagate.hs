@@ -26,7 +26,6 @@ import Data.Qualified
 import Data.Time
 import Galley.API.MLS.Types
 import Galley.API.Push
-import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.FederatorAccess
@@ -62,32 +61,31 @@ propagateMessage ::
 propagateMessage qusr lConvOrSub con raw = do
   now <- input @UTCTime
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
-      lconv = mcConv . convOfConvOrSub <$> lConvOrSub
-      lmems = Data.convLocalMembers . tUnqualified $ lconv
+      mlsConv = convOfConvOrSub <$> lConvOrSub
+      lmems = mcLocalMembers . tUnqualified $ mlsConv
       botMap = Map.fromList $ do
         m <- lmems
         b <- maybeToList $ newBotMember m
         pure (lmId m, b)
       mm = defMessageMetadata
-      lcnv = fmap Data.convId lconv
-      qcnv = tUntagged lcnv
+      qcnv = tUntagged (fmap mcId mlsConv)
       -- TODO: Add subconv field
       e = Event qcnv qusr now $ EdMLSMessage raw
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
-      mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
-  runMessagePush lconv (Just qcnv) $
-    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv cm)
+      mkPush u c = newMessagePush mlsConv botMap con mm (u, c) e
+  runMessagePush mlsConv (Just qcnv) $
+    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients mlsConv cm)
 
   -- send to remotes
   traverse_ handleError
-    <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers . tUnqualified $ lconv))
+    <=< runFederatedConcurrentlyEither (map remoteMemberQualify (mcRemoteMembers . tUnqualified $ mlsConv))
     $ \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
           { rmmTime = now,
             rmmSender = qusr,
             rmmMetadata = mm,
-            rmmConversation = tUnqualified lcnv,
+            rmmConversation = qUnqualified qcnv,
             rmmRecipients = rs >>= remoteMemberMLSClients cm,
             rmmMessage = Base64ByteString raw
           }

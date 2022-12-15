@@ -27,12 +27,12 @@ import qualified Data.Map as Map
 import Data.Qualified
 import Data.Time
 import Galley.API.Error
+import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
-import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
 import Galley.Env
 import Imports
@@ -106,11 +106,10 @@ removeClient ::
   ClientId ->
   Sem r ()
 removeClient lc qusr cid = do
-  for_ (Data.mlsMetadata (tUnqualified lc)) $ \mlsMeta -> do
+  mMlsConv <- mkMLSConversation (tUnqualified lc)
+  for_ mMlsConv $ \mlsConv -> do
     -- FUTUREWORK: also remove the client from from subconversations of lc
-    cm <- lookupMLSClients (cnvmlsGroupId mlsMeta)
-    let mlsConv = MLSConversation (tUnqualified lc) mlsMeta cm
-    let cidAndKPs = maybeToList (cmLookupRef (mkClientIdentity qusr cid) cm)
+    let cidAndKPs = maybeToList (cmLookupRef (mkClientIdentity qusr cid) (mcMembers mlsConv))
     removeClientsWithClientMap (qualifyAs lc (Conv mlsConv)) cidAndKPs qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
@@ -132,9 +131,8 @@ removeUser ::
   Qualified UserId ->
   Sem r ()
 removeUser lc qusr = do
-  for_ (Data.mlsMetadata (tUnqualified lc)) $ \mlsMeta -> do
+  mMlsConv <- mkMLSConversation (tUnqualified lc)
+  for_ mMlsConv $ \mlsConv -> do
     -- FUTUREWORK: also remove the client from from subconversations of lc
-    cm <- lookupMLSClients (cnvmlsGroupId mlsMeta)
-    let mlsConv = MLSConversation (tUnqualified lc) mlsMeta cm
-    let kprefs = map snd (Map.assocs (Map.findWithDefault mempty qusr cm))
+    let kprefs = toList (Map.findWithDefault mempty qusr (mcMembers mlsConv))
     removeClientsWithClientMap (qualifyAs lc (Conv mlsConv)) kprefs qusr
