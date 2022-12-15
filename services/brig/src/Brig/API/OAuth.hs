@@ -117,7 +117,7 @@ createAccessToken req = do
   claims <- mkClaims authCodeUserId domain authCodeScopes exp
   fp <- view settings >>= maybe (throwStd $ errorToWai @'JwtError) pure . Opt.setOAuthJwkKeyPair
   key <- lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'JwtError) pure
-  token <- OauthAccessToken . cs . encodeCompact <$> signJwtToken key claims
+  token <- OAuthAccessToken <$> signJwtToken key claims
   pure $ OAuthAccessTokenResponse token OAuthAccessTokenTypeBearer exp
   where
     mkClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimSet
@@ -157,10 +157,9 @@ createAccessToken req = do
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
-verify :: JWK -> ByteString -> IO (Either JWTError OAuthClaimSet)
-verify k s = runJOSE $ do
+verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimSet)
+verify k jwt = runJOSE $ do
   let audCheck = const True
-  jwt <- decodeCompact (cs s)
   verifyJWT (defaultJWTValidationSettings audCheck) k jwt
 
 --------------------------------------------------------------------------------
