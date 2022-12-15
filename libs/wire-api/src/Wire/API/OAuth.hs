@@ -300,15 +300,33 @@ instance ToSchema OAuthAccessTokenType where
         [ element "Bearer" OAuthAccessTokenTypeBearer
         ]
 
-newtype OauthAccessToken = OauthAccessToken {unOauthAccessToken :: ByteString}
+newtype OAuthAccessToken = OAuthAccessToken {unOAuthAccessToken :: SignedJWT}
   deriving (Show, Eq, Generic)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema OauthAccessToken
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema OAuthAccessToken
 
-instance ToSchema OauthAccessToken where
-  schema = (TE.decodeUtf8 . unOauthAccessToken) .= fmap (OauthAccessToken . TE.encodeUtf8) schema
+instance ToByteString OAuthAccessToken where
+  builder = builder . encodeCompact . unOAuthAccessToken
+
+instance FromByteString OAuthAccessToken where
+  parser = do
+    t <- parser @Text
+    case decodeCompact (cs (TE.encodeUtf8 t)) of
+      Left (err :: JWTError) -> fail $ show err
+      Right jwt -> pure $ OAuthAccessToken jwt
+
+instance ToHttpApiData OAuthAccessToken where
+  toHeader = toByteString'
+  toUrlPiece = cs . toHeader
+
+instance FromHttpApiData OAuthAccessToken where
+  parseHeader = either (Left . cs) pure . runParser parser . cs
+  parseUrlPiece = parseHeader . cs
+
+instance ToSchema OAuthAccessToken where
+  schema = (TE.decodeUtf8 . toByteString') .= withParser schema (either fail pure . runParser parser . cs)
 
 data OAuthAccessTokenResponse = OAuthAccessTokenResponse
-  { oatAccessToken :: OauthAccessToken,
+  { oatAccessToken :: OAuthAccessToken,
     oatTokenType :: OAuthAccessTokenType,
     oatExpiresIn :: NominalDiffTime
   }
