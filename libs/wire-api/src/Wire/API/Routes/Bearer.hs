@@ -35,12 +35,19 @@ instance FromHttpApiData a => FromHttpApiData (Bearer a) where
     _ -> Left "Invalid authorization scheme"
   parseUrlPiece = parseHeader . T.encodeUtf8
 
+instance ToHttpApiData a => ToHttpApiData (Bearer a) where
+  toHeader = (<>) "Bearer " . toHeader . unBearer
+  toUrlPiece = T.decodeUtf8 . toHeader
+
 type BearerHeader a = Header' '[Lenient] "Authorization" (Bearer a)
 
 type BearerQueryParam =
   QueryParam'
     [Lenient, Description "Access token"]
     "access_token"
+
+instance ToParamSchema (Bearer a) where
+  toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance HasSwagger api => HasSwagger (Bearer a :> api) where
   toSwagger _ =

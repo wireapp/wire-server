@@ -48,6 +48,7 @@ import Wire.API.Error.Brig
 import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
+import Wire.API.OAuth (OAuthAccessToken)
 import Wire.API.Properties
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -244,11 +245,14 @@ type UserAPI =
                     RichInfoAssocList
            )
 
+type OptOAuth = Header' '[Optional, Strict] "Authorization" (Bearer OAuthAccessToken)
+
 type SelfAPI =
   Named
     "get-self"
     ( Summary "Get your own profile"
-        :> ZUser
+        :> ZOptUser
+        :> OptOAuth
         :> "self"
         :> Get '[JSON] SelfProfile
     )

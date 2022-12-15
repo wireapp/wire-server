@@ -18,6 +18,7 @@
 module Wire.API.OAuth where
 
 import Cassandra hiding (Set)
+import Control.Lens (preview, view)
 import Control.Monad.Except
 import Crypto.JWT hiding (params, uri)
 import qualified Data.Aeson as A
@@ -26,7 +27,7 @@ import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import qualified Data.HashMap.Strict as HM
-import Data.Id (OAuthClientId)
+import Data.Id
 import Data.Range
 import Data.Schema
 import qualified Data.Set as Set
@@ -38,7 +39,7 @@ import qualified Data.Text.Encoding as TE
 import Data.Text.Encoding.Error as TErr
 import Data.Time (NominalDiffTime)
 import Imports hiding (exp)
-import Servant hiding (Handler, Tagged)
+import Servant hiding (Handler, Tagged, Unauthorized)
 import URI.ByteString
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
@@ -363,6 +364,12 @@ instance A.ToJSON OAuthClaimSet where
       ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
+csUserId :: OAuthClaimSet -> Maybe UserId
+csUserId =
+  view claimSub
+    >=> preview string
+    >=> either (const Nothing) pure . parseIdFromText
+
 --------------------------------------------------------------------------------
 -- API Internal
 
@@ -439,6 +446,7 @@ data OAuthError
   | JwtError
   | OAuthAuthCodeNotFound
   | OAuthFeatureDisabled
+  | Unauthorized
 
 type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
 
@@ -451,6 +459,8 @@ type instance MapError 'JwtError = 'StaticError 500 "jwt-error" "Internal error 
 type instance MapError 'OAuthAuthCodeNotFound = 'StaticError 404 "not-found" "OAuth authorization code not found"
 
 type instance MapError 'OAuthFeatureDisabled = 'StaticError 403 "forbidden" "OAuth is disabled"
+
+type instance MapError 'Unauthorized = 'StaticError 401 "unauthorized" "Unauthorized"
 
 --------------------------------------------------------------------------------
 -- CQL instances

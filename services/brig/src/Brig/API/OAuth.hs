@@ -17,7 +17,7 @@
 
 module Brig.API.OAuth where
 
-import Brig.API.Error (throwStd)
+import Brig.API.Error (badRequest, throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App
 import Brig.Effects.Jwk
@@ -40,10 +40,11 @@ import Data.Time (NominalDiffTime, addUTCTime)
 import Imports hiding (exp)
 import OpenSSL.Random (randBytes)
 import Polysemy (Member)
-import Servant hiding (Handler, Tagged)
+import Servant hiding (Handler, Tagged, Unauthorized)
 import URI.ByteString
 import Wire.API.Error
 import Wire.API.OAuth
+import Wire.API.Routes.Bearer (Bearer (Bearer))
 import Wire.API.Routes.Named (Named (..))
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
@@ -157,8 +158,22 @@ createAccessToken req = do
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
-verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimSet)
-verify k jwt = runJOSE $ do
+handleZUserOrOAuth :: (Member Jwk r) => Maybe UserId -> Maybe (Bearer OAuthAccessToken) -> (Handler r) UserId
+handleZUserOrOAuth (Just u) Nothing = pure u
+handleZUserOrOAuth (Just _) (Just _) = throwStd $ badRequest "Authorization header and ZAuth header are mutually exclusive."
+handleZUserOrOAuth Nothing Nothing = throwStd $ errorToWai @'Unauthorized
+handleZUserOrOAuth Nothing (Just (Bearer token)) = verifyOAuthAccessToken token >>= maybe (throwStd $ errorToWai @'Unauthorized) pure . csUserId
+
+-- todo(leif): verify other claims as well
+verifyOAuthAccessToken :: (Member Jwk r) => OAuthAccessToken -> (Handler r) OAuthClaimSet
+verifyOAuthAccessToken token = do
+  fp <- view settings >>= maybe (throwStd $ errorToWai @'JwtError) pure . Opt.setOAuthJwkKeyPair
+  key <- lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'JwtError) pure
+  verifiedOrError <- liftIO $ verify' key (unOAuthAccessToken token)
+  either (const $ throwStd $ errorToWai @'Unauthorized) pure verifiedOrError
+
+verify' :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimSet)
+verify' k jwt = runJOSE $ do
   let audCheck = const True
   verifyJWT (defaultJWTValidationSettings audCheck) k jwt
 

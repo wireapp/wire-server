@@ -38,12 +38,15 @@ import Data.Text.Ascii (encodeBase16)
 import Data.Time
 import Imports
 import qualified Network.Wai.Utilities as Error
+import Servant.API (ToHttpApiData (toHeader))
 import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString
 import Util
 import Web.FormUrlEncoded
 import Wire.API.OAuth
+import Wire.API.Routes.Bearer (Bearer (Bearer))
+import Wire.API.User
 
 tests :: Manager -> Brig -> Opts -> TestTree
 tests m b o = do
@@ -126,7 +129,8 @@ testCreateOAuthCodeClientNotFound brig = do
 testCreateAccessTokenSuccess :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenSuccess opts brig = do
   now <- liftIO getCurrentTime
-  uid <- randomId
+  user <- createUser "alice" brig
+  let uid = userId user
   let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
@@ -137,8 +141,8 @@ testCreateAccessTokenSuccess opts brig = do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
   k <- liftIO $ readJwk (fromMaybe "" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
-  verifiedOrError <- liftIO $ verify k (unOAuthAccessToken $ oatAccessToken accessToken)
-  verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (unOAuthAccessToken $ oatAccessToken accessToken)
+  verifiedOrError <- liftIO $ verify' k (unOAuthAccessToken $ oatAccessToken accessToken)
+  verifiedOrErrorWithWrongKey <- liftIO $ verify' wrongKey (unOAuthAccessToken $ oatAccessToken accessToken)
   let expectedDomain = domainText $ Opt.setFederationDomain $ Opt.optSettings opts
   liftIO $ do
     isRight verifiedOrError @?= True
@@ -152,6 +156,13 @@ testCreateAccessTokenSuccess opts brig = do
     diffUTCTime expTime now > 0 @?= True
     let issuingTime = (\(NumericDate x) -> x) . fromMaybe (error "iat claim missing") . view claimIat $ claims
     abs (diffUTCTime issuingTime now) < 5 @?= True -- allow for some generous clock skew
+  get (brig . paths ["self"]) !!! const 401 === statusCode
+  response :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . zUser uid)
+  response' :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . oauth (oatAccessToken accessToken))
+  liftIO $ response @?= response'
+
+oauth :: OAuthAccessToken -> Request -> Request
+oauth = header "Authorization" . toHeader . Bearer
 
 testCreateAccessTokenWrongClientId :: Brig -> Http ()
 testCreateAccessTokenWrongClientId brig = do

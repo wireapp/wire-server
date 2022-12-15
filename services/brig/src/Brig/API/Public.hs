@@ -33,7 +33,7 @@ import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
-import Brig.API.OAuth (oauthAPI)
+import Brig.API.OAuth (handleZUserOrOAuth, oauthAPI)
 import qualified Brig.API.Properties as API
 import Brig.API.Public.Swagger
 import Brig.API.Types
@@ -75,6 +75,7 @@ import qualified Cassandra as Data
 import Control.Error hiding (bool)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
+import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
@@ -104,7 +105,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (mkSwaggerApi)
 import Polysemy
-import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant hiding (Handler, JSON, Unauthorized, addHeader, respond)
 import qualified Servant
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
@@ -218,7 +219,7 @@ servantSitemap = brigAPI :<|> oauthAPI
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
-      Named @"get-self" getSelf
+      Named @"get-self" (\muid mbearer -> handleZUserOrOAuth muid mbearer >>= getSelf)
         :<|> Named @"delete-self" deleteSelfUser
         :<|> Named @"put-self" updateUser
         :<|> Named @"change-phone" changePhone
