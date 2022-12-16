@@ -208,7 +208,8 @@ tests s =
       testGroup
         "SubConversation"
         [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
-          test s "get subconversation of Proteus conv - 404" (testCreateSubConv False)
+          test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
+          test s "join subconversation with external commit bundle" testSubConvJoin
         ]
     ]
 
@@ -2300,3 +2301,17 @@ testCreateSubConv parentIsMLSConv = do
       getSubConv (qUnqualified alice) qcnv sconv
         !!! do
           const (if parentIsMLSConv then 200 else 404) === statusCode
+
+testSubConvJoin :: TestM ()
+testSubConvJoin = do
+  users@[_alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ uploadNewKeyPackage bob1
+    void $ setupMLSSelfGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+    let sconv = SubConvId "call"
+    liftTest $ do
+      res <- getSubConv (qUnqualified alice) qcnv sconv <!! const 200 === statusCode
+      subconv <- responseJsonError res
