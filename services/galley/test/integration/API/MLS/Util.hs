@@ -444,14 +444,19 @@ createGroup cid gid = do
   State.gets mlsGroupId >>= \case
     Just _ -> liftIO $ assertFailure "only one group can be created"
     Nothing -> pure ()
+  resetGroup cid gid
 
+resetGroup :: ClientIdentity -> GroupId -> MLSTest ()
+resetGroup cid gid = do
   groupJSON <- mlscli cid ["group", "create", T.unpack (toBase64Text (unGroupId gid))] Nothing
   g <- nextGroupFile cid
   liftIO $ BS.writeFile g groupJSON
   State.modify $ \s ->
     s
       { mlsGroupId = Just gid,
-        mlsMembers = Set.singleton cid
+        mlsMembers = Set.singleton cid,
+        mlsEpoch = 0,
+        mlsNewMembers = mempty
       }
 
 -- | Create a local group only without a conversation. This simulates creating
@@ -546,16 +551,18 @@ createExternalCommit ::
   HasCallStack =>
   ClientIdentity ->
   Maybe ByteString ->
-  Qualified ConvId ->
+  Qualified ConvOrSubConvId ->
   MLSTest MessagePackage
-createExternalCommit qcid mpgs qcnv = do
+createExternalCommit qcid mpgs qcs = do
   bd <- State.gets mlsBaseDir
   gNew <- nextGroupFile qcid
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
   pgs <- case mpgs of
     Nothing ->
       LBS.toStrict . fromJust . responseBody
-        <$> getGroupInfo (ciUser qcid) qcnv
+        <$> ( getGroupInfo (ciUser qcid) qcs
+                <!! const 200 === statusCode
+            )
     Just v -> pure v
   commit <-
     mlscli
@@ -1011,21 +1018,37 @@ getGroupInfo ::
     HasGalley m
   ) =>
   UserId ->
-  Qualified ConvId ->
+  Qualified ConvOrSubConvId ->
   m ResponseLBS
-getGroupInfo sender qcnv = do
+getGroupInfo sender qcs = do
   galley <- viewGalley
-  get
-    ( galley
-        . paths
-          [ "conversations",
-            toByteString' (qDomain qcnv),
-            toByteString' (qUnqualified qcnv),
-            "groupinfo"
-          ]
-        . zUser sender
-        . zConn "conn"
-    )
+  case qUnqualified qcs of
+    Conv cnv ->
+      get
+        ( galley
+            . paths
+              [ "conversations",
+                toByteString' (qDomain qcs),
+                toByteString' cnv,
+                "groupinfo"
+              ]
+            . zUser sender
+            . zConn "conn"
+        )
+    SubConv cnv sub ->
+      get
+        ( galley
+            . paths
+              [ "conversations",
+                toByteString' (qDomain qcs),
+                toByteString' cnv,
+                "subconversations",
+                toByteString' sub,
+                "groupinfo"
+              ]
+            . zUser sender
+            . zConn "conn"
+        )
 
 getSelfConv ::
   UserId ->
