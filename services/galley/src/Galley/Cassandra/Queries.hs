@@ -341,7 +341,7 @@ lookupGroupIdForSubConversation :: PrepQuery R (Identity GroupId) (ConvId, Domai
 lookupGroupIdForSubConversation = "SELECT conv_id, domain, subconv_id from group_id_conv_id where group_id = ?"
 
 insertEpochForSubConversation :: PrepQuery W (Epoch, ConvId, SubConvId) ()
-insertEpochForSubConversation = "INSERT INTO subconversation (epoch) VALUES (?) WHERE  conv_id = ? and subconv_id = ?"
+insertEpochForSubConversation = "UPDATE subconversation set epoch = ? WHERE conv_id = ? AND subconv_id = ?"
 
 -- Members ------------------------------------------------------------------
 
