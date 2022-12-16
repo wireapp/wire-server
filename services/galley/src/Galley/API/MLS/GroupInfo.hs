@@ -63,7 +63,7 @@ getGroupInfo lusr qcnvId = do
   foldQualified
     lusr
     (getGroupInfoFromLocalConv . tUntagged $ lusr)
-    (getGroupInfoFromRemoteConv lusr)
+    (getGroupInfoFromRemoteConv lusr . fmap Conv)
     qcnvId
 
 getGroupInfoFromLocalConv ::
@@ -85,13 +85,13 @@ getGroupInfoFromRemoteConv ::
   Members '[Error FederationError, FederatorAccess] r =>
   Members MLSGroupInfoStaticErrors r =>
   Local UserId ->
-  Remote ConvId ->
+  Remote ConvOrSubConvId ->
   Sem r OpaquePublicGroupState
 getGroupInfoFromRemoteConv lusr rcnv = do
   let getRequest =
         GetGroupInfoRequest
           { ggireqSender = tUnqualified lusr,
-            ggireqConv = Conv (tUnqualified rcnv)
+            ggireqConv = tUnqualified rcnv
           }
   response <- E.runFederated rcnv (fedClient @'Galley @"query-group-info" getRequest)
   case response of

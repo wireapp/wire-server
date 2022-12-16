@@ -18,7 +18,6 @@
 module Galley.API.MLS.SubConversation where
 
 import Data.Id
-import Data.Json.Util
 import Data.Qualified
 import Galley.API.Error
 import Galley.API.MLS
@@ -30,7 +29,6 @@ import Galley.App (Env)
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
-import qualified Galley.Effects.FederatorAccess as E
 import Galley.Effects.SubConversationStore
 import qualified Galley.Effects.SubConversationStore as Eff
 import Imports
@@ -43,8 +41,6 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Federation.API (Component (Galley), fedClient)
-import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error (FederationError, federationNotImplemented)
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.SubConversation
@@ -140,7 +136,7 @@ getSubConversationGroupInfo lusr qcnvId subconv = do
   foldQualified
     lusr
     (getSubConversationGroupInfoFromLocalConv (tUntagged lusr) subconv)
-    (getSubConversationGroupInfoFromRemoteConv lusr subconv)
+    (getGroupInfoFromRemoteConv lusr . fmap (flip SubConv subconv))
     qcnvId
 
 getSubConversationGroupInfoFromLocalConv ::
@@ -159,25 +155,3 @@ getSubConversationGroupInfoFromLocalConv qusr subConvId lcnvId = do
   void $ getLocalConvForUser qusr lcnvId
   getSubConversationPublicGroupState (tUnqualified lcnvId) subConvId
     >>= noteS @'MLSMissingGroupInfo
-
-getSubConversationGroupInfoFromRemoteConv ::
-  Members '[Error FederationError, FederatorAccess] r =>
-  Members MLSGroupInfoStaticErrors r =>
-  Local UserId ->
-  SubConvId ->
-  Remote ConvId ->
-  Sem r OpaquePublicGroupState
-getSubConversationGroupInfoFromRemoteConv lusr subconv rcnv = do
-  let getRequest =
-        GetGroupInfoRequest
-          { ggireqSender = tUnqualified lusr,
-            ggireqConv = SubConv (tUnqualified rcnv) subconv
-          }
-  response <- E.runFederated rcnv (fedClient @'Galley @"query-group-info" getRequest)
-  case response of
-    GetGroupInfoResponseError e -> rethrowErrors @MLSGroupInfoStaticErrors e
-    GetGroupInfoResponseState s ->
-      pure
-        . OpaquePublicGroupState
-        . fromBase64ByteString
-        $ s
