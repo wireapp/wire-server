@@ -18,6 +18,7 @@
 module Wire.API.OAuth where
 
 import Cassandra hiding (Set)
+import Control.Lens (preview, view)
 import Control.Monad.Except
 import Crypto.JWT hiding (params, uri)
 import qualified Data.Aeson as A
@@ -26,7 +27,7 @@ import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import qualified Data.HashMap.Strict as HM
-import Data.Id (OAuthClientId)
+import Data.Id (OAuthClientId, UserId, parseIdFromText)
 import Data.Range
 import Data.Schema
 import qualified Data.Set as Set
@@ -362,6 +363,17 @@ instance A.ToJSON OAuthClaimSet where
     where
       ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
+
+csUserId :: OAuthClaimSet -> Maybe UserId
+csUserId =
+  view claimSub
+    >=> preview string
+    >=> either (const Nothing) pure . parseIdFromText
+
+verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimSet)
+verify k jwt = runJOSE $ do
+  let audCheck = const True
+  verifyJWT (defaultJWTValidationSettings audCheck) k jwt
 
 --------------------------------------------------------------------------------
 -- API Internal

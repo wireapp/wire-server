@@ -19,7 +19,6 @@ module API.OAuth where
 
 import Bilge
 import Bilge.Assert
-import Brig.API.OAuth
 import Brig.Effects.Jwk (readJwk)
 import Brig.Options
 import qualified Brig.Options as Opt
@@ -38,12 +37,15 @@ import Data.Text.Ascii (encodeBase16)
 import Data.Time
 import Imports
 import qualified Network.Wai.Utilities as Error
+import Servant.API (ToHttpApiData (toHeader))
 import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString
 import Util
 import Web.FormUrlEncoded
 import Wire.API.OAuth
+import Wire.API.Routes.Bearer (Bearer (Bearer))
+import Wire.API.User (SelfProfile, User (userId))
 
 tests :: Manager -> Brig -> Opts -> TestTree
 tests m b o = do
@@ -126,7 +128,7 @@ testCreateOAuthCodeClientNotFound brig = do
 testCreateAccessTokenSuccess :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenSuccess opts brig = do
   now <- liftIO getCurrentTime
-  uid <- randomId
+  uid <- userId <$> createUser "alice" brig
   let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
@@ -152,6 +154,13 @@ testCreateAccessTokenSuccess opts brig = do
     diffUTCTime expTime now > 0 @?= True
     let issuingTime = (\(NumericDate x) -> x) . fromMaybe (error "iat claim missing") . view claimIat $ claims
     abs (diffUTCTime issuingTime now) < 5 @?= True -- allow for some generous clock skew
+  get (brig . paths ["self"]) !!! const 401 === statusCode
+  response :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . zUser uid) <!! const 200 === statusCode
+  response' :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . oauth (oatAccessToken accessToken)) <!! const 200 === statusCode
+  liftIO $ response @?= response'
+
+oauth :: OAuthAccessToken -> Request -> Request
+oauth = header "Authorization" . toHeader . Bearer
 
 testCreateAccessTokenWrongClientId :: Brig -> Http ()
 testCreateAccessTokenWrongClientId brig = do

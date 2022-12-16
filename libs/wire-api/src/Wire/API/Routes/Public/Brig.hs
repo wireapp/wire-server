@@ -19,6 +19,7 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Crypto.JWT (JWK)
 import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
@@ -26,19 +27,25 @@ import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
+import Data.Metrics.Servant
 import Data.Misc (IpAddr)
 import Data.Nonce (Nonce)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Schema as Schema
+import Data.String.Conversions (cs)
 import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
+import Network.Wai
 import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant.Server.Internal.Delayed
+import Servant.Server.Internal.DelayedIO
+import Servant.Server.Internal.Router
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
@@ -48,6 +55,7 @@ import Wire.API.Error.Brig
 import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
+import Wire.API.OAuth
 import Wire.API.Properties
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -246,11 +254,55 @@ type UserAPI =
                     RichInfoAssocList
            )
 
+data ZUserOrOAuth
+
+instance HasSwagger api => HasSwagger (ZUserOrOAuth :> api) where
+  toSwagger _ = toSwagger (Proxy @(ZUserOrOAuth :> api))
+
+checkZAuthOrOAuth :: Maybe JWK -> Request -> DelayedIO (Maybe UserId)
+checkZAuthOrOAuth mJwk req =
+  case lookup "Z-User" (requestHeaders req) >>= (either (const Nothing) pure . parseIdFromText . cs) of
+    Just uid -> pure (Just uid)
+    Nothing -> do
+      let mTokenAndKey = (,) <$> (lookup "Authorization" (requestHeaders req) >>= either (const Nothing) pure . parseHeader) <*> mJwk
+      maybe (pure Nothing) checkOAuth mTokenAndKey
+  where
+    checkOAuth :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Maybe UserId)
+    checkOAuth (token, key) = do
+      verifiedOrError <- liftIO $ verify key (unOAuthAccessToken . unBearer $ token)
+      either (const $ pure Nothing) (pure . csUserId) verifiedOrError
+
+instance (HasServer api context, HasContextEntry context (Maybe JWK)) => HasServer (ZUserOrOAuth :> api) context where
+  type ServerT (ZUserOrOAuth :> api) m = UserId -> ServerT api m
+
+  route ::
+    (HasServer api context, HasContextEntry context (Maybe JWK)) =>
+    Proxy (ZUserOrOAuth :> api) ->
+    Context context ->
+    Delayed env (Server (ZUserOrOAuth :> api)) ->
+    Router env
+  route _ ctx svr = route (Proxy @api) ctx (addAuthCheck svr (withRequest checkAuth))
+    where
+      checkAuth :: Request -> DelayedIO UserId
+      checkAuth = checkZAuthOrOAuth (getContextEntry ctx) >=> maybe (delayedFailFatal err401) pure
+
+  hoistServerWithContext ::
+    (HasServer api context, HasContextEntry context (Maybe JWK)) =>
+    Proxy (ZUserOrOAuth :> api) ->
+    Proxy context ->
+    (forall x. m x -> n x) ->
+    ServerT (ZUserOrOAuth :> api) m ->
+    ServerT (ZUserOrOAuth :> api) n
+  hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
+
+instance RoutesToPaths api => RoutesToPaths (ZUserOrOAuth :> api) where
+  getRoutes = getRoutes @api
+
 type SelfAPI =
   Named
     "get-self"
     ( Summary "Get your own profile"
-        :> ZUser
+        :> ZUserOrOAuth
         :> "self"
         :> Get '[JSON] SelfProfile
     )

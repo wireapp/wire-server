@@ -157,11 +157,6 @@ createAccessToken req = do
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
-verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimSet)
-verify k jwt = runJOSE $ do
-  let audCheck = const True
-  verifyJWT (defaultJWTValidationSettings audCheck) k jwt
-
 --------------------------------------------------------------------------------
 -- DB
 

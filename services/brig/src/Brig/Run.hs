@@ -36,6 +36,7 @@ import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
 import Brig.CanonicalInterpreter
+import Brig.Effects.Jwk (readJwk)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
 import qualified Brig.Effects.UserPendingActivationStore as UsersPendingActivationStore
 import qualified Brig.InternalEvent.Process as Internal
@@ -48,8 +49,10 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
+import Crypto.JWT
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
+import Data.Domain (Domain (..))
 import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Servant as Metrics
@@ -68,7 +71,7 @@ import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
 import Polysemy (Members)
-import Servant (Context ((:.)), (:<|>) (..))
+import Servant (Context ((:.)), HasServer (hoistServerWithContext), ServerT, (:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
@@ -118,7 +121,8 @@ run o = do
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
-  pure (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
+  mJwk <- join <$> forM (setOAuthJwkKeyPair $ view settings e) readJwk
+  pure (middleware e $ \reqId -> servantApp mJwk (e & requestId .~ reqId), e)
   where
     rtree :: Tree (App (Handler BrigCanonicalEffects))
     rtree = compile sitemap
@@ -134,19 +138,27 @@ mkApp o = do
     app e r k = runHandler e r (Server.route rtree r k) k
 
     -- the servant API wraps the one defined using wai-routing
-    servantApp :: Env -> Wai.Application
-    servantApp e =
+    servantApp :: Maybe JWK -> Env -> Wai.Application
+    servantApp mJwk e =
       let localDomain = view (settings . federationDomain) e
        in Servant.serveWithContext
             (Proxy @ServantCombinedAPI)
-            (customFormatters :. localDomain :. Servant.EmptyContext)
+            (mJwk :. customFormatters :. localDomain :. Servant.EmptyContext)
             ( docsAPI
-                :<|> hoistServerWithDomain @(BrigAPI :<|> OAuthAPI) (toServantHandler e) servantSitemap
+                :<|> hoistServerWithContext' @(BrigAPI :<|> OAuthAPI) (toServantHandler e) servantSitemap
                 :<|> hoistServerWithDomain @(IAPI.API :<|> IOAuthAPI) (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
                 :<|> Servant.Tagged (app e)
             )
+
+hoistServerWithContext' ::
+  forall api m n.
+  HasServer api '[Domain, Maybe JWK] =>
+  (forall x. m x -> n x) ->
+  ServerT api m ->
+  ServerT api n
+hoistServerWithContext' = hoistServerWithContext (Proxy @api) (Proxy @'[Domain, Maybe JWK])
 
 type ServantCombinedAPI =
   ( DocsAPI
