@@ -323,7 +323,7 @@ memberJoinEvent ::
   [RemoteMember] ->
   Event
 memberJoinEvent lorig qconv t lmems rmems =
-  Event qconv (tUntagged lorig) t $
+  Event qconv Nothing (tUntagged lorig) t $
     EdMembersJoin (SimpleMembers (map localToSimple lmems <> map remoteToSimple rmems))
   where
     localToSimple u = SimpleMember (tUntagged (qualifyAs lorig (lmId u))) (lmConvRoleName u)
@@ -892,7 +892,7 @@ isTyping qusr mcon lcnv ts = do
   mm <- getLocalMembers (tUnqualified lcnv)
   unless (qUnqualified qusr `isMember` mm) $ throwS @'ConvNotFound
   now <- input
-  let e = Event (tUntagged lcnv) qusr now (EdTyping ts)
+  let e = Event (tUntagged lcnv) Nothing qusr now (EdTyping ts)
   for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
     push1 $
       p
