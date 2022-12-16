@@ -209,7 +209,12 @@ tests s =
         "SubConversation"
         [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
           test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
-          test s "join subconversation with an external commit bundle" testJoinSubConv
+          test s "join subconversation with an external commit bundle" testJoinSubConv,
+          test s "join subconversation with a client that is not in the main conv" testJoinSubNonMemberClient,
+          test s "add another client to a subconversation" testAddClientSubConv,
+          test s "remove another client from a subconversation" testRemoveClientSubConv,
+          test s "join remote subconversation" testJoinRemoteSubConv,
+          test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv
         ]
     ]
 
@@ -2334,3 +2339,20 @@ testJoinSubConv = do
       void $
         createExternalCommit alice1 Nothing (fmap (flip SubConv subId) qcnv)
           >>= sendAndConsumeCommitBundle
+
+-- FUTUREWORK: implement the following tests
+
+testJoinSubNonMemberClient :: TestM ()
+testJoinSubNonMemberClient = pure ()
+
+testAddClientSubConv :: TestM ()
+testAddClientSubConv = pure ()
+
+testRemoveClientSubConv :: TestM ()
+testRemoveClientSubConv = pure ()
+
+testJoinRemoteSubConv :: TestM ()
+testJoinRemoteSubConv = pure ()
+
+testRemoteUserJoinSubConv :: TestM ()
+testRemoteUserJoinSubConv = pure ()
