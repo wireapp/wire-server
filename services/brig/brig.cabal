@@ -672,6 +672,7 @@ executable brig-schema
     V72_AddNonceTable
     V73_ReplaceNonceTable
     V9
+    V_FUTUREWORK
 
   hs-source-dirs:     schema/src
   default-extensions:

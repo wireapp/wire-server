@@ -38,12 +38,11 @@ import Text.RawString.QQ
 --
 -- FUTUREWORK: remove futurework_number and replace its usage by the next matching number after July 2023, rename this module with a version number, and
 -- integrate it inside Main.hs and App.hs
-futureworkNumber :: Integer
+futureworkNumber :: Int32
 futureworkNumber = undefined
 
 migration :: Migration
-
-migration futureworkNumber "Drop deprecated user_keys_hashed table" $ do
+migration = Migration futureworkNumber "Drop deprecated user_keys_hashed table" $ do
   schema'
     [r|
       DROP TABLE IF EXISTS user_keys_hash
