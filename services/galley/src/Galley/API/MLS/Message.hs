@@ -1442,15 +1442,11 @@ storeGroupInfoBundle ::
   ConvOrSubConvId ->
   GroupInfoBundle ->
   Sem r ()
-storeGroupInfoBundle convOrSub bundle = case convOrSub of
-  Conv cid -> do
-    setPublicGroupState cid
-      . toOpaquePublicGroupState
-      . gipGroupState
-      $ bundle
-  SubConv _cid _subconvid -> do
-    -- FUTUREWORK: Write to subconversation
-    pure ()
+storeGroupInfoBundle convOrSub bundle = do
+  let gs = toOpaquePublicGroupState (gipGroupState bundle)
+  case convOrSub of
+    Conv cid -> setPublicGroupState cid gs
+    SubConv cid subconvid -> setSubConversationPublicGroupState cid subconvid (Just gs)
 
 fetchConvOrSub ::
   forall r.
