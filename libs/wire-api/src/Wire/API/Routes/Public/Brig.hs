@@ -25,6 +25,7 @@ import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
+import Data.Either.Extra (eitherToMaybe)
 import Data.Handle
 import Data.Id as Id
 import Data.Metrics.Servant
@@ -269,12 +270,7 @@ checkZAuthOrOAuth oauthScope mJwk req =
     checkOAuth :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Maybe UserId)
     checkOAuth (token, key) = do
       verifiedOrError <- liftIO $ verify key (unOAuthAccessToken . unBearer $ token)
-      pure $ case verifiedOrError of
-        Left _ -> Nothing
-        Right verifiedClaimSet -> do
-          if hasScope oauthScope verifiedClaimSet
-            then csUserId verifiedClaimSet
-            else Nothing
+      pure $ hasScope oauthScope `mfilter` eitherToMaybe verifiedOrError >>= csUserId
 
 instance (HasServer api context, HasContextEntry context (Maybe JWK), IsOAuthScope scope) => HasServer (ZUserOrOAuth scope :> api) context where
   type ServerT (ZUserOrOAuth scope :> api) m = UserId -> ServerT api m
