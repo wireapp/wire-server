@@ -56,100 +56,100 @@ tests: True
 benchmarks: True
 
 package api-bot
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package api-client
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package api-simulations
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package assets
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package auto-whitelist
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package bilge
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package billing-team-member-backfill
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package brig
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package brig-types
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package cannon
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package cargohold
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package cargohold-types
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package cassandra-util
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package deriving-swagger2
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package dns-util
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package extended
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package federator
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package find-undead
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package galley
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package galley-types
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package gundeck
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package gundeck-types
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package hscim
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package imports
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package jwt-tools
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package metrics-core
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package metrics-wai
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package migrate-sso-feature-flag
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package move-team
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package polysemy-wire-zoo
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package proxy
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package repair-handles
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package rex
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package ropes
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package schema-profunctor
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package service-backfill
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package sodium-crypto-sign
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package spar
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package ssl-util
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package stern
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package tasty-cannon
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package types-common
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package types-common-aws
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package types-common-journal
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package wai-utilities
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package wire-api
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package wire-api-federation
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package wire-message-proto-lens
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
 package zauth
-    ghc-options: -Werror
+    ghc-options: -Werror +RTS -c -RTS
