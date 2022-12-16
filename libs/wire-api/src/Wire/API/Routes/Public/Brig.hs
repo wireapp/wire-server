@@ -34,7 +34,6 @@ import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
 import Data.Schema as Schema
-import Data.String.Conversions (cs)
 import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
 import qualified Generics.SOP as GSOP
@@ -261,7 +260,7 @@ instance HasSwagger api => HasSwagger (ZUserOrOAuth :> api) where
 
 checkZAuthOrOAuth :: Maybe JWK -> Request -> DelayedIO (Maybe UserId)
 checkZAuthOrOAuth mJwk req =
-  case lookup "Z-User" (requestHeaders req) >>= (either (const Nothing) pure . parseIdFromText . cs) of
+  case lookup "Z-User" (requestHeaders req) >>= (either (const Nothing) pure . parseHeader) of
     Just uid -> pure (Just uid)
     Nothing -> do
       let mTokenAndKey = (,) <$> (lookup "Authorization" (requestHeaders req) >>= either (const Nothing) pure . parseHeader) <*> mJwk
