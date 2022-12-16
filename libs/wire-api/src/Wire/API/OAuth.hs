@@ -155,12 +155,26 @@ instance ToSchema OAuthResponseType where
 data OAuthScope
   = ConversationCreate
   | ConversationCodeCreate
+  | SelfRead
   deriving (Eq, Show, Generic, Ord)
+
+class IsOAuthScope scope where
+  toOAuthScope :: OAuthScope
+
+instance IsOAuthScope 'ConversationCreate where
+  toOAuthScope = ConversationCreate
+
+instance IsOAuthScope 'ConversationCodeCreate where
+  toOAuthScope = ConversationCodeCreate
+
+instance IsOAuthScope 'SelfRead where
+  toOAuthScope = SelfRead
 
 instance ToByteString OAuthScope where
   builder = \case
     ConversationCreate -> "conversation:create"
     ConversationCodeCreate -> "conversation-code:create"
+    SelfRead -> "self:read"
 
 instance FromByteString OAuthScope where
   parser = do
@@ -168,6 +182,7 @@ instance FromByteString OAuthScope where
     case s & T.toLower of
       "conversation:create" -> pure ConversationCreate
       "conversation-code:create" -> pure ConversationCodeCreate
+      "self:read" -> pure SelfRead
       _ -> fail "invalid scope"
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
@@ -369,6 +384,9 @@ csUserId =
   view claimSub
     >=> preview string
     >=> either (const Nothing) pure . parseIdFromText
+
+hasScope :: OAuthScope -> OAuthClaimSet -> Bool
+hasScope s claims = s `Set.member` unOAuthScopes (scope claims)
 
 verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimSet)
 verify k jwt = runJOSE $ do

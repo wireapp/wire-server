@@ -130,7 +130,7 @@ testCreateAccessTokenSuccess opts brig = do
   now <- liftIO getCurrentTime
   uid <- userId <$> createUser "alice" brig
   let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   accessToken <- createOAuthAccessToken brig accessTokenRequest

@@ -253,13 +253,13 @@ type UserAPI =
                     RichInfoAssocList
            )
 
-data ZUserOrOAuth
+data ZUserOrOAuth (scope :: OAuthScope)
 
-instance HasSwagger api => HasSwagger (ZUserOrOAuth :> api) where
-  toSwagger _ = toSwagger (Proxy @(ZUserOrOAuth :> api))
+instance HasSwagger api => HasSwagger (ZUserOrOAuth scope :> api) where
+  toSwagger _ = toSwagger (Proxy @(ZUserOrOAuth scope :> api))
 
-checkZAuthOrOAuth :: Maybe JWK -> Request -> DelayedIO (Maybe UserId)
-checkZAuthOrOAuth mJwk req =
+checkZAuthOrOAuth :: OAuthScope -> Maybe JWK -> Request -> DelayedIO (Maybe UserId)
+checkZAuthOrOAuth oauthScope mJwk req =
   case lookup "Z-User" (requestHeaders req) >>= (either (const Nothing) pure . parseHeader) of
     Just uid -> pure (Just uid)
     Nothing -> do
@@ -269,39 +269,44 @@ checkZAuthOrOAuth mJwk req =
     checkOAuth :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Maybe UserId)
     checkOAuth (token, key) = do
       verifiedOrError <- liftIO $ verify key (unOAuthAccessToken . unBearer $ token)
-      either (const $ pure Nothing) (pure . csUserId) verifiedOrError
+      pure $ case verifiedOrError of
+        Left _ -> Nothing
+        Right verifiedClaimSet -> do
+          if hasScope oauthScope verifiedClaimSet
+            then csUserId verifiedClaimSet
+            else Nothing
 
-instance (HasServer api context, HasContextEntry context (Maybe JWK)) => HasServer (ZUserOrOAuth :> api) context where
-  type ServerT (ZUserOrOAuth :> api) m = UserId -> ServerT api m
+instance (HasServer api context, HasContextEntry context (Maybe JWK), IsOAuthScope scope) => HasServer (ZUserOrOAuth scope :> api) context where
+  type ServerT (ZUserOrOAuth scope :> api) m = UserId -> ServerT api m
 
   route ::
     (HasServer api context, HasContextEntry context (Maybe JWK)) =>
-    Proxy (ZUserOrOAuth :> api) ->
+    Proxy (ZUserOrOAuth scope :> api) ->
     Context context ->
-    Delayed env (Server (ZUserOrOAuth :> api)) ->
+    Delayed env (Server (ZUserOrOAuth scope :> api)) ->
     Router env
   route _ ctx svr = route (Proxy @api) ctx (addAuthCheck svr (withRequest checkAuth))
     where
       checkAuth :: Request -> DelayedIO UserId
-      checkAuth = checkZAuthOrOAuth (getContextEntry ctx) >=> maybe (delayedFailFatal err401) pure
+      checkAuth = checkZAuthOrOAuth (toOAuthScope @scope) (getContextEntry ctx) >=> maybe (delayedFailFatal err401) pure
 
   hoistServerWithContext ::
     (HasServer api context, HasContextEntry context (Maybe JWK)) =>
-    Proxy (ZUserOrOAuth :> api) ->
+    Proxy (ZUserOrOAuth scope :> api) ->
     Proxy context ->
     (forall x. m x -> n x) ->
-    ServerT (ZUserOrOAuth :> api) m ->
-    ServerT (ZUserOrOAuth :> api) n
+    ServerT (ZUserOrOAuth scope :> api) m ->
+    ServerT (ZUserOrOAuth scope :> api) n
   hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
 
-instance RoutesToPaths api => RoutesToPaths (ZUserOrOAuth :> api) where
+instance RoutesToPaths api => RoutesToPaths (ZUserOrOAuth scope :> api) where
   getRoutes = getRoutes @api
 
 type SelfAPI =
   Named
     "get-self"
     ( Summary "Get your own profile"
-        :> ZUserOrOAuth
+        :> ZUserOrOAuth 'SelfRead
         :> "self"
         :> Get '[JSON] SelfProfile
     )
