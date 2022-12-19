@@ -86,7 +86,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API (Component (Galley), fedClient, CallsFed)
+import Wire.API.Federation.API (CallsFed, Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Team.LegalHold
@@ -276,8 +276,11 @@ ensureAllowed tag loc action conv origUser = do
 -- and also returns the (possible modified) action that was performed
 performAction ::
   forall tag r.
-  (HasConversationActionEffects tag r, CallsFed 'Galley "on-mls-message-sent",
-  CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-new-remote-conversation") =>
+  ( HasConversationActionEffects tag r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Sing tag ->
   Qualified UserId ->
   Local Conversation ->
@@ -345,8 +348,11 @@ performAction tag origUser lconv action = do
       pure (bm, act)
 
 performConversationJoin ::
-  (HasConversationActionEffects 'ConversationJoinTag r,
-    CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-new-remote-conversation") =>
+  ( HasConversationActionEffects 'ConversationJoinTag r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Qualified UserId ->
   Local Conversation ->
   ConversationJoin ->
@@ -472,8 +478,11 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkLHPolicyConflictsRemote _remotes = pure ()
 
 performConversationAccessData ::
-  (HasConversationActionEffects 'ConversationAccessDataTag r,
-  CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-new-remote-conversation") =>
+  ( HasConversationActionEffects 'ConversationAccessDataTag r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Qualified UserId ->
   Local Conversation ->
   ConversationAccessData ->
@@ -571,7 +580,11 @@ updateLocalConversation ::
        ]
       r,
     HasConversationActionEffects tag r,
-    SingI tag, CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation", CallsFed 'Galley "on-conversation-updated") =>
+    SingI tag,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-conversation-updated"
+  ) =>
   Local ConvId ->
   Qualified UserId ->
   Maybe ConnId ->
@@ -607,7 +620,11 @@ updateLocalConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    HasConversationActionEffects tag r, CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation", CallsFed 'Galley "on-conversation-updated") =>
+    HasConversationActionEffects tag r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-conversation-updated"
+  ) =>
   Local Conversation ->
   Qualified UserId ->
   Maybe ConnId ->
@@ -682,8 +699,10 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  (Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r,
-  CallsFed 'Galley "on-new-remote-conversation", CallsFed 'Galley "on-conversation-updated") =>
+  ( Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r,
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-conversation-updated"
+  ) =>
   Sing tag ->
   Qualified UserId ->
   Bool ->
@@ -799,7 +818,11 @@ kickMember ::
     Member (Input UTCTime) r,
     Member (Input Env) r,
     Member MemberStore r,
-    Member TinyLog r, CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-new-remote-conversation") =>
+    Member TinyLog r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Qualified UserId ->
   Local Conversation ->
   BotsAndMembers ->

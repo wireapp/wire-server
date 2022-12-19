@@ -45,14 +45,16 @@ type MLSGroupInfoStaticErrors =
    ]
 
 getGroupInfo ::
-  (Members
-    '[ ConversationStore,
-       Error FederationError,
-       FederatorAccess,
-       Input Env,
-       MemberStore
-     ]
-    r, CallsFed 'Galley "query-group-info") =>
+  ( Members
+      '[ ConversationStore,
+         Error FederationError,
+         FederatorAccess,
+         Input Env,
+         MemberStore
+       ]
+      r,
+    CallsFed 'Galley "query-group-info"
+  ) =>
   Members MLSGroupInfoStaticErrors r =>
   Local UserId ->
   Qualified ConvId ->

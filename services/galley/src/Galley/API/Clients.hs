@@ -104,7 +104,10 @@ rmClientH ::
          ProposalStore,
          P.TinyLog
        ]
-      r, CallsFed 'Galley "on-client-removed", CallsFed 'Galley "on-mls-message-sent") =>
+      r,
+    CallsFed 'Galley "on-client-removed",
+    CallsFed 'Galley "on-mls-message-sent"
+  ) =>
   UserId ::: ClientId ->
   Sem r Response
 rmClientH (usr ::: cid) = do

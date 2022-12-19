@@ -22,13 +22,17 @@ import Galley.API.Teams.Features
 import Galley.App
 import Galley.Cassandra.TeamFeatures
 import Imports
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Team.Feature
-import Wire.API.Federation.API
 
-featureAPI :: (CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") => API FeatureAPI GalleyEffects
+featureAPI ::
+  ( CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
+  API FeatureAPI GalleyEffects
 featureAPI =
   mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)

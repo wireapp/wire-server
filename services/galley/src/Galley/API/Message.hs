@@ -357,21 +357,24 @@ postBroadcast lusr con msg = runError $ do
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
-  (Members
-    '[ BrigAccess,
-       ClientStore,
-       ConversationStore,
-       FederatorAccess,
-       GundeckAccess,
-       ExternalAccess,
-       Input (Local ()), -- FUTUREWORK: remove this
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       TeamStore,
-       P.TinyLog
-     ]
-    r, CallsFed 'Galley "on-message-sent", CallsFed 'Brig "get-user-clients") =>
+  ( Members
+      '[ BrigAccess,
+         ClientStore,
+         ConversationStore,
+         FederatorAccess,
+         GundeckAccess,
+         ExternalAccess,
+         Input (Local ()), -- FUTUREWORK: remove this
+         Input Opts,
+         Input UTCTime,
+         MemberStore,
+         TeamStore,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-message-sent",
+    CallsFed 'Brig "get-user-clients"
+  ) =>
   UserType ->
   Qualified UserId ->
   Maybe ConnId ->
@@ -473,7 +476,9 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 sendMessages ::
   forall t r.
   ( t ~ 'NormalMessage,
-    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r, CallsFed 'Galley "on-message-sent") =>
+    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r,
+    CallsFed 'Galley "on-message-sent"
+  ) =>
   UTCTime ->
   Qualified UserId ->
   ClientId ->

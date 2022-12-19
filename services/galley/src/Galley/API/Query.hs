@@ -141,16 +141,18 @@ getUnqualifiedConversation lusr cnv = do
 
 getConversation ::
   forall r.
-  (Members
-    '[ ConversationStore,
-       ErrorS 'ConvNotFound,
-       ErrorS 'ConvAccessDenied,
-       Error FederationError,
-       Error InternalError,
-       FederatorAccess,
-       P.TinyLog
-     ]
-    r, CallsFed 'Galley "get-conversations") =>
+  ( Members
+      '[ ConversationStore,
+         ErrorS 'ConvNotFound,
+         ErrorS 'ConvAccessDenied,
+         Error FederationError,
+         Error InternalError,
+         FederatorAccess,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "get-conversations"
+  ) =>
   Local UserId ->
   Qualified ConvId ->
   Sem r Public.Conversation
@@ -171,14 +173,16 @@ getConversation lusr cnv = do
         _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
-  (Members
-    '[ ConversationStore,
-       Error FederationError,
-       ErrorS 'ConvNotFound,
-       FederatorAccess,
-       P.TinyLog
-     ]
-    r, CallsFed 'Galley "get-conversations") =>
+  ( Members
+      '[ ConversationStore,
+         Error FederationError,
+         ErrorS 'ConvNotFound,
+         FederatorAccess,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "get-conversations"
+  ) =>
   Local UserId ->
   [Remote ConvId] ->
   Sem r [Public.Conversation]
@@ -224,8 +228,9 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
     split (FailedGetConversation convs (FailedGetConversationRemotely _)) = Right convs
 
 getRemoteConversationsWithFailures ::
-  (Members '[ConversationStore, FederatorAccess, P.TinyLog] r,
-  CallsFed 'Galley "get-conversations") =>
+  ( Members '[ConversationStore, FederatorAccess, P.TinyLog] r,
+    CallsFed 'Galley "get-conversations"
+  ) =>
   Local UserId ->
   [Remote ConvId] ->
   Sem r ([FailedGetConversation], [Public.Conversation])

@@ -28,12 +28,29 @@ import Galley.API.Public.Team
 import Galley.API.Public.TeamConversation
 import Galley.API.Public.TeamMember
 import Galley.App
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
-import Wire.API.Federation.API
 
-servantSitemap :: (CallsFed 'Galley "get-conversations",
-  CallsFed 'Galley "leave-conversation", CallsFed 'Galley "on-conversation-created", CallsFed 'Galley "on-conversation-updated", CallsFed 'Brig "get-user-clients", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-message-sent", CallsFed 'Galley "on-new-remote-conversation", CallsFed 'Galley "on-typing-indicator-updated", CallsFed 'Galley "send-message", CallsFed 'Brig "get-mls-clients", CallsFed 'Galley "query-group-info", CallsFed 'Galley "mls-welcome", CallsFed 'Galley "update-conversation", CallsFed 'Galley "send-mls-commit-bundle", CallsFed 'Galley "send-mls-message") => API ServantAPI GalleyEffects
+servantSitemap ::
+  ( CallsFed 'Galley "get-conversations",
+    CallsFed 'Galley "leave-conversation",
+    CallsFed 'Galley "on-conversation-created",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Brig "get-user-clients",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-typing-indicator-updated",
+    CallsFed 'Galley "send-message",
+    CallsFed 'Brig "get-mls-clients",
+    CallsFed 'Galley "query-group-info",
+    CallsFed 'Galley "mls-welcome",
+    CallsFed 'Galley "update-conversation",
+    CallsFed 'Galley "send-mls-commit-bundle",
+    CallsFed 'Galley "send-mls-message"
+  ) =>
+  API ServantAPI GalleyEffects
 servantSitemap =
   conversationAPI
     <@> teamConversationAPI

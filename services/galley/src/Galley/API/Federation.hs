@@ -100,8 +100,18 @@ import Wire.API.ServantProto
 type FederationAPI = "federation" :> FedApi 'Galley
 
 -- | Convert a polysemy handler to an 'API' value.
-federationSitemap :: (CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent", CallsFed 'Brig "get-mls-clients", CallsFed 'Galley "on-new-remote-conversation", CallsFed 'Galley "send-mls-message", CallsFed 'Galley "mls-welcome", CallsFed 'Galley "send-mls-commit-bundle", CallsFed 'Galley "on-message-sent", CallsFed 'Brig "get-user-clients") => ServerT FederationAPI (Sem GalleyEffects)
+federationSitemap ::
+  ( CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Brig "get-mls-clients",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "send-mls-message",
+    CallsFed 'Galley "mls-welcome",
+    CallsFed 'Galley "send-mls-commit-bundle",
+    CallsFed 'Galley "on-message-sent",
+    CallsFed 'Brig "get-user-clients"
+  ) =>
+  ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
     :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
@@ -134,7 +144,8 @@ onClientRemoved ::
          ProposalStore,
          TinyLog
        ]
-      r, CallsFed 'Galley "on-mls-message-sent"
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Domain ->
   ClientRemovedRequest ->
@@ -331,21 +342,25 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
-  (Members
-    '[ ConversationStore,
-       Error InternalError,
-       Error InvalidInput,
-       ExternalAccess,
-       FederatorAccess,
-       GundeckAccess,
-       Input Env,
-       Input (Local ()),
-       Input UTCTime,
-       MemberStore,
-       ProposalStore,
-       TinyLog
-     ]
-    r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
+  ( Members
+      '[ ConversationStore,
+         Error InternalError,
+         Error InvalidInput,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input (Local ()),
+         Input UTCTime,
+         MemberStore,
+         ProposalStore,
+         TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Domain ->
   F.LeaveConversationRequest ->
   Sem r F.LeaveConversationResponse
@@ -434,22 +449,25 @@ onMessageSent domain rmUnqualified = do
       (Map.filterWithKey (\(uid, _) _ -> Set.member uid members) msgs)
 
 sendMessage ::
-  (Members
-    '[ BrigAccess,
-       ClientStore,
-       ConversationStore,
-       Error InvalidInput,
-       FederatorAccess,
-       GundeckAccess,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       ExternalAccess,
-       MemberStore,
-       TeamStore,
-       P.TinyLog
-     ]
-    r, CallsFed 'Galley "on-message-sent", CallsFed 'Brig "get-user-clients") =>
+  ( Members
+      '[ BrigAccess,
+         ClientStore,
+         ConversationStore,
+         Error InvalidInput,
+         FederatorAccess,
+         GundeckAccess,
+         Input (Local ()),
+         Input Opts,
+         Input UTCTime,
+         ExternalAccess,
+         MemberStore,
+         TeamStore,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-message-sent",
+    CallsFed 'Brig "get-user-clients"
+  ) =>
   Domain ->
   F.ProteusMessageSendRequest ->
   Sem r F.MessageSendResponse
@@ -462,21 +480,25 @@ sendMessage originDomain msr = do
     throwErr = throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
-  (Members
-    '[ ConversationStore,
-       FederatorAccess,
-       FireAndForget,
-       ExternalAccess,
-       GundeckAccess,
-       Error InternalError,
-       Input (Local ()),
-       Input UTCTime,
-       Input Env,
-       MemberStore,
-       ProposalStore,
-       TinyLog
-     ]
-    r, CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-new-remote-conversation") =>
+  ( Members
+      '[ ConversationStore,
+         FederatorAccess,
+         FireAndForget,
+         ExternalAccess,
+         GundeckAccess,
+         Error InternalError,
+         Input (Local ()),
+         Input UTCTime,
+         Input Env,
+         MemberStore,
+         ProposalStore,
+         TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Domain ->
   F.UserDeletedConversationsNotification ->
   Sem r EmptyResponse
@@ -539,7 +561,11 @@ updateConversation ::
          ConversationStore,
          Input (Local ())
        ]
-      r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Domain ->
   F.ConversationUpdateRequest ->
   Sem r ConversationUpdateResponse
@@ -620,7 +646,14 @@ sendMLSCommitBundle ::
         P.TinyLog,
         ProposalStore
       ]
-      r, CallsFed 'Galley "mls-welcome", CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation", CallsFed 'Galley "send-mls-commit-bundle", CallsFed 'Brig "get-mls-clients") =>
+      r,
+    CallsFed 'Galley "mls-welcome",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "send-mls-commit-bundle",
+    CallsFed 'Brig "get-mls-clients"
+  ) =>
   Domain ->
   F.MLSMessageSendRequest ->
   Sem r F.MLSMessageResponse
@@ -663,7 +696,13 @@ sendMLSMessage ::
         P.TinyLog,
         ProposalStore
       ]
-      r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation", CallsFed 'Galley "send-mls-message", CallsFed 'Brig "get-mls-clients") =>
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "send-mls-message",
+    CallsFed 'Brig "get-mls-clients"
+  ) =>
   Domain ->
   F.MLSMessageSendRequest ->
   Sem r F.MLSMessageResponse
