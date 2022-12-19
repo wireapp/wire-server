@@ -90,7 +90,6 @@ module Brig.API.User
   )
 where
 
-import Wire.API.Federation.API
 import Bilge.IO (MonadHttp)
 import Bilge.RPC (HasRequestId)
 import qualified Brig.API.Error as Error
@@ -173,6 +172,7 @@ import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
+import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team hiding (newTeam)
@@ -228,10 +228,12 @@ verifyUniquenessAndCheckBlacklist uk = do
 
 createUserSpar ::
   forall r.
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   NewUserSpar ->
   ExceptT CreateUserSparError (AppT r) CreateUserResult
 createUserSpar new = do
@@ -294,12 +296,14 @@ createUserSpar new = do
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
   forall r p.
-  (Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ BlacklistStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
@@ -851,7 +855,9 @@ changeAccountStatus ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m, CallsFed 'Brig "on-user-deleted-connections") =>
+    MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   List1 UserId ->
   AccountStatus ->
   ExceptT AccountStatusError m ()
@@ -876,7 +882,9 @@ changeSingleAccountStatus ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m, CallsFed 'Brig "on-user-deleted-connections") =>
+    MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ->
   AccountStatus ->
   ExceptT AccountStatusError m ()
@@ -1167,10 +1175,12 @@ mkPasswordResetKey ident = case ident of
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteSelfUser ::
   forall r.
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ->
   Maybe PlainTextPassword ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
@@ -1270,7 +1280,9 @@ ensureAccountDeleted ::
     HasRequestId m,
     MonadUnliftIO m,
     MonadClient m,
-    MonadReader Env m, CallsFed 'Brig "on-user-deleted-connections") =>
+    MonadReader Env m,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ->
   m DeleteUserResult
 ensureAccountDeleted uid = do
@@ -1314,7 +1326,9 @@ deleteAccount ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m, CallsFed 'Brig "on-user-deleted-connections") =>
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserAccount ->
   m ()
 deleteAccount account@(accountUser -> user) = do
@@ -1436,11 +1450,13 @@ lookupProfile self other =
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
-  (Members
-    '[ GalleyProvider,
-       Concurrency 'Unsafe
-     ]
-    r, CallsFed 'Brig "get-users-by-ids") =>
+  ( Members
+      '[ GalleyProvider,
+         Concurrency 'Unsafe
+       ]
+      r,
+    CallsFed 'Brig "get-users-by-ids"
+  ) =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
@@ -1466,7 +1482,9 @@ lookupProfilesFromDomain self =
 lookupRemoteProfiles ::
   ( MonadIO m,
     MonadReader Env m,
-    MonadLogger m, CallsFed 'Brig "get-users-by-ids") =>
+    MonadLogger m,
+    CallsFed 'Brig "get-users-by-ids"
+  ) =>
   Remote [UserId] ->
   ExceptT FederationError m [UserProfile]
 lookupRemoteProfiles (tUntagged -> Qualified uids domain) =

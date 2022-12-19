@@ -50,13 +50,13 @@ import Polysemy
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
+import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
 import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
-import Wire.API.Federation.API
 
 routesInternal :: Routes a (Handler r) ()
 routesInternal = do

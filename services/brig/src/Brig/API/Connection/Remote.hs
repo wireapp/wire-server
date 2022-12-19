@@ -39,12 +39,12 @@ import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), Ups
 import Imports
 import Network.Wai.Utilities.Error
 import Wire.API.Connection
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
   )
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
-import Wire.API.Federation.API
 
 data LocalConnectionAction
   = LocalConnect

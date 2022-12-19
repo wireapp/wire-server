@@ -74,12 +74,12 @@ import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import qualified Wire.Sem.Paging as P
-import Wire.API.Federation.API
 
 -- | Orphan instance to satisfy 'CallsFeds' constraints, which we otherwise use
 -- to track federation calls across the codebase.

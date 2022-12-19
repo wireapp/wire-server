@@ -111,6 +111,7 @@ import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
+import Wire.API.Federation.API
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
@@ -140,7 +141,6 @@ import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
-import Wire.API.Federation.API
 
 -- User API -----------------------------------------------------------
 
@@ -168,20 +168,31 @@ versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
   forall r p.
-  (Members
-    '[ BlacklistPhonePrefixStore,
-       BlacklistStore,
-       CodeStore,
-       Concurrency 'Unsafe,
-       Concurrency 'Unsafe,
-       GalleyProvider,
-       JwtTools,
-       Now,
-       PasswordResetStore,
-       PublicKeyBundle,
-       UserPendingActivationStore p
-     ]
-    r, CallsFed 'Brig "get-user-by-handle", CallsFed 'Brig "get-users-by-ids", CallsFed 'Brig "search-users", CallsFed 'Brig "claim-key-packages", CallsFed 'Brig "on-user-deleted-connections", CallsFed 'Brig "claim-multi-prekey-bundle", CallsFed 'Brig "send-connection-action", CallsFed 'Brig "claim-prekey", CallsFed 'Brig "claim-prekey-bundle", CallsFed 'Brig "get-user-clients") =>
+  ( Members
+      '[ BlacklistPhonePrefixStore,
+         BlacklistStore,
+         CodeStore,
+         Concurrency 'Unsafe,
+         Concurrency 'Unsafe,
+         GalleyProvider,
+         JwtTools,
+         Now,
+         PasswordResetStore,
+         PublicKeyBundle,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "get-user-by-handle",
+    CallsFed 'Brig "get-users-by-ids",
+    CallsFed 'Brig "search-users",
+    CallsFed 'Brig "claim-key-packages",
+    CallsFed 'Brig "on-user-deleted-connections",
+    CallsFed 'Brig "claim-multi-prekey-bundle",
+    CallsFed 'Brig "send-connection-action",
+    CallsFed 'Brig "claim-prekey",
+    CallsFed 'Brig "claim-prekey-bundle",
+    CallsFed 'Brig "get-user-clients"
+  ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
   userAPI
@@ -468,10 +479,12 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ->
   ConnId ->
   Maybe IpAddr ->
@@ -579,12 +592,14 @@ createAccessToken method uid cid proof = do
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
-  (Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ BlacklistStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   Public.NewUserPublic ->
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
@@ -661,10 +676,12 @@ getSelf self =
     >>= ifNothing (errorToWai @'E.UserNotFound)
 
 getUserUnqualifiedH ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "get-users-by-ids") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "get-users-by-ids"
+  ) =>
   UserId ->
   UserId ->
   (Handler r) (Maybe Public.UserProfile)
@@ -673,10 +690,12 @@ getUserUnqualifiedH self uid = do
   getUser self (Qualified uid domain)
 
 getUser ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "get-users-by-ids") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "get-users-by-ids"
+  ) =>
   UserId ->
   Qualified UserId ->
   (Handler r) (Maybe Public.UserProfile)
@@ -686,11 +705,13 @@ getUser self qualifiedUserId = do
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  (Members
-    '[ GalleyProvider,
-       Concurrency 'Unsafe
-     ]
-    r, CallsFed 'Brig "get-users-by-ids") =>
+  ( Members
+      '[ GalleyProvider,
+         Concurrency 'Unsafe
+       ]
+      r,
+    CallsFed 'Brig "get-users-by-ids"
+  ) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
   Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
@@ -712,11 +733,13 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
 
 listUsersByIdsOrHandles ::
   forall r.
-  (Members
-    '[ GalleyProvider,
-       Concurrency 'Unsafe
-     ]
-    r, CallsFed 'Brig "get-users-by-ids") =>
+  ( Members
+      '[ GalleyProvider,
+         Concurrency 'Unsafe
+       ]
+      r,
+    CallsFed 'Brig "get-users-by-ids"
+  ) =>
   UserId ->
   Public.ListUsersQuery ->
   (Handler r) [Public.UserProfile]
@@ -806,10 +829,13 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "get-user-by-handle", CallsFed 'Brig "get-users-by-ids") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "get-user-by-handle",
+    CallsFed 'Brig "get-users-by-ids"
+  ) =>
   UserId ->
   Handle ->
   (Handler r) (Maybe Public.UserHandleInfo)
@@ -875,10 +901,12 @@ customerExtensionCheckBlockedDomains email = do
             customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "send-connection-action") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "send-connection-action"
+  ) =>
   UserId ->
   ConnId ->
   Public.ConnectionRequest ->
@@ -889,10 +917,12 @@ createConnectionUnqualified self conn cr = do
   API.createConnection lself conn (tUntagged target) !>> connError
 
 createConnection ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "send-connection-action") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "send-connection-action"
+  ) =>
   UserId ->
   ConnId ->
   Qualified UserId ->
@@ -972,10 +1002,12 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
@@ -1019,10 +1051,12 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 -- activation
 
 activate ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
   (Handler r) ActivationRespWithStatus
@@ -1032,10 +1066,12 @@ activate k c = do
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)

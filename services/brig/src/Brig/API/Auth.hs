@@ -43,12 +43,12 @@ import Network.HTTP.Types
 import Network.Wai.Utilities ((!>>))
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
+import Wire.API.Federation.API
 import Wire.API.User
 import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
-import Wire.API.Federation.API
 
 accessH ::
   CallsFed 'Brig "on-user-deleted-connections" =>

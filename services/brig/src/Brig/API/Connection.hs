@@ -60,8 +60,8 @@ import Wire.API.Connection hiding (relationWithHistory)
 import Wire.API.Conversation
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
-import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 import Wire.API.Federation.API
+import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 ensureIsActivated :: Local UserId -> MaybeT (AppT r) ()
 ensureIsActivated lusr = do

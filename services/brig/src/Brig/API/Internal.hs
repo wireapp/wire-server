@@ -87,6 +87,7 @@ import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
+import Wire.API.Federation.API
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -100,18 +101,19 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
-import Wire.API.Federation.API
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
 
 servantSitemap ::
-  (Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ BlacklistStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
   ejpdAPI
@@ -151,12 +153,14 @@ mlsAPI =
     :<|> Named @"put-key-package-add" upsertKeyPackage
 
 accountAPI ::
-  (Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ BlacklistStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
   Named @"createUserNoVerify" createUserNoVerify
@@ -285,15 +289,17 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 -- Sitemap (wai-route)
 
 sitemap ::
-  (Members
-    '[ CodeStore,
-       PasswordResetStore,
-       BlacklistStore,
-       BlacklistPhonePrefixStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ CodeStore,
+         PasswordResetStore,
+         BlacklistStore,
+         BlacklistPhonePrefixStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   Routes a (Handler r) ()
 sitemap = do
   get "/i/status" (continue $ const $ pure empty) true
@@ -457,10 +463,12 @@ sitemap = do
 
 -- | Add a client without authentication checks
 addClientInternalH ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON ->
   (Handler r) Response
 addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
@@ -468,10 +476,12 @@ addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
   setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
 
 addClientInternal ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ->
   Maybe Bool ->
   NewClient ->
@@ -512,12 +522,14 @@ internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
 createUserNoVerify ::
-  (Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ BlacklistStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
@@ -534,10 +546,12 @@ createUserNoVerify uData = lift . runExceptT $ do
   pure . SelfProfile $ usr
 
 createUserNoVerifySpar ::
-  (Members
-    '[ GalleyProvider
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
 createUserNoVerifySpar uData =

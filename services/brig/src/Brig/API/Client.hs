@@ -93,6 +93,7 @@ import Polysemy (Member, Members)
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential (ClientIdentity (..))
@@ -108,7 +109,6 @@ import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), 
 import Wire.Sem.Concurrency
 import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
 import Wire.Sem.Now as Now
-import Wire.API.Federation.API
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
@@ -266,7 +266,9 @@ claimLocalPrekey protectee user client = do
 claimRemotePrekey ::
   ( MonadReader Env m,
     Log.MonadLogger m,
-    MonadClient m, CallsFed 'Brig "claim-prekey") =>
+    MonadClient m,
+    CallsFed 'Brig "claim-prekey"
+  ) =>
   Qualified UserId ->
   ClientId ->
   ExceptT ClientError m (Maybe ClientPrekey)

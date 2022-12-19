@@ -39,11 +39,11 @@ import Imports
 import Network.Wai.Utilities ((!>>))
 import Polysemy
 import qualified System.Logger.Class as Log
+import Wire.API.Federation.API
 import Wire.API.User
 import qualified Wire.API.User as Public
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
-import Wire.API.Federation.API
 
 getHandleInfo ::
   (Members '[GalleyProvider] r, CallsFed 'Brig "get-user-by-handle", CallsFed 'Brig "get-users-by-ids") =>

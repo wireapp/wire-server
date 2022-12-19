@@ -67,6 +67,7 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
+import Wire.API.Federation.API
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig
 import Wire.API.Team
@@ -79,7 +80,6 @@ import Wire.API.Team.Role
 import qualified Wire.API.Team.Role as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
-import Wire.API.Federation.API
 
 servantAPI ::
   Members
@@ -98,12 +98,14 @@ servantAPI =
     :<|> Named @"get-team-size" teamSizePublic
 
 routesInternal ::
-  (Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r, CallsFed 'Brig "on-user-deleted-connections") =>
+  ( Members
+      '[ BlacklistStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   Routes a (Handler r) ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $

@@ -78,13 +78,13 @@ import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
+import Wire.API.Federation.API
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
-import Wire.API.Federation.API
 
 sendLoginCode ::
   ( MonadClient m,
@@ -252,7 +252,9 @@ renewAccess ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m, CallsFed 'Brig "on-user-deleted-connections") =>
+    MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   Maybe ClientId ->
@@ -289,7 +291,9 @@ catchSuspendInactiveUser ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    Log.MonadLogger m, CallsFed 'Brig "on-user-deleted-connections") =>
+    Log.MonadLogger m,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ->
   e ->
   ExceptT e m ()
@@ -320,7 +324,9 @@ newAccess ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m, CallsFed 'Brig "on-user-deleted-connections") =>
+    MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ->
   Maybe ClientId ->
   CookieType ->
@@ -440,7 +446,9 @@ ssoLogin ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m, CallsFed 'Brig "on-user-deleted-connections") =>
+    MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   SsoLogin ->
   CookieType ->
   ExceptT LoginError m (Access ZAuth.User)

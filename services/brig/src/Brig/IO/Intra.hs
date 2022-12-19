@@ -47,7 +47,6 @@ module Brig.IO.Intra
   )
 where
 
-import Wire.API.Federation.API
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Bilge.Retry
@@ -99,6 +98,7 @@ import qualified System.Logger.Extended as ExLog
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Event.Conversation (Connect (Connect))
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Properties
