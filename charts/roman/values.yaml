@@ -1,0 +1,25 @@
+# Default values for roman.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+roman:
+  replicaCount: 1
+  image:
+    repository: quay.io/wire/roman
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: staging
+  serviceToken: # Provide the roman service token.
+  # randomly generated for local testing
+  appKey: b53181dd-6400-4960-8988-f775545588ff-0949f503-421e-4588-a2c5-f64fd9c180fd
+  wireApiHost: https://nginz-https.example.com
+  proxyDomain:
+  # random base 64 string used as certificate, replace with real one
+  pubKeyBase64: LS0tLS1CRUdJTiBQVcFQvWjcKMlczd1A1TzJveFVCTElDIEtFWS0tLS0tCg==
+  publicURL: roman.example.com # Link to the subdomain pointing to roman.
+  dbURL: jdbc:postgresql://postgresql:5432/externalPostgresql # Link to your Postgres server.
+  dbUser: externalPostgresql # Provide your Postgres DB username.
+  dbPassword: externalPostgresql # Provide your Postgres DB password.
+
+tls:
+  issuerRef:
+    name: letsencrypt-http01
