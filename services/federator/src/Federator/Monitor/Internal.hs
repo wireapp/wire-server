@@ -33,6 +33,7 @@ import GHC.IO.Encoding (getFileSystemEncoding)
 import Imports
 import qualified Network.TLS as TLS
 import Polysemy (Embed, Member, Members, Sem, embed)
+import Polysemy.Final (Final)
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Resource as Polysemy
@@ -103,8 +104,8 @@ watchPathEvents (WatchedDir _ _) = [MoveIn, Create]
 -- directory watches as they get deleted and recreated.
 type Watches = Map RawFilePath (WatchDescriptor, WatchedPath)
 
-runSemDefault :: Logger -> Sem '[TinyLog, Embed IO] a -> IO a
-runSemDefault logger = Polysemy.runM . Log.loggerToTinyLog logger
+runSemDefault :: Logger -> Sem '[TinyLog, Embed IO, Final IO] a -> IO a
+runSemDefault logger = Polysemy.runFinal . Polysemy.embedToFinal . Log.loggerToTinyLog logger
 
 logErrors ::
   Members '[TinyLog, Polysemy.Error FederationSetupError] r =>
@@ -123,10 +124,10 @@ logAndIgnoreErrors ::
 logAndIgnoreErrors = void . Polysemy.runError . logErrors
 
 delMonitor ::
-  (Members '[TinyLog, Embed IO] r) =>
+  (Members '[TinyLog, Embed IO, Final IO] r) =>
   Monitor ->
   Sem r ()
-delMonitor monitor = Polysemy.resourceToIO
+delMonitor monitor = Polysemy.resourceToIOFinal
   $ Polysemy.bracket
     (takeMVar (monLock monitor))
     (putMVar (monLock monitor))

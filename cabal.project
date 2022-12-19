@@ -1,5 +1,10 @@
 with-compiler: ghc-8.10.7
 
+source-repository-package
+    type: git
+    location: https://github.com/polysemy-research/polysemy.git
+    tag: 3855786e58bf397ca8204f3a79d19c24485dabd4
+
 packages:
     libs/api-bot/
   , libs/api-client/

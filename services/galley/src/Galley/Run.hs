@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -O2 -ddump-to-file -ddump-simpl -ddump-rules -dsuppress-ticks -dsuppress-idinfo -dsuppress-module-prefixes -dsuppress-coercions  #-}
+
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>

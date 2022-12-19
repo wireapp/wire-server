@@ -83,7 +83,7 @@ library
     , hspec
     , imports
     , polysemy
-    , polysemy-check
+    , polysemy-check  >=0.9.0.1
     , polysemy-plugin
     , QuickCheck
     , saml2-web-sso
@@ -157,7 +157,7 @@ test-suite spec
     , hspec
     , imports
     , polysemy
-    , polysemy-check     >=0.9
+    , polysemy-check     >=0.9.0.1
     , polysemy-plugin
     , polysemy-wire-zoo
     , unliftio
