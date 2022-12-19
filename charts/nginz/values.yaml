@@ -373,7 +373,7 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
-    - path: /system/settings$
+    - path: /system/settings/unauthorized$
       envs:
       - all
       disable_zauth: true

@@ -17,7 +17,7 @@ tests :: Opts -> Manager -> IO TestTree
 tests opts m = pure $ do
   testGroup
     "settings"
-    [ test m "GET /system/settings" $ testGetSettings opts
+    [ test m "GET /system/settings/unauthorized" $ testGetSettings opts
     ]
 
 testGetSettings :: Opts -> Http ()
