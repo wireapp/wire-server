@@ -35,10 +35,10 @@ import Servant.API
 import Servant.Server hiding (Handler)
 import URI.ByteString
 import Wire.API.Asset
+import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
-import Wire.API.Federation.API
 
 servantSitemap :: (CallsFed 'Cargohold "get-asset", CallsFed 'Cargohold "stream-asset") => ServerT ServantAPI Handler
 servantSitemap =

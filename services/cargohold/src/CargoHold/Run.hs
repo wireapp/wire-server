@@ -51,11 +51,11 @@ import Servant.API
 import Servant.Server hiding (Handler, runHandler)
 import qualified UnliftIO.Async as Async
 import Util.Options
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.Routes.Version.Wai
-import Wire.API.Federation.API
 
 type CombinedAPI = FederationAPI :<|> ServantAPI :<|> InternalAPI
 
