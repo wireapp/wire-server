@@ -68,9 +68,8 @@ propagateMessage qusr lConvOrSub con raw = do
         b <- maybeToList $ newBotMember m
         pure (lmId m, b)
       mm = defMessageMetadata
-      qcnv = tUntagged (fmap mcId mlsConv)
-      -- FUTUREWORK: Add subconv field
-      e = Event qcnv qusr now $ EdMLSMessage raw
+  let qcnv = mcId . convOfConvOrSub <$> tUntagged lConvOrSub
+      e = Event qcnv Nothing qusr now $ EdMLSMessage raw
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush mlsConv botMap con mm (u, c) e
   runMessagePush mlsConv (Just qcnv) $

@@ -191,6 +191,7 @@ onConversationCreated domain rc = do
     let event =
           Event
             (tUntagged (F.ccCnvId qrcConnected))
+            Nothing
             (tUntagged (F.ccRemoteOrigUserId qrcConnected))
             (F.ccTime qrcConnected)
             (EdConversation c)
@@ -298,7 +299,7 @@ onConversationUpdated requestingDomain cu = do
 
   -- Send notifications
   for_ mActualAction $ \(SomeConversationAction tag action) -> do
-    let event = conversationActionToEvent tag (F.cuTime cu) (F.cuOrigUserId cu) qconvId action
+    let event = conversationActionToEvent tag (F.cuTime cu) (F.cuOrigUserId cu) qconvId Nothing action
         targets = nubOrd $ presentUsers <> extraTargets
     -- FUTUREWORK: support bots?
     pushConversationEvent Nothing event (qualifyAs loc targets) []
@@ -785,7 +786,7 @@ onMLSMessageSent domain rmm =
       let recipients = filter (\(u, _) -> Set.member u members) (F.rmmRecipients rmm)
       -- FUTUREWORK: support local bots
       let e =
-            Event (tUntagged rcnv) (F.rmmSender rmm) (F.rmmTime rmm) $
+            Event (tUntagged rcnv) Nothing (F.rmmSender rmm) (F.rmmTime rmm) $
               EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
       let mkPush :: (UserId, ClientId) -> MessagePush 'NormalMessage
           mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e

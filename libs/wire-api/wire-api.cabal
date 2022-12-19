@@ -519,6 +519,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ClientCapabilityList
     Test.Wire.API.Golden.Manual.Contact
     Test.Wire.API.Golden.Manual.ConversationCoverView
+    Test.Wire.API.Golden.Manual.ConversationEvent
     Test.Wire.API.Golden.Manual.ConversationPagingState
     Test.Wire.API.Golden.Manual.ConversationsResponse
     Test.Wire.API.Golden.Manual.ConvIdsPage

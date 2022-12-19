@@ -83,6 +83,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..))
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
+import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Version
 import Wire.API.User (QualifiedUserIdList (..))
@@ -93,6 +94,7 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 data Event = Event
   { evtConv :: Qualified ConvId,
+    evtSubConv :: Maybe SubConvId,
     evtFrom :: Qualified UserId,
     evtTime :: UTCTime,
     evtData :: EventData
@@ -107,6 +109,7 @@ instance Arbitrary Event where
     typ <- arbitrary
     Event
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> (milli <$> arbitrary)
       <*> genEventData typ
@@ -401,11 +404,12 @@ eventObjectSchema =
     <$> (evtType &&& evtData) .= taggedEventDataSchema
     <* (qUnqualified . evtConv) .= optional (field "conversation" schema)
     <*> evtConv .= field "qualified_conversation" schema
+    <*> evtSubConv .= maybe_ (optField "subconv" schema)
     <* (qUnqualified . evtFrom) .= optional (field "from" schema)
     <*> evtFrom .= field "qualified_from" schema
     <*> (toUTCTimeMillis . evtTime) .= field "time" (fromUTCTimeMillis <$> schema)
   where
-    mk (_, d) cid uid tm = Event cid uid tm d
+    mk (_, d) cid sconvid uid tm = Event cid sconvid uid tm d
 
 instance ToJSONObject Event where
   toJSONObject =
