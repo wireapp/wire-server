@@ -83,6 +83,7 @@ import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.API.Federation.API
 
 assertLegalHoldEnabledForTeam ::
   forall db r.
@@ -184,7 +185,7 @@ getSettings lzusr tid = do
 
 removeSettingsInternalPaging ::
   forall db r.
-  Members
+  (Members
     '[ BotAccess,
        BrigAccess,
        CodeStore,
@@ -217,7 +218,7 @@ removeSettingsInternalPaging ::
        TeamStore,
        WaiRoutes
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
   TeamId ->
@@ -261,8 +262,7 @@ removeSettings ::
          TeamMemberStore p,
          TeamStore
        ]
-      r
-  ) =>
+      r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   UserId ->
   TeamId ->
@@ -320,8 +320,7 @@ removeSettings' ::
          ProposalStore,
          P.TinyLog
        ]
-      r
-  ) =>
+      r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   TeamId ->
   Sem r ()
 removeSettings' tid =
@@ -388,7 +387,7 @@ getUserStatus _lzusr tid uid = do
 -- @withdrawExplicitConsentH@ (lots of corner cases we'd have to implement for that to pan
 -- out).
 grantConsent ::
-  Members
+  (Members
     '[ BrigAccess,
        ConversationStore,
        Error InternalError,
@@ -409,7 +408,7 @@ grantConsent ::
        P.TinyLog,
        TeamStore
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   Local UserId ->
   TeamId ->
   Sem r GrantConsentResult
@@ -427,7 +426,7 @@ grantConsent lusr tid = do
 -- | Request to provision a device on the legal hold service for a user
 requestDevice ::
   forall db r.
-  Members
+  (Members
     '[ BrigAccess,
        ConversationStore,
        Error InternalError,
@@ -456,7 +455,7 @@ requestDevice ::
        TeamFeatureStore db,
        TeamStore
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
   TeamId ->
@@ -507,7 +506,7 @@ requestDevice lzusr tid uid = do
 -- since they are replaced if needed when registering new LH devices.
 approveDevice ::
   forall db r.
-  Members
+  (Members
     '[ BrigAccess,
        ConversationStore,
        Error AuthenticationError,
@@ -536,7 +535,7 @@ approveDevice ::
        TeamFeatureStore db,
        TeamStore
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
   ConnId ->
@@ -588,7 +587,7 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
 
 disableForUser ::
   forall r.
-  Members
+  (Members
     '[ BrigAccess,
        ConversationStore,
        Error AuthenticationError,
@@ -612,7 +611,7 @@ disableForUser ::
        P.TinyLog,
        TeamStore
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   Local UserId ->
   TeamId ->
   UserId ->
@@ -646,7 +645,7 @@ disableForUser lzusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) =
 -- or disabled, make sure the affected connections are screened for policy conflict (anybody
 -- with no-consent), and put those connections in the appropriate blocked state.
 changeLegalholdStatus ::
-  Members
+  (Members
     '[ BrigAccess,
        ConversationStore,
        Error InternalError,
@@ -665,7 +664,7 @@ changeLegalholdStatus ::
        ProposalStore,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   TeamId ->
   Local UserId ->
   UserLegalHoldStatus ->
@@ -766,7 +765,7 @@ unsetTeamLegalholdWhitelistedH tid = do
 -- contains the hypothetical new LH status of `uid`'s so it can be consulted instead of the
 -- one from the database.
 handleGroupConvPolicyConflicts ::
-  Members
+  (Members
     '[ ConversationStore,
        Error InternalError,
        ErrorS ('ActionDenied 'RemoveConversationMember),
@@ -781,7 +780,7 @@ handleGroupConvPolicyConflicts ::
        P.TinyLog,
        TeamStore
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   Local UserId ->
   UserLegalHoldStatus ->
   Sem r ()

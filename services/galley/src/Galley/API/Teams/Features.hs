@@ -81,6 +81,7 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import Wire.API.Federation.API
 
 data DoAuth = DoAuth UserId | DontDoAuth
 
@@ -707,7 +708,10 @@ instance GetFeatureConfig db LegalholdConfig where
         False -> FeatureStatusDisabled
     pure $ setStatus status defFeatureStatus
 
-instance SetFeatureConfig db LegalholdConfig where
+instance (CallsFed 'Galley "on-conversation-updated"
+         ,CallsFed 'Galley "on-mls-message-sent"
+         ,CallsFed 'Galley "on-new-remote-conversation"
+         ) => SetFeatureConfig db LegalholdConfig where
   type
     SetConfigForTeamConstraints db LegalholdConfig (r :: EffectRow) =
       ( Bounded (PagingBounds InternalPaging TeamMember),

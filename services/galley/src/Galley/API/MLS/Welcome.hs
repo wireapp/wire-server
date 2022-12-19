@@ -55,7 +55,7 @@ import Wire.API.MLS.Welcome
 import Wire.API.Message
 
 postMLSWelcome ::
-  Members
+  (Members
     '[ BrigAccess,
        FederatorAccess,
        GundeckAccess,
@@ -63,7 +63,7 @@ postMLSWelcome ::
        Input UTCTime,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "mls-welcome") =>
   Local x ->
   Maybe ConnId ->
   RawMLS Welcome ->
@@ -76,7 +76,7 @@ postMLSWelcome loc con wel = do
   sendRemoteWelcomes (rmRaw wel) remotes
 
 postMLSWelcomeFromLocalUser ::
-  Members
+  (Members
     '[ BrigAccess,
        FederatorAccess,
        GundeckAccess,
@@ -86,7 +86,7 @@ postMLSWelcomeFromLocalUser ::
        Input Env,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "mls-welcome") =>
   Local x ->
   ConnId ->
   RawMLS Welcome ->
@@ -131,11 +131,11 @@ sendLocalWelcomes con now rawWelcome lclients = do
        in newMessagePush lclients mempty con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
-  Members
+  (Members
     '[ FederatorAccess,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "mls-welcome") =>
   ByteString ->
   [Remote (UserId, ClientId)] ->
   Sem r ()

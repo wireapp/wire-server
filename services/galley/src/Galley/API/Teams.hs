@@ -155,6 +155,7 @@ import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 import qualified Wire.Sem.Paging as E
 import Wire.Sem.Paging.Cassandra
+import Wire.API.Federation.API
 
 getTeamH ::
   forall r.
@@ -1101,7 +1102,7 @@ getTeamConversation zusr tid cid = do
     >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
-  Members
+  (Members
     '[ CodeStore,
        ConversationStore,
        Error FederationError,
@@ -1117,7 +1118,7 @@ deleteTeamConversation ::
        Input UTCTime,
        TeamStore
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") =>
   Local UserId ->
   ConnId ->
   TeamId ->

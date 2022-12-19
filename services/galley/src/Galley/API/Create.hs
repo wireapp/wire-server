@@ -78,13 +78,14 @@ import Wire.API.Team
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
+import Wire.API.Federation.API
 
 ----------------------------------------------------------------------------
 -- Group conversations
 
 -- | The public-facing endpoint for creating group conversations.
 createGroupConversation ::
-  Members
+  (Members
     '[ BrigAccess,
        ConversationStore,
        MemberStore,
@@ -106,7 +107,7 @@ createGroupConversation ::
        TeamStore,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-created") =>
   Local UserId ->
   ConnId ->
   NewConv ->
@@ -218,7 +219,7 @@ createProteusSelfConversation lusr = do
 
 createOne2OneConversation ::
   forall r.
-  Members
+  (Members
     '[ BrigAccess,
        ConversationStore,
        ErrorS 'ConvAccessDenied,
@@ -240,7 +241,7 @@ createOne2OneConversation ::
        TeamStore,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-created") =>
   Local UserId ->
   ConnId ->
   NewConv ->
@@ -285,7 +286,7 @@ createOne2OneConversation lusr zcon j = do
         Nothing -> throwS @'TeamNotFound
 
 createLegacyOne2OneConversationUnchecked ::
-  Members
+  (Members
     '[ ConversationStore,
        Error InternalError,
        Error InvalidInput,
@@ -294,7 +295,7 @@ createLegacyOne2OneConversationUnchecked ::
        Input UTCTime,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-created") =>
   Local UserId ->
   ConnId ->
   Maybe (Range 1 256 Text) ->
@@ -324,7 +325,7 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
       conversationCreated self c
 
 createOne2OneConversationUnchecked ::
-  Members
+  (Members
     '[ ConversationStore,
        Error FederationError,
        Error InternalError,
@@ -334,7 +335,7 @@ createOne2OneConversationUnchecked ::
        Input UTCTime,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-created") =>
   Local UserId ->
   ConnId ->
   Maybe (Range 1 256 Text) ->
@@ -350,7 +351,7 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
   create (one2OneConvId (tUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
-  Members
+  (Members
     '[ ConversationStore,
        Error InternalError,
        ErrorS 'MissingLegalholdConsent,
@@ -359,7 +360,7 @@ createOne2OneConversationLocally ::
        Input UTCTime,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-created") =>
   Local ConvId ->
   Local UserId ->
   ConnId ->
@@ -401,7 +402,7 @@ createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
 createConnectConversation ::
-  Members
+  (Members
     '[ ConversationStore,
        ErrorS 'ConvNotFound,
        Error FederationError,
@@ -415,7 +416,7 @@ createConnectConversation ::
        MemberStore,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "on-conversation-created") =>
   Local UserId ->
   Maybe ConnId ->
   Connect ->
@@ -538,7 +539,8 @@ conversationCreated ::
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
 notifyCreatedConversation ::
-  Members '[Error InternalError, FederatorAccess, GundeckAccess, Input UTCTime, P.TinyLog] r =>
+  (Members '[Error InternalError, FederatorAccess, GundeckAccess, Input UTCTime, P.TinyLog] r,
+  CallsFed 'Galley "on-conversation-created") =>
   Maybe UTCTime ->
   Local UserId ->
   Maybe ConnId ->

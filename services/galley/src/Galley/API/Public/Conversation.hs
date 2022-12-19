@@ -26,8 +26,10 @@ import Galley.App
 import Galley.Cassandra.TeamFeatures
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Conversation
+import Wire.API.Federation.API
 
-conversationAPI :: API ConversationAPI GalleyEffects
+conversationAPI :: (CallsFed 'Galley "get-conversations",
+    CallsFed 'Galley "query-group-info", CallsFed 'Galley "on-typing-indicator-updated", CallsFed 'Galley "on-conversation-created", CallsFed 'Galley "on-conversation-updated", CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation", CallsFed 'Galley "leave-conversation", CallsFed 'Galley "update-conversation") => API ConversationAPI GalleyEffects
 conversationAPI =
   mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
     <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation

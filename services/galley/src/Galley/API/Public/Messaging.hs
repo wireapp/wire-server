@@ -21,8 +21,10 @@ import Galley.API.Update
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Messaging
+import Wire.API.Federation.API
 
-messagingAPI :: API MessagingAPI GalleyEffects
+messagingAPI :: (CallsFed 'Brig "get-user-clients",
+  CallsFed 'Galley "on-message-sent", CallsFed 'Galley "send-message") => API MessagingAPI GalleyEffects
 messagingAPI =
   mkNamedAPI @"post-otr-message-unqualified" postOtrMessageUnqualified
     <@> mkNamedAPI @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified

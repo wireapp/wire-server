@@ -21,6 +21,8 @@ import Galley.API.Update
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
+import Wire.API.Federation.API
 
-botAPI :: API BotAPI GalleyEffects
+botAPI :: (CallsFed 'Galley "on-message-sent",
+  CallsFed 'Brig "get-user-clients") => API BotAPI GalleyEffects
 botAPI = mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified

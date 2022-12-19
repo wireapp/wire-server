@@ -214,7 +214,7 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
       )
 
 getRemoteClients ::
-  Member FederatorAccess r =>
+  (Member FederatorAccess r, CallsFed 'Brig "get-user-clients") =>
   [RemoteMember] ->
   Sem r (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers =
@@ -228,7 +228,7 @@ getRemoteClients remoteMembers =
 
 -- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
-  Members '[FederatorAccess] r =>
+  (Members '[FederatorAccess] r, CallsFed 'Galley "send-message") =>
   Qualified UserId ->
   Remote ConvId ->
   ByteString ->
@@ -357,7 +357,7 @@ postBroadcast lusr con msg = runError $ do
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
-  Members
+  (Members
     '[ BrigAccess,
        ClientStore,
        ConversationStore,
@@ -371,7 +371,7 @@ postQualifiedOtrMessage ::
        TeamStore,
        P.TinyLog
      ]
-    r =>
+    r, CallsFed 'Galley "on-message-sent", CallsFed 'Brig "get-user-clients") =>
   UserType ->
   Qualified UserId ->
   Maybe ConnId ->
@@ -473,8 +473,7 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 sendMessages ::
   forall t r.
   ( t ~ 'NormalMessage,
-    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r
-  ) =>
+    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r, CallsFed 'Galley "on-message-sent") =>
   UTCTime ->
   Qualified UserId ->
   ClientId ->
@@ -551,7 +550,7 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
 
 sendRemoteMessages ::
   forall r x.
-  Members '[FederatorAccess, P.TinyLog] r =>
+  (Members '[FederatorAccess, P.TinyLog] r, CallsFed 'Galley "on-message-sent") =>
   Remote x ->
   UTCTime ->
   Qualified UserId ->

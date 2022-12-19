@@ -21,8 +21,10 @@ import Galley.API.Teams
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamConversation
+import Wire.API.Federation.API
 
-teamConversationAPI :: API TeamConversationAPI GalleyEffects
+teamConversationAPI :: (CallsFed 'Galley "on-conversation-updated",
+  CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") => API TeamConversationAPI GalleyEffects
 teamConversationAPI =
   mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
     <@> mkNamedAPI @"get-team-conversations" getTeamConversations

@@ -22,8 +22,10 @@ import Galley.App
 import Galley.Cassandra.TeamFeatures
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.LegalHold
+import Wire.API.Federation.API
 
-legalHoldAPI :: API LegalHoldAPI GalleyEffects
+legalHoldAPI :: (CallsFed 'Galley "on-conversation-updated",
+  CallsFed 'Galley "on-mls-message-sent", CallsFed 'Galley "on-new-remote-conversation") => API LegalHoldAPI GalleyEffects
 legalHoldAPI =
   mkNamedAPI @"create-legal-hold-settings" (createSettings @Cassandra)
     <@> mkNamedAPI @"get-legal-hold-settings" (getSettings @Cassandra)
