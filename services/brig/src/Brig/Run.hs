@@ -83,7 +83,7 @@ import qualified Wire.Sem.Paging as P
 
 -- | Orphan instance to satisfy 'CallsFeds' constraints, which we otherwise use
 -- to track federation calls across the codebase.
-instance CallsFed comp name
+instance {-# OVERLAPPING #-} CallsFed 'Brig name
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a

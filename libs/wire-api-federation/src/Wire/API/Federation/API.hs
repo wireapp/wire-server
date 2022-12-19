@@ -53,6 +53,8 @@ type HasFedEndpoint comp api name = ('Just api ~ LookupEndpoint (FedApi comp) na
 
 class CallsFed (comp :: Component) (name :: Symbol)
 
+instance CallsFed comp name
+
 -- | Return a client for a named endpoint.
 fedClient ::
   forall (comp :: Component) (name :: Symbol) m api.
