@@ -29,6 +29,10 @@ testGetSettings opts = liftIO $ do
     expectResultForSetting :: Maybe Bool -> Bool -> IO ()
     expectResultForSetting restrictUserCreationSetting expectedRes = do
       let newOpts = opts & (optionSettings . restrictUserCreation) .~ restrictUserCreationSetting
+      -- Run call in `WaiTest.Session` with an adjusted brig `Application`. I.e.
+      -- the response is created by running the brig `Application` (with
+      -- modified options) directly on the `Request`. No real HTTP request is
+      -- made. This happens due to the `MonadHttp WaiTest.Session` instance.
       queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings
       liftIO $
         queriedSettings @?= SystemSettings expectedRes
