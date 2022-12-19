@@ -111,7 +111,8 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSSelfRemovalNotAllowed,
      ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSGroupConversationMismatch,
-     ErrorS 'MLSMissingSenderClient
+     ErrorS 'MLSMissingSenderClient,
+     ErrorS 'MLSSubConvClientNotInParent
    ]
 
 type MLSBundleStaticErrors =
@@ -137,6 +138,7 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSSubConvClientNotInParent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -176,6 +178,7 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSSubConvClientNotInParent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -391,6 +394,7 @@ postMLSMessage ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSSubConvClientNotInParent,
          Input (Local ()),
          ProposalStore,
          Resource,
@@ -481,6 +485,7 @@ postMLSMessageToLocalConv ::
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'ConvNotFound,
+         ErrorS 'MLSSubConvClientNotInParent,
          MemberStore,
          ProposalStore,
          Resource,
@@ -647,6 +652,7 @@ processCommit ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Input (Local ())) r,
     Member ProposalStore r,
     Member BrigAccess r,
@@ -795,6 +801,7 @@ processCommitWithAction ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Input (Local ())) r,
     Member ProposalStore r,
     Member BrigAccess r,
@@ -829,6 +836,7 @@ processInternalCommit ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Input (Local ())) r,
     Member ProposalStore r,
     Member SubConversationStore r,
@@ -893,9 +901,24 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
                     senderRef'
             -- remote clients cannot send the first commit
             (False, _, _, _) -> throwS @'MLSStaleMessage
-            (_, _, _, SubConv _ _) -> pure ()
+            (True, _, [], SubConv parentConv _) -> do
+              creatorClient <- noteS @'MLSMissingSenderClient senderClient
+              unless (isClientMember (mkClientIdentity qusr creatorClient) (mcMembers parentConv)) $
+                throwS @'MLSSubConvClientNotInParent
+              creatorRef <-
+                maybe
+                  (pure senderRef)
+                  ( note (mlsProtocolError "Could not compute key package ref")
+                      . kpRef'
+                      . upLeaf
+                  )
+                  $ cPath commit
+              addMLSClients
+                (cnvmlsGroupId mlsMeta)
+                qusr
+                (Set.singleton (creatorClient, creatorRef))
             -- uninitialised conversations should contain exactly one client
-            (_, _, _, Conv _) ->
+            (_, _, _, _) ->
               throw (InternalErrorWithDescription "Unexpected creator client set")
           pure $ pure () -- no key package ref update necessary
         else case upLeaf <$> cPath commit of
