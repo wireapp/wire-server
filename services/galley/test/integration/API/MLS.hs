@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-matches -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -46,6 +46,7 @@ import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
+import Galley.Cassandra.Conversation.MLS (lookupMLSClients)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
@@ -61,8 +62,11 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
+import Wire.API.Internal.Notification (ntfPayload)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Group
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -222,7 +226,10 @@ tests s =
               test s "reset a subconversation as a non-member" (testDeleteSubConv False),
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
               test s "leave a subconversation" testLeaveSubConv,
-              test s "leave a subconversation as a non-member" testLeaveSubConvNonMember
+              test s "leave a subconversation as a non-member" testLeaveSubConvNonMember,
+              test s "remove user from parent conversation" testRemoveUserParent,
+              test s "remove creator from parent conversation" testRemoveCreatorParent,
+              test s "creator removes user from parent conversation" testCreatorRemovesUserFromParent
             ],
           testGroup
             "Local Sender/Remote Subconversation"
@@ -811,7 +818,12 @@ testAdminRemovesUserFromConv = do
 
   do
     convs <- getAllConvs (qUnqualified bob)
-    liftIO $
+    clients <- getConvClients (qUnqualified alice) (qUnqualified qcnv)
+    liftIO $ do
+      assertEqual
+        ("Expected only one client, got " <> show clients)
+        (length . clClients $ clients)
+        1
       assertBool
         "bob is not longer part of conversation after the commit"
         (qcnv `notElem` map cnvQualifiedId convs)
@@ -1616,7 +1628,7 @@ testBackendRemoveProposalRecreateClient = do
         createExternalCommit alice2 Nothing cnv
           >>= sendAndConsumeCommitBundle
       WS.assertMatch (5 # WS.Second) wsA $
-        wsAssertBackendRemoveProposal alice qcnv ref
+        wsAssertBackendRemoveProposal alice (Conv <$> qcnv) ref
 
     consumeMessage1 alice2 proposal
     void $ createPendingProposalCommit alice2 >>= sendAndConsumeCommitBundle
@@ -1643,7 +1655,7 @@ testBackendRemoveProposalLocalConvLocalUser = do
 
       for bobClients $ \(_, ref) -> do
         [msg] <- WS.assertMatchN (5 # Second) wss $ \n ->
-          wsAssertBackendRemoveProposal bob qcnv ref n
+          wsAssertBackendRemoveProposal bob (Conv <$> qcnv) ref n
         consumeMessage1 alice1 msg
 
     -- alice commits the external proposals
@@ -1678,7 +1690,7 @@ testBackendRemoveProposalLocalConvRemoteUser = do
 
         for_ bobClients $ \(_, ref) ->
           WS.assertMatch (5 # WS.Second) wsA $
-            wsAssertBackendRemoveProposal bob qcnv ref
+            wsAssertBackendRemoveProposal bob (Conv <$> qcnv) ref
 
 sendRemoteMLSWelcome :: TestM ()
 sendRemoteMLSWelcome = do
@@ -1754,7 +1766,7 @@ testBackendRemoveProposalLocalConvLocalLeaverCreator = do
       for_ aliceClients $ \(_, ref) -> do
         -- only bob's clients should receive the external proposals
         msgs <- WS.assertMatchN (5 # Second) (drop 1 wss) $ \n ->
-          wsAssertBackendRemoveProposal alice qcnv ref n
+          wsAssertBackendRemoveProposal alice (Conv <$> qcnv) ref n
         traverse_ (uncurry consumeMessage1) (zip [bob1, bob2] msgs)
 
       -- but everyone should receive leave events
@@ -1799,7 +1811,7 @@ testBackendRemoveProposalLocalConvLocalLeaverCommitter = do
       for_ bobClients $ \(_, ref) -> do
         -- only alice and charlie should receive the external proposals
         msgs <- WS.assertMatchN (5 # Second) (take 2 wss) $ \n ->
-          wsAssertBackendRemoveProposal bob qcnv ref n
+          wsAssertBackendRemoveProposal bob (Conv <$> qcnv) ref n
         traverse_ (uncurry consumeMessage1) (zip [alice1, charlie1] msgs)
 
       -- but everyone should receive leave events
@@ -1842,7 +1854,7 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
 
         for_ bobClients $ \(_, ref) ->
           WS.assertMatch_ (5 # WS.Second) wsA $
-            wsAssertBackendRemoveProposal bob qcnv ref
+            wsAssertBackendRemoveProposal bob (Conv <$> qcnv) ref
 
 testBackendRemoveProposalLocalConvLocalClient :: TestM ()
 testBackendRemoveProposalLocalConvLocalClient = do
@@ -1869,7 +1881,7 @@ testBackendRemoveProposalLocalConvLocalClient = do
         wsAssertClientRemoved (ciClient bob1)
 
       msg <- WS.assertMatch (5 # WS.Second) wsA $ \notification -> do
-        wsAssertBackendRemoveProposal bob qcnv kpBob1 notification
+        wsAssertBackendRemoveProposal bob (Conv <$> qcnv) kpBob1 notification
 
       for_ [alice1, bob2, charlie1] $
         flip consumeMessage1 msg
@@ -1903,7 +1915,7 @@ testBackendRemoveProposalLocalConvRemoteClient = do
 
         WS.assertMatch_ (5 # WS.Second) wsA $
           \notification ->
-            void $ wsAssertBackendRemoveProposal bob qcnv bob1KP notification
+            void $ wsAssertBackendRemoveProposal bob (Conv <$> qcnv) bob1KP notification
 
 testGetGroupInfoOfLocalConv :: TestM ()
 testGetGroupInfoOfLocalConv = do
@@ -2819,7 +2831,7 @@ testLeaveSubConv = do
 
       msgs <-
         WS.assertMatchN (5 # WS.Second) wss $
-          wsAssertBackendRemoveProposal bob qcnv bob1KP
+          wsAssertBackendRemoveProposal bob (Conv <$> qcnv) bob1KP
       traverse_ (uncurry consumeMessage1) (zip [alice1, bob2] msgs)
 
     -- alice commits the pending proposal
@@ -2844,7 +2856,7 @@ testLeaveSubConv = do
 
       msgs <-
         WS.assertMatchN (5 # WS.Second) wss $
-          wsAssertBackendRemoveProposal charlie qcnv charlie1KP
+          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) charlie1KP
       traverse_ (uncurry consumeMessage1) (zip [alice1, bob2] msgs)
 
     -- alice commits the pending proposal
@@ -2929,3 +2941,243 @@ testLeaveRemoteSubConv = do
 
     -- check that leave-sub-conversation is called
     void $ assertOne (filter ((== "leave-sub-conversation") . frRPC) reqs)
+
+testRemoveUserParent :: TestM ()
+testRemoveUserParent = do
+  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
+
+  runMLSTest $
+    do
+      [alice1, bob1, bob2, charlie1, charlie2] <-
+        traverse
+          createMLSClient
+          [alice, bob, bob, charlie, charlie]
+      traverse_ uploadNewKeyPackage [bob1, bob2, charlie1, charlie2]
+      (_, qcnv) <- setupMLSGroup alice1
+      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
+
+      let subname = SubConvId "conference"
+      void $ createSubConv qcnv bob1 subname
+      let qcs = fmap (flip SubConv subname) qcnv
+
+      -- all clients join
+      for_ [alice1, bob2, charlie1, charlie2] $ \c ->
+        void $ createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
+
+      [(_, kpref1), (_, kpref2)] <- getClientsFromGroupState alice1 charlie
+
+      -- charlie leaves the main conversation
+      mlsBracket [alice1, bob1, bob2] $ \wss -> do
+        liftTest $ do
+          deleteMemberQualified (qUnqualified charlie) charlie qcnv
+            !!! const 200 === statusCode
+
+        -- Remove charlie from our state as well
+        State.modify $ \mls ->
+          mls
+            { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [charlie1, charlie2])
+            }
+
+        msg1 <- WS.assertMatchN (5 # Second) wss $ \n ->
+          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) kpref1 n
+
+        traverse_ (uncurry consumeMessage1) (zip [alice1, bob1, bob2] msg1)
+
+        msg2 <- WS.assertMatchN (5 # Second) wss $ \n ->
+          wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) kpref2 n
+
+        traverse_ (uncurry consumeMessage1) (zip [alice1, bob1, bob2] msg2)
+
+        void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+        liftTest $ do
+          getSubConv (qUnqualified charlie) qcnv (SubConvId "conference")
+            !!! const 403 === statusCode
+
+          sub :: PublicSubConversation <-
+            responseJsonError
+              =<< getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
+                <!! const 200 === statusCode
+          liftIO $
+            assertEqual
+              "subconv membership mismatch after removal"
+              (sort [bob1, bob2, alice1])
+              (sort $ pscMembers sub)
+
+testRemoveCreatorParent :: TestM ()
+testRemoveCreatorParent = do
+  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
+
+  runMLSTest $
+    do
+      [alice1, bob1, bob2, charlie1, charlie2] <-
+        traverse
+          createMLSClient
+          [alice, bob, bob, charlie, charlie]
+      traverse_ uploadNewKeyPackage [bob1, bob2, charlie1, charlie2]
+      (_, qcnv) <- setupMLSGroup alice1
+      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
+
+      let subname = SubConvId "conference"
+      void $ createSubConv qcnv alice1 subname
+      let qcs = fmap (flip SubConv subname) qcnv
+
+      -- all clients join
+      for_ [bob1, bob2, charlie1, charlie2] $ \c ->
+        void $ createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
+
+      [(_, kpref1)] <- getClientsFromGroupState alice1 alice
+
+      -- creator leaves the main conversation
+      mlsBracket [bob1, bob2, charlie1, charlie2] $ \wss -> do
+        liftTest $ do
+          deleteMemberQualified (qUnqualified alice) alice qcnv
+            !!! const 200 === statusCode
+
+        -- Remove alice1 from our state as well
+        State.modify $ \mls ->
+          mls
+            { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [alice1])
+            }
+
+        -- TODO: is this the proposal from the parent or the sub? Assert both here
+        msg <- WS.assertMatchN (5 # Second) wss $ \n ->
+          wsAssertBackendRemoveProposal alice (Conv <$> qcnv) kpref1 n
+
+        traverse_ (uncurry consumeMessage1) (zip [bob1, bob2, charlie1, charlie2] msg)
+
+        void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
+
+        liftTest $ do
+          getSubConv (qUnqualified alice) qcnv (SubConvId "conference")
+            !!! const 403 === statusCode
+
+          -- charlie sees updated memberlist
+          sub :: PublicSubConversation <-
+            responseJsonError
+              =<< getSubConv (qUnqualified charlie) qcnv (SubConvId "conference")
+                <!! const 200 === statusCode
+          liftIO $
+            assertEqual
+              "1. subconv membership mismatch after removal"
+              (sort [charlie1, charlie2, bob1, bob2])
+              (sort $ pscMembers sub)
+
+          -- bob also sees updated memberlist
+          sub1 :: PublicSubConversation <-
+            responseJsonError
+              =<< getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
+                <!! const 200 === statusCode
+          liftIO $
+            assertEqual
+              "2. subconv membership mismatch after removal"
+              (sort [charlie1, charlie2, bob1, bob2])
+              (sort $ pscMembers sub1)
+
+testCreatorRemovesUserFromParent :: TestM ()
+testCreatorRemovesUserFromParent = do
+  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
+
+  runMLSTest $
+    do
+      [alice1, bob1, bob2, charlie1, charlie2] <-
+        traverse
+          createMLSClient
+          [alice, bob, bob, charlie, charlie]
+      traverse_ uploadNewKeyPackage [bob1, bob2, charlie1, charlie2]
+      (_, qcnv) <- setupMLSGroup alice1
+      void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
+
+      stateParent <- State.get
+
+      let subId = SubConvId "conference"
+      qcs <- createSubConv qcnv alice1 subId
+      liftTest $
+        getSubConv (qUnqualified alice) qcnv subId
+          !!! do const 200 === statusCode
+
+      for_ [bob1, bob2, charlie1, charlie2] $ \c -> do
+        void $ createExternalCommit c Nothing qcs >>= sendAndConsumeCommitBundle
+
+      stateSub <- State.get
+      State.put stateParent
+
+      mlsBracket [alice1, charlie1, charlie2] $ \wss -> do
+        events <- createRemoveCommit alice1 [bob1, bob2] >>= sendAndConsumeCommitBundle
+        State.modify $ \s -> s {mlsMembers = Set.difference (mlsMembers s) (Set.fromList [bob1, bob2])}
+
+        liftIO $ assertOne events >>= assertLeaveEvent qcnv alice [bob]
+
+        WS.assertMatchN_ (5 # Second) wss $ \n -> do
+          wsAssertMemberLeave qcnv alice [bob] n
+
+        State.put stateSub
+        -- Get client state for alice and fetch bob client identities
+        [(_, kprefBob1), (_, kprefBob2)] <- getClientsFromGroupState alice1 bob
+
+        -- handle bob1 removal
+        msgs <- WS.assertMatchN (5 # Second) wss $ \n -> do
+          -- it was an alice proposal for the parent,
+          -- but it's a backend proposal for the sub
+          wsAssertBackendRemoveProposal bob qcs kprefBob1 n
+
+        traverse_ (uncurry consumeMessage1) (zip [alice1, charlie1, charlie2] msgs)
+
+        -- handle bob2 removal
+        msgs2 <- WS.assertMatchN (5 # Second) wss $ \n -> do
+          -- it was an alice proposal for the parent,
+          -- but it's a backend proposal for the sub
+          wsAssertBackendRemoveProposal bob qcs kprefBob2 n
+
+        traverse_ (uncurry consumeMessage1) (zip [alice1, charlie1, charlie2] msgs2)
+
+        -- Remove bob from our state as well
+        State.modify $ \mls ->
+          mls
+            { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bob1, bob2])
+            }
+        -- alice commits the proposal and sends over for the backend to also process it
+        void $
+          createPendingProposalCommit alice1
+            >>= sendAndConsumeCommitBundle
+
+        liftTest $ do
+          getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
+            !!! const 403 === statusCode
+
+          clients <- getConvClients (qUnqualified alice) (qUnqualified qcnv)
+          convs <- getAllConvs (qUnqualified bob)
+          liftIO $ do
+            assertEqual
+              "Parent conversation client list mismatch"
+              (sort $ clClients clients)
+              (sort $ ciClient <$> [alice1, charlie1, charlie2])
+            assertBool
+              "bob is not longer part of conversation after the commit"
+              (qcnv `notElem` map cnvQualifiedId convs)
+
+          -- charlie sees updated memberlist
+          sub1 :: PublicSubConversation <-
+            responseJsonError
+              =<< getSubConv (qUnqualified charlie) qcnv (SubConvId "conference")
+                <!! const 200 === statusCode
+          liftIO $
+            assertEqual
+              ( "1. sub1conv membership mismatch after removal. Expected 3 clients, got "
+                  <> (show . length . pscMembers $ sub1)
+              )
+              (sort [alice1, charlie1, charlie2])
+              (sort $ pscMembers sub1)
+
+          -- alice also sees updated memberlist
+          sub2 :: PublicSubConversation <-
+            responseJsonError
+              =<< getSubConv (qUnqualified alice) qcnv (SubConvId "conference")
+                <!! const 200 === statusCode
+          liftIO $
+            assertEqual
+              ( "2. subconv membership mismatch after removal. Expected 3 clients, got "
+                  <> (show . length . pscMembers $ sub2)
+              )
+              (sort [alice1, charlie1, charlie2])
+              (sort $ pscMembers sub2)

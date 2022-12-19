@@ -688,6 +688,7 @@ rmUser ::
          MemberStore,
          ProposalStore,
          P.TinyLog,
+         SubConversationStore,
          TeamStore
        ]
       r,

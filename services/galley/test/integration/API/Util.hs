@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-matches -Wno-unused-imports #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -14,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.Util where
 
@@ -106,7 +107,7 @@ import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
 import Wire.API.Connection
-import Wire.API.Conversation
+import Wire.API.Conversation as C
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -995,6 +996,17 @@ getConvs u cids = do
       . zUser u
       . zConn "conn"
       . json (ListConversations (unsafeRange cids))
+
+getConvClients :: HasCallStack => UserId -> ConvId -> TestM ClientList
+getConvClients usr cnv = do
+  g <- viewGalley
+  responseJsonError
+    =<< get
+      ( g
+          . paths ["conversation", toByteString' cnv]
+          . zUser usr
+          . zConn "conn"
+      )
 
 getAllConvs :: HasCallStack => UserId -> TestM [Conversation]
 getAllConvs u = do
@@ -2857,17 +2869,17 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
 
 wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Epoch -> Notification -> IO ByteString
 wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
-  bs <- wsAssertBackendRemoveProposal fromUser convId kpref n
+  bs <- wsAssertBackendRemoveProposal fromUser (Conv <$> convId) kpref n
   let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @(Message 'MLSPlainText) bs
   let tbs = rmValue . msgTBS $ msg
   tbsMsgEpoch tbs @?= epoch
   pure bs
 
-wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
-wsAssertBackendRemoveProposal fromUser convId kpref n = do
+wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> KeyPackageRef -> Notification -> IO ByteString
+wsAssertBackendRemoveProposal fromUser cnvOrSubCnv kpref n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= convId
+  evtConv e @?= convOfConvOrSub <$> cnvOrSubCnv
   evtType e @?= MLSMessageAdd
   evtFrom e @?= fromUser
   let bs = getMLSMessageData (evtData e)

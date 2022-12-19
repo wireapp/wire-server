@@ -653,6 +653,7 @@ data ProposalAction = ProposalAction
     -- to know if a commit has one when processing external commits
     paExternalInit :: Any
   }
+  deriving (Show)
 
 instance Semigroup ProposalAction where
   ProposalAction add1 rem1 init1 <> ProposalAction add2 rem2 init2 =
@@ -770,70 +771,72 @@ processExternalCommit ::
   ProposalAction ->
   Maybe UpdatePath ->
   Sem r ()
-processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub) epoch $ do
-  let convOrSub = tUnqualified lConvOrSub
-  newKeyPackage <-
-    upLeaf
-      <$> note
-        (mlsProtocolError "External commits need an update path")
-        updatePath
-  when (paExternalInit action == mempty) $
-    throw . mlsProtocolError $
-      "The external commit is missing an external init proposal"
-  unless (paAdd action == mempty) $
-    throw . mlsProtocolError $
-      "The external commit must not have add proposals"
+processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath =
+  withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub) epoch $ do
+    let convOrSub = tUnqualified lConvOrSub
+    newKeyPackage <-
+      upLeaf
+        <$> note
+          (mlsProtocolError "External commits need an update path")
+          updatePath
+    when (paExternalInit action == mempty) $
+      throw . mlsProtocolError $
+        "The external commit is missing an external init proposal"
+    unless (paAdd action == mempty) $
+      throw . mlsProtocolError $
+        "The external commit must not have add proposals"
 
-  newRef <-
-    kpRef' newKeyPackage
-      & note (mlsProtocolError "An invalid key package in the update path")
+    newRef <-
+      kpRef' newKeyPackage
+        & note (mlsProtocolError "An invalid key package in the update path")
 
-  -- validate and update mapping in brig
-  eithCid <-
-    nkpresClientIdentity
-      <$$> validateAndAddKeyPackageRef
-        NewKeyPackage
-          { nkpConversation = tUntagged (convOfConvOrSub . idForConvOrSub <$> lConvOrSub),
-            nkpKeyPackage = KeyPackageData (rmRaw newKeyPackage)
-          }
-  cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
+    -- validate and update mapping in brig
+    eithCid <-
+      nkpresClientIdentity
+        <$$> validateAndAddKeyPackageRef
+          NewKeyPackage
+            { nkpConversation = tUntagged (convOfConvOrSub . idForConvOrSub <$> lConvOrSub),
+              nkpKeyPackage = KeyPackageData (rmRaw newKeyPackage)
+            }
+    cid <- either (\errMsg -> throw (mlsProtocolError ("Tried to add invalid KeyPackage: " <> errMsg))) pure eithCid
 
-  unless (cidQualifiedUser cid == qusr) $
-    throw . mlsProtocolError $
-      "The external commit attempts to add another user"
+    unless (cidQualifiedUser cid == qusr) $
+      throw . mlsProtocolError $
+        "The external commit attempts to add another user"
 
-  senderClient <- noteS @'MLSMissingSenderClient mSenderClient
+    senderClient <- noteS @'MLSMissingSenderClient mSenderClient
 
-  unless (ciClient cid == senderClient) $
-    throw . mlsProtocolError $
-      "The external commit attempts to add another client of the user, it must only add itself"
+    unless (ciClient cid == senderClient) $
+      throw . mlsProtocolError $
+        "The external commit attempts to add another client of the user, it must only add itself"
 
-  -- only members can join a subconversation
-  forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
-    unless (isClientMember cid (mcMembers mlsConv)) $
-      throwS @'MLSSubConvClientNotInParent
+    -- only members can join a subconversation
+    forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
+      unless (isClientMember cid (mcMembers mlsConv)) $
+        throwS @'MLSSubConvClientNotInParent
 
-  -- check if there is a key package ref in the remove proposal
-  remRef <-
-    if Map.null (paRemove action)
-      then pure Nothing
-      else do
-        (remCid, r) <- derefUser (paRemove action) qusr
-        unless (cidQualifiedUser cid == cidQualifiedUser remCid)
-          . throw
-          . mlsProtocolError
-          $ "The external commit attempts to remove a client from a user other than themselves"
-        pure (Just r)
+    -- check if there is a key package ref in the remove proposal
+    remRef <-
+      if Map.null (paRemove action)
+        then pure Nothing
+        else do
+          (remCid, r) <- derefUser (paRemove action) qusr
+          unless (cidQualifiedUser cid == cidQualifiedUser remCid)
+            . throw
+            . mlsProtocolError
+            $ "The external commit attempts to remove a client from a user other than themselves"
+          pure (Just r)
 
-  updateKeyPackageMapping lConvOrSub qusr (ciClient cid) remRef newRef
+    updateKeyPackageMapping lConvOrSub qusr (ciClient cid) remRef newRef
 
-  -- increment epoch number
-  lConvOrSub' <- for lConvOrSub incrementEpoch
+    -- increment epoch number
+    lConvOrSub' <- for lConvOrSub incrementEpoch
 
-  -- fetch backend remove proposals of the previous epoch
-  kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
-  -- requeue backend remove proposals for the current epoch
-  createAndSendRemoveProposals lConvOrSub' kpRefs qusr
+    -- fetch backend remove proposals of the previous epoch
+    kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
+
+    -- requeue backend remove proposals for the current epoch
+    createAndSendRemoveProposals lConvOrSub' kpRefs qusr
   where
     derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
     derefUser cm user = case Map.assocs cm of

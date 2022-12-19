@@ -50,6 +50,7 @@ conversationAPI =
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
+    <@> mkNamedAPI @"get-conversation-clients" getMLSClientListForConv
     <@> mkNamedAPI @"get-subconversation" (callsFed getSubConversation)
     <@> mkNamedAPI @"leave-subconversation" (callsFed leaveSubConversation)
     <@> mkNamedAPI @"delete-subconversation" (callsFed deleteSubConversation)

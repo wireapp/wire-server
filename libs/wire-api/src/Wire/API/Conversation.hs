@@ -47,6 +47,9 @@ module Wire.API.Conversation
     GroupId (..),
     mlsSelfConvId,
 
+    -- * List of MLS client ids
+    ClientList (..),
+
     -- * Conversation properties
     Access (..),
     AccessRole (..),
@@ -231,6 +234,19 @@ instance ToSchema (Versioned 'V2 ConversationMetadata) where
         .= object
           "ConversationMetadata"
           (conversationMetadataObjectSchema accessRolesSchemaV2)
+
+-- | Public-facing client list
+data ClientList = ClientList {clClients :: [ClientId]}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientList)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientList
+
+instance ToSchema ClientList where
+  schema =
+    object "ClientList" $
+      ClientList
+        <$> clClients
+          .= field "client_ids" (array schema)
 
 -- | Public-facing conversation type. Represents information that a
 -- particular user is allowed to see.

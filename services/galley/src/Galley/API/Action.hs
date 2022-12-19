@@ -130,6 +130,8 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationLeaveTag r =
     ( Members
         '[ MemberStore,
+           ProposalStore,
+           SubConversationStore,
            Error InternalError,
            Error NoChanges,
            ExternalAccess,
@@ -137,13 +139,26 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
            GundeckAccess,
            Input UTCTime,
            Input Env,
-           ProposalStore,
            TinyLog
          ]
         r
     )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
-    (Members '[MemberStore, Error NoChanges] r)
+    ( Members
+        '[ MemberStore,
+           SubConversationStore,
+           ProposalStore,
+           Input Env,
+           Input UTCTime,
+           ExternalAccess,
+           FederatorAccess,
+           GundeckAccess,
+           Error InternalError,
+           Error NoChanges,
+           TinyLog
+         ]
+        r
+    )
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
     (Members '[MemberStore, ErrorS 'ConvMemberNotFound] r)
   HasConversationActionEffects 'ConversationDeleteTag r =
@@ -292,6 +307,9 @@ type family PerformActionCalls tag where
   PerformActionCalls 'ConversationLeaveTag =
     ( CallsFed 'Galley "on-mls-message-sent"
     )
+  PerformActionCalls 'ConversationRemoveMembersTag =
+    ( CallsFed 'Galley "on-mls-message-sent"
+    )
   PerformActionCalls tag = ()
 
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
@@ -314,31 +332,16 @@ performAction tag origUser lconv action = do
       performConversationJoin origUser lconv action
     SConversationLeaveTag -> do
       let victims = [origUser]
-      E.deleteMembers (tUnqualified lcnv) (toUserList lconv victims)
-      -- update in-memory view of the conversation
-      let lconv' =
-            lconv <&> \c ->
-              foldQualified
-                lconv
-                ( \lu ->
-                    c
-                      { convLocalMembers =
-                          filter (\lm -> lmId lm /= tUnqualified lu) (convLocalMembers c)
-                      }
-                )
-                ( \ru ->
-                    c
-                      { convRemoteMembers =
-                          filter (\rm -> rmId rm /= ru) (convRemoteMembers c)
-                      }
-                )
-                origUser
+      lconv' <- traverse (convDeleteMembers (toUserList lconv victims)) lconv
+      -- send remove proposals in the MLS case
       traverse_ (removeUser lconv') victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
-      E.deleteMembers (tUnqualified lcnv) (toUserList lconv presentVictims)
+      traverse_ (convDeleteMembers (toUserList lconv presentVictims)) lconv
+      -- send remove proposals in the MLS case
+      traverse_ (removeUser lconv) presentVictims
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
       void $ ensureOtherMember lconv (cmuTarget action) conv
@@ -453,6 +456,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
            Input UTCTime,
            LegalHoldStore,
            MemberStore,
+           SubConversationStore,
            ProposalStore,
            SubConversationStore,
            TeamStore,

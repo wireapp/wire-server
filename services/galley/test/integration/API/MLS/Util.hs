@@ -255,6 +255,7 @@ data MLSState = MLSState
     mlsConvId :: Maybe (Qualified ConvOrSubConvId),
     mlsEpoch :: Word64
   }
+  deriving (Show)
 
 newtype MLSTest a = MLSTest {unMLSTest :: StateT MLSState TestM a}
   deriving newtype
@@ -309,6 +310,7 @@ data MessagePackage = MessagePackage
     mpWelcome :: Maybe ByteString,
     mpPublicGroupState :: Maybe ByteString
   }
+  deriving (Show)
 
 takeLastPrekeyNG :: HasCallStack => MLSTest LastPrekey
 takeLastPrekeyNG = do
@@ -504,7 +506,6 @@ createGroup cid qcs gid = do
 
 resetGroup :: ClientIdentity -> Qualified ConvOrSubConvId -> GroupId -> MLSTest ()
 resetGroup cid qcs gid = do
-  groupJSON <- mlscli cid ["group", "create", T.unpack (toBase64Text (unGroupId gid))] Nothing
   State.modify $ \s ->
     s
       { mlsGroupId = Just gid,
@@ -513,6 +514,11 @@ resetGroup cid qcs gid = do
         mlsEpoch = 0,
         mlsNewMembers = mempty
       }
+  resetClientGroup cid gid
+
+resetClientGroup :: ClientIdentity -> GroupId -> MLSTest ()
+resetClientGroup cid gid = do
+  groupJSON <- mlscli cid ["group", "create", T.unpack (toBase64Text (unGroupId gid))] Nothing
   setClientGroupState cid groupJSON
 
 getConvId :: MLSTest (Qualified ConvOrSubConvId)
@@ -886,7 +892,7 @@ consumeWelcome welcome = do
 consumeMessage :: HasCallStack => MessagePackage -> MLSTest ()
 consumeMessage msg = do
   mems <- State.gets mlsMembers
-  for_ (Set.delete (mpSender msg) mems) $ \cid ->
+  for_ (Set.delete (mpSender msg) mems) $ \cid -> do
     consumeMessage1 cid (mpMessage msg)
 
 consumeMessage1 :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()

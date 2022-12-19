@@ -104,7 +104,8 @@ rmClientH ::
          MemberStore,
          Error InternalError,
          ProposalStore,
-         P.TinyLog
+         P.TinyLog,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-client-removed",

@@ -399,6 +399,18 @@ type ConversationAPI =
                     )
            )
     :<|> Named
+           "get-conversation-clients"
+           ( Summary "Get mls conversation client list"
+               :> ZLocalUser
+               :> CanThrow 'ConvNotFound
+               :> "conversation"
+               :> Capture "cnv" ConvId
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "Clients" ClientList)
+           )
+    :<|> Named
            "get-subconversation"
            ( Summary "Get information about an MLS subconversation"
                :> MakesFederatedCall 'Galley "get-sub-conversation"
