@@ -45,10 +45,11 @@ import Util
 import Web.FormUrlEncoded
 import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer))
-import Wire.API.User (SelfProfile, User (userId))
+import Wire.API.User (SelfProfile, User (userId), userEmail)
+import Wire.API.User.Auth (CookieType (PersistentCookie))
 
-tests :: Manager -> Brig -> Opts -> TestTree
-tests m b o = do
+tests :: Manager -> Brig -> Nginz -> Opts -> TestTree
+tests m b n o = do
   testGroup "oauth" $
     [ test m "register new oauth client" $ testRegisterNewOAuthClient b,
       testGroup "create oauth code" $
@@ -69,6 +70,10 @@ tests m b o = do
           test m "get client info" $ testGetOAuthClientInfoAccessDeniedWhenDisabled o b,
           test m "create code" $ testCreateCodeOAuthClientAccessDeniedWhenDisabled o b,
           test m "create token" $ testCreateAccessTokenAccessDeniedWhenDisabled o b
+        ],
+      testGroup "accessing a resource" $
+        [ test m "success (internal," $ testAccessResourceSuccessInternal b,
+          test m "success (nginz)" $ testAccessResourceSuccessNginz b n
         ]
     ]
 
@@ -154,13 +159,6 @@ testCreateAccessTokenSuccess opts brig = do
     diffUTCTime expTime now > 0 @?= True
     let issuingTime = (\(NumericDate x) -> x) . fromMaybe (error "iat claim missing") . view claimIat $ claims
     abs (diffUTCTime issuingTime now) < 5 @?= True -- allow for some generous clock skew
-  get (brig . paths ["self"]) !!! const 401 === statusCode
-  response :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . zUser uid) <!! const 200 === statusCode
-  response' :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . oauth (oatAccessToken accessToken)) <!! const 200 === statusCode
-  liftIO $ response @?= response'
-
-oauth :: OAuthAccessToken -> Request -> Request
-oauth = header "Authorization" . toHeader . Bearer
 
 testCreateAccessTokenWrongClientId :: Brig -> Http ()
 testCreateAccessTokenWrongClientId brig = do
@@ -258,6 +256,41 @@ assertAccessDenied :: Assertions ()
 assertAccessDenied = do
   const 403 === statusCode
   const (Just "forbidden") === fmap Error.label . responseJsonMaybe
+
+testAccessResourceSuccessInternal :: Brig -> Http ()
+testAccessResourceSuccessInternal brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  -- should fail without any of the required headers
+  get (brig . paths ["self"]) !!! const 401 === statusCode
+  -- should succeed with Z-User header
+  response :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . zUser uid) <!! const 200 === statusCode
+  -- should succeed with Authorization header containing an OAuth bearer token
+  response' :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . bearer (oatAccessToken accessToken)) <!! const 200 === statusCode
+  liftIO $ response @?= response'
+
+testAccessResourceSuccessNginz :: Brig -> Nginz -> Http ()
+testAccessResourceSuccessNginz brig nginz = do
+  -- with ZAuth header
+  user <- createUser "alice" brig
+  let email = fromMaybe (error "no email") $ userEmail user
+  zauthToken <- decodeToken <$> (login nginz (defEmailLogin email) PersistentCookie <!! const 200 === statusCode)
+  get (nginz . path "/self" . header "Authorization" ("Bearer " <> toByteString' zauthToken)) !!! const 200 === statusCode
+
+  -- with OAuth header
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig (userId user) scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  oauthToken <- oatAccessToken <$> createOAuthAccessToken brig accessTokenRequest
+  get (nginz . paths ["self"] . bearer oauthToken) !!! const 200 === statusCode
+
+bearer :: ToHttpApiData a => a -> Request -> Request
+bearer = header "Authorization" . toHeader . Bearer
 
 -------------------------------------------------------------------------------
 -- Util
