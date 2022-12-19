@@ -20,23 +20,29 @@ module Galley.API.MLS.SubConversation where
 import Data.Id
 import Data.Qualified
 import Galley.API.Error
+import Galley.API.MLS
+import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Types
-import Galley.API.Util (getConversationAndCheckMembership)
+import Galley.API.MLS.Util
+import Galley.API.Util
+import Galley.App (Env)
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
-import Galley.Effects.ConversationStore (ConversationStore)
+import Galley.Effects
 import Galley.Effects.SubConversationStore
 import qualified Galley.Effects.SubConversationStore as Eff
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Federation.Error (federationNotImplemented)
+import Wire.API.Federation.Error (FederationError, federationNotImplemented)
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.SubConversation
 
 getSubConversation ::
@@ -83,7 +89,7 @@ getLocalSubConversation lusr lconv sconv = do
   unless (Data.convType c == RegularConv) $
     throwS @'MLSSubConvUnsupportedConvType
 
-  msub <- Eff.getSubConversation lconv sconv
+  msub <- Eff.getSubConversation (tUnqualified lconv) sconv
   sub <- case msub of
     Nothing -> do
       mlsMeta <- noteS @'ConvNotFound (mlsMetadata c)
@@ -96,7 +102,7 @@ getLocalSubConversation lusr lconv sconv = do
       setGroupIdForSubConversation groupId (tUntagged lconv) sconv
       let sub =
             SubConversation
-              { scParentConvId = lconv,
+              { scParentConvId = tUnqualified lconv,
                 scSubConvId = sconv,
                 scMLSData =
                   ConversationMLSData
@@ -108,4 +114,44 @@ getLocalSubConversation lusr lconv sconv = do
               }
       pure sub
     Just sub -> pure sub
-  pure (toPublicSubConv sub)
+  pure (toPublicSubConv (tUntagged (qualifyAs lusr sub)))
+
+getSubConversationGroupInfo ::
+  Members
+    '[ ConversationStore,
+       Error FederationError,
+       FederatorAccess,
+       Input Env,
+       MemberStore,
+       SubConversationStore
+     ]
+    r =>
+  Members MLSGroupInfoStaticErrors r =>
+  Local UserId ->
+  Qualified ConvId ->
+  SubConvId ->
+  Sem r OpaquePublicGroupState
+getSubConversationGroupInfo lusr qcnvId subconv = do
+  assertMLSEnabled
+  foldQualified
+    lusr
+    (getSubConversationGroupInfoFromLocalConv (tUntagged lusr) subconv)
+    (getGroupInfoFromRemoteConv lusr . fmap (flip SubConv subconv))
+    qcnvId
+
+getSubConversationGroupInfoFromLocalConv ::
+  Members
+    '[ ConversationStore,
+       SubConversationStore,
+       MemberStore
+     ]
+    r =>
+  Members MLSGroupInfoStaticErrors r =>
+  Qualified UserId ->
+  SubConvId ->
+  Local ConvId ->
+  Sem r OpaquePublicGroupState
+getSubConversationGroupInfoFromLocalConv qusr subConvId lcnvId = do
+  void $ getLocalConvForUser qusr lcnvId
+  getSubConversationPublicGroupState (tUnqualified lcnvId) subConvId
+    >>= noteS @'MLSMissingGroupInfo

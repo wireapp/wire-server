@@ -39,6 +39,7 @@ import qualified Data.Text as T
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.Conversation
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Propagate
@@ -599,10 +600,10 @@ instance Monoid ProposalAction where
   mempty = ProposalAction mempty mempty mempty
 
 paAddClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
-paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
+paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (uncurry Map.singleton (snd (qUnqualified quc)))}
 
 paRemoveClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
-paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
+paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (uncurry Map.singleton (snd (qUnqualified quc)))}
 
 paExternalInitPresent :: ProposalAction
 paExternalInitPresent = mempty {paExternalInit = Any True}
@@ -733,6 +734,13 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
     throw . mlsProtocolError $
       "The external commit attempts to add another client of the user, it must only add itself"
 
+  case convOrSub of
+    Conv _ -> pure ()
+    SubConv mlsConv _ ->
+      unless (isJust (cmLookupRef cid (mcMembers mlsConv))) $
+        throw . mlsProtocolError $
+          "Cannot join a subconversation before joining the parent conversation"
+
   -- check if there is a key package ref in the remove proposal
   remRef <-
     if Map.null (paRemove action)
@@ -748,29 +756,26 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
   updateKeyPackageMapping lConvOrSub qusr (ciClient cid) remRef newRef
 
   -- increment epoch number
-  setConvOrSubEpoch (idForConvOrSub convOrSub) (succ epoch)
-  -- fetch conversation or sub with new epoch
-  lConvOrSub' <- fetchConvOrSub qusr (idForConvOrSub <$> lConvOrSub)
-  let convOrSub' = tUnqualified lConvOrSub
+  lConvOrSub' <- for lConvOrSub incrementEpoch
 
   -- fetch backend remove proposals of the previous epoch
-  kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub $ convOrSub') epoch
+  kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
   -- requeue backend remove proposals for the current epoch
   removeClientsWithClientMap lConvOrSub' kpRefs qusr
   where
     derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
-    derefUser (Map.toList -> l) user = case l of
-      [(u, s)] -> do
+    derefUser cm user = case Map.assocs cm of
+      [(u, clients)] -> do
         unless (user == u) $
           throwS @'MLSClientSenderUserMismatch
-        ref <- snd <$> ensureSingleton s
+        ref <- ensureSingleton clients
         ci <- derefKeyPackage ref
         unless (cidQualifiedUser ci == user) $
           throwS @'MLSClientSenderUserMismatch
         pure (ci, ref)
       _ -> throwRemProposal
-    ensureSingleton :: Set a -> Sem r a
-    ensureSingleton (Set.toList -> l) = case l of
+    ensureSingleton :: Map k a -> Sem r a
+    ensureSingleton m = case Map.elems m of
       [e] -> pure e
       _ -> throwRemProposal
     throwRemProposal =
@@ -826,6 +831,7 @@ processInternalCommit ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Input (Local ())) r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member BrigAccess r,
     Member Resource r
   ) =>
@@ -841,20 +847,15 @@ processInternalCommit ::
 processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef commit = do
   let convOrSub = tUnqualified lConvOrSub
       mlsMeta = mlsMetaConvOrSub convOrSub
-  self <-
-    noteS @'ConvNotFound $
-      getConvMember
-        lConvOrSub
-        (mcConv . convOfConvOrSub $ convOrSub)
-        qusr
+      localSelf = isLocal lConvOrSub qusr
 
   withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub $ convOrSub) epoch $ do
     postponedKeyPackageRefUpdate <-
       if epoch == Epoch 0
         then do
-          let cType = cnvmType . convMetadata . mcConv . convOfConvOrSub $ convOrSub
-          case (self, cType, cmAssocs . membersConvOrSub $ convOrSub, convOrSub) of
-            (Left _, SelfConv, [], Conv _) -> do
+          let cType = cnvmType . mcMetadata . convOfConvOrSub $ convOrSub
+          case (localSelf, cType, cmAssocs . membersConvOrSub $ convOrSub, convOrSub) of
+            (True, SelfConv, [], Conv _) -> do
               creatorClient <- noteS @'MLSMissingSenderClient senderClient
               creatorRef <-
                 maybe
@@ -868,12 +869,12 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
                 (cnvmlsGroupId mlsMeta)
                 qusr
                 (Set.singleton (creatorClient, creatorRef))
-            (Left _, SelfConv, _, _) ->
+            (True, SelfConv, _, _) ->
               -- this is a newly created (sub)conversation, and it should
               -- contain exactly one client (the creator)
               throw (InternalErrorWithDescription "Unexpected creator client set")
-            (Left lm, _, [(qu, (creatorClient, _))], Conv _)
-              | qu == tUntagged (qualifyAs lConvOrSub (lmId lm)) -> do
+            (True, _, [(qu, (creatorClient, _))], Conv _)
+              | qu == qusr -> do
                   -- use update path as sender reference and if not existing fall back to sender
                   senderRef' <-
                     maybe
@@ -891,7 +892,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
                     Nothing
                     senderRef'
             -- remote clients cannot send the first commit
-            (Right _, _, _, _) -> throwS @'MLSStaleMessage
+            (False, _, _, _) -> throwS @'MLSStaleMessage
             (_, _, _, SubConv _ _) -> pure ()
             -- uninitialised conversations should contain exactly one client
             (_, _, _, Conv _) ->
@@ -926,7 +927,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
     -- update key package ref if necessary
     postponedKeyPackageRefUpdate
     -- increment epoch number
-    setConvOrSubEpoch (idForConvOrSub convOrSub) (succ epoch)
+    for_ lConvOrSub incrementEpoch
 
     pure updates
 
@@ -1071,7 +1072,7 @@ processProposal qusr lConvOrSub msg prop = do
   checkEpoch (msgEpoch msg) mlsMeta
   checkGroup (msgGroupId msg) mlsMeta
   let suiteTag = cnvmlsCipherSuite mlsMeta
-  let cid = convId . mcConv . convOfConvOrSub . tUnqualified $ lConvOrSub
+  let cid = mcId . convOfConvOrSub . tUnqualified $ lConvOrSub
 
   -- validate the proposal
   --
@@ -1206,7 +1207,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
   -- out all removals of that type, so that further checks and processing can
   -- be applied only to type 1 removals.
   removedUsers <- mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
-    \(qtarget, Set.map fst -> clients) -> runError @() $ do
+    \(qtarget, Map.keysSet -> clients) -> runError @() $ do
       -- fetch clients from brig
       clientInfo <- Set.map ciId <$> getClientInfo lconv qtarget ss
       -- if the clients being removed don't exist, consider this as a removal of
@@ -1225,7 +1226,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
     -- new user
     Nothing -> do
       -- final set of clients in the conversation
-      let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
+      let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
       -- get list of mls clients from brig
       clientInfo <- getClientInfo lconv qtarget ss
       let allClients = Set.map ciId clientInfo
@@ -1255,7 +1256,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
 
   -- add clients in the conversation state
   for_ newUserClients $ \(qtarget, newClients) -> do
-    addMLSClients (cnvmlsGroupId mlsMeta) qtarget newClients
+    addMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
 
   -- remove users from the conversation and send events
   removeEvents <- foldMap (removeMembers lconv) (nonEmpty membersToRemove)
@@ -1263,7 +1264,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
   -- Remove clients from the conversation state. This includes client removals
   -- of all types (see Note [client removal]).
   for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
-    removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.map fst clients)
+    removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Map.keysSet clients)
 
   pure (addEvents <> removeEvents)
   where
@@ -1273,7 +1274,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
       Set ClientId ->
       Sem r (Maybe (Qualified UserId))
     checkRemoval cm qtarget clients = do
-      let clientsInConv = Set.map fst (Map.findWithDefault mempty qtarget cm)
+      let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
       when (clients /= clientsInConv) $ do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch
@@ -1441,15 +1442,11 @@ storeGroupInfoBundle ::
   ConvOrSubConvId ->
   GroupInfoBundle ->
   Sem r ()
-storeGroupInfoBundle convOrSub bundle = case convOrSub of
-  Conv cid -> do
-    setPublicGroupState cid
-      . toOpaquePublicGroupState
-      . gipGroupState
-      $ bundle
-  SubConv _cid _subconvid -> do
-    -- FUTUREWORK: Write to subconversation
-    pure ()
+storeGroupInfoBundle convOrSub bundle = do
+  let gs = toOpaquePublicGroupState (gipGroupState bundle)
+  case convOrSub of
+    Conv cid -> setPublicGroupState cid gs
+    SubConv cid subconvid -> setSubConversationPublicGroupState cid subconvid (Just gs)
 
 fetchConvOrSub ::
   forall r.
@@ -1469,19 +1466,29 @@ fetchConvOrSub qusr convOrSubId = for convOrSubId $ \case
   SubConv convId sconvId -> do
     let lconv = qualifyAs convOrSubId convId
     c <- getMLSConv qusr lconv
-    subconv <- getSubConversation lconv sconvId >>= noteS @'ConvNotFound
+    subconv <- getSubConversation convId sconvId >>= noteS @'ConvNotFound
     pure (SubConv c subconv)
   where
     getMLSConv :: Qualified UserId -> Local ConvId -> Sem r MLSConversation
-    getMLSConv u lconv = do
-      c <- getLocalConvForUser u lconv
-      meta <- mlsMetadata c & noteS @'ConvNotFound
-      cm <- lookupMLSClients (cnvmlsGroupId meta)
-      pure $ MLSConversation c meta cm
+    getMLSConv u =
+      getLocalConvForUser u
+        >=> mkMLSConversation
+        >=> noteS @'ConvNotFound
 
-setConvOrSubEpoch :: Members '[ConversationStore] r => ConvOrSubConvId -> Epoch -> Sem r ()
-setConvOrSubEpoch (Conv cid) epoch =
-  setConversationEpoch cid epoch
-setConvOrSubEpoch (SubConv _ _) _epoch =
-  -- FUTUREWORK: Write to subconversation
-  pure ()
+incrementEpoch ::
+  Members
+    '[ ConversationStore,
+       SubConversationStore
+     ]
+    r =>
+  ConvOrSubConv ->
+  Sem r ConvOrSubConv
+incrementEpoch (Conv c) = do
+  let epoch' = succ (cnvmlsEpoch (mcMLSData c))
+  setConversationEpoch (mcId c) epoch'
+  pure $ Conv c {mcMLSData = (mcMLSData c) {cnvmlsEpoch = epoch'}}
+incrementEpoch (SubConv c s) = do
+  let epoch' = succ (cnvmlsEpoch (scMLSData s))
+  setSubConversationEpoch (scParentConvId s) (scSubConvId s) epoch'
+  let s' = s {scMLSData = (scMLSData s) {cnvmlsEpoch = epoch'}}
+  pure (SubConv c s')

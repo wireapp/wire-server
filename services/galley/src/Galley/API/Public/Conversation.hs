@@ -49,6 +49,7 @@ conversationAPI =
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
     <@> mkNamedAPI @"get-subconversation" getSubConversation
+    <@> mkNamedAPI @"get-subconversation-group-info" getSubConversationGroupInfo
     <@> mkNamedAPI @"create-one-to-one-conversation@v2" createOne2OneConversation
     <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified

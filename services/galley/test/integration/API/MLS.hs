@@ -208,7 +208,13 @@ tests s =
       testGroup
         "SubConversation"
         [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
-          test s "get subconversation of Proteus conv - 404" (testCreateSubConv False)
+          test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
+          test s "join subconversation with an external commit bundle" testJoinSubConv,
+          test s "join subconversation with a client that is not in the main conv" testJoinSubNonMemberClient,
+          test s "add another client to a subconversation" testAddClientSubConv,
+          test s "remove another client from a subconversation" testRemoveClientSubConv,
+          test s "join remote subconversation" testJoinRemoteSubConv,
+          test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv
         ]
     ]
 
@@ -372,7 +378,7 @@ testAddUserWithBundle = do
 
   returnedGS <-
     fmap responseBody $
-      getGroupInfo (qUnqualified alice) qcnv
+      getGroupInfo (qUnqualified alice) (fmap Conv qcnv)
         <!! const 200 === statusCode
   liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpPublicGroupState commit))
   liftIO $ mpPublicGroupState commit @=? LBS.toStrict <$> returnedGS
@@ -990,8 +996,8 @@ testExternalCommitNotMember = do
 
     pgs <-
       LBS.toStrict . fromJust . responseBody
-        <$> getGroupInfo (ciUser alice1) qcnv
-    mp <- createExternalCommit bob1 (Just pgs) qcnv
+        <$> getGroupInfo (ciUser alice1) (fmap Conv qcnv)
+    mp <- createExternalCommit bob1 (Just pgs) (fmap Conv qcnv)
     bundle <- createBundle mp
     postCommitBundle (mpSender mp) bundle
       !!! const 404 === statusCode
@@ -1007,7 +1013,9 @@ testExternalCommitSameClient = do
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     let rejoiner = alice1
-    ecEvents <- createExternalCommit rejoiner Nothing qcnv >>= sendAndConsumeCommitBundle
+    ecEvents <-
+      createExternalCommit rejoiner Nothing (fmap Conv qcnv)
+        >>= sendAndConsumeCommitBundle
     liftIO $
       assertBool "No events after external commit expected" (null ecEvents)
 
@@ -1025,7 +1033,9 @@ testExternalCommitNewClient = do
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
     nc <- createMLSClient bob
-    ecEvents <- createExternalCommit nc Nothing qcnv >>= sendAndConsumeCommitBundle
+    ecEvents <-
+      createExternalCommit nc Nothing (fmap Conv qcnv)
+        >>= sendAndConsumeCommitBundle
     liftIO $
       assertBool "No events after external commit expected" (null ecEvents)
 
@@ -1075,7 +1085,7 @@ testExternalCommitNewClientResendBackendProposal = do
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
         void . wsAssertAddProposal bob qcnv
 
-      mp <- createExternalCommit bob4 Nothing qcnv
+      mp <- createExternalCommit bob4 Nothing (fmap Conv qcnv)
       ecEvents <- sendAndConsumeCommitBundle mp
       liftIO $
         assertBool "No events after external commit expected" (null ecEvents)
@@ -1941,7 +1951,7 @@ testGetGroupInfoOfLocalConv = do
     gs <- assertJust (mpPublicGroupState commit)
     returnedGS <-
       fmap responseBody $
-        getGroupInfo (qUnqualified alice) qcnv
+        getGroupInfo (qUnqualified alice) (fmap Conv qcnv)
           <!! const 200 === statusCode
     liftIO $ Just gs @=? LBS.toStrict <$> returnedGS
 
@@ -1975,10 +1985,10 @@ testGetGroupInfoOfRemoteConv = do
     (_, reqs) <- withTempMockFederator' mock $ do
       res <-
         fmap responseBody $
-          getGroupInfo (qUnqualified bob) qcnv
+          getGroupInfo (qUnqualified bob) (fmap Conv qcnv)
             <!! const 200 === statusCode
 
-      getGroupInfo (qUnqualified charlie) qcnv
+      getGroupInfo (qUnqualified charlie) (fmap Conv qcnv)
         !!! const 404 === statusCode
 
       liftIO $ res @?= Just (LBS.fromStrict fakeGroupState)
@@ -2021,7 +2031,7 @@ testFederatedGetGroupInfo = do
             @"query-group-info"
             fedGalleyClient
             (ciDomain bob1)
-            (GetGroupInfoRequest (qUnqualified qcnv) (qUnqualified bob))
+            (GetGroupInfoRequest (Conv (qUnqualified qcnv)) (qUnqualified bob))
 
         liftIO $ case resp of
           GetGroupInfoResponseError err -> assertFailure ("Unexpected error: " <> show err)
@@ -2034,7 +2044,7 @@ testFederatedGetGroupInfo = do
             @"query-group-info"
             fedGalleyClient
             (ciDomain bob1)
-            (GetGroupInfoRequest (qUnqualified qcnv) (qUnqualified charlie))
+            (GetGroupInfoRequest (Conv (qUnqualified qcnv)) (qUnqualified charlie))
 
         liftIO $ case resp of
           GetGroupInfoResponseError err ->
@@ -2279,7 +2289,7 @@ getGroupInfoDisabled = do
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
     withMLSDisabled $
-      getGroupInfo (qUnqualified alice) qcnv
+      getGroupInfo (qUnqualified alice) (fmap Conv qcnv)
         !!! assertMLSNotEnabled
 
 testCreateSubConv :: Bool -> TestM ()
@@ -2295,8 +2305,54 @@ testCreateSubConv parentIsMLSConv = do
         else
           cnvQualifiedId
             <$> liftTest (postConvQualified (qUnqualified alice) defNewProteusConv >>= responseJsonError)
-    let sconv = SubConvId "call"
+    let sconv = SubConvId "conference"
     liftTest $
       getSubConv (qUnqualified alice) qcnv sconv
         !!! do
           const (if parentIsMLSConv then 200 else 404) === statusCode
+
+testJoinSubConv :: TestM ()
+testJoinSubConv = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $
+    do
+      [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+      traverse_ uploadNewKeyPackage [bob1, bob2]
+      (_, qcnv) <- setupMLSGroup alice1
+      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+      let subId = SubConvId "conference"
+      sub <-
+        liftTest $
+          responseJsonError
+            =<< getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
+              <!! const 200 === statusCode
+
+      resetGroup bob1 (pscGroupId sub)
+
+      -- bob adds his first client to the subconversation
+      void $
+        createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
+
+      -- now alice joins with her own client
+      void $
+        createExternalCommit alice1 Nothing (fmap (flip SubConv subId) qcnv)
+          >>= sendAndConsumeCommitBundle
+
+-- FUTUREWORK: implement the following tests
+
+testJoinSubNonMemberClient :: TestM ()
+testJoinSubNonMemberClient = pure ()
+
+testAddClientSubConv :: TestM ()
+testAddClientSubConv = pure ()
+
+testRemoveClientSubConv :: TestM ()
+testRemoveClientSubConv = pure ()
+
+testJoinRemoteSubConv :: TestM ()
+testJoinRemoteSubConv = pure ()
+
+testRemoteUserJoinSubConv :: TestM ()
+testRemoteUserJoinSubConv = pure ()

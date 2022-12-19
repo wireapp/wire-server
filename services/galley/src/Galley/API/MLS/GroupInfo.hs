@@ -37,6 +37,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.SubConversation
 
 type MLSGroupInfoStaticErrors =
   '[ ErrorS 'ConvNotFound,
@@ -62,7 +63,7 @@ getGroupInfo lusr qcnvId = do
   foldQualified
     lusr
     (getGroupInfoFromLocalConv . tUntagged $ lusr)
-    (getGroupInfoFromRemoteConv lusr)
+    (getGroupInfoFromRemoteConv lusr . fmap Conv)
     qcnvId
 
 getGroupInfoFromLocalConv ::
@@ -84,7 +85,7 @@ getGroupInfoFromRemoteConv ::
   Members '[Error FederationError, FederatorAccess] r =>
   Members MLSGroupInfoStaticErrors r =>
   Local UserId ->
-  Remote ConvId ->
+  Remote ConvOrSubConvId ->
   Sem r OpaquePublicGroupState
 getGroupInfoFromRemoteConv lusr rcnv = do
   let getRequest =

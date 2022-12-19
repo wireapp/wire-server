@@ -1,0 +1,1 @@
+Add `GET /conversations/:domain/:cid/subconversations/:id/groupinfo` endpoint to fetch the group info object for a subconversation

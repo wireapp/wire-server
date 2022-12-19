@@ -351,9 +351,9 @@ data MLSMessageResponse
   deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)
 
 data GetGroupInfoRequest = GetGroupInfoRequest
-  { -- | Conversation is assumed to be owned by the target domain, this allows
-    -- us to protect against relay attacks
-    ggireqConv :: ConvId,
+  { -- | Conversation (or subconversation) is assumed to be owned by the target
+    -- domain, this allows us to protect against relay attacks
+    ggireqConv :: ConvOrSubConvId,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
     ggireqSender :: UserId

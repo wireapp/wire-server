@@ -22,26 +22,36 @@ import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
-import qualified Data.Set as Set
-import Galley.Data.Conversation
-import qualified Galley.Data.Conversation as Data
+import Galley.Types.Conversations.Members
 import Imports
+import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.SubConversation
 
-type ClientMap = Map (Qualified UserId) (Set (ClientId, KeyPackageRef))
+type ClientMap = Map (Qualified UserId) (Map ClientId KeyPackageRef)
 
 mkClientMap :: [(Domain, UserId, ClientId, KeyPackageRef)] -> ClientMap
 mkClientMap = foldr addEntry mempty
   where
     addEntry :: (Domain, UserId, ClientId, KeyPackageRef) -> ClientMap -> ClientMap
     addEntry (dom, usr, c, kpr) =
-      Map.insertWith (<>) (Qualified usr dom) (Set.singleton (c, kpr))
+      Map.insertWith (<>) (Qualified usr dom) (Map.singleton c kpr)
+
+cmLookupRef :: ClientIdentity -> ClientMap -> Maybe KeyPackageRef
+cmLookupRef cid cm = do
+  clients <- Map.lookup (cidQualifiedUser cid) cm
+  Map.lookup (ciClient cid) clients
+
+isClientMember :: ClientIdentity -> ClientMap -> Bool
+isClientMember ci = isJust . cmLookupRef ci
 
 cmAssocs :: ClientMap -> [(Qualified UserId, (ClientId, KeyPackageRef))]
-cmAssocs cm = Map.assocs cm >>= traverse toList
+cmAssocs cm = do
+  (quid, clients) <- Map.assocs cm
+  (clientId, ref) <- Map.assocs clients
+  pure (quid, (clientId, ref))
 
 -- | Inform a handler for 'POST /conversations/list-ids' if the MLS global team
 -- conversation and the MLS self-conversation should be included in the
@@ -50,25 +60,28 @@ data ListGlobalSelfConvs = ListGlobalSelf | DoNotListGlobalSelf
   deriving (Eq)
 
 data MLSConversation = MLSConversation
-  { mcConv :: Conversation,
+  { mcId :: ConvId,
+    mcMetadata :: ConversationMetadata,
     mcMLSData :: ConversationMLSData,
+    mcLocalMembers :: [LocalMember],
+    mcRemoteMembers :: [RemoteMember],
     mcMembers :: ClientMap
   }
   deriving (Show)
 
 data SubConversation = SubConversation
-  { scParentConvId :: Local ConvId,
+  { scParentConvId :: ConvId,
     scSubConvId :: SubConvId,
     scMLSData :: ConversationMLSData,
     scMembers :: ClientMap
   }
   deriving (Eq, Show)
 
-toPublicSubConv :: SubConversation -> PublicSubConversation
-toPublicSubConv SubConversation {..} =
+toPublicSubConv :: Qualified SubConversation -> PublicSubConversation
+toPublicSubConv (Qualified (SubConversation {..}) domain) =
   let members = fmap (\(quid, (cid, _kp)) -> mkClientIdentity quid cid) (cmAssocs scMembers)
    in PublicSubConversation
-        { pscParentConvId = tUntagged scParentConvId,
+        { pscParentConvId = Qualified scParentConvId domain,
           pscSubConvId = scSubConvId,
           pscGroupId = cnvmlsGroupId scMLSData,
           pscEpoch = cnvmlsEpoch scMLSData,
@@ -91,5 +104,5 @@ convOfConvOrSub (Conv c) = c
 convOfConvOrSub (SubConv c _) = c
 
 idForConvOrSub :: ConvOrSubConv -> ConvOrSubConvId
-idForConvOrSub (Conv c) = Conv (Data.convId . mcConv $ c)
-idForConvOrSub (SubConv c s) = SubConv (Data.convId . mcConv $ c) (scSubConvId s)
+idForConvOrSub (Conv c) = Conv (mcId c)
+idForConvOrSub (SubConv c s) = SubConv (mcId c) (scSubConvId s)
