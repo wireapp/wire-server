@@ -467,12 +467,8 @@ createSubConv qcnv creator name = do
       responseJsonError
         =<< getSubConv (ciUser creator) qcnv subId
           <!! const 200 === statusCode
-
   resetGroup creator (pscGroupId sub)
-
-  void $
-    createPendingProposalCommit creator >>= sendAndConsumeCommitBundle
-
+  void $ createPendingProposalCommit creator >>= sendAndConsumeCommitBundle
   pure sub
 
 -- | Create a local group only without a conversation. This simulates creating

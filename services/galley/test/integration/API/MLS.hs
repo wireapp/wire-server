@@ -2371,19 +2371,12 @@ testSendMessageSubConv = do
 
       let subname = "conference"
       void $ createSubConv qcnv bob1 subname
-
       let qcs = convsub qcnv (Just subname)
 
-      void $
-        createExternalCommit alice1 Nothing qcs
-          >>= sendAndConsumeCommitBundle
-
-      void $
-        createExternalCommit bob2 Nothing qcs
-          >>= sendAndConsumeCommitBundle
+      void $ createExternalCommit alice1 Nothing qcs >>= sendAndConsumeCommitBundle
+      void $ createExternalCommit bob2 Nothing qcs >>= sendAndConsumeCommitBundle
 
       message <- createApplicationMessage alice1 "some text"
-
       mlsBracket [bob1, bob2] $ \wss -> do
         events <- sendAndConsumeMessage message
         liftIO $ events @?= []
