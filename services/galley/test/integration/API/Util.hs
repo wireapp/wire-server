@@ -72,6 +72,7 @@ import Data.UUID.V4
 import Federator.MockServer (FederatedRequest (..))
 import qualified Federator.MockServer as Mock
 import GHC.TypeLits (KnownSymbol)
+import Galley.API.MLS.Types
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
@@ -119,6 +120,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
@@ -1666,15 +1668,15 @@ wsAssertMLSWelcome u welcome n = do
 
 wsAssertMLSMessage ::
   HasCallStack =>
-  Qualified ConvId ->
+  Qualified ConvOrSubConvId ->
   Qualified UserId ->
   ByteString ->
   Notification ->
   IO ()
-wsAssertMLSMessage conv u message n = do
+wsAssertMLSMessage qcs u message n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  assertMLSMessageEvent conv u message e
+  assertMLSMessageEvent qcs u message e
 
 wsAssertClientRemoved ::
   HasCallStack =>
@@ -1702,13 +1704,17 @@ wsAssertClientAdded cid n = do
 
 assertMLSMessageEvent ::
   HasCallStack =>
-  Qualified ConvId ->
+  Qualified ConvOrSubConvId ->
   Qualified UserId ->
   ByteString ->
   Conv.Event ->
   IO ()
-assertMLSMessageEvent conv u message e = do
-  evtConv e @?= conv
+assertMLSMessageEvent qcs u message e = do
+  evtConv e @?= convOfConvOrSub <$> qcs
+  case qUnqualified qcs of
+    Conv _ -> pure ()
+    SubConv _ subconvId ->
+      evtSubConv e @?= Just subconvId
   evtType e @?= MLSMessageAdd
   evtFrom e @?= u
   evtData e @?= EdMLSMessage message

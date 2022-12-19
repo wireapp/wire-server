@@ -214,7 +214,8 @@ tests s =
           test s "add another client to a subconversation" testAddClientSubConv,
           test s "remove another client from a subconversation" testRemoveClientSubConv,
           test s "join remote subconversation" testJoinRemoteSubConv,
-          test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv
+          test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
+          test s "send an application message in a subconversation" testSendMessageSubConv
         ]
     ]
 
@@ -1090,7 +1091,7 @@ testExternalCommitNewClientResendBackendProposal = do
       liftIO $
         assertBool "No events after external commit expected" (null ecEvents)
       WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $
-        wsAssertMLSMessage qcnv bob (mpMessage mp)
+        wsAssertMLSMessage (convsub qcnv Nothing) bob (mpMessage mp)
 
       -- The backend proposals for bob2 are replayed, but the external add
       -- proposal for bob3 has to replayed by the client and is thus not found
@@ -1115,7 +1116,7 @@ testAppMessage = do
       liftIO $ events @?= []
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
-          wsAssertMLSMessage qcnv alice (mpMessage message)
+          wsAssertMLSMessage (convsub qcnv Nothing) alice (mpMessage message)
 
 testAppMessage2 :: TestM ()
 testAppMessage2 = do
@@ -1146,7 +1147,7 @@ testAppMessage2 = do
 
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
-          wsAssertMLSMessage conversation bob (mpMessage message)
+          wsAssertMLSMessage (convsub conversation Nothing) bob (mpMessage message)
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
@@ -1196,8 +1197,8 @@ testRemoteToRemote = do
     void $ runFedClient @"on-mls-message-sent" fedGalleyClient bdom rm
     liftIO $ do
       -- alice should receive the message on her first client
-      WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage qconv qbob txt n
-      WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage qconv qbob txt n
+      WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage (convsub qconv Nothing) qbob txt n
+      WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage (convsub qconv Nothing) qbob txt n
 
       -- eve should not receive the message
       WS.assertNoEvent (1 # Second) [wsE]
@@ -1259,7 +1260,7 @@ testRemoteToLocal = do
       liftIO $ do
         resp @?= MLSMessageResponseUpdates []
         WS.assertMatch_ (5 # Second) ws $
-          wsAssertMLSMessage qcnv bob (mpMessage message)
+          wsAssertMLSMessage (convsub qcnv Nothing) bob (mpMessage message)
 
 testRemoteToLocalWrongConversation :: TestM ()
 testRemoteToLocalWrongConversation = do
@@ -1462,7 +1463,7 @@ testExternalAddProposal = do
         void $ sendAndConsumeMessage msg
         liftTest $
           WS.assertMatchN_ (5 # Second) wss $
-            wsAssertMLSMessage qcnv alice (mpMessage msg)
+            wsAssertMLSMessage (convsub qcnv Nothing) alice (mpMessage msg)
 
     -- bob adds charlie
     putOtherMemberQualified
@@ -2356,3 +2357,36 @@ testJoinRemoteSubConv = pure ()
 
 testRemoteUserJoinSubConv :: TestM ()
 testRemoteUserJoinSubConv = pure ()
+
+testSendMessageSubConv :: TestM ()
+testSendMessageSubConv = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $
+    do
+      [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+      traverse_ uploadNewKeyPackage [bob1, bob2]
+      (_, qcnv) <- setupMLSGroup alice1
+      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+      let subname = "conference"
+      void $ createSubConv qcnv bob1 subname
+
+      let qcs = convsub qcnv (Just subname)
+
+      void $
+        createExternalCommit alice1 Nothing qcs
+          >>= sendAndConsumeCommitBundle
+
+      void $
+        createExternalCommit bob2 Nothing qcs
+          >>= sendAndConsumeCommitBundle
+
+      message <- createApplicationMessage alice1 "some text"
+
+      mlsBracket [bob1, bob2] $ \wss -> do
+        events <- sendAndConsumeMessage message
+        liftIO $ events @?= []
+        liftIO $
+          WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
+            wsAssertMLSMessage qcs alice (mpMessage message) n

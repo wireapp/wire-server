@@ -43,6 +43,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.SubConversation
 import Wire.API.Message
 
 -- | Propagate a message.
@@ -68,8 +69,13 @@ propagateMessage qusr lConvOrSub con raw = do
         b <- maybeToList $ newBotMember m
         pure (lmId m, b)
       mm = defMessageMetadata
-  let qcnv = mcId . convOfConvOrSub <$> tUntagged lConvOrSub
-      e = Event qcnv Nothing qusr now $ EdMLSMessage raw
+  let qt =
+        tUntagged lConvOrSub <&> \case
+          Conv c -> (mcId c, Nothing)
+          SubConv c s -> (mcId c, Just (scSubConvId s))
+      qcnv = fst <$> qt
+      sconv = snd (qUnqualified qt)
+      e = Event qcnv sconv qusr now $ EdMLSMessage raw
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush mlsConv botMap con mm (u, c) e
   runMessagePush mlsConv (Just qcnv) $
