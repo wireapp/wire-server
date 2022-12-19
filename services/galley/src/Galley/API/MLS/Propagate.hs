@@ -71,7 +71,7 @@ propagateMessage qusr lconv cm con raw = do
   now <- input @UTCTime
   let lcnv = fmap Data.convId lconv
       qcnv = tUntagged lcnv
-      e = Event qcnv qusr now $ EdMLSMessage raw
+      e = Event qcnv Nothing qusr now $ EdMLSMessage raw
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
   runMessagePush lconv (Just qcnv) $

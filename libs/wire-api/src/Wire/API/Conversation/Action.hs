@@ -47,6 +47,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action.Tag
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.API.MLS.SubConversation
 import Wire.Arbitrary (Arbitrary (..))
 
 -- | We use this type family instead of a sum type to be able to define
@@ -143,9 +144,10 @@ conversationActionToEvent ::
   UTCTime ->
   Qualified UserId ->
   Qualified ConvId ->
+  Maybe SubConvId ->
   ConversationAction tag ->
   Event
-conversationActionToEvent tag now quid qcnv action =
+conversationActionToEvent tag now quid qcnv subconv action =
   let edata = case tag of
         SConversationJoinTag ->
           let ConversationJoin newMembers role = action
@@ -163,4 +165,4 @@ conversationActionToEvent tag now quid qcnv action =
         SConversationMessageTimerUpdateTag -> EdConvMessageTimerUpdate action
         SConversationReceiptModeUpdateTag -> EdConvReceiptModeUpdate action
         SConversationAccessDataTag -> EdConvAccessUpdate action
-   in Event qcnv quid now edata
+   in Event qcnv subconv quid now edata

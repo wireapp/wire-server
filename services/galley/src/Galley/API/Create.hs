@@ -443,7 +443,7 @@ createConnectConversation lusr conn j = do
     create lcnv nc = do
       c <- E.createConversation lcnv nc
       now <- input
-      let e = Event (tUntagged lcnv) (tUntagged lusr) now (EdConnect j)
+      let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
       notifyCreatedConversation Nothing lusr conn c
       for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         E.push1 $
@@ -483,7 +483,7 @@ createConnectConversation lusr conn j = do
               pure . Just $ fromRange x
             Nothing -> pure $ Data.convName conv
           t <- input
-          let e = Event (tUntagged lcnv) (tUntagged lusr) t (EdConnect j)
+          let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) t (EdConnect j)
           for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
             E.push1 $
               p
@@ -561,7 +561,7 @@ notifyCreatedConversation dtime lusr conn c = do
     toPush t m = do
       let lconv = qualifyAs lusr (Data.convId c)
       c' <- conversationView (qualifyAs lusr (lmId m)) c
-      let e = Event (tUntagged lconv) (tUntagged lusr) t (EdConversation c')
+      let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t (EdConversation c')
       pure $
         newPushLocal1 ListComplete (tUnqualified lusr) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn

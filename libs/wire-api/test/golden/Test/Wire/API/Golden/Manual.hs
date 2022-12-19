@@ -24,6 +24,7 @@ import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.Contact
 import Test.Wire.API.Golden.Manual.ConvIdsPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
+import Test.Wire.API.Golden.Manual.ConversationEvent
 import Test.Wire.API.Golden.Manual.ConversationPagingState
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateScimToken
@@ -66,6 +67,10 @@ tests =
           [ (testObject_ConversationCoverView_1, "testObject_ConversationCoverView_1.json"),
             (testObject_ConversationCoverView_2, "testObject_ConversationCoverView_2.json"),
             (testObject_ConversationCoverView_3, "testObject_ConversationCoverView_3.json")
+          ],
+      testGroup "ConversationEvent" $
+        testObjects
+          [ (testObject_Event_conversation_manual_1, "testObject_Event_conversation_manual_1.json")
           ],
       testGroup "GetPaginatedConversationIds" $
         testObjects

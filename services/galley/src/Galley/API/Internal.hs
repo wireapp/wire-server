@@ -717,6 +717,7 @@ rmUser lusr conn = do
               let e =
                     Event
                       (tUntagged (qualifyAs lusr (Data.convId c)))
+                      Nothing
                       (tUntagged lusr)
                       now
                       (EdMembersLeave (QualifiedUserIdList [qUser]))
