@@ -33,10 +33,11 @@ import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
 import Wire.Sem.Concurrency
+import Wire.API.Federation.API
 
 sitemap ::
   forall r p.
-  Members
+  (Members
     '[ BlacklistPhonePrefixStore,
        BlacklistStore,
        GalleyProvider,
@@ -45,7 +46,7 @@ sitemap ::
        PasswordResetStore,
        UserPendingActivationStore p
      ]
-    r =>
+    r, CallsFed 'Brig "on-user-deleted-connections") =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Public.sitemap

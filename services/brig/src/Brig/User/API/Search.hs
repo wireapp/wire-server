@@ -56,6 +56,7 @@ import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
+import Wire.API.Federation.API
 
 routesInternal :: Routes a (Handler r) ()
 routesInternal = do
@@ -85,7 +86,7 @@ routesInternal = do
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
 search ::
-  Members '[GalleyProvider] r =>
+  (Members '[GalleyProvider] r, CallsFed 'Brig "get-users-by-ids", CallsFed 'Brig "search-users") =>
   UserId ->
   Text ->
   Maybe Domain ->
@@ -98,7 +99,7 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
     then searchLocally searcherId searchTerm maybeMaxResults
     else searchRemotely queryDomain searchTerm
 
-searchRemotely :: Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
+searchRemotely :: CallsFed 'Brig "search-users" => Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
 searchRemotely domain searchTerm = do
   lift . Log.info $
     msg (val "searchRemotely")
@@ -120,7 +121,7 @@ searchRemotely domain searchTerm = do
 
 searchLocally ::
   forall r.
-  Members '[GalleyProvider] r =>
+  (Members '[GalleyProvider] r, CallsFed 'Brig "get-users-by-ids") =>
   UserId ->
   Text ->
   Maybe (Range 1 500 Int32) ->

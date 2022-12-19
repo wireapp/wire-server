@@ -84,6 +84,7 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.Sso
+import Wire.API.Federation.API
 
 sendLoginCode ::
   ( MonadClient m,
@@ -134,7 +135,7 @@ lookupLoginCode phone =
 
 login ::
   forall r.
-  Members '[GalleyProvider] r =>
+  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
@@ -251,8 +252,7 @@ renewAccess ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m
-  ) =>
+    MonadUnliftIO m, CallsFed 'Brig "on-user-deleted-connections") =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   Maybe ClientId ->
@@ -289,8 +289,7 @@ catchSuspendInactiveUser ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    Log.MonadLogger m
-  ) =>
+    Log.MonadLogger m, CallsFed 'Brig "on-user-deleted-connections") =>
   UserId ->
   e ->
   ExceptT e m ()
@@ -321,8 +320,7 @@ newAccess ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m
-  ) =>
+    MonadUnliftIO m, CallsFed 'Brig "on-user-deleted-connections") =>
   UserId ->
   Maybe ClientId ->
   CookieType ->
@@ -442,8 +440,7 @@ ssoLogin ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m
-  ) =>
+    MonadUnliftIO m, CallsFed 'Brig "on-user-deleted-connections") =>
   SsoLogin ->
   CookieType ->
   ExceptT LoginError m (Access ZAuth.User)
@@ -463,7 +460,7 @@ ssoLogin (SsoLogin uid label) typ = do
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
-  Members '[GalleyProvider] r =>
+  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
   LegalHoldLogin ->
   CookieType ->
   ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)

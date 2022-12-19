@@ -1,4 +1,5 @@
 {-# LANGUAGE NumericUnderscores #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -78,6 +79,11 @@ import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import qualified Wire.Sem.Paging as P
+import Wire.API.Federation.API
+
+-- | Orphan instance to satisfy 'CallsFeds' constraints, which we otherwise use
+-- to track federation calls across the codebase.
+instance CallsFed comp name
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -114,7 +120,7 @@ run o = do
     endpoint = brig o
     server e = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (e ^. applog) (e ^. metrics)
 
-mkApp :: Opts -> IO (Wai.Application, Env)
+mkApp :: (HasCallStack) => Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
   pure (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)

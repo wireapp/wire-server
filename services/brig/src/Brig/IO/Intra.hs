@@ -47,6 +47,7 @@ module Brig.IO.Intra
   )
 where
 
+import Wire.API.Federation.API
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Bilge.Retry
@@ -117,7 +118,8 @@ onUserEvent ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -249,7 +251,8 @@ dispatchNotifications ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -285,6 +288,7 @@ notifyUserDeletionLocals ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections",
     MonadClient m
   ) =>
   UserId ->
@@ -299,7 +303,8 @@ notifyUserDeletionRemotes ::
   forall m.
   ( MonadReader Env m,
     MonadClient m,
-    MonadLogger m
+    MonadLogger m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   m ()

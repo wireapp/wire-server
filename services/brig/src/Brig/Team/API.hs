@@ -79,6 +79,7 @@ import Wire.API.Team.Role
 import qualified Wire.API.Team.Role as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
+import Wire.API.Federation.API
 
 servantAPI ::
   Members
@@ -97,12 +98,12 @@ servantAPI =
     :<|> Named @"get-team-size" teamSizePublic
 
 routesInternal ::
-  Members
+  (Members
     '[ BlacklistStore,
        GalleyProvider,
        UserPendingActivationStore p
      ]
-    r =>
+    r, CallsFed 'Brig "on-user-deleted-connections") =>
   Routes a (Handler r) ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
@@ -377,25 +378,25 @@ getInvitationByEmail email = do
   inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
-suspendTeamH :: Members '[GalleyProvider] r => JSON ::: TeamId -> (Handler r) Response
+suspendTeamH :: (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") => JSON ::: TeamId -> (Handler r) Response
 suspendTeamH (_ ::: tid) = do
   empty <$ suspendTeam tid
 
-suspendTeam :: Members '[GalleyProvider] r => TeamId -> (Handler r) ()
+suspendTeam :: (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") => TeamId -> (Handler r) ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
   lift $ wrapClient $ DB.deleteInvitations tid
   lift $ liftSem $ GalleyProvider.changeTeamStatus tid Team.Suspended Nothing
 
 unsuspendTeamH ::
-  Members '[GalleyProvider] r =>
+  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
   JSON ::: TeamId ->
   (Handler r) Response
 unsuspendTeamH (_ ::: tid) = do
   empty <$ unsuspendTeam tid
 
 unsuspendTeam ::
-  Members '[GalleyProvider] r =>
+  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
   TeamId ->
   (Handler r) ()
 unsuspendTeam tid = do
@@ -406,7 +407,7 @@ unsuspendTeam tid = do
 -- Internal
 
 changeTeamAccountStatuses ::
-  Members '[GalleyProvider] r =>
+  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
   TeamId ->
   AccountStatus ->
   (Handler r) ()

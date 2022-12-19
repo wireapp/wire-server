@@ -55,6 +55,7 @@ uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
   lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages ::
+  CallsFed 'Brig "claim-key-packages" =>
   Local UserId ->
   Qualified UserId ->
   Maybe ClientId ->
@@ -96,6 +97,7 @@ claimLocalKeyPackages qusr skipOwn target = do
           <$> wrapClientM (Data.claimKeyPackage target c)
 
 claimRemoteKeyPackages ::
+  CallsFed 'Brig "claim-key-packages" =>
   Local UserId ->
   Remote UserId ->
   Handler r KeyPackageBundle

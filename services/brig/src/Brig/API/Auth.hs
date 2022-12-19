@@ -48,8 +48,10 @@ import Wire.API.User.Auth hiding (access)
 import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
+import Wire.API.Federation.API
 
 accessH ::
+  CallsFed 'Brig "on-user-deleted-connections" =>
   Maybe ClientId ->
   [Either Text SomeUserToken] ->
   Maybe (Either Text SomeAccessToken) ->
@@ -61,7 +63,7 @@ accessH mcid ut' mat' = do
     >>= either (uncurry (access mcid)) (uncurry (access mcid))
 
 access ::
-  TokenPair u a =>
+  (TokenPair u a, CallsFed 'Brig "on-user-deleted-connections") =>
   Maybe ClientId ->
   NonEmpty (Token u) ->
   Maybe (Token a) ->
@@ -76,7 +78,7 @@ sendLoginCode (SendLoginCode phone call force) = do
   c <- wrapClientE (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
   pure $ LoginCodeTimeout (pendingLoginTimeout c)
 
-login :: Member GalleyProvider r => Login -> Maybe Bool -> Handler r SomeAccess
+login :: (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") => Login -> Maybe Bool -> Handler r SomeAccess
 login l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
   c <- Auth.login l typ !>> loginError
@@ -128,13 +130,13 @@ removeCookies :: Local UserId -> RemoveCookies -> Handler r ()
 removeCookies lusr (RemoveCookies pw lls ids) =
   wrapClientE (Auth.revokeAccess (tUnqualified lusr) pw ids lls) !>> authError
 
-legalHoldLogin :: Member GalleyProvider r => LegalHoldLogin -> Handler r SomeAccess
+legalHoldLogin :: (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") => LegalHoldLogin -> Handler r SomeAccess
 legalHoldLogin lhl = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   c <- Auth.legalHoldLogin lhl typ !>> legalHoldLoginError
   traverse mkUserTokenCookie c
 
-ssoLogin :: SsoLogin -> Maybe Bool -> Handler r SomeAccess
+ssoLogin :: CallsFed 'Brig "on-user-deleted-connections" => SsoLogin -> Maybe Bool -> Handler r SomeAccess
 ssoLogin l (fromMaybe False -> persist) = do
   let typ = if persist then PersistentCookie else SessionCookie
   c <- wrapHttpClientE (Auth.ssoLogin l typ) !>> loginError

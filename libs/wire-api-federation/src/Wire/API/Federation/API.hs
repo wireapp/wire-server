@@ -20,6 +20,7 @@ module Wire.API.Federation.API
     HasFedEndpoint,
     fedClient,
     fedClientIn,
+    CallsFed,
 
     -- * Re-exports
     Component (..),
@@ -48,12 +49,14 @@ type instance FedApi 'Brig = BrigApi
 
 type instance FedApi 'Cargohold = CargoholdApi
 
-type HasFedEndpoint comp api name = ('Just api ~ LookupEndpoint (FedApi comp) name)
+type HasFedEndpoint comp api name = ('Just api ~ LookupEndpoint (FedApi comp) name, CallsFed comp name)
+
+class CallsFed (comp :: Component) (name :: Symbol)
 
 -- | Return a client for a named endpoint.
 fedClient ::
   forall (comp :: Component) (name :: Symbol) m api.
-  (HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  (CallsFed comp name, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
