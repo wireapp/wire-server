@@ -227,16 +227,19 @@ let
         sha256 = "sha256-8XeCeJWbkdqrUf6tERFMoGM8xRI5l/nKNqI810kzMs0=";
       };
     };
+    kind-generics = {
+      src = fetchgit {
+        url = "https://gitlab.com/trupill/kind-generics.git";
+        rev = "f4ad2bcfacc9c3dcecf64c069d086926465cab2c";
+        sha256 = "sha256-uvQMV8aTNyTN+ozrseohexbCneVPMO35Jf1eEhLPk78=";
+      };
+      packages = {
+        kind-generics = "kind-generics";
+        kind-generics-th = "kind-generics-th";
+      };
+    };
   };
   hackagePins = {
-    kind-generics = {
-      version = "0.4.1.2";
-      sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
-    };
-    kind-generics-th = {
-      version = "0.2.2.3";
-      sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
-    };
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
