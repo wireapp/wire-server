@@ -15,18 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.Component where
+module Wire.API.Federation.Component
+  ( module Wire.API.Federation.Component
+  , Component(..)
+  ) where
 
 import Imports
-import Test.QuickCheck (Arbitrary)
-import Wire.Arbitrary (GenericUniform (..))
-
-data Component
-  = Brig
-  | Galley
-  | Cargohold
-  deriving (Show, Eq, Generic)
-  deriving (Arbitrary) via (GenericUniform Component)
+import Wire.API.MakesFederatedCall (Component(..))
 
 parseComponent :: Text -> Maybe Component
 parseComponent "brig" = Just Brig

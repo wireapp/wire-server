@@ -177,7 +177,7 @@ userAPI =
 
 authAPI :: (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") => ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
-  Named @"legalhold-login" legalHoldLogin
+  Named @"legalhold-login" (callsFed legalHoldLogin)
     :<|> Named @"sso-login" ssoLogin
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate" reauthenticate

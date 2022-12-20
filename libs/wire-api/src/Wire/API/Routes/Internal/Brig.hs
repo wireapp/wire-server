@@ -66,6 +66,7 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
+import Wire.API.MakesFederatedCall
 
 type EJPDRequest =
   Summary
@@ -366,6 +367,7 @@ type AuthAPI =
   Named
     "legalhold-login"
     ( "legalhold-login"
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> ReqBody '[JSON] LegalHoldLogin
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )

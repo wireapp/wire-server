@@ -20,7 +20,7 @@ module Wire.API.Federation.API
     HasFedEndpoint,
     fedClient,
     fedClientIn,
-    CallsFed,
+    module Wire.API.MakesFederatedCall,
 
     -- * Re-exports
     Component (..),
@@ -32,12 +32,14 @@ import GHC.TypeLits
 import Imports
 import Servant.Client
 import Servant.Client.Core
+import Wire.API.MakesFederatedCall
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client
-import Wire.API.Federation.Component
 import Wire.API.Routes.Named
+
+
 
 -- Note: this type family being injective means that in most cases there is no need
 -- to add component annotations when invoking the federator client
@@ -50,8 +52,6 @@ type instance FedApi 'Brig = BrigApi
 type instance FedApi 'Cargohold = CargoholdApi
 
 type HasFedEndpoint comp api name = ('Just api ~ LookupEndpoint (FedApi comp) name, CallsFed comp name)
-
-class CallsFed (comp :: Component) (name :: Symbol)
 
 -- | Return a client for a named endpoint.
 fedClient ::
