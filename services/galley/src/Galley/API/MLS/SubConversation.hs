@@ -15,8 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.SubConversation where
+module Galley.API.MLS.SubConversation
+  ( getSubConversation,
+    getLocalSubConversation,
+    deleteSubConversation,
+    getSubConversationGroupInfo,
+    getSubConversationGroupInfoFromLocalConv,
+    MLSGetSubConvStaticErrors,
+  )
+where
 
+import Control.Arrow
 import Data.Id
 import Data.Qualified
 import Galley.API.MLS
@@ -29,9 +38,10 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.FederatorAccess
-import Galley.Effects.SubConversationStore
+import Galley.Effects.SubConversationStore (SubConversationStore)
 import qualified Galley.Effects.SubConversationStore as Eff
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -41,7 +51,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley (GetSubConversationsRequest (..), GetSubConversationsResponse (..))
-import Wire.API.Federation.Error (FederationError)
+import Wire.API.Federation.Error
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.SubConversation
 
@@ -103,8 +113,8 @@ getLocalSubConversation qusr lconv sconv = do
       let groupId = initialGroupId lconv sconv
           epoch = Epoch 0
           suite = cnvmlsCipherSuite mlsMeta
-      createSubConversation (tUnqualified lconv) sconv suite epoch groupId Nothing
-      setGroupIdForSubConversation groupId (tUntagged lconv) sconv
+      Eff.createSubConversation (tUnqualified lconv) sconv suite epoch groupId Nothing
+      Eff.setGroupIdForSubConversation groupId (tUntagged lconv) sconv
       let sub =
             SubConversation
               { scParentConvId = tUnqualified lconv,
@@ -191,5 +201,58 @@ getSubConversationGroupInfoFromLocalConv ::
   Sem r OpaquePublicGroupState
 getSubConversationGroupInfoFromLocalConv qusr subConvId lcnvId = do
   void $ getLocalConvForUser qusr lcnvId
-  getSubConversationPublicGroupState (tUnqualified lcnvId) subConvId
+  Eff.getSubConversationPublicGroupState (tUnqualified lcnvId) subConvId
     >>= noteS @'MLSMissingGroupInfo
+
+deleteSubConversation ::
+  Members
+    '[ ConversationStore,
+       ErrorS 'ConvAccessDenied,
+       ErrorS 'ConvNotFound,
+       ErrorS 'MLSNotEnabled,
+       ErrorS 'MLSStaleMessage,
+       Error Wai.Error,
+       Input Env,
+       MemberStore,
+       SubConversationStore
+     ]
+    r =>
+  Local UserId ->
+  Qualified ConvId ->
+  SubConvId ->
+  DeleteSubConversation ->
+  Sem r ()
+deleteSubConversation lusr qconv sconv dsc = do
+  assertMLSEnabled
+  foldQualified
+    lusr
+    (\lcnv -> deleteLocalSubConversation lusr lcnv sconv dsc)
+    (\_rcnv -> throw federationNotImplemented)
+    qconv
+
+deleteLocalSubConversation ::
+  Members
+    '[ ConversationStore,
+       ErrorS 'ConvAccessDenied,
+       ErrorS 'ConvNotFound,
+       ErrorS 'MLSStaleMessage,
+       MemberStore,
+       SubConversationStore
+     ]
+    r =>
+  Local UserId ->
+  Local ConvId ->
+  SubConvId ->
+  DeleteSubConversation ->
+  Sem r ()
+deleteLocalSubConversation lusr lcnvId scnvId dsc = do
+  void $ getConversationAndCheckMembership (tUntagged lusr) lcnvId
+  sconv <-
+    Eff.getSubConversation (tUnqualified lcnvId) scnvId
+      >>= noteS @'ConvNotFound
+  let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData sconv)
+  unless (dscGroupId dsc == gid) $ throwS @'ConvNotFound
+  unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
+  Eff.deleteSubConversationPublicGroupState (tUnqualified lcnvId) scnvId
+
+-- TODO(md): reset the group ID to some random group ID

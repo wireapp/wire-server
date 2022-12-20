@@ -334,6 +334,9 @@ updateSubConvPublicGroupState = "INSERT INTO subconversation (conv_id, subconv_i
 selectSubConvPublicGroupState :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe OpaquePublicGroupState))
 selectSubConvPublicGroupState = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
 
+deletePublicGroupState :: PrepQuery W (ConvId, SubConvId) ()
+deletePublicGroupState = "DELETE FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
+
 insertGroupIdForSubConversation :: PrepQuery W (GroupId, ConvId, Domain, SubConvId) ()
 insertGroupIdForSubConversation = "INSERT INTO group_id_conv_id (group_id, conv_id, domain, subconv_id) VALUES (?, ?, ?, ?)"
 
