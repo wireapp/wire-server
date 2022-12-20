@@ -26,6 +26,7 @@ module Galley.API.MLS.Message
   )
 where
 
+import Control.Arrow ((>>>))
 import Control.Comonad
 import Control.Error.Util (hush)
 import Control.Lens (preview)
@@ -744,7 +745,7 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
   case convOrSub of
     Conv _ -> pure ()
     SubConv mlsConv _ ->
-      unless (isJust (cmLookupRef cid (mcMembers mlsConv))) $
+      unless (isClientMember cid (mcMembers mlsConv)) $
         throwS @'MLSSubConvClientNotInParent
 
   -- check if there is a key package ref in the remove proposal
@@ -857,6 +858,11 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
       mlsMeta = mlsMetaConvOrSub convOrSub
       localSelf = isLocal lConvOrSub qusr
 
+  updatePathRef <-
+    for
+      (cPath commit)
+      (upLeaf >>> kpRef' >>> note (mlsProtocolError "Could not compute key package ref"))
+
   withCommitLock (cnvmlsGroupId . mlsMetaConvOrSub $ convOrSub) epoch $ do
     postponedKeyPackageRefUpdate <-
       if epoch == Epoch 0
@@ -865,14 +871,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
           case (localSelf, cType, cmAssocs . membersConvOrSub $ convOrSub, convOrSub) of
             (True, SelfConv, [], Conv _) -> do
               creatorClient <- noteS @'MLSMissingSenderClient senderClient
-              creatorRef <-
-                maybe
-                  (pure senderRef)
-                  ( note (mlsProtocolError "Could not compute key package ref")
-                      . kpRef'
-                      . upLeaf
-                  )
-                  $ cPath commit
+              let creatorRef = fromMaybe senderRef updatePathRef
               addMLSClients
                 (cnvmlsGroupId mlsMeta)
                 qusr
@@ -884,35 +883,21 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
             (True, _, [(qu, (creatorClient, _))], Conv _)
               | qu == qusr -> do
                   -- use update path as sender reference and if not existing fall back to sender
-                  senderRef' <-
-                    maybe
-                      (pure senderRef)
-                      ( note (mlsProtocolError "Could not compute key package ref")
-                          . kpRef'
-                          . upLeaf
-                      )
-                      $ cPath commit
+                  let creatorRef = fromMaybe senderRef updatePathRef
                   -- register the creator client
                   updateKeyPackageMapping
                     lConvOrSub
                     qusr
                     creatorClient
                     Nothing
-                    senderRef'
+                    creatorRef
             -- remote clients cannot send the first commit
             (False, _, _, _) -> throwS @'MLSStaleMessage
             (True, _, [], SubConv parentConv _) -> do
               creatorClient <- noteS @'MLSMissingSenderClient senderClient
               unless (isClientMember (mkClientIdentity qusr creatorClient) (mcMembers parentConv)) $
                 throwS @'MLSSubConvClientNotInParent
-              creatorRef <-
-                maybe
-                  (pure senderRef)
-                  ( note (mlsProtocolError "Could not compute key package ref")
-                      . kpRef'
-                      . upLeaf
-                  )
-                  $ cPath commit
+              let creatorRef = fromMaybe senderRef updatePathRef
               addMLSClients
                 (cnvmlsGroupId mlsMeta)
                 qusr
@@ -921,9 +906,8 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
             (_, _, _, _) ->
               throw (InternalErrorWithDescription "Unexpected creator client set")
           pure $ pure () -- no key package ref update necessary
-        else case upLeaf <$> cPath commit of
-          Just updatedKeyPackage -> do
-            updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
+        else case updatePathRef of
+          Just updatedRef -> do
             -- postpone key package ref update until other checks/processing passed
             case senderClient of
               Just cli ->
