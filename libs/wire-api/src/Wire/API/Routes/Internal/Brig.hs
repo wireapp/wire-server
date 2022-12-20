@@ -374,6 +374,7 @@ type AuthAPI =
     :<|> Named
            "sso-login"
            ( "sso-login"
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ReqBody '[JSON] SsoLogin
                :> QueryParam' [Optional, Strict] "persist" Bool
                :> MultiVerb1 'POST '[JSON] TokenResponse

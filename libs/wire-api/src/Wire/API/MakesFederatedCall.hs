@@ -24,6 +24,7 @@ module Wire.API.MakesFederatedCall
 where
 
 import Data.Constraint
+import Data.Metrics.Servant
 import Data.Proxy
 import Data.Swagger (Tag (..), applyTags)
 import qualified Data.Text as T
@@ -80,6 +81,9 @@ instance (HasServer api ctx) => HasServer (MakesFederatedCall comp name :> api :
 instance HasLink api => HasLink (MakesFederatedCall comp name :> api :: *) where
   type MkLink (MakesFederatedCall comp name :> api) x = MkLink api x
   toLink f _ l = toLink f (Proxy @api) l
+
+instance RoutesToPaths api => RoutesToPaths (MakesFederatedCall comp name :> api :: *) where
+  getRoutes = getRoutes @api
 
 -- | Get a symbol representation of our component.
 type family ShowComponent (x :: Component) :: Symbol where
