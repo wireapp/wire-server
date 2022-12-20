@@ -745,7 +745,7 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
   case convOrSub of
     Conv _ -> pure ()
     SubConv mlsConv _ ->
-      unless (isJust (cmLookupRef cid (mcMembers mlsConv))) $
+      unless (isClientMember cid (mcMembers mlsConv)) $
         throwS @'MLSSubConvClientNotInParent
 
   -- check if there is a key package ref in the remove proposal
