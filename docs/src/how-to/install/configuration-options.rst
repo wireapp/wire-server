@@ -687,7 +687,7 @@ configure them for your installation.)
 Condensed example:
 
 
-::
+.. code:: yaml
 
     brig:
         optSettings:
