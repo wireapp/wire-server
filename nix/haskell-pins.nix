@@ -203,6 +203,13 @@ let
         tasty-hunit = "hunit";
       };
     };
+    polysemy = {
+      src = fetchgit {
+        url = "https://github.com/polysemy-research/polysemy.git";
+        rev = "3855786e58bf397ca8204f3a79d19c24485dabd4";
+        sha256 = "sha256-4ans30VWuSMC9HNFb6FWQyc30oxJd2dmFrMGu5/dLg0=";
+      };
+    };
   };
   hackagePins = {
     kind-generics = {
