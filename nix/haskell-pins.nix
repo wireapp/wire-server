@@ -203,11 +203,39 @@ let
         tasty-hunit = "hunit";
       };
     };
+    polysemy = {
+      src = fetchgit {
+        url = "https://github.com/polysemy-research/polysemy.git";
+        rev = "3855786e58bf397ca8204f3a79d19c24485dabd4";
+        sha256 = "sha256-4ans30VWuSMC9HNFb6FWQyc30oxJd2dmFrMGu5/dLg0=";
+      };
+    };
+    polysemy-plugin = {
+      src = fetchgit {
+        url = "https://github.com/polysemy-research/polysemy.git";
+        rev = "3855786e58bf397ca8204f3a79d19c24485dabd4";
+        sha256 = "sha256-4ans30VWuSMC9HNFb6FWQyc30oxJd2dmFrMGu5/dLg0=";
+      };
+      packages = {
+        polysemy-plugin = "polysemy-plugin";
+      };
+    };
+    polysemy-check = {
+      src = fetchgit {
+        url = "https://github.com/polysemy-research/polysemy-check.git";
+        rev = "4c0d3ff929ae22ae68d962f7f3f7056f357bf7ac";
+        sha256 = "sha256-8XeCeJWbkdqrUf6tERFMoGM8xRI5l/nKNqI810kzMs0=";
+      };
+    };
   };
   hackagePins = {
     kind-generics = {
-      version = "0.4.1.0";
-      sha256 = "sha256-gD9b9AXpLkpPSAeg8oPBU7tsHtSNQjxIZKBo+7+r3+c=";
+      version = "0.4.1.2";
+      sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
+    };
+    kind-generics-th = {
+      version = "0.2.2.3";
+      sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
     };
     wai-route = {
       version = "0.4.0";
