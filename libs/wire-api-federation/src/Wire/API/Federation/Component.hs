@@ -16,12 +16,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Federation.Component
-  ( module Wire.API.Federation.Component
-  , Component(..)
-  ) where
+  ( module Wire.API.Federation.Component,
+    Component (..),
+  )
+where
 
 import Imports
-import Wire.API.MakesFederatedCall (Component(..))
+import Wire.API.MakesFederatedCall (Component (..))
 
 parseComponent :: Text -> Maybe Component
 parseComponent "brig" = Just Brig

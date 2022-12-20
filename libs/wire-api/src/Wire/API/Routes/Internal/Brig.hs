@@ -54,6 +54,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
@@ -66,7 +67,6 @@ import Wire.API.User.Auth.LegalHold
 import Wire.API.User.Auth.ReAuth
 import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
-import Wire.API.MakesFederatedCall
 
 type EJPDRequest =
   Summary

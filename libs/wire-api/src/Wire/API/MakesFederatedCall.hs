@@ -18,24 +18,23 @@
 module Wire.API.MakesFederatedCall
   ( CallsFed,
     MakesFederatedCall,
-    Component(..),
+    Component (..),
     callsFed,
   )
 where
 
+import Data.Constraint
 import Data.Proxy
+import Data.Swagger (Tag (..), applyTags)
+import qualified Data.Text as T
 import GHC.TypeLits
 import Imports
-import Servant.Client
-import Data.Constraint
-import Unsafe.Coerce (unsafeCoerce)
-import Servant.Server
 import Servant.API
+import Servant.Client
+import Servant.Server
 import Servant.Swagger
-import Data.Swagger (applyTags, Tag (..))
-import qualified Data.Text as T
-
 import Test.QuickCheck (Arbitrary)
+import Unsafe.Coerce (unsafeCoerce)
 import Wire.Arbitrary (GenericUniform (..))
 
 data Component
@@ -48,6 +47,7 @@ data Component
 class CallsFed (comp :: Component) (name :: Symbol)
 
 class Nullary
+
 instance Nullary
 
 synthesizeCallsFed :: forall (comp :: Component) (name :: Symbol). Dict (CallsFed comp name)
@@ -69,20 +69,21 @@ type family ShowComponent (x :: Component) :: Symbol where
   ShowComponent 'Galley = "galley"
   ShowComponent 'Cargohold = "cargohold"
 
-
 instance (HasSwagger api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasSwagger (MakesFederatedCall comp name :> api :: *) where
-  toSwagger _ = toSwagger (Proxy @api)
-    & applyTags
-      [ Tag
-          "x-wire-makes-federated-call-to"
-          (Just $ mconcat
-            [ T.pack $ symbolVal $ Proxy @(ShowComponent comp)
-            , "/"
-            , T.pack $ symbolVal $ Proxy @name
-            ]
-          )
-          Nothing
-      ]
+  toSwagger _ =
+    toSwagger (Proxy @api)
+      & applyTags
+        [ Tag
+            "x-wire-makes-federated-call-to"
+            ( Just $
+                mconcat
+                  [ T.pack $ symbolVal $ Proxy @(ShowComponent comp),
+                    "/",
+                    T.pack $ symbolVal $ Proxy @name
+                  ]
+            )
+            Nothing
+        ]
 
 instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: *) where
   type Client m (MakesFederatedCall comp name :> api) = Client m api
@@ -103,4 +104,3 @@ callsFed f Dict = f
 
 -- runx :: Application
 -- runx = serve (Proxy @Test) (test)
-
