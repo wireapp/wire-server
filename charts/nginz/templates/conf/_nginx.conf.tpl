@@ -295,8 +295,8 @@ http {
         proxy_set_header   Connection     "";
             {{ end -}}
 
-            {{- if not ($location.disable_zauth) }}
-        proxy_set_header   Authorization  "";
+            {{- if and (not ($location.disable_zauth)) (not ($location.oauth) }}
+        proxy_set_header   Authorization  $auth_header;
             {{- end }}
 
         proxy_set_header   Z-Type         $zauth_type;

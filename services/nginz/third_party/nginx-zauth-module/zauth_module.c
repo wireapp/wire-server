@@ -19,6 +19,7 @@ static void   delete_srv_conf (void *);
 static ngx_int_t zauth_init           (ngx_conf_t *);
 static ngx_int_t zauth_parse_request  (ngx_http_request_t *);
 static ngx_int_t zauth_handle_request (ngx_http_request_t *);
+static ngx_int_t auth_handle_request (ngx_http_request_t *);
 
 // Request Inspection
 static ZauthResult token_from_header (ngx_str_t const *, ZauthToken **);
@@ -41,6 +42,7 @@ typedef struct {
 
 typedef struct {
         ngx_flag_t toggle;
+        ngx_flag_t oauth;
 } ZauthLocationConf;
 
 static ngx_http_module_t zauth_module_ctx = {
@@ -60,6 +62,14 @@ static ngx_command_t zauth_commands [] = {
         , ngx_conf_set_flag_slot
         , NGX_HTTP_LOC_CONF_OFFSET
         , offsetof (ZauthLocationConf, toggle)
+        , NULL
+        }
+
+       , { ngx_string ("oauth")
+        , NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1
+        , ngx_conf_set_flag_slot
+        , NGX_HTTP_LOC_CONF_OFFSET
+        , offsetof (ZauthLocationConf, oauth)
         , NULL
         }
 
@@ -167,6 +177,7 @@ static void * create_loc_conf (ngx_conf_t * conf) {
         }
 
         lc->toggle = NGX_CONF_UNSET;
+        lc->oauth  = NGX_CONF_UNSET;
 
         return lc;
 }
@@ -175,6 +186,7 @@ static char * merge_loc_conf (ngx_conf_t * _, void * pc, void * cc) {
         ZauthLocationConf * parent = pc;
         ZauthLocationConf * child  = cc;
         ngx_conf_merge_off_value(child->toggle, parent->toggle, 1);
+        ngx_conf_merge_off_value(child->oauth, parent->oauth, 0);
         return NGX_CONF_OK;
 }
 
@@ -236,12 +248,37 @@ static ngx_int_t zauth_init (ngx_conf_t * conf) {
                 return NGX_ERROR;
         }
 
-        *h2 = zauth_handle_request;
+        *h2 = auth_handle_request;
 
         return NGX_OK;
 }
 
 // Request Processing ///////////////////////////////////////////////////////
+
+static ngx_int_t auth_handle_request (ngx_http_request_t * r) {
+        ZauthServerConf const * sc =
+                ngx_http_get_module_srv_conf(r, zauth_module);
+
+        if (sc == NULL || sc->keystore == NULL || sc->acl == NULL) {
+                return NGX_ERROR;
+        }
+
+        ZauthLocationConf const * lc =
+                ngx_http_get_module_loc_conf(r, zauth_module);
+
+        if (lc == NULL || lc->toggle != 1) {
+                return NGX_DECLINED;
+        }
+
+        ngx_int_t status = zauth_handle_request(r);
+
+        // in case zauth fails and oauth is enabled, we proceed with the request
+        if (status != NGX_OK && lc->oauth == 1) {
+                return NGX_DECLINED;
+        }
+
+        return status;
+}
 
 static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
         ZauthServerConf const * sc =
@@ -391,7 +428,7 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
                 ngx_http_add_variable(conf, &z_client_id, NGX_HTTP_VAR_NOHASH);
 
         ngx_http_variable_t * z_conn_var =
-                ngx_http_add_variable(conf, &z_conn_id, NGX_HTTP_VAR_NOHASH);
+                ngx_http_add_variable(conf, &z_conn_id, NGX_HTTP_VAR_NOHASH);   
 
         ngx_http_variable_t * z_conv_var =
                 ngx_http_add_variable(conf, &z_conv_id, NGX_HTTP_VAR_NOHASH);
