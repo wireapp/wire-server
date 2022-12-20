@@ -82,7 +82,7 @@ quickly after one another.)
 
 In case of throttling no cookie gets issued. The error response (`HTTP status
 code 429 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429>`_) has
-an ``Retry-After`` header which specifies the time to wait before accepting the
+a ``Retry-After`` header which specifies the time to wait before accepting the
 next request in Seconds.
 
 Being throttled is a clear indicator of incorrect API usage. There is no need to
@@ -90,7 +90,7 @@ login many times in a row on the same device. Instead, the cookie should be
 re-used.
 
 The corresponding backend configuration settings are described in:
-:ref:`auth-cookie-config`
+:ref:`auth-cookie-config` .
 
 .. _login-password:
 

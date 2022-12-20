@@ -668,7 +668,7 @@ Authentication cookies and the related throttling mechanism is described in the 
 :ref:`login-cookies`
 
 The maximum number of cookies per account and type is defined by the brig option
-``setUserCookieLimit``. It's default is ``32``.
+``setUserCookieLimit``. Its default is ``32``.
 
 Throttling is configured by the brig option ``setUserCookieThrottle``. It is an
 object that contains two fields:
