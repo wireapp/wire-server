@@ -682,6 +682,7 @@ processExternalCommit ::
        ErrorS 'MLSKeyPackageRefNotFound,
        ErrorS 'MLSStaleMessage,
        ErrorS 'MLSMissingSenderClient,
+       ErrorS 'MLSSubConvClientNotInParent,
        Error InternalError,
        ExternalAccess,
        FederatorAccess,
@@ -744,8 +745,7 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
     Conv _ -> pure ()
     SubConv mlsConv _ ->
       unless (isJust (cmLookupRef cid (mcMembers mlsConv))) $
-        throw . mlsProtocolError $
-          "Cannot join a subconversation before joining the parent conversation"
+        throwS @'MLSSubConvClientNotInParent
 
   -- check if there is a key package ref in the remove proposal
   remRef <-
