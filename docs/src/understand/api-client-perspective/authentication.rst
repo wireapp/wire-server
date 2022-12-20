@@ -63,6 +63,8 @@ login <#login-sms>`__. The response to a successful login contains an
 access cookie in a ``Set-Cookie`` header and an access token in the JSON
 response body.
 
+.. _login-cookies:
+
 Cookies
 ~~~~~~~
 
@@ -87,32 +89,8 @@ Being throttled is a clear indicator of incorrect API usage. There is no need to
 login many times in a row on the same device. Instead, the cookie should be
 re-used.
 
-Configuration
-+++++++++++++
-
-The maximum number of cookies per account and kind is defined by the brig option
-``setUserCookieLimit``. It's default is ``32``.
-
-Throttling is configured by the brig option ``setUserCookieThrottle``. It is an
-object that contains two fields:
-
-``stdDev``
-    The minimal standard deviation of cookie creation timestamps in
-    Seconds. (Default: ``3000``,
-    `Wikipedia: Standard deviation <https://en.wikipedia.org/wiki/Standard_deviation>`_)
-
-``retryAfter``
-    Wait time in Seconds when ``stdDev`` is violated. (Default: ``86400``)
-
-Condensed example:
-
-::
-    brig:
-        optSettings:
-            setUserCookieLimit: 32
-            setUserCookieThrottle:
-                stdDev: 3000
-                retryAfter: 86400
+The corresponding backend configuration settings are described in:
+:ref:`auth-cookie-config`
 
 .. _login-password:
 
