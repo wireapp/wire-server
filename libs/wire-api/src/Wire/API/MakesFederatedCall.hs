@@ -15,6 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+{-# LANGUAGE OverloadedLists #-}
+
 module Wire.API.MakesFederatedCall
   ( CallsFed,
     MakesFederatedCall,
@@ -23,10 +25,11 @@ module Wire.API.MakesFederatedCall
   )
 where
 
+import Data.Aeson (Value(..))
 import Data.Constraint
 import Data.Metrics.Servant
 import Data.Proxy
-import Data.Swagger (Tag (..), applyTags)
+import Data.Swagger.Operation (addExtensions)
 import qualified Data.Text as T
 import GHC.TypeLits
 import Imports
@@ -96,18 +99,19 @@ type family ShowComponent (x :: Component) :: Symbol where
 instance (HasSwagger api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasSwagger (MakesFederatedCall comp name :> api :: *) where
   toSwagger _ =
     toSwagger (Proxy @api)
-      & applyTags
-        [ Tag
-            "x-wire-makes-federated-call-to"
-            ( Just $
-                mconcat
-                  [ T.pack $ symbolVal $ Proxy @(ShowComponent comp),
-                    "/",
-                    T.pack $ symbolVal $ Proxy @name
-                  ]
+      & addExtensions mergeJSONArray
+          [ ( "wire-makes-federated-call-to"
+            , Array [ Array
+                [ String $ T.pack $ symbolVal $ Proxy @(ShowComponent comp)
+                , String $ T.pack $ symbolVal $ Proxy @name
+                ]
+                    ]
             )
-            Nothing
-        ]
+          ]
+
+mergeJSONArray :: Value -> Value -> Value
+mergeJSONArray (Array x) (Array y) = Array $ x <> y
+mergeJSONArray _ _ = error "impossible! bug in construction of federated calls JSON"
 
 instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: *) where
   type Client m (MakesFederatedCall comp name :> api) = Client m api
