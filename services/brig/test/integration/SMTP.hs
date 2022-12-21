@@ -230,4 +230,4 @@ withRandomPortAndSocket action =
       (\(p, s) -> action (p, s))
 
 openRandomPortAndSocket :: IO (PortNumber, Socket)
-openRandomPortAndSocket = bindRandomPortTCP "*6" <&> \(p, s) -> (fromIntegral p, s)
+openRandomPortAndSocket = bindRandomPortTCP "*6" <&> \x -> first fromIntegral x
