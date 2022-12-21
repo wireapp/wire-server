@@ -32,7 +32,6 @@
 , lens-datetime
 , lib
 , mime
-, network
 , optparse-applicative
 , pem
 , protobuf
@@ -92,7 +91,6 @@ mkDerivation {
     lens
     lens-datetime
     mime
-    network
     optparse-applicative
     pem
     protobuf
