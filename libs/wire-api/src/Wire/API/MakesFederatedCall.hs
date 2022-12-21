@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 {-# LANGUAGE OverloadedLists #-}
 
 module Wire.API.MakesFederatedCall
@@ -25,7 +24,7 @@ module Wire.API.MakesFederatedCall
   )
 where
 
-import Data.Aeson (Value(..))
+import Data.Aeson (Value (..))
 import Data.Constraint
 import Data.Metrics.Servant
 import Data.Proxy
@@ -60,6 +59,7 @@ class CallsFed (comp :: Component) (name :: Symbol)
 -- | A typeclass with the same layout as 'CallsFed', which exists only so we
 -- can discharge 'CallsFeds' constraints by unsafely coercing this one.
 class Nullary
+
 instance Nullary
 
 -- | Construct a dictionary for 'CallsFed'.
@@ -72,7 +72,7 @@ synthesizeCallsFed = unsafeCoerce $ Dict @Nullary
 data MakesFederatedCall (comp :: Component) (name :: Symbol)
 
 instance (HasServer api ctx) => HasServer (MakesFederatedCall comp name :> api :: *) ctx where
-  -- | This should have type @CallsFed comp name => ServerT api m@, but GHC
+  -- \| This should have type @CallsFed comp name => ServerT api m@, but GHC
   -- complains loudly thinking this is a polytype. We need to introduce the
   -- 'CallsFed' constraint so that we can eliminate it via
   -- 'synthesizeCallsFed', which otherwise is too-high rank for GHC to notice
@@ -99,15 +99,17 @@ type family ShowComponent (x :: Component) :: Symbol where
 instance (HasSwagger api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasSwagger (MakesFederatedCall comp name :> api :: *) where
   toSwagger _ =
     toSwagger (Proxy @api)
-      & addExtensions mergeJSONArray
-          [ ( "wire-makes-federated-call-to"
-            , Array [ Array
-                [ String $ T.pack $ symbolVal $ Proxy @(ShowComponent comp)
-                , String $ T.pack $ symbolVal $ Proxy @name
-                ]
-                    ]
-            )
-          ]
+      & addExtensions
+        mergeJSONArray
+        [ ( "wire-makes-federated-call-to",
+            Array
+              [ Array
+                  [ String $ T.pack $ symbolVal $ Proxy @(ShowComponent comp),
+                    String $ T.pack $ symbolVal $ Proxy @name
+                  ]
+              ]
+          )
+        ]
 
 mergeJSONArray :: Value -> Value -> Value
 mergeJSONArray (Array x) (Array y) = Array $ x <> y
@@ -122,4 +124,3 @@ instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: 
 -- connecting your handler to the server router.
 callsFed :: (c => r) -> Dict c -> r
 callsFed f Dict = f
-
