@@ -91,10 +91,10 @@ import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
-import Wire.API.OAuth
 import Wire.API.Routes.Internal.Brig
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Internal.Brig.OAuth (IOAuthAPI)
 import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User

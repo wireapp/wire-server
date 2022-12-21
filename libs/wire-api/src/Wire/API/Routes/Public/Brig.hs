@@ -19,16 +19,13 @@
 
 module Wire.API.Routes.Public.Brig where
 
-import Crypto.JWT (JWK)
 import qualified Data.Aeson as A (FromJSON, ToJSON, Value)
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
-import Data.Either.Extra (eitherToMaybe)
 import Data.Handle
 import Data.Id as Id
-import Data.Metrics.Servant
 import Data.Misc (IpAddr)
 import Data.Nonce (Nonce)
 import Data.Qualified (Qualified (..))
@@ -39,13 +36,9 @@ import Data.Swagger hiding (Contact, Header, Schema, ToSchema)
 import qualified Data.Swagger as S
 import qualified Generics.SOP as GSOP
 import Imports hiding (head)
-import Network.Wai
 import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
-import Servant.Server.Internal.Delayed
-import Servant.Server.Internal.DelayedIO
-import Servant.Server.Internal.Router
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
@@ -253,52 +246,6 @@ type UserAPI =
                     '[Respond 200 "Rich info about the user" RichInfoAssocList]
                     RichInfoAssocList
            )
-
-data ZUserOrOAuth (scope :: OAuthScope)
-
-instance HasSwagger api => HasSwagger (ZUserOrOAuth scope :> api) where
-  toSwagger _ = toSwagger (Proxy @(ZUserOrOAuth scope :> api))
-
-
--- todo(leif): refactor
-checkZAuthOrOAuth :: OAuthScope -> Maybe JWK -> Request -> DelayedIO (Maybe UserId)
-checkZAuthOrOAuth oauthScope mJwk req =
-  case lookup "Z-User" (requestHeaders req) >>= (either (const Nothing) pure . parseHeader) of
-    Just uid -> pure (Just uid)
-    Nothing -> do
-      let mTokenAndKey = (,) <$> (lookup "Z-OAuth" (requestHeaders req) >>= either (const Nothing) pure . parseHeader) <*> mJwk
-      maybe (pure Nothing) checkOAuth mTokenAndKey
-  where
-    checkOAuth :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Maybe UserId)
-    checkOAuth (token, key) = do
-      verifiedOrError <- liftIO $ verify key (unOAuthAccessToken . unBearer $ token)
-      pure $ hasScope oauthScope `mfilter` eitherToMaybe verifiedOrError >>= csUserId
-
-instance (HasServer api context, HasContextEntry context (Maybe JWK), IsOAuthScope scope) => HasServer (ZUserOrOAuth scope :> api) context where
-  type ServerT (ZUserOrOAuth scope :> api) m = UserId -> ServerT api m
-
-  route ::
-    (HasServer api context, HasContextEntry context (Maybe JWK)) =>
-    Proxy (ZUserOrOAuth scope :> api) ->
-    Context context ->
-    Delayed env (Server (ZUserOrOAuth scope :> api)) ->
-    Router env
-  route _ ctx svr = route (Proxy @api) ctx (addAuthCheck svr (withRequest checkAuth))
-    where
-      checkAuth :: Request -> DelayedIO UserId
-      checkAuth = checkZAuthOrOAuth (toOAuthScope @scope) (getContextEntry ctx) >=> maybe (delayedFailFatal err401) pure
-
-  hoistServerWithContext ::
-    (HasServer api context, HasContextEntry context (Maybe JWK)) =>
-    Proxy (ZUserOrOAuth scope :> api) ->
-    Proxy context ->
-    (forall x. m x -> n x) ->
-    ServerT (ZUserOrOAuth scope :> api) m ->
-    ServerT (ZUserOrOAuth scope :> api) n
-  hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
-
-instance RoutesToPaths api => RoutesToPaths (ZUserOrOAuth scope :> api) where
-  getRoutes = getRoutes @api
 
 type SelfAPI =
   Named

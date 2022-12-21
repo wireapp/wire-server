@@ -20,14 +20,13 @@ module Wire.API.OAuth where
 import Cassandra hiding (Set)
 import Control.Lens (preview, view)
 import Control.Monad.Except
-import Crypto.JWT hiding (params, uri)
-import qualified Data.Aeson as A
+import Crypto.JWT hiding (Context, params, uri, verify)
 import qualified Data.Aeson.KeyMap as M
 import qualified Data.Aeson.Types as A
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import qualified Data.HashMap.Strict as HM
-import Data.Id (OAuthClientId, UserId, parseIdFromText)
+import Data.Id as Id
 import Data.Range
 import Data.Schema
 import qualified Data.Set as Set
@@ -38,14 +37,12 @@ import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
 import Data.Text.Encoding.Error as TErr
 import Data.Time (NominalDiffTime)
-import Imports hiding (exp)
-import Servant hiding (Handler, Tagged)
+import Imports hiding (exp, head)
+import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
+import Servant.Swagger.Internal.Orphans ()
 import URI.ByteString
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
-import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Named (Named (..))
-import Wire.API.Routes.Public (ZUser)
 
 --------------------------------------------------------------------------------
 -- Types
@@ -392,72 +389,6 @@ verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimSet)
 verify k jwt = runJOSE $ do
   let audCheck = const True
   verifyJWT (defaultJWTValidationSettings audCheck) k jwt
-
---------------------------------------------------------------------------------
--- API Internal
-
-type IOAuthAPI =
-  Named
-    "create-oauth-client"
-    ( Summary "Register an OAuth client"
-        :> CanThrow 'OAuthFeatureDisabled
-        :> "i"
-        :> "oauth"
-        :> "clients"
-        :> ReqBody '[JSON] NewOAuthClient
-        :> Post '[JSON] OAuthClientCredentials
-    )
-
---------------------------------------------------------------------------------
--- API Public
-
-type OAuthAPI =
-  Named
-    "get-oauth-client"
-    ( Summary "Get OAuth client information"
-        :> CanThrow 'OAuthFeatureDisabled
-        :> ZUser
-        :> "oauth"
-        :> "clients"
-        :> Capture "ClientId" OAuthClientId
-        :> MultiVerb
-             'GET
-             '[JSON]
-             '[ ErrorResponse 'OAuthClientNotFound,
-                Respond 200 "OAuth client found" OAuthClient
-              ]
-             (Maybe OAuthClient)
-    )
-    :<|> Named
-           "create-oauth-auth-code"
-           ( Summary ""
-               :> CanThrow 'UnsupportedResponseType
-               :> CanThrow 'RedirectUrlMissMatch
-               :> CanThrow 'OAuthClientNotFound
-               :> CanThrow 'OAuthFeatureDisabled
-               :> ZUser
-               :> "oauth"
-               :> "authorization"
-               :> "codes"
-               :> ReqBody '[JSON] NewOAuthAuthCode
-               :> MultiVerb
-                    'POST
-                    '[JSON]
-                    '[WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (RespondEmpty 302 "Found")]
-                    RedirectUrl
-           )
-    :<|> Named
-           "create-oauth-access-token"
-           ( Summary "Create an OAuth access token"
-               :> CanThrow 'JwtError
-               :> CanThrow 'OAuthAuthCodeNotFound
-               :> CanThrow 'OAuthClientNotFound
-               :> CanThrow 'OAuthFeatureDisabled
-               :> "oauth"
-               :> "token"
-               :> ReqBody '[FormUrlEncoded] OAuthAccessTokenRequest
-               :> Post '[JSON] OAuthAccessTokenResponse
-           )
 
 --------------------------------------------------------------------------------
 -- Errors

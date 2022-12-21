@@ -76,9 +76,10 @@ import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
-import Wire.API.OAuth (IOAuthAPI, OAuthAPI)
 import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Brig.OAuth
 import Wire.API.Routes.Public.Brig
+import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import qualified Wire.Sem.Paging as P

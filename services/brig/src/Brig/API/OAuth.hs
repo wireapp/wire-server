@@ -44,7 +44,9 @@ import Servant hiding (Handler, Tagged)
 import URI.ByteString
 import Wire.API.Error
 import Wire.API.OAuth
+import Wire.API.Routes.Internal.Brig.OAuth (IOAuthAPI)
 import Wire.API.Routes.Named (Named (..))
+import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 

@@ -79,6 +79,7 @@ library
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
     Wire.API.Routes.Internal.Brig.EJPD
+    Wire.API.Routes.Internal.Brig.OAuth
     Wire.API.Routes.Internal.Cannon
     Wire.API.Routes.Internal.Cargohold
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
@@ -90,6 +91,7 @@ library
     Wire.API.Routes.Named
     Wire.API.Routes.Public
     Wire.API.Routes.Public.Brig
+    Wire.API.Routes.Public.Brig.OAuth
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
     Wire.API.Routes.Public.Galley

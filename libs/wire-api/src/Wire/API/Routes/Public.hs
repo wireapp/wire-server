@@ -30,6 +30,7 @@ module Wire.API.Routes.Public
     ZBot,
     ZConversation,
     ZProvider,
+    ZUserOrOAuth,
 
     -- * Swagger combinators
     OmitDocs,
@@ -37,21 +38,30 @@ module Wire.API.Routes.Public
 where
 
 import Control.Lens ((<>~))
+import Control.Monad.Except
+import Crypto.JWT hiding (Context, params, uri, verify)
 import Data.Domain
+import Data.Either.Extra (eitherToMaybe)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import Data.Metrics.Servant
 import Data.Qualified
+import Data.SOP
 import Data.Swagger
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
-import Imports hiding (All, head)
+import Imports hiding (All, exp, head)
+import Network.Wai
 import qualified Network.Wai as Wai
-import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.API.Modifiers
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
+import Servant.Server.Internal.Router
 import Servant.Swagger (HasSwagger (toSwagger))
+import Servant.Swagger.Internal.Orphans ()
+import Wire.API.OAuth
+import Wire.API.Routes.Bearer
 
 mapRequestArgument ::
   forall mods a b.
@@ -274,4 +284,53 @@ instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
     hoistServerWithContext (Proxy :: Proxy api) pc nt s
 
 instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
+  getRoutes = getRoutes @api
+
+--------------------------------------------------------------------------------
+
+data ZUserOrOAuth (scope :: OAuthScope)
+
+instance HasSwagger api => HasSwagger (ZUserOrOAuth scope :> api) where
+  toSwagger _ = toSwagger (Proxy @(ZUserOrOAuth scope :> api))
+
+checkZAuthOrOAuth :: OAuthScope -> Maybe JWK -> Request -> DelayedIO (Maybe UserId)
+checkZAuthOrOAuth oauthScope mJwk req = (tryZUserAuth <|>) <$> tryOAuth
+  where
+    tryZUserAuth :: Maybe UserId
+    tryZUserAuth = lookup "Z-User" (requestHeaders req) >>= (either (const Nothing) pure . parseHeader)
+
+    tryOAuth :: DelayedIO (Maybe UserId)
+    tryOAuth = do
+      let mTokenAndKey = (,) <$> (lookup "Z-OAuth" (requestHeaders req) >>= either (const Nothing) pure . parseHeader) <*> mJwk
+      maybe (pure Nothing) verifyOAuthToken mTokenAndKey
+
+    verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Maybe UserId)
+    verifyOAuthToken (token, key) = do
+      verifiedOrError <- liftIO $ verify key (unOAuthAccessToken . unBearer $ token)
+      pure $ hasScope oauthScope `mfilter` eitherToMaybe verifiedOrError >>= csUserId
+
+instance (HasServer api context, HasContextEntry context (Maybe JWK), IsOAuthScope scope) => HasServer (ZUserOrOAuth scope :> api) context where
+  type ServerT (ZUserOrOAuth scope :> api) m = UserId -> ServerT api m
+
+  route ::
+    (HasServer api context, HasContextEntry context (Maybe JWK)) =>
+    Proxy (ZUserOrOAuth scope :> api) ->
+    Context context ->
+    Delayed env (Server (ZUserOrOAuth scope :> api)) ->
+    Router env
+  route _ ctx svr = route (Proxy @api) ctx (addAuthCheck svr (withRequest checkAuth))
+    where
+      checkAuth :: Request -> DelayedIO UserId
+      checkAuth = checkZAuthOrOAuth (toOAuthScope @scope) (getContextEntry ctx) >=> maybe (delayedFailFatal err401) pure
+
+  hoistServerWithContext ::
+    (HasServer api context, HasContextEntry context (Maybe JWK)) =>
+    Proxy (ZUserOrOAuth scope :> api) ->
+    Proxy context ->
+    (forall x. m x -> n x) ->
+    ServerT (ZUserOrOAuth scope :> api) m ->
+    ServerT (ZUserOrOAuth scope :> api) n
+  hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
+
+instance RoutesToPaths api => RoutesToPaths (ZUserOrOAuth scope :> api) where
   getRoutes = getRoutes @api
