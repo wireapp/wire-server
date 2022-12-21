@@ -259,12 +259,14 @@ data ZUserOrOAuth (scope :: OAuthScope)
 instance HasSwagger api => HasSwagger (ZUserOrOAuth scope :> api) where
   toSwagger _ = toSwagger (Proxy @(ZUserOrOAuth scope :> api))
 
+
+-- todo(leif): refactor
 checkZAuthOrOAuth :: OAuthScope -> Maybe JWK -> Request -> DelayedIO (Maybe UserId)
 checkZAuthOrOAuth oauthScope mJwk req =
   case lookup "Z-User" (requestHeaders req) >>= (either (const Nothing) pure . parseHeader) of
     Just uid -> pure (Just uid)
     Nothing -> do
-      let mTokenAndKey = (,) <$> (lookup "Authorization" (requestHeaders req) >>= either (const Nothing) pure . parseHeader) <*> mJwk
+      let mTokenAndKey = (,) <$> (lookup "Z-OAuth" (requestHeaders req) >>= either (const Nothing) pure . parseHeader) <*> mJwk
       maybe (pure Nothing) checkOAuth mTokenAndKey
   where
     checkOAuth :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Maybe UserId)

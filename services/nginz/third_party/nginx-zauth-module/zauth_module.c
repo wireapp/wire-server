@@ -35,6 +35,9 @@ static ngx_int_t zauth_token_typeinfo (ngx_http_request_t *, ngx_http_variable_v
 static ngx_int_t zauth_set_var        (ngx_pool_t *, ngx_http_variable_value_t *, Range);
 static void      zauth_empty_val      (ngx_http_variable_value_t *);
 
+static ngx_int_t empty_authorization_header_in_headers_in(ngx_http_request_t *);
+static ngx_int_t set_custom_header_in_headers_in(ngx_http_request_t *, ngx_str_t *, ngx_str_t *);
+
 typedef struct {
         ZauthKeystore * keystore;
         ZauthAcl *      acl;
@@ -266,18 +269,59 @@ static ngx_int_t auth_handle_request (ngx_http_request_t * r) {
         ZauthLocationConf const * lc =
                 ngx_http_get_module_loc_conf(r, zauth_module);
 
+
+        // if zauth is off (used for unauthenticated endpoints) we do not need to handle oauth
         if (lc == NULL || lc->toggle != 1) {
                 return NGX_DECLINED;
         }
 
+        // let's try to handle zauth
         ngx_int_t status = zauth_handle_request(r);
 
-        // in case zauth fails and oauth is enabled, we proceed with the request
+        // if zauth fails and oauth is enabled, we set the Z-OAuth header with the value of the Authorization header, and empty the Authorization header
         if (status != NGX_OK && lc->oauth == 1) {
+                ngx_str_t z_oauth_header_name = ngx_string("Z-OAuth");
+                ngx_str_t z_oauth_header_value = r->headers_in.authorization->value;
+                ngx_int_t set_header_status = set_custom_header_in_headers_in(r, &z_oauth_header_name, &z_oauth_header_value);
+                if (set_header_status != NGX_OK) {
+                        return NGX_ERROR;
+                }
+                ngx_int_t empty_header_status = empty_authorization_header_in_headers_in(r);
+                if (empty_header_status != NGX_OK) {
+                        return NGX_ERROR;
+                }
                 return NGX_DECLINED;
         }
+        
+        // if zauth succeeds, we empty the Authorization header
+        if (status == NGX_OK) {
+                return empty_authorization_header_in_headers_in(r);
+        }
 
+        // in all other cases (which should only be errors) we return the status (do nothing)
         return status;
+}
+
+ngx_int_t empty_authorization_header_in_headers_in(ngx_http_request_t *r) {
+        ngx_table_elt_t * h = r->headers_in.authorization;
+        if (h == NULL) {
+                return NGX_ERROR;
+        }
+        ngx_str_t value = ngx_string("");
+        h->value = value;
+        h->hash = 1;
+        return NGX_OK;
+}
+
+ngx_int_t set_custom_header_in_headers_in(ngx_http_request_t *r, ngx_str_t *key, ngx_str_t *value) {
+    ngx_table_elt_t *h = ngx_list_push(&r->headers_in.headers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+    h->key = *key;
+    h->value = *value;
+    h->hash = 1;
+    return NGX_OK;
 }
 
 static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {

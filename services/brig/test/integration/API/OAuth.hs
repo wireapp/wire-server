@@ -47,6 +47,7 @@ import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer))
 import Wire.API.User (SelfProfile, User (userId), userEmail)
 import Wire.API.User.Auth (CookieType (PersistentCookie))
+import Network.HTTP.Types (HeaderName)
 
 tests :: Manager -> Brig -> Nginz -> Opts -> TestTree
 tests m b n o = do
@@ -269,8 +270,8 @@ testAccessResourceSuccessInternal brig = do
   get (brig . paths ["self"]) !!! const 401 === statusCode
   -- should succeed with Z-User header
   response :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . zUser uid) <!! const 200 === statusCode
-  -- should succeed with Authorization header containing an OAuth bearer token
-  response' :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . bearer (oatAccessToken accessToken)) <!! const 200 === statusCode
+  -- should succeed with Z-OAuth header containing an OAuth bearer token
+  response' :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) <!! const 200 === statusCode
   liftIO $ response @?= response'
 
 testAccessResourceSuccessNginz :: Brig -> Nginz -> Http ()
@@ -281,16 +282,22 @@ testAccessResourceSuccessNginz brig nginz = do
   zauthToken <- decodeToken <$> (login nginz (defEmailLogin email) PersistentCookie <!! const 200 === statusCode)
   get (nginz . path "/self" . header "Authorization" ("Bearer " <> toByteString' zauthToken)) !!! const 200 === statusCode
 
-  -- with OAuth header
+  -- with Authorization header containing an OAuth bearer token
   let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [SelfRead]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig (userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   oauthToken <- oatAccessToken <$> createOAuthAccessToken brig accessTokenRequest
-  get (nginz . paths ["self"] . bearer oauthToken) !!! const 200 === statusCode
+  get (nginz . paths ["self"] . authHeader oauthToken) !!! const 200 === statusCode
 
-bearer :: ToHttpApiData a => a -> Request -> Request
-bearer = header "Authorization" . toHeader . Bearer
+authHeader :: ToHttpApiData a => a -> Request -> Request
+authHeader = bearer "Authorization"
+
+zOAuthHeader :: ToHttpApiData a => a -> Request -> Request
+zOAuthHeader = bearer "Z-OAuth"
+
+bearer :: ToHttpApiData a => HeaderName -> a -> Request -> Request
+bearer name = header name . toHeader . Bearer
 
 -------------------------------------------------------------------------------
 -- Util
