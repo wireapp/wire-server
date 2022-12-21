@@ -858,7 +858,8 @@ Lens.makeLensesFor
     ("setSftListAllServers", "sftListAllServers"),
     ("setFederationDomainConfigs", "federationDomainConfigs"),
     ("setEnableDevelopmentVersions", "enableDevelopmentVersions"),
-    ("setRestrictUserCreation", "restrictUserCreation")
+    ("setRestrictUserCreation", "restrictUserCreation"),
+    ("setEnableMLS", "enableMLS")
   ]
   ''Settings
 
