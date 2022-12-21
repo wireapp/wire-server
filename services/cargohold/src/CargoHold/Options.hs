@@ -30,6 +30,7 @@ import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
+import Wire.API.Routes.Version
 
 -- | AWS CloudFront settings.
 data CloudFrontOpts = CloudFrontOpts
@@ -132,7 +133,8 @@ data Settings = Settings
     -- Remember to keep it the same in Galley and in Brig.
     -- This is referred to as the 'backend domain' in the public documentation; See
     -- https://docs.wire.com/how-to/install/configure-federation.html#choose-a-backend-domain-name
-    _setFederationDomain :: !Domain
+    _setFederationDomain :: !Domain,
+    _setDisabledAPIVersions :: !(Maybe (Set Version))
   }
   deriving (Show, Generic)
 

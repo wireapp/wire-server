@@ -46,6 +46,7 @@ import System.Logger.Extended (LogFormat)
 import Text.Ascii (ascii)
 import URI.ByteString
 import Util.Options
+import Wire.API.Routes.Version
 import Wire.API.User.Orphans ()
 import Wire.API.User.Saml
 
@@ -67,7 +68,7 @@ data Opts' a = Opts
     discoUrl :: !(Maybe Text),
     logNetStrings :: !(Maybe (Last Bool)),
     logFormat :: !(Maybe (Last LogFormat)),
-    -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
+    disabledAPIVersions :: !(Maybe (Set Version)),
     derivedOpts :: !a
   }
   deriving (Functor, Show, Generic)
