@@ -18,8 +18,8 @@ static void   delete_srv_conf (void *);
 // Module setup
 static ngx_int_t zauth_init           (ngx_conf_t *);
 static ngx_int_t zauth_parse_request  (ngx_http_request_t *);
+static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t *);
 static ngx_int_t zauth_handle_request (ngx_http_request_t *);
-static ngx_int_t auth_handle_request (ngx_http_request_t *);
 
 // Request Inspection
 static ZauthResult token_from_header (ngx_str_t const *, ZauthToken **);
@@ -251,14 +251,14 @@ static ngx_int_t zauth_init (ngx_conf_t * conf) {
                 return NGX_ERROR;
         }
 
-        *h2 = auth_handle_request;
+        *h2 = zauth_handle_request;
 
         return NGX_OK;
 }
 
 // Request Processing ///////////////////////////////////////////////////////
 
-static ngx_int_t auth_handle_request (ngx_http_request_t * r) {
+static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
         ZauthServerConf const * sc =
                 ngx_http_get_module_srv_conf(r, zauth_module);
 
@@ -276,7 +276,7 @@ static ngx_int_t auth_handle_request (ngx_http_request_t * r) {
         }
 
         // let's try to handle zauth
-        ngx_int_t status = zauth_handle_request(r);
+        ngx_int_t status = zauth_handle_zauth_request(r);
 
         // if zauth fails and oauth is enabled, we set the Z-OAuth header with the value of the Authorization header, and empty the Authorization header
         if (status != NGX_OK && lc->oauth == 1) {
@@ -324,7 +324,7 @@ ngx_int_t set_custom_header_in_headers_in(ngx_http_request_t *r, ngx_str_t *key,
     return NGX_OK;
 }
 
-static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
+static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t * r) {
         ZauthServerConf const * sc =
                 ngx_http_get_module_srv_conf(r, zauth_module);
 

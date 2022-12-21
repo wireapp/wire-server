@@ -36,6 +36,7 @@ import Data.String.Conversions (cs)
 import Data.Text.Ascii (encodeBase16)
 import Data.Time
 import Imports
+import Network.HTTP.Types (HeaderName)
 import qualified Network.Wai.Utilities as Error
 import Servant.API (ToHttpApiData (toHeader))
 import Test.Tasty
@@ -47,7 +48,6 @@ import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer))
 import Wire.API.User (SelfProfile, User (userId), userEmail)
 import Wire.API.User.Auth (CookieType (PersistentCookie))
-import Network.HTTP.Types (HeaderName)
 
 tests :: Manager -> Brig -> Nginz -> Opts -> TestTree
 tests m b n o = do
