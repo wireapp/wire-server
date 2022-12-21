@@ -73,7 +73,7 @@ instance Exception SMTPPoolException
 -- | Initiate the `SMTP` connection pool
 --
 -- Throws exceptions when the SMTP server is unreachable, authentication fails,
--- a timeout happens and on every other network failure.
+-- a timeout happens, or on every other network failure.
 --
 -- `defaultTimeoutDuration` is used as timeout duration for all actions.
 initSMTP ::
@@ -195,7 +195,7 @@ logExceptionOrResult lg actionString action = do
 --
 -- It's arguable if this shouldn't become a configuration setting in future.
 -- It's an almost obscenely long duration, as we just want to make sure SMTP
--- servers / network components aren't playing tricks to us. Other cases should
+-- servers / network components aren't playing tricks on us. Other cases should
 -- be handled by the network libraries themselves.
 defaultTimeoutDuration :: Second
 defaultTimeoutDuration = 15
