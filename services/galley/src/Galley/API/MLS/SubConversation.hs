@@ -45,6 +45,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
@@ -214,6 +215,7 @@ deleteSubConversation ::
        Error Wai.Error,
        Input Env,
        MemberStore,
+       Resource,
        SubConversationStore
      ]
     r =>
@@ -237,6 +239,7 @@ deleteLocalSubConversation ::
        ErrorS 'ConvNotFound,
        ErrorS 'MLSStaleMessage,
        MemberStore,
+       Resource,
        SubConversationStore
      ]
     r =>
@@ -247,12 +250,13 @@ deleteLocalSubConversation ::
   Sem r ()
 deleteLocalSubConversation lusr lcnvId scnvId dsc = do
   void $ getConversationAndCheckMembership (tUntagged lusr) lcnvId
-  sconv <-
-    Eff.getSubConversation (tUnqualified lcnvId) scnvId
-      >>= noteS @'ConvNotFound
-  let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData sconv)
-  unless (dscGroupId dsc == gid) $ throwS @'ConvNotFound
-  unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
-  Eff.deleteSubConversationPublicGroupState (tUnqualified lcnvId) scnvId
+  withCommitLock (dscGroupId dsc) (dscEpoch dsc) $ do
+    sconv <-
+      Eff.getSubConversation (tUnqualified lcnvId) scnvId
+        >>= noteS @'ConvNotFound
+    let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData sconv)
+    unless (dscGroupId dsc == gid) $ throwS @'ConvNotFound
+    unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
+    Eff.deleteSubConversationPublicGroupState (tUnqualified lcnvId) scnvId
 
 -- TODO(md): reset the group ID to some random group ID
