@@ -215,7 +215,7 @@ delayingApp :: (TimeUnit t) => t -> Postie.Application
 delayingApp delay =
   const
     ( (threadDelay . fromInteger . toMicroseconds) delay
-        >> pure Postie.Accepted
+        $> Postie.Accepted
     )
 
 everDelayingTCPServer :: HasCallStack => Socket -> IO a -> IO a
@@ -230,4 +230,4 @@ withRandomPortAndSocket action =
       (\(p, s) -> action (p, s))
 
 openRandomPortAndSocket :: IO (PortNumber, Socket)
-openRandomPortAndSocket = bindRandomPortTCP "*6" >>= \(p, s) -> pure (fromIntegral p, s)
+openRandomPortAndSocket = bindRandomPortTCP "*6" <&> \(p, s) -> (fromIntegral p, s)
