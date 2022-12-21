@@ -5,6 +5,7 @@ module SMTP where
 import qualified Bilge
 import Brig.SMTP
 import Control.Exception
+import Data.Bifunctor
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as C
 import Data.Streaming.Network (bindRandomPortTCP)
