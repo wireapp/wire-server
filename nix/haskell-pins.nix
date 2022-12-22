@@ -203,17 +203,6 @@ let
         tasty-hunit = "hunit";
       };
     };
-    kind-generics = {
-      src = fetchgit {
-        url = "https://gitlab.com/trupill/kind-generics.git";
-        rev = "f4ad2bcfacc9c3dcecf64c069d086926465cab2c";
-        sha256 = "sha256-uvQMV8aTNyTN+ozrseohexbCneVPMO35Jf1eEhLPk78=";
-      };
-      packages = {
-        kind-generics = "kind-generics";
-        kind-generics-th = "kind-generics-th";
-      };
-    };
     # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
     postie = {
       src = fetchgit {
@@ -231,6 +220,14 @@ let
     partial-isomorphisms = {
       version = "0.2.2.1";
       sha256 = "sha256-TdsLB0ueaUUllLdvcGu3YNQXCfGRRk5WxP3deHEbHGI=";
+    };
+    kind-generics = {
+      version = "0.4.1.2";
+      sha256 = "sha256-orDfC5+QXRlAMVaqAhT1Fo7Eh/AnobROWeliZqEAXZU=";
+    };
+    kind-generics-th = {
+      version = "0.2.2.2";
+      sha256 = "sha256-nPuRq19UGVXe4YrITAZcF+U4TUBo5APMT2Nh9NqIkxQ=";
     };
     polysemy = {
       version = "1.8.0.0";
