@@ -25,6 +25,7 @@ import Brig.API.Error
 import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import Brig.API.MLS.KeyPackages
+import Brig.API.MLS.Util
 import qualified Brig.API.User as API
 import Brig.API.Util (lookupSearchPolicy)
 import Brig.App
@@ -154,11 +155,14 @@ claimMultiPrekeyBundle ::
 claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
 
 fedClaimKeyPackages :: Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyPackageBundle)
-fedClaimKeyPackages domain ckpr = do
-  ltarget <- qualifyLocal (ckprTarget ckpr)
-  let rusr = toRemoteUnsafe domain (ckprClaimant ckpr)
-  lift . fmap hush . runExceptT $
-    claimLocalKeyPackages (tUntagged rusr) Nothing ltarget
+fedClaimKeyPackages domain ckpr =
+  isMLSEnabled >>= \case
+    True -> do
+      ltarget <- qualifyLocal (ckprTarget ckpr)
+      let rusr = toRemoteUnsafe domain (ckprClaimant ckpr)
+      lift . fmap hush . runExceptT $
+        claimLocalKeyPackages (tUntagged rusr) Nothing ltarget
+    False -> pure Nothing
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.

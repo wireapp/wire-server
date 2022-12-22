@@ -227,6 +227,18 @@ let
         sha256 = "sha256-8XeCeJWbkdqrUf6tERFMoGM8xRI5l/nKNqI810kzMs0=";
       };
     };
+  };
+  hackagePins = {
+    # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
+    postie = {
+      src = fetchgit {
+        url = "https://github.com/alexbiehl/postie.git";
+        rev = "c92702386f760fcaa65cd052dc8114889c001e3f";
+        sha256 = "sha256-yiw6hg3guRWS6CVdrUY8wyIDxoqfGjIVMrEtP+Fys0Y=";
+      };
+    };
+  };
+  hackagePins = {
     kind-generics = {
       src = fetchgit {
         url = "https://gitlab.com/trupill/kind-generics.git";

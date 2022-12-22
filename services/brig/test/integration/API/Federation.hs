@@ -86,7 +86,8 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
         test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
         test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient),
-        test m "POST /federation/claim-key-packages : 200" (testClaimKeyPackages brig fedBrigClient)
+        test m "POST /federation/claim-key-packages : 200" (testClaimKeyPackages brig fedBrigClient),
+        test m "POST /federation/claim-key-packages (MLS disabled) : 200" (testClaimKeyPackagesMLSDisabled opts brig)
       ]
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
@@ -441,3 +442,16 @@ testClaimKeyPackages brig fedBrigClient = do
       ciDomain cid @?= qDomain bob
       ciUser cid @?= qUnqualified bob
       ciClient cid @?= kpbeClient e
+
+testClaimKeyPackagesMLSDisabled :: HasCallStack => Opt.Opts -> Brig -> Http ()
+testClaimKeyPackagesMLSDisabled opts brig = do
+  alice <- fakeRemoteUser
+  bob <- userQualifiedId <$> randomUser brig
+
+  mbundle <-
+    withSettingsOverrides (opts & Opt.optionSettings . Opt.enableMLS ?~ False) $
+      runWaiTestFedClient (qDomain alice) $
+        createWaiTestFedClient @"claim-key-packages" @'Brig $
+          ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
+
+  liftIO $ mbundle @?= Nothing
