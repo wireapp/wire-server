@@ -288,6 +288,8 @@ library
     , text                       >=0.11
     , text-icu-translit          >=0.1
     , time                       >=1.1
+    , time-out
+    , time-units
     , tinylog                    >=0.10
     , transformers               >=0.3
     , types-common               >=0.16
@@ -445,6 +447,7 @@ executable brig-integration
     API.Search
     API.Search.Util
     API.Settings
+    API.SystemSettings
     API.Team
     API.Team.Util
     API.TeamUserSearch
@@ -464,6 +467,7 @@ executable brig-integration
     Federation.Util
     Index.Create
     Main
+    SMTP
     Util
     Util.AWS
 
@@ -553,13 +557,16 @@ executable brig-integration
     , lens-aeson
     , metrics-wai
     , mime                   >=0.4
+    , mime-mail
     , MonadRandom            >=0.5
     , mtl
     , network
     , optparse-applicative
     , pem
+    , pipes
     , polysemy
     , polysemy-wire-zoo
+    , postie                 >=0.6.0.3
     , process
     , proto-lens
     , QuickCheck
@@ -573,6 +580,7 @@ executable brig-integration
     , servant-client
     , servant-client-core
     , spar
+    , streaming-commons
     , string-conversions
     , tasty                  >=1.0
     , tasty-cannon           >=0.3.4
@@ -580,6 +588,7 @@ executable brig-integration
     , temporary              >=1.2.1
     , text
     , time                   >=1.5
+    , time-units
     , tinylog
     , transformers
     , types-common           >=0.3

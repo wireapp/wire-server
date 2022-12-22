@@ -58,4 +58,7 @@ hself: hsuper: {
 
   # Make hoogle static to reduce size of the hoogle image
   hoogle = hlib.justStaticExecutables hsuper.hoogle;
+
+  # Postie has been fixed upstream (master)
+  postie = hlib.markUnbroken (hlib.doJailbreak hsuper.postie);
 }

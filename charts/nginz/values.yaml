@@ -373,6 +373,10 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+    - path: /system/settings/unauthorized$
+      envs:
+      - all
+      disable_zauth: true
     galley:
     - path: /conversations/code-check
       disable_zauth: true
