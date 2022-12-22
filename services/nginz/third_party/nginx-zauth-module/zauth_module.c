@@ -6,6 +6,16 @@
 #include <zauth.h>
 #include <stdbool.h>
 
+typedef struct {
+        ZauthKeystore * keystore;
+        ZauthAcl *      acl;
+} ZauthServerConf;
+
+typedef struct {
+        ngx_flag_t toggle;
+        ngx_flag_t oauth;
+} ZauthLocationConf;
+
 // Configuration setup
 static void * create_srv_conf (ngx_conf_t *);
 static void * create_loc_conf (ngx_conf_t *);
@@ -18,7 +28,6 @@ static void   delete_srv_conf (void *);
 // Module setup
 static ngx_int_t zauth_init           (ngx_conf_t *);
 static ngx_int_t zauth_parse_request  (ngx_http_request_t *);
-static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t *);
 static ngx_int_t zauth_handle_request (ngx_http_request_t *);
 
 // Request Inspection
@@ -35,18 +44,10 @@ static ngx_int_t zauth_token_typeinfo (ngx_http_request_t *, ngx_http_variable_v
 static ngx_int_t zauth_set_var        (ngx_pool_t *, ngx_http_variable_value_t *, Range);
 static void      zauth_empty_val      (ngx_http_variable_value_t *);
 
+// Utility functions
+static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t *, const ZauthServerConf *);
 static ngx_int_t empty_authorization_header_in_headers_in(ngx_http_request_t *);
 static ngx_int_t set_custom_header_in_headers_in(ngx_http_request_t *, ngx_str_t *, ngx_str_t *);
-
-typedef struct {
-        ZauthKeystore * keystore;
-        ZauthAcl *      acl;
-} ZauthServerConf;
-
-typedef struct {
-        ngx_flag_t toggle;
-        ngx_flag_t oauth;
-} ZauthLocationConf;
 
 static ngx_http_module_t zauth_module_ctx = {
         zauth_variables // pre-configuration
@@ -276,7 +277,7 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
         }
 
         // let's try to handle zauth
-        ngx_int_t status = zauth_handle_zauth_request(r);
+        ngx_int_t status = zauth_handle_zauth_request(r, sc);
 
         // if zauth fails and oauth is enabled, we set the Z-OAuth header with the value of the Authorization header, and empty the Authorization header
         if (status != NGX_OK && lc->oauth == 1) {
@@ -304,6 +305,7 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
 
 ngx_int_t empty_authorization_header_in_headers_in(ngx_http_request_t *r) {
         ngx_table_elt_t * h = r->headers_in.authorization;
+        // for authenticated endpoints, the authorization header is always present, so if it is null, we return an error
         if (h == NULL) {
                 return NGX_ERROR;
         }
@@ -314,31 +316,17 @@ ngx_int_t empty_authorization_header_in_headers_in(ngx_http_request_t *r) {
 }
 
 ngx_int_t set_custom_header_in_headers_in(ngx_http_request_t *r, ngx_str_t *key, ngx_str_t *value) {
-    ngx_table_elt_t *h = ngx_list_push(&r->headers_in.headers);
-    if (h == NULL) {
-        return NGX_ERROR;
-    }
-    h->key = *key;
-    h->value = *value;
-    h->hash = 1;
-    return NGX_OK;
-}
-
-static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t * r) {
-        ZauthServerConf const * sc =
-                ngx_http_get_module_srv_conf(r, zauth_module);
-
-        if (sc == NULL || sc->keystore == NULL || sc->acl == NULL) {
+        ngx_table_elt_t *h = ngx_list_push(&r->headers_in.headers);
+        if (h == NULL) {
                 return NGX_ERROR;
         }
+        h->key = *key;
+        h->value = *value;
+        h->hash = 1;
+        return NGX_OK;
+}
 
-        ZauthLocationConf const * lc =
-                ngx_http_get_module_loc_conf(r, zauth_module);
-
-        if (lc == NULL || lc->toggle != 1) {
-                return NGX_DECLINED;
-        }
-
+static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t * r, const ZauthServerConf * sc) {
         ZauthToken const * tkn = ngx_http_get_module_ctx(r, zauth_module);
 
         // internal redirects clear module contexts => try to parse again
