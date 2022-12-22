@@ -109,10 +109,10 @@ createAccessToken req = do
       >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure
   oauthClient <- getOAuthClient authCodeUserId (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
-  unlessM (verifyClientSecret (oatClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'OAuthClientNotFound
-  unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
-  unless (authCodeCid == oatClientId req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
-  unless (authCodeRedirectUrl == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthAuthCodeNotFound
+  unlessM (verifyClientSecret (oatClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'InvalidClientCredentials
+  unless (authCodeCid == oatClientId req) $ throwStd $ errorToWai @'InvalidClientCredentials
+  unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'RedirectUrlMissMatch
+  unless (authCodeRedirectUrl == oatRedirectUri req) $ throwStd $ errorToWai @'RedirectUrlMissMatch
 
   domain <- Opt.setFederationDomain <$> view settings
   exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings

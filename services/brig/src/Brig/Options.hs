@@ -893,7 +893,8 @@ Lens.makeLensesFor
     ("setRestrictUserCreation", "restrictUserCreation"),
     ("setEnableMLS", "enableMLS"),
     ("setOAuthEnabledInternal", "oauthEnabledInternal"),
-    ("setOAuthAuthCodeExpirationTimeSecsInternal", "oauthAuthCodeExpirationTimeSecsInternal")
+    ("setOAuthAuthCodeExpirationTimeSecsInternal", "oauthAuthCodeExpirationTimeSecsInternal"),
+    ("setOAuthAccessTokenExpirationTimeSecsInternal", "oauthAccessTokenExpirationTimeSecsInternal")
   ]
   ''Settings
 

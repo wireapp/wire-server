@@ -41,12 +41,13 @@ import Control.Lens ((<>~))
 import Control.Monad.Except
 import Crypto.JWT hiding (Context, params, uri, verify)
 import Data.Domain
-import Data.Either.Extra (eitherToMaybe)
+import Data.Either.Combinators
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
+import Data.String.Conversions (cs)
 import Data.Swagger
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
@@ -287,27 +288,34 @@ instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
   getRoutes = getRoutes @api
 
 --------------------------------------------------------------------------------
+-- Z-OAuth
 
 data ZUserOrOAuth (scope :: OAuthScope)
 
 instance HasSwagger api => HasSwagger (ZUserOrOAuth scope :> api) where
   toSwagger _ = toSwagger (Proxy @(ZUserOrOAuth scope :> api))
 
-checkZAuthOrOAuth :: OAuthScope -> Maybe JWK -> Request -> DelayedIO (Maybe UserId)
-checkZAuthOrOAuth oauthScope mJwk req = (tryZUserAuth <|>) <$> tryOAuth
+checkZAuthOrOAuth :: OAuthScope -> Maybe JWK -> Request -> DelayedIO (Either ServerError UserId)
+checkZAuthOrOAuth oauthScope mJwk req = maybe tryOAuth (pure . Right) tryZUserAuth
   where
     tryZUserAuth :: Maybe UserId
     tryZUserAuth = lookup "Z-User" (requestHeaders req) >>= (either (const Nothing) pure . parseHeader)
 
-    tryOAuth :: DelayedIO (Maybe UserId)
+    tryOAuth :: DelayedIO (Either ServerError UserId)
     tryOAuth = do
-      let mTokenAndKey = (,) <$> (lookup "Z-OAuth" (requestHeaders req) >>= either (const Nothing) pure . parseHeader) <*> mJwk
-      maybe (pure Nothing) verifyOAuthToken mTokenAndKey
+      let headerOrError = maybeToRight oauthTokenMissing $ lookup "Z-OAuth" (requestHeaders req)
+      let jwkOrError = maybeToRight jwtError mJwk
+      let tokenOrError = headerOrError >>= mapLeft invalidOAuthToken . parseHeader
+      either (pure . Left) verifyOAuthToken $ (,) <$> tokenOrError <*> jwkOrError
 
-    verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Maybe UserId)
+    verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError UserId)
     verifyOAuthToken (token, key) = do
-      verifiedOrError <- liftIO $ verify key (unOAuthAccessToken . unBearer $ token)
-      pure $ hasScope oauthScope `mfilter` eitherToMaybe verifiedOrError >>= csUserId
+      verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthAccessToken . unBearer $ token))
+      pure $
+        verifiedOrError >>= \claimSet ->
+          if hasScope oauthScope claimSet
+            then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (csUserId claimSet)
+            else Left insufficientScope
 
 instance (HasServer api context, HasContextEntry context (Maybe JWK), IsOAuthScope scope) => HasServer (ZUserOrOAuth scope :> api) context where
   type ServerT (ZUserOrOAuth scope :> api) m = UserId -> ServerT api m
@@ -321,7 +329,7 @@ instance (HasServer api context, HasContextEntry context (Maybe JWK), IsOAuthSco
   route _ ctx svr = route (Proxy @api) ctx (addAuthCheck svr (withRequest checkAuth))
     where
       checkAuth :: Request -> DelayedIO UserId
-      checkAuth = checkZAuthOrOAuth (toOAuthScope @scope) (getContextEntry ctx) >=> maybe (delayedFailFatal err401) pure
+      checkAuth = checkZAuthOrOAuth (toOAuthScope @scope) (getContextEntry ctx) >=> either delayedFailFatal pure
 
   hoistServerWithContext ::
     (HasServer api context, HasContextEntry context (Maybe JWK)) =>
@@ -334,3 +342,18 @@ instance (HasServer api context, HasContextEntry context (Maybe JWK), IsOAuthSco
 
 instance RoutesToPaths api => RoutesToPaths (ZUserOrOAuth scope :> api) where
   getRoutes = getRoutes @api
+
+--------------------------------------------------------------------------------
+-- Util
+
+insufficientScope :: ServerError
+insufficientScope = err403 {errReasonPhrase = "Access denied", errBody = "Insufficient scope"}
+
+jwtError :: ServerError
+jwtError = err500 {errReasonPhrase = "jwt-error", errBody = "Internal error while handling JWT token"}
+
+invalidOAuthToken :: Text -> ServerError
+invalidOAuthToken t = err403 {errReasonPhrase = "Access denied", errBody = "Invalid token: " <> cs t}
+
+oauthTokenMissing :: ServerError
+oauthTokenMissing = err403 {errReasonPhrase = "Access denied"}

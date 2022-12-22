@@ -24,8 +24,8 @@ import Brig.Options
 import qualified Brig.Options as Opt
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
-import Crypto.JOSE (JWK)
-import Crypto.JWT (Audience (Audience), NumericDate (NumericDate), claimAud, claimExp, claimIat, claimIss, claimSub, stringOrUri)
+import Crypto.JOSE (JWK, bestJWSAlg, newJWSHeader, runJOSE)
+import Crypto.JWT (Audience (Audience), JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, signJWT, stringOrUri)
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (fromByteString, fromByteString', toByteString')
 import Data.Domain (domainText)
@@ -74,7 +74,12 @@ tests m b n o = do
         ],
       testGroup "accessing a resource" $
         [ test m "success (internal," $ testAccessResourceSuccessInternal b,
-          test m "success (nginz)" $ testAccessResourceSuccessNginz b n
+          test m "success (nginz)" $ testAccessResourceSuccessNginz b n,
+          test m "insufficient scope" $ testAccessResourceInsufficientScope b,
+          test m "expired token" $ testAccessResourceExpiredToken o b,
+          test m "nonsense token" $ testAccessResourceNonsenseToken b,
+          test m "no token" $ testAccessResourceNoToken b,
+          test m "invalid signature" $ testAccessResourceInvalidSignature o b
         ]
     ]
 
@@ -144,7 +149,7 @@ testCreateAccessTokenSuccess opts brig = do
   createOAuthAccessToken' brig accessTokenRequest !!! do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
-  k <- liftIO $ readJwk (fromMaybe "" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  k <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   verifiedOrError <- liftIO $ verify k (unOAuthAccessToken $ oatAccessToken accessToken)
   verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (unOAuthAccessToken $ oatAccessToken accessToken)
   let expectedDomain = domainText $ Opt.setFederationDomain $ Opt.optSettings opts
@@ -182,8 +187,8 @@ testCreateAccessTokenWrongClientSecret brig = do
   let secret = OAuthClientPlainTextSecret $ encodeBase16 "ee2316e304f5c318e4607d86748018eb9c66dc4f391c31bcccd9291d24b4c7e"
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
-    const 404 === statusCode
-    const (Just "not-found") === fmap Error.label . responseJsonMaybe
+    const 403 === statusCode
+    const (Just "forbidden") === fmap Error.label . responseJsonMaybe
 
 testCreateAccessTokenWrongAuthCode :: Brig -> Http ()
 testCreateAccessTokenWrongAuthCode brig = do
@@ -206,8 +211,8 @@ testCreateAccessTokenWrongUrl brig = do
   let wrongUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code wrongUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
-    const 404 === statusCode
-    const (Just "not-found") === fmap Error.label . responseJsonMaybe
+    const 400 === statusCode
+    const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
 
 testCreateAccessTokenExpiredCode :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenExpiredCode opts brig =
@@ -266,8 +271,6 @@ testAccessResourceSuccessInternal brig = do
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   accessToken <- createOAuthAccessToken brig accessTokenRequest
-  -- should fail without any of the required headers
-  get (brig . paths ["self"]) !!! const 401 === statusCode
   -- should succeed with Z-User header
   response :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . zUser uid) <!! const 200 === statusCode
   -- should succeed with Z-OAuth header containing an OAuth bearer token
@@ -290,6 +293,66 @@ testAccessResourceSuccessNginz brig nginz = do
   oauthToken <- oatAccessToken <$> createOAuthAccessToken brig accessTokenRequest
   get (nginz . paths ["self"] . authHeader oauthToken) !!! const 200 === statusCode
 
+testAccessResourceInsufficientScope :: Brig -> Http ()
+testAccessResourceInsufficientScope brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! do
+    const 403 === statusCode
+    const "Access denied" === statusMessage
+    const (Just "Insufficient scope") === responseBody
+
+testAccessResourceExpiredToken :: Opt.Opts -> Brig -> Http ()
+testAccessResourceExpiredToken opts brig =
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAccessTokenExpirationTimeSecsInternal ?~ 1) $ do
+    uid <- userId <$> createUser "alice" brig
+    let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+    let scopes = OAuthScopes $ Set.fromList [SelfRead]
+    (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+    accessToken <- createOAuthAccessToken brig accessTokenRequest
+    liftIO $ threadDelay (1 * 1200 * 1000)
+    get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! do
+      const 403 === statusCode
+      const "Access denied" === statusMessage
+      const (Just "Invalid token: JWTExpired") === responseBody
+
+testAccessResourceNonsenseToken :: Brig -> Http ()
+testAccessResourceNonsenseToken brig = do
+  get (brig . paths ["self"] . zOAuthHeader @Text "foo") !!! do
+    const 403 === statusCode
+    const "Access denied" === statusMessage
+    const (Just "Invalid token: Failed reading: JWSError") =~= responseBody
+
+testAccessResourceNoToken :: Brig -> Http ()
+testAccessResourceNoToken brig =
+  get (brig . paths ["self"]) !!! do
+    const 403 === statusCode
+    const "Access denied" === statusMessage
+
+testAccessResourceInvalidSignature :: Opt.Opts -> Brig -> Http ()
+testAccessResourceInvalidSignature opts brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthAccessToken $ oatAccessToken accessToken))
+  tokenSignedWithWrongKey <- signJwtToken wrongKey claimSet
+  get (brig . paths ["self"] . zOAuthHeader (OAuthAccessToken tokenSignedWithWrongKey)) !!! do
+    const 403 === statusCode
+    const "Access denied" === statusMessage
+    const (Just "Invalid token: JWSError JWSInvalidSignature") === responseBody
+
+-------------------------------------------------------------------------------
+-- Util
+
 authHeader :: ToHttpApiData a => a -> Request -> Request
 authHeader = bearer "Authorization"
 
@@ -298,9 +361,6 @@ zOAuthHeader = bearer "Z-OAuth"
 
 bearer :: ToHttpApiData a => HeaderName -> a -> Request -> Request
 bearer name = header name . toHeader . Bearer
-
--------------------------------------------------------------------------------
--- Util
 
 newOAuthClientRequestBody :: Text -> Text -> NewOAuthClient
 newOAuthClientRequestBody name url =
@@ -349,6 +409,16 @@ generateOAuthClientAndAuthCode brig uid scope url = do
 
     getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
     getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
+
+signJwtToken :: JWK -> OAuthClaimSet -> Http SignedJWT
+signJwtToken key claims = do
+  jwtOrError <- liftIO $ doSignClaims
+  either (const $ error "jwt error") pure jwtOrError
+  where
+    doSignClaims :: IO (Either JWTError SignedJWT)
+    doSignClaims = runJOSE $ do
+      algo <- bestJWSAlg key
+      signJWT key (newJWSHeader ((), algo)) claims
 
 wrongKey :: JWK
 wrongKey = fromMaybe (error "invalid jwk") $ A.decode "{\"p\":\"-Ahl1aNMOqXLUtJHVO1OLGt92EOrjzcNlwB5AL9hp8-GykJIK6BIfDvCCJgDUX-8ZZ-1R485XFVtUiI5W72MKbJ-qicTB7Smzd7St_zO6PZUbkgQoJiosAOMjP_8DBs9CbMl9FqUfE1pNo4O0gYHslUoCKwS5IsAB9HjuHGEQ38\",\"kty\":\"RSA\",\"q\":\"qRih0wBK2xg2wyJcBN6dDpUHTBxNEt8jxmvy33oMU-_Vx0hFLVeAqDYK-awlHGtJQJKp1mXdURXocKXKPukVitnfEH8nvl6vQIr4-uXyENe3yLgADi8VRDZCbWuDVWYAlYlFgdNODZ_A_fIqCmGAw27bwXyZZ3IRusnipyFN6iM\",\"d\":\"L0uBKJrI4I-_X9KPQawrLDEnPT7msevOH5Rf264CPZgwe8B9M0mbGmhIzYFIThNSaEzGoEtyJdTf27zoawh3O3KQO0aJr2HKSCTMZUh7fpqIjYlu5jA_dT3k7yHHMIR4lRLQV0vb936Mu09kTkRqMZ0jSo46dJ5iw0wnuSF0dAiqVG0rSJK-gVBdIbzZYxhSBW4ZF3n4CqtFb6lc1stfZHcnzWHyF6Cofzup6pJumeFe7xXF9-aGU-3UcTSzTnMa21NVP-vT2CXkH8dSfwLI-PuJwlW6tcpBwT2PXrCGyAGqQ3h5cdAmwcgfbla8wqrzj1A08SlkKHvTDixVvnnzpQ\",\"e\":\"AQAB\",\"use\":\"sig\",\"kid\":\"0makAydOdX3vNv4YTToO45ccQUCOoLisvAFVyhiKA4c\",\"qi\":\"phNbA_tiDLQq1omVgM1dHtOe6Dd7J_ZoRdz1Rmc4uaSQyJe-yn88DxXlX10DJkM9uqyzcojOtD5awBUXgYSzmasZvcZ0e2XNi7iXmSwsggTux3lUVVqKWV8HreaSywJ-HqitxjitooWSWOyD9o8yq9RS4r2QdXyuCfthwnEZdpc\",\"dp\":\"q0IJJmjZYolFiYsdq5sq5erWerPGyl0l6gRuiECcqiTVmeQINu81_Wm5gPuNFwHO0JBkt-NBpOprUFHHLvwCwmu3n77ZGfH3VqCq-FT7fMlQ5NCngmvF1bqtmlHJ84X_MCpdY4oDioxcwEl4HDYDrHO17774UItVWxDmXl0rCPs\",\"alg\":\"PS512\",\"dq\":\"NznQQDVsPTofSIPEQeLisIyDoZvsoCk4ael_nPUjaZZ-32L_FNvrLQTZeMl8JVf0yJ4d0ePa8EyTaZb8AqflXT_i1mRw-n-6BP5earMG5_FMGMXfXsKJ04lVEJ94eT-jGTOH--qjJ1fxk_6vNEy73RgrtXmYMGzU1Yhx-duqsrk\",\"n\":\"o9VozUwUc1mQMrAH2fEna_ihmNa3CVRzK7MUgDHEbfY0T71wREpK4f4fOkDysKIqnmMdxRzJhsXTDpxX8_8AlKcimPgR8Qb2z7GwDsnDZOdgAYrZ7l7gj0nX02IX35MBk7a7tWr0nILFLV9SxEu6UFcZo0bL2Rhck81TRqLbomJpIzAq8VCS8uMQeg6hEMarl9tGvSKyFuMdTCV3JE9dSv_NErAWx7uBIgkai3Imjs4ufatvRsi9ZHaUV5V3NtrFbYDulg-GOH1eXZwnO6UrKgcAdB3nS1WKL-vcxqupceAHeFHRjARm6AV07hJyXVOVHxdffv6BFX5GihFPFvpQXQ\"}"

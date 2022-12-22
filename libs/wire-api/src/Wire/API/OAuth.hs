@@ -400,6 +400,7 @@ data OAuthError
   | JwtError
   | OAuthAuthCodeNotFound
   | OAuthFeatureDisabled
+  | InvalidClientCredentials
 
 type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
 
@@ -407,11 +408,13 @@ type instance MapError 'RedirectUrlMissMatch = 'StaticError 400 "redirect-url-mi
 
 type instance MapError 'UnsupportedResponseType = 'StaticError 400 "unsupported-response-type" "Unsupported response type"
 
-type instance MapError 'JwtError = 'StaticError 500 "jwt-error" "Internal error while creating JWT"
+type instance MapError 'JwtError = 'StaticError 500 "jwt-error" "Internal error while handling JWT token"
 
 type instance MapError 'OAuthAuthCodeNotFound = 'StaticError 404 "not-found" "OAuth authorization code not found"
 
 type instance MapError 'OAuthFeatureDisabled = 'StaticError 403 "forbidden" "OAuth is disabled"
+
+type instance MapError 'InvalidClientCredentials = 'StaticError 403 "forbidden" "Invalid client credentials"
 
 --------------------------------------------------------------------------------
 -- CQL instances
