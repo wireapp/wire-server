@@ -40,6 +40,8 @@ import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Effects.SubConversationStore (SubConversationStore)
 import qualified Galley.Effects.SubConversationStore as Eff
+import Galley.Effects.SubConversationSupply (SubConversationSupply)
+import qualified Galley.Effects.SubConversationSupply as Eff
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
@@ -216,7 +218,8 @@ deleteSubConversation ::
        Input Env,
        MemberStore,
        Resource,
-       SubConversationStore
+       SubConversationStore,
+       SubConversationSupply
      ]
     r =>
   Local UserId ->
@@ -240,7 +243,8 @@ deleteLocalSubConversation ::
        ErrorS 'MLSStaleMessage,
        MemberStore,
        Resource,
-       SubConversationStore
+       SubConversationStore,
+       SubConversationSupply
      ]
     r =>
   Local UserId ->
@@ -259,4 +263,5 @@ deleteLocalSubConversation lusr lcnvId scnvId dsc = do
     unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
     Eff.deleteSubConversationPublicGroupState (tUnqualified lcnvId) scnvId
 
--- TODO(md): reset the group ID to some random group ID
+    newGid <- Eff.makeFreshGroupId
+    Eff.setGroupIdForSubConversation newGid (tUntagged lcnvId) scnvId

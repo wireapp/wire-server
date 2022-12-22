@@ -111,6 +111,8 @@ library
     Galley.Effects.ServiceStore
     Galley.Effects.SparAccess
     Galley.Effects.SubConversationStore
+    Galley.Effects.SubConversationSupply
+    Galley.Effects.SubConversationSupply.Random
     Galley.Effects.TeamFeatureStore
     Galley.Effects.TeamMemberStore
     Galley.Effects.TeamNotificationStore
