@@ -203,6 +203,41 @@ let
         tasty-hunit = "hunit";
       };
     };
+    polysemy = {
+      src = fetchgit {
+        url = "https://github.com/polysemy-research/polysemy.git";
+        rev = "3855786e58bf397ca8204f3a79d19c24485dabd4";
+        sha256 = "sha256-4ans30VWuSMC9HNFb6FWQyc30oxJd2dmFrMGu5/dLg0=";
+      };
+    };
+    polysemy-plugin = {
+      src = fetchgit {
+        url = "https://github.com/polysemy-research/polysemy.git";
+        rev = "3855786e58bf397ca8204f3a79d19c24485dabd4";
+        sha256 = "sha256-4ans30VWuSMC9HNFb6FWQyc30oxJd2dmFrMGu5/dLg0=";
+      };
+      packages = {
+        polysemy-plugin = "polysemy-plugin";
+      };
+    };
+    polysemy-check = {
+      src = fetchgit {
+        url = "https://github.com/polysemy-research/polysemy-check.git";
+        rev = "4c0d3ff929ae22ae68d962f7f3f7056f357bf7ac";
+        sha256 = "sha256-8XeCeJWbkdqrUf6tERFMoGM8xRI5l/nKNqI810kzMs0=";
+      };
+    };
+    kind-generics = {
+      src = fetchgit {
+        url = "https://gitlab.com/trupill/kind-generics.git";
+        rev = "f4ad2bcfacc9c3dcecf64c069d086926465cab2c";
+        sha256 = "sha256-uvQMV8aTNyTN+ozrseohexbCneVPMO35Jf1eEhLPk78=";
+      };
+      packages = {
+        kind-generics = "kind-generics";
+        kind-generics-th = "kind-generics-th";
+      };
+    };
     # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
     postie = {
       src = fetchgit {
@@ -213,10 +248,6 @@ let
     };
   };
   hackagePins = {
-    kind-generics = {
-      version = "0.4.1.0";
-      sha256 = "sha256-gD9b9AXpLkpPSAeg8oPBU7tsHtSNQjxIZKBo+7+r3+c=";
-    };
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";

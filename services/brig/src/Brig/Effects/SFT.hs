@@ -37,7 +37,6 @@ import Imports hiding (fromException, intercalate)
 import Network.HTTP.Client
 import Polysemy
 import Polysemy.Error hiding (try)
-import Polysemy.Internal
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import URI.ByteString (uriPath)
