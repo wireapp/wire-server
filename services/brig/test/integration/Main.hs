@@ -55,6 +55,7 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
+import qualified SMTP
 import System.Environment (withArgs)
 import qualified System.Environment.Blank as Blank
 import qualified System.Logger as Logger
@@ -153,9 +154,9 @@ runTests iConf brigOpts otherArgs = do
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
 
-  let versionApi = API.Version.tests mg brigOpts b
-
-  let mlsApi = MLS.tests mg b brigOpts
+  let smtp = SMTP.tests mg lg
+      versionApi = API.Version.tests mg brigOpts b
+      mlsApi = MLS.tests mg b brigOpts
 
   withArgs otherArgs . defaultMain
     $ testGroup
@@ -179,7 +180,8 @@ runTests iConf brigOpts otherArgs = do
         federationEndpoints,
         internalApi,
         versionApi,
-        mlsApi
+        mlsApi,
+        smtp
       ]
       <> [federationEnd2End | includeFederationTests]
   where
