@@ -188,21 +188,21 @@ servantSitemap = brigAPI :<|> oauthAPI
   where
     brigAPI :: ServerT BrigAPI (Handler r)
     brigAPI =
-          userAPI
-            :<|> selfAPI
-            :<|> accountAPI
-            :<|> clientAPI
-            :<|> prekeyAPI
-            :<|> userClientAPI
-            :<|> connectionAPI
-            :<|> propertiesAPI
-            :<|> mlsAPI
-            :<|> userHandleAPI
-            :<|> searchAPI
-            :<|> authAPI
-            :<|> callingAPI
-            :<|> Team.servantAPI
-            :<|> systemSettingsAPI
+      userAPI
+        :<|> selfAPI
+        :<|> accountAPI
+        :<|> clientAPI
+        :<|> prekeyAPI
+        :<|> userClientAPI
+        :<|> connectionAPI
+        :<|> propertiesAPI
+        :<|> mlsAPI
+        :<|> userHandleAPI
+        :<|> searchAPI
+        :<|> authAPI
+        :<|> callingAPI
+        :<|> Team.servantAPI
+        :<|> systemSettingsAPI
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
       Named @"get-user-unqualified" getUserUnqualifiedH
