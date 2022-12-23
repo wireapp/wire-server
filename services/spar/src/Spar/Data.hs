@@ -44,6 +44,7 @@ import Imports
 import SAML2.Util (renderURI)
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Types.Email as SAMLEmail
+import Spar.Options
 import Wire.API.User.Saml
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.

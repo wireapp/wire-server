@@ -19,25 +19,68 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | Reading the Spar config.
---
--- The config type itself, 'Opts', is defined in "Spar.Types".
 module Spar.Options
-  ( getOpts,
+  ( Opts' (..),
+    Opts,
+    DerivedOpts (..),
+    getOpts,
     deriveOpts,
     readOptsFile,
+    maxttlAuthreqDiffTime,
   )
 where
 
 import Control.Exception
 import Control.Lens
+import Control.Monad.Except
+import Data.Aeson hiding (fieldLabelModifier)
 import qualified Data.ByteString as SBS
+import Data.String.Conversions
+import Data.Time
 import qualified Data.Yaml as Yaml
 import Imports
 import Options.Applicative
+import SAML2.WebSSO
 import qualified SAML2.WebSSO as SAML
+import System.Logger.Extended (LogFormat)
 import Text.Ascii (ascii)
-import URI.ByteString as URI
+import URI.ByteString
+import Util.Options
+import Wire.API.User.Orphans ()
 import Wire.API.User.Saml
+
+type Opts = Opts' DerivedOpts
+
+data Opts' a = Opts
+  { saml :: !SAML.Config,
+    brig :: !Endpoint,
+    galley :: !Endpoint,
+    cassandra :: !CassandraOpts,
+    maxttlAuthreq :: !(TTL "authreq"),
+    maxttlAuthresp :: !(TTL "authresp"),
+    -- | The maximum number of SCIM tokens that we will allow teams to have.
+    maxScimTokens :: !Int,
+    -- | The maximum size of rich info. Should be in sync with 'Brig.Types.richInfoLimit'.
+    richInfoLimit :: !Int,
+    -- | Wire/AWS specific; optional; used to discover Cassandra instance
+    -- IPs using describe-instances.
+    discoUrl :: !(Maybe Text),
+    logNetStrings :: !(Maybe (Last Bool)),
+    logFormat :: !(Maybe (Last LogFormat)),
+    -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
+    derivedOpts :: !a
+  }
+  deriving (Functor, Show, Generic)
+
+instance FromJSON (Opts' (Maybe ()))
+
+data DerivedOpts = DerivedOpts
+  { derivedOptsScimBaseURI :: !URI
+  }
+  deriving (Show, Generic)
+
+maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
+maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
 
 type OptsRaw = Opts' (Maybe ())
 

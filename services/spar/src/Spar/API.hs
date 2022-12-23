@@ -69,6 +69,7 @@ import Spar.App
 import Spar.CanonicalInterpreter
 import Spar.Error
 import qualified Spar.Intra.BrigApp as Brig
+import Spar.Options
 import Spar.Orphans ()
 import Spar.Scim
 import Spar.Sem.AReqIDStore (AReqIDStore)

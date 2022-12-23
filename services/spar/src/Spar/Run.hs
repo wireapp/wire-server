@@ -49,12 +49,12 @@ import Spar.API (API, app)
 import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
+import Spar.Options
 import Spar.Orphans ()
 import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
 import Util.Options (casEndpoint, casFilterNodesByDatacentre, casKeyspace, epHost, epPort)
 import Wire.API.Routes.Version.Wai
-import Wire.API.User.Saml as Types
 import Wire.Sem.Logger.TinyLog
 
 ----------------------------------------------------------------------
@@ -62,12 +62,12 @@ import Wire.Sem.Logger.TinyLog
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
-  let cassOpts = Types.cassandra opts
+  let cassOpts = cassandra opts
   connectString <-
     maybe
       (Cas.initialContactsPlain (cassOpts ^. casEndpoint . epHost))
       (Cas.initialContactsDisco "cassandra_spar" . cs)
-      (Types.discoUrl opts)
+      (discoUrl opts)
   cas <-
     Cas.init $
       Cas.defSettings
