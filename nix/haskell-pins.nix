@@ -241,8 +241,6 @@ let
           sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
       };
     };
-  };
-  hackagePins = {
     kind-generics = {
       src = fetchgit {
         url = "https://gitlab.com/trupill/kind-generics.git";
