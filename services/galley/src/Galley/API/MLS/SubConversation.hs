@@ -38,6 +38,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.FederatorAccess
+import qualified Galley.Effects.MemberStore as Eff
 import Galley.Effects.SubConversationStore (SubConversationStore)
 import qualified Galley.Effects.SubConversationStore as Eff
 import Galley.Effects.SubConversationSupply (SubConversationSupply)
@@ -253,15 +254,22 @@ deleteLocalSubConversation ::
   DeleteSubConversation ->
   Sem r ()
 deleteLocalSubConversation lusr lcnvId scnvId dsc = do
-  void $ getConversationAndCheckMembership (tUntagged lusr) lcnvId
+  let cnvId = tUnqualified lcnvId
+  cnv <- getConversationAndCheckMembership (tUntagged lusr) lcnvId
+  cs <- cnvmlsCipherSuite <$> noteS @'ConvNotFound (mlsMetadata cnv)
   withCommitLock (dscGroupId dsc) (dscEpoch dsc) $ do
     sconv <-
-      Eff.getSubConversation (tUnqualified lcnvId) scnvId
+      Eff.getSubConversation cnvId scnvId
         >>= noteS @'ConvNotFound
     let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData sconv)
     unless (dscGroupId dsc == gid) $ throwS @'ConvNotFound
     unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
-    Eff.deleteSubConversationPublicGroupState (tUnqualified lcnvId) scnvId
+    Eff.removeAllMLSClients gid
 
     newGid <- Eff.makeFreshGroupId
+
+    Eff.deleteGroupIdForSubConversation gid
     Eff.setGroupIdForSubConversation newGid (tUntagged lcnvId) scnvId
+
+    -- the following overwrites any prior information about the subconversation
+    Eff.createSubConversation cnvId scnvId cs (Epoch 0) newGid Nothing

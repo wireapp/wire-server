@@ -40,6 +40,7 @@ module Galley.Effects.MemberStore
     setOtherMember,
     addMLSClients,
     removeMLSClients,
+    removeAllMLSClients,
     lookupMLSClients,
 
     -- * Delete members
@@ -78,6 +79,7 @@ data MemberStore m a where
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
   AddMLSClients :: GroupId -> Qualified UserId -> Set (ClientId, KeyPackageRef) -> MemberStore m ()
   RemoveMLSClients :: GroupId -> Qualified UserId -> Set ClientId -> MemberStore m ()
+  RemoveAllMLSClients :: GroupId -> MemberStore m ()
   LookupMLSClients :: GroupId -> MemberStore m ClientMap
 
 makeSem ''MemberStore

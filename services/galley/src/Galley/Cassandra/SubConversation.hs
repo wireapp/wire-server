@@ -72,9 +72,9 @@ setEpochForSubConversation :: ConvId -> SubConvId -> Epoch -> Client ()
 setEpochForSubConversation cid sconv epoch =
   retry x5 (write Cql.insertEpochForSubConversation (params LocalQuorum (epoch, cid, sconv)))
 
-deletePublicGroupState :: ConvId -> SubConvId -> Client ()
-deletePublicGroupState convId subConvId =
-  retry x5 $ write Cql.deletePublicGroupState (params LocalQuorum (convId, subConvId))
+deleteGroupId :: GroupId -> Client ()
+deleteGroupId groupId =
+  retry x5 $ write Cql.deleteGroupIdForSubconv (params LocalQuorum (Identity groupId))
 
 interpretSubConversationStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
@@ -87,4 +87,4 @@ interpretSubConversationStoreToCassandra = interpret $ \case
   GetSubConversationPublicGroupState convId subConvId -> embedClient (selectSubConvPublicGroupState convId subConvId)
   SetGroupIdForSubConversation gId cid sconv -> embedClient $ setGroupIdForSubConversation gId cid sconv
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
-  DeleteSubConversationPublicGroupState convId subConvId -> embedClient $ deletePublicGroupState convId subConvId
+  DeleteGroupIdForSubConversation groupId -> embedClient $ deleteGroupId groupId
