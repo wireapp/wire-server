@@ -21,6 +21,7 @@ import Brig.API.Handler
 import Brig.App
 import Brig.Options
 import Control.Lens
+import qualified Data.Set as Set
 import Imports
 import Servant (ServerT)
 import Wire.API.Routes.Named
@@ -31,12 +32,14 @@ versionAPI = Named $ do
   fed <- view federator
   dom <- viewFederationDomain
   dev <- view (settings . enableDevelopmentVersions . to (fromMaybe False))
+  disabledVersions <- view (settings . disabledAPIVersions . traverse)
+  let allVersions = Set.difference (Set.fromList supportedVersions) disabledVersions
   let supported
-        | dev = supportedVersions
-        | otherwise = supportedVersions \\ developmentVersions
+        | dev = allVersions
+        | otherwise = Set.difference allVersions (Set.fromList developmentVersions)
   pure $
     VersionInfo
-      { vinfoSupported = supported,
+      { vinfoSupported = toList supported,
         vinfoDevelopment = developmentVersions,
         vinfoFederation = isJust fed,
         vinfoDomain = dom
