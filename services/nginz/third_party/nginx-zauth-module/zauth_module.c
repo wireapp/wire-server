@@ -48,6 +48,7 @@ static void      zauth_empty_val      (ngx_http_variable_value_t *);
 static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t *, const ZauthServerConf *);
 static ngx_int_t empty_authorization_header_in_headers_in(ngx_http_request_t *);
 static ngx_int_t set_custom_header_in_headers_in(ngx_http_request_t *, ngx_str_t *, ngx_str_t *);
+static bool zauth_is_authorized_and_allowed(ngx_http_request_t *);
 
 static ngx_http_module_t zauth_module_ctx = {
         zauth_variables // pre-configuration
@@ -269,7 +270,6 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
 
         ZauthLocationConf const * lc =
                 ngx_http_get_module_loc_conf(r, zauth_module);
-
 
         // if zauth is off (used for unauthenticated endpoints) we do not need to handle oauth
         if (lc == NULL || lc->toggle != 1) {
@@ -524,11 +524,45 @@ static ngx_int_t zauth_token_typeinfo (ngx_http_request_t * r, ngx_http_variable
         }
 }
 
+static bool zauth_is_authorized_and_allowed(ngx_http_request_t * r) {
+        ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
+
+        if (t == NULL) {
+                return false;
+        }
+        
+        if (zauth_token_verification(t) != ZAUTH_TOKEN_VERIFICATION_SUCCESS) {
+                return false;
+        }
+
+        ZauthServerConf const * sc =
+                ngx_http_get_module_srv_conf(r, zauth_module);
+
+        if (sc == NULL || sc->acl == NULL) {
+                return false;
+        }
+
+        uint8_t is_allowed = 0;
+        
+        ngx_int_t res = zauth_token_allowed(t, sc->acl, r->uri.data, r->uri.len, &is_allowed);
+        
+        if (res != NGX_OK) {
+                return false;
+        }
+
+        return is_allowed == 1;
+}
+
 static ngx_int_t zauth_token_var (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t data) {
         ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
         if (t == NULL) {
                 return NGX_ERROR;
         }
+        if (!zauth_is_authorized_and_allowed(r)) {
+                zauth_empty_val(v);
+                return NGX_OK;
+        }
+        
         return zauth_set_var(r->pool, v, zauth_token_lookup(t, data));
 }
 

@@ -27,7 +27,7 @@ use std::ptr;
 use std::slice;
 use std::str;
 use std::panic::{self, UnwindSafe};
-use zauth::{Acl, Error, Keystore, Token, TokenType};
+use zauth::{Acl, Error, Keystore, Token, TokenType, TokenVerification};
 use zauth::acl;
 
 /// Variant of std::try! that returns the unwrapped error.
@@ -119,11 +119,18 @@ pub extern fn zauth_token_parse(cs: *const u8, n: size_t, zt: *mut *mut ZauthTok
 }
 
 #[no_mangle]
-pub extern fn zauth_token_verify(t: &ZauthToken, s: &ZauthKeystore) -> ZauthResult {
-    catch_unwind(|| {
+pub extern fn zauth_token_verify(t: &mut ZauthToken, s: &ZauthKeystore) -> ZauthResult {
+    let result = catch_unwind(|| {
         try_unwrap!(t.0.verify(&s.0));
         ZauthResult::Ok
-    })
+    });
+    unsafe { 
+        match result {
+            ZauthResult::Ok => t.0.verification = TokenVerification::Verified,
+            _               => t.0.verification = TokenVerification::Invalid
+        };
+    };
+    result
 }
 
 #[no_mangle]
@@ -144,6 +151,11 @@ fn zauth_token_allowed(t: &ZauthToken, acl: &ZauthAcl, cp: *const u8, n: size_t,
 #[no_mangle]
 pub extern fn zauth_token_type(t: &ZauthToken) -> ZauthTokenType {
     From::from(t.0.token_type)
+}
+
+#[no_mangle]
+pub extern fn zauth_token_verification(t: &ZauthToken) -> ZauthTokenVerification {
+    From::from(t.0.verification)
 }
 
 // Commented out, looks unused, and causing portability issues with ia32.
@@ -257,5 +269,23 @@ fn catch_unwind<F>(f: F) -> ZauthResult
     match panic::catch_unwind(f) {
         Ok(x)  => x,
         Err(_) => ZauthResult::Panic
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub enum ZauthTokenVerification {
+    Verified = 0,
+    Invalid = 1,
+    Pending = 2,
+}
+
+impl From<TokenVerification> for ZauthTokenVerification {
+    fn from(t: TokenVerification) -> ZauthTokenVerification {
+        match t {
+            TokenVerification::Verified => ZauthTokenVerification::Verified,
+            TokenVerification::Invalid  => ZauthTokenVerification::Invalid,
+            TokenVerification::Pending  => ZauthTokenVerification::Pending,
+        }
     }
 }

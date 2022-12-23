@@ -29,4 +29,4 @@ mod matcher;
 
 pub use acl::Acl;
 pub use error::Error;
-pub use zauth::{Keystore, Token, TokenType};
+pub use zauth::{Keystore, Token, TokenType, TokenVerification};
