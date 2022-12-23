@@ -264,6 +264,10 @@ http {
               {{- end }}
             {{- end }}
 
+            {{- if ($location.enable_oauth) }}
+        oauth on;
+            {{- end }}
+
             {{- if hasKey $location "specific_user_rate_limit" }}
         limit_req zone={{ $location.specific_user_rate_limit }}{{ if hasKey $location "specific_user_rate_limit_burst" }} burst={{ $location.specific_user_rate_limit_burst }}{{ end }} nodelay;
             {{- end }}

@@ -160,7 +160,7 @@ nginx_conf:
       envs:
       - staging
     - path: /self$ # Matches exactly /self
-      oauth: true
+      enable_oauth: true
       envs:
       - all
     - path: /self/name
