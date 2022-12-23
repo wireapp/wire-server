@@ -120,7 +120,7 @@ run o = do
     endpoint = brig o
     server e = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (e ^. applog) (e ^. metrics)
 
-mkApp :: (HasCallStack) => Opts -> IO (Wai.Application, Env)
+mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
   pure (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
