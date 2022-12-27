@@ -35,29 +35,24 @@ function retry {
     local maxAttempts=$1
     local secondsDelay=1
     local attemptCount=1
-    local output=
     shift 1
 
     while [ $attemptCount -le "$maxAttempts" ]; do
-        output=$("$@")
-        local status=$?
-
-        if [ $status -eq 0 ]; then
+        if "$@"; then
             break
-        fi
-
-        if [ $attemptCount -lt "$maxAttempts" ]; then
-            echo "Command [$*] failed after attempt $attemptCount of $maxAttempts. Retrying in $secondsDelay second(s)." >&2
-            sleep $secondsDelay
-        elif [ $attemptCount -eq "$maxAttempts" ]; then
-            echo "Command [$*] failed after $attemptCount attempt(s)" >&2
-            return $status
+        else
+            local status=$?
+            if [ $attemptCount -lt "$maxAttempts" ]; then
+                echo "Command [$*] failed after attempt $attemptCount of $maxAttempts. Retrying in $secondsDelay second(s)." >&2
+                sleep $secondsDelay
+            elif [ $attemptCount -eq "$maxAttempts" ]; then
+                echo "Command [$*] failed after $attemptCount attempt(s)" >&2
+                return $status
+            fi
         fi
         attemptCount=$((attemptCount + 1))
         secondsDelay=$((secondsDelay * 2))
     done
-
-    echo "$output"
 }
 
 tmp_link_store=$(mktemp -d)
