@@ -853,6 +853,7 @@ getSubConversationForRemoteUser ::
   Members
     '[ SubConversationStore,
        ConversationStore,
+       Input (Local ()),
        Error InternalError,
        P.TinyLog
      ]
@@ -866,5 +867,5 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
     . mapToGalleyError @MLSGetSubConvStaticErrors
     $ do
       let qusr = Qualified gsreqUser domain
-      let lconv = toLocalUnsafe domain gsreqConv
+      lconv <- qualifyLocal gsreqConv
       getLocalSubConversation qusr lconv gsreqSubConv
