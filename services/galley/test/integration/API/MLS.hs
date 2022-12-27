@@ -224,6 +224,11 @@ tests s =
             [ test s "get subconversation of remote conversation - member" (testGetRemoteSubConv True),
               test s "get subconversation of remote conversation - not member" (testGetRemoteSubConv False),
               test s "join remote subconversation" testJoinRemoteSubConv
+            ],
+          testGroup
+            "Remote Sender/Local SubConversation"
+            [ test s "get subconversation as a remote member" (testRemoteMemberGetSubConv True),
+              test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False)
             ]
         ]
     ]
@@ -2427,3 +2432,66 @@ testGetRemoteSubConv isAMember = do
   liftIO $
     req
       @?= Just (GetSubConversationsRequest (qUnqualified alice) conv sconv)
+
+testRemoteMemberGetSubConv :: Bool -> TestM ()
+testRemoteMemberGetSubConv isAMember = do
+  -- alice is local, bob is remote
+  -- alice creates a local conversation and invites bob
+  -- bob gets a subconversation via federated enpdoint
+
+  let bobDomain = Domain "faraway.example.com"
+  [alice, bob] <- createAndConnectUsers [Nothing, Just (domainText bobDomain)]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+
+    (_groupId, qcnv) <- setupMLSGroup alice1
+    kpb <- claimKeyPackages alice1 bob
+    mp <- createAddCommit alice1 [bob]
+
+    let mockedResponse fedReq =
+          case frRPC fedReq of
+            "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
+            "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+            "on-conversation-updated" -> pure (Aeson.encode ())
+            "get-mls-clients" ->
+              pure
+                . Aeson.encode
+                . Set.singleton
+                $ ClientInfo (ciClient bob1) True
+            "claim-key-packages" -> pure . Aeson.encode $ kpb
+            ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    void . withTempMockFederator' mockedResponse $
+      sendAndConsumeCommit mp
+
+    let subconv = SubConvId "conference"
+
+    randUser <- randomId
+    let gscr =
+          GetSubConversationsRequest
+            { gsreqUser = if isAMember then qUnqualified bob else randUser,
+              gsreqConv = qUnqualified qcnv,
+              gsreqSubConv = subconv
+            }
+
+    fedGalleyClient <- view tsFedGalleyClient
+    res <- runFedClient @"get-sub-conversation" fedGalleyClient bobDomain gscr
+
+    liftTest $ do
+      if isAMember
+        then do
+          sub <- expectSubConvSuccess res
+          liftIO $ do
+            pscParentConvId sub @?= qcnv
+            pscSubConvId sub @?= subconv
+        else do
+          expectSubConvError ConvNotFound res
+  where
+    expectSubConvSuccess :: GetSubConversationsResponse -> TestM PublicSubConversation
+    expectSubConvSuccess (GetSubConversationsResponseSuccess fakeSubConv) = pure fakeSubConv
+    expectSubConvSuccess (GetSubConversationsResponseError err) = liftIO $ assertFailure ("Unexpected GetSubConversationsResponseError: " <> show err)
+
+    expectSubConvError :: GalleyError -> GetSubConversationsResponse -> TestM ()
+    expectSubConvError _errExpected (GetSubConversationsResponseSuccess _) = liftIO $ assertFailure "Unexpected GetSubConversationsResponseSuccess"
+    expectSubConvError errExpected (GetSubConversationsResponseError err) = liftIO $ err @?= errExpected
