@@ -136,7 +136,7 @@ getUnqualifiedConversation ::
   ConvId ->
   Sem r Public.Conversation
 getUnqualifiedConversation lusr cnv = do
-  c <- getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
+  c <- getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
 
 getConversation ::
@@ -272,7 +272,7 @@ getConversationRoles ::
   ConvId ->
   Sem r Public.ConversationRolesList
 getConversationRoles lusr cnv = do
-  void $ getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
+  void $ getConversationAndCheckMembership (tUntagged lusr) (qualifyAs lusr cnv)
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles

@@ -75,6 +75,7 @@ type GalleyApi =
     :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
     :<|> FedEndpoint "on-client-removed" ClientRemovedRequest EmptyResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
+    :<|> FedEndpoint "get-sub-conversation" GetSubConversationsRequest GetSubConversationsResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { tdurTypingStatus :: TypingStatus,
@@ -367,3 +368,17 @@ data GetGroupInfoResponse
   | GetGroupInfoResponseState Base64ByteString
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetGroupInfoResponse)
+
+data GetSubConversationsRequest = GetSubConversationsRequest
+  { gsreqUser :: UserId,
+    gsreqConv :: ConvId,
+    gsreqSubConv :: SubConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetSubConversationsRequest)
+
+data GetSubConversationsResponse
+  = GetSubConversationsResponseError GalleyError
+  | GetSubConversationsResponseSuccess PublicSubConversation
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetSubConversationsResponse)
