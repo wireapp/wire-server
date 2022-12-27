@@ -61,6 +61,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
@@ -207,15 +208,23 @@ tests s =
         ],
       testGroup
         "SubConversation"
-        [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
-          test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
-          test s "join subconversation with an external commit bundle" testJoinSubConv,
-          test s "join subconversation with a client that is not in the main conv" testJoinSubNonMemberClient,
-          test s "add another client to a subconversation" testAddClientSubConv,
-          test s "remove another client from a subconversation" testRemoveClientSubConv,
-          test s "join remote subconversation" testJoinRemoteSubConv,
-          test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
-          test s "send an application message in a subconversation" testSendMessageSubConv
+        [ testGroup
+            "Local Sender/Local Subconversation"
+            [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
+              test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
+              test s "join subconversation with an external commit bundle" testJoinSubConv,
+              test s "join subconversation with a client that is not in the main conv" testJoinSubNonMemberClient,
+              test s "add another client to a subconversation" testAddClientSubConv,
+              test s "remove another client from a subconversation" testRemoveClientSubConv,
+              test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
+              test s "send an application message in a subconversation" testSendMessageSubConv
+            ],
+          testGroup
+            "Local Sender/Remote Subconversation"
+            [ test s "get subconversation of remote conversation - member" (testGetRemoteSubConv True),
+              test s "get subconversation of remote conversation - not member" (testGetRemoteSubConv False),
+              test s "join remote subconversation" testJoinRemoteSubConv
+            ]
         ]
     ]
 
@@ -2383,3 +2392,38 @@ testSendMessageSubConv = do
         liftIO $
           WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
             wsAssertMLSMessage qcs alice (mpMessage message) n
+
+testGetRemoteSubConv :: Bool -> TestM ()
+testGetRemoteSubConv isAMember = do
+  alice <- randomQualifiedUser
+  let remoteDomain = Domain "faraway.example.com"
+  conv <- randomId
+  let qconv = Qualified conv remoteDomain
+      sconv = SubConvId "conference"
+      fakeSubConv =
+        PublicSubConversation
+          { pscParentConvId = qconv,
+            pscSubConvId = sconv,
+            pscGroupId = GroupId "deadbeef",
+            pscEpoch = Epoch 0,
+            pscCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
+            pscMembers = []
+          }
+
+  let mock req = case frRPC req of
+        "get-sub-conversation" ->
+          pure $
+            if isAMember
+              then Aeson.encode (GetSubConversationsResponseSuccess fakeSubConv)
+              else Aeson.encode (GetSubConversationsResponseError ConvNotFound)
+        rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+
+  (_, reqs) <-
+    withTempMockFederator' mock $
+      getSubConv (qUnqualified alice) qconv sconv
+        <!! const (if isAMember then 200 else 404) === statusCode
+  fedSubConv <- assertOne (filter ((== "get-sub-conversation") . frRPC) reqs)
+  let req :: Maybe GetSubConversationsRequest = Aeson.decode (frBody fedSubConv)
+  liftIO $
+    req
+      @?= Just (GetSubConversationsRequest (qUnqualified alice) conv sconv)
