@@ -216,7 +216,6 @@ tests s =
               test s "join subconversation with a client that is not in the main conv" testJoinSubNonMemberClient,
               test s "add another client to a subconversation" testAddClientSubConv,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
-              test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
               test s "send an application message in a subconversation" testSendMessageSubConv
             ],
           testGroup
@@ -228,7 +227,8 @@ tests s =
           testGroup
             "Remote Sender/Local SubConversation"
             [ test s "get subconversation as a remote member" (testRemoteMemberGetSubConv True),
-              test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False)
+              test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False),
+              test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv
             ]
         ]
     ]
