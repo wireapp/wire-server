@@ -19,7 +19,6 @@ module Galley.API.MLS.SubConversation where
 
 import Data.Id
 import Data.Qualified
-import Galley.API.Error
 import Galley.API.MLS
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Types
@@ -33,11 +32,9 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.SubConversationStore
 import qualified Galley.Effects.SubConversationStore as Eff
 import Imports
-import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import qualified Polysemy.TinyLog as P
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
@@ -61,11 +58,8 @@ getSubConversation ::
        ErrorS 'ConvNotFound,
        ErrorS 'ConvAccessDenied,
        ErrorS 'MLSSubConvUnsupportedConvType,
-       Error InternalError,
        Error FederationError,
-       Error Wai.Error,
-       FederatorAccess,
-       P.TinyLog
+       FederatorAccess
      ]
     r =>
   Local UserId ->
@@ -85,9 +79,7 @@ getLocalSubConversation ::
        ConversationStore,
        ErrorS 'ConvNotFound,
        ErrorS 'ConvAccessDenied,
-       ErrorS 'MLSSubConvUnsupportedConvType,
-       Error InternalError,
-       P.TinyLog
+       ErrorS 'MLSSubConvUnsupportedConvType
      ]
     r =>
   Qualified UserId ->
@@ -130,15 +122,10 @@ getLocalSubConversation qusr lconv sconv = do
 getRemoteSubConversation ::
   forall r.
   ( Members
-      '[ SubConversationStore,
-         ConversationStore,
-         ErrorS 'ConvNotFound,
+      '[ ErrorS 'ConvNotFound,
          ErrorS 'ConvAccessDenied,
          ErrorS 'MLSSubConvUnsupportedConvType,
-         Error InternalError,
-         Error FederationError,
-         FederatorAccess,
-         P.TinyLog
+         FederatorAccess
        ]
       r,
     Members MLSGetSubConvStaticErrors r,
