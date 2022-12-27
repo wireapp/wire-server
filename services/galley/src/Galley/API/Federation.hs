@@ -120,6 +120,7 @@ federationSitemap =
     :<|> Named @"query-group-info" queryGroupInfo
     :<|> Named @"on-client-removed" onClientRemoved
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
+    :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
 
 onClientRemoved ::
   ( Members
@@ -847,3 +848,23 @@ onTypingIndicatorUpdated origDomain TypingDataUpdateRequest {..} = do
     runError @(Tagged 'ConvNotFound ()) $
       isTyping qusr Nothing lcnv tdurTypingStatus
   pure EmptyResponse
+
+getSubConversationForRemoteUser ::
+  Members
+    '[ SubConversationStore,
+       ConversationStore,
+       Error InternalError,
+       P.TinyLog
+     ]
+    r =>
+  Domain ->
+  GetSubConversationsRequest ->
+  Sem r GetSubConversationsResponse
+getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
+  fmap (either F.GetSubConversationsResponseError F.GetSubConversationsResponseSuccess)
+    . runError @GalleyError
+    . mapToGalleyError @MLSGetSubConvStaticErrors
+    $ do
+      let qusr = Qualified gsreqUser domain
+      let lconv = toLocalUnsafe domain gsreqConv
+      getLocalSubConversation qusr lconv gsreqSubConv
