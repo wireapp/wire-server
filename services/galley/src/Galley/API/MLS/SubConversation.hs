@@ -84,7 +84,7 @@ getLocalSubConversation ::
   SubConvId ->
   Sem r PublicSubConversation
 getLocalSubConversation lusr lconv sconv = do
-  c <- getConversationAndCheckMembership (tUnqualified lusr) lconv
+  c <- getConversationAndCheckMembership (tUntagged lusr) lconv
 
   unless (Data.convType c == RegularConv) $
     throwS @'MLSSubConvUnsupportedConvType

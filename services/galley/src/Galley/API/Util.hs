@@ -502,16 +502,29 @@ getMember p u = noteS @e . find ((u ==) . p)
 
 getConversationAndCheckMembership ::
   Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied] r =>
-  UserId ->
+  Qualified UserId ->
   Local ConvId ->
   Sem r Data.Conversation
-getConversationAndCheckMembership uid lcnv = do
-  (conv, _) <-
-    getConversationAndMemberWithError
-      @'ConvAccessDenied
-      uid
-      lcnv
-  pure conv
+getConversationAndCheckMembership quid lcnv = do
+  foldQualified
+    lcnv
+    ( \lusr -> do
+        (conv, _) <-
+          getConversationAndMemberWithError
+            @'ConvAccessDenied
+            (tUnqualified lusr)
+            lcnv
+        pure conv
+    )
+    ( \rusr -> do
+        (conv, _) <-
+          getConversationAndMemberWithError
+            @'ConvNotFound
+            rusr
+            lcnv
+        pure conv
+    )
+    quid
 
 getConversationWithError ::
   ( Member ConversationStore r,
