@@ -20,6 +20,7 @@
 
 module CargoHold.Options where
 
+import Amazonka (S3AddressingStyle (..))
 import qualified CargoHold.CloudFront as CF
 import Control.Lens hiding (Level)
 import Data.Aeson (FromJSON (..), withText)
@@ -45,8 +46,35 @@ deriveFromJSON toOptionFieldName ''CloudFrontOpts
 
 makeLenses ''CloudFrontOpts
 
+newtype OptS3AddressingStyle = OptS3AddressingStyle
+  { unwrapS3AddressingStyle :: S3AddressingStyle
+  }
+  deriving (Show)
+
+instance FromJSON OptS3AddressingStyle where
+  parseJSON =
+    withText "S3AddressingStyle" $
+      fmap OptS3AddressingStyle . \case
+        "auto" -> pure S3AddressingStyleAuto
+        "path" -> pure S3AddressingStylePath
+        "virtual" -> pure S3AddressingStyleVirtual
+        other -> fail $ "invalid S3AddressingStyle: " <> show other
+
 data AWSOpts = AWSOpts
   { _awsS3Endpoint :: !AWSEndpoint,
+    -- | S3 can either by addressed in path style, i.e.
+    -- https://<s3-endpoint>/<bucket-name>/<object>, or vhost style, i.e.
+    -- https://<bucket-name>.<s3-endpoint>/<object>. AWS's offical offering has
+    -- deprecated path style addressing for S3, but other object storage
+    -- providers (specially self-deployed ones like MinIO) may not support it.
+    --
+    -- Installations using S3 service provided by AWS, should use "auto", this
+    -- option will ensure that vhost style is only used for buckets which it is
+    -- possible to make a valid DNS entry
+    --
+    -- When this option is unspecified, we default to path style addressing to
+    -- ensure smooth transition for older deployments.
+    _awsS3AddressingStyle :: !(Maybe OptS3AddressingStyle),
     -- | S3 endpoint for generating download links. Useful if Cargohold is configured to use
     -- an S3 replacement running inside the internal network (in which case internally we
     -- would use one hostname for S3, and when generating an asset link for a client app, we

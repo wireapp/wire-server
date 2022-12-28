@@ -98,9 +98,10 @@ newEnv o = do
   pure $ Env ama met lgr mgr def o loc
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
-initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) S3AddressingStylePath downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
+initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) addrStyle downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
   where
     downloadEndpoint = fromMaybe (o ^. awsS3Endpoint) (o ^. awsS3DownloadEndpoint)
+    addrStyle = maybe S3AddressingStylePath unwrapS3AddressingStyle (o ^. awsS3AddressingStyle)
 
 initHttpManager :: Maybe S3Compatibility -> IO Manager
 initHttpManager s3Compat =
