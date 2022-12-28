@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Galley.API.Internal
   ( internalSitemap,
@@ -111,6 +112,8 @@ import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+
+instance CallsFed comp name
 
 type LegalHoldFeatureStatusChangeErrors =
   '( 'ActionDenied 'RemoveConversationMember,

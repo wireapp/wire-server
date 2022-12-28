@@ -98,6 +98,7 @@ import qualified System.Logger.Extended as ExLog
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Event.Conversation (Connect (Connect))
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Properties
@@ -117,7 +118,8 @@ onUserEvent ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -249,7 +251,8 @@ dispatchNotifications ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -285,6 +288,7 @@ notifyUserDeletionLocals ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections",
     MonadClient m
   ) =>
   UserId ->
@@ -299,7 +303,8 @@ notifyUserDeletionRemotes ::
   forall m.
   ( MonadReader Env m,
     MonadClient m,
-    MonadLogger m
+    MonadLogger m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   m ()

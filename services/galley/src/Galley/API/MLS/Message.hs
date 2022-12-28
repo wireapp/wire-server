@@ -146,7 +146,12 @@ postMLSMessageFromLocalUserV1 ::
          SubConversationStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "send-mls-message",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -186,7 +191,12 @@ postMLSMessageFromLocalUser ::
          SubConversationStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "send-mls-message",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -218,7 +228,13 @@ postMLSCommitBundle ::
          SubConversationStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "mls-welcome",
+    CallsFed 'Galley "send-mls-commit-bundle",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Local x ->
   Qualified UserId ->
@@ -251,7 +267,13 @@ postMLSCommitBundleFromLocalUser ::
          SubConversationStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "mls-welcome",
+    CallsFed 'Galley "send-mls-commit-bundle",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -284,7 +306,12 @@ postMLSCommitBundleToLocalConv ::
          SubConversationStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "mls-welcome",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -344,7 +371,8 @@ postMLSCommitBundleToRemoteConv ::
          MemberStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "send-mls-commit-bundle"
   ) =>
   Local x ->
   Qualified UserId ->
@@ -402,7 +430,12 @@ postMLSMessage ::
          SubConversationStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "send-mls-message",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Local x ->
   Qualified UserId ->
@@ -493,7 +526,11 @@ postMLSMessageToLocalConv ::
          SubConversationStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -530,7 +567,8 @@ postMLSMessageToRemoteConv ::
          TinyLog
        ]
       r,
-    HasProposalEffects r
+    HasProposalEffects r,
+    CallsFed 'Galley "send-mls-message"
   ) =>
   Local x ->
   Qualified UserId ->
@@ -643,22 +681,26 @@ getCommitData lConvOrSub epoch commit = do
 
 processCommit ::
   ( HasProposalEffects r,
+    Member BrigAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Input (Local ())) r,
     Member ProposalStore r,
-    Member BrigAccess r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -674,29 +716,31 @@ processCommit qusr senderClient con lConvOrSub epoch sender commit = do
 
 processExternalCommit ::
   forall r.
-  Members
-    '[ BrigAccess,
-       ConversationStore,
-       Error MLSProtocolError,
-       ErrorS 'ConvNotFound,
-       ErrorS 'MLSClientSenderUserMismatch,
-       ErrorS 'MLSKeyPackageRefNotFound,
-       ErrorS 'MLSStaleMessage,
-       ErrorS 'MLSMissingSenderClient,
-       ErrorS 'MLSSubConvClientNotInParent,
-       Error InternalError,
-       ExternalAccess,
-       FederatorAccess,
-       GundeckAccess,
-       Input Env,
-       Input UTCTime,
-       MemberStore,
-       ProposalStore,
-       Resource,
-       SubConversationStore,
-       TinyLog
-     ]
-    r =>
+  ( Members
+      '[ BrigAccess,
+         ConversationStore,
+         Error MLSProtocolError,
+         ErrorS 'ConvNotFound,
+         ErrorS 'MLSClientSenderUserMismatch,
+         ErrorS 'MLSKeyPackageRefNotFound,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSMissingSenderClient,
+         ErrorS 'MLSSubConvClientNotInParent,
+         Error InternalError,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input UTCTime,
+         MemberStore,
+         ProposalStore,
+         Resource,
+         SubConversationStore,
+         TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
+  ) =>
   Qualified UserId ->
   Maybe ClientId ->
   Local ConvOrSubConv ->
@@ -792,22 +836,26 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
 processCommitWithAction ::
   forall r.
   ( HasProposalEffects r,
+    Member BrigAccess r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSSubConvClientNotInParent) r,
     Member (Input (Local ())) r,
     Member ProposalStore r,
-    Member BrigAccess r,
     Member Resource r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -842,7 +890,11 @@ processInternalCommit ::
     Member ProposalStore r,
     Member SubConversationStore r,
     Member BrigAccess r,
-    Member Resource r
+    Member Resource r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -1188,7 +1240,11 @@ executeProposalAction ::
     Member MemberStore r,
     Member ProposalStore r,
     Member TeamStore r,
-    Member TinyLog r
+    Member TinyLog r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Local x ->
   Qualified UserId ->
@@ -1331,7 +1387,9 @@ handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
 
 getClientInfo ::
-  Members '[BrigAccess, FederatorAccess] r =>
+  ( Members '[BrigAccess, FederatorAccess] r,
+    CallsFed 'Brig "get-mls-clients"
+  ) =>
   Local x ->
   Qualified UserId ->
   SignatureSchemeTag ->
@@ -1339,7 +1397,9 @@ getClientInfo ::
 getClientInfo loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
 
 getRemoteMLSClients ::
-  Member FederatorAccess r =>
+  ( Member FederatorAccess r,
+    CallsFed 'Brig "get-mls-clients"
+  ) =>
   Remote UserId ->
   SignatureSchemeTag ->
   Sem r (Set ClientInfo)

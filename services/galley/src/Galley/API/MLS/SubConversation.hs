@@ -39,7 +39,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Federation.API (Component (Galley), fedClient)
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley (GetSubConversationsRequest (..), GetSubConversationsResponse (..))
 import Wire.API.Federation.Error (FederationError)
 import Wire.API.MLS.PublicGroupState
@@ -52,16 +52,18 @@ type MLSGetSubConvStaticErrors =
    ]
 
 getSubConversation ::
-  Members
-    '[ SubConversationStore,
-       ConversationStore,
-       ErrorS 'ConvNotFound,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'MLSSubConvUnsupportedConvType,
-       Error FederationError,
-       FederatorAccess
-     ]
-    r =>
+  ( Members
+      '[ SubConversationStore,
+         ConversationStore,
+         ErrorS 'ConvNotFound,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'MLSSubConvUnsupportedConvType,
+         Error FederationError,
+         FederatorAccess
+       ]
+      r,
+    CallsFed 'Galley "get-sub-conversation"
+  ) =>
   Local UserId ->
   Qualified ConvId ->
   SubConvId ->
@@ -129,7 +131,8 @@ getRemoteSubConversation ::
        ]
       r,
     Members MLSGetSubConvStaticErrors r,
-    RethrowErrors MLSGetSubConvStaticErrors r
+    RethrowErrors MLSGetSubConvStaticErrors r,
+    CallsFed 'Galley "get-sub-conversation"
   ) =>
   Local UserId ->
   Remote ConvId ->
@@ -150,16 +153,18 @@ getRemoteSubConversation lusr rcnv sconv = do
       pure subconv
 
 getSubConversationGroupInfo ::
-  Members
-    '[ ConversationStore,
-       Error FederationError,
-       FederatorAccess,
-       Input Env,
-       MemberStore,
-       SubConversationStore
-     ]
-    r =>
-  Members MLSGroupInfoStaticErrors r =>
+  ( Members
+      '[ ConversationStore,
+         Error FederationError,
+         FederatorAccess,
+         Input Env,
+         MemberStore,
+         SubConversationStore
+       ]
+      r,
+    Members MLSGroupInfoStaticErrors r,
+    CallsFed 'Galley "query-group-info"
+  ) =>
   Local UserId ->
   Qualified ConvId ->
   SubConvId ->

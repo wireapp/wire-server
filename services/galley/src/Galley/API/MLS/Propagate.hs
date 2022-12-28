@@ -52,7 +52,8 @@ propagateMessage ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TinyLog r
+    Member TinyLog r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Qualified UserId ->
   Local ConvOrSubConv ->

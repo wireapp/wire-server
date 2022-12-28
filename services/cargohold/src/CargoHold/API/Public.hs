@@ -35,11 +35,12 @@ import Servant.API
 import Servant.Server hiding (Handler)
 import URI.ByteString
 import Wire.API.Asset
+import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 
-servantSitemap :: ServerT ServantAPI Handler
+servantSitemap :: (CallsFed 'Cargohold "get-asset", CallsFed 'Cargohold "stream-asset") => ServerT ServantAPI Handler
 servantSitemap =
   renewTokenV3
     :<|> deleteTokenV3
@@ -147,6 +148,7 @@ downloadAssetV3 usr key tok1 tok2 = do
   AssetLocation <$$> V3.download (mkPrincipal usr) key (tok1 <|> tok2)
 
 downloadAssetV4 ::
+  (CallsFed 'Cargohold "get-asset", CallsFed 'Cargohold "stream-asset") =>
   Local UserId ->
   Qualified AssetKey ->
   Maybe AssetToken ->

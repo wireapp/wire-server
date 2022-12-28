@@ -39,6 +39,7 @@ import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), Ups
 import Imports
 import Network.Wai.Utilities.Error
 import Wire.API.Connection
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
@@ -187,6 +188,7 @@ pushEvent self mzcon connection = do
   Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
+  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -251,6 +253,7 @@ performRemoteAction self other mconnection action = do
     reaction _ = Nothing
 
 createConnectionToRemoteUser ::
+  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   ConnId ->
   Remote UserId ->
@@ -260,6 +263,7 @@ createConnectionToRemoteUser self zcon other = do
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
+  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   Remote UserId ->
   Relation ->
