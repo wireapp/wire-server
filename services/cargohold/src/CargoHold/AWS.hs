@@ -70,9 +70,10 @@ data Env = Env
 makeLenses ''Env
 
 -- | Override the endpoint in the '_amazonkaEnv' with '_amazonkaDownloadEndpoint'.
+-- TODO: Choose the correct s3 addressing style
 amazonkaEnvWithDownloadEndpoint :: Env -> AWS.Env
 amazonkaEnvWithDownloadEndpoint e =
-  AWS.override (setAWSEndpoint (e ^. amazonkaDownloadEndpoint)) (e ^. amazonkaEnv)
+  AWS.overrideService (setAWSEndpoint (e ^. amazonkaDownloadEndpoint)) (e ^. amazonkaEnv)
 
 setAWSEndpoint :: AWSEndpoint -> AWS.Service -> AWS.Service
 setAWSEndpoint e = AWS.setEndpoint (_awsSecure e) (_awsHost e) (_awsPort e)
@@ -118,11 +119,11 @@ mkEnv lgr s3End s3Download bucket cfOpts mgr = do
     mkAwsEnv g s3 = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> AWS.configure s3
+          <&> AWS.configureService s3
       pure $
         baseEnv
-          { AWS.envLogger = awsLogger g,
-            AWS.envManager = mgr
+          { AWS.logger = awsLogger g,
+            AWS.manager = mgr
           }
     awsLogger g l = Logger.log g (mapLevel l) . Log.msg . toLazyByteString
     mapLevel AWS.Info = Logger.Info
@@ -222,7 +223,7 @@ canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False
 canRetry (Left e) = case e of
   AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
-  AWS.ServiceError se | se ^. AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
+  AWS.ServiceError se | se ^. AWS.serviceError_code == AWS.ErrorCode "RequestThrottled" -> pure True
   _ -> pure False
 
 retry5x :: (Monad m) => RetryPolicyM m
