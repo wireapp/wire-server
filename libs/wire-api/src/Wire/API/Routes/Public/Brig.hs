@@ -802,6 +802,7 @@ type ClientAPI =
     "get-user-clients-unqualified"
     ( Summary "Get all of a user's clients"
         :> Until 'V2
+        :> MakesFederatedCall 'Brig "get-user-clients"
         :> "users"
         :> CaptureUserId "uid"
         :> "clients"

@@ -252,15 +252,16 @@ servantSitemap =
         :<|> Named @"post-password-reset-key-deprecated" deprecatedCompletePasswordReset
         :<|> Named @"onboarding" deprecatedOnboarding
 
+    -- TODO(sandy): done
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
-      Named @"get-user-clients-unqualified" getUserClientsUnqualified
-        :<|> Named @"get-user-clients-qualified" getUserClientsQualified
-        :<|> Named @"get-user-client-unqualified" getUserClientUnqualified
-        :<|> Named @"get-user-client-qualified" getUserClientQualified
-        :<|> Named @"list-clients-bulk" listClientsBulk
-        :<|> Named @"list-clients-bulk-v2" listClientsBulkV2
-        :<|> Named @"list-clients-bulk@v2" listClientsBulkV2
+      Named @"get-user-clients-unqualified" (callsFed getUserClientsUnqualified)
+        :<|> Named @"get-user-clients-qualified" (callsFed getUserClientsQualified)
+        :<|> Named @"get-user-client-unqualified" (callsFed getUserClientUnqualified)
+        :<|> Named @"get-user-client-qualified" (callsFed getUserClientQualified)
+        :<|> Named @"list-clients-bulk" (callsFed listClientsBulk)
+        :<|> Named @"list-clients-bulk-v2" (callsFed listClientsBulkV2)
+        :<|> Named @"list-clients-bulk@v2" (callsFed listClientsBulkV2)
 
     prekeyAPI :: ServerT PrekeyAPI (Handler r)
     prekeyAPI =
