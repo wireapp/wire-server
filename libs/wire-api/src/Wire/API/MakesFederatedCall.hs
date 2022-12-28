@@ -21,7 +21,7 @@ module Wire.API.MakesFederatedCall
     MakesFederatedCall,
     Component (..),
     callsFed,
-    unsafeCallsFed
+    unsafeCallsFed,
   )
 where
 
@@ -133,4 +133,3 @@ callsFed f Dict = f
 -- thus might mean a federated call gets forgotten in the documentation.
 unsafeCallsFed :: forall (comp :: Component) (name :: Symbol) r. (CallsFed comp name => r) -> r
 unsafeCallsFed f = callsFed f $ synthesizeCallsFed @comp @name
-

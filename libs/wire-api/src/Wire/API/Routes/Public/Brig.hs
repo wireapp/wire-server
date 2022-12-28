@@ -43,12 +43,12 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
-import Wire.API.MakesFederatedCall
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
+import Wire.API.MakesFederatedCall
 import Wire.API.Properties
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -153,7 +153,7 @@ type UserAPI =
     Named
       "get-user-qualified"
       ( Summary "Get a user by Domain and UserId"
-        :> MakesFederatedCall 'Brig "get-users-by-ids"
+          :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
           :> "users"
           :> QualifiedCaptureUserId "uid"
@@ -174,8 +174,8 @@ type UserAPI =
            "get-handle-info-unqualified"
            ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
                :> Until 'V2
-    :> MakesFederatedCall 'Brig "get-user-by-handle"
-    :> MakesFederatedCall 'Brig "get-users-by-ids"
+               :> MakesFederatedCall 'Brig "get-user-by-handle"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZUser
                :> "users"
                :> "handles"
@@ -192,8 +192,8 @@ type UserAPI =
            "get-user-by-handle-qualified"
            ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
                :> Until 'V2
-    :> MakesFederatedCall 'Brig "get-user-by-handle"
-    :> MakesFederatedCall 'Brig "get-users-by-ids"
+               :> MakesFederatedCall 'Brig "get-user-by-handle"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZUser
                :> "users"
                :> "by-handle"
@@ -213,7 +213,7 @@ type UserAPI =
       ( Summary "List users (deprecated)"
           :> Until 'V2
           :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
-    :> MakesFederatedCall 'Brig "get-users-by-ids"
+          :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
           :> "users"
           :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
@@ -226,7 +226,7 @@ type UserAPI =
       "list-users-by-ids-or-handles"
       ( Summary "List users"
           :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
-    :> MakesFederatedCall 'Brig "get-users-by-ids"
+          :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
           :> "list-users"
           :> ReqBody '[JSON] ListUsersQuery
@@ -381,7 +381,7 @@ type SelfAPI =
     :<|> Named
            "change-handle"
            ( Summary "Change your handle."
-                :> MakesFederatedCall 'Brig "on-user-deleted-connections"
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ZUser
                :> ZConn
                :> "self"
@@ -608,7 +608,7 @@ type PrekeyAPI =
     :<|> Named
            "get-users-prekeys-client-qualified"
            ( Summary "Get a prekey for a specific client of a user."
-        :> MakesFederatedCall 'Brig "claim-prekey"
+               :> MakesFederatedCall 'Brig "claim-prekey"
                :> ZUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -620,7 +620,7 @@ type PrekeyAPI =
            "get-users-prekey-bundle-unqualified"
            ( Summary "(deprecated) Get a prekey for each client of a user."
                :> Until 'V2
-        :> MakesFederatedCall 'Brig "claim-prekey-bundle"
+               :> MakesFederatedCall 'Brig "claim-prekey-bundle"
                :> ZUser
                :> "users"
                :> CaptureUserId "uid"
@@ -630,7 +630,7 @@ type PrekeyAPI =
     :<|> Named
            "get-users-prekey-bundle-qualified"
            ( Summary "Get a prekey for each client of a user."
-        :> MakesFederatedCall 'Brig "claim-prekey-bundle"
+               :> MakesFederatedCall 'Brig "claim-prekey-bundle"
                :> ZUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -818,7 +818,7 @@ type ClientAPI =
     :<|> Named
            "get-user-clients-qualified"
            ( Summary "Get all of a user's clients"
-        :> MakesFederatedCall 'Brig "get-user-clients"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
@@ -828,7 +828,7 @@ type ClientAPI =
            "get-user-client-unqualified"
            ( Summary "Get a specific client of a user"
                :> Until 'V2
-        :> MakesFederatedCall 'Brig "get-user-clients"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> "users"
                :> CaptureUserId "uid"
                :> "clients"
@@ -838,7 +838,7 @@ type ClientAPI =
     :<|> Named
            "get-user-client-qualified"
            ( Summary "Get a specific client of a user"
-        :> MakesFederatedCall 'Brig "get-user-clients"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
@@ -849,7 +849,7 @@ type ClientAPI =
            "list-clients-bulk"
            ( Summary "List all clients for a set of user ids"
                :> Until 'V2
-        :> MakesFederatedCall 'Brig "get-user-clients"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -860,7 +860,7 @@ type ClientAPI =
            "list-clients-bulk-v2"
            ( Summary "List all clients for a set of user ids"
                :> Until 'V2
-        :> MakesFederatedCall 'Brig "get-user-clients"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -872,7 +872,7 @@ type ClientAPI =
            "list-clients-bulk@v2"
            ( Summary "List all clients for a set of user ids"
                :> From 'V2
-        :> MakesFederatedCall 'Brig "get-user-clients"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -916,7 +916,7 @@ type ConnectionAPI =
     :<|> Named
            "create-connection"
            ( Summary "Create a connection to another user"
-        :> MakesFederatedCall 'Brig "send-connection-action"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'InvalidUser
                :> CanThrow 'ConnectionLimitReached
@@ -995,7 +995,7 @@ type ConnectionAPI =
       "update-connection-unqualified"
       ( Summary "Update a connection to another user"
           :> Until 'V2
-        :> MakesFederatedCall 'Brig "send-connection-action"
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -1023,7 +1023,7 @@ type ConnectionAPI =
     Named
       "update-connection"
       ( Summary "Update a connection to another user"
-        :> MakesFederatedCall 'Brig "send-connection-action"
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
