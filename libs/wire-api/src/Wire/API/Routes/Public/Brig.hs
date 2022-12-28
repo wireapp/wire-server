@@ -43,6 +43,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
+import Wire.API.MakesFederatedCall
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
@@ -140,6 +141,7 @@ type UserAPI =
   Named
     "get-user-unqualified"
     ( Summary "Get a user by UserId"
+        :> MakesFederatedCall 'Brig "get-users-by-ids"
         :> Until 'V2
         :> ZUser
         :> "users"
@@ -151,6 +153,7 @@ type UserAPI =
     Named
       "get-user-qualified"
       ( Summary "Get a user by Domain and UserId"
+        :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
           :> "users"
           :> QualifiedCaptureUserId "uid"
@@ -171,6 +174,8 @@ type UserAPI =
            "get-handle-info-unqualified"
            ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
                :> Until 'V2
+    :> MakesFederatedCall 'Brig "get-user-by-handle"
+    :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZUser
                :> "users"
                :> "handles"
@@ -187,6 +192,8 @@ type UserAPI =
            "get-user-by-handle-qualified"
            ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
                :> Until 'V2
+    :> MakesFederatedCall 'Brig "get-user-by-handle"
+    :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZUser
                :> "users"
                :> "by-handle"
@@ -206,6 +213,7 @@ type UserAPI =
       ( Summary "List users (deprecated)"
           :> Until 'V2
           :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+    :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
           :> "users"
           :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
@@ -218,6 +226,7 @@ type UserAPI =
       "list-users-by-ids-or-handles"
       ( Summary "List users"
           :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+    :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
           :> "list-users"
           :> ReqBody '[JSON] ListUsersQuery
@@ -274,6 +283,7 @@ type SelfAPI =
           :> CanThrow 'MissingAuth
           :> CanThrow 'DeleteCodePending
           :> CanThrow 'OwnerDeletingSelf
+          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> "self"
           :> ReqBody '[JSON] DeleteUser
@@ -285,6 +295,7 @@ type SelfAPI =
     Named
       "put-self"
       ( Summary "Update your profile."
+          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> ZConn
           :> "self"
@@ -325,6 +336,7 @@ type SelfAPI =
           :> Description
                "Your email address can only be removed if you also have a \
                \phone number."
+          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> ZConn
           :> "self"
@@ -357,6 +369,7 @@ type SelfAPI =
     :<|> Named
            "change-locale"
            ( Summary "Change your locale."
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ZUser
                :> ZConn
                :> "self"
@@ -367,6 +380,7 @@ type SelfAPI =
     :<|> Named
            "change-handle"
            ( Summary "Change your handle."
+                :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ZUser
                :> ZConn
                :> "self"
@@ -418,6 +432,7 @@ type AccountAPI =
              "If the environment where the registration takes \
              \place is private and a registered email address or phone \
              \number is not whitelisted, a 403 error is returned."
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> "register"
         :> ReqBody '[JSON] NewUserPublic
         :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
@@ -428,6 +443,7 @@ type AccountAPI =
     :<|> Named
            "verify-delete"
            ( Summary "Verify account deletion with a code."
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> CanThrow 'InvalidCode
                :> "delete"
                :> ReqBody '[JSON] VerifyDeleteUser
@@ -440,6 +456,7 @@ type AccountAPI =
            "get-activate"
            ( Summary "Activate (i.e. confirm) an email address or phone number."
                :> Description "See also 'POST /activate' which has a larger feature set."
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
                :> CanThrow 'InvalidActivationCodeWrongCode
@@ -465,6 +482,7 @@ type AccountAPI =
                :> Description
                     "Activation only succeeds once and the number of \
                     \failed attempts for a valid key is limited."
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
                :> CanThrow 'InvalidActivationCodeWrongCode

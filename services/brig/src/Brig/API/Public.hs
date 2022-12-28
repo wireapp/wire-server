@@ -212,37 +212,40 @@ servantSitemap =
     :<|> Team.servantAPI
     :<|> systemSettingsAPI
   where
+    -- TODO(sandy): done
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
-      Named @"get-user-unqualified" getUserUnqualifiedH
-        :<|> Named @"get-user-qualified" getUser
+      Named @"get-user-unqualified" (callsFed getUserUnqualifiedH)
+        :<|> Named @"get-user-qualified" (callsFed getUser)
         :<|> Named @"update-user-email" updateUserEmail
-        :<|> Named @"get-handle-info-unqualified" getHandleInfoUnqualifiedH
-        :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
-        :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
-        :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
+        :<|> Named @"get-handle-info-unqualified" (callsFed (callsFed getHandleInfoUnqualifiedH))
+        :<|> Named @"get-user-by-handle-qualified" (callsFed (callsFed Handle.getHandleInfo))
+        :<|> Named @"list-users-by-unqualified-ids-or-handles" (callsFed listUsersByUnqualifiedIdsOrHandles)
+        :<|> Named @"list-users-by-ids-or-handles" (callsFed listUsersByIdsOrHandles)
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
 
+    -- TODO(sandy): DONE
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
       Named @"get-self" getSelf
-        :<|> Named @"delete-self" deleteSelfUser
-        :<|> Named @"put-self" updateUser
+        :<|> Named @"delete-self" (callsFed deleteSelfUser)
+        :<|> Named @"put-self" (callsFed updateUser)
         :<|> Named @"change-phone" changePhone
         :<|> Named @"remove-phone" removePhone
-        :<|> Named @"remove-email" removeEmail
+        :<|> Named @"remove-email" (callsFed removeEmail)
         :<|> Named @"check-password-exists" checkPasswordExists
         :<|> Named @"change-password" changePassword
-        :<|> Named @"change-locale" changeLocale
-        :<|> Named @"change-handle" changeHandle
+        :<|> Named @"change-locale" (callsFed changeLocale)
+        :<|> Named @"change-handle" (callsFed changeHandle)
 
+    -- TODO(sandy): done
     accountAPI :: ServerT AccountAPI (Handler r)
     accountAPI =
-      Named @"register" createUser
-        :<|> Named @"verify-delete" verifyDeleteUser
-        :<|> Named @"get-activate" activate
-        :<|> Named @"post-activate" activateKey
+      Named @"register" (callsFed createUser)
+        :<|> Named @"verify-delete" (callsFed verifyDeleteUser)
+        :<|> Named @"get-activate" (callsFed activate)
+        :<|> Named @"post-activate" (callsFed activateKey)
         :<|> Named @"post-activate-send" sendActivationCode
         :<|> Named @"post-password-reset" beginPasswordReset
         :<|> Named @"post-password-reset-complete" completePasswordReset
