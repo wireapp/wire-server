@@ -1,4 +1,5 @@
 {-# LANGUAGE NumericUnderscores #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -73,11 +74,16 @@ import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import qualified Wire.Sem.Paging as P
+
+-- | Orphan instance to satisfy 'CallsFeds' constraints, which we otherwise use
+-- to track federation calls across the codebase.
+instance {-# OVERLAPPING #-} CallsFed comp name
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a

@@ -15,6 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE NumericUnderscores #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module CargoHold.Run
   ( run,
@@ -50,12 +51,15 @@ import Servant.API
 import Servant.Server hiding (Handler, runHandler)
 import qualified UnliftIO.Async as Async
 import Util.Options
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.Routes.Version.Wai
 
 type CombinedAPI = FederationAPI :<|> ServantAPI :<|> InternalAPI
+
+instance CallsFed comp name
 
 run :: Opts -> IO ()
 run o = lowerCodensity $ do

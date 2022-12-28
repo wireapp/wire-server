@@ -39,6 +39,7 @@ import Imports
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (timeout)
+import Wire.API.Federation.API
 
 -- | Handle an internal event.
 --
@@ -52,7 +53,8 @@ onEvent ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   InternalNotification ->
   m ()

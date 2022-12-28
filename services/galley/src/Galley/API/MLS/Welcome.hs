@@ -55,15 +55,17 @@ import Wire.API.MLS.Welcome
 import Wire.API.Message
 
 postMLSWelcome ::
-  Members
-    '[ BrigAccess,
-       FederatorAccess,
-       GundeckAccess,
-       ErrorS 'MLSKeyPackageRefNotFound,
-       Input UTCTime,
-       P.TinyLog
-     ]
-    r =>
+  ( Members
+      '[ BrigAccess,
+         FederatorAccess,
+         GundeckAccess,
+         ErrorS 'MLSKeyPackageRefNotFound,
+         Input UTCTime,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "mls-welcome"
+  ) =>
   Local x ->
   Maybe ConnId ->
   RawMLS Welcome ->
@@ -76,17 +78,19 @@ postMLSWelcome loc con wel = do
   sendRemoteWelcomes (rmRaw wel) remotes
 
 postMLSWelcomeFromLocalUser ::
-  Members
-    '[ BrigAccess,
-       FederatorAccess,
-       GundeckAccess,
-       ErrorS 'MLSKeyPackageRefNotFound,
-       ErrorS 'MLSNotEnabled,
-       Input UTCTime,
-       Input Env,
-       P.TinyLog
-     ]
-    r =>
+  ( Members
+      '[ BrigAccess,
+         FederatorAccess,
+         GundeckAccess,
+         ErrorS 'MLSKeyPackageRefNotFound,
+         ErrorS 'MLSNotEnabled,
+         Input UTCTime,
+         Input Env,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "mls-welcome"
+  ) =>
   Local x ->
   ConnId ->
   RawMLS Welcome ->
@@ -131,11 +135,13 @@ sendLocalWelcomes con now rawWelcome lclients = do
        in newMessagePush lclients mempty con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
-  Members
-    '[ FederatorAccess,
-       P.TinyLog
-     ]
-    r =>
+  ( Members
+      '[ FederatorAccess,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "mls-welcome"
+  ) =>
   ByteString ->
   [Remote (UserId, ClientId)] ->
   Sem r ()

@@ -32,20 +32,23 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
+import Wire.API.Federation.API
 import Wire.Sem.Concurrency
 
 sitemap ::
   forall r p.
-  Members
-    '[ BlacklistPhonePrefixStore,
-       BlacklistStore,
-       GalleyProvider,
-       CodeStore,
-       Concurrency 'Unsafe,
-       PasswordResetStore,
-       UserPendingActivationStore p
-     ]
-    r =>
+  ( Members
+      '[ BlacklistPhonePrefixStore,
+         BlacklistStore,
+         GalleyProvider,
+         CodeStore,
+         Concurrency 'Unsafe,
+         PasswordResetStore,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Public.sitemap

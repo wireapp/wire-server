@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.Federator.Client (tests) where
 
@@ -49,6 +50,8 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 import Wire.API.User (UserProfile)
+
+instance CallsFed comp name
 
 targetDomain :: Domain
 targetDomain = Domain "target.example.com"
