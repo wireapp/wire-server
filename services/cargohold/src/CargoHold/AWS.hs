@@ -101,6 +101,7 @@ mkEnv ::
   Logger ->
   -- | S3 endpoint
   AWSEndpoint ->
+  AWS.S3AddressingStyle ->
   -- | Endpoint for downloading assets (for the external world)
   AWSEndpoint ->
   -- | Bucket
@@ -108,9 +109,9 @@ mkEnv ::
   Maybe CloudFrontOpts ->
   Manager ->
   IO Env
-mkEnv lgr s3End s3Download bucket cfOpts mgr = do
+mkEnv lgr s3End s3AddrStyle s3Download bucket cfOpts mgr = do
   let g = Logger.clone (Just "aws.cargohold") lgr
-  e <- mkAwsEnv g (setAWSEndpoint s3End S3.defaultService)
+  e <- mkAwsEnv g (setAWSEndpoint s3End (S3.defaultService & AWS.service_s3AddressingStyle .~ s3AddrStyle))
   cf <- mkCfEnv cfOpts
   pure (Env g bucket e s3Download cf)
   where

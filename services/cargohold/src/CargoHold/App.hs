@@ -46,6 +46,7 @@ module CargoHold.App
   )
 where
 
+import Amazonka (S3AddressingStyle (S3AddressingStylePath))
 import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge
 import Bilge.RPC (HasRequestId (..))
@@ -97,7 +98,7 @@ newEnv o = do
   pure $ Env ama met lgr mgr def o loc
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
-initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
+initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) S3AddressingStylePath downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
   where
     downloadEndpoint = fromMaybe (o ^. awsS3Endpoint) (o ^. awsS3DownloadEndpoint)
 
@@ -119,9 +120,9 @@ initHttpManager s3Compat =
   where
     dropContentLengthHeaderIfChunked req
       | ("content-encoding", "aws-chunked") `elem` requestHeaders req =
-          modifyRequestHeaders (filter ((/= "content-length") . fst)) req
+        modifyRequestHeaders (filter ((/= "content-length") . fst)) req
       | otherwise =
-          req
+        req
     modifyRequestHeaders f req =
       req {requestHeaders = f (requestHeaders req)}
 
