@@ -21,6 +21,7 @@ module Wire.API.MakesFederatedCall
     MakesFederatedCall,
     Component (..),
     callsFed,
+    unsafeCallsFed
   )
 where
 
@@ -124,3 +125,12 @@ instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: 
 -- connecting your handler to the server router.
 callsFed :: (c => r) -> Dict c -> r
 callsFed f Dict = f
+
+-- | Unsafely discharge a 'CallsFed' constraint. Necessary for interacting with
+-- wai-routes.
+--
+-- This is unsafe in the sense that it will drop the 'CallsFed' constraint, and
+-- thus might mean a federated call gets forgotten in the documentation.
+unsafeCallsFed :: forall (comp :: Component) (name :: Symbol) r. (CallsFed comp name => r) -> r
+unsafeCallsFed f = callsFed f $ synthesizeCallsFed @comp @name
+

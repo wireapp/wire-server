@@ -152,6 +152,7 @@ type AccountAPI =
   Named
     "createUserNoVerify"
     ( "users"
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> ReqBody '[Servant.JSON] NewUser
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
@@ -159,6 +160,7 @@ type AccountAPI =
            "createUserNoVerifySpar"
            ( "users"
                :> "spar"
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
