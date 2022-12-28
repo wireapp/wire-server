@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , amazonka
+, amazonka-core
 , amazonka-sqs
 , base
 , base64-bytestring
@@ -27,6 +28,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     amazonka
+    amazonka-core
     amazonka-sqs
     base
     base64-bytestring
