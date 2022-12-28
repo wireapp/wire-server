@@ -54,8 +54,9 @@ module Gundeck.Aws
   )
 where
 
-import Amazonka (AWSRequest, AWSResponse, serviceAbbrev, serviceCode, serviceMessage, serviceStatus)
+import Amazonka (AWSRequest, AWSResponse, serviceError_abbrev, serviceError_code, serviceError_message, serviceError_status)
 import qualified Amazonka as AWS
+import qualified Amazonka.Data.Text as AWS
 import qualified Amazonka.SNS as SNS
 import qualified Amazonka.SNS.Lens as SNS
 import qualified Amazonka.SQS as SQS
@@ -160,14 +161,14 @@ mkEnv lgr opts mgr = do
     mkAwsEnv g sqs sns = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> AWS.configure sqs
-          <&> AWS.configure (sns & set AWS.serviceTimeout (Just (AWS.Seconds 5)))
+          <&> AWS.configureService sqs
+          <&> AWS.configureService (sns & set AWS.service_timeout (Just (AWS.Seconds 5)))
       pure $
         baseEnv
-          { AWS.envLogger = awsLogger g,
-            AWS.envRegion = opts ^. optAws . awsRegion,
-            AWS.envRetryCheck = retryCheck,
-            AWS.envManager = mgr
+          { AWS.logger = awsLogger g,
+            AWS.region = opts ^. optAws . awsRegion,
+            AWS.retryCheck = retryCheck,
+            AWS.manager = mgr
           }
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
@@ -240,9 +241,9 @@ updateEndpoint us tk arn = do
     Right _ -> pure ()
     Left x@(AWS.ServiceError e)
       | is "SNS" 400 x
-          && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
-          && isMetadataLengthError (e ^. serviceMessage) ->
-          throwM $ InvalidCustomData arn
+          && AWS.newErrorCode "InvalidParameter" == e ^. serviceError_code
+          && isMetadataLengthError (e ^. serviceError_message) ->
+        throwM $ InvalidCustomData arn
     Left x ->
       throwM $
         if is "SNS" 404 x
@@ -303,25 +304,25 @@ createEndpoint u tr arnEnv app token = do
         Nothing -> throwM NoEndpointArn
         Just s -> Right <$> readArn s
     Left x@(AWS.ServiceError e)
-      | is "SNS" 400 x && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode,
-        Just ep <- parseExistsError (e ^. serviceMessage) ->
-          pure (Left (EndpointInUse ep))
+      | is "SNS" 400 x && AWS.newErrorCode "InvalidParameter" == e ^. serviceError_code,
+        Just ep <- parseExistsError (e ^. serviceError_message) ->
+        pure (Left (EndpointInUse ep))
       | is "SNS" 400 x
-          && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
-          && isLengthError (e ^. serviceMessage) ->
-          pure (Left (TokenTooLong $ tokenLength token))
+          && AWS.newErrorCode "InvalidParameter" == e ^. serviceError_code
+          && isLengthError (e ^. serviceError_message) ->
+        pure (Left (TokenTooLong $ tokenLength token))
       | is "SNS" 400 x
-          && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
-          && isTokenError (e ^. serviceMessage) -> do
-          debug $
-            msg @Text "InvalidParameter: InvalidToken"
-              . field "response" (show x)
-          pure (Left (InvalidToken token))
+          && AWS.newErrorCode "InvalidParameter" == e ^. serviceError_code
+          && isTokenError (e ^. serviceError_message) -> do
+        debug $
+          msg @Text "InvalidParameter: InvalidToken"
+            . field "response" (show x)
+        pure (Left (InvalidToken token))
       | is "SNS" 404 x ->
-          pure (Left (AppNotFound app))
+        pure (Left (AppNotFound app))
       | is "SNS" 403 x -> do
-          warn $ "arn" .= toText arn ~~ msg (val "Not authorized.")
-          pure (Left (AppNotFound app))
+        warn $ "arn" .= toText arn ~~ msg (val "Not authorized.")
+        pure (Left (AppNotFound app))
     Left x -> throwM (GeneralError x)
   where
     readArn r = either (throwM . InvalidArn r) pure (fromText r)
@@ -409,20 +410,20 @@ publish arn txt attrs = do
   case res of
     Right _ -> pure (Right ())
     Left x@(AWS.ServiceError e)
-      | is "SNS" 400 x && AWS.newErrorCode "EndpointDisabled" == e ^. serviceCode ->
-          pure (Left (EndpointDisabled arn))
+      | is "SNS" 400 x && AWS.newErrorCode "EndpointDisabled" == e ^. serviceError_code ->
+        pure (Left (EndpointDisabled arn))
       | is "SNS" 400 x
-          && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
-          && isProtocolSizeError (e ^. serviceMessage) ->
-          pure (Left (PayloadTooLarge arn))
+          && AWS.newErrorCode "InvalidParameter" == e ^. serviceError_code
+          && isProtocolSizeError (e ^. serviceError_message) ->
+        pure (Left (PayloadTooLarge arn))
       | is "SNS" 400 x
-          && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
-          && isSnsSizeError (e ^. serviceMessage) ->
-          pure (Left (PayloadTooLarge arn))
+          && AWS.newErrorCode "InvalidParameter" == e ^. serviceError_code
+          && isSnsSizeError (e ^. serviceError_message) ->
+        pure (Left (PayloadTooLarge arn))
       | is "SNS" 400 x
-          && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
-          && isArnError (e ^. serviceMessage) ->
-          pure (Left (InvalidEndpoint arn))
+          && AWS.newErrorCode "InvalidParameter" == e ^. serviceError_code
+          && isArnError (e ^. serviceError_message) ->
+        pure (Left (InvalidEndpoint arn))
     Left x -> throwM (GeneralError x)
   where
     -- Thank you Amazon for not having granular error codes!
@@ -488,7 +489,7 @@ send :: AWSRequest r => AWS.Env -> r -> Amazon (AWSResponse r)
 send env r = either (throwM . GeneralError) pure =<< sendCatch env r
 
 is :: AWS.Abbrev -> Int -> AWS.Error -> Bool
-is srv s (AWS.ServiceError e) = srv == e ^. serviceAbbrev && s == statusCode (e ^. serviceStatus)
+is srv s (AWS.ServiceError e) = srv == e ^. serviceError_abbrev && s == statusCode (e ^. serviceError_status)
 is _ _ _ = False
 
 isTimeout :: MonadIO m => Either AWS.Error a -> m Bool
