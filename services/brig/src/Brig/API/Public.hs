@@ -273,7 +273,7 @@ servantSitemap =
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
-      Named @"create-connection-unqualified" (createConnectionUnqualified)
+      Named @"create-connection-unqualified" (callsFed createConnectionUnqualified)
         :<|> Named @"create-connection" (callsFed createConnection)
         :<|> Named @"list-local-connections" listLocalConnections
         :<|> Named @"list-connections" listConnections
