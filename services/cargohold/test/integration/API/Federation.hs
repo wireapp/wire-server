@@ -83,7 +83,7 @@ testGetAssetAvailable isPublicAsset = do
           }
   ok <-
     withFederationClient $
-      gaAvailable <$> runFederationClient (fedClientIn @'Cargohold @"get-asset" ga)
+      gaAvailable <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
 
   -- check that asset is available
   liftIO $ ok @?= True
@@ -103,7 +103,7 @@ testGetAssetNotAvailable = do
           }
   ok <-
     withFederationClient $
-      gaAvailable <$> runFederationClient (fedClientIn @'Cargohold @"get-asset" ga)
+      gaAvailable <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
 
   -- check that asset is not available
   liftIO $ ok @?= False
@@ -130,7 +130,7 @@ testGetAssetWrongToken = do
           }
   ok <-
     withFederationClient $
-      gaAvailable <$> runFederationClient (fedClientIn @'Cargohold @"get-asset" ga)
+      gaAvailable <$> runFederationClient (unsafeFedClientIn @'Cargohold @"get-asset" ga)
 
   -- check that asset is not available
   liftIO $ ok @?= False
@@ -161,7 +161,7 @@ testLargeAsset = do
             gaKey = qUnqualified key
           }
   chunks <- withFederationClient $ do
-    source <- getAssetSource <$> runFederationClient (fedClientIn @'Cargohold @"stream-asset" ga)
+    source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
     liftIO . runResourceT $ connect source sinkList
   liftIO $ do
     let minNumChunks = 8
@@ -193,7 +193,7 @@ testStreamAsset = do
             gaKey = qUnqualified key
           }
   respBody <- withFederationClient $ do
-    source <- getAssetSource <$> runFederationClient (fedClientIn @'Cargohold @"stream-asset" ga)
+    source <- getAssetSource <$> runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
     liftIO . runResourceT $ connect source sinkLazy
   liftIO $ respBody @?= "Hello World"
 
@@ -211,7 +211,7 @@ testStreamAssetNotAvailable = do
             gaKey = key
           }
   err <- withFederationError $ do
-    runFederationClient (fedClientIn @'Cargohold @"stream-asset" ga)
+    runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
   liftIO $ do
     Wai.code err @?= HTTP.notFound404
     Wai.label err @?= "not-found"
@@ -237,7 +237,7 @@ testStreamAssetWrongToken = do
             gaKey = qUnqualified key
           }
   err <- withFederationError $ do
-    runFederationClient (fedClientIn @'Cargohold @"stream-asset" ga)
+    runFederationClient (unsafeFedClientIn @'Cargohold @"stream-asset" ga)
   liftIO $ do
     Wai.code err @?= HTTP.notFound404
     Wai.label err @?= "not-found"

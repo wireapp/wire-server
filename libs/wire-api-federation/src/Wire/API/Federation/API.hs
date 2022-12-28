@@ -20,6 +20,7 @@ module Wire.API.Federation.API
     HasFedEndpoint,
     fedClient,
     fedClientIn,
+    unsafeFedClientIn,
     module Wire.API.MakesFederatedCall,
 
     -- * Re-exports
@@ -63,3 +64,11 @@ fedClientIn ::
   (HasFedEndpoint comp api name, HasClient m api) =>
   Client m api
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
+
+-- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Inteded
+-- to be used in test situations only.
+unsafeFedClientIn ::
+  forall (comp :: Component) (name :: Symbol) m api.
+  ('Just api ~ LookupEndpoint (FedApi comp) name, HasClient m api) =>
+  Client m api
+unsafeFedClientIn = clientIn (Proxy @api) (Proxy @m)
