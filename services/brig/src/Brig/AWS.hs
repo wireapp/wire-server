@@ -231,7 +231,7 @@ sendMail m = do
             == status400
             && "Invalid domain name"
             `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code) ->
-          throwM SESInvalidDomain
+            throwM SESInvalidDomain
       _ -> throwM (GeneralError x)
 
 --------------------------------------------------------------------------------
