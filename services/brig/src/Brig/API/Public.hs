@@ -182,17 +182,7 @@ servantSitemap ::
          PublicKeyBundle,
          UserPendingActivationStore p
        ]
-      r,
-    CallsFed 'Brig "get-user-by-handle",
-    CallsFed 'Brig "get-users-by-ids",
-    CallsFed 'Brig "search-users",
-    CallsFed 'Brig "claim-key-packages",
-    CallsFed 'Brig "on-user-deleted-connections",
-    CallsFed 'Brig "claim-multi-prekey-bundle",
-    CallsFed 'Brig "send-connection-action",
-    CallsFed 'Brig "claim-prekey",
-    CallsFed 'Brig "claim-prekey-bundle",
-    CallsFed 'Brig "get-user-clients"
+      r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -212,7 +202,6 @@ servantSitemap =
     :<|> Team.servantAPI
     :<|> systemSettingsAPI
   where
-    -- TODO(sandy): done
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
       Named @"get-user-unqualified" (callsFed getUserUnqualifiedH)
@@ -225,21 +214,19 @@ servantSitemap =
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
 
-    -- TODO(sandy): DONE
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
       Named @"get-self" getSelf
         :<|> Named @"delete-self" (callsFed deleteSelfUser)
         :<|> Named @"put-self" (callsFed updateUser)
         :<|> Named @"change-phone" changePhone
-        :<|> Named @"remove-phone" removePhone
+        :<|> Named @"remove-phone" (callsFed removePhone)
         :<|> Named @"remove-email" (callsFed removeEmail)
         :<|> Named @"check-password-exists" checkPasswordExists
         :<|> Named @"change-password" changePassword
         :<|> Named @"change-locale" (callsFed changeLocale)
         :<|> Named @"change-handle" (callsFed changeHandle)
 
-    -- TODO(sandy): done
     accountAPI :: ServerT AccountAPI (Handler r)
     accountAPI =
       Named @"register" (callsFed createUser)
@@ -252,7 +239,6 @@ servantSitemap =
         :<|> Named @"post-password-reset-key-deprecated" deprecatedCompletePasswordReset
         :<|> Named @"onboarding" deprecatedOnboarding
 
-    -- TODO(sandy): done
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
       Named @"get-user-clients-unqualified" (callsFed getUserClientsUnqualified)
@@ -265,16 +251,16 @@ servantSitemap =
 
     prekeyAPI :: ServerT PrekeyAPI (Handler r)
     prekeyAPI =
-      Named @"get-users-prekeys-client-unqualified" getPrekeyUnqualifiedH
-        :<|> Named @"get-users-prekeys-client-qualified" getPrekeyH
-        :<|> Named @"get-users-prekey-bundle-unqualified" getPrekeyBundleUnqualifiedH
-        :<|> Named @"get-users-prekey-bundle-qualified" getPrekeyBundleH
+      Named @"get-users-prekeys-client-unqualified" (callsFed getPrekeyUnqualifiedH)
+        :<|> Named @"get-users-prekeys-client-qualified" (callsFed getPrekeyH)
+        :<|> Named @"get-users-prekey-bundle-unqualified" (callsFed getPrekeyBundleUnqualifiedH)
+        :<|> Named @"get-users-prekey-bundle-qualified" (callsFed getPrekeyBundleH)
         :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
-        :<|> Named @"get-multi-user-prekey-bundle-qualified" getMultiUserPrekeyBundleH
+        :<|> Named @"get-multi-user-prekey-bundle-qualified" (callsFed getMultiUserPrekeyBundleH)
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client" addClient
+      Named @"add-client" (callsFed addClient)
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients" listClients
@@ -287,15 +273,15 @@ servantSitemap =
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
-      Named @"create-connection-unqualified" createConnectionUnqualified
-        :<|> Named @"create-connection" createConnection
+      Named @"create-connection-unqualified" (createConnectionUnqualified)
+        :<|> Named @"create-connection" (callsFed createConnection)
         :<|> Named @"list-local-connections" listLocalConnections
         :<|> Named @"list-connections" listConnections
         :<|> Named @"get-connection-unqualified" getLocalConnection
         :<|> Named @"get-connection" getConnection
-        :<|> Named @"update-connection-unqualified" updateLocalConnection
-        :<|> Named @"update-connection" updateConnection
-        :<|> Named @"search-contacts" Search.search
+        :<|> Named @"update-connection-unqualified" (callsFed updateLocalConnection)
+        :<|> Named @"update-connection" (callsFed updateConnection)
+        :<|> Named @"search-contacts" (callsFed (callsFed Search.search))
 
     propertiesAPI :: ServerT PropertiesAPI (Handler r)
     propertiesAPI =
@@ -310,7 +296,7 @@ servantSitemap =
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
       Named @"mls-key-packages-upload" uploadKeyPackages
-        :<|> Named @"mls-key-packages-claim" claimKeyPackages
+        :<|> Named @"mls-key-packages-claim" (callsFed claimKeyPackages)
         :<|> Named @"mls-key-packages-count" countKeyPackages
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
@@ -324,9 +310,9 @@ servantSitemap =
 
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
-      Named @"access" accessH
+      Named @"access" (callsFed accessH)
         :<|> Named @"send-login-code" sendLoginCode
-        :<|> Named @"login" login
+        :<|> Named @"login" (callsFed login)
         :<|> Named @"logout" logoutH
         :<|> Named @"change-self-email" changeSelfEmailH
         :<|> Named @"list-cookies" listCookies

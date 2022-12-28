@@ -321,6 +321,7 @@ type SelfAPI =
           :> Description
                "Your phone number can only be removed if you also have an \
                \email address and a password."
+          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> ZConn
           :> "self"
@@ -596,6 +597,7 @@ type PrekeyAPI =
     "get-users-prekeys-client-unqualified"
     ( Summary "(deprecated) Get a prekey for a specific client of a user."
         :> Until 'V2
+        :> MakesFederatedCall 'Brig "claim-prekey"
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
@@ -606,6 +608,7 @@ type PrekeyAPI =
     :<|> Named
            "get-users-prekeys-client-qualified"
            ( Summary "Get a prekey for a specific client of a user."
+        :> MakesFederatedCall 'Brig "claim-prekey"
                :> ZUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -617,6 +620,7 @@ type PrekeyAPI =
            "get-users-prekey-bundle-unqualified"
            ( Summary "(deprecated) Get a prekey for each client of a user."
                :> Until 'V2
+        :> MakesFederatedCall 'Brig "claim-prekey-bundle"
                :> ZUser
                :> "users"
                :> CaptureUserId "uid"
@@ -626,6 +630,7 @@ type PrekeyAPI =
     :<|> Named
            "get-users-prekey-bundle-qualified"
            ( Summary "Get a prekey for each client of a user."
+        :> MakesFederatedCall 'Brig "claim-prekey-bundle"
                :> ZUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -651,6 +656,7 @@ type PrekeyAPI =
                "Given a map of domain to (map of user IDs to client IDs) return a \
                \prekey for each one. You can't request information for more users than \
                \maximum conversation size."
+               :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
                :> "users"
                :> "list-prekeys"
@@ -667,6 +673,7 @@ type UserClientAPI =
   Named
     "add-client"
     ( Summary "Register a new client"
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
         :> CanThrow 'MalformedPrekeys
@@ -811,6 +818,7 @@ type ClientAPI =
     :<|> Named
            "get-user-clients-qualified"
            ( Summary "Get all of a user's clients"
+        :> MakesFederatedCall 'Brig "get-user-clients"
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
@@ -820,6 +828,7 @@ type ClientAPI =
            "get-user-client-unqualified"
            ( Summary "Get a specific client of a user"
                :> Until 'V2
+        :> MakesFederatedCall 'Brig "get-user-clients"
                :> "users"
                :> CaptureUserId "uid"
                :> "clients"
@@ -829,6 +838,7 @@ type ClientAPI =
     :<|> Named
            "get-user-client-qualified"
            ( Summary "Get a specific client of a user"
+        :> MakesFederatedCall 'Brig "get-user-clients"
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
@@ -839,6 +849,7 @@ type ClientAPI =
            "list-clients-bulk"
            ( Summary "List all clients for a set of user ids"
                :> Until 'V2
+        :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -849,6 +860,7 @@ type ClientAPI =
            "list-clients-bulk-v2"
            ( Summary "List all clients for a set of user ids"
                :> Until 'V2
+        :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -860,6 +872,7 @@ type ClientAPI =
            "list-clients-bulk@v2"
            ( Summary "List all clients for a set of user ids"
                :> From 'V2
+        :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -880,6 +893,7 @@ type ConnectionAPI =
     "create-connection-unqualified"
     ( Summary "Create a connection to another user"
         :> Until 'V2
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> CanThrow 'MissingLegalholdConsent
         :> CanThrow 'InvalidUser
         :> CanThrow 'ConnectionLimitReached
@@ -902,6 +916,7 @@ type ConnectionAPI =
     :<|> Named
            "create-connection"
            ( Summary "Create a connection to another user"
+        :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'InvalidUser
                :> CanThrow 'ConnectionLimitReached
@@ -980,6 +995,7 @@ type ConnectionAPI =
       "update-connection-unqualified"
       ( Summary "Update a connection to another user"
           :> Until 'V2
+        :> MakesFederatedCall 'Brig "send-connection-action"
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -1007,6 +1023,7 @@ type ConnectionAPI =
     Named
       "update-connection"
       ( Summary "Update a connection to another user"
+        :> MakesFederatedCall 'Brig "send-connection-action"
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -1027,6 +1044,8 @@ type ConnectionAPI =
     :<|> Named
            "search-contacts"
            ( Summary "Search for users"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
+               :> MakesFederatedCall 'Brig "search-users"
                :> ZUser
                :> "search"
                :> "contacts"
@@ -1105,6 +1124,7 @@ type MLSKeyPackageAPI =
            ( "self"
                :> Summary "Upload a fresh batch of key packages"
                :> Description "The request body should be a json object containing a list of base64-encoded key packages."
+               :> ZLocalUser
                :> CanThrow 'MLSProtocolError
                :> CanThrow 'MLSIdentityMismatch
                :> CaptureClientId "client"
@@ -1115,6 +1135,8 @@ type MLSKeyPackageAPI =
                   "mls-key-packages-claim"
                   ( "claim"
                       :> Summary "Claim one key package for each client of the given user"
+                      :> MakesFederatedCall 'Brig "claim-key-packages"
+                      :> ZLocalUser
                       :> QualifiedCaptureUserId "user"
                       :> QueryParam'
                            [ Optional,
@@ -1128,6 +1150,7 @@ type MLSKeyPackageAPI =
            :<|> Named
                   "mls-key-packages-count"
                   ( "self"
+                      :> ZLocalUser
                       :> CaptureClientId "client"
                       :> "count"
                       :> Summary "Return the number of unused key packages for the given client"
@@ -1196,7 +1219,7 @@ type SearchAPI =
              (SearchResult TeamContact)
     )
 
-type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
+type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 type AuthAPI =
   Named
@@ -1208,6 +1231,7 @@ type AuthAPI =
              \ Every other combination is invalid.\
              \ Access tokens can be given as query parameter or authorisation\
              \ header, with the latter being preferred."
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> QueryParam "client_id" ClientId
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
@@ -1238,6 +1262,7 @@ type AuthAPI =
            ( "login"
                :> Summary "Authenticate a user to obtain a cookie and first access token"
                :> Description "Logins are throttled at the server's discretion"
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ReqBody '[JSON] Login
                :> QueryParam'
                     [ Optional,
