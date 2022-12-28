@@ -125,6 +125,7 @@ import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import Wire.API.SwaggerHelper (cleanupSwagger)
+import Wire.API.SystemSettings
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User (RegisterError (RegisterErrorWhitelistError))
@@ -209,6 +210,7 @@ servantSitemap =
     :<|> authAPI
     :<|> callingAPI
     :<|> Team.servantAPI
+    :<|> systemSettingsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -330,6 +332,9 @@ servantSitemap =
     callingAPI =
       Named @"get-calls-config" Calling.getCallsConfig
         :<|> Named @"get-calls-config-v2" Calling.getCallsConfigV2
+
+    systemSettingsAPI :: ServerT SystemSettingsAPI (Handler r)
+    systemSettingsAPI = Named @ "get-system-settings" getSystemSettings
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1131,6 +1136,14 @@ sendVerificationCode req = do
     getFeatureStatus mbAccount = do
       mbStatusEnabled <- lift $ liftSem $ GalleyProvider.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
+
+getSystemSettings :: ExceptT Brig.API.Error.Error (AppT r) SystemSettings
+getSystemSettings = do
+  optSettings <- view settings
+  pure $
+    SystemSettings
+      { systemSettingsSetRestrictUserCreation = fromMaybe False (setRestrictUserCreation optSettings)
+      }
 
 -- Deprecated
 

@@ -210,12 +210,16 @@ let
         tasty-hunit = "hunit";
       };
     };
+    # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
+    postie = {
+      src = fetchgit {
+        url = "https://github.com/alexbiehl/postie.git";
+        rev = "c92702386f760fcaa65cd052dc8114889c001e3f";
+        sha256 = "sha256-yiw6hg3guRWS6CVdrUY8wyIDxoqfGjIVMrEtP+Fys0Y=";
+      };
+    };
   };
   hackagePins = {
-    kind-generics = {
-      version = "0.4.1.0";
-      sha256 = "sha256-gD9b9AXpLkpPSAeg8oPBU7tsHtSNQjxIZKBo+7+r3+c=";
-    };
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
@@ -223,6 +227,26 @@ let
     partial-isomorphisms = {
       version = "0.2.2.1";
       sha256 = "sha256-TdsLB0ueaUUllLdvcGu3YNQXCfGRRk5WxP3deHEbHGI=";
+    };
+    kind-generics = {
+      version = "0.4.1.2";
+      sha256 = "sha256-orDfC5+QXRlAMVaqAhT1Fo7Eh/AnobROWeliZqEAXZU=";
+    };
+    kind-generics-th = {
+      version = "0.2.2.2";
+      sha256 = "sha256-nPuRq19UGVXe4YrITAZcF+U4TUBo5APMT2Nh9NqIkxQ=";
+    };
+    polysemy = {
+      version = "1.8.0.0";
+      sha256 = "sha256-AdxxKWXdUjZiHLDj6iswMWpycs7mFB8eKhBR4ljF6kk=";
+    };
+    polysemy-check = {
+      version = "0.9.0.1";
+      sha256 = "sha256-CsL2vMxAmpvVVR/iUnZAkbcRLiy/a8ulJQ6QwtCYmRM=";
+    };
+    polysemy-plugin = {
+      version = "0.4.3.1";
+      sha256 = "sha256-0vkLYNZISr3fmmQvD8qdLkn2GHc80l1GzJuOmqjqXE4=";
     };
     singletons = {
       version = "2.7";

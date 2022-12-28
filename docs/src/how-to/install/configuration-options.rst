@@ -659,6 +659,44 @@ Second, also set the option under the `account-pages` section:
      envVars:
        IS_SELF_HOSTED: "true"
 
+.. _auth-cookie-config:
+
+Configuring authentication cookie throttling
+--------------------------------------------
+
+Authentication cookies and the related throttling mechanism is described in the *Client API documentation*:
+:ref:`login-cookies`
+
+The maximum number of cookies per account and type is defined by the brig option
+``setUserCookieLimit``. Its default is ``32``.
+
+Throttling is configured by the brig option ``setUserCookieThrottle``. It is an
+object that contains two fields:
+
+``stdDev``
+    The minimal standard deviation of cookie creation timestamps in
+    Seconds. (Default: ``3000``,
+    `Wikipedia: Standard deviation <https://en.wikipedia.org/wiki/Standard_deviation>`_)
+
+``retryAfter``
+    Wait time in Seconds when ``stdDev`` is violated. (Default: ``86400``)
+
+The default values are fine for most use cases. (Generally, you don't have to
+configure them for your installation.)
+
+Condensed example:
+
+
+.. code:: yaml
+
+    brig:
+        optSettings:
+            setUserCookieLimit: 32
+            setUserCookieThrottle:
+                stdDev: 3000
+                retryAfter: 86400
+
+
 Configuring searchability
 -------------------------
 

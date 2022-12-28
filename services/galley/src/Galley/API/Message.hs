@@ -65,7 +65,7 @@ import Galley.Options
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
 import Imports hiding (forkIO)
-import Polysemy
+import Polysemy hiding (send)
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P

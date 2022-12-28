@@ -175,7 +175,7 @@ userAPI =
     :<|> deleteLocale
     :<|> getDefaultUserLocale
 
-authAPI :: (Member GalleyProvider r) => ServerT BrigIRoutes.AuthAPI (Handler r)
+authAPI :: (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") => ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
   Named @"legalhold-login" (callsFed legalHoldLogin)
     :<|> Named @"sso-login" (callsFed ssoLogin)
