@@ -266,8 +266,11 @@ ifeq ($(package), all)
 	./dist/galley-schema --keyspace galley_test --replication-factor 1
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1
 	./dist/spar-schema --keyspace spar_test --replication-factor 1
-else
+# How this check works: https://stackoverflow.com/a/9802777
+else ifeq ($(package), $(filter $(package),brig galley gundeck spar))
 	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1
+else
+	@echo No schema migrations for $(package)
 endif
 
 
