@@ -26,11 +26,15 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Messaging
+import Wire.API.MakesFederatedCall
 
 type BotAPI =
   Named
     "post-bot-message-unqualified"
-    ( ZBot
+    (
+  MakesFederatedCall 'Galley "on-message-sent"
+  :> MakesFederatedCall 'Brig "get-user-clients"
+  :> ZBot
         :> ZConversation
         :> CanThrow 'ConvNotFound
         :> "bot"

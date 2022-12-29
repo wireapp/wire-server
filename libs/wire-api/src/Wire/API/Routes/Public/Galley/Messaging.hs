@@ -32,12 +32,15 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.ServantProto
+import Wire.API.MakesFederatedCall
 
 type MessagingAPI =
   Named
     "post-otr-message-unqualified"
     ( Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
         :> Description PostOtrDescriptionUnqualified
+    :> MakesFederatedCall 'Galley "on-message-sent"
+    :> MakesFederatedCall 'Brig "get-user-clients"
         :> ZLocalUser
         :> ZConn
         :> "conversations"
@@ -78,6 +81,9 @@ type MessagingAPI =
            "post-proteus-message"
            ( Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
                :> Description PostOtrDescription
+    :> MakesFederatedCall 'Brig "get-user-clients"
+    :> MakesFederatedCall 'Galley "on-message-sent"
+    :> MakesFederatedCall 'Galley "send-message"
                :> ZLocalUser
                :> ZConn
                :> "conversations"

@@ -27,6 +27,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Team.Conversation
+import Wire.API.MakesFederatedCall
 
 type TeamConversationAPI =
   Named
@@ -67,6 +68,9 @@ type TeamConversationAPI =
     :<|> Named
            "delete-team-conversation"
            ( Summary "Remove a team conversation"
+  :> MakesFederatedCall 'Galley "on-conversation-updated"
+  :> MakesFederatedCall 'Galley "on-mls-message-sent"
+  :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> CanThrow ('ActionDenied 'DeleteConversation)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
