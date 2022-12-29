@@ -48,10 +48,10 @@ import UnliftIO.Temporary
 import Util
 import Web.HttpApiData
 import Wire.API.Connection
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
-import Wire.API.Federation.Component
 import Wire.API.Federation.Version
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -104,8 +104,9 @@ testSearchSuccess opts brig = do
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
-      createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest (fromHandle handle)
+      unsafeCallsFed @'Brig @"search-users" $
+        createWaiTestFedClient @"search-users" @'Brig $
+          SearchRequest (fromHandle handle)
 
   liftIO $ do
     let contacts = contactQualifiedId <$> S.contacts searchResponse
@@ -121,8 +122,9 @@ testFulltextSearchSuccess opts brig = do
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
-      createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest ((fromName . userDisplayName) user)
+      unsafeCallsFed @'Brig @"search-users" $
+        createWaiTestFedClient @"search-users" @'Brig $
+          SearchRequest ((fromName . userDisplayName) user)
 
   liftIO $ do
     let contacts = contactQualifiedId <$> S.contacts searchResponse
@@ -148,8 +150,9 @@ testFulltextSearchMultipleUsers opts brig = do
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
-      createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest (fromHandle handle)
+      unsafeCallsFed @'Brig @"search-users" $
+        createWaiTestFedClient @"search-users" @'Brig $
+          SearchRequest (fromHandle handle)
 
   liftIO $ do
     let contacts = contactQualifiedId <$> S.contacts searchResponse
@@ -161,8 +164,9 @@ testSearchNotFound opts = do
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
-      createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest "this-handle-should-not-exist"
+      unsafeCallsFed @'Brig @"search-users" $
+        createWaiTestFedClient @"search-users" @'Brig $
+          SearchRequest "this-handle-should-not-exist"
 
   liftIO $ assertEqual "should return empty array of users" [] (S.contacts searchResponse)
 
@@ -172,8 +176,9 @@ testSearchNotFoundEmpty opts = do
 
   searchResponse <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
-      createWaiTestFedClient @"search-users" @'Brig $
-        SearchRequest "this-handle-should-not-exist"
+      unsafeCallsFed @'Brig @"search-users" $
+        createWaiTestFedClient @"search-users" @'Brig $
+          SearchRequest "this-handle-should-not-exist"
 
   liftIO $ assertEqual "should return empty array of users" [] (S.contacts searchResponse)
 
@@ -199,7 +204,8 @@ testSearchRestrictions opts brig = do
   let expectSearch domain squery expectedUsers expectedSearchPolicy = do
         searchResponse <-
           runWaiTestFedClient domain $
-            createWaiTestFedClient @"search-users" @'Brig (SearchRequest squery)
+            unsafeCallsFed @'Brig @"search-users" $
+              createWaiTestFedClient @"search-users" @'Brig (SearchRequest squery)
         liftIO $ assertEqual "Unexpected search result" expectedUsers (contactQualifiedId <$> S.contacts searchResponse)
         liftIO $ assertEqual "Unexpected search result" expectedSearchPolicy (S.searchPolicy searchResponse)
 
@@ -234,7 +240,8 @@ testGetUserByHandleRestrictions opts brig = do
   let expectSearch domain expectedUser = do
         maybeUserProfile <-
           runWaiTestFedClient domain $
-            createWaiTestFedClient @"get-user-by-handle" @'Brig handle
+            unsafeCallsFed @'Brig @"get-user-by-handle" $
+              createWaiTestFedClient @"get-user-by-handle" @'Brig handle
         liftIO $ assertEqual "Unexpected search result" expectedUser (profileQualifiedId <$> maybeUserProfile)
 
   withSettingsOverrides opts' $ do
@@ -251,8 +258,9 @@ testGetUserByHandleSuccess opts brig = do
 
   maybeProfile <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
-      createWaiTestFedClient @"get-user-by-handle" @'Brig $
-        handle
+      unsafeCallsFed @'Brig @"get-user-by-handle" $
+        createWaiTestFedClient @"get-user-by-handle" @'Brig $
+          handle
 
   liftIO $ do
     case maybeProfile of
@@ -268,8 +276,9 @@ testGetUserByHandleNotFound opts = do
 
   maybeProfile <- withSettingsOverrides (allowFullSearch domain opts) $ do
     runWaiTestFedClient domain $
-      createWaiTestFedClient @"get-user-by-handle" @'Brig $
-        Handle hdl
+      unsafeCallsFed @'Brig @"get-user-by-handle" $
+        createWaiTestFedClient @"get-user-by-handle" @'Brig $
+          Handle hdl
 
   liftIO $ assertEqual "should not return any UserProfile" Nothing maybeProfile
 
@@ -281,7 +290,9 @@ testGetUsersByIdsSuccess brig fedBrigClient = do
       quid1 = userQualifiedId user1
       uid2 = userId user2
       quid2 = userQualifiedId user2
-  profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [uid1, uid2]
+  profiles <-
+    unsafeCallsFed @'Brig @"get-users-by-ids" $
+      runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [uid1, uid2]
   liftIO $ do
     assertEqual "should return correct user Id" (Set.fromList [quid1, quid2]) (Set.fromList $ profileQualifiedId <$> profiles)
     assertEqual "should not have email address" [Nothing, Nothing] (map profileEmail profiles)
@@ -291,8 +302,9 @@ testGetUsersByIdsPartial brig fedBrigClient = do
   presentUser <- randomUser brig
   absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
   profiles <-
-    runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") $
-      [userId presentUser, absentUserId]
+    unsafeCallsFed @'Brig @"get-users-by-ids" $
+      runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") $
+        [userId presentUser, absentUserId]
   liftIO $
     assertEqual "should return the present user and skip the absent ones" [userQualifiedId presentUser] (profileQualifiedId <$> profiles)
 
@@ -300,7 +312,9 @@ testGetUsersByIdsNoneFound :: FedClient 'Brig -> Http ()
 testGetUsersByIdsNoneFound fedBrigClient = do
   absentUserId1 :: UserId <- Id <$> lift UUIDv4.nextRandom
   absentUserId2 :: UserId <- Id <$> lift UUIDv4.nextRandom
-  profiles <- runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [absentUserId1, absentUserId2]
+  profiles <-
+    unsafeCallsFed @'Brig @"get-users-by-ids" $
+      runFedClient @"get-users-by-ids" fedBrigClient (Domain "example.com") [absentUserId1, absentUserId2]
   liftIO $
     assertEqual "should return empty list" [] profiles
 
@@ -310,7 +324,9 @@ testClaimPrekeySuccess brig fedBrigClient = do
   let uid = userId user
   let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   c <- responseJsonError =<< addClient brig uid new
-  mkey <- runFedClient @"claim-prekey" fedBrigClient (Domain "example.com") (uid, clientId c)
+  mkey <-
+    unsafeCallsFed @'Brig @"claim-prekey" $
+      runFedClient @"claim-prekey" fedBrigClient (Domain "example.com") (uid, clientId c)
   liftIO $
     assertEqual
       "should return prekey 1"
@@ -322,7 +338,9 @@ testClaimPrekeyBundleSuccess brig fedBrigClient = do
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
   (quid, clients) <- generateClientPrekeys brig prekeys
   let sortClients = sortBy (compare `on` prekeyClient)
-  bundle <- runFedClient @"claim-prekey-bundle" fedBrigClient (Domain "example.com") (qUnqualified quid)
+  bundle <-
+    unsafeCallsFed @'Brig @"claim-prekey-bundle" $
+      runFedClient @"claim-prekey-bundle" fedBrigClient (Domain "example.com") (qUnqualified quid)
   liftIO $
     assertEqual
       "bundle should contain the clients"
@@ -340,7 +358,9 @@ testClaimMultiPrekeyBundleSuccess brig fedBrigClient = do
   c2 <- first qUnqualified <$> generateClientPrekeys brig prekeys2
   let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
       ucm = mkUserClientPrekeyMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
-  ucmResponse <- runFedClient @"claim-multi-prekey-bundle" fedBrigClient (Domain "example.com") uc
+  ucmResponse <-
+    unsafeCallsFed @'Brig @"claim-multi-prekey-bundle" $
+      runFedClient @"claim-multi-prekey-bundle" fedBrigClient (Domain "example.com") uc
   liftIO $
     assertEqual
       "should return the UserClientMap"
@@ -358,7 +378,9 @@ testGetUserClients :: Brig -> FedClient 'Brig -> Http ()
 testGetUserClients brig fedBrigClient = do
   uid1 <- userId <$> randomUser brig
   clients :: [Client] <- addTestClients brig uid1 [0, 1, 2]
-  UserMap userClients <- runFedClient @"get-user-clients" fedBrigClient (Domain "example.com") (GetUserClients [uid1])
+  UserMap userClients <-
+    unsafeCallsFed @'Brig @"get-user-clients" $
+      runFedClient @"get-user-clients" fedBrigClient (Domain "example.com") (GetUserClients [uid1])
   liftIO $
     assertEqual
       "client set for user should match"
@@ -368,7 +390,9 @@ testGetUserClients brig fedBrigClient = do
 testGetUserClientsNotFound :: FedClient 'Brig -> Http ()
 testGetUserClientsNotFound fedBrigClient = do
   absentUserId <- randomId
-  UserMap userClients <- runFedClient @"get-user-clients" fedBrigClient (Domain "example.com") (GetUserClients [absentUserId])
+  UserMap userClients <-
+    unsafeCallsFed @'Brig @"get-user-clients" $
+      runFedClient @"get-user-clients" fedBrigClient (Domain "example.com") (GetUserClients [absentUserId])
   liftIO $
     assertEqual
       "client set for user should match"
@@ -391,8 +415,9 @@ testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
   let localUsers = [connectedUser, pendingUser, blockedUser, unconnectedUser]
   void . WS.bracketRN cannon localUsers $ \[cc, pc, bc, uc] -> do
     _ <-
-      runFedClient @"on-user-deleted-connections" fedBrigClient (qDomain remoteUser) $
-        UserDeletedConnectionsNotification (qUnqualified remoteUser) (unsafeRange localUsers)
+      unsafeCallsFed @'Brig @"on-user-deleted-connections" $
+        runFedClient @"on-user-deleted-connections" fedBrigClient (qDomain remoteUser) $
+          UserDeletedConnectionsNotification (qUnqualified remoteUser) (unsafeRange localUsers)
 
     WS.assertMatchN_ (5 # Second) [cc] $ matchDeleteUserNotification remoteUser
     WS.assertNoEvent (1 # Second) [pc, bc, uc]
@@ -403,7 +428,9 @@ testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
 
 testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
 testAPIVersion _brig fedBrigClient = do
-  vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
+  vinfo <-
+    unsafeCallsFed @'Brig @"api-version" $
+      runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
   liftIO $ vinfoSupported vinfo @?= toList supportedVersions
 
 testClaimKeyPackages :: HasCallStack => Brig -> FedClient 'Brig -> Http ()
@@ -420,8 +447,9 @@ testClaimKeyPackages brig fedBrigClient = do
       uploadKeyPackages brig tmp def bob c 2
 
   Just bundle <-
-    runFedClient @"claim-key-packages" fedBrigClient (qDomain alice) $
-      ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
+    unsafeCallsFed @'Brig @"claim-key-packages" $
+      runFedClient @"claim-key-packages" fedBrigClient (qDomain alice) $
+        ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
 
   liftIO $
     Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle)
@@ -449,9 +477,10 @@ testClaimKeyPackagesMLSDisabled opts brig = do
   bob <- userQualifiedId <$> randomUser brig
 
   mbundle <-
-    withSettingsOverrides (opts & Opt.optionSettings . Opt.enableMLS ?~ False) $
-      runWaiTestFedClient (qDomain alice) $
-        createWaiTestFedClient @"claim-key-packages" @'Brig $
-          ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
+    withSettingsOverrides (opts & Opt.optionSettings . Opt.enableMLS ?~ False)
+      . runWaiTestFedClient (qDomain alice)
+      $ unsafeCallsFed @'Brig @"claim-key-packages"
+      $ createWaiTestFedClient @"claim-key-packages" @'Brig
+      $ ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
 
   liftIO $ mbundle @?= Nothing
