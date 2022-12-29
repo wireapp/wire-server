@@ -172,7 +172,7 @@ unversioned r =
 
 runFedClient ::
   forall (name :: Symbol) comp api.
-  ( HasFedEndpoint comp api name,
+  ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient Servant.ClientM api
   ) =>
   FedClient comp ->
@@ -1297,7 +1297,7 @@ toServantResponse res =
 
 createWaiTestFedClient ::
   forall (name :: Symbol) comp api.
-  ( HasFedEndpoint comp api name,
+  ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient WaiTestFedClient api
   ) =>
   Servant.Client WaiTestFedClient api

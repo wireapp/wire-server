@@ -18,6 +18,7 @@
 module Wire.API.Federation.API
   ( FedApi,
     HasFedEndpoint,
+    HasUnsafeFedEndpoint,
     fedClient,
     fedClientIn,
     unsafeFedClientIn,
@@ -50,7 +51,12 @@ type instance FedApi 'Brig = BrigApi
 
 type instance FedApi 'Cargohold = CargoholdApi
 
-type HasFedEndpoint comp api name = ('Just api ~ LookupEndpoint (FedApi comp) name, CallsFed comp name)
+type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name, CallsFed comp name)
+
+-- | Like 'HasFedEndpoint', but doesn't propagate a 'CallsFed' constraint.
+-- Useful for tests, but unsafe in the sense that incorrect usage will allow
+-- you to forget about some federated calls.
+type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
 -- | Return a client for a named endpoint.
 fedClient ::
@@ -69,6 +75,6 @@ fedClientIn = clientIn (Proxy @api) (Proxy @m)
 -- to be used in test situations only.
 unsafeFedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.
-  ('Just api ~ LookupEndpoint (FedApi comp) name, HasClient m api) =>
+  (HasUnsafeFedEndpoint comp api name, HasClient m api) =>
   Client m api
 unsafeFedClientIn = clientIn (Proxy @api) (Proxy @m)
