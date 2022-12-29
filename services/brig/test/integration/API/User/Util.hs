@@ -58,8 +58,8 @@ import Util
 import Wire.API.Asset
 import Wire.API.Connection
 import qualified Wire.API.Event.Conversation as Conv
-import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
@@ -387,9 +387,8 @@ receiveConnectionAction ::
   Http ()
 receiveConnectionAction brig fedBrigClient uid1 quid2 action expectedReaction expectedRel = do
   res <-
-    unsafeCallsFed @'Brig @"send-connection-action" $
-      runFedClient @"send-connection-action" fedBrigClient (qDomain quid2) $
-        F.NewConnectionRequest (qUnqualified quid2) uid1 action
+    runFedClient @"send-connection-action" fedBrigClient (qDomain quid2) $
+      F.NewConnectionRequest (qUnqualified quid2) uid1 action
   liftIO $ do
     res @?= F.NewConnectionResponseOk expectedReaction
   assertConnectionQualified brig uid1 quid2 expectedRel

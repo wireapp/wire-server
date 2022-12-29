@@ -43,9 +43,9 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Connection
 import Wire.API.Conversation
-import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (gcresConvs), RemoteConvMembers (rcmOthers), RemoteConversation (rcnvMembers))
+import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User
@@ -739,9 +739,8 @@ testConnectWithAnon brig fedBrigClient = do
   fromUser <- randomId
   toUser <- userId <$> createAnonUser "anon1234" brig
   res <-
-    unsafeCallsFed @'Brig @"send-connection-action" $
-      runFedClient @"send-connection-action" fedBrigClient (Domain "far-away.example.com") $
-        NewConnectionRequest fromUser toUser RemoteConnect
+    runFedClient @"send-connection-action" fedBrigClient (Domain "far-away.example.com") $
+      NewConnectionRequest fromUser toUser RemoteConnect
   liftIO $
     assertEqual "The response should specify that the user is not activated" NewConnectionResponseUserNotActivated res
 
@@ -780,12 +779,7 @@ testConnectMutualLocalActionThenRemoteAction opts brig galley fedBrigClient = do
     liftIO $
       (fmap omQualifiedId . cmOthers . cnvMembers) conv @?= [quid2]
 
-testConnectMutualRemoteActionThenLocalAction ::
-  Opt.Opts ->
-  Brig ->
-  FedClient 'Brig ->
-  FedClient 'Galley ->
-  Http ()
+testConnectMutualRemoteActionThenLocalAction :: Opt.Opts -> Brig -> FedClient 'Brig -> FedClient 'Galley -> Http ()
 testConnectMutualRemoteActionThenLocalAction opts brig fedBrigClient fedGalleyClient = do
   let convIsLocal = True
   (uid1, quid2, convId) <- localAndRemoteUserWithConvId brig convIsLocal
@@ -800,9 +794,7 @@ testConnectMutualRemoteActionThenLocalAction opts brig fedBrigClient fedGalleyCl
             gcrConvIds = [qUnqualified convId]
           }
 
-  res <-
-    unsafeCallsFed @'Galley @"get-conversations" $
-      runFedClient @"get-conversations" fedGalleyClient (qDomain quid2) request
+  res <- runFedClient @"get-conversations" fedGalleyClient (qDomain quid2) request
   liftIO $
     fmap (fmap omQualifiedId . rcmOthers . rcnvMembers) (gcresConvs res) @?= [[]]
 
