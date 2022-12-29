@@ -24,6 +24,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -35,6 +36,10 @@ type FeatureAPI =
   FeatureStatusGet SSOConfig
     :<|> FeatureStatusGet LegalholdConfig
     :<|> FeatureStatusPut
+           '[ MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Galley "on-new-remote-conversation"
+            ]
            '( 'ActionDenied 'RemoveConversationMember,
               '( AuthenticationError,
                  '( 'CannotEnableLegalHoldServiceLargeTeam,
@@ -52,7 +57,7 @@ type FeatureAPI =
             )
            LegalholdConfig
     :<|> FeatureStatusGet SearchVisibilityAvailableConfig
-    :<|> FeatureStatusPut '() SearchVisibilityAvailableConfig
+    :<|> FeatureStatusPut '[] '() SearchVisibilityAvailableConfig
     :<|> FeatureStatusDeprecatedGet "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
     :<|> FeatureStatusDeprecatedPut "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
     :<|> SearchVisibilityGet
@@ -62,23 +67,23 @@ type FeatureAPI =
     :<|> FeatureStatusGet DigitalSignaturesConfig
     :<|> FeatureStatusDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is potentially used by the old Android client. It is not used by team management, or webapp as of June 2022" DigitalSignaturesConfig
     :<|> FeatureStatusGet AppLockConfig
-    :<|> FeatureStatusPut '() AppLockConfig
+    :<|> FeatureStatusPut '[] '() AppLockConfig
     :<|> FeatureStatusGet FileSharingConfig
-    :<|> FeatureStatusPut '() FileSharingConfig
+    :<|> FeatureStatusPut '[] '() FileSharingConfig
     :<|> FeatureStatusGet ClassifiedDomainsConfig
     :<|> FeatureStatusGet ConferenceCallingConfig
     :<|> FeatureStatusGet SelfDeletingMessagesConfig
-    :<|> FeatureStatusPut '() SelfDeletingMessagesConfig
+    :<|> FeatureStatusPut '[] '() SelfDeletingMessagesConfig
     :<|> FeatureStatusGet GuestLinksConfig
-    :<|> FeatureStatusPut '() GuestLinksConfig
+    :<|> FeatureStatusPut '[] '() GuestLinksConfig
     :<|> FeatureStatusGet SndFactorPasswordChallengeConfig
-    :<|> FeatureStatusPut '() SndFactorPasswordChallengeConfig
+    :<|> FeatureStatusPut '[] '() SndFactorPasswordChallengeConfig
     :<|> FeatureStatusGet MLSConfig
-    :<|> FeatureStatusPut '() MLSConfig
+    :<|> FeatureStatusPut '[] '() MLSConfig
     :<|> FeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
-    :<|> FeatureStatusPut '() ExposeInvitationURLsToTeamAdminConfig
+    :<|> FeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureStatusGet SearchVisibilityInboundConfig
-    :<|> FeatureStatusPut '() SearchVisibilityInboundConfig
+    :<|> FeatureStatusPut '[] '() SearchVisibilityInboundConfig
     :<|> AllFeatureConfigsUserGet
     :<|> AllFeatureConfigsTeamGet
     :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" LegalholdConfig
@@ -100,10 +105,14 @@ type FeatureStatusGet f =
     '("get", f)
     (ZUser :> FeatureStatusBaseGet f)
 
-type FeatureStatusPut errs f =
+type family FoldSegments (calls :: [*]) r where
+  FoldSegments '[] r = r
+  FoldSegments (seg ': segs) r = seg :> FoldSegments segs r
+
+type FeatureStatusPut segs errs f =
   Named
     '("put", f)
-    (ZUser :> FeatureStatusBasePutPublic errs f)
+    (FoldSegments segs (ZUser :> FeatureStatusBasePutPublic errs f))
 
 type FeatureStatusDeprecatedGet d f =
   Named

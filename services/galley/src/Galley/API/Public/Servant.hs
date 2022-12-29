@@ -28,7 +28,6 @@ import Galley.API.Public.Team
 import Galley.API.Public.TeamConversation
 import Galley.API.Public.TeamMember
 import Galley.App
-import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
 
