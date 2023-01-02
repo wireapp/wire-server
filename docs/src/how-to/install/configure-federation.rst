@@ -8,8 +8,8 @@ Background
 
 Please first understand the current scope and aim of wire-server federation by reading :ref:`Understanding federation <federation-understand>`.
 
-.. warning:: As of October 2021, federation implementation is still work in progress. Many features are not implemented yet,
-    and it should be considered "alpha": stability, and upgrade compatibility are not guaranteed.
+.. warning:: As of June 2022, federation implementation is still work in progress. Many features are not implemented yet,
+    and it should be considered "beta": stability, and upgrade compatibility are not guaranteed.
 
 Summary of necessary steps to configure federation
 --------------------------------------------------
@@ -24,7 +24,7 @@ The steps needed to configure federation are as follows and they will be detaile
     * client certificates
     * a selection of CA certificates you trust when interacting with other backends
 
-* Configure helm charts : federator and ingress and webapp subcharts
+* Configure helm charts : federator, brig, galley, cargohold, ingress and webapp subcharts
 * Test that your configurations work as expected.
 
 .. _choose-backend-domain:
@@ -32,18 +32,17 @@ The steps needed to configure federation are as follows and they will be detaile
 Choose a :ref:`Backend Domain Name<glossary_backend_domain>`
 ------------------------------------------------------------
 
-As of the release [helm chart 0.129.0, Wire docker version 2.94.0] from
-2020-12-15, a Backend Domain (set as ``federationDomain`` in configuration) is a
-mandatory configuration setting. Regardless of whether you want to enable
-federation for a backend or not, you must decide what its domain is going to be.
-This helps in keeping things simpler across all components of Wire and also
-enables to turn on federation in the future if required.
+A Backend Domain (set as ``federationDomain`` or ``setFederationDomain`` in
+configuration) is a mandatory configuration setting. Regardless of whether you
+want to enable federation for a backend or not, you must decide what its domain
+is going to be. This helps in keeping things simpler across all components of
+Wire and also enables to turn on federation in the future if required.
 
-It is highly recommended that this domain is configured as
-something that is controlled by the administrator/operator(s). The actual
-servers do not need to be available on this domain, but you MUST be able to set
-an SRV record for ``_wire-server-federator._tcp.<Backend Domain>`` that
-informs other wire-server backends where to find your actual servers.
+It is highly recommended that this domain is controlled by the
+administrators/operators. The actual servers do not need to be available on this
+domain, but one MUST be able to set an SRV record for
+``_wire-server-federator._tcp.<Backend Domain>`` that informs other wire-server
+backends where to find your actual servers.
 
 **IMPORTANT**: Once this option is set, it cannot be changed without breaking
 experience for all the users which are already using the backend.
@@ -56,7 +55,7 @@ Consequences of the choice of Backend Domain
 * You need control over a specific subdomain of this Backend Domain (to set an
   SRV DNS record as explained in the next section). Without this control, you cannot federate with anyone.
 
-* This Backend Domain becomes part of the underlying identify of all users on
+* This Backend Domain becomes part of the underlying identity of all users on
   your servers.
 
    * Example: Let's say you choose ``example.com`` as your Backend Domain.
@@ -73,8 +72,7 @@ Consequences of the choice of Backend Domain
           }
         }
 
-* As of October 2021, this domain is used in the User Interface alongside user information.
-  (This may or may not change in the future)
+* This domain is used in the User Interface alongside user information.
 
    * Example: Using the same example as above, for backends you federate with, Alice
      would be displayed with the human-readable username ``@alice@example.com``
@@ -82,14 +80,14 @@ Consequences of the choice of Backend Domain
 
 .. warning ::
 
-    As of October 2021, *changing* this Backend Domain after existing user activity
-    with a recent version (versions later than ~May/June 2021) will lead to undefined
+    *Changing* this Backend Domain after existing user activity with a recent
+    version (versions later than ~May/June 2021) will lead to undefined
     behaviour (untested, not accounted for during development) on some or all
     client platforms (Web, Android, iOS) for those users: It is possible your
     clients could crash, or lose part of their data about themselves or other
     users and conversations, or otherwise exhibit unexpected behaviour. If at
-    all possible, do not change this backend domain. We do not intend to
-    provide support if you change the backend domain.
+    all possible, do not change this backend domain. We do not intend to provide
+    support if you change the backend domain.
 
 
 .. _dns-configure-federation:
@@ -194,7 +192,7 @@ Your certificates need to have the "Server" and "Client" key usage listed among 
             TLS Web Server Authentication, TLS Web Client Authentication
 
 And your :ref:`federation infra domain <glossary_infra_domain>` (e.g. ``federator.wire.example.com``
-from the running example) needs to either figure explictly in the list of your SAN (Subject
+from the running example) needs to either be figured explictly in the list of your SAN (Subject
 Alternative Name):
 
 .. code:: bash
@@ -288,8 +286,8 @@ The backends you want to federate with should add your (or Let's Encrypt's) CA
 to their store, so you should give them your CA certificate, or tell them to use
 the appropriate Let's Encrypt root certificate.
 
-Configure helm charts: federator and ingress and webapp subcharts
------------------------------------------------------------------
+Configure helm charts: brig, galley, cargohold, federator and ingress and webapp subcharts
+------------------------------------------------------------------------------------------
 
 Set your chosen backend domain
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -320,7 +318,7 @@ set ``enableFederator`` to ``true``.
         settings:
           federationDomain: example.com # your chosen "backend domain"
 
-Configure the webapp to enable federation and set your chosen backend domain one more time
+Configure the webapp to enable federation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code:: yaml
@@ -329,7 +327,6 @@ Configure the webapp to enable federation and set your chosen backend domain one
     # (e.g. under ./helm_vars/wire-server/values.yaml)
     webapp:
       envVars:
-        FEATURE_FEDERATION_DOMAIN: "example.com" # your chosen "backend domain"
         FEATURE_ENABLE_FEDERATION: "true"
 
 Configure federator process to run and allow incoming traffic
@@ -418,7 +415,7 @@ Applying all configuration changes
 ----------------------------------
 
 Depending on your installation method and time you initially installed your first version of wire-server, commands to
-run to apply all of the above configrations may vary. You want to ensure that you upgrade the ``nginx-ingress-services``
+run to apply all of the above configurations may vary. You want to ensure that you upgrade the ``nginx-ingress-services``
 and ``wire-server`` helm charts at a minimum.
 
 Manually test that your configurations work as expected
