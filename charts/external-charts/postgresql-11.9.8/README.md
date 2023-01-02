@@ -1,6 +1,6 @@
 This is the PostgreSQL 13 chart from Bitnami.
 
-To deploy the chart, first we need to create a persistant volume and persistant volume claim which will be used by the Postgres deployment.
+To deploy the chart, first we need to create a persistent volume and persistent volume claim which will be used by the Postgres deployment.
 
 To create the pv and pvc, run
 ```
