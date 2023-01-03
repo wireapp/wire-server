@@ -460,7 +460,7 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
                 ngx_http_add_variable(conf, &z_client_id, NGX_HTTP_VAR_NOHASH);
 
         ngx_http_variable_t * z_conn_var =
-                ngx_http_add_variable(conf, &z_conn_id, NGX_HTTP_VAR_NOHASH);   
+                ngx_http_add_variable(conf, &z_conn_id, NGX_HTTP_VAR_NOHASH);
 
         ngx_http_variable_t * z_conv_var =
                 ngx_http_add_variable(conf, &z_conv_id, NGX_HTTP_VAR_NOHASH);
