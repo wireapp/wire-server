@@ -207,8 +207,8 @@ servantSitemap =
       Named @"get-user-unqualified" (callsFed getUserUnqualifiedH)
         :<|> Named @"get-user-qualified" (callsFed getUser)
         :<|> Named @"update-user-email" updateUserEmail
-        :<|> Named @"get-handle-info-unqualified" (callsFed (callsFed getHandleInfoUnqualifiedH))
-        :<|> Named @"get-user-by-handle-qualified" (callsFed (callsFed Handle.getHandleInfo))
+        :<|> Named @"get-handle-info-unqualified" (callsFed getHandleInfoUnqualifiedH)
+        :<|> Named @"get-user-by-handle-qualified" (callsFed Handle.getHandleInfo)
         :<|> Named @"list-users-by-unqualified-ids-or-handles" (callsFed listUsersByUnqualifiedIdsOrHandles)
         :<|> Named @"list-users-by-ids-or-handles" (callsFed listUsersByIdsOrHandles)
         :<|> Named @"send-verification-code" sendVerificationCode
@@ -281,7 +281,7 @@ servantSitemap =
         :<|> Named @"get-connection" getConnection
         :<|> Named @"update-connection-unqualified" (callsFed updateLocalConnection)
         :<|> Named @"update-connection" (callsFed updateConnection)
-        :<|> Named @"search-contacts" (callsFed (callsFed Search.search))
+        :<|> Named @"search-contacts" (callsFed Search.search)
 
     propertiesAPI :: ServerT PropertiesAPI (Handler r)
     propertiesAPI =
