@@ -2367,7 +2367,87 @@ testRemoveClientSubConv :: TestM ()
 testRemoveClientSubConv = pure ()
 
 testJoinRemoteSubConv :: TestM ()
-testJoinRemoteSubConv = pure ()
+testJoinRemoteSubConv = do
+  -- alice is remote
+  -- bob is local
+  let aliceDomain = Domain "faraway.example.com"
+  [alice, bob] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    void $ uploadNewKeyPackage bob1
+    (parentGroupId, qcnv) <- setupFakeMLSGroup alice1
+
+    createAddCommit alice1 [bob] <&> mpWelcome >>= traverse_ consumeWelcome
+
+    receiveNewRemoteConv qcnv parentGroupId
+    receiveOnConvUpdated qcnv alice bob
+
+    -- 1. Bob creates remote subconv with intial creator bob1
+
+    -- we need to call the endpoint here for the backend to set up the mapping
+    -- in `group_id_conv_id` thte subconv, but this is already convered in
+    let subConvGroupId = GroupId "deadbeef"
+        qsubConv = convsub qcnv (Just sconv)
+        sconv = "conference"
+        fakeSubConv =
+          PublicSubConversation
+            { pscParentConvId = qcnv,
+              pscSubConvId = SubConvId sconv,
+              pscGroupId = subConvGroupId,
+              pscEpoch = Epoch 0,
+              pscCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
+              pscMembers = []
+            }
+    (_, _reqs) <-
+      let mock fedReq =
+            case frRPC fedReq of
+              "get-sub-conversation" ->
+                pure $ Aeson.encode (GetSubConversationsResponseSuccess fakeSubConv)
+              rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+       in withTempMockFederator' mock $
+            liftTest $
+              getSubConv (qUnqualified bob) qcnv (SubConvId sconv)
+                <!! const 200 === statusCode
+
+    resetGroup bob1 subConvGroupId
+    (mpInit, reqs) <-
+      let mock fedReq =
+            case frRPC fedReq of
+              "send-mls-commit-bundle" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
+              rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+       in withTempMockFederator' mock $ do
+            mpInit <- createPendingProposalCommit bob1
+            void $ sendAndConsumeCommitBundle mpInit
+            pure mpInit
+
+    liftIO $ do
+      req <- assertOne reqs
+      bdy <- case Aeson.eitherDecode (frBody req) of
+        Right b -> pure b
+        Left e -> assertFailure $ "Could not parse 'send-mls-commit-bundle' request body: " <> e
+      mmsrConvOrSubId bdy @?= qUnqualified qsubConv
+      mmsrSender bdy @?= qUnqualified bob
+
+    -- 2. Bob joins with its second client
+    resetGroup bob2 subConvGroupId
+
+    (_, reqs2) <-
+      let mock fedReq =
+            case frRPC fedReq of
+              "query-group-info" -> pure $ Aeson.encode $ GetGroupInfoResponseState (Base64ByteString (fromJust (mpPublicGroupState mpInit)))
+              "send-mls-commit-bundle" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
+              rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+       in withTempMockFederator' mock $ do
+            mp <- createExternalCommit bob2 Nothing qsubConv
+            void $ sendAndConsumeCommitBundle mp
+    liftIO $ do
+      req <- assertOne (filter ((== "query-group-info") . frRPC) reqs2)
+      bdy <- case Aeson.eitherDecode (frBody req) of
+        Right b -> pure b
+        Left e -> assertFailure $ "Could not parse 'send-mls-commit-bundle' request body: " <> e
+      mmsrConvOrSubId bdy @?= qUnqualified qsubConv
+      mmsrSender bdy @?= qUnqualified bob
 
 testRemoteUserJoinSubConv :: TestM ()
 testRemoteUserJoinSubConv = pure ()
