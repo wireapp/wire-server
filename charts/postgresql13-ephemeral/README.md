@@ -15,5 +15,5 @@ Set of all configuration variables can be found here - https://github.com/bitnam
 
 Now, deploy the helm chart - 
 ```
-helm install postgresql external-charts/postgresql-11.9.8/postgresql-11.9.8.tgz --values external-charts/postgresql-11.9.8/values.yaml
+helm install postgresql charts/postgresql13-ephemeral --values charts/postgresql13-ephemeral/values.yaml
 ```
