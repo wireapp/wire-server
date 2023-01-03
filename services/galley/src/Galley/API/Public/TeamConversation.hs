@@ -28,4 +28,4 @@ teamConversationAPI =
   mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
     <@> mkNamedAPI @"get-team-conversations" getTeamConversations
     <@> mkNamedAPI @"get-team-conversation" getTeamConversation
-    <@> mkNamedAPI @"delete-team-conversation" (callsFed (callsFed (callsFed deleteTeamConversation)))
+    <@> mkNamedAPI @"delete-team-conversation" (callsFed deleteTeamConversation)

@@ -107,15 +107,15 @@ federationSitemap =
     :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
-    :<|> Named @"leave-conversation" (callsFed (callsFed (callsFed leaveConversation)))
+    :<|> Named @"leave-conversation" (callsFed leaveConversation)
     :<|> Named @"on-message-sent" onMessageSent
-    :<|> Named @"send-message" (callsFed (callsFed sendMessage))
-    :<|> Named @"on-user-deleted-conversations" (callsFed (callsFed (callsFed onUserDeleted)))
-    :<|> Named @"update-conversation" (callsFed (callsFed (callsFed updateConversation)))
+    :<|> Named @"send-message" (callsFed sendMessage)
+    :<|> Named @"on-user-deleted-conversations" (callsFed onUserDeleted)
+    :<|> Named @"update-conversation" (callsFed updateConversation)
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
-    :<|> Named @"send-mls-message" (callsFed (callsFed (callsFed (callsFed (callsFed sendMLSMessage)))))
-    :<|> Named @"send-mls-commit-bundle" (callsFed (callsFed (callsFed (callsFed (callsFed (callsFed sendMLSCommitBundle))))))
+    :<|> Named @"send-mls-message" (callsFed sendMLSMessage)
+    :<|> Named @"send-mls-commit-bundle" (callsFed sendMLSCommitBundle)
     :<|> Named @"query-group-info" queryGroupInfo
     :<|> Named @"on-client-removed" (callsFed onClientRemoved)
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated

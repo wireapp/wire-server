@@ -26,7 +26,7 @@ import Wire.API.Routes.Public.Galley.MLS
 mlsAPI :: API MLSAPI GalleyEffects
 mlsAPI =
   mkNamedAPI @"mls-welcome-message" (callsFed postMLSWelcomeFromLocalUser)
-    <@> mkNamedAPI @"mls-message-v1" (callsFed (callsFed (callsFed (callsFed (callsFed postMLSMessageFromLocalUserV1)))))
-    <@> mkNamedAPI @"mls-message" (callsFed (callsFed (callsFed (callsFed (callsFed postMLSMessageFromLocalUser)))))
-    <@> mkNamedAPI @"mls-commit-bundle" (callsFed (callsFed (callsFed (callsFed (callsFed (callsFed postMLSCommitBundleFromLocalUser))))))
+    <@> mkNamedAPI @"mls-message-v1" (callsFed postMLSMessageFromLocalUserV1)
+    <@> mkNamedAPI @"mls-message" (callsFed postMLSMessageFromLocalUser)
+    <@> mkNamedAPI @"mls-commit-bundle" (callsFed postMLSCommitBundleFromLocalUser)
     <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeys
