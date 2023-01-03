@@ -121,10 +121,18 @@ instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: 
   clientWithRoute p _ = clientWithRoute p $ Proxy @api
   hoistClientMonad p _ f c = hoistClientMonad p (Proxy @api) f c
 
--- | Safely discharge a 'CallsFed' constraint. Intended to be used when
--- connecting your handler to the server router.
-callsFed :: (c => r) -> Dict c -> r
-callsFed f Dict = f
+-- | Type class to automatically lift a function of the form @(c1, c2, ...) =>
+-- r@ into @Dict c1 -> Dict c2 -> ... -> r@.
+class SolveCallsFed c r a where
+  -- | Safely discharge a 'CallsFed' constraint. Intended to be used when
+  -- connecting your handler to the server router.
+  callsFed :: (c => r) -> a
+
+instance (c ~ ((k, d) :: Constraint), SolveCallsFed d r a) => SolveCallsFed c r (Dict k -> a) where
+  callsFed f Dict = callsFed @d @r @a f
+
+instance {-# OVERLAPPABLE #-} (c ~ (() :: Constraint), r ~ a) => SolveCallsFed c r a where
+  callsFed f = f
 
 -- | Unsafely discharge a 'CallsFed' constraint. Necessary for interacting with
 -- wai-routes.
@@ -132,4 +140,4 @@ callsFed f Dict = f
 -- This is unsafe in the sense that it will drop the 'CallsFed' constraint, and
 -- thus might mean a federated call gets forgotten in the documentation.
 unsafeCallsFed :: forall (comp :: Component) (name :: Symbol) r. (CallsFed comp name => r) -> r
-unsafeCallsFed f = callsFed f $ synthesizeCallsFed @comp @name
+unsafeCallsFed f = withDict (synthesizeCallsFed @comp @name) f

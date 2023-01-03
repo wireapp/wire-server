@@ -59,13 +59,13 @@ servantSitemap =
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
     qualifiedAPI :: ServerT QualifiedAPI Handler
-    qualifiedAPI = callsFed (callsFed downloadAssetV4) :<|> deleteAssetV4
+    qualifiedAPI = callsFed downloadAssetV4 :<|> deleteAssetV4
     mainAPI :: ServerT MainAPI Handler
     mainAPI =
       renewTokenV3
         :<|> deleteTokenV3
         :<|> uploadAssetV3 @'UserPrincipalTag
-        :<|> callsFed (callsFed downloadAssetV4)
+        :<|> callsFed downloadAssetV4
         :<|> deleteAssetV4
 
 internalSitemap :: ServerT InternalAPI Handler
