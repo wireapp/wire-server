@@ -127,6 +127,7 @@ getRemoteSubConversation ::
       '[ ErrorS 'ConvNotFound,
          ErrorS 'ConvAccessDenied,
          ErrorS 'MLSSubConvUnsupportedConvType,
+         SubConversationStore,
          FederatorAccess
        ]
       r,
@@ -149,7 +150,8 @@ getRemoteSubConversation lusr rcnv sconv = do
   case res of
     GetSubConversationsResponseError err ->
       rethrowErrors @MLSGetSubConvStaticErrors @r err
-    GetSubConversationsResponseSuccess subconv ->
+    GetSubConversationsResponseSuccess subconv -> do
+      Eff.setGroupIdForSubConversation (pscGroupId subconv) (pscParentConvId subconv) (pscSubConvId subconv)
       pure subconv
 
 getSubConversationGroupInfo ::
