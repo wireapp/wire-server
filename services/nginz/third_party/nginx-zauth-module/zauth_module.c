@@ -279,35 +279,43 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
         // let's try to handle zauth
         ngx_int_t status = zauth_handle_zauth_request(r, sc);
 
-        // if zauth fails and oauth is enabled, we set the Z-OAuth header with the value of the Authorization header, and empty the Authorization header
-        if (status != NGX_OK && lc->oauth == 1) {
-                ngx_str_t z_oauth_header_name = ngx_string("Z-OAuth");
-                ngx_str_t z_oauth_header_value = r->headers_in.authorization->value;
-                ngx_int_t set_header_status = set_custom_header_in_headers_in(r, &z_oauth_header_name, &z_oauth_header_value);
-                if (set_header_status != NGX_OK) {
+        // if parsing the token fails,
+        // and oauth is enabled,
+        // we try to set the Z-OAuth header,
+        // and empty the Authorization header
+        if (status != NGX_OK && status != NGX_HTTP_FORBIDDEN && lc->oauth == 1) {
+                if (r->headers_in.authorization == NULL) {
                         return NGX_ERROR;
                 }
-                ngx_int_t empty_header_status = empty_authorization_header_in_headers_in(r);
-                if (empty_header_status != NGX_OK) {
+                ngx_str_t hdr = r->headers_in.authorization->value;
+                if (strncmp((char const *) hdr.data, "Bearer ", 7) != 0) {
+                        return NGX_ERROR;
+                }
+                ngx_str_t z_oauth_hdr_name = ngx_string("Z-OAuth");
+                ngx_int_t res = set_custom_header_in_headers_in(r, &z_oauth_hdr_name, &hdr);
+                if (res != NGX_OK) {
+                        return NGX_ERROR;
+                }
+                res = empty_authorization_header_in_headers_in(r);
+                if (res != NGX_OK) {
                         return NGX_ERROR;
                 }
                 return NGX_DECLINED;
         }
-        
         // if zauth succeeds, we empty the Authorization header
-        if (status == NGX_OK) {
+        else if (status == NGX_OK) {
                 return empty_authorization_header_in_headers_in(r);
         }
-
-        // in all other cases (which should only be errors) we return the status (do nothing)
-        return status;
+        // in all other cases (which should only be errors) we return the status
+        else {
+                return status;
+        }
 }
 
 ngx_int_t empty_authorization_header_in_headers_in(ngx_http_request_t *r) {
         ngx_table_elt_t * h = r->headers_in.authorization;
-        // for authenticated endpoints, the authorization header is always present, so if it is null, we return an error
         if (h == NULL) {
-                return NGX_ERROR;
+                return NGX_OK;
         }
         ngx_str_t value = ngx_string("");
         h->value = value;
@@ -403,7 +411,17 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
         }
 
         if (res != ZAUTH_OK) {
-                ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0, "failed to parse token [%d]", res);
+                ZauthLocationConf const *lc = ngx_http_get_module_loc_conf(r, zauth_module);
+
+                // if parsing the request failed (res != ZAUTH_OK) and...
+                if (lc == NULL || // no location config
+                    lc->oauth == 0 || // or oauth disabled
+                    r->headers_in.authorization == NULL || // or no authorization header
+                    strncmp((char const *)r->headers_in.authorization->value.data, "Bearer ", 7) == 0) // or not a bearer token
+                {
+                        // ... then we produce a log entry (otherwise the request will be handled by wire-server as an oauth request)
+                        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0, "failed to parse token [%d]", res);
+                }
         }
 
         return NGX_OK;
