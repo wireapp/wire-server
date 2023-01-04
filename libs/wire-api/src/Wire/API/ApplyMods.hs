@@ -15,32 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.Endpoint
-  ( ApplyMods,
-    module Wire.API.Federation.Endpoint,
-  )
-where
+module Wire.API.ApplyMods where
 
 import Servant.API
-import Wire.API.ApplyMods
-import Wire.API.Federation.Domain
-import Wire.API.Routes.Named
 
-type FedEndpointWithMods (mods :: [*]) name input output =
-  Named
-    name
-    ( ApplyMods
-        mods
-        (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
-    )
-
-type FedEndpoint name input output = FedEndpointWithMods '[] name input output
-
-type StreamingFedEndpoint name input output =
-  Named
-    name
-    ( name
-        :> OriginDomainHeader
-        :> ReqBody '[JSON] input
-        :> StreamPost NoFraming OctetStream output
-    )
+type family ApplyMods (mods :: [*]) api where
+  ApplyMods '[] api = api
+  ApplyMods (x ': xs) api = x :> ApplyMods xs api

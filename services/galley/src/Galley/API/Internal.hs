@@ -86,6 +86,7 @@ import Servant hiding (JSON, WithStatus)
 import qualified Servant hiding (WithStatus)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
+import Wire.API.ApplyMods
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
@@ -405,13 +406,9 @@ type ITeamsAPIBase =
 
 type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
 
-type family FoldFederatedCalls (calls :: [*]) r where
-  FoldFederatedCalls '[] r = r
-  FoldFederatedCalls (call ': calls) r = call :> FoldFederatedCalls calls r
+type IFeatureStatusPut calls errs f = Named '("iput", f) (ApplyMods calls (FeatureStatusBasePutInternal errs f))
 
-type IFeatureStatusPut calls errs f = Named '("iput", f) (FoldFederatedCalls calls (FeatureStatusBasePutInternal errs f))
-
-type IFeatureStatusPatch calls errs f = Named '("ipatch", f) (FoldFederatedCalls calls (FeatureStatusBasePatchInternal errs f))
+type IFeatureStatusPatch calls errs f = Named '("ipatch", f) (ApplyMods calls (FeatureStatusBasePatchInternal errs f))
 
 type FeatureStatusBasePutInternal errs featureConfig =
   FeatureStatusBaseInternal

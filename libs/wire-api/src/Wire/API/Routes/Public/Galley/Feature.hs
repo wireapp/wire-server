@@ -21,6 +21,7 @@ import Data.Id
 import GHC.TypeLits
 import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
+import Wire.API.ApplyMods
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -105,14 +106,10 @@ type FeatureStatusGet f =
     '("get", f)
     (ZUser :> FeatureStatusBaseGet f)
 
-type family FoldSegments (calls :: [*]) r where
-  FoldSegments '[] r = r
-  FoldSegments (seg ': segs) r = seg :> FoldSegments segs r
-
 type FeatureStatusPut segs errs f =
   Named
     '("put", f)
-    (FoldSegments segs (ZUser :> FeatureStatusBasePutPublic errs f))
+    (ApplyMods segs (ZUser :> FeatureStatusBasePutPublic errs f))
 
 type FeatureStatusDeprecatedGet d f =
   Named
