@@ -172,6 +172,13 @@ let
         sha256 = "1w23yz2iiayniymk7k4g8gww7268187cayw0c8m3bz2hbnvbyfbc";
       };
     };
+    swagger2 = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/swagger2";
+        rev = "ba916df2775bb38ec603b726bbebfb65a908317a";
+        sha256 = "sha256-IcsrJ5ur8Zm7Xp1PQBOb+2N7T8WMI8jJ6YuDv8ypsPQ=";
+      };
+    };
     cql-io = {
       src = fetchgit {
         url = "https://gitlab.com/axeman/cql-io";

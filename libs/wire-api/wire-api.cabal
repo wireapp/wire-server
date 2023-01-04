@@ -39,6 +39,7 @@ library
     Wire.API.Event.Team
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
+    Wire.API.MakesFederatedCall
     Wire.API.Message
     Wire.API.Message.Proto
     Wire.API.MLS.CipherSuite

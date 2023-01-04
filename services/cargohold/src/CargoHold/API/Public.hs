@@ -40,7 +40,7 @@ import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 
-servantSitemap :: (CallsFed 'Cargohold "get-asset", CallsFed 'Cargohold "stream-asset") => ServerT ServantAPI Handler
+servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   renewTokenV3
     :<|> deleteTokenV3
@@ -58,12 +58,14 @@ servantSitemap =
     providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
-    qualifiedAPI = downloadAssetV4 :<|> deleteAssetV4
+    qualifiedAPI :: ServerT QualifiedAPI Handler
+    qualifiedAPI = callsFed downloadAssetV4 :<|> deleteAssetV4
+    mainAPI :: ServerT MainAPI Handler
     mainAPI =
       renewTokenV3
         :<|> deleteTokenV3
         :<|> uploadAssetV3 @'UserPrincipalTag
-        :<|> downloadAssetV4
+        :<|> callsFed downloadAssetV4
         :<|> deleteAssetV4
 
 internalSitemap :: ServerT InternalAPI Handler

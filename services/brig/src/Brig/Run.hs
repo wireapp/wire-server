@@ -1,5 +1,4 @@
 {-# LANGUAGE NumericUnderscores #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -81,10 +80,6 @@ import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import qualified Wire.Sem.Paging as P
 
--- | Orphan instance to satisfy 'CallsFeds' constraints, which we otherwise use
--- to track federation calls across the codebase.
-instance {-# OVERLAPPING #-} CallsFed comp name
-
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
 -- thread terminates for any reason.
@@ -97,7 +92,8 @@ run o = do
     Async.async $
       runBrigToIO e $
         wrapHttpClient $
-          Queue.listen (e ^. internalEvents) Internal.onEvent
+          Queue.listen (e ^. internalEvents) $
+            unsafeCallsFed @'Brig @"on-user-deleted-connections" Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $

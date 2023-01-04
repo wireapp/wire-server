@@ -111,8 +111,7 @@ servantSitemap ::
          GalleyProvider,
          UserPendingActivationStore p
        ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
+      r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -158,13 +157,12 @@ accountAPI ::
          GalleyProvider,
          UserPendingActivationStore p
        ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
+      r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
-  Named @"createUserNoVerify" createUserNoVerify
-    :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
+  Named @"createUserNoVerify" (callsFed createUserNoVerify)
+    :<|> Named @"createUserNoVerifySpar" (callsFed createUserNoVerifySpar)
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -175,10 +173,10 @@ userAPI =
     :<|> deleteLocale
     :<|> getDefaultUserLocale
 
-authAPI :: (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") => ServerT BrigIRoutes.AuthAPI (Handler r)
+authAPI :: (Member GalleyProvider r) => ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
-  Named @"legalhold-login" legalHoldLogin
-    :<|> Named @"sso-login" ssoLogin
+  Named @"legalhold-login" (callsFed legalHoldLogin)
+    :<|> Named @"sso-login" (callsFed ssoLogin)
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate" reauthenticate
 
@@ -297,11 +295,10 @@ sitemap ::
          GalleyProvider,
          UserPendingActivationStore p
        ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
+      r
   ) =>
   Routes a (Handler r) ()
-sitemap = do
+sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
   get "/i/status" (continue $ const $ pure empty) true
   head "/i/status" (continue $ const $ pure empty) true
 
