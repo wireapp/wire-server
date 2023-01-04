@@ -134,7 +134,8 @@ tests conf m z db b g n =
               test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
               test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g,
               test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails b g db,
-              test m "test-login-verify6-digit-resend-code-success-and-rate-limiting" $ testLoginVerify6DigitResendCodeSuccessAndRateLimiting b g conf db
+              test m "test-login-verify6-digit-resend-code-success-and-rate-limiting" $ testLoginVerify6DigitResendCodeSuccessAndRateLimiting b g conf db,
+              test m "test-login-verify6-digit-limit-retries" $ testLoginVerify6DigitLimitRetries b g conf db
             ]
         ],
       testGroup
@@ -455,6 +456,52 @@ testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
         defPassword
         (Just defCookieLabel)
         (Just $ Code.codeValue mostRecentCode)
+
+testLoginVerify6DigitLimitRetries :: Brig -> Galley -> Opts.Opts -> DB.ClientState -> Http ()
+testLoginVerify6DigitLimitRetries brig galley _opts db = do
+  (u, tid) <- createUserWithTeam' brig
+  let Just email = userEmail u
+  let checkLoginFails body =
+        login brig body PersistentCookie !!! do
+          const 403 === statusCode
+          const (Just "code-authentication-failed") === errorLabel
+
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  key <- Code.mkKey (Code.ForEmail email)
+  Just correctCode <- Util.lookupCode db key Code.AccountLogin
+  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
+  -- login with wrong code should fail 3 times
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just wrongCode)
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just wrongCode)
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just wrongCode)
+  -- after 3 failed attempts, login with correct code should fail as well
+  checkLoginFails $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just (Code.codeValue correctCode))
 
 -- @SF.Channel @TSFI.RESTfulAPI @S2
 --
