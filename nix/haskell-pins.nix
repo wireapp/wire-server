@@ -93,9 +93,9 @@ let
     };
     amazonka = {
       src = fetchgit {
-        url = "https://github.com/wireapp/amazonka";
-        rev = "7ced54b0396296307b9871d293cc0ac161e5743d";
-        sha256 = "0md658m32zrvzc8nljn58r8iw4rqxpihgdnqrhl8vnmkq6i9np51";
+        url = "https://github.com/brendanhay/amazonka";
+        rev = "cfe2584aef0b03c86650372d362c74f237925d8c";
+        sha256 = "sha256-ss8IuIN0BbS6LMjlaFmUdxUqQu+IHsA8ucsjxXJwbyg=";
       };
       packages = {
         amazonka = "lib/amazonka";

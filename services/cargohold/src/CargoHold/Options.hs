@@ -20,6 +20,7 @@
 
 module CargoHold.Options where
 
+import Amazonka (S3AddressingStyle (..))
 import qualified CargoHold.CloudFront as CF
 import Control.Lens hiding (Level)
 import Data.Aeson (FromJSON (..), withText)
@@ -45,8 +46,48 @@ deriveFromJSON toOptionFieldName ''CloudFrontOpts
 
 makeLenses ''CloudFrontOpts
 
+newtype OptS3AddressingStyle = OptS3AddressingStyle
+  { unwrapS3AddressingStyle :: S3AddressingStyle
+  }
+  deriving (Show)
+
+instance FromJSON OptS3AddressingStyle where
+  parseJSON =
+    withText "S3AddressingStyle" $
+      fmap OptS3AddressingStyle . \case
+        "auto" -> pure S3AddressingStyleAuto
+        "path" -> pure S3AddressingStylePath
+        "virtual" -> pure S3AddressingStyleVirtual
+        other -> fail $ "invalid S3AddressingStyle: " <> show other
+
 data AWSOpts = AWSOpts
   { _awsS3Endpoint :: !AWSEndpoint,
+    -- | S3 can either by addressed in path style, i.e.
+    -- https://<s3-endpoint>/<bucket-name>/<object>, or vhost style, i.e.
+    -- https://<bucket-name>.<s3-endpoint>/<object>. AWS's S3 offering has
+    -- deprecated path style addressing for S3 and completely disabled it for
+    -- buckets created after 30 Sep 2020:
+    -- https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/
+    --
+    -- However other object storage providers (specially self-deployed ones like
+    -- MinIO) may not support vhost style addressing yet (or ever?). Users of
+    -- such buckets should configure this option to "path".
+    --
+    -- Installations using S3 service provided by AWS, should use "auto", this
+    -- option will ensure that vhost style is only used when it is possible to
+    -- construct a valid hostname from the bucket name and the bucket name
+    -- doesn't contain a '.'. Having a '.' in the bucket name causes TLS
+    -- validation to fail, hence it is not used by default.
+    --
+    -- Using "virtual" as an option is only useful in situations where vhost
+    -- style addressing must be used even if it is not possible to construct a
+    -- valid hostname from the bucket name or the S3 service provider can ensure
+    -- correct certificate is issued for bucket which contain one or more '.'s
+    -- in the name.
+    --
+    -- When this option is unspecified, we default to path style addressing to
+    -- ensure smooth transition for older deployments.
+    _awsS3AddressingStyle :: !(Maybe OptS3AddressingStyle),
     -- | S3 endpoint for generating download links. Useful if Cargohold is configured to use
     -- an S3 replacement running inside the internal network (in which case internally we
     -- would use one hostname for S3, and when generating an asset link for a client app, we
