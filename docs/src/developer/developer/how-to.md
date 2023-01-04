@@ -2,6 +2,13 @@
 
 The following assume you have a working developer environment with all the dependencies listed in [./dependencies.md](./dependencies.md) available to you.
 
+If you want to deploy to the CI kubernetes cluster (how-tos bewlow) you need set `KUBECONFIG` env var, where `$cailleach_repo` is replaced by your local checkout of the `cailleach` repository.
+```
+export KUBECONFIG=$cailleach_repo/environments/kube-ci/kubeconfig.dec
+```
+Check that this file exists by running `ls $KUBECONFIG`.
+
+
 ## How to look at the swagger docs / UI locally
 
 Terminal 1:
