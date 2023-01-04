@@ -34,13 +34,14 @@ versionAPI = Named $ do
   dev <- view (settings . enableDevelopmentVersions . to (fromMaybe False))
   disabledVersions <- view (settings . disabledAPIVersions . traverse)
   let allVersions = Set.difference (Set.fromList supportedVersions) disabledVersions
-  let supported
+      devVersions = Set.difference (Set.fromList developmentVersions) disabledVersions
+      supported
         | dev = allVersions
-        | otherwise = Set.difference allVersions (Set.fromList developmentVersions)
+        | otherwise = Set.difference allVersions devVersions
   pure $
     VersionInfo
       { vinfoSupported = toList supported,
-        vinfoDevelopment = developmentVersions,
+        vinfoDevelopment = toList devVersions,
         vinfoFederation = isJust fed,
         vinfoDomain = dom
       }
