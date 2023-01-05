@@ -41,7 +41,7 @@ tests p opts brig =
       test p "GET /api-version (with dev)" $ testDevVersion opts brig,
       test p "GET /v500/api-version" $ testUnsupportedVersion brig,
       test p "GET /api-version (federation info)" $ testFederationDomain opts brig,
-      test p "Disabled version makes it unsupported" $ testDisabledVersionIsUnsupported opts brig,
+      test p "Disabled version is unsupported" $ testDisabledVersionIsUnsupported opts brig,
       test p "Disabled version is not advertised" $ testVersionDisabledSupportedVersion opts brig,
       test p "Disabled dev version is not advertised" $ testVersionDisabledDevelopmentVersion opts brig
     ]
