@@ -40,6 +40,9 @@ spec:
                   name: "roman-secrets"
                   key: pubKeyBase64
 
+            - name: PROXY_DOMAIN
+              value: "{{- if .Values.roman.proxyDomain }} {{ .Values.roman.proxyDomain }} {{- end }}"
+
             - name: DB_URL
               value: "{{ required "Must specify dbURL" .Values.roman.dbURL }}"
 
