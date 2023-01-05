@@ -101,33 +101,23 @@ type FederationAPI = "federation" :> FedApi 'Galley
 
 -- | Convert a polysemy handler to an 'API' value.
 federationSitemap ::
-  ( CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Brig "get-mls-clients",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "send-mls-message",
-    CallsFed 'Galley "mls-welcome",
-    CallsFed 'Galley "send-mls-commit-bundle",
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
-  ) =>
   ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
     :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
-    :<|> Named @"leave-conversation" leaveConversation
+    :<|> Named @"leave-conversation" (callsFed leaveConversation)
     :<|> Named @"on-message-sent" onMessageSent
-    :<|> Named @"send-message" sendMessage
-    :<|> Named @"on-user-deleted-conversations" onUserDeleted
-    :<|> Named @"update-conversation" updateConversation
+    :<|> Named @"send-message" (callsFed sendMessage)
+    :<|> Named @"on-user-deleted-conversations" (callsFed onUserDeleted)
+    :<|> Named @"update-conversation" (callsFed updateConversation)
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
-    :<|> Named @"send-mls-message" sendMLSMessage
-    :<|> Named @"send-mls-commit-bundle" sendMLSCommitBundle
+    :<|> Named @"send-mls-message" (callsFed sendMLSMessage)
+    :<|> Named @"send-mls-commit-bundle" (callsFed sendMLSCommitBundle)
     :<|> Named @"query-group-info" queryGroupInfo
-    :<|> Named @"on-client-removed" onClientRemoved
+    :<|> Named @"on-client-removed" (callsFed onClientRemoved)
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
 
 onClientRemoved ::

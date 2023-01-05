@@ -1141,8 +1141,10 @@ postMessageQualifiedRemoteOwningBackendFailure = do
   let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
   let galleyApi _ =
         mkHandler @(FedApi 'Galley) $
-          Named @"send-message" $ \_ _ ->
-            throwError err503 {errBody = "Down for maintenance."}
+          Named @"send-message" $
+            callsFed $
+              callsFed $ \_ _ ->
+                throwError err503 {errBody = "Down for maintenance."}
 
   (resp2, _requests) <-
     postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll brigApi galleyApi
@@ -1181,8 +1183,10 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
       message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
       brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
       galleyApi _ = mkHandler @(FedApi 'Galley) $
-        Named @"send-message" $ \_ _ ->
-          pure (F.MessageSendResponse (Right mss))
+        Named @"send-message" $
+          callsFed $
+            callsFed $ \_ _ ->
+              pure (F.MessageSendResponse (Right mss))
 
   (resp2, _requests) <-
     postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi

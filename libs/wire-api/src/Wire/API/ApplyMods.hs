@@ -15,13 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.Bot where
+module Wire.API.ApplyMods where
 
-import Galley.API.Update
-import Galley.App
-import Wire.API.Federation.API
-import Wire.API.Routes.API
-import Wire.API.Routes.Public.Galley.Bot
+import Servant.API
 
-botAPI :: API BotAPI GalleyEffects
-botAPI = mkNamedAPI @"post-bot-message-unqualified" (callsFed (callsFed postBotMessageUnqualified))
+type family ApplyMods (mods :: [*]) api where
+  ApplyMods '[] api = api
+  ApplyMods (x ': xs) api = x :> ApplyMods xs api

@@ -23,19 +23,10 @@ import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.MLS
 
-mlsAPI ::
-  ( CallsFed 'Galley "mls-welcome",
-    CallsFed 'Brig "get-mls-clients",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "send-mls-message",
-    CallsFed 'Galley "send-mls-commit-bundle"
-  ) =>
-  API MLSAPI GalleyEffects
+mlsAPI :: API MLSAPI GalleyEffects
 mlsAPI =
-  mkNamedAPI @"mls-welcome-message" postMLSWelcomeFromLocalUser
-    <@> mkNamedAPI @"mls-message-v1" postMLSMessageFromLocalUserV1
-    <@> mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
-    <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
+  mkNamedAPI @"mls-welcome-message" (callsFed postMLSWelcomeFromLocalUser)
+    <@> mkNamedAPI @"mls-message-v1" (callsFed postMLSMessageFromLocalUserV1)
+    <@> mkNamedAPI @"mls-message" (callsFed postMLSMessageFromLocalUser)
+    <@> mkNamedAPI @"mls-commit-bundle" (callsFed postMLSCommitBundleFromLocalUser)
     <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeys

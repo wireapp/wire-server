@@ -24,18 +24,13 @@ import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.LegalHold
 
-legalHoldAPI ::
-  ( CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
-  ) =>
-  API LegalHoldAPI GalleyEffects
+legalHoldAPI :: API LegalHoldAPI GalleyEffects
 legalHoldAPI =
   mkNamedAPI @"create-legal-hold-settings" (createSettings @Cassandra)
     <@> mkNamedAPI @"get-legal-hold-settings" (getSettings @Cassandra)
-    <@> mkNamedAPI @"delete-legal-hold-settings" (removeSettingsInternalPaging @Cassandra)
+    <@> mkNamedAPI @"delete-legal-hold-settings" (callsFed (callsFed (callsFed (removeSettingsInternalPaging @Cassandra))))
     <@> mkNamedAPI @"get-legal-hold" getUserStatus
-    <@> mkNamedAPI @"consent-to-legal-hold" grantConsent
-    <@> mkNamedAPI @"request-legal-hold-device" (requestDevice @Cassandra)
-    <@> mkNamedAPI @"disable-legal-hold-for-user" disableForUser
-    <@> mkNamedAPI @"approve-legal-hold-device" (approveDevice @Cassandra)
+    <@> mkNamedAPI @"consent-to-legal-hold" (callsFed (callsFed (callsFed grantConsent)))
+    <@> mkNamedAPI @"request-legal-hold-device" (callsFed (callsFed (callsFed (requestDevice @Cassandra))))
+    <@> mkNamedAPI @"disable-legal-hold-for-user" (callsFed (callsFed (callsFed disableForUser)))
+    <@> mkNamedAPI @"approve-legal-hold-device" (callsFed (callsFed (callsFed (approveDevice @Cassandra))))
