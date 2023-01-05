@@ -22,5 +22,4 @@ Wire Federation, once implemented, aims to allow multiple Wire-server :ref:`back
 
    introduction
    architecture
-   *roadmap
    *
