@@ -110,7 +110,7 @@ As of release ``2.117.0`` from ``2021-10-29`` (see `release notes<release-notes>
             blackListURL: "https://clientblacklist.wire.com/prod"
             websiteURL: "https://wire.com"
           apiProxy: (optional)
-            host: "https://socks5.proxy.com"
+            host: "socks5.proxy.com"
             port: 1080
             needsAuthentication: true
           title: "My Custom Wire Backend"
@@ -146,7 +146,7 @@ Otherwise you need to create a ``.json`` file, and host it somewhere users can g
          "websiteURL" : "https://wire.com"
       },
       "apiProxy" : {
-         "host" : "https://socks5.proxy.com",
+         "host" : "socks5.proxy.com",
          "port" : 1080,
          "needsAuthentication" : true
       },
