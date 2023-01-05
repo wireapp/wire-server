@@ -28,6 +28,9 @@ data:
       {{- if .s3Compatibility }}
       s3Compatibility: {{ .s3Compatibility }}
       {{- end }}
+      {{- if .s3AddressingStyle }}
+      s3AddressingStyle: {{ .s3AddressingStyle }}
+      {{- end }}
       {{ if .cloudFront }}
       cloudFront:
         domain: {{ .cloudFront.domain }}

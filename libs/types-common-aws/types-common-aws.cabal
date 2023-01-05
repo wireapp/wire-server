@@ -75,6 +75,7 @@ library
   ghc-prof-options:   -fprof-auto-exported
   build-depends:
       amazonka
+    , amazonka-core
     , amazonka-sqs
     , base               >=4    && <5
     , base64-bytestring  >=1.0

@@ -27,16 +27,11 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Team.Feature
 
-featureAPI ::
-  ( CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
-  ) =>
-  API FeatureAPI GalleyEffects
+featureAPI :: API FeatureAPI GalleyEffects
 featureAPI =
   mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", LegalholdConfig) (setFeatureStatus @Cassandra . DoAuth)
+    <@> mkNamedAPI @'("put", LegalholdConfig) (callsFed (setFeatureStatus @Cassandra . DoAuth))
     <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)

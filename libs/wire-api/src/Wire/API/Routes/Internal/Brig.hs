@@ -54,6 +54,7 @@ import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
@@ -151,6 +152,7 @@ type AccountAPI =
   Named
     "createUserNoVerify"
     ( "users"
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> ReqBody '[Servant.JSON] NewUser
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
@@ -158,6 +160,7 @@ type AccountAPI =
            "createUserNoVerifySpar"
            ( "users"
                :> "spar"
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
@@ -366,12 +369,14 @@ type AuthAPI =
   Named
     "legalhold-login"
     ( "legalhold-login"
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> ReqBody '[JSON] LegalHoldLogin
         :> MultiVerb1 'POST '[JSON] TokenResponse
     )
     :<|> Named
            "sso-login"
            ( "sso-login"
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ReqBody '[JSON] SsoLogin
                :> QueryParam' [Optional, Strict] "persist" Bool
                :> MultiVerb1 'POST '[JSON] TokenResponse

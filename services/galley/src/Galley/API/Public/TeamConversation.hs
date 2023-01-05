@@ -23,14 +23,9 @@ import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.TeamConversation
 
-teamConversationAPI ::
-  ( CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
-  ) =>
-  API TeamConversationAPI GalleyEffects
+teamConversationAPI :: API TeamConversationAPI GalleyEffects
 teamConversationAPI =
   mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
     <@> mkNamedAPI @"get-team-conversations" getTeamConversations
     <@> mkNamedAPI @"get-team-conversation" getTeamConversation
-    <@> mkNamedAPI @"delete-team-conversation" deleteTeamConversation
+    <@> mkNamedAPI @"delete-team-conversation" (callsFed deleteTeamConversation)

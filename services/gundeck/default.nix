@@ -6,6 +6,7 @@
 , aeson
 , aeson-pretty
 , amazonka
+, amazonka-core
 , amazonka-sns
 , amazonka-sqs
 , async
@@ -99,6 +100,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
+    amazonka-core
     amazonka-sns
     amazonka-sqs
     async
