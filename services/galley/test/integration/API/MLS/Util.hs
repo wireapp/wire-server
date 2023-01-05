@@ -1096,6 +1096,27 @@ getSubConv u qcnv sconv = do
         ]
       . zUser u
 
+deleteSubConv ::
+  UserId ->
+  Qualified ConvId ->
+  SubConvId ->
+  DeleteSubConversation ->
+  TestM ResponseLBS
+deleteSubConv u qcnv sconv dsc = do
+  g <- viewGalley
+  delete $
+    g
+      . paths
+        [ "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "subconversations",
+          LBS.toStrict (toLazyByteString (toEncodedUrlPiece sconv))
+        ]
+      . zUser u
+      . contentJson
+      . json dsc
+
 convsub :: Qualified ConvId -> Maybe Text -> Qualified ConvOrSubConvId
 convsub qcnv Nothing = Conv <$> qcnv
 convsub qcnv (Just subname) = flip SubConv (SubConvId subname) <$> qcnv
