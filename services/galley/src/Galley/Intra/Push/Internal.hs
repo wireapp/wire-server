@@ -105,18 +105,8 @@ pushLocal ps = do
   traverse_ (asyncCall Gundeck . json) (pushes asyncs)
   void $ mapConcurrently (call Gundeck . json) (pushes syncs)
   where
-    pushes = fst . foldr chunk ([], 0)
-    chunk p (pss, !n) =
-      let r = recipientList p
-          nr = length r
-       in if n + nr > maxRecipients
-            then
-              let pss' = map (pure . toPush p) (chunksOf maxRecipients r)
-               in (pss' ++ pss, 0)
-            else
-              let hd = headDef [] pss
-                  tl = tailDef [] pss
-               in ((toPush p r : hd) : tl, n + nr)
+    pushes = foldr chunk []
+    chunk p pss = map (toPush p) (chunksOf maxRecipients (recipientList p)) ++ pss
     maxRecipients = 128
     recipientList p = map (toRecipient p) . toList $ _pushRecipients p
     toPush p r =
@@ -129,12 +119,12 @@ pushLocal ps = do
       Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients .~ _recipientClients r
     -- Ensure that under no circumstances we exceed the threshold
-    removeIfLargeFanout limit =
-      filter
-        ( \p ->
-            (pushRecipientListType p == ListComplete)
-              && (length (_pushRecipients p) <= fromIntegral (fromRange limit))
-        )
+    removeIfLargeFanout limit = filter (\p -> not $ pushIsLargeFanout limit p)
+
+    pushIsLargeFanout :: Range FanoutLimit -> PushTo a -> Bool
+    pushIsLargeFanout limit p =
+      (pushRecipientListType p == ListComplete)
+        && (length (_pushRecipients p) > fromIntegral (fromRange limit))
 
 recipient :: LocalMember -> Recipient
 recipient = userRecipient . lmId
