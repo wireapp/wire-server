@@ -332,7 +332,7 @@ verify :: MonadClient m => Key -> Scope -> Value -> m (Maybe Code)
 verify k s v = lookup k s >>= maybe (pure Nothing) continue
   where
     continue c
-      | codeValue c == v = pure (Just c)
+      | codeValue c == v && codeRetries c > 0 = pure (Just c)
       | codeRetries c > 0 = do
           insertInternal (c {codeRetries = codeRetries c - 1})
           pure Nothing

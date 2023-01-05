@@ -36,6 +36,7 @@ import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
 import qualified Cassandra as DB
 import Control.Lens (set, (^.))
+import Control.Monad.Catch (MonadCatch)
 import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import qualified Data.ByteString as BS
@@ -134,7 +135,8 @@ tests conf m z db b g n =
               test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
               test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g,
               test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails b g db,
-              test m "test-login-verify6-digit-resend-code-success-and-rate-limiting" $ testLoginVerify6DigitResendCodeSuccessAndRateLimiting b g conf db
+              test m "test-login-verify6-digit-resend-code-success-and-rate-limiting" $ testLoginVerify6DigitResendCodeSuccessAndRateLimiting b g conf db,
+              test m "test-login-verify6-digit-limit-retries" $ testLoginVerify6DigitLimitRetries b g conf db
             ]
         ],
       testGroup
@@ -420,10 +422,6 @@ testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
   let checkLoginSucceeds body = login brig body PersistentCookie !!! const 200 === statusCode
-  let checkLoginFails body =
-        login brig body PersistentCookie !!! do
-          const 403 === statusCode
-          const (Just "code-authentication-failed") === errorLabel
   let getCodeFromDb = do
         key <- Code.mkKey (Code.ForEmail email)
         Just c <- Util.lookupCode db key Code.AccountLogin
@@ -441,7 +439,7 @@ testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
   void $ retryWhileN 10 ((==) 429 . statusCode) $ Util.generateVerificationCode' brig (Public.SendVerificationCode Public.Login email)
   mostRecentCode <- getCodeFromDb
 
-  checkLoginFails $
+  checkLoginFails brig $
     PasswordLogin $
       PasswordLoginData
         (LoginByEmail email)
@@ -456,6 +454,34 @@ testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
         (Just defCookieLabel)
         (Just $ Code.codeValue mostRecentCode)
 
+testLoginVerify6DigitLimitRetries :: Brig -> Galley -> Opts.Opts -> DB.ClientState -> Http ()
+testLoginVerify6DigitLimitRetries brig galley _opts db = do
+  (u, tid) <- createUserWithTeam' brig
+  let Just email = userEmail u
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  key <- Code.mkKey (Code.ForEmail email)
+  Just correctCode <- Util.lookupCode db key Code.AccountLogin
+  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
+  -- login with wrong code should fail 3 times
+  forM_ [1 .. 3] $ \(_ :: Int) ->
+    checkLoginFails brig $
+      PasswordLogin $
+        PasswordLoginData
+          (LoginByEmail email)
+          defPassword
+          (Just defCookieLabel)
+          (Just wrongCode)
+  -- after 3 failed attempts, login with correct code should fail as well
+  checkLoginFails brig $
+    PasswordLogin $
+      PasswordLoginData
+        (LoginByEmail email)
+        defPassword
+        (Just defCookieLabel)
+        (Just (Code.codeValue correctCode))
+
 -- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that login fails with wrong second factor email verification code
@@ -463,16 +489,11 @@ testLoginVerify6DigitWrongCodeFails :: Brig -> Galley -> Http ()
 testLoginVerify6DigitWrongCodeFails brig galley = do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
-  let checkLoginFails body =
-        login brig body PersistentCookie !!! do
-          const 403 === statusCode
-          const (Just "code-authentication-failed") === errorLabel
-
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
-  checkLoginFails $
+  checkLoginFails brig $
     PasswordLogin $
       PasswordLoginData
         (LoginByEmail email)
@@ -489,21 +510,19 @@ testLoginVerify6DigitMissingCodeFails :: Brig -> Galley -> Http ()
 testLoginVerify6DigitMissingCodeFails brig galley = do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
-  let checkLoginFails body =
-        login brig body PersistentCookie !!! do
-          const 403 === statusCode
-          const (Just "code-authentication-required") === errorLabel
-
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  checkLoginFails $
-    PasswordLogin $
-      PasswordLoginData
-        (LoginByEmail email)
-        defPassword
-        (Just defCookieLabel)
-        Nothing
+  let body =
+        PasswordLogin $
+          PasswordLoginData
+            (LoginByEmail email)
+            defPassword
+            (Just defCookieLabel)
+            Nothing
+  login brig body PersistentCookie !!! do
+    const 403 === statusCode
+    const (Just "code-authentication-required") === errorLabel
 
 -- @END
 
@@ -514,11 +533,6 @@ testLoginVerify6DigitExpiredCodeFails :: Brig -> Galley -> DB.ClientState -> Htt
 testLoginVerify6DigitExpiredCodeFails brig galley db = do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
-  let checkLoginFails body =
-        login brig body PersistentCookie !!! do
-          const 403 === statusCode
-          const (Just "code-authentication-failed") === errorLabel
-
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
@@ -526,7 +540,7 @@ testLoginVerify6DigitExpiredCodeFails brig galley db = do
   Just vcode <- Util.lookupCode db key Code.AccountLogin
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
   threadDelay $ (5 * 1000000) + 600000
-  checkLoginFails $
+  checkLoginFails brig $
     PasswordLogin $
       PasswordLoginData
         (LoginByEmail email)
@@ -1465,3 +1479,9 @@ remJson p l ids =
 
 wait :: MonadIO m => m ()
 wait = liftIO $ threadDelay 1000000
+
+checkLoginFails :: (MonadHttp m, MonadIO m, MonadCatch m) => Brig -> Login -> m ()
+checkLoginFails brig body = do
+  login brig body PersistentCookie !!! do
+    const 403 === statusCode
+    const (Just "code-authentication-failed") === errorLabel
