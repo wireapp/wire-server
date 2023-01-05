@@ -109,7 +109,7 @@ As of release ``2.117.0`` from ``2021-10-29`` (see `release notes<release-notes>
             accountsURL: "https://account.example.com"
             blackListURL: "https://clientblacklist.wire.com/prod"
             websiteURL: "https://wire.com"
-          apiProxy: (optional)
+          apiProxy: # (optional)
             host: "socks5.proxy.com"
             port: 1080
             needsAuthentication: true
