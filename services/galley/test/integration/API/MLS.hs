@@ -226,7 +226,9 @@ tests s =
             "Local Sender/Remote Subconversation"
             [ test s "get subconversation of remote conversation - member" (testGetRemoteSubConv True),
               test s "get subconversation of remote conversation - not member" (testGetRemoteSubConv False),
-              test s "join remote subconversation" testJoinRemoteSubConv
+              test s "join remote subconversation" testJoinRemoteSubConv,
+              test s "reset a subconversation - member" (testDeleteRemoteSubConv True),
+              test s "reset a subconversation - not member" (testDeleteRemoteSubConv False)
             ],
           testGroup
             "Remote Sender/Local SubConversation"
@@ -2570,3 +2572,39 @@ testDeleteSubConvStale = do
   let dsc = DeleteSubConversation (pscGroupId sub) (pscEpoch sub)
   deleteSubConv (qUnqualified alice) qcnv sconv dsc
     !!! do const 409 === statusCode
+
+testDeleteRemoteSubConv :: Bool -> TestM ()
+testDeleteRemoteSubConv isAMember = do
+  alice <- randomQualifiedUser
+  let remoteDomain = Domain "faraway.example.com"
+  conv <- randomId
+  let qconv = Qualified conv remoteDomain
+      sconv = SubConvId "conference"
+      groupId = GroupId "deadbeef"
+      epoch = Epoch 0
+      expectedReq =
+        DeleteSubConversationRequest
+          { dscreqUser = qUnqualified alice,
+            dscreqConv = conv,
+            dscreqSubConv = sconv,
+            dscreqGroupId = groupId,
+            dscreqEpoch = epoch
+          }
+
+  let mock req = case frRPC req of
+        "delete-sub-conversation" ->
+          pure $
+            if isAMember
+              then Aeson.encode (DeleteSubConversationResponseSuccess)
+              else Aeson.encode (DeleteSubConversationResponseError ConvNotFound)
+        rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+      dsc = DeleteSubConversation groupId epoch
+
+  (_, reqs) <-
+    withTempMockFederator' mock $
+      deleteSubConv (qUnqualified alice) qconv sconv dsc
+        <!! const (if isAMember then 200 else 404) === statusCode
+  actualReq <- assertOne (filter ((== "delete-sub-conversation") . frRPC) reqs)
+  let req :: Maybe DeleteSubConversationRequest =
+        Aeson.decode (frBody actualReq)
+  liftIO $ req @?= Just expectedReq
