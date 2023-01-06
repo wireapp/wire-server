@@ -19,6 +19,10 @@ data:
       millisecondsBetweenBatches: {{ .Values.config.drainOpts.millisecondsBetweenBatches }}
       minBatchSize: {{ .Values.config.drainOpts.minBatchSize }}
 
+    {{- if .Values.config.disabledAPIVersions }}
+    disabledAPIVersions: {{ .Values.config.disabledAPIVersions }}
+    {{- end }}
+
 kind: ConfigMap
 metadata:
   name: cannon

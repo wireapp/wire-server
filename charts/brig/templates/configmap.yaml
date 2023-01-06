@@ -299,5 +299,8 @@ data:
       {{- if .setEnableMLS }}
       setEnableMLS: {{ .setEnableMLS }}
       {{- end }}
+      {{- if .setDisabledAPIVersions }}
+      setDisabledAPIVersions: {{ .setDisabledAPIVersions }}
+      {{- end }}
     {{- end }}
   {{- end }}

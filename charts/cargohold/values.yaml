@@ -23,6 +23,13 @@ config:
     region: "eu-west-1"
     s3Bucket: assets
   proxy: {}
+  settings:
+    maxTotalBytes: 5368709120
+    downloadLinkTTL: 300 # Seconds
+    # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+    # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+    # disabledAPIVersions: [ 3 ]
+
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
   # 'cargohold' exists or change the 'name' field to 'default'
