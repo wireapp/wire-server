@@ -219,7 +219,8 @@ tests s =
               test s "add another client to a subconversation" testAddClientSubConv,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
               test s "send an application message in a subconversation" testSendMessageSubConv,
-              test s "reset a subconversation" testDeleteSubConv
+              test s "reset a subconversation" testDeleteSubConv,
+              test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale
             ],
           testGroup
             "Local Sender/Remote Subconversation"
@@ -2545,3 +2546,27 @@ testDeleteSubConv = do
 
   liftIO $
     assertBool "Old and new subconversation are equal" (sub /= newSub)
+
+testDeleteSubConvStale :: TestM ()
+testDeleteSubConvStale = do
+  alice <- randomQualifiedUser
+  let sconv = SubConvId "conference"
+  (qcnv, sub) <- runMLSTest $ do
+    alice1 <- createMLSClient alice
+    (_, qcnv) <- setupMLSGroup alice1
+    sub <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv sconv
+            <!! do const 200 === statusCode
+
+    resetGroup alice1 (pscGroupId sub)
+
+    void $
+      createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+    pure (qcnv, sub)
+
+  -- the commit was made, yet the epoch for the request body is old
+  let dsc = DeleteSubConversation (pscGroupId sub) (pscEpoch sub)
+  deleteSubConv (qUnqualified alice) qcnv sconv dsc
+    !!! do const 409 === statusCode
