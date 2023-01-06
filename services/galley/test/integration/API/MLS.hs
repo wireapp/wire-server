@@ -204,7 +204,8 @@ tests s =
         [ test s "cannot create MLS conversations" postMLSConvDisabled,
           test s "cannot send an MLS message" postMLSMessageDisabled,
           test s "cannot send a commit bundle" postMLSBundleDisabled,
-          test s "cannot get group info" getGroupInfoDisabled
+          test s "cannot get group info" getGroupInfoDisabled,
+          test s "cannot delete a subconversation" deleteSubConversationDisabled
         ],
       testGroup
         "SubConversation"
@@ -2306,6 +2307,18 @@ getGroupInfoDisabled = do
     withMLSDisabled $
       getGroupInfo (qUnqualified alice) (fmap Conv qcnv)
         !!! assertMLSNotEnabled
+
+deleteSubConversationDisabled :: TestM ()
+deleteSubConversationDisabled = do
+  alice <- randomUser
+  cnvId <- Qualified <$> randomId <*> pure (Domain "www.example.com")
+  let scnvId = SubConvId "conference"
+      dsc =
+        DeleteSubConversation
+          (GroupId "MLS")
+          (Epoch 0)
+  withMLSDisabled $
+    deleteSubConv alice cnvId scnvId dsc !!! assertMLSNotEnabled
 
 testCreateSubConv :: Bool -> TestM ()
 testCreateSubConv parentIsMLSConv = do
