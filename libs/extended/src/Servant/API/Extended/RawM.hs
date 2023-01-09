@@ -1,5 +1,7 @@
 -- | copy of https://github.com/haskell-servant/servant/pull/1551 while we're waiting for this
--- to be released.
+-- to be released.  this was needed in https://github.com/wireapp/wire-server/pull/2848/, but
+-- then in the end it wasn't.  we keep it here in the hope that whoever needs it next will
+-- have an easier time putting it to work.
 module Servant.API.Extended.RawM where
 
 import Control.Monad.Trans.Resource

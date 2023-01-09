@@ -42,14 +42,14 @@ check_url() {
   curl -X "$verb" \
        --header "Authorization: Bearer $BEARER" \
        --header "Content-Type: application/json" \
-       "$uri" > ./proxy-test/$testnum.json
+       "$uri" > ./proxy-test/"$testnum".json
 
   if [[ "$status_have" == "$status_want" ]]; then
     echo "proxy $uri: OK"
-    file ./proxy-test/$testnum.json | grep -q '\(JSON\|PNG\)' || ( echo "received something weird!"; exit 1 )
+    file ./proxy-test/"$testnum".json | grep -q '\(JSON\|PNG\)' || ( echo "received something weird!"; exit 1 )
   else
     echo "expected status code: $status_want, but got $status_have"
-    fail "proxy $uri: FAIL (check "./proxy-test/$testnum.json" for details)"
+    fail "proxy $uri: FAIL (check ./proxy-test/$testnum.json for details)"
   fi
 }
 
