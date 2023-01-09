@@ -19,6 +19,7 @@
 , lib
 , metrics-wai
 , optparse-applicative
+, resourcet
 , servant
 , servant-server
 , servant-swagger
@@ -44,6 +45,7 @@ mkDerivation {
     imports
     metrics-wai
     optparse-applicative
+    resourcet
     servant
     servant-server
     servant-swagger
