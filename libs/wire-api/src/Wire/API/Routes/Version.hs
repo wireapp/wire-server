@@ -67,7 +67,8 @@ instance ToSchema Version where
       [ element 0 V0,
         element 1 V1,
         element 2 V2,
-        element 3 V3
+        element 3 V3,
+        element 4 V4
       ]
 
 mkVersion :: Integer -> Maybe Version
