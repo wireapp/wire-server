@@ -7,7 +7,7 @@ version            ::= "v=" Integer
 key-index          ::= "k=" Integer (> 0)
 timestamp          ::= "d=" Integer (POSIX timestamp, expiration time)
 type               ::= "t=" ("a" | "u" | "b" | "p") ; access, user, bot, provider
-tag                ::= "l=" ("s" | ""  (session or nothing))
+tag                ::= "l=" ("s" | "") ; session or nothing
 type-specific-data ::= <access-data> | <user-data> | <bot-data> | <provider-data>
 access-data        ::= "u=" <UUID> "." "c=" <Word64> ("i=" <Word32> | "")
 user-data          ::= "u=" <UUID> "." "r=" <Word32> ("i=" <Word32> | "")
