@@ -47,6 +47,10 @@ import Proxy.Proxy
 import System.Logger.Class hiding (Error, info, render)
 import qualified System.Logger.Class as Logger
 
+-- | IF YOU MODIFY THIS, BE AWARE OF:
+--
+-- >>> /libs/wire-api/src/Wire/API/Routes/Public/Proxy.hs
+-- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
 sitemap :: Env -> Routes a Proxy ()
 sitemap e = do
   get
