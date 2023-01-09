@@ -26,12 +26,12 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Version
 
 type ProxyAPI =
-  ProxyAPIRoute "giphy-path" (From 'V0) ("giphy" :> "v1" :> "gifs" :> RawM)
-    :<|> ProxyAPIRoute "youtube-path" (Until 'V4) ("youtube" :> "v3" :> RawM)
-    :<|> ProxyAPIRoute "gmaps-static" (Until 'V4) ("googlemaps" :> "api" :> "staticmap" :> RawM)
-    :<|> ProxyAPIRoute "gmaps-path" (Until 'V4) ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
+  ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
+    :<|> ProxyAPIRoute "youtube-path" ("youtube" :> "v3" :> RawM)
+    :<|> ProxyAPIRoute "gmaps-static" ("googlemaps" :> "api" :> "staticmap" :> RawM)
+    :<|> ProxyAPIRoute "gmaps-path" ("googlemaps" :> "maps" :> "api" :> "geocode" :> RawM)
 
-type ProxyAPIRoute name vers path = Named name (Summary (ProxyAPISummary name) :> vers :> "proxy" :> path)
+type ProxyAPIRoute name path = Named name (Summary (ProxyAPISummary name) :> "proxy" :> path)
 
 -- | API docs: if we want to make these longer, they won't clutter the routes above
 -- that they document.
