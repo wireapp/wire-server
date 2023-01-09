@@ -8,10 +8,9 @@ key-index          ::= "k=" Integer (> 0)
 timestamp          ::= "d=" Integer (POSIX timestamp, expiration time)
 type               ::= "t=" ("a" | "u" | "b" | "p") ; access, user, bot, provider
 tag                ::= "l=" ("s" | ""  (session or nothing))
-type-specific-data ::= <access-data> | <user-data> | <client-data> | <bot-data> | <provider-data>
-access-data        ::= "u=" <UUID> "." "c=" <Word64>
-user-data          ::= "u=" <UUID> "." "r=" <Word32>
-client-data        ::= "i=" <Word32>
+type-specific-data ::= <access-data> | <user-data> | <bot-data> | <provider-data>
+access-data        ::= "u=" <UUID> "." "c=" <Word64> ("i=" <Word32> | "")
+user-data          ::= "u=" <UUID> "." "r=" <Word32> ("i=" <Word32> | "")
 bot-data           ::= "p=" <UUID> "." "b=" <UUID> "." "c=" <UUID>
 provider-data      ::= "p=" <UUID>
 ```
