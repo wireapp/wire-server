@@ -1,20 +1,12 @@
 (configure-federation)=
 # Configure Wire-Server for Federation
 
-<!-- (background)= -->
-## Background
+See also {ref}`federation-understand`, which explains the architecture and concepts.
 
-Please first understand the current scope and aim of wire-server
-federation by reading
-{ref}`Understanding federation <federation-understand>`.
-
-```{warning}
-As of October 2021, federation implementation is still work in progress.
-Many features are not implemented yet, and it should be considered
-\"alpha\": stability, and upgrade compatibility are not guaranteed.
+```{note}
+The Federation development is work in progress.
 ```
 
-<!-- (summary-of-necessary-steps-to-configure-federation)= -->
 ## Summary of necessary steps to configure federation
 
 The steps needed to configure federation are as follows and they will be
@@ -22,32 +14,32 @@ detailed in the sections below:
 
 -   Choose a backend domain name
 
--   DNS setup for federation (including an `SRV` record)
+-   DNS setup for federation (including a `SRV` record)
 
 -   Generate and configure TLS certificates:
 
-    > -   server certificates
-    > -   client certificates
-    > -   a selection of CA certificates you trust when interacting with
-    >     other backends
+    -   server certificates
+    -   client certificates
+    -   a selection of CA certificates you trust when interacting with
+        other backends
 
 -   Configure helm charts : federator and ingress and webapp subcharts
 
 -   Test that your configurations work as expected.
 
 (choose-backend-domain)=
-## Choose a {ref}`Backend Domain Name<glossary_backend_domain>`
+## Choose a Backend Domain
 
-As of the release \[helm chart 0.129.0, Wire docker version 2.94.0\]
-from 2020-12-15, a Backend Domain (set as `federationDomain` in
-configuration) is a mandatory configuration setting. Regardless of
-whether you want to enable federation for a backend or not, you must
-decide what its domain is going to be. This helps in keeping things
-simpler across all components of Wire and also enables to turn on
+As of the release \[helm chart 0.129.0, Wire docker version 2.94.0\] from
+2020-12-15, the `federationDomain` is a mandatory configuration setting, which
+defines the {ref}`backend domain <glossary_backend_domain>` of your
+installation. Regardless of whether you want to enable federation for a backend
+or not, you must decide what its domain is going to be. This helps in keeping
+things simpler across all components of Wire and also enables to turn on
 federation in the future if required.
 
 It is highly recommended that this domain is configured as something
-  * [ ] that is controlled by the administrator/operator(s). The actual servers
+that is controlled by the administrator/operator(s). The actual servers
 do not need to be available on this domain, but you MUST be able to set
 an SRV record for `_wire-server-federator._tcp.<Backend Domain>` that
 informs other wire-server backends where to find your actual servers.
@@ -57,41 +49,40 @@ breaking experience for all the users which are already using the
 backend.
 
 (consequences-backend-domain)=
-## Consequences of the choice of Backend Domain
+## Consequences of the choice of a backend domain
 
--   You need control over a specific subdomain of this Backend Domain
+-   You need control over a specific subdomain of this backend domain
     (to set an SRV DNS record as explained in the next section). Without
     this control, you cannot federate with anyone.
 
--   This Backend Domain becomes part of the underlying identify of all
+-   This backend domain becomes part of the underlying identity of all
     users on your servers.
 
-    > -   Example: Let\'s say you choose `example.com` as your Backend
-    >     Domain. Your user known to you as Alice, and known on your
-    >     server with ID `ac41a202-2555-11ec-9341-00163e5e6c00` will
-    >     become known for other servers you federate with as
-    >
-    >     ``` json
-    >     {
-    >       "user": {
-    >         "id": "ac41a202-2555-11ec-9341-00163e5e6c00",
-    >         "domain": "example.com"
-    >       }
-    >     }
-    >     ```
+    Example: Let\'s say you choose `example.com` as your backend
+    domain. Your user known to you as Alice, and known on your
+    server with ID `ac41a202-2555-11ec-9341-00163e5e6c00` will
+    become known for other servers you federate with as
+    
+    ``` json
+    {
+      "user": {
+        "id": "ac41a202-2555-11ec-9341-00163e5e6c00",
+        "domain": "example.com"
+      }
+    }
+    ```
 
--   As of October 2021, this domain is used in the User Interface
-    alongside user information. (This may or may not change in the
-    future)
+-   This domain is shown in the User Interface
+    alongside user information. 
 
-    > -   Example: Using the same example as above, for backends you
-    >     federate with, Alice would be displayed with the
-    >     human-readable username `@alice@example.com` for users on
-    >     other backends.
+    Example: Using the same example as above, for backends you
+    federate with, Alice would be displayed with the
+    human-readable username `@alice@example.com` for users on
+    other backends.
 
 ```{warning}
-As of October 2021, *changing* this Backend Domain after existing user
-activity with a recent version (versions later than \~May/June 2021)
+*Changing* the backend domain after existing user
+activity with a client version (versions later than May/June 2021)
 will lead to undefined behaviour (untested, not accounted for during
 development) on some or all client platforms (Web, Android, iOS) for
 those users: It is possible your clients could crash, or lose part of
@@ -127,7 +118,7 @@ The fields of the SRV record need to be populated as follows
 -   `weight`: \>0 for your server to be reachable. A good default value
     could be 10
 -   `port`: `443`
--   `target`: \<federation-infra-domain\>
+-   `target`: the infra domain
 
 To give an example, assuming
 
@@ -137,7 +128,7 @@ To give an example, assuming
     `<service>.wire.example.org`
 
 then your federation
-{ref}`Infra Domain <glossary_infra_domain>`
+{ref}`Infrastructure Domain <glossary_infra_domain>`
 would be `federator.wire.example.org`.
 
 The SRV record would look as follows:
@@ -159,6 +150,7 @@ alongside your other DNS records that point to the ingress component,
 also needs to point to the IP of your ingress, i.e. the IP you want to
 provide services on.
 
+(federation-certificate-setup)=
 ## Generate and configure TLS server and client certificates 
 
 Are your servers on the public internet? Then you have the option of
@@ -169,7 +161,7 @@ public internet or you would like to use your own CA, go to subsection
 
 ```{admonition} Note
 
-As of Jan 2022, we\'re using the
+As of January 2023, we\'re using the
 [hs-tls](https://hackage.haskell.org/package/tls) library for outgoing TLS
 connections to other backends, which only supports P256 for ECDSA keys.
 Therefore, we have specified a [key size of 256
@@ -252,7 +244,7 @@ You can use one single certificate and key for both server and client
 certificate use.
 
 ```{note}
-Currently (October 2021), due to a limitation of the TLS library in use
+Due to a limitation of the TLS library in use
 for federation ([hs-tls](https://github.com/vincenthz/hs-tls)), only
 some ciphers are supported. Moving to an openssl-based library is
 planned, which will provide support for a wider range of ciphers.
@@ -449,6 +441,7 @@ tls:
   verify_depth: 3 # default: 1
 ```
 
+(configure-federation-allow-list)=
 ### Configure the allow list
 
 By default, federation is turned off (allow list set to the empty list):
@@ -525,7 +518,7 @@ DOMAIN to your
 {ref}`federation infra domain <glossary_infra_domain>`. They should include your domain as part of the SAN (Subject
 Alternative Names) and not have expired.
 
-### Manually test that federation \"works\" 
+### Manually test that federation works 
 
 Prerequisites:
 
