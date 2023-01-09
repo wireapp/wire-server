@@ -234,7 +234,9 @@ tests s =
             "Remote Sender/Local SubConversation"
             [ test s "get subconversation as a remote member" (testRemoteMemberGetSubConv True),
               test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False),
-              test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv
+              test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
+              test s "delete subconversation as a remote member" (testRemoteMemberDeleteSubConv True),
+              test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False)
             ]
         ]
     ]
@@ -2513,6 +2515,74 @@ testRemoteMemberGetSubConv isAMember = do
     expectSubConvError :: GalleyError -> GetSubConversationsResponse -> TestM ()
     expectSubConvError _errExpected (GetSubConversationsResponseSuccess _) = liftIO $ assertFailure "Unexpected GetSubConversationsResponseSuccess"
     expectSubConvError errExpected (GetSubConversationsResponseError err) = liftIO $ err @?= errExpected
+
+testRemoteMemberDeleteSubConv :: Bool -> TestM ()
+testRemoteMemberDeleteSubConv isAMember = do
+  -- alice is local, bob is remote
+  -- alice creates a local conversation and invites bob
+  -- bob deletes a subconversation via federated enpdoint
+
+  let bobDomain = Domain "faraway.example.com"
+      scnv = SubConvId "conference"
+  [alice, bob] <- createAndConnectUsers [Nothing, Just (domainText bobDomain)]
+
+  (cnv, groupId, epoch) <- runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    (_cnvGroupId, qcnv) <- setupMLSGroup alice1
+    mp <- createAddCommit alice1 [bob]
+
+    let mockedResponse fedReq =
+          case frRPC fedReq of
+            "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
+            "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+            "on-conversation-updated" -> pure (Aeson.encode ())
+            "get-mls-clients" ->
+              pure
+                . Aeson.encode
+                . Set.singleton
+                $ ClientInfo (ciClient bob1) True
+            ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    void . withTempMockFederator' mockedResponse . sendAndConsumeCommit $ mp
+
+    sub <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv scnv
+    resetGroup alice1 (pscGroupId sub)
+
+    pure (qUnqualified qcnv, pscGroupId sub, pscEpoch sub)
+
+  randUser <- randomId
+  let delReq =
+        DeleteSubConversationRequest
+          { dscreqUser = if isAMember then qUnqualified bob else randUser,
+            dscreqConv = cnv,
+            dscreqSubConv = scnv,
+            dscreqGroupId = groupId,
+            dscreqEpoch = epoch
+          }
+
+  fedGalleyClient <- view tsFedGalleyClient
+  -- Bob is a member of the parent conversation so he's allowed to delete the
+  -- subconversation.
+  res <-
+    runFedClient @"delete-sub-conversation" fedGalleyClient bobDomain delReq
+
+  if isAMember then expectSuccess res else expectFailure ConvNotFound res
+  where
+    expectSuccess :: DeleteSubConversationResponse -> TestM ()
+    expectSuccess DeleteSubConversationResponseSuccess = pure ()
+    expectSuccess (DeleteSubConversationResponseError err) =
+      liftIO . assertFailure $
+        "Unexpected DeleteSubConversationResponseError: " <> show err
+
+    expectFailure :: GalleyError -> DeleteSubConversationResponse -> TestM ()
+    expectFailure _errExpected DeleteSubConversationResponseSuccess =
+      liftIO . assertFailure $
+        "Unexpected DeleteSubConversationResponseSuccess"
+    expectFailure errExpected (DeleteSubConversationResponseError err) =
+      liftIO $ err @?= errExpected
 
 testDeleteSubConv :: TestM ()
 testDeleteSubConv = do
