@@ -102,12 +102,19 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
         mbQStr
     )
     teamFilter
-    ( maybe
+    -- todo(leif): add comment why this is necessary
+    (defaultSorts ++ [sortingTieBreaker])
+  where
+    defaultSorts :: [ES.DefaultSort]
+    defaultSorts =
+      maybe
         [defaultSort SortByCreatedAt SortOrderDesc | isNothing mbQStr]
         (\tuSortBy -> [defaultSort tuSortBy (fromMaybe SortOrderAsc mSortOrder)])
         mSortBy
-    )
-  where
+
+    sortingTieBreaker :: ES.DefaultSort
+    sortingTieBreaker = ES.DefaultSort (ES.FieldName "_doc") ES.Ascending Nothing Nothing Nothing Nothing
+
     mbQStr :: Maybe Text
     mbQStr =
       case mbSearchText of
