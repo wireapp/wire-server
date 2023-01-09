@@ -20,27 +20,61 @@ module Proxy.Run
   )
 where
 
+import Bilge.Request (requestIdName)
+import Control.Error (ExceptT (ExceptT))
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch
+import Control.Monad.Catch hiding (Handler)
+import Data.Default (def)
+import Data.Id (RequestId (RequestId))
 import Data.Metrics.Middleware hiding (path)
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Metrics.Servant (servantPrometheusMiddleware)
+import qualified Data.Proxy as DP (Proxy (Proxy))
+import qualified Data.Proxy as Data
 import Imports hiding (head)
-import Network.Wai.Utilities.Server hiding (serverPort)
-import Proxy.API (sitemap)
+import Network.Wai (Request, requestHeaders)
+import Network.Wai.Utilities.Server (catchErrors, defaultServer, newSettings, runSettingsWithShutdown)
+import Proxy.API.Internal as I (InternalAPI, servantSitemap)
+import Proxy.API.Public as P (servantSitemap)
 import Proxy.Env
 import Proxy.Options
 import Proxy.Proxy
+import Servant hiding (Proxy, route)
+import System.Logger (Logger)
+import Wire.API.Routes.Public.Proxy
 import Wire.API.Routes.Version.Wai
+
+type CombinedAPI = ProxyAPI :<|> I.InternalAPI
+
+combinedSitemap :: ServerT CombinedAPI Proxy
+combinedSitemap = P.servantSitemap :<|> I.servantSitemap
 
 run :: Opts -> IO ()
 run o = do
-  m <- metrics
-  e <- createEnv m o
-  s <- newSettings $ defaultServer (o ^. host) (o ^. port) (e ^. applog) m
-  let rtree = compile (sitemap e)
-  let app r k = runProxy e r (route rtree r k)
-  let middleware =
+  let app :: Env -> Application
+      app e0 req = Servant.serve (Data.Proxy @CombinedAPI) toServantSitemap req
+        where
+          toServantSitemap :: Server CombinedAPI
+          toServantSitemap = Servant.hoistServer (Data.Proxy @CombinedAPI) toServantHandler combinedSitemap
+
+          toServantHandler :: Proxy a -> Handler a
+          toServantHandler p = Handler . ExceptT $ Right <$> runProxy (injectReqId req e0) p
+
+      injectReqId :: Request -> Env -> Env
+      injectReqId req = reqId .~ lookupReqId req
+        where
+          lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
+
+      middleware :: Metrics -> Logger -> Application -> Application
+      middleware m lgr =
         versionMiddleware (fold (o ^. disabledAPIVersions))
-          . waiPrometheusMiddleware (sitemap e)
-          . catchErrors (e ^. applog) [Right m]
-  runSettingsWithShutdown s (middleware app) Nothing `finally` destroyEnv e
+          . servantPrometheusMiddleware (DP.Proxy @CombinedAPI)
+          -- `catchErrors` plucks the request id from the request again by hand, so it's ok
+          -- the logger we pass here doesn't do that implicitly.  not very elegant or robust,
+          -- but works!
+          . catchErrors lgr [Right m]
+
+  m <- metrics
+  e0 <- createEnv m o
+  s <- newSettings $ defaultServer (o ^. host) (o ^. port) (e0 ^. applog) m
+
+  runSettingsWithShutdown s (middleware m (e0 ^. applog) (app e0)) Nothing `finally` destroyEnv e0
