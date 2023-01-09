@@ -1,14 +1,22 @@
 #!/bin/bash
 
-set -x
 set -o pipefail
 set -o errexit
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-echo "WIRE_BACKEND: $WIRE_BACKEND"
-echo "WIRE_ADMIN: $WIRE_ADMIN"
-echo "WIRE_PASSWD: <not shown>"
+echo "
+run this script to test proxy on any running wire-server
+instance.  this replaces more thorough integration tests, since
+integration tests for just proxy without the proxied services
+installed is hard and inadequate.
+
+WIRE_BACKEND: $WIRE_BACKEND
+WIRE_ADMIN: $WIRE_ADMIN
+WIRE_PASSWD: <not shown>
+"
+
+set -x
 
 fail() {
   printf "\e[31;1m%s\e[0m\n" "$*" >&2
