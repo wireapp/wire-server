@@ -23,7 +23,6 @@ import Servant
 import Servant.API.Extended.RawM (RawM)
 import Servant.Swagger
 import Wire.API.Routes.Named
-import Wire.API.Routes.Version
 
 type ProxyAPI =
   ProxyAPIRoute "giphy-path" ("giphy" :> "v1" :> "gifs" :> RawM)
