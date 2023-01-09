@@ -2665,7 +2665,7 @@ testDeleteRemoteSubConv isAMember = do
         "delete-sub-conversation" ->
           pure $
             if isAMember
-              then Aeson.encode (DeleteSubConversationResponseSuccess)
+              then Aeson.encode DeleteSubConversationResponseSuccess
               else Aeson.encode (DeleteSubConversationResponseError ConvNotFound)
         rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
       dsc = DeleteSubConversation groupId epoch
