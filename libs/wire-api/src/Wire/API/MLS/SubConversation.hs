@@ -23,7 +23,7 @@ module Wire.API.MLS.SubConversation where
 import Control.Lens (makePrisms, (?~))
 import Control.Lens.Tuple (_1)
 import Control.Monad.Except
-import qualified Crypto.Hash as Crypto
+import Crypto.Hash as Crypto
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import Data.ByteArray
@@ -163,3 +163,20 @@ deriving via Schema ConvOrSubConvId instance FromJSON ConvOrSubConvId
 deriving via Schema ConvOrSubConvId instance ToJSON ConvOrSubConvId
 
 deriving via Schema ConvOrSubConvId instance S.ToSchema ConvOrSubConvId
+
+-- | The body of the delete subconversation request
+data DeleteSubConversation = DeleteSubConversation
+  { dscGroupId :: GroupId,
+    dscEpoch :: Epoch
+  }
+  deriving (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema DeleteSubConversation)
+
+instance ToSchema DeleteSubConversation where
+  schema =
+    objectWithDocModifier
+      "DeleteSubConversation"
+      (description ?~ "Delete an MLS subconversation")
+      $ DeleteSubConversation
+        <$> dscGroupId .= field "group_id" schema
+        <*> dscEpoch .= field "epoch" schema

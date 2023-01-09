@@ -406,6 +406,24 @@ type ConversationAPI =
                     )
            )
     :<|> Named
+           "delete-subconversation"
+           ( Summary "Delete an MLS subconversation"
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'MLSNotEnabled
+               :> CanThrow 'MLSStaleMessage
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "subconversations"
+               :> Capture "subconv" SubConvId
+               :> ReqBody '[JSON] DeleteSubConversation
+               :> MultiVerb1
+                    'DELETE
+                    '[JSON]
+                    (Respond 200 "Deletion successful" ())
+           )
+    :<|> Named
            "get-subconversation-group-info"
            ( Summary "Get MLS group information of subconversation"
                :> MakesFederatedCall 'Galley "query-group-info"

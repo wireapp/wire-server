@@ -63,6 +63,7 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Epoch
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -204,7 +205,8 @@ tests s =
         [ test s "cannot create MLS conversations" postMLSConvDisabled,
           test s "cannot send an MLS message" postMLSMessageDisabled,
           test s "cannot send a commit bundle" postMLSBundleDisabled,
-          test s "cannot get group info" getGroupInfoDisabled
+          test s "cannot get group info" getGroupInfoDisabled,
+          test s "cannot delete a subconversation" deleteSubConversationDisabled
         ],
       testGroup
         "SubConversation"
@@ -216,7 +218,9 @@ tests s =
               test s "join subconversation with a client that is not in the main conv" testJoinSubNonMemberClient,
               test s "add another client to a subconversation" testAddClientSubConv,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
-              test s "send an application message in a subconversation" testSendMessageSubConv
+              test s "send an application message in a subconversation" testSendMessageSubConv,
+              test s "reset a subconversation" testDeleteSubConv,
+              test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale
             ],
           testGroup
             "Local Sender/Remote Subconversation"
@@ -2307,6 +2311,18 @@ getGroupInfoDisabled = do
       getGroupInfo (qUnqualified alice) (fmap Conv qcnv)
         !!! assertMLSNotEnabled
 
+deleteSubConversationDisabled :: TestM ()
+deleteSubConversationDisabled = do
+  alice <- randomUser
+  cnvId <- Qualified <$> randomId <*> pure (Domain "www.example.com")
+  let scnvId = SubConvId "conference"
+      dsc =
+        DeleteSubConversation
+          (GroupId "MLS")
+          (Epoch 0)
+  withMLSDisabled $
+    deleteSubConv alice cnvId scnvId dsc !!! assertMLSNotEnabled
+
 testCreateSubConv :: Bool -> TestM ()
 testCreateSubConv parentIsMLSConv = do
   alice <- randomQualifiedUser
@@ -2495,3 +2511,62 @@ testRemoteMemberGetSubConv isAMember = do
     expectSubConvError :: GalleyError -> GetSubConversationsResponse -> TestM ()
     expectSubConvError _errExpected (GetSubConversationsResponseSuccess _) = liftIO $ assertFailure "Unexpected GetSubConversationsResponseSuccess"
     expectSubConvError errExpected (GetSubConversationsResponseError err) = liftIO $ err @?= errExpected
+
+testDeleteSubConv :: TestM ()
+testDeleteSubConv = do
+  alice <- randomQualifiedUser
+  let sconv = SubConvId "conference"
+  (qcnv, sub) <- runMLSTest $ do
+    alice1 <- createMLSClient alice
+    (_, qcnv) <- setupMLSGroup alice1
+    sub <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv sconv
+            <!! do const 200 === statusCode
+
+    resetGroup alice1 (pscGroupId sub)
+
+    void $
+      createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+    pure (qcnv, sub)
+
+  let epoch = addToEpoch @Word64 1 $ pscEpoch sub
+      dsc =
+        DeleteSubConversation
+          (pscGroupId sub)
+          epoch
+  deleteSubConv (qUnqualified alice) qcnv sconv dsc
+    !!! do const 200 === statusCode
+
+  newSub <-
+    responseJsonError
+      =<< getSubConv (qUnqualified alice) qcnv sconv
+        <!! do const 200 === statusCode
+
+  liftIO $
+    assertBool "Old and new subconversation are equal" (sub /= newSub)
+
+testDeleteSubConvStale :: TestM ()
+testDeleteSubConvStale = do
+  alice <- randomQualifiedUser
+  let sconv = SubConvId "conference"
+  (qcnv, sub) <- runMLSTest $ do
+    alice1 <- createMLSClient alice
+    (_, qcnv) <- setupMLSGroup alice1
+    sub <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv sconv
+            <!! do const 200 === statusCode
+
+    resetGroup alice1 (pscGroupId sub)
+
+    void $
+      createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+    pure (qcnv, sub)
+
+  -- the commit was made, yet the epoch for the request body is old
+  let dsc = DeleteSubConversation (pscGroupId sub) (pscEpoch sub)
+  deleteSubConv (qUnqualified alice) qcnv sconv dsc
+    !!! do const 409 === statusCode

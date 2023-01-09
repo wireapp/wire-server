@@ -51,7 +51,6 @@ import Galley.API.MLS.Welcome (postMLSWelcome)
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
-import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
@@ -67,7 +66,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
-import Polysemy.Resource (Resource, bracket)
+import Polysemy.Resource (Resource)
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
@@ -1473,32 +1472,6 @@ instance
   HandleMLSProposalFailure (Error e) r
   where
   handleMLSProposalFailure = mapError (MLSProposalFailure . toWai)
-
-withCommitLock ::
-  forall r a.
-  ( Members
-      '[ Resource,
-         ConversationStore,
-         ErrorS 'MLSStaleMessage
-       ]
-      r
-  ) =>
-  GroupId ->
-  Epoch ->
-  Sem r a ->
-  Sem r a
-withCommitLock gid epoch action =
-  bracket
-    ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
-        when (lockAcquired == NotAcquired) $
-          throwS @'MLSStaleMessage
-    )
-    (const $ releaseCommitLock gid epoch)
-    $ \_ -> do
-      -- FUTUREWORK: fetch epoch again and check that is matches
-      action
-  where
-    ttl = fromIntegral (600 :: Int) -- 10 minutes
 
 storeGroupInfoBundle ::
   Members
