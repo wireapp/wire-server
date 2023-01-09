@@ -58,7 +58,6 @@ endif
 .PHONY: clean
 clean:
 	cabal clean
-	$(MAKE) -C services/nginz clean
 	-rm -rf dist
 
 .PHONY: clean-hint
