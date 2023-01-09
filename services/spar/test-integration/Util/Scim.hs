@@ -236,11 +236,19 @@ patchUser ::
   Scim.PatchOp.PatchOp SparTag ->
   TestSpar (Scim.StoredUser SparTag)
 patchUser tok uid patchOp = do
-  env <- ask
-  r <-
-    patchUser_ (Just tok) (Just uid) patchOp (env ^. teSpar)
-      <!! const 200 === statusCode
+  r <- patchUser' tok uid patchOp <!! const 200 === statusCode
   pure (responseJsonUnsafe r)
+
+-- | Patch a user
+patchUser' ::
+  HasCallStack =>
+  ScimToken ->
+  UserId ->
+  Scim.PatchOp.PatchOp SparTag ->
+  TestSpar ResponseLBS
+patchUser' tok uid patchOp = do
+  env <- ask
+  patchUser_ (Just tok) (Just uid) patchOp (env ^. teSpar)
 
 -- | Delete a user.
 deleteUser ::

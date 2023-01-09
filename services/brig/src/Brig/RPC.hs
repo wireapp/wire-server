@@ -43,9 +43,6 @@ x3 = limitRetries 3 <> exponentialBackoff 100000
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'
 
-zClient :: ClientId -> Request -> Request
-zClient = header "Z-Client" . toByteString'
-
 remote :: ByteString -> Msg -> Msg
 remote = field "remote"
 

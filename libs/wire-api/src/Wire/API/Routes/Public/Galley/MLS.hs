@@ -28,6 +28,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.Welcome
+import Wire.API.MakesFederatedCall
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -37,8 +38,11 @@ type MLSMessagingAPI =
   Named
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
+        :> MakesFederatedCall 'Galley "mls-welcome"
         :> CanThrow 'MLSKeyPackageRefNotFound
+        :> CanThrow 'MLSNotEnabled
         :> "welcome"
+        :> ZLocalUser
         :> ZConn
         :> ReqBody '[MLS] (RawMLS Welcome)
         :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
@@ -46,6 +50,11 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-message-v1"
            ( Summary "Post an MLS message"
+               :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Galley "send-mls-message"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Brig "get-mls-clients"
                :> Until 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
@@ -54,19 +63,20 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSSelfRemovalNotAllowed
                :> CanThrow 'MLSStaleMessage
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'MLSUnexpectedSenderClient
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "messages"
+               :> ZLocalUser
                :> ZOptClient
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
@@ -75,6 +85,11 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-message"
            ( Summary "Post an MLS message"
+               :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Galley "send-mls-message"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Brig "get-mls-clients"
                :> From 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
@@ -83,19 +98,20 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSSelfRemovalNotAllowed
                :> CanThrow 'MLSStaleMessage
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'MLSUnexpectedSenderClient
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MLSMissingSenderClient
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "messages"
+               :> ZLocalUser
                :> ZOptClient
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
@@ -104,6 +120,12 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-commit-bundle"
            ( Summary "Post a MLS CommitBundle"
+               :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Galley "mls-welcome"
+               :> MakesFederatedCall 'Galley "send-mls-commit-bundle"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Brig "get-mls-clients"
                :> From 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
@@ -112,13 +134,13 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSNotEnabled
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSSelfRemovalNotAllowed
                :> CanThrow 'MLSStaleMessage
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'MLSUnexpectedSenderClient
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MLSMissingSenderClient
@@ -126,6 +148,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "commit-bundles"
+               :> ZLocalUser
                :> ZOptClient
                :> ZConn
                :> ReqBody '[CommitBundleMimeType] CommitBundle
@@ -134,8 +157,10 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-public-keys"
            ( Summary "Get public keys used by the backend to sign external proposals"
+               :> CanThrow 'MLSNotEnabled
                :> "public-keys"
+               :> ZLocalUser
                :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" MLSPublicKeys)
            )
 
-type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)
+type MLSAPI = LiftNamed ("mls" :> MLSMessagingAPI)

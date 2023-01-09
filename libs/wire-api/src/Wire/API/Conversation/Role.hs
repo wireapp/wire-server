@@ -36,7 +36,6 @@ module Wire.API.Conversation.Role
     wireConvRoleNames,
     roleNameWireAdmin,
     roleNameWireMember,
-    roleToRoleName,
 
     -- * Action
     Action (..),

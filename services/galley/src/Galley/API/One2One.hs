@@ -58,7 +58,7 @@ iUpsertOne2OneConversation ::
   UpsertOne2OneConversationRequest ->
   Sem r UpsertOne2OneConversationResponse
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
-  let convId = fromMaybe (one2OneConvId (qUntagged uooLocalUser) (qUntagged uooRemoteUser)) uooConvId
+  let convId = fromMaybe (one2OneConvId (tUntagged uooLocalUser) (tUntagged uooRemoteUser)) uooConvId
 
   let dolocal :: Local ConvId -> Sem r ()
       dolocal lconvId = do

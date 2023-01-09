@@ -49,6 +49,7 @@ module Brig.Data.Client
 where
 
 import qualified Amazonka as AWS
+import qualified Amazonka.Data.Text as AWS
 import qualified Amazonka.DynamoDB as AWS
 import qualified Amazonka.DynamoDB.Lens as AWS
 import Bilge.Retry (httpHandlers)
@@ -97,6 +98,7 @@ data ClientDataError
   | ClientMissingAuth
   | MalformedPrekeys
   | MLSPublicKeyDuplicate
+  | MLSNotEnabled
   | KeyPackageDecodingError
   | InvalidKeyPackageRef
 
@@ -566,7 +568,7 @@ withOptLock u c ma = go (10 :: Int)
             run = execCatch e cmd >>= either handleErr (pure . conv)
             handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
             policy = limitRetries 3 <> exponentialBackoff 100000
-            handleErr (AWS.ServiceError se) | se ^. AWS.serviceCode == AWS.ErrorCode "ProvisionedThroughputExceeded" = do
+            handleErr (AWS.ServiceError se) | se ^. AWS.serviceError_code == AWS.ErrorCode "ProvisionedThroughputExceeded" = do
               Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
               pure Nothing
             handleErr _ = pure Nothing

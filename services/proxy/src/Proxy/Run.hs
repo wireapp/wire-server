@@ -66,7 +66,7 @@ run o = do
 
       middleware :: Metrics -> Logger -> Application -> Application
       middleware m lgr =
-        versionMiddleware
+        versionMiddleware (fold (o ^. disabledAPIVersions))
           . servantPrometheusMiddleware (DP.Proxy @CombinedAPI)
           -- `catchErrors` plucks the request id from the request again by hand, so it's ok
           -- the logger we pass here doesn't do that implicitly.  not very elegant or robust,

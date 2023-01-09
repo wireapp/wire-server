@@ -17,8 +17,9 @@
 
 module Test.Wire.API.Golden.Manual.SearchResultContact where
 
+import Imports
 import Test.Wire.API.Golden.Manual.Contact (testObject_Contact_1, testObject_Contact_2)
-import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (FullSearch), SearchResult (..))
+import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (FullSearch), PagingState (..), SearchResult (..))
 
 testObject_SearchResultContact_1 :: SearchResult Contact
 testObject_SearchResultContact_1 =
@@ -27,5 +28,19 @@ testObject_SearchResultContact_1 =
       searchReturned = 2,
       searchTook = 100,
       searchResults = [testObject_Contact_1, testObject_Contact_2],
-      searchPolicy = FullSearch
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
+    }
+
+testObject_SearchResultContact_2 :: SearchResult Contact
+testObject_SearchResultContact_2 =
+  SearchResult
+    { searchFound = 2,
+      searchReturned = 2,
+      searchTook = 100,
+      searchResults = [testObject_Contact_1, testObject_Contact_2],
+      searchPolicy = FullSearch,
+      searchPagingState = Just $ PagingState "WzE2Njk5OTQ5MzIyNjdd",
+      searchHasMore = Just False
     }

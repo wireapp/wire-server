@@ -45,8 +45,9 @@ import Imports hiding (Set)
 import Polysemy
 import Polysemy.Input
 import qualified UnliftIO
-import Wire.API.Conversation
+import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
+import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
 
@@ -82,7 +83,7 @@ addMembers conv (fmap toUserRole -> UserList lusers rusers) = do
     retry x5 . batch $ do
       setType BatchLogged
       setConsistency LocalQuorum
-      for_ chunk $ \(qUntagged -> Qualified (uid, role) domain) -> do
+      for_ chunk $ \(tUntagged -> Qualified (uid, role) domain) -> do
         -- User is remote, so we only add it to the member_remote_user
         -- table, but the reverse mapping has to be done on the remote
         -- backend; so we assume an additional call to their backend has
@@ -113,36 +114,13 @@ removeRemoteMembersFromLocalConv cnv victims = do
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
-    for_ victims $ \(qUntagged -> Qualified uid domain) ->
+    for_ victims $ \(tUntagged -> Qualified uid domain) ->
       addPrepQuery Cql.removeRemoteMember (cnv, domain, uid)
 
 members :: ConvId -> Client [LocalMember]
-members conv = do
-  mconv <- retry x1 $ query1 Cql.selectConv (params LocalQuorum (Identity conv))
-  case mconv of
-    Just (GlobalTeamConv, _, _, _, _, _, Just tid, _, _, _, _, _, _, _) -> do
-      res <-
-        retry x1 $
-          query
-            Cql.selectTeamMembers
-            (params LocalQuorum (Identity tid))
-      let uids = mapMaybe fst' $ res
-      pure $ mapMaybe toMemberFromId uids
-    _ ->
-      fmap (mapMaybe toMember) . retry x1 $
-        query Cql.selectMembers (params LocalQuorum (Identity conv))
-  where
-    fst' (a, _, _, _, _) = Just a
-
-toMemberFromId :: UserId -> Maybe LocalMember
-toMemberFromId usr =
-  Just $
-    LocalMember
-      { lmId = usr,
-        lmService = Nothing,
-        lmStatus = toMemberStatus (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing),
-        lmConvRoleName = roleNameWireMember
-      }
+members conv =
+  fmap (mapMaybe toMember) . retry x1 $
+    query Cql.selectMembers (params LocalQuorum (Identity conv))
 
 toMemberStatus ::
   ( -- otr muted
@@ -195,7 +173,7 @@ toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn) =
 toMember _ = Nothing
 
 newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
-newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
+newRemoteMemberWithRole ur@(tUntagged -> (Qualified (u, r) _)) =
   RemoteMember
     { rmId = qualifyAs ur u,
       rmConvRoleName = r
@@ -225,15 +203,9 @@ member ::
   ConvId ->
   UserId ->
   Client (Maybe LocalMember)
-member conv usr = do
-  mconv <- retry x1 $ query1 Cql.selectConv (params LocalQuorum (Identity conv))
-  case mconv of
-    Just (GlobalTeamConv, _, _, _, _, _, _, _, _, _, _, _, _, _) ->
-      pure $ toMemberFromId usr
-    _ -> do
-      fmap (toMember =<<) $
-        retry x1 $
-          query1 Cql.selectMember (params LocalQuorum (conv, usr))
+member cnv usr =
+  (toMember =<<)
+    <$> retry x1 (query1 Cql.selectMember (params LocalQuorum (cnv, usr)))
 
 -- | Set local users as belonging to a remote conversation. This is invoked by a
 -- remote galley when users from the current backend are added to conversations
@@ -291,7 +263,7 @@ updateSelfMemberRemoteConv ::
   Local UserId ->
   MemberUpdate ->
   Client ()
-updateSelfMemberRemoteConv (qUntagged -> Qualified cid domain) luid mup = do
+updateSelfMemberRemoteConv (tUntagged -> Qualified cid domain) luid mup = do
   retry x5 . batch $ do
     setType BatchUnLogged
     setConsistency LocalQuorum
@@ -336,7 +308,7 @@ filterRemoteConvMembers ::
   [UserId] ->
   Remote ConvId ->
   Client ([UserId], Bool)
-filterRemoteConvMembers users (qUntagged -> Qualified conv dom) =
+filterRemoteConvMembers users (tUntagged -> Qualified conv dom) =
   fmap Data.Monoid.getAll
     . foldMap (\muser -> (muser, Data.Monoid.All (not (null muser))))
     <$> UnliftIO.pooledMapConcurrentlyN 8 filterMember users
@@ -351,7 +323,7 @@ lookupLocalMemberRemoteConv ::
   UserId ->
   Remote ConvId ->
   Client (Maybe UserId)
-lookupLocalMemberRemoteConv userId (qUntagged -> Qualified conv dom) =
+lookupLocalMemberRemoteConv userId (tUntagged -> Qualified conv dom) =
   runIdentity
     <$$> retry
       x5
@@ -364,7 +336,7 @@ removeLocalMembersFromRemoteConv ::
   [UserId] ->
   Client ()
 removeLocalMembersFromRemoteConv _ [] = pure ()
-removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victims =
+removeLocalMembersFromRemoteConv (tUntagged -> Qualified conv convDomain) victims =
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum

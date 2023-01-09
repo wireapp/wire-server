@@ -23,16 +23,32 @@ import Data.Domain (Domain (Domain, _domainText))
 import Data.Id (Id (Id))
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import qualified Data.UUID as UUID (fromString)
-import Imports (Maybe (Just, Nothing), fromJust)
-import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), SearchResult (..))
+import Imports (Bool (..), Maybe (Just, Nothing), fromJust)
+import Wire.API.User.Search (Contact (..), FederatedUserSearchPolicy (ExactHandleSearch, FullSearch), PagingState (..), SearchResult (..))
 
 testObject_SearchResult_20Contact_user_1 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_1 =
-  SearchResult {searchFound = -6, searchReturned = 0, searchTook = 1, searchResults = [], searchPolicy = FullSearch}
+  SearchResult
+    { searchFound = -6,
+      searchReturned = 0,
+      searchTook = 1,
+      searchResults = [],
+      searchPolicy = FullSearch,
+      searchPagingState = Just (PagingState "WzE2Njk5OTQ5MzIyNjdd"),
+      searchHasMore = Nothing
+    }
 
 testObject_SearchResult_20Contact_user_2 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_2 =
-  SearchResult {searchFound = -4, searchReturned = 6, searchTook = -5, searchResults = [], searchPolicy = FullSearch}
+  SearchResult
+    { searchFound = -4,
+      searchReturned = 6,
+      searchTook = -5,
+      searchResults = [],
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Just True
+    }
 
 testObject_SearchResult_20Contact_user_3 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_3 =
@@ -53,7 +69,9 @@ testObject_SearchResult_20Contact_user_3 =
               contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000")))
             }
         ],
-      searchPolicy = FullSearch
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Just False
     }
 
 testObject_SearchResult_20Contact_user_4 :: SearchResult Contact
@@ -130,7 +148,9 @@ testObject_SearchResult_20Contact_user_4 =
               contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000000")))
             }
         ],
-      searchPolicy = FullSearch
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_5 :: SearchResult Contact
@@ -152,12 +172,22 @@ testObject_SearchResult_20Contact_user_5 =
               contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001")))
             }
         ],
-      searchPolicy = FullSearch
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_6 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_6 =
-  SearchResult {searchFound = -5, searchReturned = -4, searchTook = 5, searchResults = [], searchPolicy = FullSearch}
+  SearchResult
+    { searchFound = -5,
+      searchReturned = -4,
+      searchTook = 5,
+      searchResults = [],
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
+    }
 
 testObject_SearchResult_20Contact_user_7 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_7 =
@@ -189,7 +219,9 @@ testObject_SearchResult_20Contact_user_7 =
               contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
             }
         ],
-      searchPolicy = FullSearch
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_8 :: SearchResult Contact
@@ -211,16 +243,34 @@ testObject_SearchResult_20Contact_user_8 =
               contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
             }
         ],
-      searchPolicy = FullSearch
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_9 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_9 =
-  SearchResult {searchFound = -5, searchReturned = -6, searchTook = 3, searchResults = [], searchPolicy = FullSearch}
+  SearchResult
+    { searchFound = -5,
+      searchReturned = -6,
+      searchTook = 3,
+      searchResults = [],
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
+    }
 
 testObject_SearchResult_20Contact_user_10 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_10 =
-  SearchResult {searchFound = 0, searchReturned = -7, searchTook = -5, searchResults = [], searchPolicy = FullSearch}
+  SearchResult
+    { searchFound = 0,
+      searchReturned = -7,
+      searchTook = -5,
+      searchResults = [],
+      searchPolicy = FullSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
+    }
 
 testObject_SearchResult_20Contact_user_11 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_11 =
@@ -252,12 +302,22 @@ testObject_SearchResult_20Contact_user_11 =
               contactTeam = Nothing
             }
         ],
-      searchPolicy = ExactHandleSearch
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_12 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_12 =
-  SearchResult {searchFound = 7, searchReturned = 5, searchTook = 3, searchResults = [], searchPolicy = ExactHandleSearch}
+  SearchResult
+    { searchFound = 7,
+      searchReturned = 5,
+      searchTook = 3,
+      searchResults = [],
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
+    }
 
 testObject_SearchResult_20Contact_user_13 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_13 =
@@ -311,7 +371,9 @@ testObject_SearchResult_20Contact_user_13 =
               contactTeam = Nothing
             }
         ],
-      searchPolicy = ExactHandleSearch
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_14 :: SearchResult Contact
@@ -344,24 +406,58 @@ testObject_SearchResult_20Contact_user_14 =
               contactTeam = Nothing
             }
         ],
-      searchPolicy = ExactHandleSearch
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_15 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_15 =
-  SearchResult {searchFound = 3, searchReturned = 2, searchTook = 4, searchResults = [], searchPolicy = ExactHandleSearch}
+  SearchResult
+    { searchFound = 3,
+      searchReturned = 2,
+      searchTook = 4,
+      searchResults = [],
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
+    }
 
 testObject_SearchResult_20Contact_user_16 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_16 =
-  SearchResult {searchFound = -4, searchReturned = 4, searchTook = -7, searchResults = [], searchPolicy = ExactHandleSearch}
+  SearchResult
+    { searchFound = -4,
+      searchReturned = 4,
+      searchTook = -7,
+      searchResults = [],
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
+    }
 
 testObject_SearchResult_20Contact_user_17 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_17 =
-  SearchResult {searchFound = 6, searchReturned = -1, searchTook = -1, searchResults = [], searchPolicy = ExactHandleSearch}
+  SearchResult
+    { searchFound = 6,
+      searchReturned = -1,
+      searchTook = -1,
+      searchResults = [],
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
+    }
 
 testObject_SearchResult_20Contact_user_18 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_18 =
-  SearchResult {searchFound = -4, searchReturned = 0, searchTook = -5, searchResults = [], searchPolicy = ExactHandleSearch}
+  SearchResult
+    { searchFound = -4,
+      searchReturned = 0,
+      searchTook = -5,
+      searchResults = [],
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
+    }
 
 testObject_SearchResult_20Contact_user_19 :: SearchResult Contact
 testObject_SearchResult_20Contact_user_19 =
@@ -393,7 +489,9 @@ testObject_SearchResult_20Contact_user_19 =
               contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000000000001")))
             }
         ],
-      searchPolicy = ExactHandleSearch
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }
 
 testObject_SearchResult_20Contact_user_20 :: SearchResult Contact
@@ -547,5 +645,7 @@ testObject_SearchResult_20Contact_user_20 =
               contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000")))
             }
         ],
-      searchPolicy = ExactHandleSearch
+      searchPolicy = ExactHandleSearch,
+      searchPagingState = Nothing,
+      searchHasMore = Nothing
     }

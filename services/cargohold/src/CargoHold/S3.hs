@@ -36,7 +36,7 @@ module CargoHold.S3
   )
 where
 
-import Amazonka hiding (Error, ToByteString, (.=))
+import Amazonka hiding (Error)
 import Amazonka.S3
 import Amazonka.S3.Lens
 import CargoHold.API.Error
@@ -145,7 +145,7 @@ downloadV3 ::
   ExceptT Error App (ConduitM () ByteString (ResourceT IO) ())
 downloadV3 (s3Key . mkKey -> key) = do
   env <- view aws
-  pure . flattenResourceT $ _streamBody . view getObjectResponse_body <$> AWS.execStream env req
+  pure . flattenResourceT $ view (getObjectResponse_body . _ResponseBody) <$> AWS.execStream env req
   where
     req :: Text -> GetObject
     req b =

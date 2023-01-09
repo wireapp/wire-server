@@ -1,19 +1,3 @@
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -37,7 +21,6 @@ module Galley.API.Query
   ( getBotConversationH,
     getUnqualifiedConversation,
     getConversation,
-    getGlobalTeamConversation,
     getConversationRoles,
     conversationIdsPageFromUnqualified,
     conversationIdsPageFromV2,
@@ -53,6 +36,7 @@ module Galley.API.Query
     getConversationGuestLinksStatus,
     ensureConvAdmin,
     getMLSSelfConversation,
+    getMLSSelfConversationWithError,
   )
 where
 
@@ -68,8 +52,8 @@ import Data.Proxy
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import Data.Tagged
 import Galley.API.Error
+import Galley.API.MLS
 import Galley.API.MLS.Keys
 import Galley.API.MLS.Types
 import Galley.API.Mapping
@@ -84,7 +68,6 @@ import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
-import qualified Galley.Effects.TeamStore as E
 import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -109,7 +92,6 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import qualified Wire.API.MLS.GlobalTeamConversation as Public
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -129,11 +111,7 @@ getBotConversation ::
   Local ConvId ->
   Sem r Public.BotConvView
 getBotConversation zbot lcnv = do
-  (c, _) <-
-    getConversationAndMemberWithError
-      @'ConvNotFound
-      (qUntagged . qualifyAs lcnv . botUserId $ zbot)
-      lcnv
+  (c, _) <- getConversationAndMemberWithError @'ConvNotFound (botUserId zbot) lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
@@ -161,37 +139,20 @@ getUnqualifiedConversation lusr cnv = do
   c <- getConversationAndCheckMembership (tUnqualified lusr) (qualifyAs lusr cnv)
   Mapping.conversationView lusr c
 
-getGlobalTeamConversation ::
-  Members
-    '[ ConversationStore,
-       ErrorS 'NotATeamMember,
-       MemberStore,
-       TeamStore
-     ]
-    r =>
-  Local UserId ->
-  TeamId ->
-  Sem r Public.GlobalTeamConversation
-getGlobalTeamConversation lusr tid = do
-  let ltid = qualifyAs lusr tid
-  void $ noteS @'NotATeamMember =<< E.getTeamMember tid (tUnqualified lusr)
-  E.getGlobalTeamConversation ltid >>= \case
-    Nothing ->
-      E.createGlobalTeamConversation (qualifyAs lusr tid)
-    Just conv -> pure conv
-
 getConversation ::
   forall r.
-  Members
-    '[ ConversationStore,
-       ErrorS 'ConvNotFound,
-       ErrorS 'ConvAccessDenied,
-       Error FederationError,
-       Error InternalError,
-       FederatorAccess,
-       P.TinyLog
-     ]
-    r =>
+  ( Members
+      '[ ConversationStore,
+         ErrorS 'ConvNotFound,
+         ErrorS 'ConvAccessDenied,
+         Error FederationError,
+         Error InternalError,
+         FederatorAccess,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "get-conversations"
+  ) =>
   Local UserId ->
   Qualified ConvId ->
   Sem r Public.Conversation
@@ -212,14 +173,16 @@ getConversation lusr cnv = do
         _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
-  Members
-    '[ ConversationStore,
-       Error FederationError,
-       ErrorS 'ConvNotFound,
-       FederatorAccess,
-       P.TinyLog
-     ]
-    r =>
+  ( Members
+      '[ ConversationStore,
+         Error FederationError,
+         ErrorS 'ConvNotFound,
+         FederatorAccess,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "get-conversations"
+  ) =>
   Local UserId ->
   [Remote ConvId] ->
   Sem r [Public.Conversation]
@@ -250,7 +213,7 @@ throwFgcError (FailedGetConversation _ r) = throwFgcrError r
 failedGetConversationRemotely ::
   [Remote ConvId] -> FederationError -> FailedGetConversation
 failedGetConversationRemotely qconvs =
-  FailedGetConversation (map qUntagged qconvs) . FailedGetConversationRemotely
+  FailedGetConversation (map tUntagged qconvs) . FailedGetConversationRemotely
 
 failedGetConversationLocally ::
   [Qualified ConvId] -> FailedGetConversation
@@ -265,7 +228,9 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
     split (FailedGetConversation convs (FailedGetConversationRemotely _)) = Right convs
 
 getRemoteConversationsWithFailures ::
-  Members '[ConversationStore, FederatorAccess, P.TinyLog] r =>
+  ( Members '[ConversationStore, FederatorAccess, P.TinyLog] r,
+    CallsFed 'Galley "get-conversations"
+  ) =>
   Local UserId ->
   [Remote ConvId] ->
   Sem r ([FailedGetConversation], [Public.Conversation])
@@ -285,7 +250,7 @@ getRemoteConversationsWithFailures lusr convs = do
       (locallyFound, locallyNotFound) = partition (flip Map.member statusMap) convs
       localFailures
         | null locallyNotFound = []
-        | otherwise = [failedGetConversationLocally (map qUntagged locallyNotFound)]
+        | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
   let rpc = fedClient @'Galley @"get-conversations"
@@ -319,24 +284,12 @@ getConversationRoles lusr cnv = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 conversationIdsPageFromUnqualified ::
-  Members
-    [ ListItems LegacyPaging ConvId,
-      ConversationStore,
-      MemberStore,
-      TeamStore
-    ]
-    r =>
+  Member (ListItems LegacyPaging ConvId) r =>
   Local UserId ->
   Maybe ConvId ->
   Maybe (Range 1 1000 Int32) ->
   Sem r (Public.ConversationList ConvId)
 conversationIdsPageFromUnqualified lusr start msize = do
-  void $
-    E.getUserTeams (tUnqualified lusr) >>= \tids ->
-      runError @InternalError $
-        runError @(Tagged 'NotATeamMember ())
-          (for_ tids $ \tid -> getGlobalTeamConversation lusr tid)
-
   let size = fromMaybe (toRange (Proxy @1000)) msize
   ids <- E.listItems (tUnqualified lusr) start size
   pure $
@@ -411,7 +364,7 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
       Sem r Public.ConvIdsPage
     remotesOnly pagingState size =
       pageToConvIdPage Public.PagingRemotes
-        . fmap (qUntagged @'QRemote)
+        . fmap (tUntagged @'QRemote)
         <$> E.listItems (tUnqualified lusr) pagingState size
 
     pageToConvIdPage :: Public.LocalOrRemoteTable -> C.PageWithState (Qualified ConvId) -> Public.ConvIdsPage
@@ -466,7 +419,14 @@ conversationIdsPageFrom lusr state = do
   -- NOTE: Getting the MLS self-conversation creates it in case it does not
   -- exist yet. This is to ensure it is automatically listed without needing to
   -- create it separately.
-  void $ getMLSSelfConversation lusr
+  --
+  -- Make sure that in case MLS is not configured (the non-existance of the
+  -- backend removal key is a proxy for it) the self-conversation is not
+  -- returned or attempted to be created; in that case we skip anything related
+  -- to it.
+  whenM (isJust <$> getMLSRemovalKey)
+    . void
+    $ getMLSSelfConversation lusr
   conversationIdsPageFromV2 ListGlobalSelf lusr state
 
 getConversations ::
@@ -522,7 +482,7 @@ getConversationsInternal luser mids mstart msize = do
       | otherwise = pure True
 
 listConversations ::
-  Members '[ConversationStore, Error InternalError, FederatorAccess, P.TinyLog] r =>
+  (Members '[ConversationStore, Error InternalError, FederatorAccess, P.TinyLog] r, CallsFed 'Galley "get-conversations") =>
   Local UserId ->
   Public.ListConversations ->
   Sem r Public.ConversationsResponse
@@ -541,7 +501,7 @@ listConversations luser (Public.ListConversations ids) = do
   let (failedConvsLocally, failedConvsRemotely) = partitionGetConversationFailures remoteFailures
       failedConvs = failedConvsLocally <> failedConvsRemotely
       fetchedOrFailedRemoteIds = Set.fromList $ map Public.cnvQualifiedId remoteConversations <> failedConvs
-      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map qUntagged remoteIds
+      remoteNotFoundRemoteIds = filter (`Set.notMember` fetchedOrFailedRemoteIds) $ map tUntagged remoteIds
   unless (null remoteNotFoundRemoteIds) $
     -- FUTUREWORK: This implies that the backends are out of sync. Maybe the
     -- current user should be considered removed from this conversation at this
@@ -557,7 +517,7 @@ listConversations luser (Public.ListConversations ids) = do
         crNotFound =
           failedConvsLocally
             <> remoteNotFoundRemoteIds
-            <> map (qUntagged . qualifyAs luser) notFoundLocalIds,
+            <> map (tUntagged . qualifyAs luser) notFoundLocalIds,
         crFailed = failedConvsRemotely
       }
   where
@@ -715,6 +675,25 @@ getConversationGuestLinksFeatureStatus mbTid = do
       mbLockStatus <- TeamFeatures.getFeatureLockStatus @db (Proxy @GuestLinksConfig) tid
       pure $ computeFeatureConfigForTeamUser mbConfigNoLock mbLockStatus defaultStatus
 
+-- | The same as 'getMLSSelfConversation', but it throws an error in case the
+-- backend is not configured for MLS (the proxy for it being the existance of
+-- the backend removal key).
+getMLSSelfConversationWithError ::
+  forall r.
+  Members
+    '[ ConversationStore,
+       Error InternalError,
+       ErrorS 'MLSNotEnabled,
+       Input Env,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
+  Sem r Conversation
+getMLSSelfConversationWithError lusr = do
+  assertMLSEnabled
+  getMLSSelfConversation lusr
+
 -- | Get an MLS self conversation. In case it does not exist, it is partially
 -- created in the database. The part that is not written is the epoch number;
 -- the number is inserted only upon the first commit. With this we avoid race
@@ -733,20 +712,10 @@ getMLSSelfConversation ::
   Local UserId ->
   Sem r Conversation
 getMLSSelfConversation lusr = do
-  let selfConvId = mlsSelfConvId usr
+  let selfConvId = mlsSelfConvId . tUnqualified $ lusr
   mconv <- E.getConversation selfConvId
-  cnv <- maybe create pure mconv
+  cnv <- maybe (E.createMLSSelfConversation lusr) pure mconv
   conversationView lusr cnv
-  where
-    usr = tUnqualified lusr
-    create :: Sem r Data.Conversation
-    create = do
-      unlessM (isJust <$> getMLSRemovalKey) $
-        throw (InternalErrorWithDescription noKeyMsg)
-      E.createMLSSelfConversation lusr
-    noKeyMsg =
-      "No backend removal key is configured (See 'mlsPrivateKeyPaths'"
-        <> "in galley's config). Refusing to create MLS conversation."
 
 -------------------------------------------------------------------------------
 -- Helpers

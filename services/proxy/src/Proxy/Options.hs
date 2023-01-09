@@ -28,6 +28,7 @@ module Proxy.Options
     logNetStrings,
     logFormat,
     mockOpts,
+    disabledAPIVersions,
   )
 where
 
@@ -36,6 +37,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Imports
 import System.Logger.Extended (Level (Debug), LogFormat)
+import Wire.API.Routes.Version
 
 data Opts = Opts
   { -- | Host to listen on
@@ -54,7 +56,8 @@ data Opts = Opts
     -- | Use netstrings encoding
     _logNetStrings :: !(Maybe (Last Bool)),
     -- | choose Encoding
-    _logFormat :: !(Maybe (Last LogFormat))
+    _logFormat :: !(Maybe (Last LogFormat)),
+    _disabledAPIVersions :: !(Maybe (Set Version))
   }
   deriving (Show, Generic)
 
@@ -73,5 +76,6 @@ mockOpts secrets =
       _maxConns = 0,
       _logLevel = Debug,
       _logNetStrings = pure $ pure $ True,
-      _logFormat = mempty
+      _logFormat = mempty,
+      _disabledAPIVersions = mempty
     }

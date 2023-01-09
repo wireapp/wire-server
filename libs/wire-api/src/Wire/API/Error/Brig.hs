@@ -51,6 +51,7 @@ data BrigError
   | InvalidActivationCodeWrongUser
   | InvalidActivationCodeWrongCode
   | TooManyTeamMembers
+  | MLSNotEnabled
   | MLSIdentityMismatch
   | MLSProtocolError
   | MLSDuplicatePublicKey
@@ -155,6 +156,13 @@ type instance MapError 'InvalidActivationCodeWrongUser = 'StaticError 404 "inval
 type instance MapError 'InvalidActivationCodeWrongCode = 'StaticError 404 "invalid-code" "Invalid activation code"
 
 type instance MapError 'TooManyTeamMembers = 'StaticError 403 "too-many-team-members" "Too many members in this team."
+
+type instance
+  MapError 'MLSNotEnabled =
+    'StaticError
+      400
+      "mls-not-enabled"
+      "MLS is not configured on this backend. See docs.wire.com for instructions on how to enable it"
 
 type instance
   MapError 'MLSIdentityMismatch =

@@ -35,6 +35,7 @@ import Servant.API
 import Servant.Server hiding (Handler)
 import URI.ByteString
 import Wire.API.Asset
+import Wire.API.Federation.API
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
@@ -57,12 +58,14 @@ servantSitemap =
     providerAPI :: forall tag. tag ~ 'ProviderPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
-    qualifiedAPI = downloadAssetV4 :<|> deleteAssetV4
+    qualifiedAPI :: ServerT QualifiedAPI Handler
+    qualifiedAPI = callsFed downloadAssetV4 :<|> deleteAssetV4
+    mainAPI :: ServerT MainAPI Handler
     mainAPI =
       renewTokenV3
         :<|> deleteTokenV3
         :<|> uploadAssetV3 @'UserPrincipalTag
-        :<|> downloadAssetV4
+        :<|> callsFed downloadAssetV4
         :<|> deleteAssetV4
 
 internalSitemap :: ServerT InternalAPI Handler
@@ -134,7 +137,7 @@ uploadAssetV3 ::
 uploadAssetV3 pid req = do
   let principal = mkPrincipal pid
   asset <- V3.upload principal (getAssetSource req)
-  pure (fmap qUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
+  pure (fmap tUntagged asset, mkAssetLocation @tag (asset ^. assetKey))
 
 downloadAssetV3 ::
   MakePrincipal tag id =>
@@ -147,6 +150,7 @@ downloadAssetV3 usr key tok1 tok2 = do
   AssetLocation <$$> V3.download (mkPrincipal usr) key (tok1 <|> tok2)
 
 downloadAssetV4 ::
+  (CallsFed 'Cargohold "get-asset", CallsFed 'Cargohold "stream-asset") =>
   Local UserId ->
   Qualified AssetKey ->
   Maybe AssetToken ->

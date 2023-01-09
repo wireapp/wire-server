@@ -28,7 +28,7 @@ module Data.Qualified
     tUnqualified,
     tUnqualifiedL,
     tDomain,
-    qUntagged,
+    tUntagged,
     qTagUnsafe,
     Remote,
     toRemoteUnsafe,
@@ -78,8 +78,8 @@ data QTag = QLocal | QRemote
 -- | A type to differentiate between generally 'Qualified' values, and "tagged" values,
 -- for which it is known whether they are coming from a remote or local backend.
 -- Use 'foldQualified', 'partitionQualified' or 'qualifyLocal' to get tagged values and use
--- 'qUntagged' to convert from a tagged value back to a plain 'Qualified' one.
-newtype QualifiedWithTag (t :: QTag) a = QualifiedWithTag {qUntagged :: Qualified a}
+-- 'tUntagged' to convert from a tagged value back to a plain 'Qualified' one.
+newtype QualifiedWithTag (t :: QTag) a = QualifiedWithTag {tUntagged :: Qualified a}
   deriving stock (Eq, Ord, Show, Functor, Foldable, Traversable)
   deriving newtype (Arbitrary)
 
@@ -87,10 +87,10 @@ qTagUnsafe :: forall t a. Qualified a -> QualifiedWithTag t a
 qTagUnsafe = QualifiedWithTag
 
 tUnqualified :: QualifiedWithTag t a -> a
-tUnqualified = qUnqualified . qUntagged
+tUnqualified = qUnqualified . tUntagged
 
 tDomain :: QualifiedWithTag t a -> Domain
-tDomain = qDomain . qUntagged
+tDomain = qDomain . tUntagged
 
 tUnqualifiedL :: Lens (QualifiedWithTag t a) (QualifiedWithTag t b) a b
 tUnqualifiedL = lens tUnqualified qualifyAs
@@ -156,7 +156,7 @@ bucketRemote =
   map (uncurry toRemoteUnsafe)
     . Map.assocs
     . indexQualified
-    . fmap qUntagged
+    . fmap tUntagged
 
 isLocal :: Local x -> Qualified a -> Bool
 isLocal loc = foldQualified loc (const True) (const False)

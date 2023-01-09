@@ -29,9 +29,13 @@ where
 
 import Brig.Data.Instances ()
 import Brig.User.Search.Index
+import Control.Error (lastMay)
 import Control.Monad.Catch (MonadThrow (throwM))
+import Data.Aeson (decode', encode)
 import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
+import Data.String.Conversions (cs)
+import Data.Text.Ascii (decodeBase64Url, encodeBase64Url)
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Wire.API.User.Search
@@ -44,28 +48,42 @@ teamUserSearch ::
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
   Range 1 500 Int32 ->
+  Maybe PagingState ->
   m (SearchResult TeamContact)
-teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) = liftIndexIO $ do
+teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> size) mPagingState = liftIndexIO $ do
   let (IndexQuery q f sortSpecs) = teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder
   idx <- asks idxName
   let search =
         (ES.mkSearch (Just q) (Just f))
-          { ES.size = ES.Size (fromIntegral s),
-            ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs)
+          { -- we are requesting one more result than the page size to determine if there is a next page
+            ES.size = ES.Size (fromIntegral size + 1),
+            ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs),
+            ES.searchAfterKey = toSearchAfterKey =<< mPagingState
           }
   r <-
     ES.searchByType idx mappingName search
       >>= ES.parseEsResponse
   either (throwM . IndexLookupError) (pure . mkResult) r
   where
+    toSearchAfterKey :: PagingState -> Maybe ES.SearchAfterKey
+    toSearchAfterKey ps = decode' . cs =<< (decodeBase64Url . unPagingState $ ps)
+
+    fromSearchAfterKey :: ES.SearchAfterKey -> PagingState
+    fromSearchAfterKey = PagingState . encodeBase64Url . cs . encode
+
     mkResult es =
-      let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
+      let hitsPlusOne = ES.hits . ES.searchHits $ es
+          hits = take (fromIntegral size) hitsPlusOne
+          mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
+          results = mapMaybe ES.hitSource hits
        in SearchResult
             { searchFound = ES.hitsTotal . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
-              searchPolicy = FullSearch
+              searchPolicy = FullSearch,
+              searchPagingState = mps,
+              searchHasMore = Just $ length hitsPlusOne > length hits
             }
 
 -- FUTURWORK: Implement role filter (needs galley data)

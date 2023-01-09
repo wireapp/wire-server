@@ -77,6 +77,7 @@ import Spar.Error
   ( SparCustomError (SparScimError),
     SparError,
   )
+import Spar.Options
 import Spar.Scim.Auth
 import Spar.Scim.User
 import Spar.Sem.BrigAccess (BrigAccess)
@@ -96,7 +97,6 @@ import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
-import Wire.API.User.Saml (Opts)
 import Wire.API.User.Scim
 import Wire.Sem.Logger (Logger)
 import Wire.Sem.Now (Now)

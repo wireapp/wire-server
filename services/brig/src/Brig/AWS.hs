@@ -47,6 +47,7 @@ where
 
 import Amazonka (AWSRequest, AWSResponse)
 import qualified Amazonka as AWS
+import qualified Amazonka.Data.Text as AWS
 import qualified Amazonka.DynamoDB as DDB
 import qualified Amazonka.SES as SES
 import qualified Amazonka.SES.Lens as SES
@@ -122,13 +123,13 @@ mkEnv lgr opts emailOpts mgr = do
     mkAwsEnv g ses dyn sqs = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> maybe id AWS.configure ses
-          <&> maybe id AWS.configure dyn
-          <&> AWS.configure sqs
+          <&> maybe id AWS.configureService ses
+          <&> maybe id AWS.configureService dyn
+          <&> AWS.configureService sqs
       pure $
         baseEnv
-          { AWS.envLogger = awsLogger g,
-            AWS.envManager = mgr
+          { AWS.logger = awsLogger g,
+            AWS.manager = mgr
           }
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
     mapLevel AWS.Info = Logger.Info
@@ -226,10 +227,10 @@ sendMail m = do
       -- after the fact.
       AWS.ServiceError se
         | se
-            ^. AWS.serviceStatus
+            ^. AWS.serviceError_status
             == status400
             && "Invalid domain name"
-            `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceCode) ->
+            `Text.isPrefixOf` AWS.toText (se ^. AWS.serviceError_code) ->
             throwM SESInvalidDomain
       _ -> throwM (GeneralError x)
 
@@ -268,7 +269,7 @@ canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False
 canRetry (Left e) = case e of
   AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
-  AWS.ServiceError se | se ^. AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
+  AWS.ServiceError se | se ^. AWS.serviceError_code == AWS.ErrorCode "RequestThrottled" -> pure True
   _ -> pure False
 
 retry5x :: (Monad m) => RetryPolicyM m

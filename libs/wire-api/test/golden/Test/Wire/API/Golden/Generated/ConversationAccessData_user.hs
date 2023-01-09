@@ -21,10 +21,6 @@ module Test.Wire.API.Golden.Generated.ConversationAccessData_user where
 
 import qualified Data.Set as Set (fromList)
 import Wire.API.Conversation
-  ( Access (InviteAccess),
-    AccessRoleV2 (..),
-    ConversationAccessData (..),
-  )
 
 testObject_ConversationAccessData_user_1 :: ConversationAccessData
 testObject_ConversationAccessData_user_1 =

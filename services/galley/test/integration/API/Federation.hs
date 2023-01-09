@@ -96,7 +96,7 @@ getConversationsAllFound = do
   let bob = qUnqualified bobQ
       lBob = toLocalUnsafe (qDomain bobQ) (qUnqualified bobQ)
   (rAlice, cnv1Id) <- generateRemoteAndConvId True lBob
-  let aliceQ = qUntagged rAlice
+  let aliceQ = tUntagged rAlice
   carlQ <- randomQualifiedUser
 
   connectUsers bob (singleton (qUnqualified carlQ))
@@ -124,10 +124,14 @@ getConversationsAllFound = do
         =<< iUpsertOne2OneConversation createO2O
     liftIO $ assertEqual "Mismatch in the generated conversation ID" cnv1IdReturned cnv1Id
 
-  getConvs bob (Just . Left . fmap qUnqualified $ [cnv1Id, cnvQualifiedId cnv2]) Nothing !!! do
-    const 200 === statusCode
-    const (Just . Just . sort $ [cnv1Id, cnvQualifiedId cnv2])
-      === fmap (fmap (sort . map cnvQualifiedId . convList)) . responseJsonMaybe
+  do
+    convs <-
+      responseJsonError
+        =<< getConvs bob [cnv1Id, cnvQualifiedId cnv2] <!! do
+          const 200 === statusCode
+    liftIO $
+      sort (map cnvQualifiedId (crFound convs))
+        @?= sort [cnv1Id, cnvQualifiedId cnv2]
 
   -- get conversations
 
@@ -165,14 +169,19 @@ getConversationsNotPartOf = do
   -- FUTUREWORK: make alice / bob remote users
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
+  localDomain <- viewFederationDomain
   -- create & get one2one conv
   cnv1 <- responseJsonUnsafeWithMsg "conversation" <$> postO2OConv alice bob (Just "gossip1")
-  getConvs alice (Just $ Left [qUnqualified . cnvQualifiedId $ cnv1]) Nothing !!! do
-    const 200 === statusCode
-    const (Just [cnvQualifiedId cnv1]) === fmap (map cnvQualifiedId . convList) . responseJsonUnsafe
+  do
+    convs <-
+      responseJsonError
+        =<< getConvs alice [cnvQualifiedId cnv1] <!! do
+          const 200 === statusCode
+    liftIO $
+      map cnvQualifiedId (crFound convs)
+        @?= [cnvQualifiedId cnv1]
 
   fedGalleyClient <- view tsFedGalleyClient
-  localDomain <- viewFederationDomain
   rando <- Id <$> liftIO nextRandom
   GetConversationsResponse convs <-
     runFedClient @"get-conversations" fedGalleyClient localDomain $
@@ -710,7 +719,7 @@ leaveConversationInvalidType = do
   alice <- qTagUnsafe <$> randomQualifiedUser
 
   (bob, conv) <- generateRemoteAndConvIdWithDomain remoteDomain True alice
-  connectWithRemoteUser (tUnqualified alice) (qUntagged bob)
+  connectWithRemoteUser (tUnqualified alice) (tUntagged bob)
   createOne2OneConvWithRemote alice bob
 
   g <- viewGalley
@@ -864,10 +873,10 @@ sendMessage = do
         ]
       msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
       msr =
-        FedGalley.MessageSendRequest
-          { FedGalley.msrConvId = convId,
-            FedGalley.msrSender = bobId,
-            FedGalley.msrRawMessage = Base64ByteString (Protolens.encodeMessage msg)
+        FedGalley.ProteusMessageSendRequest
+          { FedGalley.pmsrConvId = convId,
+            FedGalley.pmsrSender = bobId,
+            FedGalley.pmsrRawMessage = Base64ByteString (Protolens.encodeMessage msg)
           }
   let responses2 req
         | frComponent req == Brig =
@@ -946,7 +955,7 @@ onUserDeleted = do
   bart <- randomQualifiedId bDomain
   carl <- randomQualifiedId cDomain
 
-  connectWithRemoteUser (tUnqualified alice) (qUntagged bob)
+  connectWithRemoteUser (tUnqualified alice) (tUntagged bob)
   connectUsers (tUnqualified alice) (pure (qUnqualified alex))
   connectWithRemoteUser (tUnqualified alice) bart
   connectWithRemoteUser (tUnqualified alice) carl
@@ -959,7 +968,7 @@ onUserDeleted = do
     decodeQualifiedConvId
       <$> ( postConvWithRemoteUsers
               (tUnqualified alice)
-              defNewProteusConv {newConvQualifiedUsers = [qUntagged bob, alex, bart, carl]}
+              defNewProteusConv {newConvQualifiedUsers = [tUntagged bob, alex, bart, carl]}
               <!! const 201 === statusCode
           )
 
@@ -1009,9 +1018,9 @@ onUserDeleted = do
       -- Assert that local user's get notifications only for the conversation
       -- bob was part of and it wasn't a One2OneConv
       void . WS.assertMatch (3 # Second) wsAlice $
-        wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
+        wsAssertMembersLeave groupConvId (tUntagged bob) [tUntagged bob]
       void . WS.assertMatch (3 # Second) wsAlex $
-        wsAssertMembersLeave groupConvId (qUntagged bob) [qUntagged bob]
+        wsAssertMembersLeave groupConvId (tUntagged bob) [tUntagged bob]
       -- Alice shouldn't get any other notifications because we don't notify
       -- on One2One convs.
       --
@@ -1027,7 +1036,7 @@ onUserDeleted = do
       -- Assertions about RPC to 'cDomain'
       cDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
       cDomainRPCReq <- assertRight $ parseFedRequest cDomainRPC
-      FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
+      FedGalley.cuOrigUserId cDomainRPCReq @?= tUntagged bob
       FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
       FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
       FedGalley.cuAction cDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
@@ -1150,5 +1159,3 @@ getConvAction tquery (SomeConversationAction tag action) =
     (SConversationAccessDataTag, _) -> Nothing
     (SConversationRemoveMembersTag, SConversationRemoveMembersTag) -> Just action
     (SConversationRemoveMembersTag, _) -> Nothing
-    (SConversationSelfInviteTag, SConversationSelfInviteTag) -> Just action
-    (SConversationSelfInviteTag, _) -> Nothing

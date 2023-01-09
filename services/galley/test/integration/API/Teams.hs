@@ -171,7 +171,7 @@ tests s =
                   [ test s "message" (postCryptoBroadcastMessage bcast),
                     test s "filtered only, too large team" (postCryptoBroadcastMessageFilteredTooLargeTeam bcast),
                     test s "report missing in body" (postCryptoBroadcastMessageReportMissingBody bcast),
-                    test s "redundant or missing" (postCryptoBroadcastMessage2 bcast),
+                    test s "redundant/missing" (postCryptoBroadcastMessage2 bcast),
                     test s "no-team" (postCryptoBroadcastMessageNoTeam bcast),
                     test s "100 (or max conns)" (postCryptoBroadcastMessage100OrMaxConns bcast)
                   ]
@@ -192,17 +192,16 @@ testCreateTeam = do
 testGetTeams :: TestM ()
 testGetTeams = do
   owner <- Util.randomUser
-  let getTeams' = Util.getTeams owner
-  getTeams' [] >>= checkTeamList Nothing
+  Util.getTeams owner [] >>= checkTeamList Nothing
   tid <- Util.createBindingTeamInternal "foo" owner <* assertQueue "create team" tActivate
   wrongTid <- (Util.randomUser >>= Util.createBindingTeamInternal "foobar") <* assertQueue "create team" tActivate
-  getTeams' [] >>= checkTeamList (Just tid)
-  getTeams' [("size", Just "1")] >>= checkTeamList (Just tid)
-  getTeams' [("ids", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
-  getTeams' [("ids", Just $ toByteString' tid <> "," <> toByteString' wrongTid)] >>= checkTeamList (Just tid)
+  Util.getTeams owner [] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("size", Just "1")] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("ids", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("ids", Just $ toByteString' tid <> "," <> toByteString' wrongTid)] >>= checkTeamList (Just tid)
   -- these two queries do not yield responses that are equivalent to the old wai route API
-  getTeams' [("ids", Just $ toByteString' wrongTid)] >>= checkTeamList (Just tid)
-  getTeams' [("start", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("ids", Just $ toByteString' wrongTid)] >>= checkTeamList (Just tid)
+  Util.getTeams owner [("start", Just $ toByteString' tid)] >>= checkTeamList (Just tid)
   where
     checkTeamList :: Maybe TeamId -> TeamList -> TestM ()
     checkTeamList mbTid tl = liftIO $ do
@@ -1262,7 +1261,7 @@ testDeleteTeamConv = do
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
   qcid1 <- Qualified cid1 <$> viewFederationDomain
   let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
-  putAccessUpdate owner cid1 access !!! const 200 === statusCode
+  putQualifiedAccessUpdate owner qcid1 access !!! const 200 === statusCode
   code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
   cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
   Util.postMembers owner (qExtern :| [qMember]) qcid1 !!! const 200 === statusCode

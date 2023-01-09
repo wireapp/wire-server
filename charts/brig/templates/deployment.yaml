@@ -133,6 +133,13 @@ spec:
           {{- end }} 
           ports:
             - containerPort: {{ .Values.service.internalPort }}
+          startupProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.service.internalPort }}
+            failureThreshold: 6
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               scheme: HTTP

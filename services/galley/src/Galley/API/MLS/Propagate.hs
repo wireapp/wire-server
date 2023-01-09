@@ -32,12 +32,14 @@ import Galley.Effects
 import Galley.Effects.FederatorAccess
 import Galley.Types.Conversations.Members
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger.Class as Logger
 import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -50,7 +52,8 @@ propagateMessage ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TinyLog r
+    Member TinyLog r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Qualified UserId ->
   Local Data.Conversation ->
@@ -68,8 +71,8 @@ propagateMessage qusr lconv cm con raw = do
       mm = defMessageMetadata
   now <- input @UTCTime
   let lcnv = fmap Data.convId lconv
-      qcnv = qUntagged lcnv
-      e = Event qcnv qusr now $ EdMLSMessage raw
+      qcnv = tUntagged lcnv
+      e = Event qcnv Nothing qusr now $ EdMLSMessage raw
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
   runMessagePush lconv (Just qcnv) $
@@ -91,7 +94,7 @@ propagateMessage qusr lconv cm con raw = do
   where
     localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
     localMemberMLSClients loc lm =
-      let localUserQId = qUntagged (qualifyAs loc localUserId)
+      let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lmId lm
        in map
             (\(c, _) -> (localUserId, c))
@@ -99,16 +102,24 @@ propagateMessage qusr lconv cm con raw = do
 
     remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients rm =
-      let remoteUserQId = qUntagged (rmId rm)
+      let remoteUserQId = tUntagged (rmId rm)
           remoteUserId = qUnqualified remoteUserQId
        in map
             (\(c, _) -> (remoteUserId, c))
             (toList (Map.findWithDefault mempty remoteUserQId cm))
 
-    handleError :: Member TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
-    handleError (Right _) = pure ()
-    handleError (Left (r, e)) =
+    handleError ::
+      Member TinyLog r =>
+      Either (Remote [a], FederationError) (Remote RemoteMLSMessageResponse) ->
+      Sem r ()
+    handleError (Right x) = case tUnqualified x of
+      RemoteMLSMessageOk -> pure ()
+      RemoteMLSMessageMLSNotEnabled -> logFedError x (errorToWai @'MLSNotEnabled)
+    handleError (Left (r, e)) = logFedError r (toWai e)
+
+    logFedError :: Member TinyLog r => Remote x -> Wai.Error -> Sem r ()
+    logFedError r e =
       warn $
         Logger.msg ("A message could not be delivered to a remote backend" :: ByteString)
           . Logger.field "remote_domain" (domainText (tDomain r))
-          . logErrorMsg (toWai e)
+          . logErrorMsg e

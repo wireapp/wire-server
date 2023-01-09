@@ -86,6 +86,7 @@ import Servant hiding (JSON, WithStatus)
 import qualified Servant hiding (WithStatus)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
+import Wire.API.ApplyMods
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
@@ -129,78 +130,86 @@ type LegalHoldFeatureStatusChangeErrors =
       )
    )
 
+type LegalHoldFeaturesStatusChangeFederatedCalls =
+  '[ MakesFederatedCall 'Galley "on-conversation-updated",
+     MakesFederatedCall 'Galley "on-mls-message-sent",
+     MakesFederatedCall 'Galley "on-new-remote-conversation"
+   ]
+
 type IFeatureAPI =
   -- SSOConfig
   IFeatureStatusGet SSOConfig
-    :<|> IFeatureStatusPut '() SSOConfig
-    :<|> IFeatureStatusPatch '() SSOConfig
+    :<|> IFeatureStatusPut '[] '() SSOConfig
+    :<|> IFeatureStatusPatch '[] '() SSOConfig
     -- LegalholdConfig
     :<|> IFeatureStatusGet LegalholdConfig
     :<|> IFeatureStatusPut
+           LegalHoldFeaturesStatusChangeFederatedCalls
            LegalHoldFeatureStatusChangeErrors
            LegalholdConfig
     :<|> IFeatureStatusPatch
+           LegalHoldFeaturesStatusChangeFederatedCalls
            LegalHoldFeatureStatusChangeErrors
            LegalholdConfig
     -- SearchVisibilityAvailableConfig
     :<|> IFeatureStatusGet SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusPut '() SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusPatch '() SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusPut '[] '() SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusPatch '[] '() SearchVisibilityAvailableConfig
     -- ValidateSAMLEmailsConfig
     :<|> IFeatureStatusGet ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusPut '() ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusPatch '() ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusPut '[] '() ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusPatch '[] '() ValidateSAMLEmailsConfig
     -- DigitalSignaturesConfig
     :<|> IFeatureStatusGet DigitalSignaturesConfig
-    :<|> IFeatureStatusPut '() DigitalSignaturesConfig
-    :<|> IFeatureStatusPatch '() DigitalSignaturesConfig
+    :<|> IFeatureStatusPut '[] '() DigitalSignaturesConfig
+    :<|> IFeatureStatusPatch '[] '() DigitalSignaturesConfig
     -- AppLockConfig
     :<|> IFeatureStatusGet AppLockConfig
-    :<|> IFeatureStatusPut '() AppLockConfig
-    :<|> IFeatureStatusPatch '() AppLockConfig
+    :<|> IFeatureStatusPut '[] '() AppLockConfig
+    :<|> IFeatureStatusPatch '[] '() AppLockConfig
     -- FileSharingConfig
     :<|> IFeatureStatusGet FileSharingConfig
-    :<|> IFeatureStatusPut '() FileSharingConfig
+    :<|> IFeatureStatusPut '[] '() FileSharingConfig
     :<|> IFeatureStatusLockStatusPut FileSharingConfig
-    :<|> IFeatureStatusPatch '() FileSharingConfig
+    :<|> IFeatureStatusPatch '[] '() FileSharingConfig
     -- ConferenceCallingConfig
     :<|> IFeatureStatusGet ConferenceCallingConfig
-    :<|> IFeatureStatusPut '() ConferenceCallingConfig
-    :<|> IFeatureStatusPatch '() ConferenceCallingConfig
+    :<|> IFeatureStatusPut '[] '() ConferenceCallingConfig
+    :<|> IFeatureStatusPatch '[] '() ConferenceCallingConfig
     -- SelfDeletingMessagesConfig
     :<|> IFeatureStatusGet SelfDeletingMessagesConfig
-    :<|> IFeatureStatusPut '() SelfDeletingMessagesConfig
+    :<|> IFeatureStatusPut '[] '() SelfDeletingMessagesConfig
     :<|> IFeatureStatusLockStatusPut SelfDeletingMessagesConfig
-    :<|> IFeatureStatusPatch '() SelfDeletingMessagesConfig
+    :<|> IFeatureStatusPatch '[] '() SelfDeletingMessagesConfig
     -- GuestLinksConfig
     :<|> IFeatureStatusGet GuestLinksConfig
-    :<|> IFeatureStatusPut '() GuestLinksConfig
+    :<|> IFeatureStatusPut '[] '() GuestLinksConfig
     :<|> IFeatureStatusLockStatusPut GuestLinksConfig
-    :<|> IFeatureStatusPatch '() GuestLinksConfig
+    :<|> IFeatureStatusPatch '[] '() GuestLinksConfig
     --  SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusGet SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusPut '() SndFactorPasswordChallengeConfig
+    :<|> IFeatureStatusPut '[] '() SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusLockStatusPut SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusPatch '() SndFactorPasswordChallengeConfig
+    :<|> IFeatureStatusPatch '[] '() SndFactorPasswordChallengeConfig
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPatch '() SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPut '[] '() SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPatch '[] '() SearchVisibilityInboundConfig
     :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
     -- ClassifiedDomainsConfig
     :<|> IFeatureStatusGet ClassifiedDomainsConfig
     -- MLSConfig
     :<|> IFeatureStatusGet MLSConfig
-    :<|> IFeatureStatusPut '() MLSConfig
-    :<|> IFeatureStatusPatch '() MLSConfig
+    :<|> IFeatureStatusPut '[] '() MLSConfig
+    :<|> IFeatureStatusPatch '[] '() MLSConfig
     -- ExposeInvitationURLsToTeamAdminConfig
     :<|> IFeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusPut '() ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusPatch '() ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusPatch '[] '() ExposeInvitationURLsToTeamAdminConfig
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPatch '() SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPut '[] '() SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPatch '[] '() SearchVisibilityInboundConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -232,6 +241,9 @@ type InternalAPIBase =
            "delete-user"
            ( Summary
                "Remove a user from their teams and conversations and erase their clients"
+               :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-user-deleted-conversations"
+               :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> ZLocalUser
                :> ZOptConn
                :> "user"
@@ -243,6 +255,7 @@ type InternalAPIBase =
     :<|> Named
            "connect"
            ( Summary "Create a connect conversation (deprecated)"
+               :> MakesFederatedCall 'Galley "on-conversation-created"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NotConnected
@@ -303,7 +316,7 @@ type ITeamsAPIBase =
   Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
     :<|> Named
            "create-binding-team"
-           ( ZLocalUser
+           ( ZUser
                :> ReqBody '[Servant.JSON] BindingNewTeam
                :> MultiVerb1
                     'PUT
@@ -393,9 +406,9 @@ type ITeamsAPIBase =
 
 type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
 
-type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePutInternal errs f)
+type IFeatureStatusPut calls errs f = Named '("iput", f) (ApplyMods calls (FeatureStatusBasePutInternal errs f))
 
-type IFeatureStatusPatch errs f = Named '("ipatch", f) (FeatureStatusBasePatchInternal errs f)
+type IFeatureStatusPatch calls errs f = Named '("ipatch", f) (ApplyMods calls (FeatureStatusBasePatchInternal errs f))
 
 type FeatureStatusBasePutInternal errs featureConfig =
   FeatureStatusBaseInternal
@@ -459,8 +472,8 @@ internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
   hoistAPI @InternalAPIBase id $
     mkNamedAPI @"status" (pure ())
-      <@> mkNamedAPI @"delete-user" rmUser
-      <@> mkNamedAPI @"connect" Create.createConnectConversation
+      <@> mkNamedAPI @"delete-user" (callsFed rmUser)
+      <@> mkNamedAPI @"connect" (callsFed Create.createConnectConversation)
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
@@ -511,8 +524,8 @@ featureAPI =
     <@> mkNamedAPI @'("iput", SSOConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SSOConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", LegalholdConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", LegalholdConfig) (setFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (setFeatureStatusInternal @Cassandra))
+    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (patchFeatureStatusInternal @Cassandra))
     <@> mkNamedAPI @'("iget", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SearchVisibilityAvailableConfig) (patchFeatureStatusInternal @Cassandra)
@@ -561,7 +574,7 @@ featureAPI =
     <@> mkNamedAPI @"feature-configs-internal" (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
-internalSitemap = do
+internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
   -- Conversation API (internal) ----------------------------------------
   put "/i/conversations/:cnv/channel" (continue $ const (pure empty)) $
     zauthUserId
@@ -668,7 +681,10 @@ rmUser ::
          P.TinyLog,
          TeamStore
        ]
-      r
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-user-deleted-conversations",
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -701,41 +717,32 @@ rmUser lusr conn = do
 
     leaveLocalConversations :: [ConvId] -> Sem r ()
     leaveLocalConversations ids = do
-      let qUser = qUntagged lusr
+      let qUser = tUntagged lusr
       cc <- getConversations ids
       now <- input
-      let deleteIfNeeded c = do
-            when (tUnqualified lusr `isMember` Data.convLocalMembers c) $ do
-              runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
-                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
-                Right _ -> pure ()
-              deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
-              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-            let e =
-                  Event
-                    (qUntagged (qualifyAs lusr (Data.convId c)))
-                    (qUntagged lusr)
-                    now
-                    (EdMembersLeave (QualifiedUserIdList [qUser]))
-            pure $
-              Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
-                <&> set Intra.pushConn conn
-                  . set Intra.pushRoute Intra.RouteDirect
-
-          deleteClientsFromGlobal c = do
-            runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
-              Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
-              Right _ -> pure ()
-            deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
-            for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-            pure Nothing
-
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> pure Nothing
         One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
-        RegularConv -> deleteIfNeeded c
-        GlobalTeamConv -> deleteClientsFromGlobal c
+        RegularConv
+          | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+              runError (removeUser (qualifyAs lusr c) (tUntagged lusr)) >>= \case
+                Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+                Right _ -> pure ()
+              deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
+              let e =
+                    Event
+                      (tUntagged (qualifyAs lusr (Data.convId c)))
+                      Nothing
+                      (tUntagged lusr)
+                      now
+                      (EdMembersLeave (QualifiedUserIdList [qUser]))
+              for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
+              pure $
+                Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
+                  <&> set Intra.pushConn conn
+                    . set Intra.pushRoute Intra.RouteDirect
+          | otherwise -> pure Nothing
 
       for_
         (maybeList1 (catMaybes pp))

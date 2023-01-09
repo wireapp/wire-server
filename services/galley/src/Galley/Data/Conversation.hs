@@ -23,7 +23,6 @@ module Galley.Data.Conversation
     -- * Utilities
     isConvDeleted,
     selfConv,
-    globalTeamConv,
     localOne2OneConvId,
     convAccess,
     convAccessData,
@@ -59,9 +58,6 @@ isConvDeleted = convDeleted
 selfConv :: UserId -> ConvId
 selfConv uid = Id (toUUID uid)
 
-globalTeamConv :: TeamId -> ConvId
-globalTeamConv tid = Id (toUUID tid)
-
 -- | We deduce the conversation ID by adding the 4 components of the V4 UUID
 -- together pairwise, and then setting the version bits (v4) and variant bits
 -- (variant 2). This means that we always know what the UUID is for a
@@ -81,7 +77,7 @@ convTeam = cnvmTeam . convMetadata
 convAccess :: Conversation -> [Access]
 convAccess = cnvmAccess . convMetadata
 
-convAccessRoles :: Conversation -> Set AccessRoleV2
+convAccessRoles :: Conversation -> Set AccessRole
 convAccessRoles = cnvmAccessRoles . convMetadata
 
 convAccessData :: Conversation -> ConversationAccessData
@@ -102,8 +98,8 @@ convSetName n c = c {convMetadata = (convMetadata c) {cnvmName = n}}
 defRegularConvAccess :: [Access]
 defRegularConvAccess = [InviteAccess]
 
-parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Set AccessRoleV2) -> Maybe (Set AccessRoleV2)
-parseAccessRoles mbLegacy mbV2 = mbV2 <|> fromAccessRoleLegacy <$> mbLegacy
+parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Set AccessRole) -> Maybe (Set AccessRole)
+parseAccessRoles mbLegacy mbAccess = mbAccess <|> fromAccessRoleLegacy <$> mbLegacy
 
 convMessageTimer :: Conversation -> Maybe Milliseconds
 convMessageTimer = cnvmMessageTimer . convMetadata

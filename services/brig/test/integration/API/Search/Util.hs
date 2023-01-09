@@ -25,6 +25,7 @@ import Data.ByteString.Conversion.To (toByteString)
 import Data.Domain (Domain)
 import Data.Id
 import Data.Qualified (Qualified (..))
+import Data.Range (Range)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
@@ -116,7 +117,22 @@ executeTeamUserSearch ::
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
   m (SearchResult TeamContact)
-executeTeamUserSearch brig teamid self mbSearchText mRoleFilter mSortBy mSortOrder = do
+executeTeamUserSearch brig teamid self mbSearchText mRoleFilter mSortBy mSortOrder =
+  executeTeamUserSearchWithMaybeState brig teamid self mbSearchText mRoleFilter mSortBy mSortOrder Nothing Nothing
+
+executeTeamUserSearchWithMaybeState ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  TeamId ->
+  UserId ->
+  Maybe Text ->
+  Maybe RoleFilter ->
+  Maybe TeamUserSearchSortBy ->
+  Maybe TeamUserSearchSortOrder ->
+  Maybe (Range 1 500 Int32) ->
+  Maybe PagingState ->
+  m (SearchResult TeamContact)
+executeTeamUserSearchWithMaybeState brig teamid self mbSearchText mRoleFilter mSortBy mSortOrder mSize mPagingState = do
   r <-
     get
       ( brig
@@ -126,6 +142,8 @@ executeTeamUserSearch brig teamid self mbSearchText mRoleFilter mSortBy mSortOrd
           . maybe id (queryItem "frole" . cs . toByteString) mRoleFilter
           . maybe id (queryItem "sortby" . cs . toByteString) mSortBy
           . maybe id (queryItem "sortorder" . cs . toByteString) mSortOrder
+          . maybe id (queryItem "pagingState" . cs . toByteString) mPagingState
+          . maybe id (queryItem "size" . cs . toByteString) mSize
       )
       <!! const 200
         === statusCode

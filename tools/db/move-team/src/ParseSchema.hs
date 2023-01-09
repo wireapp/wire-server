@@ -377,11 +377,6 @@ main = do
                        --   PRIMARY KEY (key :: text) (Brig.Data.UserKey)
                        --   FUTUREWORK: do we need it?  can we do better than a full table scan?
                        mkChunk' "brig" "user_keys" "[Int32]" "keys" "key in ?",
-                       -- brig.user_keys_hash
-                       --   FUTUREWORK: do we need it?
-                       --   can we do better than a full table scan?
-                       --   mkChunk' "brig" "user_keys_hash" "[UserKeyHash]" "keys" "key in ?"
-                       mkChunk' "brig" "user_keys_hash" "[Int32]" "keys" "key in ?",
                        -- brig.vcodes
                        -- galley.billing_team_member
                        --   PRIMARY KEY (team, user)

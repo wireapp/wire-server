@@ -31,6 +31,7 @@ library
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
+    Galley.API.MLS.Enabled
     Galley.API.MLS.GroupInfo
     Galley.API.MLS.KeyPackage
     Galley.API.MLS.Keys
@@ -103,7 +104,6 @@ library
     Galley.Effects.MemberStore
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
-    Galley.Effects.RemoteConversationListStore
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.ServiceStore
     Galley.Effects.SparAccess

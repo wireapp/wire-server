@@ -28,12 +28,12 @@ import Network.Wai.Utilities.Response
 import Wire.API.Routes.Version
 
 -- | Strip off version prefix. Return 404 if the version is not supported.
-versionMiddleware :: Middleware
-versionMiddleware app req k = case parseVersion (removeVersionHeader req) of
+versionMiddleware :: Set Version -> Middleware
+versionMiddleware disabledAPIVersions app req k = case parseVersion (removeVersionHeader req) of
   Nothing -> app req k
   Just (req', n) -> case mkVersion n of
-    Just v -> app (addVersionHeader v req') k
-    Nothing ->
+    Just v | v `notElem` disabledAPIVersions -> app (addVersionHeader v req') k
+    _ ->
       k $
         errorRs' $
           mkError HTTP.status404 "unsupported-version" $

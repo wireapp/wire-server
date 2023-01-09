@@ -24,7 +24,7 @@ import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Error.Util
-import Control.Lens (preview, to, view, (^..))
+import Control.Lens (preview, to, view, (.~), (^..))
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
@@ -48,6 +48,7 @@ import qualified Data.Text.Encoding as T
 import Data.Time.Clock (getCurrentTime)
 import Galley.Keys
 import Galley.Options
+import qualified Galley.Options as Opts
 import Imports hiding (getSymbolicLinkTarget)
 import System.Directory (getSymbolicLinkTarget)
 import System.FilePath
@@ -278,7 +279,7 @@ initMLSClient cid = do
   void $ mlscli cid ["init", cid2Str cid] Nothing
 
 createLocalMLSClient :: Local UserId -> MLSTest ClientIdentity
-createLocalMLSClient (qUntagged -> qusr) = do
+createLocalMLSClient (tUntagged -> qusr) = do
   qcid <- createWireClient qusr
   initMLSClient qcid
 
@@ -300,7 +301,7 @@ createLocalMLSClient (qUntagged -> qusr) = do
 createMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
 createMLSClient qusr = do
   loc <- liftTest $ qualifyLocal ()
-  foldQualified loc createLocalMLSClient (createFakeMLSClient . qUntagged) qusr
+  foldQualified loc createLocalMLSClient (createFakeMLSClient . tUntagged) qusr
 
 -- | Like 'createMLSClient', but do not actually register client with backend.
 createFakeMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
@@ -492,7 +493,7 @@ getUserClients qusr = do
 
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
-claimRemoteKeyPackages (qUntagged -> qusr) = do
+claimRemoteKeyPackages (tUntagged -> qusr) = do
   brig <- viewBrig
   clients <- getUserClients qusr
   bundle <- fmap (KeyPackageBundle . Set.fromList) $
@@ -642,13 +643,13 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
       { mlsNewMembers = Set.fromList (map fst clientsAndKeyPackages)
       }
 
-  welcome <- liftIO $ readWelcome welcomeFile
+  welcome <- liftIO $ BS.readFile welcomeFile
   pgs <- liftIO $ BS.readFile pgsFile
   pure $
     MessagePackage
       { mpSender = qcid,
         mpMessage = commit,
-        mpWelcome = welcome,
+        mpWelcome = Just welcome,
         mpPublicGroupState = Just pgs
       }
 
@@ -863,7 +864,7 @@ sendAndConsumeCommit mp = do
 
   pure events
 
-mkBundle :: HasCallStack => MessagePackage -> Either Text CommitBundle
+mkBundle :: MessagePackage -> Either Text CommitBundle
 mkBundle mp = do
   commitB <- decodeMLS' (mpMessage mp)
   welcomeB <- traverse decodeMLS' (mpWelcome mp)
@@ -873,7 +874,7 @@ mkBundle mp = do
     CommitBundle commitB welcomeB $
       GroupInfoBundle UnencryptedGroupInfo TreeFull pgsB
 
-createBundle :: (HasCallStack, MonadIO m) => MessagePackage -> m ByteString
+createBundle :: MonadIO m => MessagePackage -> m ByteString
 createBundle mp = do
   bundle <-
     either (liftIO . assertFailure . T.unpack) pure $
@@ -1034,3 +1035,8 @@ getSelfConv u = do
       . zUser u
       . zConn "conn"
       . zType "access"
+
+withMLSDisabled :: HasSettingsOverrides m => m a -> m a
+withMLSDisabled = withSettingsOverrides noMLS
+  where
+    noMLS = Opts.optSettings . Opts.setMlsPrivateKeyPaths .~ Nothing

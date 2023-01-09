@@ -12,8 +12,7 @@
     "found": [
         {
             "access": [],
-            "access_role": "private",
-            "access_role_v2": [],
+            "access_role": [],
             "creator": "00000001-0000-0001-0000-000200000001",
             "id": "00000001-0000-0000-0000-000000000000",
             "last_event": "0.0",
@@ -65,8 +64,7 @@
                 "private",
                 "invite"
             ],
-            "access_role": "non_activated",
-            "access_role_v2": [
+            "access_role": [
                 "team_member",
                 "guest",
                 "service"

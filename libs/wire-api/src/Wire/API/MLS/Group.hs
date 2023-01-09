@@ -53,6 +53,6 @@ instance ToSchema GroupId where
 -- | Return the group ID associated to a conversation ID. Note that is not
 -- assumed to be stable over time or even consistent among different backends.
 convToGroupId :: Local ConvId -> GroupId
-convToGroupId (qUntagged -> qcnv) =
+convToGroupId (tUntagged -> qcnv) =
   GroupId . convert . Crypto.hash @ByteString @Crypto.SHA256 $
     toByteString' (qUnqualified qcnv) <> toByteString' (qDomain qcnv)

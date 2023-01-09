@@ -79,7 +79,7 @@ insertConnection self target rel qcnv@(Qualified cnv cdomain) = do
   let local (tUnqualified -> ltarget) =
         write connectionInsert $
           params LocalQuorum (tUnqualified self, ltarget, rel, now, cnv)
-  let remote (qUntagged -> Qualified rtarget domain) =
+  let remote (tUntagged -> Qualified rtarget domain) =
         write remoteConnectionInsert $
           params LocalQuorum (tUnqualified self, domain, rtarget, rel, now, cdomain, cnv)
   retry x5 $ foldQualified self local remote target
@@ -108,7 +108,7 @@ updateConnectionStatus self target status = do
   let local (tUnqualified -> ltarget) =
         write connectionUpdate $
           params LocalQuorum (status, now, tUnqualified self, ltarget)
-  let remote (qUntagged -> Qualified rtarget domain) =
+  let remote (tUntagged -> Qualified rtarget domain) =
         write remoteConnectionUpdate $
           params LocalQuorum (status, now, tUnqualified self, domain, rtarget)
   retry x5 $ foldQualified self local remote target
@@ -121,8 +121,8 @@ lookupConnection self target = runMaybeT $ do
         (_, _, rel, time, mcnv) <-
           MaybeT . query1 connectionSelect $
             params LocalQuorum (tUnqualified self, ltarget)
-        pure (rel, time, fmap (qUntagged . qualifyAs self) mcnv)
-  let remote (qUntagged -> Qualified rtarget domain) = do
+        pure (rel, time, fmap (tUntagged . qualifyAs self) mcnv)
+  let remote (tUntagged -> Qualified rtarget domain) = do
         (rel, time, cdomain, cnv) <-
           MaybeT . query1 remoteConnectionSelectFrom $
             params LocalQuorum (tUnqualified self, domain, rtarget)
@@ -148,7 +148,7 @@ lookupRelationWithHistory ::
 lookupRelationWithHistory self target = do
   let local (tUnqualified -> ltarget) =
         query1 relationSelect (params LocalQuorum (tUnqualified self, ltarget))
-  let remote (qUntagged -> Qualified rtarget domain) =
+  let remote (tUntagged -> Qualified rtarget domain) =
         query1 remoteRelationSelect (params LocalQuorum (tUnqualified self, domain, rtarget))
   runIdentity <$$> retry x1 (foldQualified self local remote target)
 
@@ -319,7 +319,7 @@ deleteRemoteConnections ::
   Remote UserId ->
   Range 1 1000 [UserId] ->
   m ()
-deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
+deleteRemoteConnections (tUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
   pooledForConcurrentlyN_ 16 locals $ \u ->
     write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
 
@@ -407,7 +407,7 @@ toLocalUserConnection ::
   (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId) ->
   UserConnection
 toLocalUserConnection loc (l, r, relationDropHistory -> rel, time, cid) =
-  UserConnection l (qUntagged (qualifyAs loc r)) rel time (fmap (qUntagged . qualifyAs loc) cid)
+  UserConnection l (tUntagged (qualifyAs loc r)) rel time (fmap (tUntagged . qualifyAs loc) cid)
 
 toRemoteUserConnection ::
   Local UserId ->

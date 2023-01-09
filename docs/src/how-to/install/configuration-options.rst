@@ -176,6 +176,79 @@ There is no way to entirely disable this behaviour, two extreme examples below
        millisecondsBetweenBatches: 50
        minBatchSize: 20
 
+
+Control nginz upstreams (routes) into the Kubernetes cluster
+------------------------------------------------------------
+
+Open unterminated upstreams (routes) into the Kubernetes cluster are a potential
+security issue. To prevent this, there are fine-grained settings in the nginz
+configuration defining which upstreams should exist.
+
+Default upstreams
+^^^^^^^^^^^^^^^^^
+
+Upstreams for services that exist in (almost) every Wire installation are
+enabled by default. These are:
+
+- ``brig``
+- ``cannon``
+- ``cargohold``
+- ``galley``
+- ``gundeck``
+- ``spar``
+
+For special setups (as e.g. described in separate-websocket-traffic_) the
+upstreams of these services can be ignored (disabled) with the setting
+``nginz.nginx_conf.ignored_upstreams``.
+
+The most common example is to disable the upstream of ``cannon``:
+
+.. code:: yaml
+
+   nginz:
+     nginx_conf:
+       ignored_upstreams: ["cannon"]
+
+
+Optional upstreams
+^^^^^^^^^^^^^^^^^^
+
+There are some services that are usually not deployed on most Wire installations
+or are specific to the Wire cloud:
+
+- ``ibis``
+- ``galeb``
+- ``calling-test``
+- ``proxy``
+
+The upstreams for those are disabled by default and can be enabled by the
+setting ``nginz.nginx_conf.enabled_extra_upstreams``.
+
+The most common example is to enable the (extra) upstream of ``proxy``:
+
+.. code:: yaml
+
+   nginz:
+     nginx_conf:
+       enabled_extra_upstreams: ["proxy"]
+
+
+Combining default and extra upstream configurations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Default and extra upstream configurations are independent of each other. I.e.
+``nginz.nginx_conf.ignored_upstreams`` and
+``nginz.nginx_conf.enabled_extra_upstreams`` can be combined in the same
+configuration:
+
+.. code:: yaml
+
+   nginz:
+     nginx_conf:
+       ignored_upstreams: ["cannon"]
+       enabled_extra_upstreams: ["proxy"]
+
+
 .. _separate-websocket-traffic:
 
 Separate incoming websocket network traffic from the rest of the https traffic
@@ -586,6 +659,44 @@ Second, also set the option under the `account-pages` section:
      envVars:
        IS_SELF_HOSTED: "true"
 
+.. _auth-cookie-config:
+
+Configuring authentication cookie throttling
+--------------------------------------------
+
+Authentication cookies and the related throttling mechanism is described in the *Client API documentation*:
+:ref:`login-cookies`
+
+The maximum number of cookies per account and type is defined by the brig option
+``setUserCookieLimit``. Its default is ``32``.
+
+Throttling is configured by the brig option ``setUserCookieThrottle``. It is an
+object that contains two fields:
+
+``stdDev``
+    The minimal standard deviation of cookie creation timestamps in
+    Seconds. (Default: ``3000``,
+    `Wikipedia: Standard deviation <https://en.wikipedia.org/wiki/Standard_deviation>`_)
+
+``retryAfter``
+    Wait time in Seconds when ``stdDev`` is violated. (Default: ``86400``)
+
+The default values are fine for most use cases. (Generally, you don't have to
+configure them for your installation.)
+
+Condensed example:
+
+
+.. code:: yaml
+
+    brig:
+        optSettings:
+            setUserCookieLimit: 32
+            setUserCookieThrottle:
+                stdDev: 3000
+                retryAfter: 86400
+
+
 Configuring searchability
 -------------------------
 
@@ -947,3 +1058,49 @@ The table assumes the following:
 * When backend level config says that this feature is disabled, the list of domains is ignored.
 * When team level feature is disabled, the accompanying domains are ignored.
 
+S3 Addressing Style
+-------------------
+
+S3 can either by addressed in path style, i.e.
+`https://<s3-endpoint>/<bucket-name>/<object>`, or vhost style, i.e.
+`https://<bucket-name>.<s3-endpoint>/<object>`. AWS's S3 offering has deprecated
+path style addressing for S3 and completely disabled it for buckets created
+after 30 Sep 2020:
+https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/
+
+However other object storage providers (specially self-deployed ones like MinIO)
+may not support vhost style addressing yet (or ever?). Users of such buckets
+should configure this option to "path":
+
+.. code:: yaml
+
+    cargohold:
+      aws:
+        s3AddressingStyle: path
+
+Installations using S3 service provided by AWS, should use "auto", this option
+will ensure that vhost style is only used when it is possible to construct a
+valid hostname from the bucket name and the bucket name doesn't contain a '.'.
+Having a '.' in the bucket name causes TLS validation to fail, hence it is not
+used by default:
+
+.. code:: yaml
+
+    cargohold:
+      aws:
+        s3AddressingStyle: auto
+
+
+Using "virtual" as an option is only useful in situations where vhost style
+addressing must be used even if it is not possible to construct a valid hostname
+from the bucket name or the S3 service provider can ensure correct certificate
+is issued for bucket which contain one or more '.'s in the name:
+
+.. code:: yaml
+
+    cargohold:
+      aws:
+        s3AddressingStyle: virtual
+
+When this option is unspecified, wire-server defaults to path style addressing
+to ensure smooth transition for older deployments.

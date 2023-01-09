@@ -26,6 +26,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
+import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -38,6 +39,8 @@ type MessagingAPI =
     "post-otr-message-unqualified"
     ( Summary "Post an encrypted message to a conversation (accepts JSON or Protobuf)"
         :> Description PostOtrDescriptionUnqualified
+        :> MakesFederatedCall 'Galley "on-message-sent"
+        :> MakesFederatedCall 'Brig "get-user-clients"
         :> ZLocalUser
         :> ZConn
         :> "conversations"
@@ -78,6 +81,9 @@ type MessagingAPI =
            "post-proteus-message"
            ( Summary "Post an encrypted message to a conversation (accepts only Protobuf)"
                :> Description PostOtrDescription
+               :> MakesFederatedCall 'Brig "get-user-clients"
+               :> MakesFederatedCall 'Galley "on-message-sent"
+               :> MakesFederatedCall 'Galley "send-message"
                :> ZLocalUser
                :> ZConn
                :> "conversations"

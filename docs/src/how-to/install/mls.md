@@ -36,7 +36,18 @@ This is a sensitive configuration value. Consider using Helm/Helmfile's support
 for managing secrets instead of putting this value in plaintext in a
 `values.yaml` file.
 
-Additionally, the web applications need to be made aware of *MLS*. This is done by
+Next, MLS needs to be explictly enabled in brig. This can be configured at
+`brig.config.optSettings.setEnableMLS`, for example:
+
+```yaml
+# values.yaml
+brig:
+  config:
+    optSettings:
+      enableMLS: true
+```
+
+Finally, the web applications need to be made aware of *MLS*. This is done by
 setting the following environment variable for the web application:
 
 ```yaml

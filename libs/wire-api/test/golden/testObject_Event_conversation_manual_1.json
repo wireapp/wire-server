@@ -1,0 +1,16 @@
+{
+    "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "data": null,
+    "from": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "qualified_conversation": {
+        "domain": "oym59-06.i423w",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "qualified_from": {
+        "domain": "n8nl6tp.h5",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "subconv": "call",
+    "time": "2018-01-01T00:00:00.000Z",
+    "type": "conversation.code-delete"
+}
