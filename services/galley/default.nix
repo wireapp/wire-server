@@ -348,6 +348,8 @@ mkDerivation {
     http-types
     imports
     lens
+    polysemy
+    polysemy-wire-zoo
     QuickCheck
     raw-strings-qq
     safe
