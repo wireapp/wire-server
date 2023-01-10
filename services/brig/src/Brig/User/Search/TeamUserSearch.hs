@@ -106,7 +106,7 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
     -- therefore we use the unique `_doc` value as a tie breaker
     -- - see https://www.elastic.co/guide/en/elasticsearch/reference/6.8/search-request-sort.html for details on `_doc`
     -- - see https://www.elastic.co/guide/en/elasticsearch/reference/6.8/search-request-search-after.html for details on pagination and tie breaker
-    -- in the latter article it "is advised to duplicate (client side or with a set ingest processor) the content of the _id field
+    -- in the latter article it "is advised to duplicate (client side or [...]) the content of the _id field
     -- in another field that has doc value enabled and to use this new field as the tiebreaker for the sort"
     -- so alternatively we could use the user ID as a tie breaker, but this would require a change in the index mapping
     (sorting ++ sortingTieBreaker)
