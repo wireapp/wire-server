@@ -2432,9 +2432,9 @@ testSendMessageSubConv = do
       (_, qcnv) <- setupMLSGroup alice1
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-      let subname = "conference"
-      createSubConv qcnv bob1 subname
-      let qcs = convsub qcnv (Just subname)
+      let sconv = SubConvId "conference"
+      createSubConv qcnv bob1 sconv
+      let qcs = convsub qcnv (Just sconv)
 
       void $ createExternalCommit alice1 Nothing qcs >>= sendAndConsumeCommitBundle
       void $ createExternalCommit bob2 Nothing qcs >>= sendAndConsumeCommitBundle
