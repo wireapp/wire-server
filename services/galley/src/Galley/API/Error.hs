@@ -45,6 +45,7 @@ data InternalError
   | NoPrekeyForUser
   | CannotCreateManagedConv
   | InternalErrorWithDescription LText
+  deriving (Eq)
 
 internalErrorDescription :: InternalError -> LText
 internalErrorDescription = message . toWai
