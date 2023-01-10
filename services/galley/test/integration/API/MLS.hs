@@ -215,7 +215,7 @@ tests s =
             [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
               test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
               test s "join subconversation with an external commit bundle" testJoinSubConv,
-              test s "join subconversation with a client that is not in the main conv" testJoinSubNonMemberClient,
+              test s "join subconversation with a client that is not in the parent conv" testJoinSubNonMemberClient,
               test s "add another client to a subconversation" testAddClientSubConv,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
               test s "send an application message in a subconversation" testSendMessageSubConv,
@@ -2357,7 +2357,7 @@ testJoinSubConv = do
       sub <-
         liftTest $
           responseJsonError
-            =<< getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
+            =<< getSubConv (qUnqualified bob) qcnv subId
               <!! const 200 === statusCode
 
       resetGroup bob1 (pscGroupId sub)
@@ -2377,10 +2377,37 @@ testJoinSubConv = do
         createExternalCommit alice1 Nothing (fmap (flip SubConv subId) qcnv)
           >>= sendAndConsumeCommitBundle
 
--- FUTUREWORK: implement the following tests
-
 testJoinSubNonMemberClient :: TestM ()
-testJoinSubNonMemberClient = pure ()
+testJoinSubNonMemberClient = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    [alice1, alice2, bob1] <-
+      traverse createMLSClient [alice, alice, bob]
+    traverse_ uploadNewKeyPackage [bob1, alice2]
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommit
+
+    let subId = SubConvId "conference"
+    sub <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv (SubConvId "conference")
+            <!! const 200 === statusCode
+
+    resetGroup alice1 (pscGroupId sub)
+
+    -- Alice adds her first client to the subconversation
+    void $
+      createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    -- now Bob attempts to get the group info so he can join via external commit
+    -- with his own client, but he cannot because he is not a member of the
+    -- parent conversation
+    getGroupInfo (ciUser bob1) (fmap (flip SubConv subId) qcnv)
+      !!! const 404 === statusCode
+
+-- FUTUREWORK: implement the following tests
 
 testAddClientSubConv :: TestM ()
 testAddClientSubConv = pure ()
