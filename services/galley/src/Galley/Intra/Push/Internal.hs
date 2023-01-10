@@ -37,7 +37,7 @@ import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
 import Imports hiding (forkIO)
-import UnliftIO.Async (mapConcurrently)
+import UnliftIO.Async (mapConcurrently_)
 import Wire.API.Event.Conversation (Event (evtFrom))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import qualified Wire.API.Event.Team as Teams
@@ -99,8 +99,8 @@ pushLocal ps = do
   let limit = currentFanoutLimit opts
   -- Do not fan out for very large teams
   let (asyncs, syncs) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
-  traverse_ (asyncCall Gundeck . json) (pushes asyncs)
-  void $ mapConcurrently (call Gundeck . json) (pushes syncs)
+  traverse_ (asyncCall Gundeck <=< jsonChunkedIO) (pushes asyncs)
+  mapConcurrently_ (call Gundeck <=< jsonChunkedIO) (pushes syncs)
   where
     pushes :: [PushTo UserId] -> [[Gundeck.Push]]
     pushes = map (map (\p -> toPush p (recipientList p))) . chunk 0 []

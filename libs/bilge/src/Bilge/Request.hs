@@ -28,7 +28,11 @@ module Bilge.Request
     body,
     bytes,
     lbytes,
+    lbytesChunkedIO,
+    lbytesRefChunked,
+    lbytesRefPopper,
     json,
+    jsonChunkedIO,
     content,
     contentJson,
     contentProtobuf,
@@ -79,7 +83,7 @@ import qualified Data.ByteString.Lazy.Char8 as LC
 import Data.CaseInsensitive (original)
 import Data.Id (RequestId (..))
 import Imports hiding (intercalate)
-import Network.HTTP.Client (Cookie, Request, RequestBody (..))
+import Network.HTTP.Client (Cookie, GivesPopper, Request, RequestBody (..))
 import qualified Network.HTTP.Client as Rq
 import Network.HTTP.Client.Internal (CookieJar (..), brReadSome, throwHttp)
 import Network.HTTP.Types
@@ -191,8 +195,60 @@ bytes = body . RequestBodyBS
 lbytes :: Lazy.ByteString -> Request -> Request
 lbytes = body . RequestBodyLBS
 
+-- | Not suitable for @a@ which translates to very large JSON (more than a few megabytes) as the
+-- bytestring produced by JSON will get computed and stored as it is in memory
+-- in order to compute the @Content-Length@ header. For making a request with
+-- big JSON objects, please use @lbytesRefChunked@
 json :: ToJSON a => a -> Request -> Request
 json a = contentJson . lbytes (encode a)
+
+-- | Like @lbytesChunkedIO@ but for sending a JSON body
+jsonChunkedIO :: (ToJSON a, MonadIO m) => a -> m (Request -> Request)
+jsonChunkedIO a = do
+  (contentJson .) <$> lbytesChunkedIO (encode a)
+
+-- | Makes requests with @Transfer-Encoding: chunked@ and no @Content-Length@
+-- header. Tries to ensures that the lazy bytestring is garbage collected as a
+-- "chunk" of this bytestring is consumed. Note that it is not possible to
+-- guarantee garbage collection as something else holding a reference to this
+-- bytestring could stop that from happening.
+--
+-- A more straightforward function like this will keep the reference to the
+-- complete bytestring, which might be against the idea of using chunked
+-- encoding:
+--
+-- @
+-- lbytesChunked bs = body (RequestBodyStreamChunked $ lbytesPopper bs)
+-- lbytesPopper bs needsPopper = do
+--   ref <- newIORef $ LC.toChunks bs
+--   lbytesRefPopper ref needsPopper
+-- @
+--
+-- This is because the closure for @lbytesPopper@ keeps the reference to @bs@
+-- alive. To avoid this, this function allocates an @IORef@ and passes that to
+-- @lbytesRefChunked@.
+lbytesChunkedIO :: MonadIO m => Lazy.ByteString -> m (Request -> Request)
+lbytesChunkedIO bs = do
+  chunksRef <- newIORef $ Lazy.toChunks bs
+  pure $ lbytesRefChunked chunksRef
+
+-- | Takes @IORef@ to chunks of strict @ByteString@ (perhaps) from a lazy
+-- @Lazy.ByteString@, this helps the lazy bytestring get garbage collected as it
+-- gets consumed. The request made will have @Transfer-Encoding: chunked@ and no
+-- @Content-Length@ header.
+--
+-- See @lbytesChunkedIO@ for reference usage.
+lbytesRefChunked :: IORef [ByteString] -> Request -> Request
+lbytesRefChunked chunksRef =
+  body (RequestBodyStreamChunked $ lbytesRefPopper chunksRef)
+
+lbytesRefPopper :: IORef [ByteString] -> GivesPopper ()
+lbytesRefPopper chunksRef needsPopper = do
+  let popper = do
+        atomicModifyIORef chunksRef $ \case
+          [] -> ([], mempty)
+          (c : cs) -> (cs, c)
+  needsPopper popper
 
 accept :: ByteString -> Request -> Request
 accept = header hAccept
