@@ -24,7 +24,6 @@ import Control.Lens (makeLenses, set, view, (.~))
 import Data.Aeson (Object)
 import Data.Id (ConnId, UserId)
 import Data.Json.Util
-import Data.List.Extra (chunksOf)
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.List1
 import Data.Qualified
@@ -38,7 +37,6 @@ import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
 import Imports hiding (forkIO)
-import Safe (headDef, tailDef)
 import UnliftIO.Async (mapConcurrently)
 import Wire.API.Event.Conversation (Event (evtFrom))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
@@ -104,30 +102,48 @@ pushLocal ps = do
   traverse_ (asyncCall Gundeck . json) (pushes asyncs)
   void $ mapConcurrently (call Gundeck . json) (pushes syncs)
   where
-    pushes = fst . foldr chunk ([], 0)
-    chunk p (pss, !n) =
-      let r = recipientList p
-          nr = length r
-       in if n + nr > maxRecipients
-            then
-              let pss' = map (pure . toPush p) (chunksOf maxRecipients r)
-               in (pss' ++ pss, 0)
-            else
-              let hd = headDef [] pss
-                  tl = tailDef [] pss
-               in ((toPush p r : hd) : tl, n + nr)
+    pushes :: [PushTo UserId] -> [[Gundeck.Push]]
+    pushes = map (map (\p -> toPush p (recipientList p))) . chunk 0 []
+
+    chunk :: Int -> [PushTo a] -> [PushTo a] -> [[PushTo a]]
+    chunk _ acc [] = [acc]
+    chunk n acc (y : ys)
+      | n >= maxRecipients = acc : chunk 0 [] (y : ys)
+      | otherwise =
+          let totalLength = (n + length (_pushRecipients y))
+           in if totalLength > maxRecipients
+                then
+                  let (y1, y2) = splitPush (maxRecipients - n) y
+                   in chunk maxRecipients (y1 : acc) (y2 : ys)
+                else chunk totalLength (y : acc) ys
+
+    -- n must be strictly > 0 and < length (_pushRecipients p)
+    splitPush :: Int -> PushTo a -> (PushTo a, PushTo a)
+    splitPush n p =
+      let (r1, r2) = splitAt n (toList (_pushRecipients p))
+       in (p {_pushRecipients = fromJust $ maybeList1 r1}, p {_pushRecipients = fromJust $ maybeList1 r2})
+
+    maxRecipients :: Int
     maxRecipients = 128
+
+    recipientList :: PushTo UserId -> [Gundeck.Recipient]
     recipientList p = map (toRecipient p) . toList $ _pushRecipients p
+
+    toPush :: PushTo user -> [Gundeck.Recipient] -> Gundeck.Push
     toPush p r =
       let pload = Gundeck.singletonPayload (pushJson p)
        in Gundeck.newPush (pushOrigin p) (unsafeRange (Set.fromList r)) pload
             & Gundeck.pushOriginConnection .~ _pushConn p
             & Gundeck.pushTransient .~ _pushTransient p
             & maybe id (set Gundeck.pushNativePriority) (_pushNativePriority p)
+
+    toRecipient :: PushTo user -> RecipientBy UserId -> Gundeck.Recipient
     toRecipient p r =
       Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients .~ _recipientClients r
+
     -- Ensure that under no circumstances we exceed the threshold
+    removeIfLargeFanout :: Integral a => Range n m a -> [PushTo user] -> [PushTo user]
     removeIfLargeFanout limit =
       filter
         ( \p ->
