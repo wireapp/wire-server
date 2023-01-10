@@ -117,7 +117,6 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
         [defaultSort SortByCreatedAt SortOrderDesc | isNothing mbQStr]
         (\tuSortBy -> [defaultSort tuSortBy (fromMaybe SortOrderAsc mSortOrder)])
         mSortBy
-
     sortingTieBreaker :: [ES.DefaultSort]
     sortingTieBreaker = [ES.DefaultSort (ES.FieldName "_doc") ES.Ascending Nothing Nothing Nothing Nothing]
 
