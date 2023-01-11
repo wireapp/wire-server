@@ -2407,10 +2407,41 @@ testJoinSubNonMemberClient = do
     getGroupInfo (ciUser bob1) (fmap (flip SubConv subId) qcnv)
       !!! const 404 === statusCode
 
--- FUTUREWORK: implement the following tests
-
 testAddClientSubConv :: TestM ()
-testAddClientSubConv = pure ()
+testAddClientSubConv = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+    let subId = SubConvId "conference"
+    createSubConv qcnv alice1 subId
+
+    void $ uploadNewKeyPackage bob1
+
+    -- Alice attempts to add Bob to the subconversation
+    -- TODO(md): this should fail with 403 or alike
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeSubConvCommitBundle
+
+    finalSub <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv subId
+            <!! const 200 === statusCode
+    liftIO $ do
+      assertEqual
+        "The subconversation has Bob in it, while it shouldn't"
+        [alice1]
+        (pscMembers finalSub)
+      putStrLn $ "Final epoch number = " <> show (pscEpoch finalSub)
+      assertEqual
+        "The subconversation epoch has moved beyond 1"
+        (Epoch 1)
+        (pscEpoch finalSub)
+
+-- FUTUREWORK: implement the following tests
 
 testRemoveClientSubConv :: TestM ()
 testRemoveClientSubConv = pure ()
