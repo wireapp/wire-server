@@ -420,6 +420,25 @@ type ConversationAPI =
                     )
            )
     :<|> Named
+           "leave-subconversation"
+           ( Summary "Leave an MLS subconversation"
+               :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSProtocolErrorTag
+               :> ZLocalUser
+               :> ZClient
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "subconversations"
+               :> Capture "subconv" SubConvId
+               :> "self"
+               :> MultiVerb1
+                    'DELETE
+                    '[JSON]
+                    (RespondEmpty 200 "OK")
+           )
+    :<|> Named
            "delete-subconversation"
            ( Summary "Delete an MLS subconversation"
                :> MakesFederatedCall 'Galley "delete-sub-conversation"

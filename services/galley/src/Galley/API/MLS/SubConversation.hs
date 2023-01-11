@@ -22,6 +22,7 @@ module Galley.API.MLS.SubConversation
     deleteLocalSubConversation,
     getSubConversationGroupInfo,
     getSubConversationGroupInfoFromLocalConv,
+    leaveSubConversation,
     MLSGetSubConvStaticErrors,
     MLSDeleteSubConvStaticErrors,
   )
@@ -30,8 +31,11 @@ where
 import Control.Arrow
 import Data.Id
 import Data.Qualified
+import Data.Time.Clock
 import Galley.API.MLS
+import Galley.API.MLS.Conversation
 import Galley.API.MLS.GroupInfo
+import Galley.API.MLS.Removal
 import Galley.API.MLS.Types
 import Galley.API.MLS.Util
 import Galley.API.Util
@@ -51,6 +55,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Resource
+import Polysemy.TinyLog
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
@@ -58,6 +63,7 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Credential
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.SubConversation
 
@@ -164,8 +170,8 @@ getRemoteSubConversation lusr rcnv sconv = do
           gsreqSubConv = sconv
         }
   case res of
-    GetSubConversationsResponseError err ->
-      rethrowErrors @MLSGetSubConvStaticErrors @r err
+    GetSubConversationsResponseError e ->
+      rethrowErrors @MLSGetSubConvStaticErrors @r e
     GetSubConversationsResponseSuccess subconv ->
       pure subconv
 
@@ -339,3 +345,60 @@ deleteRemoteSubConversation lusr rcnvId scnvId dsc = do
   case response of
     DeleteSubConversationResponseError e -> rethrowErrors @MLSDeleteSubConvStaticErrors e
     DeleteSubConversationResponseSuccess -> pure ()
+
+type HasLeaveSubConversationEffects r =
+  ( Members
+      '[ ErrorS 'ConvNotFound,
+         ErrorS 'ConvAccessDenied,
+         Error MLSProtocolError,
+         ConversationStore,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input UTCTime,
+         MemberStore,
+         ProposalStore,
+         SubConversationStore,
+         TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
+  )
+
+leaveSubConversation ::
+  HasLeaveSubConversationEffects r =>
+  Local UserId ->
+  ClientId ->
+  Qualified ConvId ->
+  SubConvId ->
+  Sem r ()
+leaveSubConversation lusr cli qcnv sub =
+  foldQualified
+    lusr
+    (leaveLocalSubConversation cid)
+    (error "TODO")
+    qcnv
+    sub
+  where
+    cid = mkClientIdentity (tUntagged lusr) cli
+
+leaveLocalSubConversation ::
+  HasLeaveSubConversationEffects r =>
+  ClientIdentity ->
+  Local ConvId ->
+  SubConvId ->
+  Sem r ()
+leaveLocalSubConversation cid lcnv sub = do
+  cnv <- getConversationAndCheckMembership (cidQualifiedUser cid) lcnv
+  mlsConv <- noteS @'ConvNotFound =<< mkMLSConversation cnv
+  subConv <-
+    noteS @'ConvNotFound
+      =<< Eff.getSubConversation (tUnqualified lcnv) sub
+  kp <-
+    note (mlsProtocolError "Client is not a member of the subconversation") $
+      cmLookupRef cid (scMembers subConv)
+  removeClientsWithClientMap
+    (qualifyAs lcnv (SubConv mlsConv subConv))
+    (Identity kp)
+    (cidQualifiedUser cid)
