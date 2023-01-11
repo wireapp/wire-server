@@ -23,6 +23,9 @@ module Galley.API.MLS.SubConversation
     getSubConversationGroupInfo,
     getSubConversationGroupInfoFromLocalConv,
     leaveSubConversation,
+    HasLeaveSubConversationEffects,
+    LeaveSubConversationStaticErrors,
+    leaveLocalSubConversation,
     MLSGetSubConvStaticErrors,
     MLSDeleteSubConvStaticErrors,
   )
@@ -348,10 +351,7 @@ deleteRemoteSubConversation lusr rcnvId scnvId dsc = do
 
 type HasLeaveSubConversationEffects r =
   ( Members
-      '[ ErrorS 'ConvNotFound,
-         ErrorS 'ConvAccessDenied,
-         Error MLSProtocolError,
-         ConversationStore,
+      '[ ConversationStore,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
@@ -366,8 +366,19 @@ type HasLeaveSubConversationEffects r =
     CallsFed 'Galley "on-mls-message-sent"
   )
 
+type LeaveSubConversationStaticErrors =
+  '[ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied]
+
 leaveSubConversation ::
-  HasLeaveSubConversationEffects r =>
+  ( HasLeaveSubConversationEffects r,
+    Members
+      '[ Error MLSProtocolError,
+         Error FederationError
+       ]
+      r,
+    Members LeaveSubConversationStaticErrors r,
+    CallsFed 'Galley "leave-sub-conversation"
+  ) =>
   Local UserId ->
   ClientId ->
   Qualified ConvId ->
@@ -377,14 +388,17 @@ leaveSubConversation lusr cli qcnv sub =
   foldQualified
     lusr
     (leaveLocalSubConversation cid)
-    (error "TODO")
+    (leaveRemoteSubConversation cid)
     qcnv
     sub
   where
     cid = mkClientIdentity (tUntagged lusr) cli
 
 leaveLocalSubConversation ::
-  HasLeaveSubConversationEffects r =>
+  ( HasLeaveSubConversationEffects r,
+    Members '[Error MLSProtocolError] r,
+    Members LeaveSubConversationStaticErrors r
+  ) =>
   ClientIdentity ->
   Local ConvId ->
   SubConvId ->
@@ -402,3 +416,35 @@ leaveLocalSubConversation cid lcnv sub = do
     (qualifyAs lcnv (SubConv mlsConv subConv))
     (Identity kp)
     (cidQualifiedUser cid)
+
+leaveRemoteSubConversation ::
+  ( Members
+      '[ ErrorS 'ConvNotFound,
+         ErrorS 'ConvAccessDenied,
+         Error FederationError,
+         Error MLSProtocolError,
+         FederatorAccess
+       ]
+      r,
+    CallsFed 'Galley "leave-sub-conversation"
+  ) =>
+  ClientIdentity ->
+  Remote ConvId ->
+  SubConvId ->
+  Sem r ()
+leaveRemoteSubConversation cid rcnv sub = do
+  res <-
+    runFederated rcnv $
+      fedClient @'Galley @"leave-sub-conversation" $
+        LeaveSubConversationRequest
+          { lscrUser = ciUser cid,
+            lscrClient = ciClient cid,
+            lscrConv = tUnqualified rcnv,
+            lscrSubConv = sub
+          }
+  case res of
+    LeaveSubConversationResponseError e ->
+      rethrowErrors @'[ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied] e
+    LeaveSubConversationResponseProtocolError e ->
+      throw (mlsProtocolError e)
+    LeaveSubConversationResponseOk -> pure ()

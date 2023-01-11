@@ -423,6 +423,7 @@ type ConversationAPI =
            "leave-subconversation"
            ( Summary "Leave an MLS subconversation"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
+               :> MakesFederatedCall 'Galley "leave-sub-conversation"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSProtocolErrorTag

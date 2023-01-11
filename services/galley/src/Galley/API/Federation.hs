@@ -17,7 +17,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Galley.API.Federation where
+module Galley.API.Federation
+  ( FederationAPI,
+    federationSitemap,
+    onConversationUpdated,
+  )
+where
 
 import Control.Error
 import Control.Lens (itraversed, preview, to, (<.>))
@@ -44,7 +49,7 @@ import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
 import Galley.API.MLS.Removal
-import Galley.API.MLS.SubConversation
+import Galley.API.MLS.SubConversation hiding (leaveSubConversation)
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
@@ -124,6 +129,7 @@ federationSitemap =
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
     :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
     :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
+    :<|> Named @"leave-sub-conversation" (callsFed leaveSubConversation)
 
 onClientRemoved ::
   ( Members
@@ -765,29 +771,6 @@ sendMLSMessage remoteDomain msr =
               Nothing
               raw
 
-class ToGalleyRuntimeError (effs :: EffectRow) r where
-  mapToGalleyError ::
-    Member (Error GalleyError) r =>
-    Sem (Append effs r) a ->
-    Sem r a
-
-instance ToGalleyRuntimeError '[] r where
-  mapToGalleyError = id
-
-instance
-  forall (err :: GalleyError) effs r.
-  ( ToGalleyRuntimeError effs r,
-    SingI err,
-    Member (Error GalleyError) (Append effs r)
-  ) =>
-  ToGalleyRuntimeError (ErrorS err ': effs) r
-  where
-  mapToGalleyError act =
-    mapToGalleyError @effs @r $
-      runError act >>= \case
-        Left _ -> throw (demote @err)
-        Right res -> pure res
-
 mlsSendWelcome ::
   Members
     '[ BrigAccess,
@@ -941,6 +924,25 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
       lconv <- qualifyLocal gsreqConv
       getLocalSubConversation qusr lconv gsreqSubConv
 
+leaveSubConversation ::
+  ( HasLeaveSubConversationEffects r,
+    Members '[Input (Local ())] r
+  ) =>
+  Domain ->
+  LeaveSubConversationRequest ->
+  Sem r LeaveSubConversationResponse
+leaveSubConversation domain lscr = do
+  let rusr = toRemoteUnsafe domain (lscrUser lscr)
+      cid = mkClientIdentity (tUntagged rusr) (lscrClient lscr)
+  lcnv <- qualifyLocal (lscrConv lscr)
+  fmap (either (LeaveSubConversationResponseProtocolError . unTagged) id)
+    . runError @MLSProtocolError
+    . fmap (either LeaveSubConversationResponseError id)
+    . runError @GalleyError
+    . mapToGalleyError @LeaveSubConversationStaticErrors
+    $ leaveLocalSubConversation cid lcnv (lscrSubConv lscr)
+      $> LeaveSubConversationResponseOk
+
 deleteSubConversationForRemoteUser ::
   ( Members
       '[ ConversationStore,
@@ -971,3 +973,29 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationRequest {..} =
           dsc = DeleteSubConversation dscreqGroupId dscreqEpoch
       lconv <- qualifyLocal dscreqConv
       deleteLocalSubConversation qusr lconv dscreqSubConv dsc
+
+--------------------------------------------------------------------------------
+-- Error handling machinery
+
+class ToGalleyRuntimeError (effs :: EffectRow) r where
+  mapToGalleyError ::
+    Member (Error GalleyError) r =>
+    Sem (Append effs r) a ->
+    Sem r a
+
+instance ToGalleyRuntimeError '[] r where
+  mapToGalleyError = id
+
+instance
+  forall (err :: GalleyError) effs r.
+  ( ToGalleyRuntimeError effs r,
+    SingI err,
+    Member (Error GalleyError) (Append effs r)
+  ) =>
+  ToGalleyRuntimeError (ErrorS err ': effs) r
+  where
+  mapToGalleyError act =
+    mapToGalleyError @effs @r $
+      runError act >>= \case
+        Left _ -> throw (demote @err)
+        Right res -> pure res
