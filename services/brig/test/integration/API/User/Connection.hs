@@ -513,7 +513,7 @@ testResendUnblockedConnection reqReact opts brig = do
     postConnection brig uid1 uid2 !!! const 201 === statusCode
     -- User B reacts
     case reqReact of
-      Ignore -> pure ()
+      Ignore -> putConnection brig uid2 uid1 Ignored !!! const 200 === statusCode
       Block -> putConnection brig uid2 uid1 Blocked !!! const 200 === statusCode
     -- Resend succeeds a few times...
     -- TODO: make sure the recipient does not receive multiple events.
