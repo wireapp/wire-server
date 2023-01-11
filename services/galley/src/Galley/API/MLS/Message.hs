@@ -1394,6 +1394,7 @@ executeProposalAction qusr con lconvOrSub action = do
       Sem r (Maybe (Qualified UserId))
     checkRemoval cm qtarget clients = do
       let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
+      -- TODO: skip the next check for subconversations
       when (clients /= clientsInConv) $ do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch
