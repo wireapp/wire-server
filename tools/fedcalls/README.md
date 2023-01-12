@@ -8,7 +8,7 @@ two files: dot (for feeding into graphviz), and csv.
 ```
 cabal run fedcalls
 ls wire-fedcalls.*  # these names are hard-coded (sorry!)
-dot -Tpng fedcalls.dot > fedcalls.png
+dot -Tpng wire-fedcalls.dot > wire-fedcalls.png
 ```
 
 `dot` layouts only work for small data sets (at least without tweaking).  for a better one paste into [sketchvis](https://sketchviz.com/new).
