@@ -15,7 +15,7 @@ As a result the following questions arise:
 Depending on the deployment method, the upgrade procedure may vary. It may be reasonable to test
 the upgrade in a non-production environment first.
 Regardless of the deployment method, it is recommended to :ref:`back up the cluster state
-<etcd_backup-and-restore>` before starting to upgrade the cluster. Additional background knowledge
+<etcd-backup-and-restore>` before starting to upgrade the cluster. Additional background knowledge
 can be found in the section about :ref:`restarting a machine in an kubernetes cluster <restarting-a-machine-in-a-kubernetes-cluster>`.
 
 

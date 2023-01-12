@@ -5,7 +5,7 @@ Preprequisites
 --------------
 
 - http://azure.microsoft.com account, admin access to that account
-- See also :ref:`SSO generic setup`.
+- See also :ref:`sso-generic-setup`.
 
 Steps
 -----

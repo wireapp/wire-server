@@ -1,4 +1,4 @@
-.. _SSO generic setup:
+.. _sso-generic-setup:
 
 How to set up SSO integration with your IdP
 ===========================================

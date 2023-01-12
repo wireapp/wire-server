@@ -1,3 +1,5 @@
+.. _overview:
+
 Overview
 ========
 
@@ -6,7 +8,7 @@ Introduction
 
 In a simplified way, the server components for Wire involve the following:
 
-|arch-simplified|
+.. image:: img/architecture-server-simplified.png
 
 The Wire clients (such as the Wire app on your phone) connect either directly (or via a load balancer) to the "Wire Server". By "Wire Server" we mean multiple API server components that connect to each other, and which also connect to a few databases. Both the API components and the databases are each in a "cluster", which means copies of the same program code runs multiple times. This allows any one component to fail without users noticing that there is a problem (also called
 "high-availability").
@@ -20,7 +22,7 @@ are installed with the rest and therefore included.
 Focus on internet protocols
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-|arch-proto|
+.. image:: ./img/architecture-tls-on-prem-2020-09.png
 
 
 Focus on high-availability
@@ -28,7 +30,7 @@ Focus on high-availability
 
 The following diagram shows a usual setup with multiple VMs (Virtual Machines):
 
-|arch-ha|
+.. image:: ../how-to/install/img/architecture-server-ha.png
 
 Wire clients (such as the Wire app on your phone) connect to a load balancer.
 
@@ -45,17 +47,13 @@ Backend components startup
 
 The Wire server backend is designed to run on a kubernetes cluster. From a high level perspective the startup sequence from machine power-on to the Wire server being ready to receive requests is as follow:
 
-1. *Kubernetes node power on*. Systemd starts the kubelet service which makes the worker node available to kubernetes. For more details about kubernetes startup refer to `the official kubernetes documentation <https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/>`__. For details about the installation and configuration of kubernetes and worker nodes for Wire server see :ref:`Installing kubernetes and databases on VMs with ansible <ansible_vms>`
-2. *Kubernetes workload startup*. Kubernetes will ensure that Wire server workloads installed via helm are scheduled on available worker nodes. For more details about workload scheduling refer to `the official kubernetes documentation <https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/>`__. For details about how to install Wire server with helm refer to :ref:`Installing wire-server (production) components using Helm <helm_prod>`.
-3. *Stateful workload startup*. Systemd starts the stateful services (cassandra, elasticsearch and minio). See for instance `ansible-cassandra role <https://github.com/wireapp/ansible-cassandra/blob/master/tasks/systemd.yml#L10>`__ and other database installation instructions in :ref:`Installing kubernetes and databases on VMs with ansible <ansible_vms>`
+1. *Kubernetes node power on*. Systemd starts the kubelet service which makes the worker node available to kubernetes. For more details about kubernetes startup refer to `the official kubernetes documentation <https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/>`__. For details about the installation and configuration of kubernetes and worker nodes for Wire server see :ref:`Installing kubernetes and databases on VMs with ansible <ansible-vms>`
+2. *Kubernetes workload startup*. Kubernetes will ensure that Wire server workloads installed via helm are scheduled on available worker nodes. For more details about workload scheduling refer to `the official kubernetes documentation <https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/>`__. For details about how to install Wire server with helm refer to :ref:`Installing wire-server (production) components using Helm <helm-prod>`.
+3. *Stateful workload startup*. Systemd starts the stateful services (cassandra, elasticsearch and minio). See for instance `ansible-cassandra role <https://github.com/wireapp/ansible-cassandra/blob/master/tasks/systemd.yml#L10>`__ and other database installation instructions in :ref:`Installing kubernetes and databases on VMs with ansible <ansible-vms>`
 4. *Other services*. Systemd starts the restund docker container. See `ansible-restund role <https://github.com/wireapp/ansible-restund/blob/9807313a7c72ffa40e74f69d239404fd87db65ab/templates/restund.service.j2#L12-L19>`__. For details about docker container startup `consult the official documentation <https://docs.docker.com/get-started/overview/#docker-architecture>`__
 
 .. note::
    For more information about Virual Machine startup or operating system level service startup, please consult your virtualisation and operating system documentation.
-
-.. |arch-simplified| image:: img/architecture-server-simplified.png
-.. |arch-proto| image:: ./img/architecture-tls-on-prem-2020-09.png
-.. |arch-ha| image:: ../how-to/install/img/architecture-server-ha.png
 
 Focus on pods
 ~~~~~~~~~~~~~

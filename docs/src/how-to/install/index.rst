@@ -5,26 +5,26 @@ Installing wire-server
    :maxdepth: 2
    :glob:
 
-   How to plan an installation <planning.rst>
-   Version requirements <version-requirements.rst>
+   How to plan an installation <planning>
+   Version requirements <version-requirements>
    dependencies
-   (demo) How to install kubernetes <kubernetes.rst>
-   (demo) How to install wire-server using Helm <helm.rst>
-   (production) Introduction <prod-intro.rst>
-   (production) How to install kubernetes and databases <ansible-VMs.rst>
-   (production) How to configure AWS services <aws-prod.rst>
-   (production) How to install wire-server using Helm <helm-prod.rst>
-   (production) How to monitor wire-server <monitoring.rst>
-   (production) How to see centralized logs for wire-server <logging.rst>
-   (production) Other configuration options <configuration-options.rst>
-   Server and team feature settings <team-feature-settings.md>
-   Messaging Layer Security (MLS) <mls.md>
-   Web app settings <web-app-settings.md>
+   (demo) How to install kubernetes <kubernetes>
+   (demo) How to install wire-server using Helm <helm>
+   (production) Introduction <prod-intro>
+   (production) How to install kubernetes and databases <ansible-VMs>
+   (production) How to configure AWS services <aws-prod>
+   (production) How to install wire-server using Helm <helm-prod>
+   (production) How to monitor wire-server <monitoring>
+   (production) How to see centralized logs for wire-server <logging>
+   (production) Other configuration options <configuration-options>
+   Server and team feature settings <team-feature-settings>
+   Messaging Layer Security (MLS) <mls>
+   Web app settings <web-app-settings>
    sft
    restund
    configure-federation
    tls
-   How to install and set up Legal Hold <legalhold.md>
-   Managing authentication with ansible <ansible-authentication.rst>
-   Using tinc <ansible-tinc.rst>
-   Troubleshooting during installation <troubleshooting.rst>
+   How to install and set up Legal Hold <legalhold>
+   Managing authentication with ansible <ansible-authentication>
+   Using tinc <ansible-tinc>
+   Troubleshooting during installation <troubleshooting>

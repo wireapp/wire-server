@@ -58,7 +58,7 @@ To Install Restund, do the following:
 
    ansible-playbook -i hosts.ini restund.yml -vv
 
-For information on setting up and using ansible-playbook to install Wire components, see :ref:`this page <ansible_vms>`.
+For information on setting up and using ansible-playbook to install Wire components, see :ref:`this page <ansible-vms>`.
 
 Private Subnets
 ---------------

@@ -1,4 +1,4 @@
-.. _ansible_vms:
+.. _ansible-vms:
 
 Installing kubernetes and databases on VMs with ansible
 =======================================================
@@ -274,4 +274,4 @@ You can now can install the helm charts.
 Next steps for high-available production installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Your next step will be :ref:`helm_prod`
+Your next step will be :ref:`helm-prod`

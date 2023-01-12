@@ -5,6 +5,8 @@ Etcd
 
 This section only covers the bare minimum, for more information, see the `etcd documentation <https://etcd.io/>`__
 
+.. _how-to-see-cluster-health:
+
 How to see cluster health
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -87,7 +89,7 @@ Now to perform a rolling restart of the cluster, do the following steps:
 *For more details please refer to the official documentation:* `Replacing a failed etcd member <https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/#replacing-a-failed-etcd-member>`__
 
 
-.. _etcd_backup-and-restore:
+.. _etcd-backup-and-restore:
 
 Backing up and restoring
 ~~~~~~~~~~~~~~~~~~~~~~~~~

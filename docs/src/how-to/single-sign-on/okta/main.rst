@@ -1,3 +1,5 @@
+.. _sso-int-with-okta:
+
 How to set up SSO integration with Okta
 =======================================
 
@@ -5,7 +7,7 @@ Preprequisites
 --------------
 
 - http://okta.com/ account, admin access to that account
-- See also :ref:`SSO generic setup`.
+- See also :ref:`sso-generic-setup`.
 
 Steps
 -----
@@ -47,7 +49,7 @@ Okta setup
 +=============================+==============================================================================+
 | Single Sign On URL          | `https://prod-nginz-https.wire.com/sso/finalize-login`                       |
 +-----------------------------+------------------------------------------------------------------------------+
-| Use this for Recipient URL  | checked ✅                                                                   |
+| Use this for Recipient URL  | checked                                                                      |
 | and Destination URL         |                                                                              |
 +-----------------------------+------------------------------------------------------------------------------+
 | Audience URI (SP Entity ID) | `https://prod-nginz-https.wire.com/sso/finalize-login`                       |

@@ -23,13 +23,13 @@ This documentation may be expanded in the future to cover other aspects of Wire.
    :caption: Contents:
    :glob:
 
-   Release notes <release-notes.rst>
-   Administrator's Guide <how-to/index.rst>
-   Understanding wire-server components <understand/index.rst>
-   Administrator's manual: single-sign-on and user provisioning <understand/single-sign-on/main.rst>
-   Client API documentation <understand/api-client-perspective/index.rst>
-   Security responses <security-responses/index.rst>
-   Notes for developers <developer/index.rst>
+   Release notes <release-notes>
+   Administrator's Guide <how-to/index>
+   Understanding wire-server components <understand/index>
+   Single-Sign-On and user provisioning <how-to/single-sign-on/index.rst>
+   Client API documentation <understand/api-client-perspective/index>
+   Security responses <security-responses/index>
+   Notes for developers <developer/index>
 
 ..   Overview <understand/overview>
 

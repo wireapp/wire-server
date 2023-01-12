@@ -21,18 +21,16 @@ In order to obtain new access tokens without having to ask the user for
 his credentials again, so-called "user tokens" are issued which are
 issued in the form of a ``zuid`` HTTP
 `cookie <https://en.wikipedia.org/wiki/HTTP_cookie>`__. These cookies
-have a long lifetime (if `persistent <#login-persistent>`__, typically
+have a long lifetime (if :ref:`persistent <login-persistent>` typically
 at least a few months) and their use is strictly limited to the
-`/access <#token-refresh>`__ endpoint used for token refresh.
-`Persistent <#login-persistent>`__ access cookies are regularly
-refreshed as part of an `access token refresh <#token-refresh>`__.
+:ref:`/access <token-refresh>` endpoint used for token refresh.
+:ref:`Persistent <login-persistent>` access cookies are regularly
+refreshed as part of an :ref:`access token refresh <token-refresh>`.
 
-An access cookie is obtained either directly after
-`registration <API-Registration#create-account>`__ or through a
-subsequent `login <#login>`__. A successful login provides both an
-access cookie and and access token. Both access token and cookie must be
-stored safely and kept confidential. User passwords should not be
-stored.
+An access cookie is obtained either directly after registration or through a
+subsequent :ref:`login <login>`. A successful login provides both an access
+cookie and and access token. Both access token and cookie must be stored safely
+and kept confidential. User passwords should not be stored.
 
 As of yet, there is no concept of authorising third-party applications to
 perform operations on the API on behalf of a user (Notable exceptions:
@@ -56,12 +54,11 @@ be removed in the future.
 Login - ``POST /login``
 -----------------------
 
-A login is the process of authenticating a user either through a known
-secret in a `password login <#login-password>`__ or by proving ownership
-of a verified phone number associated with an account in an `SMS
-login <#login-sms>`__. The response to a successful login contains an
-access cookie in a ``Set-Cookie`` header and an access token in the JSON
-response body.
+A login is the process of authenticating a user either through a known secret in
+a :ref:`password login <login-password>` or by proving ownership of a verified
+phone number associated with an account in an :ref:`SMS login <login-sms>`. The
+response to a successful login contains an access cookie in a ``Set-Cookie``
+header and an access token in the JSON response body.
 
 .. _login-cookies:
 
@@ -172,8 +169,8 @@ the ``phone`` and ``code`` as follows:
        "code": "123456"
    }
 
-A successful response is identical to that of a `password
-login <#login-password>`__.
+A successful response is identical to that of a :ref:`password
+login <login-password>`.
 
 
 
@@ -185,7 +182,7 @@ Persistent Logins
 By default, access cookies are issued as `session
 cookies <https://en.wikipedia.org/wiki/HTTP_cookie#Session_cookie>`__
 with a validity of 1 week. Furthermore, these session cookies are not
-refreshed as part of an `access token refresh <#token-refresh>`__. To
+refreshed as part of an :ref:`access token refresh <token-refresh>`. To
 request a ``persistent`` access cookie which does get refreshed, specify
 the ``persist=true`` parameter during a login:
 
@@ -313,9 +310,9 @@ registration, e.g.:
        "label": "Google Nexus 5"
    }
 
-Specifying a label is recommended as it helps to identify the cookies in
-a user-friendly way and allows `selective
-revocation <#cookies-revoke>`__ based on the labels.
+Specifying a label is recommended as it helps to identify the cookies in a
+user-friendly way and allows :ref:`selective revocation <cookies-revoke>` based
+on the labels.
 
 
 
@@ -361,10 +358,10 @@ expire, only as new cookies are issued.
 Revoking Cookies - ``POST /cookies/remove``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Cookies can be removed individually or in bulk either by specifying the
-full cookie structure as it is returned by `GET
-/cookies <#cookies-list>`__ or only by their labels in a ``POST``
-request to ``/cookies/remove``, alongside with the user's credentials:
+Cookies can be removed individually or in bulk either by specifying the full
+cookie structure as it is returned by :ref:`GET /cookies <cookies-list>` or only
+by their labels in a ``POST`` request to ``/cookies/remove``, alongside with the
+user's credentials:
 
 ::
 
@@ -388,11 +385,10 @@ password.
 Password Reset - ``POST /password-reset``
 -----------------------------------------
 
-A password reset can be used to set a new password if the existing
-password associated with an account has been forgotten. This is not to
-be confused with the act of merely `changing your
-password <API-Users#self-change-password>`__ for the purpose of password
-rotation or if you suspect your current password to be compromised.
+A password reset can be used to set a new password if the existing password
+associated with an account has been forgotten. This is not to be confused with
+the act of merely changing your password for the purpose of password rotation or
+if you suspect your current password to be compromised.
 
 Initiate a Password Reset
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -451,7 +447,7 @@ after which the password reset code becomes invalid and a new password
 reset must be initiated.
 
 A completed password reset results in all access cookies to be revoked,
-requiring the user to `login <#login>`__.
+requiring the user to :ref:`login <login>`.
 
 Related topics: SSO, Legalhold
 -------------------------------

@@ -1,5 +1,4 @@
-.. _configuration_options:
-
+.. _configuration-options:
 Part 3 - configuration options in a production setup
 ====================================================================
 
@@ -48,7 +47,7 @@ Assuming your proxy can be reached from within Kubernetes at ``http://proxy:8080
 
 Depending on your setup, you may need to repeat this for the other services like ``brig`` as well.
 
-.. _pushsns:
+.. _push-sns:
 
 Enable push notifications using the public appstore / playstore mobile Wire clients
 -----------------------------------------------------------------------------------
@@ -185,7 +184,7 @@ security issue. To prevent this, there are fine-grained settings in the nginz
 configuration defining which upstreams should exist.
 
 Default upstreams
-^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~
 
 Upstreams for services that exist in (almost) every Wire installation are
 enabled by default. These are:
@@ -211,7 +210,7 @@ The most common example is to disable the upstream of ``cannon``:
 
 
 Optional upstreams
-^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~
 
 There are some services that are usually not deployed on most Wire installations
 or are specific to the Wire cloud:
@@ -234,7 +233,7 @@ The most common example is to enable the (extra) upstream of ``proxy``:
 
 
 Combining default and extra upstream configurations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Default and extra upstream configurations are independent of each other. I.e.
 ``nginz.nginx_conf.ignored_upstreams`` and

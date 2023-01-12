@@ -9,19 +9,19 @@ Reboot procedures
 
 The general procedure to reboot a service is as follows:
 
-* 1. `Check the health <operations.html#health-checks>`__ of the service. (If the health isn't good, move to `troubleshooting </search.html?q=troubleshooting>`__. If it is good, move to the next step.)
+* 1. :ref:`Check the health <operations-health-checks>` of the service. (If the health isn't good search for "troubleshooting" in the documentation. If it is good, move to the next step.)
 * 2. Reboot the server the service is running on.
-* 3. `Check the health <operations.html#health-checks>`__ of the service **again**. (If the health isn't good, move to `troubleshooting </search.html?q=troubleshooting>`__. If it is good, your reboot was succesful.)
+* 3. :ref:`Check the health <operations-health-checks>` of the service **again**. (If the health isn't good search for "troubleshooting" in the documentation. If it is good, your reboot was succesful.)
 
-The method for checking health is different for each service type, you can find a list of those methods `here <operations.html#health-checks>`__.
+The method for checking health is different for each service type, you can find a list of those methods :ref:`here <operations-health-checks>`.
 
-The method to reset a service is the same for most services, except for ``restund``, for which the procedure is different, and can be found `here <restund.html#rebooting-a-restund-node>`__.
+The method to reset a service is the same for most services, except for ``restund``, for which the procedure is different, and can be found :ref:`here <rebooting-a-restund-node>`.
 
 For other (non-``restund``) services, the procedure is as follows:
 
 Assuming in this example you are trying to reboot a minio server, follow these steps:
 
-First, `check the health <operations.html#health-checks>`__ of the services.
+First, :ref:`check the health <operations-health-checks>` of the services.
 
 Second, reboot the services:
 
@@ -37,18 +37,19 @@ Third, wait until the service is up again by trying to connect to it via SSH :
 
 (``ConnectionAttempts`` will make it so it attempts to connect until the host is actually Up and the connection is succesful)
 
-Fourth, `check the health <operations.html#health-checks>`__ of the service again.
+Fourth, :ref:`check the health <operations-health-checks>` of the service again.
 
+.. _operations-health-checks:
 Health checks
 -------------
 
 This is a list of the health-checking procedures currently documented, for different service types:
 
-* `MinIO <minio.html#check-the-health-of-a-minio-node>`__.
-* `Cassandra <cassandra.html#check-the-health-of-a-cassandra-node>`__.
-* `elasticsearch <elasticsearch.html#check-the-health-of-an-elasticsearch-node>`__.
-* `Etcd <etcd.html#how-to-see-cluster-health>`__.
-* `Restund <restund.html#rebooting-a-restund-node>`__ (the health check is explained as part of the reboot procedure).
+* :ref:`MinIO <check-the-health-of-a-minio-node>`
+* :ref:`Cassandra <check-the-health-of-a-cassandra-node>`
+* :ref:`Elasticsearch <check-the-health-of-an-elasticsearch-node>`
+* :ref:`Etcd <how-to-see-cluster-health>`
+* :ref:`Restund <rebooting-a-restund-node>` (the health check is explained as part of the reboot procedure).
 
 To check the health of different services not listed here, see the documentation for that specific project, or ask your Wire contact.
 

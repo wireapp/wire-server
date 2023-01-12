@@ -7,7 +7,7 @@ server components.
 .. warning::
 
     If you already installed Wire by using ``poetry``, please refer to the
-    `old version </versions/install-with-poetry/how-to/index.html>`__ of
+    `old version <https://docs.wire.com/versions/install-with-poetry/how-to/index.html>`__ of
     the installation guide.
 
 
@@ -15,7 +15,7 @@ server components.
    :maxdepth: 2
    :glob:
 
-    How to install wire-server <install/index.rst>
-    How to verify your wire-server installation <post-install/index.rst>
-    How to administrate servers after successful installation <administrate/index.rst>
-    How to connect the public wire clients to your wire-server installation <associate/index.rst>
+    How to install wire-server <install/index>
+    How to verify your wire-server installation <post-install/index>
+    How to administrate servers after successful installation <administrate/index>
+    How to connect the public wire clients to your wire-server installation <associate/index>

@@ -1,4 +1,4 @@
-.. _investigative_tasks:
+.. _investigative-tasks:
 
 Investigative tasks (e.g. searching for users as server admin)
 ---------------------------------------------------------------
@@ -109,7 +109,7 @@ This will give you a list of handles and IDs with no team associated:
    null |       null | 1b5ca44a-aeb4-4a68-861b-48612438c4cc
    null |        bob | 701b4eab-6df2-476d-a818-90dc93e8446e
 
-You can then `delete each user with these instructions <./users.html#deleting-a-user-which-is-not-a-team-user>`__.
+You can then :ref:`delete each user with these instructions <user-deletion>`.
 
 Manual search on elasticsearch (via brig, recommended)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -315,7 +315,7 @@ Some of the pods allow you to grab metrics by accessing their ``/i/metrics`` end
 * ``gundeck``: Push Notifications API
 * ``spar``: Single-Sign-ON and SCIM
 
-For more details on the various services/pods, you can check out `this link <../../understand/overview.html?highlight=gundeck#focus-on-pods>`.
+For more details on the various services/pods, you can check out :ref:`this link <overview>`.
 
 Before you can grab metrics from a pod, you need to find its IP address. You do this by running the following command:
 
@@ -403,7 +403,7 @@ Output will look something like this (truncated):
    # TYPE gc_bytes_allocated_total gauge
    gc_bytes_allocated_total 4.949156056e9
 
-This example is for Gundeck, but you can also get metrics for other services. All k8s services are listed at `this link <../../understand/overview.html?highlight=gundeck#focus-on-pods>`__.
+This example is for Gundeck, but you can also get metrics for other services. All k8s services are listed at :ref:`this link <overview>`.
 
 This is an example adapted for Cannon:
 

@@ -28,7 +28,7 @@ TLS_CHACHA20_POLY1305_SHA256  TLSv1.3 no           no                **modern**
    If you enable TLSv1.3, openssl does always enable the three default cipher suites for TLSv1.3.
    Therefore it is not necessary to add them to openssl based configurations.
 
-.. _ingress traffic:
+.. _ingress-traffic:
 
 Ingress Traffic (wire-server)
 -----------------------------
@@ -47,7 +47,7 @@ The list of TLS ciphers for incoming SFT requests (and metrics) are defined in a
 SFTD (kubernetes)
 -----------------
 SFTD deployed via kubernetes uses ``kubernetes.io/ingress`` for ingress traffic, configured in `ingress.yaml <https://github.com/wireapp/wire-server/blob/develop/charts/sftd/templates/ingress.yaml>`_.
-Kubernetes based deployments make use of the settings from :ref:`ingress traffic`.
+Kubernetes based deployments make use of the settings from :ref:`ingress-traffic`.
 
 
 Restund (ansible)

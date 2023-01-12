@@ -103,6 +103,7 @@ With downtime, it's very easy::
    
    Restarting ``restund`` means any user that is currently connected to it (i.e. having a call) will lose its audio/video connection. If you wish to have no downtime, check the next section*
 
+.. _rebooting-a-restund-node:
 Rebooting a Restund node
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

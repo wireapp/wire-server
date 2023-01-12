@@ -170,10 +170,12 @@ role.
 
 For more information, please refer to the *Credentials* section in the `official documentation <https://docs.min.io/docs/minio-server-configuration-guide.html>`__.
 
+.. _check-the-health-of-a-minio-node:
+
 Check the health of a MinIO node
 ================================
 
-This is the procedure to check a minio node's health.
+This is the procedure to check a minio node's health
 
 First log into the minio server 
 

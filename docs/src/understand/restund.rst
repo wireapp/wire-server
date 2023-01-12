@@ -32,13 +32,13 @@ Restund instance may communicate with other Restund instances.
 You can either have restund servers directly exposed to the public
 internet:
 
-|architecture-restund|
+.. image:: img/architecture-restund.png
 
 Or you can have them reachable by fronting them with a firewall or load
 balancer machine that may have a different IP than the server where
 restund is installed:
 
-|architecture-restund-lb|
+.. image:: img/architecture-restund-lb.png
 
 What is it used for
 ~~~~~~~~~~~~~~~~~~~
@@ -158,7 +158,7 @@ Discovery and establishing a call
 A simplified flow of how restund servers, along with the wire-server are
 used to establish a call:
 
-|flow-restund|
+.. image:: img/flow-restund.png
 
 DNS
 ~~~
@@ -166,7 +166,3 @@ DNS
 Usually DNS records are used which point to the public IPs of the
 restund servers (or of the respective firewall or load balancer
 machines). These DNS names are then used when configuring wire-server.
-
-.. |architecture-restund| image:: img/architecture-restund.png
-.. |architecture-restund-lb| image:: img/architecture-restund-lb.png
-.. |flow-restund| image:: img/flow-restund.png

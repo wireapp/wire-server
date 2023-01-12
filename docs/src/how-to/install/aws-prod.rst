@@ -1,4 +1,4 @@
-.. _aws_prod:
+.. _aws-prod:
 
 Configuring AWS and wire-server (production) components
 =======================================================
@@ -12,7 +12,7 @@ Using real AWS services for SNS
 --------------------------------------------------------
 AWS SNS is required to send notification events to clients via `FCM <https://firebase.google.com/docs/cloud-messaging/>`__/`APNS <https://developer.apple.com/notifications/>`__ . These notification channels are useable only for clients that are connected from the public internet. Using these vendor provided communication channels allows client devices (phones) running a wire client to save a considerable amount of battery life, compared to the websockets approach.
 
-For details on how to set up SNS in cooperation with us (We - Wire - will proxy push notifications through Amazon for you), see :ref:`pushsns`.
+For details on how to set up SNS in cooperation with us (We - Wire - will proxy push notifications through Amazon for you), see :ref:`push-sns`.
 
 Using real AWS services for SES / SQS
 ---------------------------------------------

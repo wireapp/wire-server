@@ -10,13 +10,13 @@ Introduction
 
 A production installation consists of several parts:
 
-Part 1 - you're on your own here, and need to create a set of VMs as detailed in :ref:`planning_prod`
+Part 1 - you're on your own here, and need to create a set of VMs as detailed in :ref:`planning-prod`
 
-Part 2 (:ref:`ansible_vms`) deals with installing components directly on a set of virtual machines, such as kubernetes itself, as well as databases. It makes use of ansible to achieve that.
+Part 2 (:ref:`ansible-vms`) deals with installing components directly on a set of virtual machines, such as kubernetes itself, as well as databases. It makes use of ansible to achieve that.
 
-Part 3 (:ref:`helm_prod`) is similar to the demo installation, and uses the tool ``helm`` to install software on top of kubernetes.
+Part 3 (:ref:`helm-prod`) is similar to the demo installation, and uses the tool ``helm`` to install software on top of kubernetes.
 
-Part 4 (:ref:`configuration_options`) details other possible configuration options and settings to fit your needs.
+Part 4 (:ref:`configuration-options`) details other possible configuration options and settings to fit your needs.
 
 What will be installed by following these parts?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -57,4 +57,4 @@ Getting support
 Next steps for high-available production installation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Your next step will be part 2, :ref:`ansible_vms`
+Your next step will be part 2, :ref:`ansible-vms`

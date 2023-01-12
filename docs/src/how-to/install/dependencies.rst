@@ -49,7 +49,7 @@ checkout is pointing to.
    bash-4.4# ansible --version
    ansible 2.9.12
 
-Once you're in there, you can move on to `installing kubernetes </how-to/install/kubernetes.html>`__
+Once you're in there, you can move on to :ref:`installing kubernetes <ansible-kubernetes>`.
 
 
 (Alternative) Installing dependencies using Direnv and Nix

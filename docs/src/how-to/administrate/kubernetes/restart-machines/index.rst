@@ -23,7 +23,7 @@ to take its implications into account (see :ref:`How to rolling-restart an etcd 
 when restarting a machine.
 
 Regardless of where *etcd* is located, before turning off any machine that is part of the control plane, one should
-:ref:`back up the cluster state <etcd_backup-and-restore>`.
+:ref:`back up the cluster state <etcd-backup-and-restore>`.
 
 If a part of the control plane does not run sufficiently redundant, it is advised to prevent any mutating interaction
 during the procedure, until the cluster is healthy again.

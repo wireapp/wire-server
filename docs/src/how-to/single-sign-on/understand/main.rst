@@ -136,6 +136,8 @@ Here is what this looks from a user's perspective:
 8. Wire will load your company's login page: log in with your company credentials.
 
 
+.. _saml-sso:
+
 SAML/SSO
 ~~~~~~~~
 
@@ -144,7 +146,7 @@ Introduction
 
 SSO (Single Sign-On) is technology allowing users to sign into multiple services with a single identity provider/credential.
 
-SSO is about `authentication`, not `provisioning` (create, update, remove user accounts).  To learn more about the latter, continue  `below <main.html#user-provisioning-scim-ldap>`_.
+SSO is about `authentication`, not `provisioning` (create, update, remove user accounts).  To learn more about the latter, continue  :ref:`below <user-provisioning-scim-ldap>`.
 
 For example, if a company already has SSO setup for some of their services, and they start using Wire, they can use Wire's SSO support to add Wire to the set of services their users will be able to sign into with their existing SSO credentials.
 
@@ -159,7 +161,7 @@ Here is a critique of XML/DSig security (which SAML relies on): https://www.cs.a
 Terminology and concepts
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-* End User / Browser: The end user is generally a human, an Application (Wire Client) or a browser (agent) who accesses the Service Provider to get access to a service or a protected resource.
+* End
   The browser carrries out all the redirections from the SP to the IdP and vice versa.
 * Service Provider (SP): The entity (here Wire software) that provides its protected resource when an end user tries to access this resource. To accomplish the SAML based SSO authentication, the Service Provider
   must have the Identity Provider's metadata.
@@ -181,15 +183,11 @@ The first step is to configure the Identity Provider: you'll need to register Wi
 
 We've put together guides for registering with different providers:
 
-.. toctree::
-   :maxdepth: 1
-
-   Instructions for Okta <../../how-to/single-sign-on/okta/main.rst>
-   Instructions for Centrify <../../how-to/single-sign-on/centrify/main.rst>
-   Instructions for Azure <../../how-to/single-sign-on/azure/main.rst>
-   Some screenshots for ADFS <../../how-to/single-sign-on/adfs/main.rst>
-   Generic instructions (try this if none of the above are applicable) <../../how-to/single-sign-on/generic-setup.rst>
-   Trouble shooting & FAQ <../../how-to/single-sign-on/trouble-shooting.rst>
+- Instructions for :ref:`Okta <sso-int-with-okta>`
+- Instructions for :doc:`Centrify <../centrify/main>`
+- Instructions for :doc:`Azure <../azure/main>`
+- Some screenshots for :doc:`ADFS <../adfs/main>`
+- :doc:`Generic instructions (try this if none of the above are applicable) <../generic-setup>`
 
 As you do this, make sure you take note of your :term:`IdP` metadata, which you will need for the next step.
 
@@ -223,12 +221,12 @@ If you haven't set up :term:`SCIM` (`we recommend you do <#introduction>`_), you
 
 If team members already have Wire accounts, use :term:`SCIM` to associate them with the :term:`SAML` credentials.  If you make a mistake here, you may end up with several accounts for the same person.
 
-.. _User provisioning:
+.. _user-provisioning-scim-ldap:
 
 User provisioning (SCIM/LDAP)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-SCIM/LDAP is about `provisioning` (create, update, remove user accounts), not `authentication`.  To learn more about the latter, continue `above <main.html#saml-sso>`_.
+SCIM/LDAP is about `provisioning` (create, update, remove user accounts), not `authentication`.  To learn more about the latter, continue :ref:`above <saml-sso>`.
 
 Wire supports the `SCIM <http://www.simplecloud.info/>`__ (`RFC 7643 <https://tools.ietf.org/html/rfc7643>`__) protocol to create, update and delete users.
 

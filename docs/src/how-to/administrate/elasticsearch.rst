@@ -51,8 +51,10 @@ You should expect some output like this from the above command:
 How to manually look into what is stored in elasticsearch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-See also the elasticsearch sections in :ref:`investigative_tasks`.
+See also the elasticsearch sections in :ref:`investigative-tasks`.
 
+
+.. _check-the-health-of-an-elasticsearch-node:
 
 Check the health of an elasticsearch node
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -112,7 +114,8 @@ Solution:
   sudo apt autoremove 
   sudo reboot
 
-As always, and as explained in the `operations/procedures page <operations.html>`__, make sure you `check the health of the process <elasticsearch.html#check-the-health-of-an-elasticsearch-node>`__. before and after the reboot.
+
+As always make sure you :ref:`check the health of the process <check-the-health-of-an-elasticsearch-node>`. before and after the reboot.
 
 3. Get the elastichsearch cluster out of *read-only* mode, run:
 

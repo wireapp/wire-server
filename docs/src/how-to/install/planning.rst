@@ -35,7 +35,7 @@ Next steps for demo installation
 
 If you already have a kubernetes cluster, your next step will be :ref:`helm`, otherwise, your next step will be :ref:`ansible-kubernetes`
 
-.. _planning_prod:
+.. _planning-prod:
 
 Production installation (persistent data, high-availability)
 --------------------------------------------------------------
@@ -74,4 +74,4 @@ Avoid `10.x.x.x` network address schemes, and instead use something like `192.16
 Next steps for high-available production installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Your next step will be :ref:`ansible_vms`
+Your next step will be :ref:`ansible-vms`

@@ -55,7 +55,7 @@ Standalone
 ----------
 
 The SFT component is also shipped as a separate helm chart. Installation is similar to installing
-the charts as in :ref:`helm_prod`.
+the charts as in :ref:`helm-prod`.
 
 Some people might want to run SFT separately, because the deployment lifecycle for the SFT is a bit more intricate. For example,
 if you want to avoid dropping calls during an upgrade, you'd set the ``terminationGracePeriodSeconds`` of the SFT to a high number, to wait
@@ -72,7 +72,7 @@ It is important that you disable ``sftd`` in the ``wire-server`` umbrella chart,
 
 By default ``sftd`` doesn't need to set that many options, so we define them inline. However, you could of course also set these values in a ``values.yaml`` file.
 
-SFT will deploy a Kubernetes Ingress on ``$SFTD_HOST``.  Make sure that the domain name ``$SFTD_HOST`` points to your ingress IP as set up in :ref:`helm_prod`.  The SFT also needs to be made aware of the domain name of the webapp that you set up in :ref:`helm_prod` for setting up the appropriate CSP headers.
+SFT will deploy a Kubernetes Ingress on ``$SFTD_HOST``.  Make sure that the domain name ``$SFTD_HOST`` points to your ingress IP as set up in :ref:`helm-prod`.  The SFT also needs to be made aware of the domain name of the webapp that you set up in :ref:`helm-prod` for setting up the appropriate CSP headers.
 
 .. code:: shell
 
