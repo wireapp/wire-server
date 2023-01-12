@@ -58,7 +58,7 @@
 
 * Add more logs to SMTP mail sending. Ensure that logs are written before the application fails due to SMTP misconfiguration. (#2818)
 
-* Added typing indicator status progation to federated environments (#2892)
+* Added typing indicator status propagation to federated environments (#2892)
 
 * Allow vhost style addressing for S3 as path style is not supported for newer buckets.
 
@@ -68,7 +68,7 @@
 ## Bug fixes and other updates
 
 
-* Fix typo for Servicemonitor enable var in default values for helm charts. (#PR_NOT_FOUND)
+* Fix typo for Servicemonitor enable var in default values for helm charts. (#2896)
 
 * The parser for the AWS/SNS error message to explain that an endpoint is already in use was incorrect. This lead to an "invalid token" error when registering push tokens for multiple user accounts (user ids) instead of updating the SNS endpoint with an additional user id. (#2921)
 
@@ -79,8 +79,6 @@
 * Do not throw 500 when listing conversations and MLS is not configured (#2893)
 
 * Do not list MLS self-conversation in client API v1 and v2 if it exists (#2872)
-
-* Prevention of storing unnecessary data in the database if adding a bot to a conversation fails. (#2870)
 
 * Limit 2FA code retries to 3 attempts (#2960)
 
@@ -96,7 +94,7 @@
 ## Documentation
 
 
-* Add extra section to the deeplink docs to explain the socks proxy support while login. (#PR_NOT_FOUND)
+* Add extra section to the deeplink docs to explain the socks proxy support while login. (#2885)
 
 * Describe the auth cookie throttling mechanism. And overhaul the description of auth cookies in general. (#2941)
 
@@ -110,7 +108,7 @@
 
 * Add tests for invitation urls in team invitation responses. These depend on the settings of galley. (#2797)
 
-* brig: Allow multiple threads to run simulaneously (#2972)
+* brig: Allow multiple threads to run simultaneously (#2972)
 
 * Remove support for compiling local docker images with buildah. Nix is used to build docker images these days (#2822)
 
@@ -123,8 +121,6 @@
 * Default intraListing to true. This means that the list of clients, so far saved in both brig's and galley's databases, will still be written to both, but only read from brig's database. This avoids cases where these two tables go out of sync. Brig becomes the source of truth for clients. In the future, if this holds, code and data for galley's clients table can be removed. (#2847)
 
 * Introduce the `MakesFederatedCall` Servant combinator (#2950)
-
-* Build nginz and nginz_disco docker images using nix (#2796)
 
 * Bump nixpkgs to latest unstable. Stop using forked nixpkgs. (#2828)
 
@@ -184,7 +180,7 @@
 * Injects federated calls into the `x-wire-makes-federated-calls-to` extension of the swagger Operations (#2950)
 
 
-# [2022-12-09] (Chart Release )
+# [2022-12-09] (Chart Release 4.29.0)
 
 ## Bug fixes and other updates
 
