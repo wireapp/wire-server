@@ -949,6 +949,8 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
               unless (isClientMember (mkClientIdentity qusr creatorClient) (mcMembers parentConv)) $
                 throwS @'MLSSubConvClientNotInParent
               let creatorRef = fromMaybe senderRef updatePathRef
+              addKeyPackageRef creatorRef qusr creatorClient $
+                tUntagged (convOfConvOrSub . idForConvOrSub <$> lConvOrSub)
               addMLSClients
                 (cnvmlsGroupId mlsMeta)
                 qusr

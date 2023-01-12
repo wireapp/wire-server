@@ -2362,9 +2362,15 @@ testJoinSubConv = do
 
       resetGroup bob1 (pscGroupId sub)
 
+      bobRefsBefore <- getClientsFromGroupState bob1 bob
       -- bob adds his first client to the subconversation
       void $
         createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
+      bobRefsAfter <- getClientsFromGroupState bob1 bob
+      liftIO $
+        assertBool
+          "Bob's key package has not been updated via the update path"
+          (bobRefsBefore /= bobRefsAfter)
 
       -- now alice joins with her own client
       void $
