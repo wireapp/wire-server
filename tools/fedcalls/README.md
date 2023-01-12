@@ -6,7 +6,8 @@ dot file.
 ### try it out
 
 ```
-cabal run fedcalls | grep -v 'Up to date' > fedcalls.dot
+cabal run fedcalls
+ls wire-fedcalls.*  # these names are hard-coded (sorry!)
 dot -Tpng fedcalls.dot > fedcalls.png
 ```
 
