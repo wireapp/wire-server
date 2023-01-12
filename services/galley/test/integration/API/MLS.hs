@@ -219,7 +219,8 @@ tests s =
               test s "send an application message in a subconversation" testSendMessageSubConv,
               test s "reset a subconversation as a member" (testDeleteSubConv True),
               test s "reset a subconversation as a non-member" (testDeleteSubConv False),
-              test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale
+              test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
+              test s "leave a subconversation" testLeaveSubConv
             ],
           testGroup
             "Local Sender/Remote Subconversation"
@@ -2725,3 +2726,42 @@ testDeleteRemoteSubConv isAMember = do
     let req :: Maybe DeleteSubConversationRequest =
           Aeson.decode (frBody actualReq)
     liftIO $ req @?= Just expectedReq
+
+testLeaveSubConv :: TestM ()
+testLeaveSubConv = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+    let subId = SubConvId "conference"
+    qsub <- createSubConv qcnv bob1 subId
+    void $ createExternalCommit alice1 Nothing qsub >>= sendAndConsumeCommitBundle
+    void $ createExternalCommit bob2 Nothing qsub >>= sendAndConsumeCommitBundle
+
+    -- bob1 (the creator of the subconv) leaves
+    [bob1KP] <-
+      map snd . filter (\(cid, _) -> cid == bob1)
+        <$> getClientsFromGroupState alice1 bob
+    mlsBracket [alice1, bob2] $ \wss -> do
+      leaveCurrentConv bob1 qsub
+
+      msgs <-
+        WS.assertMatchN (5 # WS.Second) wss $
+          wsAssertBackendRemoveProposal bob qcnv bob1KP
+      traverse_ (uncurry consumeMessage1) (zip [alice1, bob2] msgs)
+
+    -- alice commits the pending proposal
+    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    -- check that only 2 clients are left in the subconv
+    psc <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv subId
+            <!! do
+              const 200 === statusCode
+    liftIO $ length (pscMembers psc) @?= 2

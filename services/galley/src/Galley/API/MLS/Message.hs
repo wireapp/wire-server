@@ -1302,15 +1302,21 @@ executeProposalAction qusr con lconvOrSub action = do
   -- Type 2 requires no special processing on the backend, so here we filter
   -- out all removals of that type, so that further checks and processing can
   -- be applied only to type 1 removals.
-  removedUsers <- mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
-    \(qtarget, Map.keysSet -> clients) -> runError @() $ do
-      -- fetch clients from brig
-      clientInfo <- Set.map ciId <$> getClientInfo lconvOrSub qtarget ss
-      -- if the clients being removed don't exist, consider this as a removal of
-      -- type 2, and skip it
-      when (Set.null (clientInfo `Set.intersection` clients)) $
-        throw ()
-      pure (qtarget, clients)
+  --
+  -- Furthermore, subconversation clients can be removed arbitrarily, so this
+  -- processing is only necessary for main conversations. In the
+  -- subconversation case, an empty list is returned.
+  removedUsers <- case convOrSub of
+    SubConv _ _ -> pure []
+    Conv _ -> mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
+      \(qtarget, Map.keysSet -> clients) -> runError @() $ do
+        -- fetch clients from brig
+        clientInfo <- Set.map ciId <$> getClientInfo lconvOrSub qtarget ss
+        -- if the clients being removed don't exist, consider this as a removal of
+        -- type 2, and skip it
+        when (Set.null (clientInfo `Set.intersection` clients)) $
+          throw ()
+        pure (qtarget, clients)
 
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
   foldQualified lconvOrSub (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
@@ -1397,7 +1403,6 @@ executeProposalAction qusr con lconvOrSub action = do
       Sem r (Maybe (Qualified UserId))
     checkRemoval cm qtarget clients = do
       let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
-      -- TODO: skip the next check for subconversations
       when (clients /= clientsInConv) $ do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch

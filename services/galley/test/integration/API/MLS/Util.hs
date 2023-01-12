@@ -1232,3 +1232,40 @@ deleteSubConv u qcnv sconv dsc = do
       . zUser u
       . contentJson
       . json dsc
+
+leaveSubConv ::
+  UserId ->
+  ClientId ->
+  Qualified ConvId ->
+  SubConvId ->
+  TestM ResponseLBS
+leaveSubConv u c qcnv subId = do
+  g <- viewGalley
+  delete $
+    g
+      . paths
+        [ "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "subconversations",
+          toHeader subId,
+          "self"
+        ]
+      . zUser u
+      . zClient c
+
+leaveCurrentConv ::
+  ClientIdentity ->
+  Qualified ConvOrSubConvId ->
+  MLSTest ()
+leaveCurrentConv cid qsub = case qUnqualified qsub of
+  -- TODO: implement leaving main conversation as well
+  Conv _ -> liftIO $ assertFailure "Leaving conversations is not supported"
+  SubConv cnv subId -> do
+    liftTest $
+      leaveSubConv (ciUser cid) (ciClient cid) (qsub $> cnv) subId
+        !!! const 200 === statusCode
+    State.modify $ \mls ->
+      mls
+        { mlsMembers = Set.difference (mlsMembers mls) (Set.singleton cid)
+        }
