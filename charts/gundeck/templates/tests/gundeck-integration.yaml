@@ -18,11 +18,15 @@ spec:
     # TODO: When deployed to staging (or real AWS env), _all_ tests should be run
     command: ["gundeck-integration", "--pattern", "!/RealAWS/"]
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    securityContext:
+      readOnlyRootFilesystem: true
     volumeMounts:
     - name: "gundeck-integration"
       mountPath: "/etc/wire/integration"
+      readOnly: true
     - name: "gundeck-config"
       mountPath: "/etc/wire/gundeck/conf"
+      readOnly: true
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID

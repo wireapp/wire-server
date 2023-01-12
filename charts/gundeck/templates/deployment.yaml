@@ -36,9 +36,12 @@ spec:
         - name: gundeck
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            readOnlyRootFilesystem: true
           volumeMounts:
           - name: "gundeck-config"
             mountPath: "/etc/wire/gundeck/conf"
+            readOnly: true
           env:
           {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID
