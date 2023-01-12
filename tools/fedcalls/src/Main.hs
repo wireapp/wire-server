@@ -134,20 +134,12 @@ findCallsFedInfo hm = case A.parse parseJSON <$> HM.lookup "wire-makes-federated
 
 ------------------------------
 
-convert :: [MakesCallTo] -> D.Graph
-convert = mkDotGraph . fmap mkDotEdge
-
-------------------------------
-
-mkDotEdge :: MakesCallTo -> (String, String)
-mkDotEdge (MakesCallTo path method comp name) = (method <> " " <> path, "[" <> comp <> "]:" <> name)
-
 -- | (this function can be simplified by tossing the serial numbers for nodes, but they might
 -- be useful for fine-tuning the output or rendering later.)
 --
 -- the layout isn't very useful on realistic data sets.  maybe we can tweak it with
 -- [layers](https://www.graphviz.org/docs/attr-types/layerRange/)?
-mkDotGraph :: [(String, String)] -> D.Graph
+mkDotGraph :: [MakesCallTo] -> D.Graph
 mkDotGraph inbound = Graph StrictGraph DirectedGraph Nothing (mods <> nodes <> edges)
   where
     mods =
@@ -155,26 +147,31 @@ mkDotGraph inbound = Graph StrictGraph DirectedGraph Nothing (mods <> nodes <> e
         AttributeStatement NodeAttributeStatement [AttributeSetValue (NameId "shape") (NameId "rectangle")],
         AttributeStatement EdgeAttributeStatement [AttributeSetValue (NameId "style") (NameId "dashed")]
       ]
-
     nodes =
       [ SubgraphStatement (NewSubgraph Nothing (mkCallingNode <$> M.toList callingNodes)),
         SubgraphStatement (NewSubgraph Nothing (mkCalledNode <$> M.toList calledNodes))
       ]
     edges = mkEdge <$> inbound
 
+    itemSourceNode :: MakesCallTo -> String
+    itemSourceNode (MakesCallTo path method _ _) = method <> " " <> path
+
+    itemTargetNode :: MakesCallTo -> String
+    itemTargetNode (MakesCallTo _ _ comp name) = "[" <> comp <> "]:" <> name
+
     callingNodes :: Map String Integer
     callingNodes =
       foldl
         (\mp (i, caller) -> M.insert caller i mp)
         mempty
-        ((zip [0 ..] . nub $ fst <$> inbound) :: [(Integer, String)])
+        ((zip [0 ..] . nub $ itemSourceNode <$> inbound) :: [(Integer, String)])
 
     calledNodes :: Map String Integer
     calledNodes =
       foldl
         (\mp (i, called) -> M.insert called i mp)
         mempty
-        ((zip [(fromIntegral $ M.size callingNodes) ..] . nub $ snd <$> inbound) :: [(Integer, String)])
+        ((zip [(fromIntegral $ M.size callingNodes) ..] . nub $ itemTargetNode <$> inbound) :: [(Integer, String)])
 
     mkCallingNode :: (String, Integer) -> Statement
     mkCallingNode n =
@@ -192,13 +189,15 @@ mkDotGraph inbound = Graph StrictGraph DirectedGraph Nothing (mods <> nodes <> e
     mkCalledNodeId (callee, i) =
       NodeId (NameId . show $ show i <> ": " <> callee) (Just (PortC CompassE))
 
-    mkEdge :: (String, String) -> Statement
-    mkEdge (caller, callee) =
+    mkEdge :: MakesCallTo -> Statement
+    mkEdge item =
       EdgeStatement
         [ ENodeId NoEdge (mkCallingNodeId (caller, callerId)),
           ENodeId DirectedEdge (mkCalledNodeId (callee, calleeId))
         ]
         []
       where
+        caller = itemSourceNode item
+        callee = itemTargetNode item
         callerId = fromMaybe (error "impossible") $ M.lookup caller callingNodes
         calleeId = fromMaybe (error "impossible") $ M.lookup callee calledNodes
