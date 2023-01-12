@@ -1,4 +1,4 @@
-# Installing wire-server
+# Installation
 
 ```{toctree}
 :glob: true
@@ -27,4 +27,5 @@ How to install and set up Legal Hold <legalhold>
 Managing authentication with ansible <ansible-authentication>
 Using tinc <ansible-tinc>
 Troubleshooting during installation <troubleshooting>
+Verifying your installation <post-install>
 ```

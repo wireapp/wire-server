@@ -1,4 +1,4 @@
-# Administrate components after successful installation
+# Administration
 
 ```{toctree}
 :glob: true

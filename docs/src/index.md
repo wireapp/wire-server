@@ -23,7 +23,11 @@ This documentation may be expanded in the future to cover other aspects of Wire.
 :maxdepth: 1
 
 Release notes <release-notes>
-Administrator's Guide <how-to/index>
+
+Installation <how-to/install/index>
+Administration <how-to/administrate/index>
+Connecting Wire Clients <how-to/associate/index>
+Optional Configuration <configuration-options>
 Understanding wire-server components <understand/index>
 Single-Sign-On and user provisioning <how-to/single-sign-on/index.rst>
 Client API documentation <understand/api-client-perspective/index>
