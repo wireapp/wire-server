@@ -2421,9 +2421,12 @@ testAddClientSubConv = do
 
     void $ uploadNewKeyPackage bob1
 
-    -- Alice attempts to add Bob to the subconversation
-    -- TODO(md): this should fail with 403 or alike
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeSubConvCommitBundle
+    commit <- createAddCommit alice1 [bob]
+    (createBundle commit >>= postCommitBundle (mpSender commit))
+      !!! do
+        const 400 === statusCode
+        const (Just "Add proposals in subconversations are not supported")
+          === fmap Wai.message . responseJsonError
 
     finalSub <-
       liftTest $
@@ -2435,7 +2438,6 @@ testAddClientSubConv = do
         "The subconversation has Bob in it, while it shouldn't"
         [alice1]
         (pscMembers finalSub)
-      putStrLn $ "Final epoch number = " <> show (pscEpoch finalSub)
       assertEqual
         "The subconversation epoch has moved beyond 1"
         (Epoch 1)

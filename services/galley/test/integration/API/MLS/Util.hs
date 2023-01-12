@@ -925,31 +925,6 @@ sendAndConsumeCommitBundle mp = do
 
   pure events
 
--- | Similar to 'sendAndConsumeCommitBundle', but tailored for subconversations.
--- If new members' group files from prior (sub)conversations are not removed
--- first, they will not be able to consume welcome messages.
---
--- TODO(md): This eventually has to disappear when action processing for
--- subconversations is implemented as the endpoint /mls/commit-bundles won't
--- return 201 in this case; instead, an error will be returned because joining
--- can be done only via external commits.
-sendAndConsumeSubConvCommitBundle ::
-  HasCallStack =>
-  MessagePackage ->
-  MLSTest [Event]
-sendAndConsumeSubConvCommitBundle mp = do
-  when (isJust (mpWelcome mp)) $ do
-    newMembers <- State.gets mlsNewMembers
-    -- delete links to group files for all the new members so they can start over
-    -- with the subconversation
-    for_ newMembers $ \qcid -> do
-      link <- groupFileLink qcid
-      liftIO $ do
-        groupFile <- getSymbolicLinkTarget link
-        removeFile groupFile
-        removeFile link
-  sendAndConsumeCommitBundle mp
-
 mlsBracket ::
   HasCallStack =>
   [ClientIdentity] ->
