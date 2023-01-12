@@ -54,7 +54,7 @@ The following diagram gives a high-level outline of the (deployment) architectur
 of the components that make up a Wire Server as well as the main internal and
 external dependencies between components.
 
-![wire-arch](docs/developer/architecture/wire-arch-2.png)
+![wire-arch](./docs/src/developer/developer/architecture/wire-arch-2.png)
 
 Communication between internal components is currently not guarded by
 dedicated authentication or encryption and is assumed to be confined to a

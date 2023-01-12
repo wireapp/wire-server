@@ -42,7 +42,8 @@ newtype MigrationActionT m a = MigrationActionT {unMigrationAction :: ReaderT En
       Monad,
       MonadIO,
       MonadThrow,
-      MonadReader Env
+      MonadReader Env,
+      MonadUnliftIO
     )
 
 instance MonadTrans MigrationActionT where

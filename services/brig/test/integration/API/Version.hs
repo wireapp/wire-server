@@ -20,13 +20,17 @@ module API.Version (tests) where
 import Bilge
 import Bilge.Assert
 import Brig.Options
+import qualified Brig.Options as Opt
 import Control.Lens ((?~))
+import Control.Monad.Catch (MonadCatch)
+import qualified Data.Set as Set
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Routes.Version
+import Wire.API.User
 
 tests :: Manager -> Opts -> Brig -> TestTree
 tests p opts brig =
@@ -36,7 +40,10 @@ tests p opts brig =
       test p "GET /v1/api-version" $ testVersionV1 brig,
       test p "GET /api-version (with dev)" $ testDevVersion opts brig,
       test p "GET /v500/api-version" $ testUnsupportedVersion brig,
-      test p "GET /api-version (federation info)" $ testFederationDomain opts brig
+      test p "GET /api-version (federation info)" $ testFederationDomain opts brig,
+      test p "Disabled version is unsupported" $ testDisabledVersionIsUnsupported opts brig,
+      test p "Disabled version is not advertised" $ testVersionDisabledSupportedVersion opts brig,
+      test p "Disabled dev version is not advertised" $ testVersionDisabledDevelopmentVersion opts brig
     ]
 
 testVersion :: Brig -> Http ()
@@ -86,3 +93,68 @@ testFederationDomain opts brig = do
   liftIO $ do
     vinfoFederation vinfo @?= True
     vinfoDomain vinfo @?= domain
+
+testDisabledVersionIsUnsupported :: Opts -> Brig -> Http ()
+testDisabledVersionIsUnsupported opts brig = do
+  uid <- userId <$> randomUser brig
+
+  get (apiVersion "v2" . brig . path "/self" . zUser uid)
+    !!! const 200 === statusCode
+
+  withSettingsOverrides
+    ( opts
+        & Opt.optionSettings
+          . Opt.disabledAPIVersions
+          ?~ Set.fromList [V2]
+    )
+    $ do
+      err <-
+        responseJsonError
+          =<< get (apiVersion "v2" . brig . path "/self" . zUser uid)
+            <!! const 404 === statusCode
+      liftIO $
+        Wai.label err @?= "unsupported-version"
+
+      get (apiVersion "v1" . brig . path "/self" . zUser uid)
+        !!! const 200 === statusCode
+
+      get (apiVersion "v3" . brig . path "/self" . zUser uid)
+        !!! const 200 === statusCode
+
+      get (unversioned . brig . path "/self" . zUser uid)
+        !!! const 200 === statusCode
+
+testVersionDisabledSupportedVersion :: Opts -> Brig -> Http ()
+testVersionDisabledSupportedVersion opts brig = do
+  vinfo <- getVersionInfo brig
+  liftIO $ filter (== V2) (vinfoSupported vinfo) @?= [V2]
+  disabledVersionIsNotAdvertised opts brig V2
+
+testVersionDisabledDevelopmentVersion :: Opts -> Brig -> Http ()
+testVersionDisabledDevelopmentVersion opts brig = do
+  vinfo <- getVersionInfo brig
+  for_ (listToMaybe (vinfoDevelopment vinfo)) $ \devVersion -> do
+    liftIO $ filter (== devVersion) (vinfoDevelopment vinfo) @?= [devVersion]
+    disabledVersionIsNotAdvertised opts brig devVersion
+
+disabledVersionIsNotAdvertised :: Opts -> Brig -> Version -> Http ()
+disabledVersionIsNotAdvertised opts brig version =
+  withSettingsOverrides
+    ( opts
+        & Opt.optionSettings
+          . Opt.disabledAPIVersions
+          ?~ Set.fromList [version]
+    )
+    $ do
+      vinfo <- getVersionInfo brig
+      liftIO $ filter (== version) (vinfoSupported vinfo) @?= []
+      liftIO $ filter (== version) (vinfoDevelopment vinfo) @?= []
+
+getVersionInfo ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  m VersionInfo
+getVersionInfo brig =
+  responseJsonError
+    =<< get (unversioned . brig . path "/api-version")
+      <!! const 200 === statusCode

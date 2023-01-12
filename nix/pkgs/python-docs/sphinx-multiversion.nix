@@ -1,9 +1,8 @@
-{
-  buildPythonApplication,
-  buildPythonPackage,
-  fetchPypi,
-
-  sphinx,
+{ buildPythonApplication
+, buildPythonPackage
+, fetchPypi
+, sphinx
+,
 }:
 buildPythonPackage rec {
   pname = "sphinx-multiversion";

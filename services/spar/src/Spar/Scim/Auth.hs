@@ -51,6 +51,7 @@ import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
 import Spar.App (throwSparSem)
 import qualified Spar.Error as E
 import qualified Spar.Intra.BrigApp as Intra.Brig
+import Spar.Options
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
@@ -63,7 +64,6 @@ import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User as User
-import Wire.API.User.Saml (Opts, maxScimTokens)
 import Wire.API.User.Scim as Api
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now

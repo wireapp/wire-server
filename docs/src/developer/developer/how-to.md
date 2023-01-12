@@ -2,6 +2,13 @@
 
 The following assume you have a working developer environment with all the dependencies listed in [./dependencies.md](./dependencies.md) available to you.
 
+If you want to deploy to the CI kubernetes cluster (how-tos below), you need to set the `KUBECONFIG` env var, where `$cailleach_repo` is replaced by your local checkout of the `cailleach` repository.
+```
+export KUBECONFIG=$cailleach_repo/environments/kube-ci/kubeconfig.dec
+```
+Check that this file exists by running `ls $KUBECONFIG`.
+
+
 ## How to look at the swagger docs / UI locally
 
 Terminal 1:
@@ -108,10 +115,10 @@ FUTUREWORK: this process is in development (update this section after it's confi
 
 ##### (i) Build images
 
-1. Ensure `buildah` is available on your system.
-2. Compile the image using `make buildah-docker`. This will try to upload the
-   images into a `kind` cluster. If you'd prefer uploading images to quay.io,
-   you can run it with `make buildah-docker BUILDAH_PUSH=1 BUILDAH_KIND_LOAD=0`
+(FUTUREWORK: implement a convenient shortcut to build images without actually uploading them also)
+```
+make upload-images-dev
+```
 
 ##### (ii) Run tests in kind
 
@@ -120,7 +127,6 @@ FUTUREWORK: this process is in development (update this section after it's confi
 2. Run tests using `make kind-integration-test`.
 3. Run end2end integration tests: `make kind-integration-e2e`.
 
-NOTE: debug this process further as some images (e.g. nginz) are missing from the default buildah steps.
 * Implement re-tagging development tags as your user tag?
 
 #### 2.4 Deploy your local code to a kubernetes cluster
@@ -138,9 +144,7 @@ make kube-integration-setup
 Then build and push the `brig` image by running
 
 ```
-export DOCKER_TAG_LOCAL_BUILD=$USER
-hack/bin/buildah-compile.sh all
-DOCKER_TAG=$DOCKER_TAG_LOCAL_BUILD EXECUTABLES=brig BUILDAH_PUSH=1 ./hack/bin/buildah-make-images.sh
+#FUTUREWORK
 ```
 
 To update the release with brig's local image run

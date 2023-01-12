@@ -23,7 +23,6 @@ module Galley.API.MLS.Removal
   )
 where
 
-import Control.Comonad
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
@@ -45,6 +44,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
+import Wire.API.Federation.API
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -58,14 +58,15 @@ removeClientsWithClientMap ::
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
-         Error InternalError,
          ProposalStore,
          Input Env
        ]
-      r
+      r,
+    Traversable t,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->
-  Set (ClientId, KeyPackageRef) ->
+  t KeyPackageRef ->
   ClientMap ->
   Qualified UserId ->
   Sem r ()
@@ -78,7 +79,7 @@ removeClientsWithClientMap lc cs cm qusr = do
         Nothing -> do
           warn $ Log.msg ("No backend removal key is configured (See 'mlsPrivateKeyPaths' in galley's config). Not able to remove client from MLS conversation." :: Text)
         Just (secKey, pubKey) -> do
-          for_ cs $ \(_client, kpref) -> do
+          for_ cs $ \kpref -> do
             let proposal = mkRemoveProposal kpref
                 msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
                 msgEncoded = encodeMLS' msg
@@ -86,6 +87,7 @@ removeClientsWithClientMap lc cs cm qusr = do
               (cnvmlsGroupId meta)
               (cnvmlsEpoch meta)
               (proposalRef (cnvmlsCipherSuite meta) proposal)
+              ProposalOriginBackend
               proposal
             propagateMessage qusr lc cm Nothing msgEncoded
 
@@ -102,16 +104,18 @@ removeClient ::
          ProposalStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->
   Qualified UserId ->
   ClientId ->
   Sem r ()
 removeClient lc qusr cid = do
-  cm <- lookupMLSClients (fmap Data.convId lc)
-  let cidAndKP = Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
-  removeClientsWithClientMap lc cidAndKP cm qusr
+  for_ (cnvmlsGroupId <$> Data.mlsMetadata (tUnqualified lc)) $ \groupId -> do
+    cm <- lookupMLSClients groupId
+    let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
+    removeClientsWithClientMap lc cidAndKP cm qusr
 
 -- | Send remove proposals for all clients of the user to clients in the ClientMap.
 --
@@ -127,14 +131,15 @@ removeUserWithClientMap ::
          ProposalStore,
          Input Env
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->
   ClientMap ->
   Qualified UserId ->
   Sem r ()
 removeUserWithClientMap lc cm qusr =
-  removeClientsWithClientMap lc (Map.findWithDefault mempty qusr cm) cm qusr
+  removeClientsWithClientMap lc (Set.toList . Set.map snd $ Map.findWithDefault mempty qusr cm) cm qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
@@ -149,11 +154,13 @@ removeUser ::
          ProposalStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->
   Qualified UserId ->
   Sem r ()
 removeUser lc qusr = do
-  cm <- lookupMLSClients (fmap Data.convId lc)
-  removeUserWithClientMap lc cm qusr
+  for_ (Data.mlsMetadata (tUnqualified lc)) $ \meta -> do
+    cm <- lookupMLSClients (cnvmlsGroupId meta)
+    removeUserWithClientMap lc cm qusr

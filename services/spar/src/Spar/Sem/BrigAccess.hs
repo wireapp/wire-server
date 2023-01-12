@@ -53,6 +53,7 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
+import Wire.API.Team.Role
 import Wire.API.User (DeleteUserResult, VerificationAction)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
@@ -60,8 +61,8 @@ import Wire.API.User.RichInfo as RichInfo
 import Wire.API.User.Scim (ValidExternalId (..))
 
 data BrigAccess m a where
-  CreateSAML :: SAML.UserRef -> UserId -> TeamId -> Name -> ManagedBy -> Maybe Handle -> Maybe RichInfo -> Maybe Locale -> BrigAccess m UserId
-  CreateNoSAML :: Email -> TeamId -> Name -> Maybe Locale -> BrigAccess m UserId
+  CreateSAML :: SAML.UserRef -> UserId -> TeamId -> Name -> ManagedBy -> Maybe Handle -> Maybe RichInfo -> Maybe Locale -> Role -> BrigAccess m UserId
+  CreateNoSAML :: Email -> TeamId -> Name -> Maybe Locale -> Role -> BrigAccess m UserId
   UpdateEmail :: UserId -> Email -> BrigAccess m ()
   GetAccount :: HavePendingInvitations -> UserId -> BrigAccess m (Maybe UserAccount)
   GetByHandle :: Handle -> BrigAccess m (Maybe UserAccount)

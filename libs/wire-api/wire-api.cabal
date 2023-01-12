@@ -13,6 +13,7 @@ build-type:    Simple
 library
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.API.ApplyMods
     Wire.API.Asset
     Wire.API.Call.Config
     Wire.API.Connection
@@ -39,6 +40,7 @@ library
     Wire.API.Event.Team
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
+    Wire.API.MakesFederatedCall
     Wire.API.Message
     Wire.API.Message.Proto
     Wire.API.MLS.CipherSuite
@@ -57,6 +59,7 @@ library
     Wire.API.MLS.PublicGroupState
     Wire.API.MLS.Serialisation
     Wire.API.MLS.Servant
+    Wire.API.MLS.SubConversation
     Wire.API.MLS.Welcome
     Wire.API.Notification
     Wire.API.Properties
@@ -91,16 +94,29 @@ library
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
     Wire.API.Routes.Public.Galley
+    Wire.API.Routes.Public.Galley.Bot
+    Wire.API.Routes.Public.Galley.Conversation
+    Wire.API.Routes.Public.Galley.CustomBackend
+    Wire.API.Routes.Public.Galley.Feature
+    Wire.API.Routes.Public.Galley.LegalHold
+    Wire.API.Routes.Public.Galley.Messaging
+    Wire.API.Routes.Public.Galley.MLS
+    Wire.API.Routes.Public.Galley.Team
+    Wire.API.Routes.Public.Galley.TeamConversation
+    Wire.API.Routes.Public.Galley.TeamMember
     Wire.API.Routes.Public.Gundeck
+    Wire.API.Routes.Public.Proxy
     Wire.API.Routes.Public.Spar
     Wire.API.Routes.Public.Util
     Wire.API.Routes.QualifiedCapture
     Wire.API.Routes.Version
     Wire.API.Routes.Version.Wai
+    Wire.API.Routes.Versioned
     Wire.API.Routes.WebSocket
     Wire.API.ServantProto
     Wire.API.Swagger
     Wire.API.SwaggerHelper
+    Wire.API.SystemSettings
     Wire.API.Team
     Wire.API.Team.Conversation
     Wire.API.Team.Export
@@ -119,7 +135,6 @@ library
     Wire.API.User.Auth.LegalHold
     Wire.API.User.Auth.ReAuth
     Wire.API.User.Auth.Sso
-    Wire.API.User.Auth2
     Wire.API.User.Client
     Wire.API.User.Client.DPoPAccessToken
     Wire.API.User.Client.Prekey
@@ -347,6 +362,8 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.Email_user
     Test.Wire.API.Golden.Generated.EmailUpdate_provider
     Test.Wire.API.Golden.Generated.EmailUpdate_user
+    Test.Wire.API.Golden.Generated.Event_conversation
+    Test.Wire.API.Golden.Generated.Event_featureConfig
     Test.Wire.API.Golden.Generated.Event_team
     Test.Wire.API.Golden.Generated.Event_user
     Test.Wire.API.Golden.Generated.EventType_team
@@ -475,7 +492,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.TurnHost_user
     Test.Wire.API.Golden.Generated.TurnURI_user
     Test.Wire.API.Golden.Generated.TurnUsername_user
-    Test.Wire.API.Golden.Generated.TypingData_user
     Test.Wire.API.Golden.Generated.TypingStatus_user
     Test.Wire.API.Golden.Generated.UpdateBotPrekeys_user
     Test.Wire.API.Golden.Generated.UpdateClient_user
@@ -507,6 +523,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ClientCapabilityList
     Test.Wire.API.Golden.Manual.Contact
     Test.Wire.API.Golden.Manual.ConversationCoverView
+    Test.Wire.API.Golden.Manual.ConversationEvent
     Test.Wire.API.Golden.Manual.ConversationPagingState
     Test.Wire.API.Golden.Manual.ConversationsResponse
     Test.Wire.API.Golden.Manual.ConvIdsPage
@@ -517,6 +534,7 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Manual.ListConversations
     Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
     Test.Wire.API.Golden.Manual.SearchResultContact
+    Test.Wire.API.Golden.Manual.TeamSize
     Test.Wire.API.Golden.Manual.Token
     Test.Wire.API.Golden.Manual.UserClientPrekeyMap
     Test.Wire.API.Golden.Manual.UserIdList
@@ -629,6 +647,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString
     Test.Wire.API.Roundtrip.CSV
+    Test.Wire.API.Roundtrip.HttpApiData
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
     Test.Wire.API.Swagger

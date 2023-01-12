@@ -34,9 +34,10 @@ access cookie and and access token. Both access token and cookie must be
 stored safely and kept confidential. User passwords should not be
 stored.
 
-As of yet, there is no concept of authorising third-party applications
-to perform operations on the API on behalf of a user (Notable exceptions: :ref:`sso`). Such functionality
-may be provided in the future through standardised OAuth2 flows.
+As of yet, there is no concept of authorising third-party applications to
+perform operations on the API on behalf of a user (Notable exceptions:
+:ref:`sso`). Such functionality may be provided in the future through
+standardised OAuth2 flows.
 
 To authorise an API request, the access token must be provided via the
 HTTP ``Authorization`` header with the ``Bearer`` scheme as follows:
@@ -62,12 +63,34 @@ login <#login-sms>`__. The response to a successful login contains an
 access cookie in a ``Set-Cookie`` header and an access token in the JSON
 response body.
 
-There is a hard limit of ``32`` cookies per user account. As new cookies
-are issued due to logins, old ones are removed. Thereby the cookies with
-the oldest expiration time are removed first and session cookies are
-removed before persistent cookies.
+.. _login-cookies:
 
+Cookies
+~~~~~~~
 
+There is a hard limit for the number of session-scoped access cookies and the same
+amount of persistent access cookies per user account. When this number is
+reached, old cookies are removed when new ones are issued. Thereby, the cookies
+with the oldest expiration timestamp are removed first. The removal takes the
+type of the cookie to issue into account. I.e. session cookies are replaced by
+session cookies, persistent cookies are replaced by persistent cookies.
+
+To prevent performance issues and malicious usages of the API, there is a
+throttling mechanism in place. When the maximum number of cookies of one type
+are issued, it's checked that login calls don't happen too frequently (too
+quickly after one another.)
+
+In case of throttling no cookie gets issued. The error response (`HTTP status
+code 429 <https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429>`_) has
+a ``Retry-After`` header which specifies the time to wait before accepting the
+next request in Seconds.
+
+Being throttled is a clear indicator of incorrect API usage. There is no need to
+login many times in a row on the same device. Instead, the cookie should be
+re-used.
+
+The corresponding backend configuration settings are described in:
+:ref:`auth-cookie-config` .
 
 .. _login-password:
 

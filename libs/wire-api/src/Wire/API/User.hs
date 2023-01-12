@@ -145,7 +145,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
-import Data.Text.Ascii (AsciiBase64Url)
+import Data.Text.Ascii
 import qualified Data.Text.Encoding as T
 import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
@@ -165,6 +165,7 @@ import qualified Wire.API.Error.Brig as E
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
+import Wire.API.Team.Role
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
@@ -189,7 +190,8 @@ instance ToSchema UserIdList where
   schema =
     object "UserIdList" $
       UserIdList
-        <$> mUsers .= field "user_ids" (array schema)
+        <$> mUsers
+          .= field "user_ids" (array schema)
 
 modelUserIdList :: Doc.Model
 modelUserIdList = Doc.defineModel "UserIdList" $ do
@@ -209,8 +211,10 @@ instance ToSchema QualifiedUserIdList where
   schema =
     object "QualifiedUserIdList" $
       QualifiedUserIdList
-        <$> qualifiedUserIdList .= field "qualified_user_ids" (array schema)
-        <* (fmap qUnqualified . qualifiedUserIdList) .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
+        <$> qualifiedUserIdList
+          .= field "qualified_user_ids" (array schema)
+        <* (fmap qUnqualified . qualifiedUserIdList)
+          .= field "user_ids" (deprecatedSchema "qualified_user_ids" (array schema))
 
 --------------------------------------------------------------------------------
 -- LimitedQualifiedUserIdList
@@ -263,21 +267,32 @@ instance ToSchema UserProfile where
   schema =
     object "UserProfile" $
       UserProfile
-        <$> profileQualifiedId .= field "qualified_id" schema
+        <$> profileQualifiedId
+          .= field "qualified_id" schema
         <* (qUnqualified . profileQualifiedId)
           .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-        <*> profileName .= field "name" schema
-        <*> profilePict .= (field "picture" schema <|> pure noPict)
-        <*> profileAssets .= (field "assets" (array schema) <|> pure [])
-        <*> profileAccentId .= field "accent_id" schema
+        <*> profileName
+          .= field "name" schema
+        <*> profilePict
+          .= (field "picture" schema <|> pure noPict)
+        <*> profileAssets
+          .= (field "assets" (array schema) <|> pure [])
+        <*> profileAccentId
+          .= field "accent_id" schema
         <*> ((\del -> if del then Just True else Nothing) . profileDeleted)
           .= maybe_ (fromMaybe False <$> optField "deleted" schema)
-        <*> profileService .= maybe_ (optField "service" schema)
-        <*> profileHandle .= maybe_ (optField "handle" schema)
-        <*> profileExpire .= maybe_ (optField "expires_at" schema)
-        <*> profileTeam .= maybe_ (optField "team" schema)
-        <*> profileEmail .= maybe_ (optField "email" schema)
-        <*> profileLegalholdStatus .= field "legalhold_status" schema
+        <*> profileService
+          .= maybe_ (optField "service" schema)
+        <*> profileHandle
+          .= maybe_ (optField "handle" schema)
+        <*> profileExpire
+          .= maybe_ (optField "expires_at" schema)
+        <*> profileTeam
+          .= maybe_ (optField "team" schema)
+        <*> profileEmail
+          .= maybe_ (optField "email" schema)
+        <*> profileLegalholdStatus
+          .= field "legalhold_status" schema
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do
@@ -371,20 +386,33 @@ instance ToSchema User where
 userObjectSchema :: ObjectSchema SwaggerDoc User
 userObjectSchema =
   User
-    <$> userId .= field "id" schema
-    <*> userQualifiedId .= field "qualified_id" schema
-    <*> userIdentity .= maybeUserIdentityObjectSchema
-    <*> userDisplayName .= field "name" schema
-    <*> userPict .= (fromMaybe noPict <$> optField "picture" schema)
-    <*> userAssets .= (fromMaybe [] <$> optField "assets" (array schema))
-    <*> userAccentId .= field "accent_id" schema
+    <$> userId
+      .= field "id" schema
+    <*> userQualifiedId
+      .= field "qualified_id" schema
+    <*> userIdentity
+      .= maybeUserIdentityObjectSchema
+    <*> userDisplayName
+      .= field "name" schema
+    <*> userPict
+      .= (fromMaybe noPict <$> optField "picture" schema)
+    <*> userAssets
+      .= (fromMaybe [] <$> optField "assets" (array schema))
+    <*> userAccentId
+      .= field "accent_id" schema
     <*> (fromMaybe False <$> (\u -> if userDeleted u then Just True else Nothing) .= maybe_ (optField "deleted" schema))
-    <*> userLocale .= field "locale" schema
-    <*> userService .= maybe_ (optField "service" schema)
-    <*> userHandle .= maybe_ (optField "handle" schema)
-    <*> userExpire .= maybe_ (optField "expires_at" schema)
-    <*> userTeam .= maybe_ (optField "team" schema)
-    <*> userManagedBy .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
+    <*> userLocale
+      .= field "locale" schema
+    <*> userService
+      .= maybe_ (optField "service" schema)
+    <*> userHandle
+      .= maybe_ (optField "handle" schema)
+    <*> userExpire
+      .= maybe_ (optField "expires_at" schema)
+    <*> userTeam
+      .= maybe_ (optField "team" schema)
+    <*> userManagedBy
+      .= (fromMaybe ManagedByWire <$> optField "managed_by" schema)
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
@@ -662,7 +690,8 @@ data NewUserSpar = NewUserSpar
     newUserSparManagedBy :: ManagedBy,
     newUserSparHandle :: Maybe Handle,
     newUserSparRichInfo :: Maybe RichInfo,
-    newUserSparLocale :: Maybe Locale
+    newUserSparLocale :: Maybe Locale,
+    newUserSparRole :: Role
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSpar)
@@ -671,14 +700,24 @@ instance ToSchema NewUserSpar where
   schema =
     object "NewUserSpar" $
       NewUserSpar
-        <$> newUserSparUUID .= field "newUserSparUUID" genericToSchema
-        <*> newUserSparSSOId .= field "newUserSparSSOId" genericToSchema
-        <*> newUserSparDisplayName .= field "newUserSparDisplayName" schema
-        <*> newUserSparTeamId .= field "newUserSparTeamId" schema
-        <*> newUserSparManagedBy .= field "newUserSparManagedBy" schema
-        <*> newUserSparHandle .= maybe_ (optField "newUserSparHandle" schema)
-        <*> newUserSparRichInfo .= maybe_ (optField "newUserSparRichInfo" schema)
-        <*> newUserSparLocale .= maybe_ (optField "newUserSparLocale" schema)
+        <$> newUserSparUUID
+          .= field "newUserSparUUID" genericToSchema
+        <*> newUserSparSSOId
+          .= field "newUserSparSSOId" genericToSchema
+        <*> newUserSparDisplayName
+          .= field "newUserSparDisplayName" schema
+        <*> newUserSparTeamId
+          .= field "newUserSparTeamId" schema
+        <*> newUserSparManagedBy
+          .= field "newUserSparManagedBy" schema
+        <*> newUserSparHandle
+          .= maybe_ (optField "newUserSparHandle" schema)
+        <*> newUserSparRichInfo
+          .= maybe_ (optField "newUserSparRichInfo" schema)
+        <*> newUserSparLocale
+          .= maybe_ (optField "newUserSparLocale" schema)
+        <*> newUserSparRole
+          .= field "newUserSparRole" schema
 
 newUserFromSpar :: NewUserSpar -> NewUser
 newUserFromSpar new =
@@ -769,25 +808,44 @@ data NewUserRaw = NewUserRaw
 newUserRawObjectSchema :: ObjectSchema SwaggerDoc NewUserRaw
 newUserRawObjectSchema =
   NewUserRaw
-    <$> newUserRawDisplayName .= field "name" schema
-    <*> newUserRawUUID .= maybe_ (optField "uuid" genericToSchema)
-    <*> newUserRawEmail .= maybe_ (optField "email" schema)
-    <*> newUserRawPhone .= maybe_ (optField "phone" schema)
-    <*> newUserRawSSOId .= maybe_ (optField "sso_id" genericToSchema)
-    <*> newUserRawPict .= maybe_ (optField "picture" schema)
-    <*> newUserRawAssets .= (fromMaybe [] <$> optField "assets" (array schema))
-    <*> newUserRawAccentId .= maybe_ (optField "accent_id" schema)
-    <*> newUserRawEmailCode .= maybe_ (optField "email_code" schema)
-    <*> newUserRawPhoneCode .= maybe_ (optField "phone_code" schema)
-    <*> newUserRawInvitationCode .= maybe_ (optField "invitation_code" schema)
-    <*> newUserRawTeamCode .= maybe_ (optField "team_code" schema)
-    <*> newUserRawTeam .= maybe_ (optField "team" schema)
-    <*> newUserRawTeamId .= maybe_ (optField "team_id" schema)
-    <*> newUserRawLabel .= maybe_ (optField "label" schema)
-    <*> newUserRawLocale .= maybe_ (optField "locale" schema)
-    <*> newUserRawPassword .= maybe_ (optField "password" schema)
-    <*> newUserRawExpiresIn .= maybe_ (optField "expires_in" schema)
-    <*> newUserRawManagedBy .= maybe_ (optField "managed_by" schema)
+    <$> newUserRawDisplayName
+      .= field "name" schema
+    <*> newUserRawUUID
+      .= maybe_ (optField "uuid" genericToSchema)
+    <*> newUserRawEmail
+      .= maybe_ (optField "email" schema)
+    <*> newUserRawPhone
+      .= maybe_ (optField "phone" schema)
+    <*> newUserRawSSOId
+      .= maybe_ (optField "sso_id" genericToSchema)
+    <*> newUserRawPict
+      .= maybe_ (optField "picture" schema)
+    <*> newUserRawAssets
+      .= (fromMaybe [] <$> optField "assets" (array schema))
+    <*> newUserRawAccentId
+      .= maybe_ (optField "accent_id" schema)
+    <*> newUserRawEmailCode
+      .= maybe_ (optField "email_code" schema)
+    <*> newUserRawPhoneCode
+      .= maybe_ (optField "phone_code" schema)
+    <*> newUserRawInvitationCode
+      .= maybe_ (optField "invitation_code" schema)
+    <*> newUserRawTeamCode
+      .= maybe_ (optField "team_code" schema)
+    <*> newUserRawTeam
+      .= maybe_ (optField "team" schema)
+    <*> newUserRawTeamId
+      .= maybe_ (optField "team_id" schema)
+    <*> newUserRawLabel
+      .= maybe_ (optField "label" schema)
+    <*> newUserRawLocale
+      .= maybe_ (optField "locale" schema)
+    <*> newUserRawPassword
+      .= maybe_ (optField "password" schema)
+    <*> newUserRawExpiresIn
+      .= maybe_ (optField "expires_in" schema)
+    <*> newUserRawManagedBy
+      .= maybe_ (optField "managed_by" schema)
 
 instance ToSchema NewUser where
   schema =
@@ -959,6 +1017,15 @@ newtype InvitationCode = InvitationCode
   deriving newtype (ToSchema, ToByteString, FromByteString, Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema InvitationCode
 
+instance S.ToParamSchema InvitationCode where
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
+
+instance FromHttpApiData InvitationCode where
+  parseQueryParam = bimap cs InvitationCode . validateBase64Url
+
+instance ToHttpApiData InvitationCode where
+  toQueryParam = cs . toByteString . fromInvitationCode
+
 --------------------------------------------------------------------------------
 -- NewTeamUser
 
@@ -1003,8 +1070,10 @@ instance ToSchema BindingNewTeamUser where
   schema =
     object "BindingNewTeamUser" $
       BindingNewTeamUser
-        <$> bnuTeam .= bindingNewTeamObjectSchema
-        <*> bnuCurrency .= maybe_ (optField "currency" genericToSchema)
+        <$> bnuTeam
+          .= bindingNewTeamObjectSchema
+        <*> bnuCurrency
+          .= maybe_ (optField "currency" genericToSchema)
 
 --------------------------------------------------------------------------------
 -- SCIM User Info
@@ -1021,8 +1090,10 @@ instance ToSchema ScimUserInfo where
   schema =
     object "ScimUserInfo" $
       ScimUserInfo
-        <$> suiUserId .= field "id" schema
-        <*> suiCreatedOn .= maybe_ (optField "created_on" schema)
+        <$> suiUserId
+          .= field "id" schema
+        <*> suiCreatedOn
+          .= maybe_ (optField "created_on" schema)
 
 newtype ScimUserInfos = ScimUserInfos {scimUserInfos :: [ScimUserInfo]}
   deriving stock (Eq, Show, Generic)
@@ -1033,7 +1104,8 @@ instance ToSchema ScimUserInfos where
   schema =
     object "ScimUserInfos" $
       ScimUserInfos
-        <$> scimUserInfos .= field "scim_user_infos" (array schema)
+        <$> scimUserInfos
+          .= field "scim_user_infos" (array schema)
 
 -------------------------------------------------------------------------------
 -- UserSet
@@ -1051,7 +1123,8 @@ instance ToSchema UserSet where
   schema =
     object "UserSet" $
       UserSet
-        <$> usUsrs .= field "users" (set schema)
+        <$> usUsrs
+          .= field "users" (set schema)
 
 --------------------------------------------------------------------------------
 -- Profile Updates
@@ -1071,10 +1144,14 @@ instance ToSchema UserUpdate where
   schema =
     object "UserUpdate" $
       UserUpdate
-        <$> uupName .= maybe_ (optField "name" schema)
-        <*> uupPict .= maybe_ (optField "picture" schema)
-        <*> uupAssets .= maybe_ (optField "assets" (array schema))
-        <*> uupAccentId .= maybe_ (optField "accent_id" schema)
+        <$> uupName
+          .= maybe_ (optField "name" schema)
+        <*> uupPict
+          .= maybe_ (optField "picture" schema)
+        <*> uupAssets
+          .= maybe_ (optField "assets" (array schema))
+        <*> uupAccentId
+          .= maybe_ (optField "accent_id" schema)
 
 data UpdateProfileError
   = DisplayNameManagedByScim
@@ -1111,8 +1188,10 @@ instance ToSchema PasswordChange where
       )
       . object "PasswordChange"
       $ PasswordChange
-        <$> cpOldPassword .= maybe_ (optField "old_password" schema)
-        <*> cpNewPassword .= field "new_password" schema
+        <$> cpOldPassword
+          .= maybe_ (optField "old_password" schema)
+        <*> cpNewPassword
+          .= field "new_password" schema
 
 data ChangePasswordError
   = InvalidCurrentPassword
@@ -1145,7 +1224,8 @@ instance ToSchema LocaleUpdate where
   schema =
     object "LocaleUpdate" $
       LocaleUpdate
-        <$> luLocale .= field "locale" schema
+        <$> luLocale
+          .= field "locale" schema
 
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
   deriving stock (Eq, Show, Generic)
@@ -1156,7 +1236,8 @@ instance ToSchema EmailUpdate where
   schema =
     object "EmailUpdate" $
       EmailUpdate
-        <$> euEmail .= field "email" schema
+        <$> euEmail
+          .= field "email" schema
 
 modelEmailUpdate :: Doc.Model
 modelEmailUpdate = Doc.defineModel "EmailUpdate" $ do
@@ -1180,7 +1261,8 @@ instance ToSchema PhoneUpdate where
   schema =
     object "PhoneUpdate" $
       PhoneUpdate
-        <$> puPhone .= field "phone" schema
+        <$> puPhone
+          .= field "phone" schema
 
 data ChangePhoneError
   = PhoneExists
@@ -1301,7 +1383,8 @@ instance ToSchema DeleteUser where
   schema =
     object "DeleteUser" $
       DeleteUser
-        <$> deleteUserPassword .= maybe_ (optField "password" schema)
+        <$> deleteUserPassword
+          .= maybe_ (optField "password" schema)
 
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser
@@ -1316,7 +1399,8 @@ modelDelete = Doc.defineModel "Delete" $ do
 instance ToJSON DeleteUser where
   toJSON d =
     A.object $
-      "password" A..= deleteUserPassword d
+      "password"
+        A..= deleteUserPassword d
         # []
 
 instance FromJSON DeleteUser where
@@ -1339,8 +1423,10 @@ instance ToSchema VerifyDeleteUser where
   schema =
     objectWithDocModifier "VerifyDeleteUser" (description ?~ "Data for verifying an account deletion.") $
       VerifyDeleteUser
-        <$> verifyDeleteUserKey .= fieldWithDocModifier "key" (description ?~ "The identifying key of the account (i.e. user ID).") schema
-        <*> verifyDeleteUserCode .= fieldWithDocModifier "code" (description ?~ "The verification code.") schema
+        <$> verifyDeleteUserKey
+          .= fieldWithDocModifier "key" (description ?~ "The identifying key of the account (i.e. user ID).") schema
+        <*> verifyDeleteUserCode
+          .= fieldWithDocModifier "code" (description ?~ "The verification code.") schema
 
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout
@@ -1353,7 +1439,8 @@ instance ToSchema DeletionCodeTimeout where
   schema =
     object "DeletionCodeTimeout" $
       DeletionCodeTimeout
-        <$> fromDeletionCodeTimeout .= field "expires_in" schema
+        <$> fromDeletionCodeTimeout
+          .= field "expires_in" schema
 
 instance ToJSON DeletionCodeTimeout where
   toJSON (DeletionCodeTimeout t) = A.object ["expires_in" A..= t]
@@ -1466,5 +1553,7 @@ instance ToSchema SendVerificationCode where
   schema =
     object "SendVerificationCode" $
       SendVerificationCode
-        <$> svcAction .= field "action" schema
-        <*> svcEmail .= field "email" schema
+        <$> svcAction
+          .= field "action" schema
+        <*> svcEmail
+          .= field "email" schema

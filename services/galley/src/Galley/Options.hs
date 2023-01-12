@@ -25,6 +25,7 @@ module Galley.Options
     setExposeInvitationURLsTeamAllowlist,
     setMaxConvSize,
     setIntraListing,
+    setDisabledAPIVersions,
     setConversationCodeURI,
     setConcurrentDeletionEvents,
     setDeleteConvThrottleMillis,
@@ -66,6 +67,7 @@ import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
+import Wire.API.Routes.Version
 import Wire.API.Team.Member
 
 data Settings = Settings
@@ -113,7 +115,8 @@ data Settings = Settings
     _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
     _setMlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
-    _setFeatureFlags :: !FeatureFlags
+    _setFeatureFlags :: !FeatureFlags,
+    _setDisabledAPIVersions :: Maybe (Set Version)
   }
   deriving (Show, Generic)
 

@@ -32,8 +32,8 @@ module Brig.Team.DB
     lookupInvitationByEmail,
     mkInvitationCode,
     mkInvitationId,
-    InvitationInfo (..),
     InvitationByEmail (..),
+    InvitationInfo (..),
   )
 where
 
@@ -61,7 +61,7 @@ import OpenSSL.Random (randBytes)
 import qualified System.Logger.Class as Log
 import URI.ByteString
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-import Wire.API.Team.Invitation
+import Wire.API.Team.Invitation hiding (HeadInvitationByEmailResult (..))
 import Wire.API.Team.Role
 import Wire.API.User
 

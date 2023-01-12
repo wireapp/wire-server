@@ -172,7 +172,7 @@ unversioned r =
 
 runFedClient ::
   forall (name :: Symbol) comp api.
-  ( HasFedEndpoint comp api name,
+  ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient Servant.ClientM api
   ) =>
   FedClient comp ->
@@ -802,7 +802,7 @@ isMember g usr cnv = do
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> pure False
-    Just m -> pure (qUntagged usr == memId m)
+    Just m -> pure (tUntagged usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =
@@ -1297,7 +1297,7 @@ toServantResponse res =
 
 createWaiTestFedClient ::
   forall (name :: Symbol) comp api.
-  ( HasFedEndpoint comp api name,
+  ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient WaiTestFedClient api
   ) =>
   Servant.Client WaiTestFedClient api

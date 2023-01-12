@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,24 +17,22 @@
 
 module API.TeamUserSearch (tests) where
 
-import API.Search.Util (executeTeamUserSearch, refreshIndex)
+import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeState, refreshIndex)
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (activateEmail, initiateEmailUpdateNoSend)
 import Bilge (Manager, MonadHttp)
 import qualified Brig.Options as Opt
-import Brig.User.Search.TeamUserSearch (TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry ()
-import Data.ByteString.Conversion (ToByteString (..), toByteString)
+import Data.ByteString.Conversion (toByteString)
 import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId)
-import qualified Data.Map.Strict as M
+import Data.Range (unsafeRange)
 import Data.String.Conversions (cs)
 import Imports
-import System.Random
 import System.Random.Shuffle (shuffleM)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertBool, assertEqual)
+import Test.Tasty.HUnit (assertBool, assertEqual, (@?=))
 import Util (Brig, Galley, randomEmail, test, withSettingsOverrides)
 import Wire.API.User (User (..), userEmail)
 import Wire.API.User.Identity
@@ -51,7 +47,8 @@ tests opts mgr _galley brig = do
       [ testWithNewIndex "can find user by email" (testSearchByEmailSameTeam brig),
         testWithNewIndex "empty query returns the whole team sorted" (testEmptyQuerySorted brig),
         testWithNewIndex "sorting by some properties works" (testSort brig),
-        testWithNewIndex "call to search with remaining properties succeeds" (testSortCallSucceeds brig)
+        testWithNewIndex "call to search with remaining properties succeeds" (testSortCallSucceeds brig),
+        testWithNewIndex "query with paging state" (testEmptyQuerySortedWithPagination brig)
       ]
   where
     testWithNewIndex name f = test mgr name $ withSettingsOverrides opts f
@@ -142,3 +139,17 @@ testSortCallSucceeds brig = do
   for_ [SortByManagedBy, SortBySAMLIdp] $ \tuSortBy -> do
     r <- searchResults <$> executeTeamUserSearch brig tid ownerId Nothing Nothing (Just tuSortBy) (Just SortOrderAsc)
     liftIO $ assertEqual ("length of users sorted by " <> cs (toByteString tuSortBy)) n (length r)
+
+testEmptyQuerySortedWithPagination :: TestConstraints m => Brig -> m ()
+testEmptyQuerySortedWithPagination brig = do
+  (tid, userId -> ownerId, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 20
+  refreshIndex brig
+  searchResultFirst10 <- executeTeamUserSearchWithMaybeState brig tid ownerId (Just "") Nothing Nothing Nothing (Just $ unsafeRange 10) Nothing
+  searchResultLast11 <- executeTeamUserSearchWithMaybeState brig tid ownerId (Just "") Nothing Nothing Nothing Nothing (searchPagingState searchResultFirst10)
+  liftIO $ do
+    searchReturned searchResultFirst10 @?= 10
+    searchFound searchResultFirst10 @?= 21
+    searchHasMore searchResultFirst10 @?= Just True
+    searchReturned searchResultLast11 @?= 11
+    searchFound searchResultLast11 @?= 21
+    searchHasMore searchResultLast11 @?= Just False

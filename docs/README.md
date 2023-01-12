@@ -69,6 +69,14 @@ and Direnv installed.
 This folder contains another `.envrc` file that adds all the binaries needed to
 build the docs to `$PATH`.
 
+In short, when you `cd` into this folder, you should see this message:
+
+```sh
+direnv: error wire-server/docs/.envrc is blocked. Run `direnv allow` to approve its content
+```
+
+Run `direnv allow` to allow the `.envrc` file to modify your environment. Then, you should have everything (binaries, environment variables) needed to build the docs.
+
 ### Generating html output (one-off)
 
 ```

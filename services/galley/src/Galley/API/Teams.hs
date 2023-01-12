@@ -50,6 +50,7 @@ module Galley.API.Teams
     uncheckedGetTeamMember,
     uncheckedGetTeamMembersH,
     uncheckedDeleteTeamMember,
+    uncheckedUpdateTeamMember,
     userIsTeamOwner,
     canUserJoinTeam,
     ensureNotTooLargeForLegalHold,
@@ -131,18 +132,19 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
+import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
 import qualified Wire.API.Team as Public
 import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Feature
-import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberOptPerms, TeamMembersPage (..), TeamMembersPagingState, hardTruncationLimit, invitation, nPermissions, nUserId, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMemberPagingState, teamMembers, tmdAuthPassword, userId)
+import Wire.API.Team.Member
 import qualified Wire.API.Team.Member as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
 import Wire.API.Team.Role
@@ -464,13 +466,13 @@ uncheckedDeleteTeam lusr zcon tid = do
       ([Push], [(BotMember, Conv.Event)]) ->
       Sem r ([Push], [(BotMember, Conv.Event)])
     createConvDeleteEvents now teamMembs c (pp, ee) = do
-      let qconvId = qUntagged $ qualifyAs lusr (c ^. conversationId)
+      let qconvId = tUntagged $ qualifyAs lusr (c ^. conversationId)
       (bots, convMembs) <- localBotsAndUsers <$> E.getLocalMembers (c ^. conversationId)
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event qconvId (qUntagged lusr) now Conv.EdConvDelete
+      let e = Conv.Event qconvId Nothing (tUntagged lusr) now Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p = newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
@@ -766,6 +768,70 @@ uncheckedAddTeamMember tid nmem = do
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
+uncheckedUpdateTeamMember ::
+  forall r.
+  Members
+    '[ BrigAccess,
+       ErrorS 'AccessDenied,
+       ErrorS 'InvalidPermissions,
+       ErrorS 'TeamNotFound,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       GundeckAccess,
+       Input Opts,
+       Input UTCTime,
+       P.TinyLog,
+       TeamStore
+     ]
+    r =>
+  Maybe (Local UserId) ->
+  Maybe ConnId ->
+  TeamId ->
+  NewTeamMember ->
+  Sem r ()
+uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
+  let mZusr = tUnqualified <$> mlzusr
+  let targetMember = ntmNewTeamMember newMember
+  let targetId = targetMember ^. userId
+      targetPermissions = targetMember ^. permissions
+  P.debug $
+    Log.field "targets" (toByteString targetId)
+      . Log.field "action" (Log.val "Teams.updateTeamMember")
+
+  team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
+
+  previousMember <-
+    E.getTeamMember tid targetId >>= noteS @'TeamMemberNotFound
+
+  -- update target in Cassandra
+  E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
+
+  updatedMembers <- getTeamMembersForFanout tid
+  updateJournal team updatedMembers
+  updatePeers mZusr targetId targetMember targetPermissions updatedMembers
+  where
+    updateJournal :: Team -> TeamMemberList -> Sem r ()
+    updateJournal team mems = do
+      when (team ^. teamBinding == Binding) $ do
+        (TeamSize size) <- E.getSize tid
+        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
+        Journal.teamUpdate tid size billingUserIds
+
+    updatePeers :: Maybe UserId -> UserId -> TeamMember -> Permissions -> TeamMemberList -> Sem r ()
+    updatePeers zusr targetId targetMember targetPermissions updatedMembers = do
+      -- inform members of the team about the change
+      -- some (privileged) users will be informed about which change was applied
+      let privileged = filter (`canSeePermsOf` targetMember) (updatedMembers ^. teamMembers)
+          mkUpdate = EdMemberUpdate targetId
+          privilegedUpdate = mkUpdate $ Just targetPermissions
+          privilegedRecipients = membersToRecipients Nothing privileged
+      now <- input
+      let ePriv = newEvent tid now privilegedUpdate
+      -- push to all members (user is privileged)
+      let pushPriv = newPush (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
+      for_ pushPriv (\p -> E.push1 (p & pushConn .~ mZcon))
+
 updateTeamMember ::
   forall r.
   Members
@@ -798,7 +864,6 @@ updateTeamMember lzusr zcon tid newMember = do
       . Log.field "action" (Log.val "Teams.updateTeamMember")
 
   -- get the team and verify permissions
-  team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
   user <-
     E.getTeamMember tid zusr
       >>= permissionCheck SetMemberPermissions
@@ -813,12 +878,7 @@ updateTeamMember lzusr zcon tid newMember = do
     )
     $ throwS @'AccessDenied
 
-  -- update target in Cassandra
-  E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
-
-  updatedMembers <- getTeamMembersForFanout tid
-  updateJournal team updatedMembers
-  updatePeers zusr targetId targetMember targetPermissions updatedMembers
+  uncheckedUpdateTeamMember (Just lzusr) (Just zcon) tid newMember
   where
     canDowngradeOwner = canDeleteMember
 
@@ -826,27 +886,6 @@ updateTeamMember lzusr zcon tid newMember = do
     downgradesOwner previousMember targetPermissions =
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
         && permissionsRole targetPermissions /= Just RoleOwner
-
-    updateJournal :: Team -> TeamMemberList -> Sem r ()
-    updateJournal team mems = do
-      when (team ^. teamBinding == Binding) $ do
-        (TeamSize size) <- E.getSize tid
-        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
-        Journal.teamUpdate tid size billingUserIds
-
-    updatePeers :: UserId -> UserId -> TeamMember -> Permissions -> TeamMemberList -> Sem r ()
-    updatePeers zusr targetId targetMember targetPermissions updatedMembers = do
-      -- inform members of the team about the change
-      -- some (privileged) users will be informed about which change was applied
-      let privileged = filter (`canSeePermsOf` targetMember) (updatedMembers ^. teamMembers)
-          mkUpdate = EdMemberUpdate targetId
-          privilegedUpdate = mkUpdate $ Just targetPermissions
-          privilegedRecipients = membersToRecipients Nothing privileged
-      now <- input
-      let ePriv = newEvent tid now privilegedUpdate
-      -- push to all members (user is privileged)
-      let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
-      for_ pushPriv $ \p -> E.push1 $ p & pushConn ?~ zcon
 
 deleteTeamMember ::
   Members
@@ -1004,7 +1043,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       -- remove the user from conversations but never send out any events. We assume that clients
       -- handle nicely these missing events, regardless of whether they are in the same team or not
       let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
-      let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [qUntagged (qualifyAs lusr remove)])
+      let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
       cc <- E.getTeamConversations tid
       for_ cc $ \c ->
         E.getConversation (c ^. conversationId) >>= \conv ->
@@ -1015,10 +1054,10 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
               pushEvent tmids edata now dc
     pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Sem r ()
     pushEvent exceptTo edata now dc = do
-      let qconvId = qUntagged $ qualifyAs lusr (Data.convId dc)
+      let qconvId = tUntagged $ qualifyAs lusr (Data.convId dc)
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers dc)
       let x = filter (\m -> not (Conv.lmId m `Set.member` exceptTo)) users
-      let y = Conv.Event qconvId (qUntagged lusr) now edata
+      let y = Conv.Event qconvId Nothing (tUntagged lusr) now edata
       for_ (newPushLocal (mems ^. teamMemberListType) (tUnqualified lusr) (ConvEvent y) (recipient <$> x)) $ \p ->
         E.push1 $ p & pushConn .~ zcon
       E.deliverAsync (bots `zip` repeat y)
@@ -1063,23 +1102,27 @@ getTeamConversation zusr tid cid = do
     >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
-  Members
-    '[ CodeStore,
-       ConversationStore,
-       Error FederationError,
-       Error InvalidInput,
-       ErrorS 'ConvNotFound,
-       ErrorS 'InvalidOperation,
-       ErrorS 'NotATeamMember,
-       ErrorS ('ActionDenied 'DeleteConversation),
-       ExternalAccess,
-       FederatorAccess,
-       GundeckAccess,
-       Input Env,
-       Input UTCTime,
-       TeamStore
-     ]
-    r =>
+  ( Members
+      '[ CodeStore,
+         ConversationStore,
+         Error FederationError,
+         Error InvalidInput,
+         ErrorS 'ConvNotFound,
+         ErrorS 'InvalidOperation,
+         ErrorS 'NotATeamMember,
+         ErrorS ('ActionDenied 'DeleteConversation),
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input UTCTime,
+         TeamStore
+       ]
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Local UserId ->
   ConnId ->
   TeamId ->

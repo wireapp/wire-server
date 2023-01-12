@@ -41,6 +41,7 @@ module Wire.API.Routes.MultiVerb
     ResponseType,
     IsResponse (..),
     IsSwaggerResponse (..),
+    simpleResponseSwagger,
     combineResponseSwagger,
     ResponseTypes,
     IsResponseList (..),

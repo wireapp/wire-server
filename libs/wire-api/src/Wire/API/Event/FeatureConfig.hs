@@ -30,7 +30,9 @@ import Data.Schema
 import qualified Data.Swagger as S
 import GHC.TypeLits (KnownSymbol)
 import Imports
+import Test.QuickCheck.Gen (oneof)
 import Wire.API.Team.Feature
+import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 data Event = Event
   { _eventType :: EventType,
@@ -40,8 +42,34 @@ data Event = Event
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON) via Schema Event
 
+instance Arbitrary Event where
+  arbitrary =
+    do
+      let arbConfig =
+            oneof
+              [ arbitrary @(WithStatus SSOConfig) <&> toJSON,
+                arbitrary @(WithStatus SearchVisibilityAvailableConfig) <&> toJSON,
+                arbitrary @(WithStatus ValidateSAMLEmailsConfig) <&> toJSON,
+                arbitrary @(WithStatus DigitalSignaturesConfig) <&> toJSON,
+                arbitrary @(WithStatus AppLockConfig) <&> toJSON,
+                arbitrary @(WithStatus FileSharingConfig) <&> toJSON,
+                arbitrary @(WithStatus ClassifiedDomainsConfig) <&> toJSON,
+                arbitrary @(WithStatus ConferenceCallingConfig) <&> toJSON,
+                arbitrary @(WithStatus SelfDeletingMessagesConfig) <&> toJSON,
+                arbitrary @(WithStatus GuestLinksConfig) <&> toJSON,
+                arbitrary @(WithStatus SndFactorPasswordChallengeConfig) <&> toJSON,
+                arbitrary @(WithStatus SearchVisibilityInboundConfig) <&> toJSON,
+                arbitrary @(WithStatus MLSConfig) <&> toJSON,
+                arbitrary @(WithStatus ExposeInvitationURLsToTeamAdminConfig) <&> toJSON
+              ]
+      Event
+        <$> arbitrary
+        <*> arbitrary
+        <*> arbConfig
+
 data EventType = Update
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform EventType
 
 instance ToSchema EventType where
   schema =

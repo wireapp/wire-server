@@ -97,7 +97,7 @@ instance Cql AccessRoleLegacy where
     n -> Left $ "Unexpected AccessRole value: " ++ show n
   fromCql _ = Left "AccessRole value: int expected"
 
-instance Cql AccessRoleV2 where
+instance Cql AccessRole where
   ctype = Tagged IntColumn
 
   toCql = \case
@@ -182,13 +182,14 @@ instance Cql Public.EnforceAppLock where
 instance Cql ProtocolTag where
   ctype = Tagged IntColumn
 
-  toCql ProtocolProteusTag = CqlInt 0
-  toCql ProtocolMLSTag = CqlInt 1
+  toCql = CqlInt . fromIntegral . fromEnum
 
-  fromCql (CqlInt i) = case i of
-    0 -> pure ProtocolProteusTag
-    1 -> pure ProtocolMLSTag
-    n -> Left $ "unexpected protocol: " ++ show n
+  fromCql (CqlInt i) = do
+    let i' = fromIntegral i
+    if i' < fromEnum @ProtocolTag minBound
+      || i' > fromEnum @ProtocolTag maxBound
+      then Left $ "unexpected protocol: " ++ show i
+      else Right $ toEnum i'
   fromCql _ = Left "protocol: int expected"
 
 instance Cql GroupId where

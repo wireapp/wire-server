@@ -44,10 +44,13 @@ The following needs to be done, as part of a PR adding endpoints or changing end
 ### Helm configuration
 
 For internal endpoints for QA access on staging environments, copy a block with `/i/` containing
+
 ```
-zauth: false
-basic_auth: true
-whitelisted_envs: ['staging']
+  - path: /some/path
+    envs:
+    - staging
+    disable_zauth: true
+    basic_auth: true
 ```
 
 For customer support access to an internal endpoint, instead update code in [stern](https://github.com/wireapp/wire-server/tree/develop/tools/stern) as part of your PR. There is no need to add that endpoint to nginz.
@@ -82,7 +85,7 @@ If a PR adds new configuration options for say brig, the following files need to
 * [ ] The charts: `charts/brig/templates/configmap.yaml`
 * [ ] The default values: `charts/brig/values.yaml`
 * [ ] The values files for CI: `hack/helm_vars/wire-server/values.yaml`
-* [ ] The configuration docs: `docs/legacy/reference/config-options.md`
+* [ ] The configuration docs: `docs/src/developer/reference/config-options.md`
 
 If any new configuration value is required and has no default, then:
 

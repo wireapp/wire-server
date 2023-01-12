@@ -130,7 +130,7 @@ instance MonadHttp TestM where
 
 runFedClient ::
   forall (name :: Symbol) comp m api.
-  ( HasFedEndpoint comp api name,
+  ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient Servant.ClientM api,
     MonadIO m
   ) =>

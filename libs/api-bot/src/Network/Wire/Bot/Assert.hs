@@ -20,7 +20,7 @@
 module Network.Wire.Bot.Assert where
 
 import Data.Id (ConvId, UserId)
-import Data.Qualified (Local, QualifiedWithTag (qUntagged), qUnqualified, qualifyAs)
+import Data.Qualified (Local, QualifiedWithTag (tUntagged), qUnqualified, qualifyAs)
 import qualified Data.Set as Set
 import Imports
 import Network.Wire.Bot.Monad
@@ -40,14 +40,14 @@ assertConvCreated c b bs = do
   let everyone = b : bs
   forM_ bs $ \u ->
     let others = Set.fromList . filter (/= botId u) . map botId $ everyone
-     in assertEvent u TConvCreate (convCreate (qUntagged . qualifyAs c . botId $ u) others)
+     in assertEvent u TConvCreate (convCreate (tUntagged . qualifyAs c . botId $ u) others)
   where
     convCreate self others = \case
       EConvCreate e ->
         let cnv = convEvtData e
             mems = cnvMembers cnv
             omems = Set.fromList (map (qUnqualified . omQualifiedId) (cmOthers mems))
-         in cnvQualifiedId cnv == qUntagged c
+         in cnvQualifiedId cnv == tUntagged c
               && convEvtFrom e == botId b
               && cnvType cnv == RegularConv
               && memId (cmSelf mems) == self

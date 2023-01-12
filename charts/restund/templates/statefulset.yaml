@@ -53,6 +53,11 @@ spec:
           volumeMounts:
             - name: external-ip
               mountPath: /external-ip
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           command:
             - /bin/sh
             - -c
@@ -60,11 +65,11 @@ spec:
               set -e
 
               # In the cloud, this setting is available to indicate the true IP address
-              addr=$(kubectl get node $HOSTNAME -ojsonpath='{.status.addresses[?(@.type=="ExternalIP")].address}')
+              addr=$(kubectl get node $NODE_NAME -ojsonpath='{.status.addresses[?(@.type=="ExternalIP")].address}')
 
               # On on-prem we allow people to set  "wire.com/external-ip" to override this
               if [ -z "$addr" ]; then
-                addr=$(kubectl get node $HOSTNAME -ojsonpath='{.metadata.annotations.wire\.com/external-ip}')
+                addr=$(kubectl get node $NODE_NAME -ojsonpath='{.metadata.annotations.wire\.com/external-ip}')
               fi
               echo -n "$addr" | tee /dev/stderr > /external-ip/ip
       containers:

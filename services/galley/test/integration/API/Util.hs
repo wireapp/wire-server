@@ -106,6 +106,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
@@ -141,13 +142,14 @@ import Wire.API.User.Client.Prekey
 -- API Operations
 
 addPrefix :: Request -> Request
-addPrefix r = r {HTTP.path = "v" <> toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}
+addPrefix = addPrefixAtVersion maxBound
+
+addPrefixAtVersion :: Version -> Request -> Request
+addPrefixAtVersion v r = r {HTTP.path = "v" <> toHeader v <> "/" <> removeSlash (HTTP.path r)}
   where
     removeSlash s = case B8.uncons s of
       Just ('/', s') -> s'
       _ -> s
-    latestVersion :: Version
-    latestVersion = maxBound
 
 -- | A class for monads with access to a Sem r instance
 class HasGalley m where
@@ -584,7 +586,7 @@ createTeamConvAccess ::
   [UserId] ->
   Maybe Text ->
   Maybe (Set Access) ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   Maybe RoleName ->
   TestM ConvId
@@ -598,7 +600,7 @@ createTeamConvAccessRaw ::
   [UserId] ->
   Maybe Text ->
   Maybe (Set Access) ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   Maybe RoleName ->
   TestM ResponseLBS
@@ -625,7 +627,7 @@ createMLSTeamConv ::
   UserList UserId ->
   Maybe Text ->
   Maybe (Set Access) ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   Maybe RoleName ->
   m (Local ConvId)
@@ -681,7 +683,7 @@ postConv ::
   [UserId] ->
   Maybe Text ->
   [Access] ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
@@ -726,7 +728,7 @@ postConvWithRemoteUsers u n =
     setName Nothing = checked "federated gossip"
     setName x = x
 
-postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
+postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- viewGalley
   let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolProteusTag Nothing
@@ -747,7 +749,7 @@ postConvWithRole ::
   [UserId] ->
   Maybe Text ->
   [Access] ->
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Maybe Milliseconds ->
   RoleName ->
   TestM ResponseLBS
@@ -763,7 +765,7 @@ postConvWithRole u members name access arole timer role =
         newConvUsersRole = role
       }
 
-postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
+postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRole) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- viewGalley
   let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolProteusTag Nothing
@@ -982,16 +984,39 @@ mkOtrProtoMessage sender rec reportMissing ad =
         & Proto.newOtrMessageData ?~ fromBase64TextLenient ad
         & Proto.newOtrMessageReportMissing .~ rmis
 
-getConvs :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
-getConvs u r s = do
+getConvs :: HasCallStack => UserId -> [Qualified ConvId] -> TestM ResponseLBS
+getConvs u cids = do
   g <- viewGalley
-  get $
+  post $
     g
-      . path "/conversations"
+      . path "/conversations/list"
       . zUser u
       . zConn "conn"
-      . zType "access"
-      . convRange r s
+      . json (ListConversations (unsafeRange cids))
+
+getAllConvs :: HasCallStack => UserId -> TestM [Conversation]
+getAllConvs u = do
+  g <- viewGalley
+  cids <- do
+    r :: ConvIdsPage <-
+      responseJsonError
+        =<< post
+          ( g
+              . path "/conversations/list-ids"
+              . zUser u
+              . zConn "conn"
+              . json
+                ( GetPaginatedConversationIds Nothing maxBound ::
+                    GetPaginatedConversationIds
+                )
+          )
+          <!! const 200 === statusCode
+    pure (mtpResults r)
+  r <-
+    responseJsonError
+      =<< getConvs u cids
+        <!! const 200 === statusCode
+  pure (crFound r)
 
 listConvs ::
   (MonadIO m, MonadHttp m, MonadReader TestSetup m) =>
@@ -1028,9 +1053,10 @@ getConvQualified u (Qualified conv domain) = do
       . zConn "conn"
       . zType "access"
 
-getConvIds :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
-getConvIds u r s = do
-  g <- viewGalley
+getConvIdsV2 :: UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> TestM ResponseLBS
+getConvIdsV2 u r s = do
+  -- The endpoint is removed starting V3
+  g <- fmap (addPrefixAtVersion V2 .) (view tsUnversionedGalley)
   get $
     g
       . path "/conversations/ids"
@@ -1039,20 +1065,37 @@ getConvIds u r s = do
       . zType "access"
       . convRange r s
 
-listConvIds :: UserId -> GetPaginatedConversationIds -> TestM ResponseLBS
-listConvIds u paginationOpts = do
+getConvPage :: UserId -> Maybe ConversationPagingState -> Maybe Int32 -> TestM ResponseLBS
+getConvPage u state count = do
   g <- viewGalley
+  getConvPageWithGalley g u state count
+
+getConvPageWithGalley ::
+  (Request -> Request) ->
+  UserId ->
+  Maybe ConversationPagingState ->
+  Maybe Int32 ->
+  TestM ResponseLBS
+getConvPageWithGalley g u state count =
   post $
     g
       . path "/conversations/list-ids"
       . zUser u
-      . json paginationOpts
+      . zConn "conn"
+      -- generate JSON by hand here, so we can bypass the static range check
+      . json
+        ( object
+            ( map (\n -> "size" .= toJSON n) (toList count)
+                <> map (\s -> "paging_state" .= toJSON s) (toList state)
+            )
+        )
 
 -- | Does not page through conversation list
 listRemoteConvs :: Domain -> UserId -> TestM [Qualified ConvId]
 listRemoteConvs remoteDomain uid = do
-  let paginationOpts = GetPaginatedConversationIds Nothing (toRange (Proxy @100))
-  allConvs <- fmap mtpResults . responseJsonError @_ @ConvIdsPage =<< listConvIds uid paginationOpts <!! const 200 === statusCode
+  allConvs <-
+    fmap mtpResults . responseJsonError @_ @ConvIdsPage
+      =<< getConvPage uid Nothing (Just 100) <!! const 200 === statusCode
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers ::
@@ -1278,17 +1321,6 @@ postJoinCodeConv u j = do
       . zConn "conn"
       . zType "access"
       . json j
-
-putAccessUpdate :: UserId -> ConvId -> ConversationAccessData -> TestM ResponseLBS
-putAccessUpdate u c acc = do
-  g <- viewGalley
-  put $
-    g
-      . paths ["/conversations", toByteString' c, "access"]
-      . zUser u
-      . zConn "conn"
-      . zType "access"
-      . json acc
 
 putQualifiedAccessUpdate ::
   (MonadHttp m, HasGalley m, MonadIO m) =>
@@ -1656,6 +1688,18 @@ wsAssertClientRemoved cid n = do
   etype @?= Just "user.client-remove"
   fmap ClientId eclient @?= Just cid
 
+wsAssertClientAdded ::
+  HasCallStack =>
+  ClientId ->
+  Notification ->
+  IO ()
+wsAssertClientAdded cid n = do
+  let j = Object $ List1.head (ntfPayload n)
+  let etype = j ^? key "type" . _String
+  let eclient = j ^? key "client" . key "id" . _String
+  etype @?= Just "user.client-add"
+  fmap ClientId eclient @?= Just cid
+
 assertMLSMessageEvent ::
   HasCallStack =>
   Qualified ConvId ->
@@ -1758,6 +1802,15 @@ wsAssertMemberLeave conv usr old n = do
     sorted (EdMembersLeave (QualifiedUserIdList m)) = EdMembersLeave (QualifiedUserIdList (sort m))
     sorted x = x
 
+wsAssertTyping :: HasCallStack => Qualified ConvId -> Qualified UserId -> TypingStatus -> Notification -> IO ()
+wsAssertTyping conv usr ts n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= True
+  evtConv e @?= conv
+  evtType e @?= Conv.Typing
+  evtFrom e @?= usr
+  evtData e @?= EdTyping ts
+
 assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> TestM ()
 assertNoMsg ws f = do
   x <- WS.awaitMatch (1 # Second) ws f
@@ -1809,7 +1862,7 @@ decodeConvCode = responseJsonUnsafe
 
 decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
 decodeConvCodeEvent r = case responseJsonUnsafe r of
-  (Event _ _ _ (EdConvCodeUpdate c)) -> c
+  (Event _ _ _ _ (EdConvCodeUpdate c)) -> c
   _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> ConvId
@@ -1818,10 +1871,10 @@ decodeConvId = qUnqualified . decodeQualifiedConvId
 decodeQualifiedConvId :: HasCallStack => Response (Maybe Lazy.ByteString) -> Qualified ConvId
 decodeQualifiedConvId = cnvQualifiedId . responseJsonUnsafe
 
-decodeConvList :: Response (Maybe Lazy.ByteString) -> [Conversation]
+decodeConvList :: HasCallStack => Response (Maybe Lazy.ByteString) -> [Conversation]
 decodeConvList = convList . responseJsonUnsafeWithMsg "conversations"
 
-decodeConvIdList :: Response (Maybe Lazy.ByteString) -> [ConvId]
+decodeConvIdList :: HasCallStack => Response (Maybe Lazy.ByteString) -> [ConvId]
 decodeConvIdList = convList . responseJsonUnsafeWithMsg "conversation-ids"
 
 decodeQualifiedConvIdList :: Response (Maybe Lazy.ByteString) -> Either String [Qualified ConvId]
@@ -1832,6 +1885,9 @@ zUser = header "Z-User" . toByteString'
 
 zBot :: UserId -> Request -> Request
 zBot = header "Z-Bot" . toByteString'
+
+zClient :: ClientId -> Request -> Request
+zClient = header "Z-Client" . toByteString'
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
@@ -2254,7 +2310,6 @@ assertMismatchQualified failedToSend missing redundant deleted = do
   assertExpected "failed to send" failedToSend (fmap mssFailedToSend . responseJsonMaybe)
   assertExpected "missing" missing (fmap mssMissingClients . responseJsonMaybe)
   assertExpected "redundant" redundant (fmap mssRedundantClients . responseJsonMaybe)
-
   assertExpected "deleted" deleted (fmap mssDeletedClients . responseJsonMaybe)
 
 otrRecipients :: [(UserId, ClientId, Text)] -> OtrRecipients
@@ -2815,7 +2870,7 @@ generateRemoteAndConvId = generateRemoteAndConvIdWithDomain (Domain "far-away.ex
 generateRemoteAndConvIdWithDomain :: Domain -> Bool -> Local UserId -> TestM (Remote UserId, Qualified ConvId)
 generateRemoteAndConvIdWithDomain remoteDomain shouldBeLocal lUserId = do
   other <- Qualified <$> randomId <*> pure remoteDomain
-  let convId = one2OneConvId (qUntagged lUserId) other
+  let convId = one2OneConvId (tUntagged lUserId) other
       isLocal = tDomain lUserId == qDomain convId
   if shouldBeLocal == isLocal
     then pure (qTagUnsafe other, convId)
@@ -2855,6 +2910,14 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtType e @?= ConvReceiptModeUpdate
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
+
+wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Epoch -> Notification -> IO ByteString
+wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
+  bs <- wsAssertBackendRemoveProposal fromUser convId kpref n
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @(Message 'MLSPlainText) bs
+  let tbs = rmValue . msgTBS $ msg
+  tbsMsgEpoch tbs @?= epoch
+  pure bs
 
 wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
 wsAssertBackendRemoveProposal fromUser convId kpref n = do

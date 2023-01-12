@@ -4,40 +4,44 @@ set -e
 
 cd "$( dirname "${BASH_SOURCE[0]}" )/.."
 
-ARG_ALLOW_DIRTY_WC="0"
+ALLOW_DIRTY_WC="0"
 ARG_ORMOLU_MODE="inplace"
 
 USAGE="
-This bash script can either (a) apply ormolu formatting in-place to
-all haskell modules in your working copy, or (b) check all modules for
-formatting and fail if ormolu needs to be applied.
+This bash script can either
 
-(a) is mostly for migrating from manually-formatted projects to
-ormolu-formatted ones; (b) can be run in by a continuous integration
-service to make sure no branches with non-ormolu formatting make get
-merged.
+* apply ormolu formatting in-place (the default)
 
-For every-day dev work, consider using one of the ormolu editor
-integrations (see https://github.com/tweag/ormolu#editor-integration).
+* check all modules for formatting and fail if ormolu needs to be applied (-c flag). This can be run in CI to make sure no branches with non-ormolu formatting make get merged.
 
 USAGE: $0
-    -h: show this help.
-    -f: run even if working copy is dirty.  default: ${ARG_ALLOW_DIRTY_WC}
-    -c: set ormolu mode to 'check'.  default: 'inplace'
-
+    -h     : show this help.
+    -f pr  : run even if working copy is dirty. Check only on files changed by branch.
+    -f all : run even if working copy is dirty. Check all files.
+    -c     : set ormolu mode to 'check'.  default: 'inplace'
 "
+
+usage() { echo "$USAGE" 1>&2; exit 1; }
 
 # Option parsing:
 # https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
-while getopts ":fch" opt; do
+while getopts ":f:ch" opt; do
   case ${opt} in
-    f ) ARG_ALLOW_DIRTY_WC="1"
+    f ) f=${OPTARG}
+      if [ "$f" = "pr" ]; then
+          ALLOW_DIRTY_WC=1
+      elif [ "$f" = "all" ]; then
+          ALLOW_DIRTY_WC=1
+      else
+          usage
+      fi
       ;;
     c ) ARG_ORMOLU_MODE="check"
       ;;
     h ) echo "$USAGE" 1>&2
          exit 0
       ;;
+    *) usage;;
   esac
 done
 shift $((OPTIND -1))
@@ -48,11 +52,11 @@ if [ "$#" -ne 0 ]; then
 fi
 
 if [ "$(git status -s | grep -v \?\?)" != "" ]; then
-    echo "working copy not clean."
-    if [ "$ARG_ALLOW_DIRTY_WC" == "1" ]; then
-        echo "running with -f.  this will mix ormolu and other changes."
+    if [ "$ALLOW_DIRTY_WC" == "1" ]; then
+        :
     else
-        echo "run with -f if you want to force mixing ormolu and other changes."
+        echo "Working copy is not clean."
+        echo "Run with -f pr or -f all if you want to run ormolu anyway"
         exit 1
     fi
 fi
@@ -67,7 +71,16 @@ if [ -t 1 ]; then
     : ${ORMOLU_CONDENSE_OUTPUT:=1}
 fi
 
-for hsfile in $(git ls-files | grep '\.hsc\?$'); do
+if [ "$f" = "all" ] || [ "$f" = "" ]; then
+    files=$(git ls-files | grep '\.hsc\?$')
+elif [ "$f" = "pr" ]; then
+    files=$(git diff --diff-filter=ACMR --name-only origin/develop... | { grep '\.hsc\?$' || true; }; git diff --diff-filter=ACMR --name-only HEAD | { grep \.hs\$ || true ; })
+fi
+
+count=$( echo "$files" | sed '/^\s*$/d' | wc -l )
+echo "Checking $count file(s)…"
+
+for hsfile in $files; do
     FAILED=0
 
     # run in background so that we can detect Ctrl-C properly

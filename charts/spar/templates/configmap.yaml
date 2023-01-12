@@ -33,6 +33,10 @@ data:
 
     maxScimTokens: {{ .maxScimTokens }}
 
+    {{- if .disabledAPIVersions }}
+    disabledAPIVersions: {{ .disabledAPIVersions }}
+    {{- end }}
+
     saml:
       version:     SAML2.0
       logLevel:    {{ .logLevel }}
@@ -43,5 +47,5 @@ data:
       spSsoUri: {{ .ssoUri }}
 
       contacts:
-{{ toYaml .contacts | indent 12 }}
+        {{- toYaml .contacts | nindent 8 }}
 {{- end }}

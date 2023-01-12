@@ -14,3 +14,30 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- $name := default .Chart.Name .Values.nameOverride -}}
 {{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+
+{{/*
+Takes no parameters and returns a merged map of upstreams ('upstreams' and 'extra_upstreams')
+that should be configured.
+*/}}
+{{- define "valid_upstreams" -}}
+    {{- range $e := $.Values.nginx_conf.ignored_upstreams }}
+        {{- if not (hasKey $.Values.nginx_conf.upstreams $e) }}
+            {{- fail (print "Upstream '" $e "' does not exist in 'upstreams'!") }}
+        {{- end }}
+    {{- end }}
+    {{- range $e := $.Values.nginx_conf.enabled_extra_upstreams }}
+        {{- if not (hasKey $.Values.nginx_conf.extra_upstreams $e) }}
+            {{- fail (print "Upstream '" $e "' does not exist in 'extra_upstreams'!") }}
+        {{- end }}
+    {{- end }}
+
+    {{- $validUpstreams := (deepCopy $.Values.nginx_conf.upstreams) }}
+    {{- range $key := $.Values.nginx_conf.ignored_upstreams }}
+        {{- $validUpstreams = unset $validUpstreams $key}}
+    {{- end }}
+    {{- range $key := $.Values.nginx_conf.enabled_extra_upstreams }}
+        {{- $validUpstreams = set $validUpstreams $key (get $.Values.nginx_conf.extra_upstreams $key)}}
+    {{- end }}
+
+    {{- toJson $validUpstreams}}
+{{- end -}}

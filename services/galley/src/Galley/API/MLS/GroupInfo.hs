@@ -20,11 +20,13 @@ module Galley.API.MLS.GroupInfo where
 import Data.Id as Id
 import Data.Json.Util
 import Data.Qualified
+import Galley.API.MLS.Enabled
 import Galley.API.MLS.Util
 import Galley.API.Util
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
+import Galley.Env
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -38,34 +40,37 @@ import Wire.API.MLS.PublicGroupState
 
 type MLSGroupInfoStaticErrors =
   '[ ErrorS 'ConvNotFound,
-     ErrorS 'MLSMissingGroupInfo
+     ErrorS 'MLSMissingGroupInfo,
+     ErrorS 'MLSNotEnabled
    ]
 
 getGroupInfo ::
-  Members
-    '[ ConversationStore,
-       Error FederationError,
-       FederatorAccess,
-       Input (Local ()),
-       MemberStore
-     ]
-    r =>
+  ( Members
+      '[ ConversationStore,
+         Error FederationError,
+         FederatorAccess,
+         Input Env,
+         MemberStore
+       ]
+      r,
+    CallsFed 'Galley "query-group-info"
+  ) =>
   Members MLSGroupInfoStaticErrors r =>
   Local UserId ->
   Qualified ConvId ->
   Sem r OpaquePublicGroupState
-getGroupInfo lusr qcnvId =
+getGroupInfo lusr qcnvId = do
+  assertMLSEnabled
   foldQualified
     lusr
-    (getGroupInfoFromLocalConv . qUntagged $ lusr)
+    (getGroupInfoFromLocalConv . tUntagged $ lusr)
     (getGroupInfoFromRemoteConv lusr)
     qcnvId
 
 getGroupInfoFromLocalConv ::
   Members
     '[ ConversationStore,
-       MemberStore,
-       Input (Local ())
+       MemberStore
      ]
     r =>
   Members MLSGroupInfoStaticErrors r =>
@@ -78,7 +83,7 @@ getGroupInfoFromLocalConv qusr lcnvId = do
     >>= noteS @'MLSMissingGroupInfo
 
 getGroupInfoFromRemoteConv ::
-  Members '[Error FederationError, FederatorAccess] r =>
+  (Members '[Error FederationError, FederatorAccess] r, CallsFed 'Galley "query-group-info") =>
   Members MLSGroupInfoStaticErrors r =>
   Local UserId ->
   Remote ConvId ->

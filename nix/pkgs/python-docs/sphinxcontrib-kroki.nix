@@ -1,11 +1,10 @@
-{
-  fetchPypi,
-  buildPythonPackage,
-
-  sphinx,
-  requests,
-  pyyaml,
-} :
+{ fetchPypi
+, buildPythonPackage
+, sphinx
+, requests
+, pyyaml
+,
+}:
 buildPythonPackage rec {
 
   pname = "sphinxcontrib-kroki";

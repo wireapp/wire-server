@@ -8,7 +8,7 @@ service:
   internalPort: 8080
 metrics:
   serviceMonitor:
-    enable: false
+    enabled: false
 resources:
   requests:
     memory: "100Mi"
@@ -28,9 +28,13 @@ config:
     maxTeamSize: 10000
     exposeInvitationURLsTeamAllowlist: []
     maxConvSize: 500
+    intraListing: true
     # Before making indexedBillingTeamMember true while upgrading, please
     # refer to notes here: https://github.com/wireapp/wire-server-deploy/releases/tag/v2020-05-15
     indexedBillingTeamMember: false
+    # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+    # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+    # disabledAPIVersions: [ 3 ]
     featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
       appLock:
         defaults:

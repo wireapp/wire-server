@@ -183,7 +183,7 @@ import qualified Spar.App as Spar
 import Spar.CanonicalInterpreter
 import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
-import qualified Spar.Options
+import Spar.Options
 import Spar.Run
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
@@ -215,7 +215,6 @@ import qualified Wire.API.User as User
 import Wire.API.User.Activation
 import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
-import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalIdEither)
 import Wire.Sem.Logger.TinyLog
 

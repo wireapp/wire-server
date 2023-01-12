@@ -34,6 +34,7 @@ module Cannon.Options
     gracePeriodSeconds,
     millisecondsBetweenBatches,
     minBatchSize,
+    disabledAPIVersions,
     DrainOpts,
   )
 where
@@ -42,6 +43,7 @@ import Control.Lens (makeFields)
 import Data.Aeson.APIFieldJsonTH
 import Imports
 import System.Logger.Extended (Level, LogFormat)
+import Wire.API.Routes.Version
 
 data Cannon = Cannon
   { _cannonHost :: !String,
@@ -88,7 +90,8 @@ data Opts = Opts
     _optsLogLevel :: !Level,
     _optsLogNetStrings :: !(Maybe (Last Bool)),
     _optsLogFormat :: !(Maybe (Last LogFormat)),
-    _optsDrainOpts :: DrainOpts
+    _optsDrainOpts :: DrainOpts,
+    _optsDisabledAPIVersions :: Maybe (Set Version)
   }
   deriving (Eq, Show, Generic)
 

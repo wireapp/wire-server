@@ -1,6 +1,6 @@
 # Fully qualified domain name (FQDN) of the domain where to serve inbucket.
 # E.g. 'inbucket.my-test-env.wire.link'
-host:
+host: "inbucket.example.com"
 
 # Configure the inbucket "parent" chart
 inbucket:

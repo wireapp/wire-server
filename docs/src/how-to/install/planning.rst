@@ -69,6 +69,8 @@ VM on a cloud provider, etc. Make sure they run ubuntu 18.04.
 
 Ensure that your VMs have IP addresses that do not change.
 
+Avoid `10.x.x.x` network address schemes, and instead use something like `192.168.x.x` or `172.x.x.x`. This is because internally, Kubernetes already uses a `10.x.x.x` address scheme, creating a potential conflict.
+
 Next steps for high-available production installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

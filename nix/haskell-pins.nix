@@ -54,7 +54,7 @@
 # 1. Update version number.
 # 2. Make the 'sha256' blank string.
 # 3. Run step 3. from how to add a git pin.
-{lib, fetchgit}: hself: hsuper:
+{ lib, fetchgit }: hself: hsuper:
 let
   gitPins = {
     HaskellNet-SSL = {
@@ -70,7 +70,7 @@ let
         rev = "2e3282e5fb27ba8d989c271a0a989823fad7ec43";
         sha256 = "0vfzysn9sgpxymfvpahxrp74fczgjnw3kgknj6zk0473qk85488f";
       };
-      packages =  {
+      packages = {
         wai-middleware-prometheus = "wai-middleware-prometheus";
       };
     };
@@ -89,12 +89,13 @@ let
       };
       packages = {
         x509-store = "x509-store";
-      };};
+      };
+    };
     amazonka = {
       src = fetchgit {
-        url = "https://github.com/wireapp/amazonka";
-        rev = "7ced54b0396296307b9871d293cc0ac161e5743d";
-        sha256 = "0md658m32zrvzc8nljn58r8iw4rqxpihgdnqrhl8vnmkq6i9np51";
+        url = "https://github.com/brendanhay/amazonka";
+        rev = "cfe2584aef0b03c86650372d362c74f237925d8c";
+        sha256 = "sha256-ss8IuIN0BbS6LMjlaFmUdxUqQu+IHsA8ucsjxXJwbyg=";
       };
       packages = {
         amazonka = "lib/amazonka";
@@ -107,7 +108,8 @@ let
         amazonka-sqs = "lib/services/amazonka-sqs";
         amazonka-sso = "lib/services/amazonka-sso";
         amazonka-sts = "lib/services/amazonka-sts";
-      };};
+      };
+    };
     bloodhound = {
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";
@@ -154,7 +156,8 @@ let
         http-client-openssl = "http-client-openssl";
         http-client-tls = "http-client-tls";
         http-conduit = "http-conduit";
-      };};
+      };
+    };
     http2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/http2";
@@ -167,6 +170,13 @@ let
         url = "https://github.com/wireapp/saml2-web-sso";
         rev = "74371cd775cb98d6cf85f6e182244a3c4fd48702";
         sha256 = "1w23yz2iiayniymk7k4g8gww7268187cayw0c8m3bz2hbnvbyfbc";
+      };
+    };
+    swagger2 = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/swagger2";
+        rev = "ba916df2775bb38ec603b726bbebfb65a908317a";
+        sha256 = "sha256-IcsrJ5ur8Zm7Xp1PQBOb+2N7T8WMI8jJ6YuDv8ypsPQ=";
       };
     };
     cql-io = {
@@ -200,12 +210,16 @@ let
         tasty-hunit = "hunit";
       };
     };
+    # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
+    postie = {
+      src = fetchgit {
+        url = "https://github.com/alexbiehl/postie.git";
+        rev = "c92702386f760fcaa65cd052dc8114889c001e3f";
+        sha256 = "sha256-yiw6hg3guRWS6CVdrUY8wyIDxoqfGjIVMrEtP+Fys0Y=";
+      };
+    };
   };
   hackagePins = {
-    kind-generics = {
-      version = "0.4.1.0";
-      sha256 = "sha256-gD9b9AXpLkpPSAeg8oPBU7tsHtSNQjxIZKBo+7+r3+c=";
-    };
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
@@ -213,6 +227,26 @@ let
     partial-isomorphisms = {
       version = "0.2.2.1";
       sha256 = "sha256-TdsLB0ueaUUllLdvcGu3YNQXCfGRRk5WxP3deHEbHGI=";
+    };
+    kind-generics = {
+      version = "0.4.1.2";
+      sha256 = "sha256-orDfC5+QXRlAMVaqAhT1Fo7Eh/AnobROWeliZqEAXZU=";
+    };
+    kind-generics-th = {
+      version = "0.2.2.2";
+      sha256 = "sha256-nPuRq19UGVXe4YrITAZcF+U4TUBo5APMT2Nh9NqIkxQ=";
+    };
+    polysemy = {
+      version = "1.8.0.0";
+      sha256 = "sha256-AdxxKWXdUjZiHLDj6iswMWpycs7mFB8eKhBR4ljF6kk=";
+    };
+    polysemy-check = {
+      version = "0.9.0.1";
+      sha256 = "sha256-CsL2vMxAmpvVVR/iUnZAkbcRLiy/a8ulJQ6QwtCYmRM=";
+    };
+    polysemy-plugin = {
+      version = "0.4.3.1";
+      sha256 = "sha256-0vkLYNZISr3fmmQvD8qdLkn2GHc80l1GzJuOmqjqXE4=";
     };
     singletons = {
       version = "2.7";
@@ -229,24 +263,39 @@ let
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
-    let subpathArg = if subpath == null
-                     then ""
-                     else "--subpath='${subpath}'";
-    in hself.callCabal2nixWithOptions name src "${subpathArg}" {};
+    let
+      subpathArg =
+        if subpath == null
+        then ""
+        else "--subpath='${subpath}'";
+    in
+    hself.callCabal2nixWithOptions name src "${subpathArg}" { };
   # [[AtrrSet]]
-  gitPackages = lib.attrsets.mapAttrsToList (name: pin:
-    let packages = if pin?packages
-                   then pin.packages
-                   else { "${name}" = null;};
-    in lib.attrsets.mapAttrsToList (name: subpath:
-      {"${name}" = mkGitDrv name pin.src subpath;}
-    ) packages
-  ) gitPins;
+  gitPackages = lib.attrsets.mapAttrsToList
+    (name: pin:
+      let
+        packages =
+          if pin?packages
+          then pin.packages
+          else { "${name}" = null; };
+      in
+      lib.attrsets.mapAttrsToList
+        (name: subpath:
+          { "${name}" = mkGitDrv name pin.src subpath; }
+        )
+        packages
+    )
+    gitPins;
   # AttrSet
-  hackagePackages = lib.attrsets.mapAttrs (pkg: {version, sha256}:
-    hself.callHackageDirect {
-      ver = version;
-      inherit pkg sha256;
-    } {}
-  ) hackagePins;
-in lib.lists.foldr (a: b: a // b) hackagePackages (lib.lists.flatten gitPackages)
+  hackagePackages = lib.attrsets.mapAttrs
+    (pkg: { version, sha256 }:
+      hself.callHackageDirect
+        {
+          ver = version;
+          inherit pkg sha256;
+        }
+        { }
+    )
+    hackagePins;
+in
+lib.lists.foldr (a: b: a // b) hackagePackages (lib.lists.flatten gitPackages)

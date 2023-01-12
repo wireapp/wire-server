@@ -364,14 +364,22 @@ register' e t c brig =
           )
     )
 
-getInvitation :: Brig -> InvitationCode -> (MonadIO m, MonadHttp m) => m (Maybe Invitation)
-getInvitation brig c = do
+getInvitationInfo :: Brig -> InvitationCode -> (MonadIO m, MonadHttp m) => m (Maybe Invitation)
+getInvitationInfo brig c = do
   r <-
     get $
       brig
         . path "/teams/invitations/info"
         . queryItem "code" (toByteString' c)
   pure . decode . fromMaybe "" $ responseBody r
+
+getInvitation :: Brig -> TeamId -> InvitationId -> UserId -> Http ResponseLBS
+getInvitation brig tid iid uid =
+  get (brig . paths ["teams", toByteString' tid, "invitations", toByteString' iid] . zUser uid)
+
+deleteInvitation :: Brig -> TeamId -> InvitationId -> UserId -> Http ()
+deleteInvitation brig tid iid uid =
+  delete (brig . paths ["teams", toByteString' tid, "invitations", toByteString' iid] . zUser uid) !!! const 200 === statusCode
 
 postInvitation ::
   (MonadIO m, MonadHttp m, HasCallStack) =>

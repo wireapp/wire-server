@@ -282,3 +282,52 @@ Many variations on this theme are possible. For example, one could choose to
 write adapting functions in terms of the new input/output types, or even use a
 mixed approach. The adapting functions need not be pure in general, and they
 might even perform further RPC calls.
+
+## Versioning changes in events
+
+Making incompatible changes to events is also sometimes necessary, or at least
+desirable. Unfortunately, there is no direct way to make API versioning
+preserve compatibility with older clients when the format of events changes.
+This is because the format of events is decided when they are generated, which
+is of course before they are fetched by the clients. By the time the backend is
+made aware of the version supported by a client, it is too late to change any
+logic of event generation or serialisation.
+
+However, there are ways to alter the event API in incompatible ways without
+breaking older clients. Namely, we can tie a change X in the format of an event
+to a specific api version N. This means that in order for a client to support
+version N or later, it has to be able to consume events in any format,
+before or after X.
+
+If clients respect this constraint, then the backend only needs to keep the old
+format around for as long as version N-1 is supported, and can apply change X as
+soon as version N-1 is dropped.
+
+Conversely, clients need to be advised on when it is ok for them to drop their
+legacy event parsing code. Unfortunately, determining this point in time is
+complicated by the fact that legacy events may be retained by a backend for
+some time after it has been upgraded to a version that emits events in the new
+format. Therefore, this has to be worked out on a case by case basis.
+
+More precisely: When a new version Q of a backend is released, *if* we can
+ensure that no version lower than N is running anywhere in production, and
+hasn't been for a time at least as long as the maximum event retention time,
+*then* we can drop the requirement for clients to be able to read events in the
+legacy format, *as long as they support only versions larger or equal to Q*.
+
+### Example timeline
+
+- While version 3 is in development: a new format for an event is introduced in
+  the code base, but not yet used for output events, the new format is
+  documented for clients.
+- Version 3 is finalised: events are still produced using the old format;
+  clients that implement v3 are able to parse both event formats.
+- Versions 4 to 6 are finalised. No changes to events.
+- Support for version 2 is dropped while version 7 is in development. The old
+  format can be removed from the code base, and the backend can start producing
+  events in the new format. No changes in clients are required.
+- Version 7 to 9 are finalised. No further changes to events.
+- Version 2 or lower is not used in production anymore. Version 10 is currently
+  in development. The old event format is removed from the documentation.
+  Clients that support only version 10 or above are not required to understand
+  the old format anymore.

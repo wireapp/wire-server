@@ -43,3 +43,9 @@ data NewConversation = NewConversation
     ncUsers :: UserList (UserId, RoleName),
     ncProtocol :: ProtocolTag
   }
+
+mlsMetadata :: Conversation -> Maybe ConversationMLSData
+mlsMetadata conv =
+  case convProtocol conv of
+    ProtocolProteus -> Nothing
+    ProtocolMLS meta -> pure meta

@@ -43,6 +43,7 @@ import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
 import Galley.Effects.ConversationStore (ConversationStore (..))
 import Galley.Types.Conversations.Members
+import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Imports
 import Polysemy
@@ -55,6 +56,63 @@ import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
 import Wire.API.MLS.PublicGroupState
+
+createMLSSelfConversation ::
+  Local UserId ->
+  Client Conversation
+createMLSSelfConversation lusr = do
+  let cnv = mlsSelfConvId . tUnqualified $ lusr
+      usr = tUnqualified lusr
+      nc =
+        NewConversation
+          { ncMetadata =
+              (defConversationMetadata usr) {cnvmType = SelfConv},
+            ncUsers = ulFromLocals [toUserRole usr],
+            ncProtocol = ProtocolMLSTag
+          }
+      meta = ncMetadata nc
+      gid = convToGroupId . qualifyAs lusr $ cnv
+      -- FUTUREWORK: Stop hard-coding the cipher suite
+      --
+      -- 'CipherSuite 1' corresponds to
+      -- 'MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519'.
+      cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+      proto =
+        ProtocolMLS
+          ConversationMLSData
+            { cnvmlsGroupId = gid,
+              cnvmlsEpoch = Epoch 0,
+              cnvmlsCipherSuite = cs
+            }
+  retry x5 . batch $ do
+    setType BatchLogged
+    setConsistency LocalQuorum
+    addPrepQuery
+      Cql.insertMLSSelfConv
+      ( cnv,
+        cnvmType meta,
+        cnvmCreator meta,
+        Cql.Set (cnvmAccess meta),
+        Cql.Set (toList (cnvmAccessRoles meta)),
+        cnvmName meta,
+        cnvmTeam meta,
+        cnvmMessageTimer meta,
+        cnvmReceiptMode meta,
+        Just gid,
+        Just cs
+      )
+    addPrepQuery Cql.insertGroupId (gid, cnv, tDomain lusr)
+
+  (lmems, rmems) <- addMembers cnv (ncUsers nc)
+  pure
+    Conversation
+      { convId = cnv,
+        convLocalMembers = lmems,
+        convRemoteMembers = rmems,
+        convDeleted = False,
+        convMetadata = meta,
+        convProtocol = proto
+      }
 
 createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
@@ -129,7 +187,8 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, _, _, _, _) = do
+    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _) = do
+      c <- mc
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
       pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
@@ -266,16 +325,23 @@ toProtocol ::
 toProtocol Nothing _ _ _ = Just ProtocolProteus
 toProtocol (Just ProtocolProteusTag) _ _ _ = Just ProtocolProteus
 toProtocol (Just ProtocolMLSTag) mgid mepoch mcs =
-  ProtocolMLS <$> (ConversationMLSData <$> mgid <*> mepoch <*> mcs)
+  ProtocolMLS
+    <$> ( ConversationMLSData
+            <$> mgid
+            -- If there is no epoch in the database, assume the epoch is 0
+            <*> (mepoch <|> Just (Epoch 0))
+            <*> mcs
+        )
 
 toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ->
+  Maybe (ConvType, Maybe UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRole), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mcs) <- mconv
+  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mcs) <- mconv
+  uid <- muid
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
   proto <- toProtocol ptag mgid mep mcs
@@ -314,6 +380,7 @@ interpretConversationStoreToCassandra ::
 interpretConversationStoreToCassandra = interpret $ \case
   CreateConversationId -> Id <$> embed nextRandom
   CreateConversation loc nc -> embedClient $ createConversation loc nc
+  CreateMLSSelfConversation lusr -> embedClient $ createMLSSelfConversation lusr
   GetConversation cid -> embedClient $ getConversation cid
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids

@@ -1,9 +1,8 @@
-{
-  fetchPypi,
-  buildPythonPackage,
-
-  sphinx,
-} :
+{ fetchPypi
+, buildPythonPackage
+, sphinx
+,
+}:
 buildPythonPackage rec {
 
   pname = "sphinx_reredirects";

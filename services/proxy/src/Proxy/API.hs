@@ -33,6 +33,10 @@ sitemap e = do
   Public.sitemap e
   routesInternal
 
+-- | IF YOU MODIFY THIS, BE AWARE OF:
+--
+-- >>> /libs/wire-api/src/Wire/API/Routes/Public/Proxy.hs
+-- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
 routesInternal :: Routes a Proxy ()
 routesInternal = do
   head "/i/status" (continue $ const (pure empty)) true

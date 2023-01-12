@@ -14,9 +14,7 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws 
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
 CHARTS_RELEASE        := wire-server redis-ephemeral redis-cluster databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn inbucket
-BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
-BUILDAH_KIND_LOAD     ?= 1
 
 package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
@@ -41,7 +39,6 @@ init:
 # Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
-	cabal update
 	cabal build all
 	./hack/bin/cabal-run-all-tests.sh
 	./hack/bin/cabal-install-artefacts.sh all
@@ -55,13 +52,12 @@ ifdef CABAL_DIR
 else
 	rm -rf ~/.cabal/store
 endif
-	rm -rf ./dist-newbuild ./.env
+	rm -rf ./dist-newstyle ./.env
 	direnv reload
 
 .PHONY: clean
 clean:
 	cabal clean
-	$(MAKE) -C services/nginz clean
 	-rm -rf dist
 
 .PHONY: clean-hint
@@ -110,11 +106,15 @@ ghcid:
 
 # Used by CI
 .PHONY: lint-all
-lint-all: formatc hlint-check-all shellcheck check-local-nix-derivations
+lint-all: formatc hlint-check-all check-local-nix-derivations treefmt
 
 .PHONY: hlint-check-all
 hlint-check-all:
 	./tools/hlint.sh -f all -m check
+
+.PHONY: hlint-inplace-all
+hlint-inplace-all:
+	./tools/hlint.sh -f all -m inplace
 
 .PHONY: hlint-check-pr
 hlint-check-pr:
@@ -123,11 +123,6 @@ hlint-check-pr:
 .PHONY: hlint-inplace-pr
 hlint-inplace-pr:
 	./tools/hlint.sh -f pr -m inplace
-
-
-.PHONY: hlint-inplace-all
-hlint-inplace-all:
-	./tools/hlint.sh -f all -m inplace
 
 .PHONY: hlint-check
 hlint-check:
@@ -156,7 +151,12 @@ format:
 # formats all Haskell files even if local changes are not committed to git
 .PHONY: formatf
 formatf:
-	./tools/ormolu.sh -f
+	./tools/ormolu.sh -f pr
+
+# formats all Haskell files even if local changes are not committed to git
+.PHONY: formatf-all
+formatf-all:
+	./tools/ormolu.sh -f all
 
 # checks that all Haskell files are formatted; fail if a `make format` run is needed.
 .PHONY: formatc
@@ -173,12 +173,22 @@ add-license:
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
-.PHONY: shellcheck
-shellcheck:
-	./hack/bin/shellcheck.sh
+.PHONY: treefmt
+treefmt:
+	treefmt
 
 #################################
 ## docker targets
+
+.PHONY: build-image-%
+build-image-%:
+	nix-build ./nix -A wireServer.imagesNoDocs.$(*) && \
+	./result | docker load | tee /tmp/imageName-$(*) && \
+	imageName=$$(grep quay.io /tmp/imageName-$(*) | awk '{print $$3}') && \
+	echo 'You can run your image locally using' && \
+	echo "  docker run -it --entrypoint bash $$imageName" && \
+	echo 'or upload it using' && \
+	echo "  docker push $$imageName"
 
 .PHONY: upload-images
 upload-images:
@@ -200,7 +210,10 @@ git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:
 	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
-	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./cassandra-schema.cql
+	( echo '-- automatically generated with `make git-add-cassandra-schema`'; \
+      docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) \
+    | sed "s/CREATE TABLE galley_test.member_client/-- NOTE: this table is unused. It was replaced by mls_group_member_client\nCREATE TABLE galley_test.member_client/g" \
+      > ./cassandra-schema.cql
 	git add ./cassandra-schema.cql
 
 .PHONY: cqlsh
@@ -252,8 +265,11 @@ ifeq ($(package), all)
 	./dist/galley-schema --keyspace galley_test --replication-factor 1
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1
 	./dist/spar-schema --keyspace spar_test --replication-factor 1
-else
+# How this check works: https://stackoverflow.com/a/9802777
+else ifeq ($(package), $(filter $(package),brig galley gundeck spar))
 	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1
+else
+	@echo No schema migrations for $(package)
 endif
 
 
@@ -408,24 +424,6 @@ upload-charts: charts-release
 .PHONY: echo-release-charts
 echo-release-charts:
 	@echo ${CHARTS_RELEASE}
-
-.PHONY: buildah-docker
-buildah-docker: buildah-docker-nginz
-	./hack/bin/buildah-compile.sh all
-	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images.sh
-
-.PHONY: buildah-docker-nginz
-buildah-docker-nginz:
-	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images-nginz.sh
-
-.PHONY: buildah-docker-%
-buildah-docker-%:
-	./hack/bin/buildah-compile.sh $(*)
-	BUILDAH_PUSH=${BUILDAH_PUSH} EXECUTABLES=$(*) KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD} ./hack/bin/buildah-make-images.sh
-
-.PHONY: buildah-clean
-buildah-clean:
-	./hack/bin/buildah-clean.sh
 
 .PHONY: kind-cluster
 kind-cluster:

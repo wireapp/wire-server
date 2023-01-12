@@ -98,6 +98,7 @@ import qualified System.Logger.Extended as ExLog
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Event.Conversation (Connect (Connect))
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Properties
@@ -117,7 +118,8 @@ onUserEvent ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -249,7 +251,8 @@ dispatchNotifications ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -285,6 +288,7 @@ notifyUserDeletionLocals ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections",
     MonadClient m
   ) =>
   UserId ->
@@ -299,7 +303,8 @@ notifyUserDeletionRemotes ::
   forall m.
   ( MonadReader Env m,
     MonadClient m,
-    MonadLogger m
+    MonadLogger m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   m ()
@@ -688,7 +693,7 @@ createLocalConnectConv ::
   m ConvId
 createLocalConnectConv from to cname conn = do
   debug $
-    logConnection (tUnqualified from) (qUntagged to)
+    logConnection (tUnqualified from) (tUntagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
   let req =
@@ -696,7 +701,7 @@ createLocalConnectConv from to cname conn = do
           . zUser (tUnqualified from)
           . maybe id (header "Z-Connection" . fromConnId) conn
           . contentJson
-          . lbytes (encode $ Connect (qUntagged to) Nothing cname Nothing)
+          . lbytes (encode $ Connect (tUntagged to) Nothing cname Nothing)
           . expect2xx
   r <- galleyRequest POST req
   maybe (error "invalid conv id") pure $
@@ -712,7 +717,7 @@ createConnectConv ::
 createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
-  qUntagged . qualifyAs lfrom
+  tUntagged . qualifyAs lfrom
     <$> wrapHttp (createLocalConnectConv lfrom lto cname conn)
 
 -- | Calls 'Galley.API.acceptConvH'.

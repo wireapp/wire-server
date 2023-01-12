@@ -29,6 +29,7 @@ import qualified Json
 import qualified Native
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
+import qualified ParseExistsError
 import qualified Push
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -48,5 +49,6 @@ main =
         Json.tests,
         Native.tests,
         Push.tests,
-        ThreadBudget.tests
+        ThreadBudget.tests,
+        ParseExistsError.tests
       ]

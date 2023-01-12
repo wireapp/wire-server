@@ -18,7 +18,6 @@
 module Wire.API.Swagger where
 
 import Data.Swagger.Build.Api (Model)
-import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation as Conversation
 import qualified Wire.API.Conversation.Code as Conversation.Code
@@ -32,7 +31,6 @@ import qualified Wire.API.Properties as Properties
 import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Team.Invitation as Team.Invitation
 import qualified Wire.API.Team.Permission as Team.Permission
 import qualified Wire.API.User as User
 import qualified Wire.API.User.Client as User.Client
@@ -44,9 +42,7 @@ import qualified Wire.API.User.Search as User.Search
 
 models :: [Model]
 models =
-  [ Call.Config.modelRtcConfiguration,
-    Call.Config.modelRtcIceServer,
-    Connection.modelConnectionList,
+  [ Connection.modelConnectionList,
     Connection.modelConnection,
     Connection.modelConnectionUpdate,
     Conversation.modelConversation,
@@ -88,9 +84,6 @@ models =
     Team.modelTeamDelete,
     Team.Conversation.modelTeamConversation,
     Team.Conversation.modelTeamConversationList,
-    Team.Invitation.modelTeamInvitation,
-    Team.Invitation.modelTeamInvitationList,
-    Team.Invitation.modelTeamInvitationRequest,
     Team.Permission.modelPermissions,
     User.modelUserIdList,
     User.modelUser,

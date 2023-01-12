@@ -30,6 +30,7 @@ import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
+import Spar.Options
 import Spar.Sem.AssIDStore
 import Wire.API.User.Saml
 import Wire.Sem.Now (Now)

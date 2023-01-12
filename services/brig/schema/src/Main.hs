@@ -161,5 +161,7 @@ main = do
 
       -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
       -- https://github.com/wireapp/wire-server/pull/964
+      --
+      -- FUTUREWORK after July 2023: integrate V_FUTUREWORK here.
     ]
     `finally` Log.close l

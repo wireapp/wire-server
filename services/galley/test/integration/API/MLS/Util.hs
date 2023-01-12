@@ -24,7 +24,7 @@ import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Error.Util
-import Control.Lens (preview, to, view, (^..))
+import Control.Lens (preview, to, view, (.~), (^..))
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
@@ -48,6 +48,7 @@ import qualified Data.Text.Encoding as T
 import Data.Time.Clock (getCurrentTime)
 import Galley.Keys
 import Galley.Options
+import qualified Galley.Options as Opts
 import Imports hiding (getSymbolicLinkTarget)
 import System.Directory (getSymbolicLinkTarget)
 import System.FilePath
@@ -107,7 +108,7 @@ postMessage ::
     MonadHttp m,
     HasGalley m
   ) =>
-  UserId ->
+  ClientIdentity ->
   ByteString ->
   m ResponseLBS
 postMessage sender msg = do
@@ -115,7 +116,8 @@ postMessage sender msg = do
   post
     ( galley
         . paths ["mls", "messages"]
-        . zUser sender
+        . zUser (ciUser sender)
+        . zClient (ciClient sender)
         . zConn "conn"
         . content "message/mls"
         . bytes msg
@@ -129,7 +131,7 @@ postCommitBundle ::
     MonadHttp m,
     HasGalley m
   ) =>
-  UserId ->
+  ClientIdentity ->
   ByteString ->
   m ResponseLBS
 postCommitBundle sender bundle = do
@@ -137,7 +139,8 @@ postCommitBundle sender bundle = do
   post
     ( galley
         . paths ["mls", "commit-bundles"]
-        . zUser sender
+        . zUser (ciUser sender)
+        . zClient (ciClient sender)
         . zConn "conn"
         . content "application/x-protobuf"
         . bytes bundle
@@ -276,7 +279,7 @@ initMLSClient cid = do
   void $ mlscli cid ["init", cid2Str cid] Nothing
 
 createLocalMLSClient :: Local UserId -> MLSTest ClientIdentity
-createLocalMLSClient (qUntagged -> qusr) = do
+createLocalMLSClient (tUntagged -> qusr) = do
   qcid <- createWireClient qusr
   initMLSClient qcid
 
@@ -298,7 +301,7 @@ createLocalMLSClient (qUntagged -> qusr) = do
 createMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
 createMLSClient qusr = do
   loc <- liftTest $ qualifyLocal ()
-  foldQualified loc createLocalMLSClient (createFakeMLSClient . qUntagged) qusr
+  foldQualified loc createLocalMLSClient (createFakeMLSClient . tUntagged) qusr
 
 -- | Like 'createMLSClient', but do not actually register client with backend.
 createFakeMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
@@ -392,25 +395,46 @@ setGroupState cid state = do
   fp <- nextGroupFile cid
   liftIO $ BS.writeFile fp state
 
--- | Create conversation and corresponding group.
-setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
-setupMLSGroup creator = do
+-- | Create a conversation from a provided action and then create a
+-- corresponding group.
+setupMLSGroupWithConv ::
+  HasCallStack =>
+  MLSTest Conversation ->
+  ClientIdentity ->
+  MLSTest (GroupId, Qualified ConvId)
+setupMLSGroupWithConv convAction creator = do
   ownDomain <- liftTest viewFederationDomain
   liftIO $ assertEqual "creator is not local" (ciDomain creator) ownDomain
-  conv <-
-    responseJsonError
-      =<< liftTest
-        ( postConvQualified
-            (ciUser creator)
-            (defNewMLSConv (ciClient creator))
-        )
-        <!! const 201 === statusCode
+  conv <- convAction
   let groupId =
         fromJust
           (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
 
   createGroup creator groupId
   pure (groupId, cnvQualifiedId conv)
+
+-- | Create conversation and corresponding group.
+setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupMLSGroup creator = setupMLSGroupWithConv action creator
+  where
+    action =
+      responseJsonError
+        =<< liftTest
+          ( postConvQualified
+              (ciUser creator)
+              (defNewMLSConv (ciClient creator))
+          )
+          <!! const 201 === statusCode
+
+-- | Create self-conversation and corresponding group.
+setupMLSSelfGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
+  where
+    action =
+      responseJsonError
+        =<< liftTest
+          (getSelfConv (ciUser creator))
+          <!! const 200 === statusCode
 
 createGroup :: ClientIdentity -> GroupId -> MLSTest ()
 createGroup cid gid = do
@@ -469,7 +493,7 @@ getUserClients qusr = do
 
 -- | Generate one key package for each client of a remote user
 claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
-claimRemoteKeyPackages (qUntagged -> qusr) = do
+claimRemoteKeyPackages (tUntagged -> qusr) = do
   brig <- viewBrig
   clients <- getUserClients qusr
   bundle <- fmap (KeyPackageBundle . Set.fromList) $
@@ -810,7 +834,7 @@ sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest [Event]
 sendAndConsumeMessage mp = do
   events <-
     fmap mmssEvents . responseJsonError
-      =<< postMessage (ciUser (mpSender mp)) (mpMessage mp)
+      =<< postMessage (mpSender mp) (mpMessage mp)
         <!! const 201 === statusCode
   consumeMessage mp
 
@@ -866,7 +890,7 @@ sendAndConsumeCommitBundle mp = do
   events <-
     fmap mmssEvents
       . responseJsonError
-      =<< postCommitBundle (ciUser (mpSender mp)) bundle
+      =<< postCommitBundle (mpSender mp) bundle
         <!! const 201 === statusCode
   consumeMessage mp
   traverse_ consumeWelcome (mpWelcome mp)
@@ -999,3 +1023,20 @@ getGroupInfo sender qcnv = do
         . zUser sender
         . zConn "conn"
     )
+
+getSelfConv ::
+  UserId ->
+  TestM ResponseLBS
+getSelfConv u = do
+  g <- viewGalley
+  get $
+    g
+      . paths ["/conversations", "mls-self"]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+
+withMLSDisabled :: HasSettingsOverrides m => m a -> m a
+withMLSDisabled = withSettingsOverrides noMLS
+  where
+    noMLS = Opts.optSettings . Opts.setMlsPrivateKeyPaths .~ Nothing

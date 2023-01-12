@@ -41,12 +41,14 @@ import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
+import Wire.API.Call.Config (RTCConfiguration)
 import Wire.API.Connection hiding (MissingLegalholdConsent)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
+import Wire.API.MakesFederatedCall
 import Wire.API.Properties
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -56,6 +58,9 @@ import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
+import Wire.API.SystemSettings
+import Wire.API.Team.Invitation
+import Wire.API.Team.Size
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
 import Wire.API.User.Auth
@@ -65,8 +70,31 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
 import Wire.API.User.RichInfo (RichInfoAssocList)
-import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
+import Wire.API.User.Search (Contact, PagingState, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
+
+type BrigAPI =
+  UserAPI
+    :<|> SelfAPI
+    :<|> AccountAPI
+    :<|> ClientAPI
+    :<|> PrekeyAPI
+    :<|> UserClientAPI
+    :<|> ConnectionAPI
+    :<|> PropertiesAPI
+    :<|> MLSAPI
+    :<|> UserHandleAPI
+    :<|> SearchAPI
+    :<|> AuthAPI
+    :<|> CallingAPI
+    :<|> TeamsAPI
+    :<|> SystemSettingsAPI
+
+brigSwagger :: Swagger
+brigSwagger = toSwagger (Proxy @BrigAPI)
+
+-------------------------------------------------------------------------------
+-- User API
 
 type MaxUsersForListClientsBulk = 500
 
@@ -113,6 +141,7 @@ type UserAPI =
   Named
     "get-user-unqualified"
     ( Summary "Get a user by UserId"
+        :> MakesFederatedCall 'Brig "get-users-by-ids"
         :> Until 'V2
         :> ZUser
         :> "users"
@@ -124,6 +153,7 @@ type UserAPI =
     Named
       "get-user-qualified"
       ( Summary "Get a user by Domain and UserId"
+          :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
           :> "users"
           :> QualifiedCaptureUserId "uid"
@@ -144,6 +174,8 @@ type UserAPI =
            "get-handle-info-unqualified"
            ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
                :> Until 'V2
+               :> MakesFederatedCall 'Brig "get-user-by-handle"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZUser
                :> "users"
                :> "handles"
@@ -160,6 +192,8 @@ type UserAPI =
            "get-user-by-handle-qualified"
            ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
                :> Until 'V2
+               :> MakesFederatedCall 'Brig "get-user-by-handle"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
                :> ZUser
                :> "users"
                :> "by-handle"
@@ -179,6 +213,7 @@ type UserAPI =
       ( Summary "List users (deprecated)"
           :> Until 'V2
           :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+          :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
           :> "users"
           :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
@@ -191,6 +226,7 @@ type UserAPI =
       "list-users-by-ids-or-handles"
       ( Summary "List users"
           :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+          :> MakesFederatedCall 'Brig "get-users-by-ids"
           :> ZUser
           :> "list-users"
           :> ReqBody '[JSON] ListUsersQuery
@@ -247,6 +283,7 @@ type SelfAPI =
           :> CanThrow 'MissingAuth
           :> CanThrow 'DeleteCodePending
           :> CanThrow 'OwnerDeletingSelf
+          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> "self"
           :> ReqBody '[JSON] DeleteUser
@@ -258,6 +295,7 @@ type SelfAPI =
     Named
       "put-self"
       ( Summary "Update your profile."
+          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> ZConn
           :> "self"
@@ -283,6 +321,7 @@ type SelfAPI =
           :> Description
                "Your phone number can only be removed if you also have an \
                \email address and a password."
+          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> ZConn
           :> "self"
@@ -298,6 +337,7 @@ type SelfAPI =
           :> Description
                "Your email address can only be removed if you also have a \
                \phone number."
+          :> MakesFederatedCall 'Brig "on-user-deleted-connections"
           :> ZUser
           :> ZConn
           :> "self"
@@ -330,6 +370,7 @@ type SelfAPI =
     :<|> Named
            "change-locale"
            ( Summary "Change your locale."
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ZUser
                :> ZConn
                :> "self"
@@ -340,6 +381,7 @@ type SelfAPI =
     :<|> Named
            "change-handle"
            ( Summary "Change your handle."
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ZUser
                :> ZConn
                :> "self"
@@ -391,6 +433,7 @@ type AccountAPI =
              "If the environment where the registration takes \
              \place is private and a registered email address or phone \
              \number is not whitelisted, a 403 error is returned."
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> "register"
         :> ReqBody '[JSON] NewUserPublic
         :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
@@ -401,6 +444,7 @@ type AccountAPI =
     :<|> Named
            "verify-delete"
            ( Summary "Verify account deletion with a code."
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> CanThrow 'InvalidCode
                :> "delete"
                :> ReqBody '[JSON] VerifyDeleteUser
@@ -413,6 +457,7 @@ type AccountAPI =
            "get-activate"
            ( Summary "Activate (i.e. confirm) an email address or phone number."
                :> Description "See also 'POST /activate' which has a larger feature set."
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
                :> CanThrow 'InvalidActivationCodeWrongCode
@@ -438,6 +483,7 @@ type AccountAPI =
                :> Description
                     "Activation only succeeds once and the number of \
                     \failed attempts for a valid key is limited."
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> CanThrow 'UserKeyExists
                :> CanThrow 'InvalidActivationCodeWrongUser
                :> CanThrow 'InvalidActivationCodeWrongCode
@@ -524,8 +570,10 @@ instance ToSchema DeprecatedMatchingResult where
     object
       "DeprecatedMatchingResult"
       $ DeprecatedMatchingResult
-        <$ const [] .= field "results" (array (null_ @SwaggerDoc))
-        <* const [] .= field "auto-connects" (array (null_ @SwaggerDoc))
+        <$ const []
+          .= field "results" (array (null_ @SwaggerDoc))
+        <* const []
+          .= field "auto-connects" (array (null_ @SwaggerDoc))
 
 data ActivationRespWithStatus
   = ActivationResp ActivationResponse
@@ -549,6 +597,7 @@ type PrekeyAPI =
     "get-users-prekeys-client-unqualified"
     ( Summary "(deprecated) Get a prekey for a specific client of a user."
         :> Until 'V2
+        :> MakesFederatedCall 'Brig "claim-prekey"
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
@@ -559,6 +608,7 @@ type PrekeyAPI =
     :<|> Named
            "get-users-prekeys-client-qualified"
            ( Summary "Get a prekey for a specific client of a user."
+               :> MakesFederatedCall 'Brig "claim-prekey"
                :> ZUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -570,6 +620,7 @@ type PrekeyAPI =
            "get-users-prekey-bundle-unqualified"
            ( Summary "(deprecated) Get a prekey for each client of a user."
                :> Until 'V2
+               :> MakesFederatedCall 'Brig "claim-prekey-bundle"
                :> ZUser
                :> "users"
                :> CaptureUserId "uid"
@@ -579,6 +630,7 @@ type PrekeyAPI =
     :<|> Named
            "get-users-prekey-bundle-qualified"
            ( Summary "Get a prekey for each client of a user."
+               :> MakesFederatedCall 'Brig "claim-prekey-bundle"
                :> ZUser
                :> "users"
                :> QualifiedCaptureUserId "uid"
@@ -604,6 +656,7 @@ type PrekeyAPI =
                "Given a map of domain to (map of user IDs to client IDs) return a \
                \prekey for each one. You can't request information for more users than \
                \maximum conversation size."
+               :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
                :> "users"
                :> "list-prekeys"
@@ -620,6 +673,7 @@ type UserClientAPI =
   Named
     "add-client"
     ( Summary "Register a new client"
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> CanThrow 'TooManyClients
         :> CanThrow 'MissingAuth
         :> CanThrow 'MalformedPrekeys
@@ -755,6 +809,7 @@ type ClientAPI =
     "get-user-clients-unqualified"
     ( Summary "Get all of a user's clients"
         :> Until 'V2
+        :> MakesFederatedCall 'Brig "get-user-clients"
         :> "users"
         :> CaptureUserId "uid"
         :> "clients"
@@ -763,6 +818,7 @@ type ClientAPI =
     :<|> Named
            "get-user-clients-qualified"
            ( Summary "Get all of a user's clients"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
@@ -772,6 +828,7 @@ type ClientAPI =
            "get-user-client-unqualified"
            ( Summary "Get a specific client of a user"
                :> Until 'V2
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> "users"
                :> CaptureUserId "uid"
                :> "clients"
@@ -781,6 +838,7 @@ type ClientAPI =
     :<|> Named
            "get-user-client-qualified"
            ( Summary "Get a specific client of a user"
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
@@ -791,6 +849,7 @@ type ClientAPI =
            "list-clients-bulk"
            ( Summary "List all clients for a set of user ids"
                :> Until 'V2
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -801,6 +860,7 @@ type ClientAPI =
            "list-clients-bulk-v2"
            ( Summary "List all clients for a set of user ids"
                :> Until 'V2
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -812,6 +872,7 @@ type ClientAPI =
            "list-clients-bulk@v2"
            ( Summary "List all clients for a set of user ids"
                :> From 'V2
+               :> MakesFederatedCall 'Brig "get-user-clients"
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -832,6 +893,7 @@ type ConnectionAPI =
     "create-connection-unqualified"
     ( Summary "Create a connection to another user"
         :> Until 'V2
+        :> MakesFederatedCall 'Brig "send-connection-action"
         :> CanThrow 'MissingLegalholdConsent
         :> CanThrow 'InvalidUser
         :> CanThrow 'ConnectionLimitReached
@@ -854,6 +916,7 @@ type ConnectionAPI =
     :<|> Named
            "create-connection"
            ( Summary "Create a connection to another user"
+               :> MakesFederatedCall 'Brig "send-connection-action"
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'InvalidUser
                :> CanThrow 'ConnectionLimitReached
@@ -932,6 +995,7 @@ type ConnectionAPI =
       "update-connection-unqualified"
       ( Summary "Update a connection to another user"
           :> Until 'V2
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -959,6 +1023,7 @@ type ConnectionAPI =
     Named
       "update-connection"
       ( Summary "Update a connection to another user"
+          :> MakesFederatedCall 'Brig "send-connection-action"
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -979,6 +1044,8 @@ type ConnectionAPI =
     :<|> Named
            "search-contacts"
            ( Summary "Search for users"
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
+               :> MakesFederatedCall 'Brig "search-users"
                :> ZUser
                :> "search"
                :> "contacts"
@@ -1057,6 +1124,7 @@ type MLSKeyPackageAPI =
            ( "self"
                :> Summary "Upload a fresh batch of key packages"
                :> Description "The request body should be a json object containing a list of base64-encoded key packages."
+               :> ZLocalUser
                :> CanThrow 'MLSProtocolError
                :> CanThrow 'MLSIdentityMismatch
                :> CaptureClientId "client"
@@ -1067,6 +1135,8 @@ type MLSKeyPackageAPI =
                   "mls-key-packages-claim"
                   ( "claim"
                       :> Summary "Claim one key package for each client of the given user"
+                      :> MakesFederatedCall 'Brig "claim-key-packages"
+                      :> ZLocalUser
                       :> QualifiedCaptureUserId "user"
                       :> QueryParam'
                            [ Optional,
@@ -1080,6 +1150,7 @@ type MLSKeyPackageAPI =
            :<|> Named
                   "mls-key-packages-count"
                   ( "self"
+                      :> ZLocalUser
                       :> CaptureClientId "client"
                       :> "count"
                       :> Summary "Return the number of unused key packages for the given client"
@@ -1132,6 +1203,15 @@ type SearchAPI =
              ]
              "size"
              (Range 1 500 Int32)
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description
+                 "Optional, when not specified, the first page will be returned. \
+                 \Every returned page contains a `paging_state`, this should be supplied to retrieve the next page."
+             ]
+             "pagingState"
+             PagingState
         :> MultiVerb
              'GET
              '[JSON]
@@ -1139,7 +1219,7 @@ type SearchAPI =
              (SearchResult TeamContact)
     )
 
-type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
+type MLSAPI = LiftNamed ("mls" :> MLSKeyPackageAPI)
 
 type AuthAPI =
   Named
@@ -1151,6 +1231,7 @@ type AuthAPI =
              \ Every other combination is invalid.\
              \ Access tokens can be given as query parameter or authorisation\
              \ header, with the latter being preferred."
+        :> MakesFederatedCall 'Brig "on-user-deleted-connections"
         :> QueryParam "client_id" ClientId
         :> Cookies '["zuid" ::: SomeUserToken]
         :> Bearer SomeAccessToken
@@ -1181,6 +1262,7 @@ type AuthAPI =
            ( "login"
                :> Summary "Authenticate a user to obtain a cookie and first access token"
                :> Description "Logins are throttled at the server's discretion"
+               :> MakesFederatedCall 'Brig "on-user-deleted-connections"
                :> ReqBody '[JSON] Login
                :> QueryParam'
                     [ Optional,
@@ -1254,19 +1336,161 @@ type AuthAPI =
                :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Cookies revoked")
            )
 
-type BrigAPI =
-  UserAPI
-    :<|> SelfAPI
-    :<|> AccountAPI
-    :<|> ClientAPI
-    :<|> PrekeyAPI
-    :<|> UserClientAPI
-    :<|> ConnectionAPI
-    :<|> PropertiesAPI
-    :<|> MLSAPI
-    :<|> UserHandleAPI
-    :<|> SearchAPI
-    :<|> AuthAPI
+-------------------------------------------------------------------------------
+-- Calling API
 
-brigSwagger :: Swagger
-brigSwagger = toSwagger (Proxy @BrigAPI)
+type CallingAPI =
+  -- Deprecated endpoint, but still used by old clients.
+  -- See https://github.com/zinfra/backend-issues/issues/1616 for context
+  Named
+    "get-calls-config"
+    ( Summary
+        "[deprecated] Retrieve TURN server addresses and credentials for \
+        \ IP addresses, scheme `turn` and transport `udp` only"
+        :> ZUser
+        :> ZConn
+        :> "calls"
+        :> "config"
+        :> Get '[JSON] RTCConfiguration
+    )
+    :<|> Named
+           "get-calls-config-v2"
+           ( Summary
+               "Retrieve all TURN server addresses and credentials. \
+               \Clients are expected to do a DNS lookup to resolve \
+               \the IP addresses of the given hostnames "
+               :> ZUser
+               :> ZConn
+               :> "calls"
+               :> "config"
+               :> "v2"
+               :> QueryParam' '[Optional, Strict, Description "Limit resulting list. Allowed values [1..10]"] "limit" (Range 1 10 Int)
+               :> Get '[JSON] RTCConfiguration
+           )
+
+-- Teams API -----------------------------------------------------
+
+type TeamsAPI =
+  Named
+    "send-team-invitation"
+    ( Summary "Create and send a new team invitation."
+        :> Description
+             "Invitations are sent by email. The maximum allowed number of \
+             \pending team invitations is equal to the team size."
+        :> CanThrow 'NoEmail
+        :> CanThrow 'NoIdentity
+        :> CanThrow 'InvalidEmail
+        :> CanThrow 'BlacklistedEmail
+        :> CanThrow 'TooManyTeamInvitations
+        :> CanThrow 'InsufficientTeamPermissions
+        :> ZUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "invitations"
+        :> ReqBody '[JSON] InvitationRequest
+        :> MultiVerb1
+             'POST
+             '[JSON]
+             ( WithHeaders
+                 '[Header "Location" InvitationLocation]
+                 (Invitation, InvitationLocation)
+                 (Respond 201 "Invitation was created and sent." Invitation)
+             )
+    )
+    :<|> Named
+           "get-team-invitations"
+           ( Summary "List the sent team invitations"
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> QueryParam' '[Optional, Strict, Description "Invitation id to start from (ascending)."] "start" InvitationId
+               :> QueryParam' '[Optional, Strict, Description "Number of results to return (default 100, max 500)."] "size" (Range 1 500 Int32)
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "List of sent invitations" InvitationList)
+           )
+    :<|> Named
+           "get-team-invitation"
+           ( Summary "Get a pending team invitation by ID."
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> Capture "iid" InvitationId
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ ErrorResponse 'NotificationNotFound,
+                       Respond 200 "Invitation" Invitation
+                     ]
+                    (Maybe Invitation)
+           )
+    :<|> Named
+           "delete-team-invitation"
+           ( Summary "Delete a pending team invitation by ID."
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "invitations"
+               :> Capture "iid" InvitationId
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Invitation deleted")
+           )
+    :<|> Named
+           "get-team-invitation-info"
+           ( Summary "Get invitation info given a code."
+               :> CanThrow 'InvalidInvitationCode
+               :> "teams"
+               :> "invitations"
+               :> "info"
+               :> QueryParam' '[Required, Strict, Description "Invitation code"] "code" InvitationCode
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "Invitation info" Invitation)
+           )
+    -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
+    :<|> Named
+           "head-team-invitations"
+           ( Summary "Check if there is an invitation pending given an email address."
+               :> "teams"
+               :> "invitations"
+               :> "by-email"
+               :> QueryParam' '[Required, Strict, Description "Email address"] "email" Email
+               :> MultiVerb
+                    'HEAD
+                    '[JSON]
+                    HeadInvitationsResponses
+                    HeadInvitationByEmailResult
+           )
+    :<|> Named
+           "get-team-size"
+           ( Summary
+               "Returns the number of team members as an integer.  \
+               \Can be out of sync by roughly the `refresh_interval` \
+               \of the ES index."
+               :> CanThrow 'InvalidInvitationCode
+               :> ZUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "size"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "Number of team members" TeamSize)
+           )
+
+type SystemSettingsAPI =
+  Named
+    "get-system-settings"
+    ( Summary "Returns a curated set of system configuration settings."
+        :> From 'V3
+        :> "system"
+        :> "settings"
+        :> "unauthorized"
+        :> Get '[JSON] SystemSettings
+    )

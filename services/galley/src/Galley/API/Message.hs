@@ -65,7 +65,7 @@ import Galley.Options
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
 import Imports hiding (forkIO)
-import Polysemy
+import Polysemy hiding (send)
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
@@ -79,7 +79,7 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
-import Wire.API.Routes.Public.Galley
+import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
@@ -214,7 +214,7 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
       )
 
 getRemoteClients ::
-  Member FederatorAccess r =>
+  (Member FederatorAccess r, CallsFed 'Brig "get-user-clients") =>
   [RemoteMember] ->
   Sem r (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers =
@@ -222,23 +222,23 @@ getRemoteClients remoteMembers =
   mconcat . map tUnqualified
     <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
   where
-    getRemoteClientsFromDomain (qUntagged -> Qualified uids domain) =
+    getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
 -- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
-  Members '[FederatorAccess] r =>
+  (Members '[FederatorAccess] r, CallsFed 'Galley "send-message") =>
   Qualified UserId ->
   Remote ConvId ->
   ByteString ->
   Sem r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
-        MessageSendRequest
-          { msrConvId = tUnqualified conv,
-            msrSender = qUnqualified sender,
-            msrRawMessage = Base64ByteString rawMsg
+        ProteusMessageSendRequest
+          { pmsrConvId = tUnqualified conv,
+            pmsrSender = qUnqualified sender,
+            pmsrRawMessage = Base64ByteString rawMsg
           }
       rpc = fedClient @'Galley @"send-message" msr
   msResponse <$> runFederated conv rpc
@@ -313,7 +313,7 @@ postBroadcast lusr con msg = runError $ do
           (qualifiedNewOtrClientMismatchStrategy msg)
       otrResult = mkMessageSendingStatus (toUTCTimeMillis now) mismatch mempty
   unless sendMessage $ do
-    let lhProtectee = qualifiedUserToProtectee (tDomain lusr) User (qUntagged lusr)
+    let lhProtectee = qualifiedUserToProtectee (tDomain lusr) User (tUntagged lusr)
         missingClients = qmMissing mismatch
 
     mapError @LegalholdConflicts @(MessageNotSent MessageSendingStatus)
@@ -326,7 +326,7 @@ postBroadcast lusr con msg = runError $ do
     sendBroadcastMessages
       lusr
       now
-      (qUntagged lusr)
+      (tUntagged lusr)
       senderClient
       con
       (qualifiedNewOtrMetadata msg)
@@ -357,21 +357,24 @@ postBroadcast lusr con msg = runError $ do
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       ConversationStore,
-       FederatorAccess,
-       GundeckAccess,
-       ExternalAccess,
-       Input (Local ()), -- FUTUREWORK: remove this
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Members
+      '[ BrigAccess,
+         ClientStore,
+         ConversationStore,
+         FederatorAccess,
+         GundeckAccess,
+         ExternalAccess,
+         Input (Local ()), -- FUTUREWORK: remove this
+         Input Opts,
+         Input UTCTime,
+         MemberStore,
+         TeamStore,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-message-sent",
+    CallsFed 'Brig "get-user-clients"
+  ) =>
   UserType ->
   Qualified UserId ->
   Maybe ConnId ->
@@ -403,8 +406,8 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           members :: Set (Qualified UserId)
           members =
             Set.fromList $
-              map (qUntagged . qualifyAs lcnv) localMemberIds
-                <> map (qUntagged . rmId) (convRemoteMembers conv)
+              map (tUntagged . qualifyAs lcnv) localMemberIds
+                <> map (tUntagged . rmId) (convRemoteMembers conv)
       isInternal <- view (optSettings . setIntraListing) <$> input
 
       -- check if the sender is part of the conversation
@@ -473,7 +476,8 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 sendMessages ::
   forall t r.
   ( t ~ 'NormalMessage,
-    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r
+    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r,
+    CallsFed 'Galley "on-message-sent"
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -489,7 +493,7 @@ sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   let send dom =
         foldQualified
           lcnv
-          (\l -> sendLocalMessages @t l now sender senderClient mconn (Just (qUntagged lcnv)) botMap metadata)
+          (\l -> sendLocalMessages @t l now sender senderClient mconn (Just (tUntagged lcnv)) botMap metadata)
           (\r -> sendRemoteMessages r now sender senderClient lcnv metadata)
           (Qualified () dom)
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
@@ -551,7 +555,7 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
 
 sendRemoteMessages ::
   forall r x.
-  Members '[FederatorAccess, P.TinyLog] r =>
+  (Members '[FederatorAccess, P.TinyLog] r, CallsFed 'Galley "on-message-sent") =>
   Remote x ->
   UTCTime ->
   Qualified UserId ->
@@ -605,8 +609,8 @@ newMessageEvent ::
   Text ->
   Event
 newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) cipherText =
-  let convId = fromMaybe (qUntagged (fmap selfConv receiver)) mconvId
-   in Event convId sender time . EdOtrMessage $
+  let convId = fromMaybe (tUntagged (fmap selfConv receiver)) mconvId
+   in Event convId Nothing sender time . EdOtrMessage $
         OtrMessage
           { otrSender = senderClient,
             otrRecipient = receiverClient,

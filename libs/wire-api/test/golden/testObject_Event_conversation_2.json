@@ -1,0 +1,23 @@
+{
+    "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "data": {
+        "conversation_role": "wire_admin",
+        "otr_muted_status": 1,
+        "qualified_target": {
+            "domain": "oy8yz.f1",
+            "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+        },
+        "target": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "from": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "qualified_conversation": {
+        "domain": "2m99----34.id7u09",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "qualified_from": {
+        "domain": "b.0-7.0.rg",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "time": "2018-01-01T00:00:00.000Z",
+    "type": "conversation.member-update"
+}

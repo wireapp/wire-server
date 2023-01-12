@@ -31,6 +31,7 @@ library
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
+    Galley.API.MLS.Enabled
     Galley.API.MLS.GroupInfo
     Galley.API.MLS.KeyPackage
     Galley.API.MLS.Keys
@@ -42,7 +43,17 @@ library
     Galley.API.MLS.Welcome
     Galley.API.One2One
     Galley.API.Public
+    Galley.API.Public.Bot
+    Galley.API.Public.Conversation
+    Galley.API.Public.CustomBackend
+    Galley.API.Public.Feature
+    Galley.API.Public.LegalHold
+    Galley.API.Public.Messaging
+    Galley.API.Public.MLS
     Galley.API.Public.Servant
+    Galley.API.Public.Team
+    Galley.API.Public.TeamConversation
+    Galley.API.Public.TeamMember
     Galley.API.Push
     Galley.API.Query
     Galley.API.Teams
@@ -93,7 +104,6 @@ library
     Galley.Effects.MemberStore
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
-    Galley.Effects.RemoteConversationListStore
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.ServiceStore
     Galley.Effects.SparAccess
@@ -528,11 +538,15 @@ executable galley-integration
 
 executable galley-migrate-data
   main-is:            Main.hs
+
+  -- cabal-fmt: expand migrate-data/src
   other-modules:
     Galley.DataMigration
     Galley.DataMigration.Types
+    Main
     Paths_galley
     V1_BackfillBillingTeamMembers
+    V2_MigrateMLSMembers
 
   hs-source-dirs:     migrate-data/src
   default-extensions:
@@ -588,6 +602,7 @@ executable galley-migrate-data
     , exceptions
     , extended
     , extra                 >=1.3
+    , galley
     , galley-types
     , imports
     , lens
@@ -674,6 +689,8 @@ executable galley-schema
     V73_MemberClientTable
     V74_ExposeInvitationsToTeamAdmin
     V75_MLSGroupInfo
+    V76_ProposalOrigin
+    V77_MLSGroupMemberClient
 
   hs-source-dirs:     schema/src
   default-extensions:
@@ -813,6 +830,8 @@ test-suite galley-tests
     , http-types
     , imports
     , lens
+    , polysemy
+    , polysemy-wire-zoo
     , QuickCheck
     , raw-strings-qq       >=1.0
     , safe                 >=0.3

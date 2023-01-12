@@ -1,0 +1,19 @@
+{
+    "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "data": {
+        "recipient": "3",
+        "sender": "3",
+        "text": "%\u000f"
+    },
+    "from": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "qualified_conversation": {
+        "domain": "b2.ue4k",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "qualified_from": {
+        "domain": "64b3--h.u",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "time": "2018-01-01T00:00:00.000Z",
+    "type": "conversation.otr-message-add"
+}

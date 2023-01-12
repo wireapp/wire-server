@@ -1,0 +1,22 @@
+{
+    "conversation": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "data": {
+        "access": [
+            "private",
+            "code"
+        ],
+        "access_role": "private",
+        "access_role_v2": []
+    },
+    "from": "2126ea99-ca79-43ea-ad99-a59616468e8e",
+    "qualified_conversation": {
+        "domain": "ma--6us.i8o--0440",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "qualified_from": {
+        "domain": "97k-u0.b-5c",
+        "id": "2126ea99-ca79-43ea-ad99-a59616468e8e"
+    },
+    "time": "2018-01-01T00:00:00.000Z",
+    "type": "conversation.access-update"
+}
