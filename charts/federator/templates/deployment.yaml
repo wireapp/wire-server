@@ -57,13 +57,18 @@ spec:
         - name: federator
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            readOnlyRootFilesystem: true
           volumeMounts:
             - name: "federator-config"
               mountPath: "/etc/wire/federator/conf"
+              readOnly: true
             - name: "federator-secrets"
               mountPath: "/etc/wire/federator/secrets"
+              readOnly: true
             - name: "federator-ca"
               mountPath: "/etc/wire/federator/ca"
+              readOnly: true
           ports:
             - name: internal
               containerPort: {{ .Values.service.internalFederatorPort }}
