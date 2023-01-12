@@ -69,7 +69,9 @@ instance ToSchema Version where
       (enum @Integer "Version" . mconcat . fmap (uncurry element) $ explicit)
     where
       constructed, explicit :: [(Integer, Version)]
-      constructed = []
+      constructed =
+        -- (fromEnum doesn't work as soon as we drop support for V0.)
+        (\v -> (read . Imports.tail . show $ v, v)) <$> [minBound @Version ..]
       explicit =
         [ (0, V0),
           (1, V1),
