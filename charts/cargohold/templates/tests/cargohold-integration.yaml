@@ -17,11 +17,15 @@ spec:
     # If using the wire-server/fake-aws-s3 chart, `dummy-bucket` will already be created.
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    securityContext:
+      readOnlyRootFilesystem: true
     volumeMounts:
     - name: "cargohold-integration"
       mountPath: "/etc/wire/integration"
+      readOnly: true
     - name: "cargohold-config"
       mountPath: "/etc/wire/cargohold/conf"
+      readOnly: true
     env:
     # these values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
