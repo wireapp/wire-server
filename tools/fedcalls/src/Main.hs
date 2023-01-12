@@ -57,7 +57,9 @@ import qualified Wire.API.Routes.Public.Spar as SparRoutes
 ------------------------------
 
 main :: IO ()
-main = putStr . D.renderDot . convert $ calls
+main = do
+  writeFile "wire-fedcalls.dot" . D.renderDot . mkDotGraph $ calls
+  writeFile "wire-fedcalls.csv" . toCsv $ calls
 
 calls :: [MakesCallTo]
 calls = assert (calls' == nub calls') calls'
@@ -201,3 +203,18 @@ mkDotGraph inbound = Graph StrictGraph DirectedGraph Nothing (mods <> nodes <> e
         callee = itemTargetNode item
         callerId = fromMaybe (error "impossible") $ M.lookup caller callingNodes
         calleeId = fromMaybe (error "impossible") $ M.lookup callee calledNodes
+
+------------------------------
+
+toCsv :: [MakesCallTo] -> String
+toCsv =
+  intercalate "\n"
+    . fmap (intercalate ",")
+    . addhdr
+    . fmap dolines
+  where
+    addhdr :: [[String]] -> [[String]]
+    addhdr = (["source method", "source path", "target component", "target name"] :)
+
+    dolines :: MakesCallTo -> [String]
+    dolines (MakesCallTo spath smeth tcomp tname) = [smeth, spath, tcomp, tname]
