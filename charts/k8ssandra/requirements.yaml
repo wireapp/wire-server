@@ -1,0 +1,4 @@
+dependencies:
+- name: k8ssandra-operator
+  version: 0.39.2
+  repository: https://helm.k8ssandra.io/stable

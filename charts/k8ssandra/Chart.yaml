@@ -1,0 +1,9 @@
+apiVersion: v2
+name: k8ssandra
+description: K8ssandra (Cassandra cluster) setup for wire test servers
+
+type: application
+
+version: 0.1.0
+
+appVersion: "0.39.2"

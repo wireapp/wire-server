@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: check-cluster-job
+  namespace: databases
+spec:
+  template:
+    spec:
+      containers:
+      - name: cassandra
+        image: cassandra:3.11
+        command: ["cqlsh", "k8ssandra-cluster-datacenter-1-service"]
+      restartPolicy: OnFailure
