@@ -15,7 +15,6 @@ dependencies
 (production) How to install wire-server using Helm <helm-prod>
 (production) How to monitor wire-server <monitoring>
 (production) How to see centralized logs for wire-server <logging>
-(production) Other configuration options <configuration-options>
 Server and team feature settings <team-feature-settings>
 Messaging Layer Security (MLS) <mls>
 Web app settings <web-app-settings>
