@@ -5,14 +5,15 @@
 { mkDerivation
 , aeson
 , base
-, bytestring
 , containers
 , gitignoreSource
 , imports
+, insert-ordered-containers
 , language-dot
-, lens
 , lib
+, swagger2
 , text
+, wire-api
 }:
 mkDerivation {
   pname = "fedcalls";
@@ -23,12 +24,13 @@ mkDerivation {
   executableHaskellDepends = [
     aeson
     base
-    bytestring
     containers
     imports
+    insert-ordered-containers
     language-dot
-    lens
+    swagger2
     text
+    wire-api
   ];
   description = "Generate a dot file from swagger docs representing calls to federated instances";
   license = lib.licenses.agpl3Only;
