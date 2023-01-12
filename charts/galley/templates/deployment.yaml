@@ -40,11 +40,15 @@ spec:
         - name: galley
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            readOnlyRootFilesystem: true
           volumeMounts:
           - name: "galley-config"
             mountPath: "/etc/wire/galley/conf"
+            readOnly: true
           - name: "galley-secrets"
             mountPath: "/etc/wire/galley/secrets"
+            readOnly: true
           env:
           {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID

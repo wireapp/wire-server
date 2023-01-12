@@ -42,16 +42,22 @@ spec:
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    securityContext:
+      readOnlyRootFilesystem: true
     volumeMounts:
     - name: "galley-integration"
       mountPath: "/etc/wire/integration"
+      readOnly: true
     - name: "galley"
       mountPath: "/etc/wire/galley/conf"
+      readOnly: true
     - name: "galley-integration-secrets"
       # TODO: see corresp. TODO in brig.
       mountPath: "/etc/wire/integration-secrets"
+      readOnly: true
     - name: "galley-secrets"
       mountPath: "/etc/wire/galley/secrets"
+      readOnly: true
     env:
     # these dummy values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
