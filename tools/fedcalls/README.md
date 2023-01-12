@@ -1,7 +1,7 @@
 our swaggger docs contain information about which end-points call
 which federation end-points internally.  this command line tool
-extracts that information from the swagger json and converts it into a
-dot file.
+extracts that information from the swagger json and converts it into
+two files: dot (for feeding into graphviz), and csv.
 
 ### try it out
 
