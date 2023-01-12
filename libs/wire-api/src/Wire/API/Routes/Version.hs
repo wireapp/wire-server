@@ -64,14 +64,17 @@ data Version = V0 | V1 | V2 | V3
 
 instance ToSchema Version where
   schema =
-    enum @Integer "Version" . mconcat $ (assert (explicit == constructed) constructed)
+    assert
+      (explicit == constructed)
+      (enum @Integer "Version" . mconcat . fmap (uncurry element) $ explicit)
     where
+      constructed, explicit :: [(Integer, Version)]
       constructed = []
       explicit =
-        [ element 0 V0,
-          element 1 V1,
-          element 2 V2,
-          element 3 V3
+        [ (0, V0),
+          (1, V1),
+          (2, V2),
+          (3, V3)
         ]
 
 mkVersion :: Integer -> Maybe Version
