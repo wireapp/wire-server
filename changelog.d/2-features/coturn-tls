@@ -1,4 +1,0 @@
-The coturn Helm chart now has a `.tls.ciphers` option to allow setting
-the cipher list for TLS connections, when TLS is enabled. By default,
-this option is set to a cipher list which is compliant with [BSI
-TR-02102-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf).
