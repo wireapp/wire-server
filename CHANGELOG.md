@@ -1,3 +1,189 @@
+# [2023-01-12] (Chart Release 4.30.0)
+
+## Release notes
+
+
+* This realease migrates data from `galley.member_client` to `galley.mls_group_member_client`. When upgrading wire-server no manual steps are required. (#2859)
+
+* Upgrade webapp version to 2022-12-19-production.0-v0.31.9-0-6b2f2bf (#2302)
+
+
+## API changes
+
+
+* - The endpoints `POST /conversations/list` and `GET /conversations` have been removed. Use `POST /conversations/list-ids` followed by `POST /conversations/list` instead.
+  - The endpoint `PUT /conversations/:id/access` has been removed. Use its qualified counterpart instead.
+  - The field `access_role_v2` in the `Conversation` type, in the request body of `POST /conversations`, and in the request body of `PUT /conversations/:domain/:id/access` has been removed. Its content is now contained in the `access_role` field instead. It replaces the legacy access role, previously contained in the `access_role` field.
+  - Clients implementing the V3 API must be prepared to handle a change in the format of the conversation.access_update event. Namely, the field access_role_v2 has become optional. When missing, its value is to be found in the field access_role. (#2841)
+
+* Added a domain parameter to the typing indicator status update API (#2892)
+
+* Support MLS self-conversations via a new endpoint `GET /conversations/mls-self`. This removes the `PUT` counterpart introduced in #2730 (#2839)
+
+* List the MLS self-conversation automatically without needing to call `GET /conversations/mls-self` first (#2856)
+
+* Fail early in galley when the MLS removal key is not configured (#2899)
+
+* Introduce a flag in brig to enable MLS explicitly. When this flag is set to false or absent, MLS functionality is completely disabled and all MLS endpoints fail immediately. (#2913)
+
+* Conversation events may have a "subconv" field for events that originate in a MLS subconversation (#2933)
+
+* `GET /system/settings/unauthorized` returns a curated set of system settings from brig. The endpoint is reachable without authentication/authorization. It's meant to be used by apps to adjust their behavior (e.g. to show a registration dialog if registrations are enabled on the backend.) Currently, only the `setRestrictUserCreation` flag is exported. Other options may be added in future (in consultation with the security department.) (#2903)
+
+
+## Features
+
+
+* The coturn Helm chart now has a `.tls.ciphers` option to allow setting
+  the cipher list for TLS connections, when TLS is enabled. By default,
+  this option is set to a cipher list which is compliant with [BSI
+  TR-02102-2](https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.pdf). (#2924)
+
+* **Nginz helm chart**: The list of upstreams is split into `nginx_conf.upstreams` and
+  `nginx_conf.extra_upstreams`. Extra upstreams are disabled by default. They can
+  be enabled by adding their name (entry's key) to
+  `nginx_conf.enabled_extra_upstreams`. `nginx_conf.ignored_upstreams` is only
+  applied to upstreams from `nginx_conf.upstreams`. In the default configuration
+  of `nginz` extra upstreams are `ibis`, `galeb`, `calling-test` and `proxy`. If one
+  of those is deployed, its name has be be added to
+  `nginx_conf.enabled_extra_upstreams` (otherwise, it won't be reachable). Unless
+  `nginx_conf.upstreams` hasn't been changed manually (overriding its default),
+  this should be the only needed migration step. (#2849)
+
+* A team member's role can now be provisioned via SCIM (#2851, #2855)
+
+* Team search endpoint now supports pagination (#2898, #2895)
+
+* Introduce optional disabledAPIVersions configuration setting (#2951)
+
+* Add more logs to SMTP mail sending. Ensure that logs are written before the application fails due to SMTP misconfiguration. (#2818)
+
+* Added typing indicator status progation to federated environments (#2892)
+
+* Allow vhost style addressing for S3 as path style is not supported for newer buckets.
+
+  More info: https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/ (#2955)
+
+
+## Bug fixes and other updates
+
+
+* Fix typo for Servicemonitor enable var in default values for helm charts. (#PR_NOT_FOUND)
+
+* The parser for the AWS/SNS error message to explain that an endpoint is already in use was incorrect. This lead to an "invalid token" error when registering push tokens for multiple user accounts (user ids) instead of updating the SNS endpoint with an additional user id. (#2921)
+
+* Avoid client deletion edge case condition which can lead to inconsistent data between brig and galley's clients tables. (#2830)
+
+* Conversations inside events are now serialised using the format of API V2 (#2971)
+
+* Do not throw 500 when listing conversations and MLS is not configured (#2893)
+
+* Do not list MLS self-conversation in client API v1 and v2 if it exists (#2872)
+
+* Prevention of storing unnecessary data in the database if adding a bot to a conversation fails. (#2870)
+
+* Limit 2FA code retries to 3 attempts (#2960)
+
+* Fix bug in MLS user removal from conversation: the list of removed clients has to be compared with those in the conversation, not the list of *all* clients of that user (#2817)
+
+* Due to `sftd` changing how configuration is handled for "multi-SFT" calling (starting with version 3.1.10), new options have been added to the `sftd` Helm chart for compatibility with these newer versions. (#2886)
+
+* For sftd/coturn/restund, fixed a bug in external ip address lookup, in case Kubernetes Node Name doesn't equal hostname. (#2837)
+
+* Requesting a new token with the client_id now works correctly when the old token is part of the request (#2860)
+
+
+## Documentation
+
+
+* Add extra section to the deeplink docs to explain the socks proxy support while login. (#PR_NOT_FOUND)
+
+* Describe the auth cookie throttling mechanism. And overhaul the description of auth cookies in general. (#2941)
+
+* PR guidelines docs are updated with correct helm configuration syntax (#2889)
+
+
+## Internal changes
+
+
+* Log AWS / SNS invalid token responses. This is helpful for native push notification debugging purposes. (#2908)
+
+* Add tests for invitation urls in team invitation responses. These depend on the settings of galley. (#2797)
+
+* brig: Allow multiple threads to run simulaneously (#2972)
+
+* Remove support for compiling local docker images with buildah. Nix is used to build docker images these days (#2822)
+
+* Nix-created docker images: add some debugging tools in the containers, and add 'make build-image-<packagename>' for convenience (#2829)
+
+* Added typeclasses to track uses of federated calls across the codebase. (#2940)
+
+* Split galley API routes and handler definitions into several modules (#2820)
+
+* Default intraListing to true. This means that the list of clients, so far saved in both brig's and galley's databases, will still be written to both, but only read from brig's database. This avoids cases where these two tables go out of sync. Brig becomes the source of truth for clients. In the future, if this holds, code and data for galley's clients table can be removed. (#2847)
+
+* Introduce the `MakesFederatedCall` Servant combinator (#2950)
+
+* Build nginz and nginz_disco docker images using nix (#2796)
+
+* Bump nixpkgs to latest unstable. Stop using forked nixpkgs. (#2828)
+
+* Optimize memory usage while creating large conversations (#2970)
+
+* Reduce Polysemy-induced high memory requirements (#2947)
+
+* Brig calling API is now migrated to servant (#2815)
+
+* Fixed flaky feature TTL integration test (#2823)
+
+* Brig teams API is now migrated to servant (#2824)
+
+* Add 'inconsistencies' tool to check for, and repair certain kinds of data inconsistencies across different cassandra tables. (#2840)
+
+* Backoffice Swagger 2.x docs is exposed on `/` and the old Swagger has been removed. Backoffice helm chart only runs stern without an extra nginx. (#2846)
+
+* Give proxy service a servant routing table for swagger (not for replacing wai-route; see comments in source code) (#2848)
+
+* Stern API endpoint `GET ejpd-info` has now the correct HTTP method (#2850)
+
+* External commits: add additional checks (#2852)
+
+* Golden tests for conversation and feature config event schemas (#2861)
+
+* Add startup probe to brig helm chart. (#2878)
+
+* Track federated calls in types across the codebase. (#2940)
+
+* Update nix pins to point at polysemy-1.8.0.0 (#2949)
+
+* Add MakesFederatedCall combinators to Galley (#2957)
+
+* Fix `make clean`; allow new data constructors in `ToSchema Version` instance (#2965)
+
+* Refactor and simplify MLS message handling logic (#2844)
+
+* Remove cassandra queries to the user_keys_hash table, as they are never read anymore since 'onboarding' / auto-connect was removed in https://github.com/wireapp/wire-server/pull/1005 (#2902)
+
+* Replay external backend proposals after forwarding external commits.
+  One column added to Galley's mls_proposal_refs. (#2842)
+
+* Remove an unused effect for remote conversation listing (#2954)
+
+* Introduce types for subconversations (#2925)
+
+* Use treefmt to ensure consistent formatting of .nix files, use for shellcheck too (#2831)
+
+
+## Federation changes
+
+
+* Honour MLS flag in brig's federation API (#2946)
+
+* Split the Proteus and MLS message sending requests into separate types. The MLS request now supports MLS subconversations. This is a federation API breaking change. (#2925)
+
+* Injects federated calls into the `x-wire-makes-federated-calls-to` extension of the swagger Operations (#2950)
+
+
 # [2022-12-09] (Chart Release )
 
 ## Bug fixes and other updates

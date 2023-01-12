@@ -1,1 +1,0 @@
-Give proxy service a servant routing table for swagger (not for replacing wai-route; see comments in source code)

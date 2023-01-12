@@ -1,3 +1,0 @@
-Allow vhost style addressing for S3 as path style is not supported for newer buckets.
-
-More info: https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story/
