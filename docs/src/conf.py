@@ -113,6 +113,13 @@ html_css_files = [
 html_favicon = '_static/favicon/favicon.ico'
 html_logo = '_static/image/Wire_logo.svg'
 
+html_context = {
+  'display_github': True,
+  'github_user': 'wireapp',
+  'github_repo': 'wire-server',
+  'github_version': 'develop/docs/src/',
+}
+
 smv_tag_whitelist = ''
 smv_branch_whitelist = r'^(install-with-poetry)$'
 smv_remote_whitelist = r'^(origin)$'
