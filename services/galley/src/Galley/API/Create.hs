@@ -568,14 +568,16 @@ notifyCreatedConversation dtime lusr conn c = do
   -- of being added to a conversation
   registerRemoteConversationMemberships now (tDomain lusr) c
   -- Notify local users
-  E.push =<< mapM (toPush now) (Data.convLocalMembers c)
+  let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers c
+      localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
+  E.push =<< mapM (toPush now remoteOthers localOthers) (Data.convLocalMembers c)
   where
     route
       | Data.convType c == RegularConv = RouteAny
       | otherwise = RouteDirect
-    toPush t m = do
+    toPush t remoteOthers localOthers m = do
       let lconv = qualifyAs lusr (Data.convId c)
-      c' <- conversationView (qualifyAs lusr (lmId m)) c
+      c' <- conversationViewWithCachedOthers remoteOthers localOthers c (qualifyAs lusr (lmId m))
       let e = Event (tUntagged lconv) Nothing (tUntagged lusr) t (EdConversation c')
       pure $
         newPushLocal1 ListComplete (tUnqualified lusr) (ConvEvent e) (list1 (recipient m) [])

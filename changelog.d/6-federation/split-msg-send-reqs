@@ -1,1 +1,0 @@
-Split the Proteus and MLS message sending requests into separate types. The MLS request now supports MLS subconversations. This is a federation API breaking change.

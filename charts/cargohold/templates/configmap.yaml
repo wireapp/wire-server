@@ -41,7 +41,14 @@ data:
 
     settings:
       {{- with .Values.config.settings }}
-      maxTotalBytes: 5368709120
-      downloadLinkTTL: 300      # Seconds
+      {{- if .maxTotalBytes }}
+      maxTotalBytes: {{ .maxTotalBytes }}
+      {{- end }}
+      {{- if .downloadLinkTTL }}
+      downloadLinkTTL: {{ .downloadLinkTTL }}
+      {{- end }}
       federationDomain: {{ .federationDomain }}
+      {{- if .disabledAPIVersions }}
+      disabledAPIVersions: {{ .disabledAPIVersions }}
+      {{- end }}
       {{- end }}

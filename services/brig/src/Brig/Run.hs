@@ -126,7 +126,8 @@ mkApp o = do
 
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      versionMiddleware -- this rewrites the request, so it must be at the top (i.e. applied last)
+      -- this rewrites the request, so it must be at the top (i.e. applied last)
+      versionMiddleware (fold (setDisabledAPIVersions (optSettings o)))
         . Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def

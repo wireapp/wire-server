@@ -1,4 +1,0 @@
-- The endpoints `POST /conversations/list` and `GET /conversations` have been removed. Use `POST /conversations/list-ids` followed by `POST /conversations/list` instead.
-- The endpoint `PUT /conversations/:id/access` has been removed. Use its qualified counterpart instead.
-- The field `access_role_v2` in the `Conversation` type, in the request body of `POST /conversations`, and in the request body of `PUT /conversations/:domain/:id/access` has been removed. Its content is now contained in the `access_role` field instead. It replaces the legacy access role, previously contained in the `access_role` field.
-- Clients implementing the V3 API must be prepared to handle a change in the format of the conversation.access_update event. Namely, the field access_role_v2 has become optional. When missing, its value is to be found in the field access_role.

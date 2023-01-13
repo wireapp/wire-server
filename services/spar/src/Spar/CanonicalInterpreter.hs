@@ -33,6 +33,7 @@ import Polysemy.Input (Input, runInputConst)
 import Servant
 import Spar.App hiding (sparToServerErrorWithLogging)
 import Spar.Error
+import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra)

@@ -838,6 +838,8 @@ test-suite galley-tests
     , http-types
     , imports
     , lens
+    , polysemy
+    , polysemy-wire-zoo
     , QuickCheck
     , raw-strings-qq       >=1.0
     , safe                 >=0.3

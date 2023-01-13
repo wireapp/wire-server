@@ -93,7 +93,7 @@ mkApp opts =
     let logger = env ^. App.applog
 
     let middlewares =
-          versionMiddleware
+          versionMiddleware (opts ^. optSettings . setDisabledAPIVersions . traverse)
             . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
             . GZip.gunzip
             . GZip.gzip GZip.def
