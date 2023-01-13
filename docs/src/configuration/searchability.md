@@ -1,4 +1,4 @@
-## User Searchability
+# User Searchability
 
 You can configure how search is limited or not based on user membership in a given team.
 
@@ -12,7 +12,7 @@ There are different types of matches:
 - **Exact handle** search means that the user is found only if the search query is exactly the user handle (e.g. searching for `mc` will find `@mc` but not `@mccaine`). This search returns zero or one results.
 - **Full text** search means that the user is found if the search query contains some subset of the user display name and handle. (e.g. the query `mar` will find `Marco C`, `Omar`, `@amaro`)
 
-### Searching users on the same backend
+## Searching users on the same backend
 
 Search visibility is controlled by three parameters on the backend:
 
@@ -35,7 +35,7 @@ These flag are set on the backend and the clients do not need to be aware of the
 
 The flags will influence the behavior of the search API endpoint; clients will only need to parse the results, that are already filtered for them by the backend.
 
-#### Table of possible outcomes
+### Table of possible outcomes
 
 ```{eval-rst}
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
@@ -61,7 +61,7 @@ The flags will influence the behavior of the search API endpoint; clients will o
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
 ```
 
-#### Changing the configuration on the server
+### Changing the configuration on the server
 
 To change the `searchSameTeamOnly` setting on the backend, edit the `values.yaml.gotmpl` file for the wire-server chart at this nested level of the configuration:
 
@@ -77,7 +77,7 @@ brig:
 
 If `setSearchSameTeamOnly` is set to `true` then `TeamSearchVisibility` is forced be in the `SearchVisibilityNoNameOutsideTeam` setting for all teams.
 
-#### Changing the default configuration for all teams
+### Changing the default configuration for all teams
 
 If `setSearchSameTeamOnly` is set to `false`  (or missing from the configuration) then the default value `TeamSearchVisibility` can be configured at this level of the configuration of the `value.yaml.gotmpl` file of the wire-server chart:
 
@@ -95,7 +95,7 @@ galley:
 
 This default value applies to all teams for which no explicit configuration of the `TeamSearchVisibility` has been set.
 
-### Searching users on another (federated) backend
+## Searching users on another (federated) backend
 
 For federated search the table above does not apply, see following table.
 
@@ -135,7 +135,7 @@ brig:
           search_policy: full_search
 ```
 
-#### Table of possible outcomes
+### Table of possible outcomes
 
 In the following table, user `uA` on backend A is searching for user `uB` on team `tB` on backend B.
 
@@ -150,11 +150,11 @@ It’s worth nothing that if two users are on two separate backend, they are als
 | user `uA` on backend A | `full_search`                              | SearchableByOwnTeam                        | Found                           | Not found                           |
 | user `uA` on backend A | `full_search`                              | SearchableByAllTeams                       | Found                           | Found                               |
 
-### Changing the settings for a given team
+## Changing the settings for a given team
 
 If you need to change searchabilility for a specific team (rather than the entire backend, as above), you need to make specific calls to the API.
 
-#### Team searchVisibility
+### Team searchVisibility
 
 The team flag `searchVisibility` affects the outbound search of user searches.
 
@@ -192,7 +192,7 @@ settings:
     teamSearchVisibility: disabled-by-default # or enabled-by-default
 ```
 
-#### TeamFeature searchVisibilityInbound
+### TeamFeature searchVisibilityInbound
 
 The team feature flag `searchVisibilityInbound` affects if the team's users are searchable by users from other teams.
 
@@ -236,7 +236,7 @@ searchVisibilityInbound:
 
 Individual teams can overwrite the default setting with API calls as per above.
 
-#### Making the API calls
+### Making the API calls
 
 To make API calls to set an explicit configuration for\` TeamSearchVisibilityInbound\` per team, you first need to know the Team ID, which can be found in the team settings app.
 

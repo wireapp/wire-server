@@ -18,14 +18,10 @@ Infrastructure configuration <infrastructure-configuration>
 (production) How to monitor wire-server <monitoring>
 (production) How to see centralized logs for wire-server <logging>
 
-Server and team feature settings <team-feature-settings>
-Messaging Layer Security (MLS) <mls>
 Web app settings <web-app-settings>
 sft
 restund
-configure-federation
 tls
-How to install and set up Legal Hold <legalhold>
 Managing authentication with ansible <ansible-authentication>
 Using tinc <ansible-tinc>
 Troubleshooting during installation <troubleshooting>
