@@ -22,14 +22,13 @@ Release notes of `wire-server` can be found [here](https://github.com/wireapp/wi
 :glob: true
 :maxdepth: 1
 
+Security responses <security-responses/index>
 Installation <how-to/install/index>
 Configuration <configuration/index>
 Administration <how-to/administrate/index>
+Reference <understand/index>
 Connecting Wire Clients <how-to/associate/index>
-Understanding wire-server components <understand/index>
-Single-Sign-On and user provisioning <how-to/single-sign-on/index.rst>
-API documentation <understand/api-client-perspective/index>
-Security responses <security-responses/index>
+Client API documentation <understand/api-client-perspective/index>
 Notes for developers <developer/index>
 ```
 

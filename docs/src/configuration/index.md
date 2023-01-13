@@ -7,5 +7,6 @@
 configure-federation
 mls
 searchability
+Single Sign-On and User Provisioning <single-sign-on/index>
 *
 ```
