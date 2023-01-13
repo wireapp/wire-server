@@ -1,3 +1,5 @@
+# Configuration
+
 ```{toctree}
 :caption: 'Contents:'
 :glob: true
