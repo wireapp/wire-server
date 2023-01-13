@@ -86,7 +86,7 @@ using the backend.
 
 ```{warning}
 *Changing* the backend domain after user
-activity with a client (versions later than May/June 2021)
+activity with a client (versions later than May 2021)
 will lead to undefined behaviour (untested, not accounted for during
 development) on some or all client platforms (Web, Android, iOS) for
 those users: It is possible your clients could crash, or lose part of
