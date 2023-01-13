@@ -28,7 +28,7 @@ point for requests from internal backend components to other, remote backends.
 
 ## Backend domains
 
-Each backend has two domain: an {ref}`infrastructure domain <glossary_infra_domain>` and a
+Each backend has two domains: an {ref}`infrastructure domain <glossary_infra_domain>` and a
 {ref}`backend domain <glossary_backend_domain>`.
 
 The **infrastructure domain** is the domain name under which the backend
@@ -39,9 +39,11 @@ Similarly, there is the **backend domain**, which is used to {ref}`qualify <qual
 names and identifiers of users local to an individual backend in the
 context of federation.
 
-The distinction between the two domains allows the owner of a backend
-domain, e.g. `example.com`, to host their Wire backend under a
-different infrastructure domain, e.g. `wire.infra.example.com`.
+The two domains can be the same. If they are different, the
+distinction between the two domains allows the owner of a backend
+domain, e.g. `company-a.com`, to host their Wire backend under a
+different infrastructure domain, e.g. `wire.company-a.com` or
+`company-a-com.provider.net`.
 
 (federation_ingress)=
 
@@ -82,7 +84,7 @@ will:
 
 1.  If enabled, ensure the target domain is in the allow list,
 2.  Discover the other backend,
-3.  Establish a {ref}`mutually authenticated channel <authentication>` to the other backend using its client certificate,
+3.  Establish a {ref}`mutually authenticated channel <authentication>` to the other backend using TLS with its client certificate,
 4.  Send the request to the other backend and
 5.  Forward the response back to the originating component (and
     eventually to the originating Wire client).
