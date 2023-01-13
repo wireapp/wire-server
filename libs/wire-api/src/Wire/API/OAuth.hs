@@ -218,7 +218,10 @@ instance ToSchema NewOAuthAuthCode where
         <*> noacState .= field "state" schema
 
 newtype OAuthAuthCode = OAuthAuthCode {unOAuthAuthCode :: AsciiBase16}
-  deriving (Show, Eq, Generic)
+  deriving (Eq, Generic)
+
+instance Show OAuthAuthCode where
+  show _ = "<OAuthAuthCode>"
 
 instance ToSchema OAuthAuthCode where
   schema = (toText . unOAuthAuthCode) .= parsedText "OAuthAuthCode" (fmap OAuthAuthCode . validateBase16)
