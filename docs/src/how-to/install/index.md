@@ -9,12 +9,15 @@ Version requirements <version-requirements>
 dependencies
 (demo) How to install kubernetes <kubernetes>
 (demo) How to install wire-server using Helm <helm>
+
 (production) Introduction <prod-intro>
 (production) How to install kubernetes and databases <ansible-VMs>
 (production) How to configure AWS services <aws-prod>
 (production) How to install wire-server using Helm <helm-prod>
+Infrastructure configuration <infrastructure-configuration>
 (production) How to monitor wire-server <monitoring>
 (production) How to see centralized logs for wire-server <logging>
+
 Server and team feature settings <team-feature-settings>
 Messaging Layer Security (MLS) <mls>
 Web app settings <web-app-settings>

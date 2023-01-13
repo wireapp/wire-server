@@ -1,6 +1,6 @@
 (configuration-options)=
 
-# Part 3 - configuration options in a production setup
+# Infrastructure configuration options
 
 This contains instructions to configure specific aspects of your production setup depending on your needs.
 

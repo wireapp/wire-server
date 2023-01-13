@@ -25,9 +25,9 @@ This documentation may be expanded in the future to cover other aspects of Wire.
 Release notes <release-notes>
 
 Installation <how-to/install/index>
+Configuration <configuration/index>
 Administration <how-to/administrate/index>
 Connecting Wire Clients <how-to/associate/index>
-Optional Configuration <configuration-options>
 Understanding wire-server components <understand/index>
 Single-Sign-On and user provisioning <how-to/single-sign-on/index.rst>
 API documentation <understand/api-client-perspective/index>
