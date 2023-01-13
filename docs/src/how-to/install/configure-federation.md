@@ -4,7 +4,10 @@
 See also {ref}`federation-understand`, which explains the architecture and concepts.
 
 ```{note}
-The Federation development is work in progress.
+The Federation development is work in progress. Consistency is not
+guaranteed if federated backends become unavailable while exchanging
+messages on conversations involving unavailable backends. Upgrade
+compatibility is not guaranteed.
 ```
 
 ## Summary of necessary steps to configure federation
@@ -33,10 +36,12 @@ detailed in the sections below:
 As of the release \[helm chart 0.129.0, Wire docker version 2.94.0\] from
 2020-12-15, `federationDomain` is a mandatory configuration setting, which
 defines the {ref}`backend domain <glossary_backend_domain>` of your
-installation. Regardless of whether you want to enable federation for a backend
-or not, you must decide what its domain is going to be. This helps in keeping
-things simpler across all components of Wire and also enables to turn on
-federation in the future if required.
+installation. Whether you want to enable federation for a backend
+or not, you must configure a domain name. This keeps our code consistent
+for federated and non-federations environments across all components of
+Wire, and also allow the administrator to enable federation in the future
+if required. If no domain is available in the local or global DNS, the
+domain `invalid.local` should be used.
 
 It is highly recommended that this domain is configured as something
 that is controlled by the administrator/operator(s). The actual servers
@@ -45,8 +50,8 @@ an SRV record for `_wire-server-federator._tcp.<Backend Domain>` that
 informs other wire-server backends where to find your actual servers.
 
 **IMPORTANT**: Once this option is set, it cannot be changed without
-breaking experience for all the users which are already using the
-backend.
+breaking the experience for all the users/clients which are already
+using the backend.
 
 (consequences-backend-domain)=
 ## Consequences of the choice of a backend domain
@@ -59,9 +64,9 @@ backend.
     users on your servers.
 
     Example: Let\'s say you choose `example.com` as your backend
-    domain. Your user known to you as Alice, and known on your
-    server with ID `ac41a202-2555-11ec-9341-00163e5e6c00` will
-    become known for other servers you federate with as
+    domain. Your user known to you as Alice, and assigned user ID
+    `ac41a202-2555-11ec-9341-00163e5e6c00` on your server will
+    be known locally and on other servers you federate with as
     
     ``` json
     {
@@ -75,20 +80,19 @@ backend.
 -   This domain is shown in the User Interface
     alongside user information. 
 
-    Example: Using the same example as above, for backends you
-    federate with, Alice would be displayed with the
-    human-readable username `@alice@example.com` for users on
-    other backends.
+    Example: Using the same example as above, The human-readable
+    username `@alice@example.com` would be displayed to users on
+    other backends federating with `example.com`.
 
 ```{warning}
-*Changing* the backend domain after existing user
-activity with a client version (versions later than May/June 2021)
+*Changing* the backend domain after user
+activity with a client (versions later than May/June 2021)
 will lead to undefined behaviour (untested, not accounted for during
 development) on some or all client platforms (Web, Android, iOS) for
 those users: It is possible your clients could crash, or lose part of
 their data about themselves or other users and conversations, or
 otherwise exhibit unexpected behaviour. If at all possible, do not
-change this backend domain. We do not intend to provide support if you
+change this backend domain. We cannot provide support if you
 change the backend domain.
 ```
 
@@ -124,7 +128,7 @@ To give an example, assuming
 
 -   your federation
     {ref}`Backend Domain <glossary_backend_domain>` is `example.com`
--   your domains for other services already set up follow the convention
+-   your domains for other services already follow the convention
     `<service>.wire.example.org`
 
 then your federation
@@ -155,7 +159,7 @@ provide services on.
 
 Are your servers on the public internet? Then you have the option of
 using TLS certificates from [Let\'s encrypt](https://letsencrypt.org/).
-In such a case go to subsection (A). If your servers are not on the
+In this case see subsection (A). If your servers are not on the
 public internet or you would like to use your own CA, go to subsection
 (B).
 
@@ -180,12 +184,12 @@ or:
 
     Subject Public Key Info:
      Public Key Algorithm: rsaEncryption
-          RSA Public-Key: (2048 bit)
+          RSA Public-Key: (3072 bit)
 
 If you create your own certificates, and use ECDSA as the algorithm,
 please ensure you configure a key size of 256 for the time being (There
 are no restrictions to key sizes if you\'re using RSA keys, but key
-sizes larger than 3000 bit are recommended).
+sizes of 3072 bits or larger are recommended).
 
 For details on cipher configuration, see {ref}`tls`.
 
@@ -515,8 +519,20 @@ Ensure that the IP matches where your backend ingress runs.
 
 Refer to {ref}`how-to-see-tls-certs` and set
 DOMAIN to your
-{ref}`federation infrastructure domain <glossary_infra_domain>`. They should include your domain as part of the SAN (Subject
-Alternative Names) and not have expired.
+{ref}`federation infrastructure domain <glossary_infra_domain>`. They
+must include your domain as part of the SAN (Subject Alternative Names),
+and have a valid date range (ex: already valid but not yet expired).
+
+You can examine the certificate on disk using command line tools such as
+`openssl x509`:
+
+    openssl x509 -text -noout -in certificate.pem
+
+Once a certificate is installed on a server, you can also verify the
+certificate it presents using the `openssl s_client` command line tool:
+
+    openssl s_client federator.wire.example.com:443
+
 
 ### Manually test that federation works 
 
