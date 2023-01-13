@@ -15,14 +15,12 @@ The targeted audience of this documentation is:
 
 If you are a developer, you may want to check out the "Notes for developers" first.
 
-This documentation may be expanded in the future to cover other aspects of Wire.
+Release notes of `wire-server` can be found [here](https://github.com/wireapp/wire-server/releases).
 
 ```{toctree}
 :caption: 'Contents:'
 :glob: true
 :maxdepth: 1
-
-Release notes <release-notes>
 
 Installation <how-to/install/index>
 Configuration <configuration/index>
