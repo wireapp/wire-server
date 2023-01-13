@@ -9,7 +9,7 @@ need to ensure the following:
 
 - **Authentication**
 
-    Determine the identity (infra domain name) of the other backend.
+    Determine the identity (infrastructure domain name) of the other backend.
 
 - **Discovery**
 
@@ -36,7 +36,7 @@ Conversely, every *Federator* needs to be provisioned with a client
 certificate which it uses to authenticate itself towards other backends.
 
 Note that the client certificate is required to be issued with the backend\'s
-infra domain as one of the subject alternative names (SAN), which is defined in
+infrastructure domain as one of the subject alternative names (SAN), which is defined in
 [RFC 5280](https://tools.ietf.org/html/rfc5280).
 
 See {ref}`federation-certificate-setup` for technical instructions.
@@ -48,7 +48,7 @@ with an `AuthenticationFailure` error.
 
 ## Discovery
 
-The discovery process allows a backend to determine the infra domain of
+The discovery process allows a backend to determine the infrastructure domain of
 a given backend domain.
 
 This step is necessary in two scenarios:
@@ -56,21 +56,19 @@ This step is necessary in two scenarios:
 -   A backend would like to establish a connection to another backend
     that it only knows the backend domain of. This is the case, for
     example, when a user of a local backend searches for a
-    {ref}`qualified username <qualified-identifiers-and-names>`, which only includes that user\'s backend\'s backend
-    domain.
+    {ref}`qualified username <qualified-identifiers-and-names>`, which only includes the backend domain of that user's backend.
 -   When receiving a message from another backend that authenticates
-    with a given infra domain and claims to represent a given backend
+    with a given infrastructure domain and claims to represent a given backend
     domain, a backend would like to ensure the backend domain owner
-    authorized the owner of the infra domain to run their Wire backend.
+    authorized the owner of the infrastructure domain to run their Wire backend.
 
 To make discovery possible, any party hosting a Wire backend has to
-announce the infra domain via a DNS *SRV* record as defined in [RFC
+announce the infrastructure domain via a DNS *SRV* record as defined in [RFC
 2782](https://tools.ietf.org/html/rfc2782) with
 `service = wire-server-federator, proto = tcp` and with `name` pointing
-to the backend\'s domain and *target* to the backend\'s infra domain.
+to the backend\'s domain and *target* to the backend\'s infrastructure domain.
 
-For example, Company A with backend domain *company-a.com* and infra
-domain *wire.company-a.com* could publish
+For example, Company A with backend domain *company-a.com* and infrastructure domain *wire.company-a.com* could publish
 
 ``` bash
 _wire-server-federator._tcp.company-a.com. 600  IN  SRV 10 5 443 federator.wire.company-a.com.
@@ -83,34 +81,24 @@ In case this process fails the Federator fails to forward the request with a `Di
 
 (dns-scope)=
 
-### DNS Scope
-
-The network scope of the SRV record (as well as that of the DNS records
-for backend and infra domain), depends on the desired federation
-topology in the same way as other parameters such as the availability of
-the CA certificate that allows authentication of the *Federation
-Ingress*\' server certificate or the *Federator*\'s client certificate.
-The general rule is that the SRV entry should be \"visible\" from the
-point of view of the desired federation partners. The exact scope
-strongly depends on the network architecture of the backends involved.
 
 (srv-ttl-and-caching)=
 
 ### SRV TTL and Caching
 
 After retrieving the SRV record for a given domain, the local backend
-caches the *backend domain \<\--\> infra domain* mapping for the
+caches the *backend domain \<\--\> infrastructure domain* mapping for the
 duration indicated in the TTL field of the record.
 
 Due to this caching behavior, the TTL value of the SRV record dictates
 at which intervals remote backends will refresh their mapping of the
-local backend\'s backend domain to infra domain. As a consequence a
+local backend\'s backend domain to infrastructure domain. As a consequence a
 value in the order of magnitude of 24 hours will reduce the amount of
 overhead for remote backends.
 
-On the other hand in the setup phase of a backend, or when a change of infra
+On the other hand in the setup phase of a backend, or when a change of infrastructure
 domain is required, a TTL value in the magnitude of a few minutes allows remote
-backends to recover more quickly from a change of the infra domain.
+backends to recover more quickly from a change of the infrastructure domain.
 
 (authorization)=
 
@@ -122,10 +110,10 @@ After an incoming connection is authenticated the backend authorizes the
 request. It does so by verifying that the backend domain of the sender is
 contained in the {ref}`domain allow list <configure-federation-allow-list>`.
 
-Since the request is authenticated only by the infra domain the sending backend
+Since the request is authenticated only by the infrastructure domain the sending backend
 is required to add its backend domain as a `Wire-Origin-Domain` header to the
 request. The receiving backend follows the process described in {ref}`discovery`
-and verifies that the discovered infra domain for the backend domain indicated
+and verifies that the discovered infrastructure domain for the backend domain indicated
 in the `Wire-Origin-Domain` header is one of the Subject Alternative Names
 contained in the client certificate used to sign the request. If this is not the
 case, the receiving backend fails the request with a `ValidationError`.
@@ -150,8 +138,8 @@ details.
 ## Example
 
 The following is an example for the message and information flow between
-a backend with backend domain `a.com` and infra domain `infra.a.com` and
-another backend with backend domain `b.com` and infra domain
+a backend with backend domain `a.com` and infrastructure domain `infra.a.com` and
+another backend with backend domain `b.com` and infrastructure domain
 `infra.b.com`.
 
 The content and format of the message is meant to be representative. For
