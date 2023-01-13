@@ -459,7 +459,11 @@ resetGroup cid gid = do
         mlsNewMembers = mempty
       }
 
-createSubConv :: Qualified ConvId -> ClientIdentity -> SubConvId -> MLSTest ()
+createSubConv ::
+  Qualified ConvId ->
+  ClientIdentity ->
+  SubConvId ->
+  MLSTest PublicSubConversation
 createSubConv qcnv creator subId = do
   sub <-
     liftTest $
@@ -468,6 +472,10 @@ createSubConv qcnv creator subId = do
           <!! const 200 === statusCode
   resetGroup creator (pscGroupId sub)
   void $ createPendingProposalCommit creator >>= sendAndConsumeCommitBundle
+  liftTest $
+    responseJsonError
+      =<< getSubConv (ciUser creator) qcnv subId
+        <!! const 200 === statusCode
 
 -- | Create a local group only without a conversation. This simulates creating
 -- an MLS conversation on a remote backend.

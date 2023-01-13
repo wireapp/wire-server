@@ -28,6 +28,7 @@ import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
+import Wire.API.Routes.Version
 
 newtype NotificationTTL = NotificationTTL
   {notificationTTLSeconds :: Word32}
@@ -73,7 +74,8 @@ data Settings = Settings
     -- ensures that there is only one request every 20 seconds.
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)
-    _setSqsThrottleMillis :: !(Maybe Int)
+    _setSqsThrottleMillis :: !(Maybe Int),
+    _setDisabledAPIVersions :: !(Maybe (Set Version))
   }
   deriving (Show, Generic)
 

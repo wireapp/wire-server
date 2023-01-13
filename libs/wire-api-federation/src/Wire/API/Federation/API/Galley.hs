@@ -128,6 +128,7 @@ type GalleyApi =
            EmptyResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
     :<|> FedEndpoint "get-sub-conversation" GetSubConversationsRequest GetSubConversationsResponse
+    :<|> FedEndpoint "delete-sub-conversation" DeleteSubConversationRequest DeleteSubConversationResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { tdurTypingStatus :: TypingStatus,
@@ -434,3 +435,19 @@ data GetSubConversationsResponse
   | GetSubConversationsResponseSuccess PublicSubConversation
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetSubConversationsResponse)
+
+data DeleteSubConversationRequest = DeleteSubConversationRequest
+  { dscreqUser :: UserId,
+    dscreqConv :: ConvId,
+    dscreqSubConv :: SubConvId,
+    dscreqGroupId :: GroupId,
+    dscreqEpoch :: Epoch
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationRequest)
+
+data DeleteSubConversationResponse
+  = DeleteSubConversationResponseError GalleyError
+  | DeleteSubConversationResponseSuccess
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationResponse)

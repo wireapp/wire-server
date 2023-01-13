@@ -62,6 +62,7 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import SAML2.WebSSO.Test.Util.TestSP (makeSampleIdPMetadata)
 import qualified SAML2.WebSSO.Test.Util.Types as SAML
 import qualified Spar.Intra.BrigApp as Intra
+import Spar.Options
 import Spar.Scim
 import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.User as SU
@@ -89,7 +90,6 @@ import Wire.API.User hiding (scimExternalId)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo
-import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
 import qualified Wire.API.User.Search as Search
 
@@ -1585,7 +1585,7 @@ testScimSideIsUpdated = do
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with
   -- 'updateUser'
-  richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
+  richInfoLimit <- view (teOpts . to richInfoLimit)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` (whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user') <&> setDefaultRoleIfEmpty)
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -1641,7 +1641,7 @@ testUpdateSameHandle = do
   storedUser' <- getUser tok userid
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with 'updateUser'
-  richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
+  richInfoLimit <- view (teOpts . to richInfoLimit)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` (whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user') <&> setDefaultRoleIfEmpty)
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)

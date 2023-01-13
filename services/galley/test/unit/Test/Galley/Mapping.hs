@@ -25,10 +25,15 @@ import Data.Domain
 import Data.Id
 import Data.Qualified
 import qualified Data.Set as Set
+import Galley.API.Error (InternalError)
 import Galley.API.Mapping
 import qualified Galley.Data.Conversation as Data
 import Galley.Types.Conversations.Members
 import Imports
+import Polysemy (Sem)
+import qualified Polysemy as P
+import qualified Polysemy.Error as P
+import qualified Polysemy.TinyLog as P
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.Conversation
@@ -38,35 +43,39 @@ import Wire.API.Federation.API.Galley
   ( RemoteConvMembers (..),
     RemoteConversation (..),
   )
+import qualified Wire.Sem.Logger as P
+
+run :: Sem '[P.TinyLog, P.Error InternalError] a -> Either InternalError a
+run = P.run . P.runError . P.discardLogs
 
 tests :: TestTree
 tests =
   testGroup
     "ConversationMapping"
     [ testProperty "conversation view for a valid user is non-empty" $
-        \(ConvWithLocalUser c luid) -> isJust (conversationViewMaybe luid c),
+        \(ConvWithLocalUser c luid) -> isRight (run (conversationView luid c)),
       testProperty "self user in conversation view is correct" $
         \(ConvWithLocalUser c luid) ->
-          fmap (memId . cmSelf . cnvMembers) (conversationViewMaybe luid c)
-            == Just (tUntagged luid),
+          fmap (memId . cmSelf . cnvMembers) (run (conversationView luid c))
+            == Right (tUntagged luid),
       testProperty "conversation view metadata is correct" $
         \(ConvWithLocalUser c luid) ->
-          fmap cnvMetadata (conversationViewMaybe luid c)
-            == Just (Data.convMetadata c),
+          fmap cnvMetadata (run (conversationView luid c))
+            == Right (Data.convMetadata c),
       testProperty "other members in conversation view do not contain self" $
-        \(ConvWithLocalUser c luid) -> case conversationViewMaybe luid c of
-          Nothing -> False
-          Just cnv ->
+        \(ConvWithLocalUser c luid) -> case run $ conversationView luid c of
+          Left _ -> False
+          Right cnv ->
             tUntagged luid
               `notElem` map omQualifiedId (cmOthers (cnvMembers cnv)),
       testProperty "conversation view contains all users" $
         \(ConvWithLocalUser c luid) ->
-          fmap (sort . cnvUids) (conversationViewMaybe luid c)
-            == Just (sort (convUids (tDomain luid) c)),
+          fmap (sort . cnvUids) (run (conversationView luid c))
+            == Right (sort (convUids (tDomain luid) c)),
       testProperty "conversation view for an invalid user is empty" $
         \(RandomConversation c) luid ->
           notElem (tUnqualified luid) (map lmId (Data.convLocalMembers c)) ==>
-            isNothing (conversationViewMaybe luid c),
+            isLeft (run (conversationView luid c)),
       testProperty "remote conversation view for a valid user is non-empty" $
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (tUntagged ruid) /= dom ==>

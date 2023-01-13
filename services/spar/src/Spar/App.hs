@@ -64,6 +64,7 @@ import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.Error hiding (sparToServerErrorWithLogging)
 import qualified Spar.Intra.BrigApp as Intra
+import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.BrigAccess (BrigAccess)

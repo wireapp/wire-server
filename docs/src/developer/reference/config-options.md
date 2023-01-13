@@ -604,3 +604,37 @@ If there is no configuration for a domain, it's defaulted to `no_search`.
 #### `setEnableDevelopmentVersions`
 
 This options determines whether development versions should be enabled. If set to `False`, all development versions are removed from the `supported` field of the `/api-version` endpoint. Note that they are still listed in the `development` field, and continue to work normally.
+
+#### Disabling API versions
+
+It is possible to disable one ore more API versions. When an API version is disabled it won't be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.
+
+Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar should to be configured with the same set of disable API versions in each service's values.yaml config files. 
+
+
+For example to disable API version v3, you need to configure:
+
+```
+# brig's values.yaml
+config.optSettings.setDisabledAPIVersions: [ 3 ]
+
+# cannon's values.yaml
+config.disabledAPIVersions: [ 3 ]
+
+# cargohold's values.yaml
+config.settings.disabledAPIVersions: [ 3 ]
+
+# galley's values.yaml
+config.settings.disabledAPIVersions: [ 3 ]
+
+# gundecks' values.yaml
+config.disabledAPIVersions: [ 3 ]
+
+# proxy's values.yaml
+config.disabledAPIVersions: [ 3 ]
+
+# spar's values.yaml
+config.disabledAPIVersions: [ 3 ]
+```
+
+The default setting is that no API version is disabled.

@@ -69,6 +69,7 @@ import qualified SAML2.WebSSO as SAML
 import Spar.App (getUserByUrefUnsafe, getUserIdByScimExternalId)
 import qualified Spar.App
 import qualified Spar.Intra.BrigApp as Brig
+import Spar.Options
 import Spar.Scim.Auth ()
 import Spar.Scim.Types (normalizeLikeStored)
 import qualified Spar.Scim.Types as ST
@@ -102,7 +103,6 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
-import Wire.API.User.Saml (Opts, derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import qualified Wire.API.User.Scim as ST
 import Wire.Sem.Logger (Logger)

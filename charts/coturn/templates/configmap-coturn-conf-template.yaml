@@ -13,6 +13,9 @@ data:
     {{- if .Values.tls.enabled }}
     cert=/secrets-tls/tls.crt
     pkey=/secrets-tls/tls.key
+    {{- if .Values.tls.ciphers }}
+    cipher-list={{ .Values.tls.ciphers }}
+    {{- end }}
     {{- else }}
     no-tls
     {{- end }}
