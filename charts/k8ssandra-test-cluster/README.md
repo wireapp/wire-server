@@ -53,7 +53,7 @@ releases:
 
   - name: 'wire-server'
     namespace: 'wire'
-    chart: 'wire-develop/wire-server'
+    chart: 'wire/wire-server'
     version: {{ .Values.wireChartVersion | quote }}
     values:
       - './helm_vars/wire-server/values.yaml.gotmpl'
