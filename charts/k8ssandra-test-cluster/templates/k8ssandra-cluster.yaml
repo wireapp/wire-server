@@ -13,13 +13,14 @@ spec:
     resources:
       requests:
         cpu: 1
-        memory: "2.0Gi"
+        memory: "4.0Gi"
       limits:
         memory: "4.0Gi"
     config:
       jvmOptions:
-        heap_max_size: "3.9G"
-        heap_initial_size: "1.9G"
+        # Intentionally, half of the available memory
+        heap_max_size: "2G"
+        heap_initial_size: "2G"
         gc_g1_rset_updating_pause_time_percent: 5
         gc: "G1GC"
         gc_g1_max_gc_pause_ms: 300
@@ -29,20 +30,14 @@ spec:
         - metadata:
             name: datacenter-1
           size: 1
-          resources:
-            requests:
-              cpu: 1
-              memory: "2.0Gi"
-            limits:
-              memory: "4.0Gi"
           storageConfig:
             cassandraDataVolumeClaimSpec:
-              storageClassName: hcloud-volumes-encrypted
+              storageClassName: {{ .Values.storageClassName }}
               accessModes:
                 - ReadWriteOnce
               resources:
                 requests:
-                  storage: 5Gi
+                  storage: {{ .Values.storageSize }}
   reaper:
     autoScheduling:
       enabled: true

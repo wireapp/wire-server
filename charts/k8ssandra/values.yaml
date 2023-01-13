@@ -1,5 +1,0 @@
-# Use a cass-operator image that is compatible to the K8s cluster version
-k8ssandra-operator:
-  cass-operator:
-    image:
-      tag: v1.10.5
