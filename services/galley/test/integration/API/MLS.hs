@@ -220,7 +220,8 @@ tests s =
               test s "reset a subconversation as a member" (testDeleteSubConv True),
               test s "reset a subconversation as a non-member" (testDeleteSubConv False),
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
-              test s "leave a subconversation" testLeaveSubConv
+              test s "leave a subconversation" testLeaveSubConv,
+              test s "leave a subconversation as a non-member" testLeaveSubConvNonMember
             ],
           testGroup
             "Local Sender/Remote Subconversation"
@@ -2765,3 +2766,32 @@ testLeaveSubConv = do
             <!! do
               const 200 === statusCode
     liftIO $ length (pscMembers psc) @?= 2
+
+testLeaveSubConvNonMember :: TestM ()
+testLeaveSubConvNonMember = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+    let subId = SubConvId "conference"
+    _qsub <- createSubConv qcnv bob1 subId
+
+    -- alice attempts to leave
+    liftTest $ do
+      e <-
+        responseJsonError
+          =<< leaveSubConv (ciUser alice1) (ciClient alice1) qcnv subId
+            <!! const 400 === statusCode
+      liftIO $ Wai.label e @?= "mls-protocol-error"
+
+    -- alice attempts to leave a non-existing subconversation
+    liftTest $ do
+      e <-
+        responseJsonError
+          =<< leaveSubConv (ciUser alice1) (ciClient alice1) qcnv (SubConvId "foo")
+            <!! const 404 === statusCode
+      liftIO $ Wai.label e @?= "no-conversation"
