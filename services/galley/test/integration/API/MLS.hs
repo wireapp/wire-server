@@ -2404,7 +2404,7 @@ testSendMessageSubConv = do
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
       let subname = "conference"
-      createSubConv qcnv bob1 subname
+      void $ createSubConv qcnv bob1 subname
       let qcs = convsub qcnv (Just subname)
 
       void $ createExternalCommit alice1 Nothing qcs >>= sendAndConsumeCommitBundle
