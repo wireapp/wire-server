@@ -31,7 +31,7 @@ point for requests from internal backend components to other, remote backends.
 Each backend has two domain: an {ref}`infrastructure domain <glossary_infra_domain>` and a
 {ref}`backend domain <glossary_backend_domain>`.
 
-The **infrastructure domain** (short **infra domain**) is the domain name under which the backend
+The **infrastructure domain** is the domain name under which the backend
 is actually reachable via the network. It is also the domain name that
 each backend uses in authenticating itself to other backends.
 
@@ -41,7 +41,7 @@ context of federation.
 
 The distinction between the two domains allows the owner of a backend
 domain, e.g. `example.com`, to host their Wire backend under a
-different infra domain, e.g. `wire.infra.example.com`.
+different infrastructure domain, e.g. `wire.infra.example.com`.
 
 (federation_ingress)=
 
@@ -52,7 +52,7 @@ ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/)
 and uses [nginx](https://nginx.org/en/) as its underlying software.
 
 It is configured with a set of X.509 certificates, which acts as root of
-trust for the authentication of the infra domain of remote backends, as
+trust for the authentication of the infrastructure domain of remote backends, as
 well as with a certificate, which it uses to authenticate itself toward
 other backends.
 
@@ -73,7 +73,7 @@ point for other backend components. It can be configured to use an
 {ref}`allow list
 <allow-list>` to authorize incoming and
 outgoing connections, and it keeps an X.509 client certificate for the
-backend\'s infra domain to authenticate itself towards other backends.
+backend\'s infrastructure domain to authenticate itself towards other backends.
 Additionally, it requires a connection to a DNS resolver to
 {ref}`discover<discovery>` other backends.
 
@@ -96,7 +96,7 @@ from remote backends (forwarded via the local
 1.  Discover the mapping
     between backend domain claimed by the remote backend and its infra
     domain,
-2.  Verify that the discovered infra domain matches the domain in the
+2.  Verify that the discovered infrastructure domain matches the domain in the
     remote backend\'s client certificate,
 3.  If enabled, ensure that the backend domain of the other backend is
     in the allow list.

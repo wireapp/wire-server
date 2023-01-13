@@ -231,9 +231,9 @@ their precise inputs and outputs.
 
 In the following the interactions between *Federator* and *Federation Ingress*
 components of the backends involved are omitted for simplicity. Also the backend
-domain and infra domain are assumed the same.
+domain and infrastructure domain are assumed the same.
 
-Additionally we assume that the backend domain and the infra domain of
+Additionally we assume that the backend domain and the infrastructure domain of
 the respective backends involved are the same and each domain identifies
 a distinct backend.
 
