@@ -14,7 +14,7 @@ detailed in the sections below:
 
 -   Choose a backend domain name
 
--   DNS setup for federation (including a `SRV` record)
+-   DNS setup for federation (including an `SRV` record)
 
 -   Generate and configure TLS certificates:
 
@@ -31,7 +31,7 @@ detailed in the sections below:
 ## Choose a Backend Domain
 
 As of the release \[helm chart 0.129.0, Wire docker version 2.94.0\] from
-2020-12-15, the `federationDomain` is a mandatory configuration setting, which
+2020-12-15, `federationDomain` is a mandatory configuration setting, which
 defines the {ref}`backend domain <glossary_backend_domain>` of your
 installation. Regardless of whether you want to enable federation for a backend
 or not, you must decide what its domain is going to be. This helps in keeping

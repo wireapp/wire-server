@@ -6,19 +6,18 @@
 ## Backends
 
 In the following we call a **backend** the set of servers, databases and DNS
-configurations that together form one single Wire Server entity as seen from
+configurations that together form one single Wire Server entity as seen from the
 outside. It can also be called a Wire \"instance\" or \"server\" or \"Wire
 installation\". Every resource (e.g. users, conversations, assets and teams)
 exists and is *owned* by a single backend, which we can refer to as that
 resource\'s backend.
 
 The communication between federated backends is facilitated by two components in
-each backend: {ref}`federation_ingress` and {ref}`federator`. The
-*Federation Ingress* is, as the name suggests the
-ingress point for incoming connections from other backends, which are then
-forwarded to the *Federator*. The *Federator* forwards requests
-to internal components. It also acts as a *egress* point for requests from
-internal backend components to other, remote backends.
+each backend: {ref}`federation_ingress` and {ref}`federator`. The *Federation
+Ingress* is, as the name suggests, the ingress point for incoming connections
+from other backends, which are then forwarded to the *Federator*. The
+*Federator* forwards requests to internal components. It also acts as a *egress*
+point for requests from internal backend components to other, remote backends.
 
 ![image](img/federated-backend-architecture.png)
 
