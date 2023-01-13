@@ -19,6 +19,7 @@
 
 module Wire.API.MLS.Epoch where
 
+import qualified Data.Aeson as A
 import Data.Binary
 import Data.Schema
 import Imports
@@ -28,6 +29,7 @@ import Wire.Arbitrary
 newtype Epoch = Epoch {epochNumber :: Word64}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary, Enum, ToSchema)
+  deriving (A.FromJSON, A.ToJSON) via (Schema Epoch)
 
 instance ParseMLS Epoch where
   parseMLS = Epoch <$> parseMLS
