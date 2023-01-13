@@ -316,35 +316,42 @@ instance ToSchema OAuthAccessTokenType where
         [ element "Bearer" OAuthAccessTokenTypeBearer
         ]
 
-newtype OAuthAccessToken = OAuthAccessToken {unOAuthAccessToken :: SignedJWT}
+data TokenTag = Access | Refresh
+
+newtype OAuthToken a = OAuthToken {unOAuthToken :: SignedJWT}
   deriving (Show, Eq, Generic)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema OAuthAccessToken
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (OAuthToken a)
 
-instance ToByteString OAuthAccessToken where
-  builder = builder . encodeCompact . unOAuthAccessToken
+instance ToByteString (OAuthToken a) where
+  builder = builder . encodeCompact . unOAuthToken
 
-instance FromByteString OAuthAccessToken where
+instance FromByteString (OAuthToken a) where
   parser = do
     t <- parser @Text
     case decodeCompact (cs (TE.encodeUtf8 t)) of
       Left (err :: JWTError) -> fail $ show err
-      Right jwt -> pure $ OAuthAccessToken jwt
+      Right jwt -> pure $ OAuthToken jwt
 
-instance ToHttpApiData OAuthAccessToken where
+instance ToHttpApiData (OAuthToken a) where
   toHeader = toByteString'
   toUrlPiece = cs . toHeader
 
-instance FromHttpApiData OAuthAccessToken where
+instance FromHttpApiData (OAuthToken a) where
   parseHeader = either (Left . cs) pure . runParser parser . cs
   parseUrlPiece = parseHeader . cs
 
-instance ToSchema OAuthAccessToken where
+instance ToSchema (OAuthToken a) where
   schema = (TE.decodeUtf8 . toByteString') .= withParser schema (either fail pure . runParser parser . cs)
+
+type OAuthAccessToken = OAuthToken 'Access
+
+type OAuthRefreshToken = OAuthToken 'Refresh
 
 data OAuthAccessTokenResponse = OAuthAccessTokenResponse
   { oatAccessToken :: OAuthAccessToken,
     oatTokenType :: OAuthAccessTokenType,
-    oatExpiresIn :: NominalDiffTime
+    oatExpiresIn :: NominalDiffTime,
+    oatRefreshToken :: OAuthRefreshToken
   }
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthAccessTokenResponse)
@@ -356,39 +363,40 @@ instance ToSchema OAuthAccessTokenResponse where
         <$> oatAccessToken .= field "accessToken" schema
         <*> oatTokenType .= field "tokenType" schema
         <*> oatExpiresIn .= field "expiresIn" (fromIntegral <$> roundDiffTime .= schema)
+        <*> oatRefreshToken .= field "refreshToken" schema
     where
       roundDiffTime :: NominalDiffTime -> Int32
       roundDiffTime = round
 
-data OAuthClaimSet = OAuthClaimSet {jwtClaims :: ClaimsSet, scope :: OAuthScopes}
+data OAuthsClaimSet = OAuthsClaimSet {jwtClaims :: ClaimsSet, scope :: OAuthScopes}
   deriving (Eq, Show, Generic)
 
-instance HasClaimsSet OAuthClaimSet where
+instance HasClaimsSet OAuthsClaimSet where
   claimsSet f s = fmap (\a' -> s {jwtClaims = a'}) (f (jwtClaims s))
 
-instance A.FromJSON OAuthClaimSet where
-  parseJSON = A.withObject "OAuthClaimSet" $ \o ->
-    OAuthClaimSet
+instance A.FromJSON OAuthsClaimSet where
+  parseJSON = A.withObject "OAuthsClaimSet" $ \o ->
+    OAuthsClaimSet
       <$> A.parseJSON (A.Object o)
       <*> o A..: "scope"
 
-instance A.ToJSON OAuthClaimSet where
+instance A.ToJSON OAuthsClaimSet where
   toJSON s =
     ins "scope" (scope s) (A.toJSON (jwtClaims s))
     where
       ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-csUserId :: OAuthClaimSet -> Maybe UserId
+csUserId :: OAuthsClaimSet -> Maybe UserId
 csUserId =
   view claimSub
     >=> preview string
     >=> either (const Nothing) pure . parseIdFromText
 
-hasScope :: OAuthScope -> OAuthClaimSet -> Bool
+hasScope :: OAuthScope -> OAuthsClaimSet -> Bool
 hasScope s claims = s `Set.member` unOAuthScopes (scope claims)
 
-verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimSet)
+verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthsClaimSet)
 verify k jwt = runJOSE $ do
   let audCheck = const True
   verifyJWT (defaultJWTValidationSettings audCheck) k jwt

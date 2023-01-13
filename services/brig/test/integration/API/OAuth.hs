@@ -73,7 +73,7 @@ tests m b n o = do
           test m "create token" $ testCreateAccessTokenAccessDeniedWhenDisabled o b
         ],
       testGroup "accessing a resource" $
-        [ test m "success (internal," $ testAccessResourceSuccessInternal b,
+        [ test m "success (internal)" $ testAccessResourceSuccessInternal b,
           test m "success (nginz)" $ testAccessResourceSuccessNginz b n,
           test m "insufficient scope" $ testAccessResourceInsufficientScope b,
           test m "expired token" $ testAccessResourceExpiredToken o b,
@@ -150,8 +150,8 @@ testCreateAccessTokenSuccess opts brig = do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
   k <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
-  verifiedOrError <- liftIO $ verify k (unOAuthAccessToken $ oatAccessToken accessToken)
-  verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (unOAuthAccessToken $ oatAccessToken accessToken)
+  verifiedOrError <- liftIO $ verify k (unOAuthToken $ oatAccessToken accessToken)
+  verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (unOAuthToken $ oatAccessToken accessToken)
   let expectedDomain = domainText $ Opt.setFederationDomain $ Opt.optSettings opts
   liftIO $ do
     isRight verifiedOrError @?= True
@@ -343,9 +343,9 @@ testAccessResourceInvalidSignature opts brig = do
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   accessToken <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
-  claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthAccessToken $ oatAccessToken accessToken))
+  claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthToken $ oatAccessToken accessToken))
   tokenSignedWithWrongKey <- signJwtToken wrongKey claimSet
-  get (brig . paths ["self"] . zOAuthHeader (OAuthAccessToken tokenSignedWithWrongKey)) !!! do
+  get (brig . paths ["self"] . zOAuthHeader (OAuthToken tokenSignedWithWrongKey)) !!! do
     const 403 === statusCode
     const "Access denied" === statusMessage
     const (Just "Invalid token: JWSError JWSInvalidSignature") === responseBody
@@ -410,7 +410,7 @@ generateOAuthClientAndAuthCode brig uid scope url = do
     getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
     getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
 
-signJwtToken :: JWK -> OAuthClaimSet -> Http SignedJWT
+signJwtToken :: JWK -> OAuthsClaimSet -> Http SignedJWT
 signJwtToken key claims = do
   jwtOrError <- liftIO $ doSignClaims
   either (const $ error "jwt error") pure jwtOrError

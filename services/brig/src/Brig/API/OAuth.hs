@@ -104,26 +104,38 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
 createAccessToken :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessToken req = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
-  (authCodeCid, authCodeUserId, authCodeScopes, authCodeRedirectUrl) <-
+  (cid, uid, scope, uri) <-
     lift (wrapClient $ lookupAndDeleteOAuthAuthCode (oatCode req))
       >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure
-  oauthClient <- getOAuthClient authCodeUserId (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  oauthClient <- getOAuthClient uid (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
   unlessM (verifyClientSecret (oatClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'InvalidClientCredentials
-  unless (authCodeCid == oatClientId req) $ throwStd $ errorToWai @'InvalidClientCredentials
+  unless (cid == oatClientId req) $ throwStd $ errorToWai @'InvalidClientCredentials
   unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'RedirectUrlMissMatch
-  unless (authCodeRedirectUrl == oatRedirectUri req) $ throwStd $ errorToWai @'RedirectUrlMissMatch
+  unless (uri == oatRedirectUri req) $ throwStd $ errorToWai @'RedirectUrlMissMatch
 
-  domain <- Opt.setFederationDomain <$> view settings
   exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
-  claims <- mkClaims authCodeUserId domain authCodeScopes exp
   fp <- view settings >>= maybe (throwStd $ errorToWai @'JwtError) pure . Opt.setOAuthJwkKeyPair
   key <- lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'JwtError) pure
-  token <- OAuthAccessToken <$> signJwtToken key claims
-  pure $ OAuthAccessTokenResponse token OAuthAccessTokenTypeBearer exp
+  accessToken <- mkAccessToken key uid scope
+  refreshToken <- mkRefreshToken key
+  pure $ OAuthAccessTokenResponse accessToken OAuthAccessTokenTypeBearer exp refreshToken
   where
-    mkClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimSet
-    mkClaims u domain scopes ttl = do
+    mkRefreshToken :: (Member Now r) => JWK -> (Handler r) OAuthRefreshToken
+    mkRefreshToken key = do
+      sub <- maybe (throwStd $ errorToWai @'JwtError) pure $ ("c5c126ce-58b3-4391-aa19-c70f8759b623" :: Text) ^? stringOrUri
+      let claims = emptyClaimsSet & claimSub ?~ sub
+      OAuthToken <$> signRefreshToken key claims
+
+    mkAccessToken :: (Member Now r, Member Jwk r) => JWK -> UserId -> OAuthScopes -> (Handler r) OAuthAccessToken
+    mkAccessToken key uid scope = do
+      domain <- Opt.setFederationDomain <$> view settings
+      exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
+      claims <- mkAccessTokenClaims uid domain scope exp
+      OAuthToken <$> signAccessToken key claims
+
+    mkAccessTokenClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthsClaimSet
+    mkAccessTokenClaims u domain scopes ttl = do
       iat <- lift (liftSem Now.get)
       uri <- maybe (throwStd $ errorToWai @'JwtError) pure $ domainText domain ^? stringOrUri
       sub <- maybe (throwStd $ errorToWai @'JwtError) pure $ idToText u ^? stringOrUri
@@ -135,10 +147,10 @@ createAccessToken req = do
               & claimIat ?~ NumericDate iat
               & claimSub ?~ sub
               & claimExp ?~ NumericDate exp
-      pure $ OAuthClaimSet claimSet scopes
+      pure $ OAuthsClaimSet claimSet scopes
 
-    signJwtToken :: JWK -> OAuthClaimSet -> (Handler r) SignedJWT
-    signJwtToken key claims = do
+    signAccessToken :: JWK -> OAuthsClaimSet -> (Handler r) SignedJWT
+    signAccessToken key claims = do
       jwtOrError <- liftIO $ doSignClaims
       either (const $ throwStd $ errorToWai @'JwtError) pure jwtOrError
       where
@@ -146,6 +158,16 @@ createAccessToken req = do
         doSignClaims = runJOSE $ do
           algo <- bestJWSAlg key
           signJWT key (newJWSHeader ((), algo)) claims
+
+    signRefreshToken :: JWK -> ClaimsSet -> (Handler r) SignedJWT
+    signRefreshToken key claims = do
+      jwtOrError <- liftIO $ doSignClaims
+      either (const $ throwStd $ errorToWai @'JwtError) pure jwtOrError
+      where
+        doSignClaims :: IO (Either JWTError SignedJWT)
+        doSignClaims = runJOSE $ do
+          algo <- bestJWSAlg key
+          signClaims key (newJWSHeader ((), algo)) claims
 
     verifyClientSecret :: OAuthClientPlainTextSecret -> OAuthClientId -> (Handler r) Bool
     verifyClientSecret secret cid = do

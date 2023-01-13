@@ -310,7 +310,7 @@ checkZAuthOrOAuth oauthScope mJwk req = maybe tryOAuth (pure . Right) tryZUserAu
 
     verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError UserId)
     verifyOAuthToken (token, key) = do
-      verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthAccessToken . unBearer $ token))
+      verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthToken . unBearer $ token))
       pure $
         verifiedOrError >>= \claimSet ->
           if hasScope oauthScope claimSet
