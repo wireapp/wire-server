@@ -2393,17 +2393,7 @@ testJoinSubNonMemberClient = do
     void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommit
 
     let subId = SubConvId "conference"
-    sub <-
-      liftTest $
-        responseJsonError
-          =<< getSubConv (qUnqualified alice) qcnv (SubConvId "conference")
-            <!! const 200 === statusCode
-
-    resetGroup alice1 (pscGroupId sub)
-
-    -- Alice adds her first client to the subconversation
-    void $
-      createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+    void $ createSubConv qcnv alice1 subId
 
     -- now Bob attempts to get the group info so he can join via external commit
     -- with his own client, but he cannot because he is not a member of the
