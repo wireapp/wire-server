@@ -63,7 +63,6 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Epoch
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -219,7 +218,8 @@ tests s =
               test s "add another client to a subconversation" testAddClientSubConv,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
               test s "send an application message in a subconversation" testSendMessageSubConv,
-              test s "reset a subconversation" testDeleteSubConv,
+              test s "reset a subconversation as a member" (testDeleteSubConv True),
+              test s "reset a subconversation as a non-member" (testDeleteSubConv False),
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale
             ],
           testGroup
@@ -2584,32 +2584,23 @@ testRemoteMemberDeleteSubConv isAMember = do
     expectFailure errExpected (DeleteSubConversationResponseError err) =
       liftIO $ err @?= errExpected
 
-testDeleteSubConv :: TestM ()
-testDeleteSubConv = do
+testDeleteSubConv :: Bool -> TestM ()
+testDeleteSubConv isAMember = do
   alice <- randomQualifiedUser
+  randUser <- randomId
+  let (deleter, expectedCode) =
+        if isAMember
+          then (qUnqualified alice, 200)
+          else (randUser, 403)
   let sconv = SubConvId "conference"
   (qcnv, sub) <- runMLSTest $ do
     alice1 <- createMLSClient alice
     (_, qcnv) <- setupMLSGroup alice1
-    sub <-
-      liftTest $
-        responseJsonError
-          =<< getSubConv (qUnqualified alice) qcnv sconv
-            <!! do const 200 === statusCode
-
-    resetGroup alice1 (pscGroupId sub)
-
-    void $
-      createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+    sub <- createSubConv qcnv alice1 (unSubConvId sconv)
     pure (qcnv, sub)
 
-  let epoch = addToEpoch @Word64 1 $ pscEpoch sub
-      dsc =
-        DeleteSubConversation
-          (pscGroupId sub)
-          epoch
-  deleteSubConv (qUnqualified alice) qcnv sconv dsc
-    !!! do const 200 === statusCode
+  let dsc = DeleteSubConversation (pscGroupId sub) (pscEpoch sub)
+  deleteSubConv deleter qcnv sconv dsc !!! const expectedCode === statusCode
 
   newSub <-
     responseJsonError
@@ -2617,7 +2608,15 @@ testDeleteSubConv = do
         <!! do const 200 === statusCode
 
   liftIO $
-    assertBool "Old and new subconversation are equal" (sub /= newSub)
+    if isAMember
+      then
+        assertBool
+          "Old and new subconversation are equal"
+          (sub /= newSub)
+      else
+        assertBool
+          "Old and new subconversation are not equal"
+          (sub == newSub)
 
 testDeleteSubConvStale :: TestM ()
 testDeleteSubConvStale = do
