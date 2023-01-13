@@ -81,16 +81,6 @@ In case this process fails the Federator fails to forward the request with a `Di
 
 (dns-scope)=
 
-### DNS Scope
-
-The network scope of the SRV record (as well as that of the DNS records
-for backend and infrastructure domain), depends on the desired federation
-topology in the same way as other parameters such as the availability of
-the CA certificate that allows authentication of the *Federation
-Ingress*\' server certificate or the *Federator*\'s client certificate.
-The general rule is that the SRV entry should be \"visible\" from the
-point of view of the desired federation partners. The exact scope
-strongly depends on the network architecture of the backends involved.
 
 (srv-ttl-and-caching)=
 
