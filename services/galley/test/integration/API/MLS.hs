@@ -2487,6 +2487,7 @@ testGetRemoteSubConv isAMember = do
             pscSubConvId = sconv,
             pscGroupId = GroupId "deadbeef",
             pscEpoch = Epoch 0,
+            pscEpochTimestamp = Nothing,
             pscCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
             pscMembers = []
           }
