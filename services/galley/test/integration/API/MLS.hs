@@ -215,7 +215,7 @@ tests s =
               test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
               test s "join subconversation with an external commit bundle" testJoinSubConv,
               test s "join subconversation with a client that is not in the parent conv" testJoinSubNonMemberClient,
-              test s "add another client to a subconversation" testAddClientSubConv,
+              test s "fail to add another client to a subconversation via internal commit" testAddClientSubConv,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
               test s "send an application message in a subconversation" testSendMessageSubConv,
               test s "reset a subconversation as a member" (testDeleteSubConv True),
