@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -31,12 +32,15 @@ import Control.Exception (asyncExceptionFromException)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)
 import qualified Data.ByteString.Base64 as B64
+import Data.List (delete)
 import Data.ProtoLens
 import qualified Data.Text.Encoding as Text
 import Imports
 import Safe (headDef)
 import Test.Tasty.HUnit
+import UnliftIO (Async, async)
 import UnliftIO.Resource (MonadResource, ResourceT)
+import UnliftIO.Timeout (timeout)
 
 -----------------------------------------------------------------------------
 -- Assertions
@@ -150,3 +154,44 @@ tryMatch label tries url callback = go tries
 
 sendEnv :: (MonadReader AWS.Env m, MonadResource m, AWS.AWSRequest a) => a -> m (AWS.AWSResponse a)
 sendEnv x = flip AWS.send x =<< ask
+
+----------------
+
+data SQSWatcher a = SQSWatcher
+  { watcherProcess :: Async (),
+    events :: IORef [a]
+  }
+
+watchSQSQueue :: Message a => AWS.Env -> Text -> IO (SQSWatcher a)
+watchSQSQueue env queueUrl = do
+  eventsRef <- newIORef []
+  process <- async $ recieveLoop eventsRef
+  pure $ SQSWatcher process eventsRef
+  where
+    recieveLoop ref = do
+      let rcvReq =
+            SQS.newReceiveMessage queueUrl
+              & set SQS.receiveMessage_waitTimeSeconds (Just 100)
+                . set SQS.receiveMessage_maxNumberOfMessages (Just 1)
+                . set SQS.receiveMessage_visibilityTimeout (Just 1)
+      rcvRes <- execute env $ sendEnv rcvReq
+      let msgs = fromMaybe [] $ view SQS.receiveMessageResponse_messages rcvRes
+      parsedMsgs <- fmap catMaybes . execute env $ mapM (parseDeleteMessage queueUrl) msgs
+      atomicModifyIORef ref $ \xs ->
+        (parsedMsgs <> xs, ())
+      recieveLoop ref
+
+waitForMessage :: (MonadUnliftIO m, Eq a, Show a) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
+waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
+  where
+    poll = do
+      matched <- atomicModifyIORef (events watcher) $ \events ->
+        case filter predicate events of
+          [] -> (events, Nothing)
+          (x : _) -> (delete x events, Just x)
+      maybe poll pure matched
+
+assertMessage :: (Show a, MonadUnliftIO m, Eq a, HasCallStack) => SQSWatcher a -> String -> (a -> Bool) -> (String -> Maybe a -> m ()) -> m ()
+assertMessage watcher label predicate callback = do
+  matched <- waitForMessage watcher 1 predicate
+  callback label matched

@@ -28,7 +28,6 @@ import API.User.Util as Util
 import Bilge hiding (accept, head, timeout)
 import qualified Bilge
 import Bilge.Assert
-import qualified Brig.AWS as AWS
 import qualified Brig.Options as Opt
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
@@ -80,7 +79,7 @@ import Wire.API.User.Client (ClientType (PermanentClientType))
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 
-tests :: Opt.Opts -> Manager -> Nginz -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
+tests :: Opt.Opts -> Manager -> Nginz -> Brig -> Cannon -> Galley -> UserJournalWatcher -> IO TestTree
 tests conf m n b c g aws = do
   let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
   let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
@@ -99,11 +98,11 @@ tests conf m n b c g aws = do
             test m "post /teams/:tid/invitations - 403 no permission" $ testInvitationNoPermission b,
             test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b tl,
             test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
-            test' aws m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
-            test' aws m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
-            test' aws m "post /register - 201 extended accepted" $ testInvitationEmailAndPhoneAccepted b g,
-            test' aws m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
-            test' aws m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
+            test m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
+            test m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
+            test m "post /register - 201 extended accepted" $ testInvitationEmailAndPhoneAccepted b g,
+            test m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
+            test m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
             test m "post /register - 400 no passwordless" $ testTeamNoPassword b,
             test m "post /register - 400 code already used" $ testInvitationCodeExists b,
             test m "post /register - 400 bad code" $ testInvitationInvalidCode b,
@@ -526,8 +525,8 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
   pure (responseJsonMaybe rsp2, invitation)
 
-testCreateTeam :: Brig -> Galley -> AWS.Env -> Http ()
-testCreateTeam brig galley aws = do
+testCreateTeam :: Brig -> Galley -> UserJournalWatcher -> Http ()
+testCreateTeam brig galley userJournalWatcher = do
   email <- randomEmail
   usr <- responseJsonError =<< register email newTeam brig
   let uid = userId usr
@@ -549,13 +548,13 @@ testCreateTeam brig galley aws = do
   case act of
     Nothing -> liftIO $ assertFailure "activation key/code not found"
     Just kc -> activate brig kc !!! const 200 === statusCode
-  liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
+  Util.assertUserActivateJournaled userJournalWatcher usr "user activate"
   -- Verify that Team has status Active now
   team3 <- getTeam galley (team ^. teamId)
   liftIO $ assertEqual "status" Team.Active (Team.tdStatus team3)
 
-testCreateTeamPreverified :: Brig -> Galley -> AWS.Env -> Http ()
-testCreateTeamPreverified brig galley aws = do
+testCreateTeamPreverified :: Brig -> Galley -> UserJournalWatcher -> Http ()
+testCreateTeamPreverified brig galley userJournalWatcher = do
   email <- randomEmail
   requestActivationCode brig 200 (Left email)
   act <- getActivationCode brig (Left email)
@@ -564,7 +563,7 @@ testCreateTeamPreverified brig galley aws = do
     Just (_, c) -> do
       usr <- responseJsonError =<< register' email newTeam c brig <!! const 201 === statusCode
       let uid = userId usr
-      liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
+      Util.assertUserActivateJournaled userJournalWatcher usr "user activate"
       teams <- view teamListTeams <$> getTeams uid galley
       liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
       let team = fromMaybe (error "No team??") $ listToMaybe teams
