@@ -24,7 +24,6 @@ Release notes of `wire-server` can be found [here](https://github.com/wireapp/wi
 
 Security responses <security-responses/index>
 Installation <how-to/install/index>
-Configuration <configuration/index>
 Administration <how-to/administrate/index>
 Reference <understand/index>
 Developers Notes <developer/index>
