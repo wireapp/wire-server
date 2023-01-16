@@ -5,6 +5,7 @@
 { mkDerivation
 , aeson
 , amazonka
+, amazonka-core
 , amazonka-dynamodb
 , amazonka-ses
 , amazonka-sqs
@@ -169,6 +170,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
+    amazonka-core
     amazonka-dynamodb
     amazonka-ses
     amazonka-sqs

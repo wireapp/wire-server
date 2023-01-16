@@ -88,6 +88,7 @@ import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
+import Wire.API.Federation.API
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -162,16 +163,17 @@ mlsAPI =
     :<|> Named @"put-key-package-add" upsertKeyPackage
 
 accountAPI ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r =>
+  ( Members
+      '[ BlacklistStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r
+  ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
-  Named @"createUserNoVerify" createUserNoVerify
-    :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
+  Named @"createUserNoVerify" (callsFed createUserNoVerify)
+    :<|> Named @"createUserNoVerifySpar" (callsFed createUserNoVerifySpar)
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -182,10 +184,10 @@ userAPI =
     :<|> deleteLocale
     :<|> getDefaultUserLocale
 
-authAPI :: Member GalleyProvider r => ServerT BrigIRoutes.AuthAPI (Handler r)
+authAPI :: (Member GalleyProvider r) => ServerT BrigIRoutes.AuthAPI (Handler r)
 authAPI =
-  Named @"legalhold-login" legalHoldLogin
-    :<|> Named @"sso-login" ssoLogin
+  Named @"legalhold-login" (callsFed legalHoldLogin)
+    :<|> Named @"sso-login" (callsFed ssoLogin)
     :<|> Named @"login-code" getLoginCode
     :<|> Named @"reauthenticate" reauthenticate
 
@@ -296,17 +298,18 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 -- Sitemap (wai-route)
 
 sitemap ::
-  Members
-    '[ CodeStore,
-       PasswordResetStore,
-       BlacklistStore,
-       BlacklistPhonePrefixStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r =>
+  ( Members
+      '[ CodeStore,
+         PasswordResetStore,
+         BlacklistStore,
+         BlacklistPhonePrefixStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r
+  ) =>
   Routes a (Handler r) ()
-sitemap = do
+sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
   get "/i/status" (continue $ const $ pure empty) true
   head "/i/status" (continue $ const $ pure empty) true
 
@@ -468,10 +471,12 @@ sitemap = do
 
 -- | Add a client without authentication checks
 addClientInternalH ::
-  Members
-    '[ GalleyProvider
-     ]
-    r =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON ->
   (Handler r) Response
 addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
@@ -479,10 +484,12 @@ addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
   setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
 
 addClientInternal ::
-  Members
-    '[ GalleyProvider
-     ]
-    r =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   UserId ->
   Maybe Bool ->
   NewClient ->
@@ -494,13 +501,13 @@ addClientInternal usr mSkipReAuth new connId = do
         | otherwise = Data.reAuthForNewClients
   API.addClientWithReAuthPolicy policy usr connId Nothing new !>> clientError
 
-legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> (Handler r) Response
+legalHoldClientRequestedH :: (CallsFed 'Brig "on-user-deleted-connections") => UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> (Handler r) Response
 legalHoldClientRequestedH (targetUser ::: req ::: _) = do
   clientRequest <- parseJsonBody req
   lift $ API.legalHoldClientRequested targetUser clientRequest
   pure $ setStatus status200 empty
 
-removeLegalHoldClientH :: UserId ::: JSON -> (Handler r) Response
+removeLegalHoldClientH :: (CallsFed 'Brig "on-user-deleted-connections") => UserId ::: JSON -> (Handler r) Response
 removeLegalHoldClientH (uid ::: _) = do
   lift $ API.removeLegalHoldClient uid
   pure $ setStatus status200 empty
@@ -523,12 +530,14 @@ internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
 createUserNoVerify ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r =>
+  ( Members
+      '[ BlacklistStore,
+         GalleyProvider,
+         UserPendingActivationStore p
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
@@ -545,10 +554,12 @@ createUserNoVerify uData = lift . runExceptT $ do
   pure . SelfProfile $ usr
 
 createUserNoVerifySpar ::
-  Members
-    '[ GalleyProvider
-     ]
-    r =>
+  ( Members
+      '[ GalleyProvider
+       ]
+      r,
+    CallsFed 'Brig "on-user-deleted-connections"
+  ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
 createUserNoVerifySpar uData =
@@ -565,7 +576,7 @@ createUserNoVerifySpar uData =
        in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
     pure . SelfProfile $ usr
 
-deleteUserNoAuthH :: UserId -> (Handler r) Response
+deleteUserNoAuthH :: (CallsFed 'Brig "on-user-deleted-connections") => UserId -> (Handler r) Response
 deleteUserNoAuthH uid = do
   r <- lift $ wrapHttp $ API.ensureAccountDeleted uid
   case r of
@@ -664,7 +675,7 @@ newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, P
 instance ToJSON GetPasswordResetCodeResp where
   toJSON (GetPasswordResetCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> (Handler r) Response
+changeAccountStatusH :: (CallsFed 'Brig "on-user-deleted-connections") => UserId ::: JsonRequest AccountStatusUpdate -> (Handler r) Response
 changeAccountStatusH (usr ::: req) = do
   status <- suStatus <$> parseJsonBody req
   wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError
@@ -701,7 +712,7 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   where
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
-revokeIdentityH :: Either Email Phone -> (Handler r) Response
+revokeIdentityH :: (CallsFed 'Brig "on-user-deleted-connections") => Either Email Phone -> (Handler r) Response
 revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
   pure $ setStatus status200 empty
@@ -748,7 +759,7 @@ addPhonePrefixH (_ ::: req) = do
   void . lift $ API.phonePrefixInsert prefix
   pure empty
 
-updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> (Handler r) Response
+updateSSOIdH :: (CallsFed 'Brig "on-user-deleted-connections") => UserId ::: JSON ::: JsonRequest UserSSOId -> (Handler r) Response
 updateSSOIdH (uid ::: _ ::: req) = do
   ssoid :: UserSSOId <- parseJsonBody req
   success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
@@ -758,7 +769,7 @@ updateSSOIdH (uid ::: _ ::: req) = do
       pure empty
     else pure . setStatus status404 $ plain "User does not exist or has no team."
 
-deleteSSOIdH :: UserId ::: JSON -> (Handler r) Response
+deleteSSOIdH :: (CallsFed 'Brig "on-user-deleted-connections") => UserId ::: JSON -> (Handler r) Response
 deleteSSOIdH (uid ::: _) = do
   success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
   if success
@@ -814,18 +825,18 @@ getRichInfoMulti :: [UserId] -> (Handler r) [(UserId, RichInfo)]
 getRichInfoMulti uids =
   lift (wrapClient $ API.lookupRichInfoMultiUsers uids)
 
-updateHandleH :: UserId ::: JSON ::: JsonRequest HandleUpdate -> (Handler r) Response
+updateHandleH :: (CallsFed 'Brig "on-user-deleted-connections") => UserId ::: JSON ::: JsonRequest HandleUpdate -> (Handler r) Response
 updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBody body)
 
-updateHandle :: UserId -> HandleUpdate -> (Handler r) ()
+updateHandle :: (CallsFed 'Brig "on-user-deleted-connections") => UserId -> HandleUpdate -> (Handler r) ()
 updateHandle uid (HandleUpdate handleUpd) = do
   handle <- validateHandle handleUpd
   API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
-updateUserNameH :: UserId ::: JSON ::: JsonRequest NameUpdate -> (Handler r) Response
+updateUserNameH :: (CallsFed 'Brig "on-user-deleted-connections") => UserId ::: JSON ::: JsonRequest NameUpdate -> (Handler r) Response
 updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJsonBody body)
 
-updateUserName :: UserId -> NameUpdate -> (Handler r) ()
+updateUserName :: (CallsFed 'Brig "on-user-deleted-connections") => UserId -> NameUpdate -> (Handler r) ()
 updateUserName uid (NameUpdate nameUpd) = do
   name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
   let uu =

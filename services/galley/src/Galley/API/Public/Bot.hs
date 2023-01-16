@@ -19,8 +19,9 @@ module Galley.API.Public.Bot where
 
 import Galley.API.Update
 import Galley.App
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
 
 botAPI :: API BotAPI GalleyEffects
-botAPI = mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified
+botAPI = mkNamedAPI @"post-bot-message-unqualified" (callsFed (callsFed postBotMessageUnqualified))

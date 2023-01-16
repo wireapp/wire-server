@@ -18,15 +18,16 @@
 module AWS.Util where
 
 import qualified Amazonka as AWS
+import qualified Amazonka.Data.Time as AWS
 import Data.Time
 import Imports
 
 readAuthExpiration :: AWS.Env -> IO (Maybe NominalDiffTime)
 readAuthExpiration env = do
   authEnv <-
-    case runIdentity (AWS.envAuth env) of
+    case runIdentity (AWS.auth env) of
       AWS.Auth authEnv -> pure authEnv
       AWS.Ref _ ref -> do
         readIORef ref
   now <- getCurrentTime
-  pure $ (`diffUTCTime` now) . AWS.fromTime <$> AWS._authExpiration authEnv
+  pure $ (`diffUTCTime` now) . AWS.fromTime <$> AWS.expiration authEnv

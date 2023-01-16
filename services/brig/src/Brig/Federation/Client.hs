@@ -47,6 +47,7 @@ import Wire.API.UserMap
 getUserHandleInfo ::
   ( MonadReader Env m,
     MonadIO m,
+    CallsFed 'Brig "get-user-by-handle",
     Log.MonadLogger m
   ) =>
   Remote Handle ->
@@ -58,6 +59,7 @@ getUserHandleInfo (tUntagged -> Qualified handle domain) = do
 getUsersByIds ::
   ( MonadReader Env m,
     MonadIO m,
+    CallsFed 'Brig "get-users-by-ids",
     Log.MonadLogger m
   ) =>
   Domain ->
@@ -68,7 +70,7 @@ getUsersByIds domain uids = do
   runBrigFederatorClient domain $ fedClient @'Brig @"get-users-by-ids" uids
 
 claimPrekey ::
-  (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
+  (MonadReader Env m, MonadIO m, Log.MonadLogger m, CallsFed 'Brig "claim-prekey") =>
   Qualified UserId ->
   ClientId ->
   ExceptT FederationError m (Maybe ClientPrekey)
@@ -79,6 +81,7 @@ claimPrekey (Qualified user domain) client = do
 claimPrekeyBundle ::
   ( MonadReader Env m,
     MonadIO m,
+    CallsFed 'Brig "claim-prekey-bundle",
     Log.MonadLogger m
   ) =>
   Qualified UserId ->
@@ -90,7 +93,8 @@ claimPrekeyBundle (Qualified user domain) = do
 claimMultiPrekeyBundle ::
   ( Log.MonadLogger m,
     MonadReader Env m,
-    MonadIO m
+    MonadIO m,
+    CallsFed 'Brig "claim-multi-prekey-bundle"
   ) =>
   Domain ->
   UserClients ->
@@ -102,7 +106,8 @@ claimMultiPrekeyBundle domain uc = do
 searchUsers ::
   ( MonadReader Env m,
     MonadIO m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    CallsFed 'Brig "search-users"
   ) =>
   Domain ->
   SearchRequest ->
@@ -114,7 +119,8 @@ searchUsers domain searchTerm = do
 getUserClients ::
   ( MonadReader Env m,
     MonadIO m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    CallsFed 'Brig "get-user-clients"
   ) =>
   Domain ->
   GetUserClients ->
@@ -124,7 +130,7 @@ getUserClients domain guc = do
   runBrigFederatorClient domain $ fedClient @'Brig @"get-user-clients" guc
 
 sendConnectionAction ::
-  (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
+  (MonadReader Env m, MonadIO m, Log.MonadLogger m, CallsFed 'Brig "send-connection-action") =>
   Local UserId ->
   Remote UserId ->
   RemoteConnectionAction ->

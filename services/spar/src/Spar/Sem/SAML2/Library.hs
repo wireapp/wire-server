@@ -34,6 +34,7 @@ import Polysemy.Internal.Tactics
 import SAML2.WebSSO hiding (Error)
 import qualified SAML2.WebSSO as SAML hiding (Error)
 import Spar.Error (SparCustomError (..), SparError)
+import Spar.Options
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
@@ -42,7 +43,6 @@ import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.SAML2
 import Wire.API.User.IdentityProvider (WireIdP)
-import Wire.API.User.Saml
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 

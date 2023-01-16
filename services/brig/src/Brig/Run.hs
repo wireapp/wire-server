@@ -76,6 +76,7 @@ import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Brig.OAuth
 import Wire.API.Routes.Public.Brig
@@ -96,7 +97,8 @@ run o = do
     Async.async $
       runBrigToIO e $
         wrapHttpClient $
-          Queue.listen (e ^. internalEvents) Internal.onEvent
+          Queue.listen (e ^. internalEvents) $
+            unsafeCallsFed @'Brig @"on-user-deleted-connections" Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
@@ -130,7 +132,8 @@ mkApp o = do
 
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      versionMiddleware -- this rewrites the request, so it must be at the top (i.e. applied last)
+      -- this rewrites the request, so it must be at the top (i.e. applied last)
+      versionMiddleware (fold (setDisabledAPIVersions (optSettings o)))
         . Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def

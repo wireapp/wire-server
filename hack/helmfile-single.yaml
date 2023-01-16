@@ -73,3 +73,5 @@ releases:
         value: {{ .Values.federationDomain }}
       - name: galley.config.settings.federationDomain
         value: {{ .Values.federationDomain }}
+      - name: cargohold.config.settings.federationDomain
+        value: {{ .Values.federationDomain }}

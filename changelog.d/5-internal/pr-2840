@@ -1,1 +1,0 @@
-Add 'inconsistencies' tool to check for, and repair certain kinds of data inconsistencies across different cassandra tables.

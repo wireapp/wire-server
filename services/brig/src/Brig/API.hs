@@ -36,16 +36,17 @@ import Wire.Sem.Concurrency
 
 sitemap ::
   forall r p.
-  Members
-    '[ BlacklistPhonePrefixStore,
-       BlacklistStore,
-       GalleyProvider,
-       CodeStore,
-       Concurrency 'Unsafe,
-       PasswordResetStore,
-       UserPendingActivationStore p
-     ]
-    r =>
+  ( Members
+      '[ BlacklistPhonePrefixStore,
+         BlacklistStore,
+         GalleyProvider,
+         CodeStore,
+         Concurrency 'Unsafe,
+         PasswordResetStore,
+         UserPendingActivationStore p
+       ]
+      r
+  ) =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Public.sitemap

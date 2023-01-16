@@ -93,9 +93,9 @@ let
     };
     amazonka = {
       src = fetchgit {
-        url = "https://github.com/wireapp/amazonka";
-        rev = "7ced54b0396296307b9871d293cc0ac161e5743d";
-        sha256 = "0md658m32zrvzc8nljn58r8iw4rqxpihgdnqrhl8vnmkq6i9np51";
+        url = "https://github.com/brendanhay/amazonka";
+        rev = "cfe2584aef0b03c86650372d362c74f237925d8c";
+        sha256 = "sha256-ss8IuIN0BbS6LMjlaFmUdxUqQu+IHsA8ucsjxXJwbyg=";
       };
       packages = {
         amazonka = "lib/amazonka";
@@ -172,6 +172,13 @@ let
         sha256 = "1w23yz2iiayniymk7k4g8gww7268187cayw0c8m3bz2hbnvbyfbc";
       };
     };
+    swagger2 = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/swagger2";
+        rev = "ba916df2775bb38ec603b726bbebfb65a908317a";
+        sha256 = "sha256-IcsrJ5ur8Zm7Xp1PQBOb+2N7T8WMI8jJ6YuDv8ypsPQ=";
+      };
+    };
     cql-io = {
       src = fetchgit {
         url = "https://gitlab.com/axeman/cql-io";
@@ -203,53 +210,18 @@ let
         tasty-hunit = "hunit";
       };
     };
-    polysemy = {
-      src = fetchgit {
-        url = "https://github.com/polysemy-research/polysemy.git";
-        rev = "3855786e58bf397ca8204f3a79d19c24485dabd4";
-        sha256 = "sha256-4ans30VWuSMC9HNFb6FWQyc30oxJd2dmFrMGu5/dLg0=";
-      };
-    };
-    polysemy-plugin = {
-      src = fetchgit {
-        url = "https://github.com/polysemy-research/polysemy.git";
-        rev = "3855786e58bf397ca8204f3a79d19c24485dabd4";
-        sha256 = "sha256-4ans30VWuSMC9HNFb6FWQyc30oxJd2dmFrMGu5/dLg0=";
-      };
-      packages = {
-        polysemy-plugin = "polysemy-plugin";
-      };
-    };
-    polysemy-check = {
-      src = fetchgit {
-        url = "https://github.com/polysemy-research/polysemy-check.git";
-        rev = "4c0d3ff929ae22ae68d962f7f3f7056f357bf7ac";
-        sha256 = "sha256-8XeCeJWbkdqrUf6tERFMoGM8xRI5l/nKNqI810kzMs0=";
-      };
-    };
     tasty-hedgehog = {
       src = fetchgit {
           url = "https://github.com/qfpl/tasty-hedgehog";
           rev = "729617f82699be189954825920d6f30985e1cfa7";
           sha256 = "sha256-O81wlQbzwCOWLueDLiqf/K2g9XWvSNWgHv7IbYmLsgI=";
       };
-    };    
+    };
     jose = {
       src = fetchgit {
           url = "https://github.com/frasertweedale/hs-jose";
           rev = "a7f919b19f667dfbb4d5c989ce620d3e75af8247";
           sha256 = "sha256-SKEE9ZqhjBxHYUKQaoB4IpN4/Ui3tS4S98FgZqj7WlY=";
-      };
-    };
-    kind-generics = {
-      src = fetchgit {
-        url = "https://gitlab.com/trupill/kind-generics.git";
-        rev = "f4ad2bcfacc9c3dcecf64c069d086926465cab2c";
-        sha256 = "sha256-uvQMV8aTNyTN+ozrseohexbCneVPMO35Jf1eEhLPk78=";
-      };
-      packages = {
-        kind-generics = "kind-generics";
-        kind-generics-th = "kind-generics-th";
       };
     };
     # This can be removed once postie 0.6.0.3 (or later) is in nixpkgs
@@ -269,6 +241,26 @@ let
     partial-isomorphisms = {
       version = "0.2.2.1";
       sha256 = "sha256-TdsLB0ueaUUllLdvcGu3YNQXCfGRRk5WxP3deHEbHGI=";
+    };
+    kind-generics = {
+      version = "0.4.1.2";
+      sha256 = "sha256-orDfC5+QXRlAMVaqAhT1Fo7Eh/AnobROWeliZqEAXZU=";
+    };
+    kind-generics-th = {
+      version = "0.2.2.2";
+      sha256 = "sha256-nPuRq19UGVXe4YrITAZcF+U4TUBo5APMT2Nh9NqIkxQ=";
+    };
+    polysemy = {
+      version = "1.8.0.0";
+      sha256 = "sha256-AdxxKWXdUjZiHLDj6iswMWpycs7mFB8eKhBR4ljF6kk=";
+    };
+    polysemy-check = {
+      version = "0.9.0.1";
+      sha256 = "sha256-CsL2vMxAmpvVVR/iUnZAkbcRLiy/a8ulJQ6QwtCYmRM=";
+    };
+    polysemy-plugin = {
+      version = "0.4.3.1";
+      sha256 = "sha256-0vkLYNZISr3fmmQvD8qdLkn2GHc80l1GzJuOmqjqXE4=";
     };
     singletons = {
       version = "2.7";

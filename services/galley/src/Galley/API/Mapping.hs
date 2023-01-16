@@ -17,7 +17,7 @@
 
 module Galley.API.Mapping
   ( conversationView,
-    conversationViewMaybe,
+    conversationViewWithCachedOthers,
     remoteConversationView,
     conversationToRemote,
     localMemberToSelf,
@@ -42,14 +42,29 @@ import Wire.API.Federation.API.Galley
 
 -- | View for a given user of a stored conversation.
 --
--- Throws "bad-state" when the user is not part of the conversation.
+-- Throws @BadMemberState@ when the user is not part of the conversation.
 conversationView ::
   Members '[Error InternalError, P.TinyLog] r =>
   Local UserId ->
   Data.Conversation ->
   Sem r Conversation
 conversationView luid conv = do
-  let mbConv = conversationViewMaybe luid conv
+  let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers conv
+      localOthers = map (localMemberToOther (tDomain luid)) $ Data.convLocalMembers conv
+  conversationViewWithCachedOthers remoteOthers localOthers conv luid
+
+-- | Like 'conversationView' but optimized for situations which could benefit
+-- from pre-computing the list of @OtherMember@s in the conversation. For
+-- instance, creating @ConvesationView@ for more than 1 member of the same conversation.
+conversationViewWithCachedOthers ::
+  Members '[Error InternalError, P.TinyLog] r =>
+  [OtherMember] ->
+  [OtherMember] ->
+  Data.Conversation ->
+  Local UserId ->
+  Sem r Conversation
+conversationViewWithCachedOthers remoteOthers localOthers conv luid = do
+  let mbConv = conversationViewMaybe luid remoteOthers localOthers conv
   maybe memberNotFound pure mbConv
   where
     memberNotFound = do
@@ -63,14 +78,11 @@ conversationView luid conv = do
 -- | View for a given user of a stored conversation.
 --
 -- Returns 'Nothing' if the user is not part of the conversation.
-conversationViewMaybe :: Local UserId -> Data.Conversation -> Maybe Conversation
-conversationViewMaybe luid conv = do
-  let (selfs, lothers) = partition ((tUnqualified luid ==) . lmId) (Data.convLocalMembers conv)
-      rothers = Data.convRemoteMembers conv
+conversationViewMaybe :: Local UserId -> [OtherMember] -> [OtherMember] -> Data.Conversation -> Maybe Conversation
+conversationViewMaybe luid remoteOthers localOthers conv = do
+  let selfs = filter ((tUnqualified luid ==) . lmId) (Data.convLocalMembers conv)
   self <- localMemberToSelf luid <$> listToMaybe selfs
-  let others =
-        map (localMemberToOther (tDomain luid)) lothers
-          <> map remoteMemberToOther rothers
+  let others = filter (\oth -> tUntagged luid /= omQualifiedId oth) localOthers <> remoteOthers
   pure $
     Conversation
       (tUntagged . qualifyAs luid . convId $ conv)

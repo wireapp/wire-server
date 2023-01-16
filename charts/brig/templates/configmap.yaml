@@ -310,6 +310,9 @@ data:
       {{- end }}
       {{- if .setOAuthEnabled }}
       setOAuthEnabled: {{ .setOAuthEnabled }}
-      {{- end }}      
+      {{- end }}
+      {{- if .setDisabledAPIVersions }}
+      setDisabledAPIVersions: {{ .setDisabledAPIVersions }}
+      {{- end }}
     {{- end }}
   {{- end }}

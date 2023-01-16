@@ -90,6 +90,9 @@ config:
     setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
     setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
     setOAuthEnabled: true
+    # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+    # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+    # setDisabledAPIVersions: [ 3 ]
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

@@ -13,6 +13,7 @@ build-type:    Simple
 library
   -- cabal-fmt: expand src
   exposed-modules:
+    Wire.API.ApplyMods
     Wire.API.Asset
     Wire.API.Call.Config
     Wire.API.Connection
@@ -39,6 +40,7 @@ library
     Wire.API.Event.Team
     Wire.API.Internal.BulkPush
     Wire.API.Internal.Notification
+    Wire.API.MakesFederatedCall
     Wire.API.Message
     Wire.API.Message.Proto
     Wire.API.MLS.CipherSuite
@@ -106,6 +108,7 @@ library
     Wire.API.Routes.Public.Galley.TeamConversation
     Wire.API.Routes.Public.Galley.TeamMember
     Wire.API.Routes.Public.Gundeck
+    Wire.API.Routes.Public.Proxy
     Wire.API.Routes.Public.Spar
     Wire.API.Routes.Public.Util
     Wire.API.Routes.QualifiedCapture

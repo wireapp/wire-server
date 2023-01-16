@@ -35,6 +35,10 @@ config:
   # perNativePushConcurrency: 32
   maxConcurrentNativePushes:
     soft: 1000
+  # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+  # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+  # disabledAPIVersions: [ 3 ]
+
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
   # 'gundeck' exists or change the 'name' field to 'default'

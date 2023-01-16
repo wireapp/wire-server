@@ -132,6 +132,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
+import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
 import qualified Wire.API.Notification as Public
@@ -1101,23 +1102,27 @@ getTeamConversation zusr tid cid = do
     >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
-  Members
-    '[ CodeStore,
-       ConversationStore,
-       Error FederationError,
-       Error InvalidInput,
-       ErrorS 'ConvNotFound,
-       ErrorS 'InvalidOperation,
-       ErrorS 'NotATeamMember,
-       ErrorS ('ActionDenied 'DeleteConversation),
-       ExternalAccess,
-       FederatorAccess,
-       GundeckAccess,
-       Input Env,
-       Input UTCTime,
-       TeamStore
-     ]
-    r =>
+  ( Members
+      '[ CodeStore,
+         ConversationStore,
+         Error FederationError,
+         Error InvalidInput,
+         ErrorS 'ConvNotFound,
+         ErrorS 'InvalidOperation,
+         ErrorS 'NotATeamMember,
+         ErrorS ('ActionDenied 'DeleteConversation),
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input UTCTime,
+         TeamStore
+       ]
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Local UserId ->
   ConnId ->
   TeamId ->

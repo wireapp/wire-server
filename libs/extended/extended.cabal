@@ -20,6 +20,7 @@ library
   exposed-modules:
     Options.Applicative.Extended
     Servant.API.Extended
+    Servant.API.Extended.RawM
     System.Logger.Extended
 
   other-modules:      Paths_extended
@@ -81,6 +82,7 @@ library
     , imports
     , metrics-wai
     , optparse-applicative
+    , resourcet
     , servant
     , servant-server
     , servant-swagger

@@ -100,23 +100,24 @@ import Wire.API.ServantProto
 type FederationAPI = "federation" :> FedApi 'Galley
 
 -- | Convert a polysemy handler to an 'API' value.
-federationSitemap :: ServerT FederationAPI (Sem GalleyEffects)
+federationSitemap ::
+  ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
     :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
-    :<|> Named @"leave-conversation" leaveConversation
+    :<|> Named @"leave-conversation" (callsFed leaveConversation)
     :<|> Named @"on-message-sent" onMessageSent
-    :<|> Named @"send-message" sendMessage
-    :<|> Named @"on-user-deleted-conversations" onUserDeleted
-    :<|> Named @"update-conversation" updateConversation
+    :<|> Named @"send-message" (callsFed sendMessage)
+    :<|> Named @"on-user-deleted-conversations" (callsFed onUserDeleted)
+    :<|> Named @"update-conversation" (callsFed updateConversation)
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
-    :<|> Named @"send-mls-message" sendMLSMessage
-    :<|> Named @"send-mls-commit-bundle" sendMLSCommitBundle
+    :<|> Named @"send-mls-message" (callsFed sendMLSMessage)
+    :<|> Named @"send-mls-commit-bundle" (callsFed sendMLSCommitBundle)
     :<|> Named @"query-group-info" queryGroupInfo
-    :<|> Named @"on-client-removed" onClientRemoved
+    :<|> Named @"on-client-removed" (callsFed onClientRemoved)
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
 
 onClientRemoved ::
@@ -133,7 +134,8 @@ onClientRemoved ::
          ProposalStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Domain ->
   ClientRemovedRequest ->
@@ -330,21 +332,25 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
-  Members
-    '[ ConversationStore,
-       Error InternalError,
-       Error InvalidInput,
-       ExternalAccess,
-       FederatorAccess,
-       GundeckAccess,
-       Input Env,
-       Input (Local ()),
-       Input UTCTime,
-       MemberStore,
-       ProposalStore,
-       TinyLog
-     ]
-    r =>
+  ( Members
+      '[ ConversationStore,
+         Error InternalError,
+         Error InvalidInput,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input (Local ()),
+         Input UTCTime,
+         MemberStore,
+         ProposalStore,
+         TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Domain ->
   F.LeaveConversationRequest ->
   Sem r F.LeaveConversationResponse
@@ -433,22 +439,25 @@ onMessageSent domain rmUnqualified = do
       (Map.filterWithKey (\(uid, _) _ -> Set.member uid members) msgs)
 
 sendMessage ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       ConversationStore,
-       Error InvalidInput,
-       FederatorAccess,
-       GundeckAccess,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       ExternalAccess,
-       MemberStore,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Members
+      '[ BrigAccess,
+         ClientStore,
+         ConversationStore,
+         Error InvalidInput,
+         FederatorAccess,
+         GundeckAccess,
+         Input (Local ()),
+         Input Opts,
+         Input UTCTime,
+         ExternalAccess,
+         MemberStore,
+         TeamStore,
+         P.TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-message-sent",
+    CallsFed 'Brig "get-user-clients"
+  ) =>
   Domain ->
   F.ProteusMessageSendRequest ->
   Sem r F.MessageSendResponse
@@ -461,21 +470,25 @@ sendMessage originDomain msr = do
     throwErr = throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
-  Members
-    '[ ConversationStore,
-       FederatorAccess,
-       FireAndForget,
-       ExternalAccess,
-       GundeckAccess,
-       Error InternalError,
-       Input (Local ()),
-       Input UTCTime,
-       Input Env,
-       MemberStore,
-       ProposalStore,
-       TinyLog
-     ]
-    r =>
+  ( Members
+      '[ ConversationStore,
+         FederatorAccess,
+         FireAndForget,
+         ExternalAccess,
+         GundeckAccess,
+         Error InternalError,
+         Input (Local ()),
+         Input UTCTime,
+         Input Env,
+         MemberStore,
+         ProposalStore,
+         TinyLog
+       ]
+      r,
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Domain ->
   F.UserDeletedConversationsNotification ->
   Sem r EmptyResponse
@@ -538,7 +551,10 @@ updateConversation ::
          ConversationStore,
          Input (Local ())
        ]
-      r
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation"
   ) =>
   Domain ->
   F.ConversationUpdateRequest ->
@@ -620,7 +636,13 @@ sendMLSCommitBundle ::
         P.TinyLog,
         ProposalStore
       ]
-      r
+      r,
+    CallsFed 'Galley "mls-welcome",
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "send-mls-commit-bundle",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Domain ->
   F.MLSMessageSendRequest ->
@@ -664,7 +686,12 @@ sendMLSMessage ::
         P.TinyLog,
         ProposalStore
       ]
-      r
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "send-mls-message",
+    CallsFed 'Brig "get-mls-clients"
   ) =>
   Domain ->
   F.MLSMessageSendRequest ->
