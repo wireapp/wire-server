@@ -1593,7 +1593,7 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "self" s (memId _self)
     assertEqual "others" (Set.fromList $ us) (Set.fromList . map omQualifiedId . toList $ others)
     assertEqual "creator is always and admin" roleNameWireAdmin (memConvRoleName _self)
-    assertBool "others role" (all (== role . omConvRoleName) (toList others))
+    assertBool "others role" (all ((== role) . omConvRoleName) (toList others))
     assertBool "otr muted ref not empty" (isNothing (memOtrMutedRef _self))
     assertBool "otr archived not false" (not (memOtrArchived _self))
     assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef _self))
