@@ -45,7 +45,7 @@ releases:
   - name: k8ssandra-test-cluster
     chart: "wire/k8ssandra-test-cluster"
     namespace: "databases"
-    version: "0.0.42"
+    version: {{ .Values.wireChartVersion | quote }}
     needs:
       - 'databases/k8ssandra-operator'
     wait: true
