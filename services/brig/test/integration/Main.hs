@@ -145,7 +145,7 @@ runTests iConf brigOpts otherArgs = do
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g mUserJournalWatcher
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
-  metricsApi <- Metrics.tests mg b
+  metricsApi <- Metrics.tests mg brigOpts b
   systemSettingsApi <- SystemSettings.tests brigOpts mg
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
