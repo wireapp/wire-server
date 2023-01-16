@@ -214,8 +214,8 @@ tests s =
             [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
               test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
               test s "join subconversation with an external commit bundle" testJoinSubConv,
-              test s "join subconversation with a client that is not in the main conv" testJoinSubNonMemberClient,
-              test s "add another client to a subconversation" testAddClientSubConv,
+              test s "join subconversation with a client that is not in the parent conv" testJoinSubNonMemberClient,
+              test s "fail to add another client to a subconversation via internal commit" testAddClientSubConvFailure,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
               test s "send an application message in a subconversation" testSendMessageSubConv,
               test s "reset a subconversation as a member" (testDeleteSubConv True),
@@ -2361,7 +2361,7 @@ testJoinSubConv = do
       sub <-
         liftTest $
           responseJsonError
-            =<< getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
+            =<< getSubConv (qUnqualified bob) qcnv subId
               <!! const 200 === statusCode
 
       resetGroup bob1 (pscGroupId sub)
@@ -2381,13 +2381,63 @@ testJoinSubConv = do
         createExternalCommit alice1 Nothing (fmap (flip SubConv subId) qcnv)
           >>= sendAndConsumeCommitBundle
 
--- FUTUREWORK: implement the following tests
-
 testJoinSubNonMemberClient :: TestM ()
-testJoinSubNonMemberClient = pure ()
+testJoinSubNonMemberClient = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
 
-testAddClientSubConv :: TestM ()
-testAddClientSubConv = pure ()
+  runMLSTest $ do
+    [alice1, alice2, bob1] <-
+      traverse createMLSClient [alice, alice, bob]
+    traverse_ uploadNewKeyPackage [bob1, alice2]
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommit
+
+    let subId = SubConvId "conference"
+    void $ createSubConv qcnv alice1 subId
+
+    -- now Bob attempts to get the group info so he can join via external commit
+    -- with his own client, but he cannot because he is not a member of the
+    -- parent conversation
+    getGroupInfo (ciUser bob1) (fmap (flip SubConv subId) qcnv)
+      !!! const 404 === statusCode
+
+testAddClientSubConvFailure :: TestM ()
+testAddClientSubConvFailure = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+    let subId = SubConvId "conference"
+    void $ createSubConv qcnv alice1 subId
+
+    void $ uploadNewKeyPackage bob1
+
+    commit <- createAddCommit alice1 [bob]
+    (createBundle commit >>= postCommitBundle (mpSender commit))
+      !!! do
+        const 400 === statusCode
+        const (Just "Add proposals in subconversations are not supported")
+          === fmap Wai.message . responseJsonError
+
+    finalSub <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv subId
+            <!! const 200 === statusCode
+    liftIO $ do
+      assertEqual
+        "The subconversation has Bob in it, while it shouldn't"
+        [alice1]
+        (pscMembers finalSub)
+      assertEqual
+        "The subconversation epoch has moved beyond 1"
+        (Epoch 1)
+        (pscEpoch finalSub)
+
+-- FUTUREWORK: implement the following tests
 
 testRemoveClientSubConv :: TestM ()
 testRemoveClientSubConv = pure ()
@@ -2409,9 +2459,9 @@ testSendMessageSubConv = do
       (_, qcnv) <- setupMLSGroup alice1
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-      let subname = "conference"
-      void $ createSubConv qcnv bob1 subname
-      let qcs = convsub qcnv (Just subname)
+      let subId = SubConvId "conference"
+      void $ createSubConv qcnv bob1 subId
+      let qcs = convsub qcnv (Just subId)
 
       void $ createExternalCommit alice1 Nothing qcs >>= sendAndConsumeCommitBundle
       void $ createExternalCommit bob2 Nothing qcs >>= sendAndConsumeCommitBundle
@@ -2602,7 +2652,7 @@ testDeleteSubConv isAMember = do
   (qcnv, sub) <- runMLSTest $ do
     alice1 <- createMLSClient alice
     (_, qcnv) <- setupMLSGroup alice1
-    sub <- createSubConv qcnv alice1 (unSubConvId sconv)
+    sub <- createSubConv qcnv alice1 sconv
     pure (qcnv, sub)
 
   let dsc = DeleteSubConversation (pscGroupId sub) (pscEpoch sub)

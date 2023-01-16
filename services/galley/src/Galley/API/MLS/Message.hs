@@ -29,7 +29,8 @@ where
 import Control.Arrow ((>>>))
 import Control.Comonad
 import Control.Error.Util (hush)
-import Control.Lens (preview)
+import Control.Lens (forOf_, preview)
+import Control.Lens.Extras (is)
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -785,11 +786,10 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
     throw . mlsProtocolError $
       "The external commit attempts to add another client of the user, it must only add itself"
 
-  case convOrSub of
-    Conv _ -> pure ()
-    SubConv mlsConv _ ->
-      unless (isClientMember cid (mcMembers mlsConv)) $
-        throwS @'MLSSubConvClientNotInParent
+  -- only members can join a subconversation
+  forOf_ _SubConv convOrSub $ \(mlsConv, _) ->
+    unless (isClientMember cid (mcMembers mlsConv)) $
+      throwS @'MLSSubConvClientNotInParent
 
   -- check if there is a key package ref in the remove proposal
   remRef <-
@@ -982,7 +982,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
       throwS @'MLSCommitMissingReferences
 
     -- process and execute proposals
-    updates <- executeProposalAction lConvOrSub qusr con convOrSub action
+    updates <- executeProposalAction qusr con lConvOrSub action
 
     -- update key package ref if necessary
     postponedKeyPackageRefUpdate
@@ -1218,8 +1218,7 @@ checkExternalProposalUser qusr prop = do
     (const $ pure ()) -- FUTUREWORK: check external proposals from remote backends
     qusr
 
-executeProposalAction ::
-  forall r x.
+type HasProposalActionEffects r =
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error InternalError) r,
@@ -1244,28 +1243,35 @@ executeProposalAction ::
     Member TinyLog r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-conversation"
+  )
+
+executeProposalAction ::
+  forall r.
+  ( HasProposalActionEffects r,
     CallsFed 'Brig "get-mls-clients"
   ) =>
-  Local x ->
   Qualified UserId ->
   Maybe ConnId ->
-  ConvOrSubConv ->
+  Local ConvOrSubConv ->
   ProposalAction ->
   Sem r [LocalConversationUpdate]
-executeProposalAction _loc _qusr _con (SubConv _ _) _action = pure []
-executeProposalAction loc qusr con (Conv mlsConv) action = do
-  let lconv = qualifyAs loc . mcConv $ mlsConv
-      mlsMeta = mcMLSData mlsConv
-      cm = mcMembers mlsConv
+executeProposalAction qusr con lconvOrSub action = do
+  let convOrSub = tUnqualified lconvOrSub
+      mlsMeta = mlsMetaConvOrSub convOrSub
+      cm = membersConvOrSub convOrSub
       ss = csSignatureScheme (cnvmlsCipherSuite mlsMeta)
       newUserClients = Map.assocs (paAdd action)
+
+  -- no client can be directly added to a subconversation
+  when (is _SubConv convOrSub && not (null newUserClients)) $
+    throw (mlsProtocolError "Add proposals in subconversations are not supported")
 
   -- Note [client removal]
   -- We support two types of removals:
   --  1. when a user is removed from a group, all their clients have to be removed
   --  2. when a client is deleted, that particular client (but not necessarily
-  --     other clients of the same user), has to be removed.
+  --     other clients of the same user) has to be removed.
   --
   -- Type 2 requires no special processing on the backend, so here we filter
   -- out all removals of that type, so that further checks and processing can
@@ -1273,7 +1279,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
   removedUsers <- mapMaybe hush <$$> for (Map.assocs (paRemove action)) $
     \(qtarget, Map.keysSet -> clients) -> runError @() $ do
       -- fetch clients from brig
-      clientInfo <- Set.map ciId <$> getClientInfo lconv qtarget ss
+      clientInfo <- Set.map ciId <$> getClientInfo lconvOrSub qtarget ss
       -- if the clients being removed don't exist, consider this as a removal of
       -- type 2, and skip it
       when (Set.null (clientInfo `Set.intersection` clients)) $
@@ -1281,7 +1287,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
       pure (qtarget, clients)
 
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
-  foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
+  foldQualified lconvOrSub (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
 
   -- for each user, we compare their clients with the ones being added to the conversation
   for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
@@ -1292,7 +1298,7 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
       -- final set of clients in the conversation
       let clients = Map.keysSet (newclients <> Map.findWithDefault mempty qtarget cm)
       -- get list of mls clients from brig
-      clientInfo <- getClientInfo lconv qtarget ss
+      clientInfo <- getClientInfo lconvOrSub qtarget ss
       let allClients = Set.map ciId clientInfo
       let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
       -- We check the following condition:
@@ -1316,14 +1322,21 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
   membersToRemove <- catMaybes <$> for removedUsers (uncurry (checkRemoval cm))
 
   -- add users to the conversation and send events
-  addEvents <- foldMap (addMembers lconv) . nonEmpty . map fst $ newUserClients
+  addEvents <-
+    foldMap (addMembers qusr con lconvOrSub)
+      . nonEmpty
+      . map fst
+      $ newUserClients
 
   -- add clients in the conversation state
   for_ newUserClients $ \(qtarget, newClients) -> do
     addMLSClients (cnvmlsGroupId mlsMeta) qtarget (Set.fromList (Map.assocs newClients))
 
   -- remove users from the conversation and send events
-  removeEvents <- foldMap (removeMembers lconv) (nonEmpty membersToRemove)
+  removeEvents <-
+    foldMap
+      (removeMembers qusr con lconvOrSub)
+      (nonEmpty membersToRemove)
 
   -- Remove clients from the conversation state. This includes client removals
   -- of all types (see Note [client removal]).
@@ -1346,43 +1359,63 @@ executeProposalAction loc qusr con (Conv mlsConv) action = do
         throwS @'MLSSelfRemovalNotAllowed
       pure (Just qtarget)
 
-    existingLocalMembers :: Local Data.Conversation -> Set (Qualified UserId)
-    existingLocalMembers lconv =
-      (Set.fromList . map (fmap lmId . tUntagged)) (traverse convLocalMembers lconv)
+existingLocalMembers :: Local Data.Conversation -> Set (Qualified UserId)
+existingLocalMembers lconv =
+  (Set.fromList . map (fmap lmId . tUntagged)) (traverse convLocalMembers lconv)
 
-    existingRemoteMembers :: Local Data.Conversation -> Set (Qualified UserId)
-    existingRemoteMembers lconv =
-      Set.fromList . map (tUntagged . rmId) . convRemoteMembers . tUnqualified $
-        lconv
+existingRemoteMembers :: Local Data.Conversation -> Set (Qualified UserId)
+existingRemoteMembers lconv =
+  Set.fromList . map (tUntagged . rmId) . convRemoteMembers . tUnqualified $
+    lconv
 
-    existingMembers :: Local Data.Conversation -> Set (Qualified UserId)
-    existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv
+existingMembers :: Local Data.Conversation -> Set (Qualified UserId)
+existingMembers lconv = existingLocalMembers lconv <> existingRemoteMembers lconv
 
-    addMembers :: Local Data.Conversation -> NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
-    addMembers lconv =
-      -- FUTUREWORK: update key package ref mapping to reflect conversation membership
-      foldMap
-        ( handleNoChanges
-            . handleMLSProposalFailures @ProposalErrors
-            . fmap pure
-            . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
-            . flip ConversationJoin roleNameWireMember
-        )
-        . nonEmpty
-        . filter (flip Set.notMember (existingMembers lconv))
-        . toList
+addMembers ::
+  HasProposalActionEffects r =>
+  Qualified UserId ->
+  Maybe ConnId ->
+  Local ConvOrSubConv ->
+  NonEmpty (Qualified UserId) ->
+  Sem r [LocalConversationUpdate]
+addMembers qusr con lconvOrSub users = case tUnqualified lconvOrSub of
+  Conv mlsConv -> do
+    let lconv = qualifyAs lconvOrSub (mcConv mlsConv)
+    -- FUTUREWORK: update key package ref mapping to reflect conversation membership
+    foldMap
+      ( handleNoChanges
+          . handleMLSProposalFailures @ProposalErrors
+          . fmap pure
+          . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
+          . flip ConversationJoin roleNameWireMember
+      )
+      . nonEmpty
+      . filter (flip Set.notMember (existingMembers lconv))
+      . toList
+      $ users
+  SubConv _ _ -> pure []
 
-    removeMembers :: Local Data.Conversation -> NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
-    removeMembers lconv =
-      foldMap
-        ( handleNoChanges
-            . handleMLSProposalFailures @ProposalErrors
-            . fmap pure
-            . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
-        )
-        . nonEmpty
-        . filter (flip Set.member (existingMembers lconv))
-        . toList
+removeMembers ::
+  HasProposalActionEffects r =>
+  Qualified UserId ->
+  Maybe ConnId ->
+  Local ConvOrSubConv ->
+  NonEmpty (Qualified UserId) ->
+  Sem r [LocalConversationUpdate]
+removeMembers qusr con lconvOrSub users = case tUnqualified lconvOrSub of
+  Conv mlsConv -> do
+    let lconv = qualifyAs lconvOrSub (mcConv mlsConv)
+    foldMap
+      ( handleNoChanges
+          . handleMLSProposalFailures @ProposalErrors
+          . fmap pure
+          . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
+      )
+      . nonEmpty
+      . filter (flip Set.member (existingMembers lconv))
+      . toList
+      $ users
+  SubConv _ _ -> pure []
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError

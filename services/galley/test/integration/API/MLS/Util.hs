@@ -462,10 +462,9 @@ resetGroup cid gid = do
 createSubConv ::
   Qualified ConvId ->
   ClientIdentity ->
-  Text ->
+  SubConvId ->
   MLSTest PublicSubConversation
-createSubConv qcnv creator name = do
-  let subId = SubConvId name
+createSubConv qcnv creator subId = do
   sub <-
     liftTest $
       responseJsonError
@@ -1125,6 +1124,6 @@ deleteSubConv u qcnv sconv dsc = do
       . contentJson
       . json dsc
 
-convsub :: Qualified ConvId -> Maybe Text -> Qualified ConvOrSubConvId
+convsub :: Qualified ConvId -> Maybe SubConvId -> Qualified ConvOrSubConvId
 convsub qcnv Nothing = Conv <$> qcnv
-convsub qcnv (Just subname) = flip SubConv (SubConvId subname) <$> qcnv
+convsub qcnv (Just sconv) = flip SubConv sconv <$> qcnv
