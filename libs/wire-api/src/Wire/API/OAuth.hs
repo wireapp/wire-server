@@ -36,7 +36,7 @@ import qualified Data.Text as T
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
 import Data.Text.Encoding.Error as TErr
-import Data.Time (NominalDiffTime)
+import Data.Time
 import Imports hiding (exp, head)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
@@ -400,6 +400,15 @@ verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthsClaimSet)
 verify k jwt = runJOSE $ do
   let audCheck = const True
   verifyJWT (defaultJWTValidationSettings audCheck) k jwt
+
+data OAuthRefreshTokenInfo = OAuthRefreshTokenInfo
+  { oriId :: OAuthRefreshTokenId,
+    oriClientId :: OAuthClientId,
+    oriUserId :: UserId,
+    oriScopes :: OAuthScopes,
+    oriCreatedAt :: UTCTime
+  }
+  deriving (Eq, Show, Generic)
 
 --------------------------------------------------------------------------------
 -- Errors
