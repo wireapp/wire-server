@@ -191,7 +191,6 @@ servantSitemap ::
     r =>
   ServerT (BrigAPI :<|> OAuthAPI) (Handler r)
 servantSitemap = brigAPI :<|> oauthAPI
-servantSitemap =
   where
     brigAPI :: ServerT BrigAPI (Handler r)
     brigAPI =
