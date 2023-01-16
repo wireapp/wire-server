@@ -87,54 +87,62 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
-data IdTag = A | C | I | U | P | S | T | STo
+data IdTag
+  = Asset
+  | Conversation
+  | Invitation
+  | User
+  | Provider
+  | Service
+  | Team
+  | ScimToken
 
 idTagName :: IdTag -> Text
-idTagName A = "Asset"
-idTagName C = "Conv"
-idTagName I = "Invitation"
-idTagName U = "User"
-idTagName P = "Provider"
-idTagName S = "Service"
-idTagName T = "Team"
-idTagName STo = "ScimToken"
+idTagName Asset = "Asset"
+idTagName Conversation = "Conv"
+idTagName Invitation = "Invitation"
+idTagName User = "User"
+idTagName Provider = "Provider"
+idTagName Service = "Service"
+idTagName Team = "Team"
+idTagName ScimToken = "ScimToken"
 
 class KnownIdTag (t :: IdTag) where
   idTagValue :: IdTag
 
-instance KnownIdTag 'A where idTagValue = A
+instance KnownIdTag 'Asset where idTagValue = Asset
 
-instance KnownIdTag 'C where idTagValue = C
+instance KnownIdTag 'Conversation where idTagValue = Conversation
 
-instance KnownIdTag 'I where idTagValue = I
+instance KnownIdTag 'Invitation where idTagValue = Invitation
 
-instance KnownIdTag 'U where idTagValue = U
+instance KnownIdTag 'User where idTagValue = User
 
-instance KnownIdTag 'P where idTagValue = P
+instance KnownIdTag 'Provider where idTagValue = Provider
 
-instance KnownIdTag 'S where idTagValue = S
+instance KnownIdTag 'Service where idTagValue = Service
 
-instance KnownIdTag 'T where idTagValue = T
+instance KnownIdTag 'Team where idTagValue = Team
 
-instance KnownIdTag 'STo where idTagValue = STo
+instance KnownIdTag 'ScimToken where idTagValue = ScimToken
 
-type AssetId = Id 'A
+type AssetId = Id 'Asset
 
-type InvitationId = Id 'I
+type InvitationId = Id 'Invitation
 
 -- | A local conversation ID
-type ConvId = Id 'C
+type ConvId = Id 'Conversation
 
 -- | A local user ID
-type UserId = Id 'U
+type UserId = Id 'User
 
-type ProviderId = Id 'P
+type ProviderId = Id 'Provider
 
-type ServiceId = Id 'S
+type ServiceId = Id 'Service
 
-type TeamId = Id 'T
+type TeamId = Id 'Team
 
-type ScimTokenId = Id 'STo
+type ScimTokenId = Id 'ScimToken
 
 -- Id -------------------------------------------------------------------------
 
@@ -179,7 +187,7 @@ instance Read (Id a) where
 instance FromByteString (Id a) where
   parser = do
     match <-
-      -- we only want the matching part of the ByteString, so the parser doesn't
+      -- we only want the matching part of the ByteString, so the parser doesn'Team
       -- consume additional input.
       -- This allows the parser to be composed.
       matching $ do
@@ -247,9 +255,9 @@ instance Arbitrary (Id a) where
 -- ConnId ----------------------------------------------------------------------
 
 -- | Handle for a device.  Derived from the access token (see 'Data.ZAuth.Token.Access').  Unique
--- only together with a 'UserId'.  Historically, it is older than 'ClientId' and precedes end-to-end
--- encryption, but there are still situations in which 'ClientId' is not applicable (See also:
--- 'Presence').  Used by Cannon and Gundeck to identify a websocket connection, but also in other
+-- only together with a 'UserserId'.  Historically, it is older than 'ConversationlientId' and precedes end-to-end
+-- encryption, but there are still situations in which 'ConversationlientId' is not applicable (See also:
+-- 'Providerresence').  Used by Cannon and Gundeck to identify a websocket connection, but also in other
 -- places.
 newtype ConnId = ConnId
   { fromConnId :: ByteString
@@ -278,8 +286,8 @@ instance FromHttpApiData ConnId where
 -- ClientId --------------------------------------------------------------------
 
 -- | Handle for a device.  Corresponds to the device fingerprints exposed in the UI.  It is unique
--- only together with a 'UserId', stored in C*, and used as a handle for end-to-end encryption.  It
--- lives as long as the device is registered.  See also: 'ConnId'.
+-- only together with a 'UserserId', stored in C*, and used as a handle for end-to-end encryption.  It
+-- lives as long as the device is registered.  See also: 'ConversationonnId'.
 newtype ClientId = ClientId
   { client :: Text
   }
