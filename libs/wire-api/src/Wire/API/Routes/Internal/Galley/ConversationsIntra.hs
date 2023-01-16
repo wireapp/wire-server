@@ -1,21 +1,4 @@
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
-
-module Galley.Types.Conversations.Intra
+module Wire.API.Routes.Internal.Galley.ConversationsIntra
   ( DesiredMembership (..),
     Actor (..),
     UpsertOne2OneConversationRequest (..),
@@ -28,6 +11,7 @@ import Data.Aeson.Types (FromJSON, ToJSON)
 import Data.Id (ConvId, UserId)
 import Data.Qualified
 import Data.Schema
+import qualified Data.Swagger as Swagger
 import Imports
 
 data DesiredMembership = Included | Excluded
@@ -62,7 +46,7 @@ data UpsertOne2OneConversationRequest = UpsertOne2OneConversationRequest
     uooConvId :: Maybe (Qualified ConvId)
   }
   deriving (Show, Generic)
-  deriving (FromJSON, ToJSON) via Schema UpsertOne2OneConversationRequest
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UpsertOne2OneConversationRequest
 
 instance ToSchema UpsertOne2OneConversationRequest where
   schema =
@@ -78,7 +62,7 @@ newtype UpsertOne2OneConversationResponse = UpsertOne2OneConversationResponse
   { uuorConvId :: Qualified ConvId
   }
   deriving (Show, Generic)
-  deriving (FromJSON, ToJSON) via Schema UpsertOne2OneConversationResponse
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UpsertOne2OneConversationResponse
 
 instance ToSchema UpsertOne2OneConversationResponse where
   schema =

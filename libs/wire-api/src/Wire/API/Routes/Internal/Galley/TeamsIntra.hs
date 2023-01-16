@@ -1,10 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types.Teams.Intra
+module Wire.API.Routes.Internal.Galley.TeamsIntra
   ( TeamStatus (..),
     TeamData (..),
     TeamStatusUpdate (..),
@@ -33,7 +29,6 @@ module Galley.Types.Teams.Intra
 where
 
 import Data.Aeson
-import Data.Aeson.TH
 import qualified Data.Currency as Currency
 import Data.Json.Util
 import qualified Data.Schema as S
@@ -88,25 +83,25 @@ data TeamStatusUpdate = TeamStatusUpdate
     -- TODO: Remove Currency selection once billing supports currency changes after team creation
   }
   deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (S.Schema TeamStatusUpdate)
 
-instance FromJSON TeamStatusUpdate where
-  parseJSON = withObject "team-status-update" $ \o ->
-    TeamStatusUpdate
-      <$> o .: "status"
-      <*> o .:? "currency"
-
-instance ToJSON TeamStatusUpdate where
-  toJSON s =
-    object
-      [ "status" .= tuStatus s,
-        "currency" .= tuCurrency s
-      ]
+instance S.ToSchema TeamStatusUpdate where
+  schema =
+    S.object "TeamStatusUpdate" $
+      TeamStatusUpdate
+        <$> tuStatus S..= S.field "status" S.schema
+        <*> tuCurrency S..= S.maybe_ (S.optField "currency" S.schema)
 
 newtype TeamName = TeamName
   {tnName :: Text}
   deriving (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (S.Schema TeamName)
 
-deriveJSON toJSONFieldName ''TeamName
+instance S.ToSchema TeamName where
+  schema =
+    S.object "TeamName" $
+      TeamName
+        <$> tnName S..= S.field "name" S.schema
 
 data GuardLegalholdPolicyConflicts = GuardLegalholdPolicyConflicts
   { glhProtectee :: LegalholdProtectee,
@@ -114,7 +109,11 @@ data GuardLegalholdPolicyConflicts = GuardLegalholdPolicyConflicts
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform GuardLegalholdPolicyConflicts)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (S.Schema GuardLegalholdPolicyConflicts)
 
-instance ToJSON GuardLegalholdPolicyConflicts
-
-instance FromJSON GuardLegalholdPolicyConflicts
+instance S.ToSchema GuardLegalholdPolicyConflicts where
+  schema =
+    S.object "GuardLegalholdPolicyConflicts" $
+      GuardLegalholdPolicyConflicts
+        <$> glhProtectee S..= S.field "glhProtectee" S.schema
+        <*> glhUserClients S..= S.field "glhUserClients" S.schema

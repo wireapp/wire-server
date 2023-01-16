@@ -8,11 +8,11 @@ import qualified Data.Currency as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Wire.API.Conversation
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team
 import qualified Wire.API.Team.Conversation as Conv
 import Wire.API.Team.Feature

@@ -101,6 +101,7 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
+import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Public.Spar
 import Wire.API.User
 import Wire.API.User.IdentityProvider

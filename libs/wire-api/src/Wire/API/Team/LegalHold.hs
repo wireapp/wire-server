@@ -1,4 +1,5 @@
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,6 +30,7 @@ module Wire.API.Team.LegalHold
   )
 where
 
+import Control.Lens hiding (element, enum, (.=))
 import qualified Data.Aeson.Types as A
 import Data.Id
 import Data.LegalHold
@@ -208,6 +210,12 @@ instance ToSchema ApproveLegalHoldForUserRequest where
 
 -----------------------------------------------------------------------
 
+data LegalholdProtecteeTag
+  = ProtectedUserTag
+  | UnprotectedBotTag
+  | LegalholdPlusFederationNotImplementedTag
+  deriving (Eq, Enum, Bounded)
+
 -- | Bots are not protected to be potentially recorded by legalhold devices.
 data LegalholdProtectee
   = ProtectedUser UserId
@@ -220,9 +228,45 @@ data LegalholdProtectee
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform LegalholdProtectee)
 
-instance ToJSON LegalholdProtectee
+$(makePrisms ''LegalholdProtectee)
 
 -- {"tag":"ProtectedUser","contents":"110a187a-be5b-11eb-8f47-370bc8e40f35"}
 -- {"tag":"UnprotectedBot"}
 -- {"tag":"LegalholdPlusFederationNotImplemented"}
-instance FromJSON LegalholdProtectee
+instance ToSchema LegalholdProtectee where
+  schema :: ValueSchema NamedSwaggerDoc LegalholdProtectee
+  schema =
+    object "LegalholdProtectee" $
+      fromTagged
+        <$> toTagged
+          .= bind
+            (fst .= field "tag" tagSchema)
+            (snd .= fieldOver _1 "value" untaggedSchema)
+    where
+      toTagged :: LegalholdProtectee -> (LegalholdProtecteeTag, LegalholdProtectee)
+      toTagged d@(ProtectedUser _) = (ProtectedUserTag, d)
+      toTagged d@UnprotectedBot = (UnprotectedBotTag, d)
+      toTagged d@LegalholdPlusFederationNotImplemented = (LegalholdPlusFederationNotImplementedTag, d)
+
+      fromTagged :: (LegalholdProtecteeTag, LegalholdProtectee) -> LegalholdProtectee
+      fromTagged = snd
+
+      untaggedSchema = dispatch $ \case
+        ProtectedUserTag -> tag _ProtectedUser (unnamed schema)
+        UnprotectedBotTag -> tag _UnprotectedBot null_
+        LegalholdPlusFederationNotImplementedTag -> tag _LegalholdPlusFederationNotImplemented null_
+
+      tagSchema :: ValueSchema NamedSwaggerDoc LegalholdProtecteeTag
+      tagSchema =
+        enum @Text "LegalholdProtecteeTag" $
+          mconcat
+            [ element "ProtectedUser" ProtectedUserTag,
+              element "UnprotectedBot" UnprotectedBotTag,
+              element "LegalholdPlusFederationNotImplemented" LegalholdPlusFederationNotImplementedTag
+            ]
+
+deriving via (Schema LegalholdProtectee) instance (ToJSON LegalholdProtectee)
+
+deriving via (Schema LegalholdProtectee) instance (FromJSON LegalholdProtectee)
+
+deriving via (Schema LegalholdProtectee) instance (S.ToSchema LegalholdProtectee)

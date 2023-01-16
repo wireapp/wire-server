@@ -21,7 +21,6 @@ import Data.Json.Util (UTCTimeMillis)
 import Data.Qualified
 import Data.Range
 import qualified Galley.Types.Teams as Team
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -31,6 +30,7 @@ import Polysemy.Error
 import Servant.API (toHeader)
 import System.Logger (Msg, field, msg, val)
 import Wire.API.Conversation hiding (Member)
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Routes.Version
 import Wire.API.Team
 import qualified Wire.API.Team.Conversation as Conv

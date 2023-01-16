@@ -141,7 +141,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
 -- implement them in Galley.API.Public.Feature.
 --
--- 7. Add internal routes in Galley.API.Internal
+-- 7. Add internal routes in Wire.API.Routes.Internal.Galley
 --
 -- 8. If the feature should be configurable via Stern add routes to Stern.API.
 -- Manually check that the swagger looks okay and works.
@@ -469,6 +469,9 @@ instance ToSchema LockStatus where
           element "unlocked" LockStatusUnlocked
         ]
 
+-- TODO: Check if this generic instantiation is/looks good
+instance S.ToParamSchema LockStatus
+
 instance ToByteString LockStatus where
   builder LockStatusLocked = "locked"
   builder LockStatusUnlocked = "unlocked"
@@ -689,6 +692,7 @@ instance FeatureTrivialConfig SndFactorPasswordChallengeConfig where
 data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SearchVisibilityInboundConfig)
+  deriving (S.ToSchema) via Schema SearchVisibilityInboundConfig
 
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
