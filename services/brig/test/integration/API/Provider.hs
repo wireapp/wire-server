@@ -63,7 +63,9 @@ import qualified Data.UUID as UUID
 import qualified Data.ZAuth.Token as ZAuth
 import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status (status200, status201, status400)
+import Network.Socket
 import Network.Wai (Application, responseLBS, strictRequestBody)
+import qualified Network.Wai.Handler.Warp as Warn
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
@@ -168,8 +170,7 @@ data Config = Config
   { privateKey :: FilePath,
     publicKey :: FilePath,
     cert :: FilePath,
-    botHost :: Text,
-    botPort :: Int
+    botHost :: Text
   }
   deriving (Show, Generic)
 
@@ -635,13 +636,14 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
 
 testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testBadFingerprint config db brig galley _cannon = do
+  (sPort, sock) <- liftIO $ Warn.openFreePort
   -- Generate a random key and register a service using that key
   sref <- withSystemTempFile "wire-provider.key" $ \fp h -> do
     ServiceKeyPEM key <- randServiceKey
     liftIO $ BS.hPut h (pemWriteBS key) >> hClose h
-    registerService config {publicKey = fp} db brig
+    registerService config {publicKey = fp} sPort db brig
   -- Run the service with a different key (i.e. the key from the config)
-  runService config defServiceApp $ \_ -> do
+  runService config sPort sock defServiceApp $ \_ -> do
     let pid = sref ^. serviceRefProvider
     let sid = sref ^. serviceRefId
     -- Prepare user with client
@@ -1705,18 +1707,19 @@ withTestService ::
   (ServiceRef -> Chan e -> Http a) ->
   Http a
 withTestService config db brig mkApp go = do
-  sref <- registerService config db brig
-  runService config mkApp (go sref)
+  (sPort, sock) <- liftIO $ Warn.openFreePort
+  sref <- registerService config sPort db brig
+  runService config sPort sock mkApp (go sref)
 
-registerService :: Config -> DB.ClientState -> Brig -> Http ServiceRef
-registerService config db brig = do
+registerService :: Config -> Warp.Port -> DB.ClientState -> Brig -> Http ServiceRef
+registerService config sPort db brig = do
   prv <- randomProvider db brig
   new <- defNewService config
   let Just url =
         fromByteString $
           encodeUtf8 (botHost config)
             <> ":"
-            <> C8.pack (show (botPort config))
+            <> C8.pack (show sPort)
   svc <- addGetService brig (providerId prv) (new {newServiceUrl = url})
   let pid = providerId prv
   let sid = serviceId svc
@@ -1725,16 +1728,18 @@ registerService config db brig = do
 
 runService ::
   Config ->
+  Warp.Port ->
+  Socket ->
   (Chan e -> Application) ->
   (Chan e -> Http a) ->
   Http a
-runService config mkApp go = do
+runService config sPort sock mkApp go = do
   let tlss = Warp.tlsSettings (cert config) (privateKey config)
-  let defs = Warp.defaultSettings {Warp.settingsPort = botPort config}
+  let defs = Warp.defaultSettings {Warp.settingsPort = sPort}
   buf <- liftIO newChan
   srv <-
     liftIO . Async.async $
-      Warp.runTLS tlss defs $
+      Warp.runTLSSocket tlss defs sock $
         mkApp buf
   go buf `finally` liftIO (Async.cancel srv)
 
