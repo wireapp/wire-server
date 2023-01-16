@@ -216,9 +216,10 @@ selectConv ::
       Maybe ProtocolTag,
       Maybe GroupId,
       Maybe Epoch,
+      Maybe (Writetime Epoch),
       Maybe CipherSuiteTag
     )
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite from conversation where conv = ?"
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, WRITETIME(epoch), cipher_suite from conversation where conv = ?"
 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
@@ -322,8 +323,8 @@ lookupGroupId = "SELECT conv_id, domain, subconv_id from group_id_conv_id where 
 
 -- MLS SubConversations -----------------------------------------------------
 
-selectSubConversation :: PrepQuery R (ConvId, SubConvId) (CipherSuiteTag, Epoch, GroupId)
-selectSubConversation = "SELECT cipher_suite, epoch, group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
+selectSubConversation :: PrepQuery R (ConvId, SubConvId) (CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
+selectSubConversation = "SELECT cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ? and subconv_id = ?"
 
 insertSubConversation :: PrepQuery W (ConvId, SubConvId, CipherSuiteTag, Epoch, GroupId, Maybe OpaquePublicGroupState) ()
 insertSubConversation = "INSERT INTO subconversation (conv_id, subconv_id, cipher_suite, epoch, group_id, public_group_state) VALUES (?, ?, ?, ?, ?, ?)"

@@ -24,6 +24,7 @@ where
 
 import Cassandra hiding (Set)
 import qualified Cassandra as Cql
+import Cassandra.Util
 import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
@@ -34,6 +35,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import Galley.Cassandra.Access
 import Galley.Cassandra.Conversation.MLS
@@ -84,6 +86,7 @@ createMLSSelfConversation lusr = do
           ConversationMLSData
             { cnvmlsGroupId = gid,
               cnvmlsEpoch = Epoch 0,
+              cnvmlsEpochTimestamp = Nothing,
               cnvmlsCipherSuite = cs
             }
   retry x5 . batch $ do
@@ -129,6 +132,7 @@ createConversation lcnv nc = do
                   ConversationMLSData
                     { cnvmlsGroupId = gid,
                       cnvmlsEpoch = ep,
+                      cnvmlsEpochTimestamp = Nothing,
                       cnvmlsCipherSuite = cs
                     },
                 Just gid,
@@ -189,7 +193,7 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _) = do
+    toConvMeta (t, mc, a, r, r', n, i, _, mt, rm, _, _, _, _, _) = do
       c <- mc
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
@@ -249,8 +253,19 @@ getConversation conv = do
     toConv conv
       <$> members conv
       <*> UnliftIO.wait remoteMems
-      <*> UnliftIO.wait cdata
+      <*> UnliftIO.wait (convUTCTime <$$> cdata)
   runMaybeT $ conversationGC =<< maybe mzero pure mbConv
+
+-- | The 'Cql.selectConv' query returns a @Maybe (Writetime Epoch)@ value, yet a
+-- @Maybe UTCTime@ value is needed. This function does the conversion, leaving
+-- all the other columns intact.
+convUTCTime ::
+  forall k1 (f1 :: * -> *) a1 b c d e f2 g h i j k2 l m (a2 :: k1) o.
+  Functor f1 =>
+  (a1, b, c, d, e, f2, g, h, i, j, k2, l, m, f1 (Writetime a2), o) ->
+  (a1, b, c, d, e, f2, g, h, i, j, k2, l, m, f1 UTCTime, o)
+convUTCTime (t, u, a, arl, ar, text, tid, b, mil, rm, p, gid, e, wt, cs) =
+  (t, u, a, arl, ar, text, tid, b, mil, rm, p, gid, e, writetimeToUTC <$> wt, cs)
 
 -- | "Garbage collect" a 'Conversation', i.e. if the conversation is
 -- marked as deleted, actually remove it from the database and return
@@ -272,7 +287,11 @@ localConversation cid =
     toConv cid
       <$> UnliftIO.Concurrently (members cid)
       <*> UnliftIO.Concurrently (lookupRemoteMembers cid)
-      <*> UnliftIO.Concurrently (retry x1 $ query1 Cql.selectConv (params LocalQuorum (Identity cid)))
+      <*> UnliftIO.Concurrently
+        ( fmap convUTCTime
+            <$$> retry x1
+            $ query1 Cql.selectConv (params LocalQuorum (Identity cid))
+        )
 
 localConversations ::
   Members '[Embed IO, Input ClientState, TinyLog] r =>
@@ -322,31 +341,54 @@ toProtocol ::
   Maybe ProtocolTag ->
   Maybe GroupId ->
   Maybe Epoch ->
+  Maybe UTCTime ->
   Maybe CipherSuiteTag ->
   Maybe Protocol
-toProtocol Nothing _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolProteusTag) _ _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid mepoch mcs =
+toProtocol Nothing _ _ _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolProteusTag) _ _ _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolMLSTag) mgid mepoch mtimestamp mcs =
   ProtocolMLS
     <$> ( ConversationMLSData
             <$> mgid
             -- If there is no epoch in the database, assume the epoch is 0
             <*> (mepoch <|> Just (Epoch 0))
+            <*> pure (mepoch `toTimestamp` mtimestamp)
             <*> mcs
         )
+  where
+    toTimestamp :: Maybe Epoch -> Maybe UTCTime -> Maybe UTCTime
+    toTimestamp Nothing _ = Nothing
+    toTimestamp (Just (Epoch 0)) _ = Nothing
+    toTimestamp (Just _) ts = ts
 
 toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, Maybe UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRole), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ->
+  Maybe
+    ( ConvType,
+      Maybe UserId,
+      Maybe (Cql.Set Access),
+      Maybe AccessRoleLegacy,
+      Maybe (Cql.Set AccessRole),
+      Maybe Text,
+      Maybe TeamId,
+      Maybe Bool,
+      Maybe Milliseconds,
+      Maybe ReceiptMode,
+      Maybe ProtocolTag,
+      Maybe GroupId,
+      Maybe Epoch,
+      Maybe UTCTime,
+      Maybe CipherSuiteTag
+    ) ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mcs) <- mconv
+  (cty, muid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mts, mcs) <- mconv
   uid <- muid
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-  proto <- toProtocol ptag mgid mep mcs
+  proto <- toProtocol ptag mgid mep mts mcs
   pure
     Conversation
       { convId = cid,

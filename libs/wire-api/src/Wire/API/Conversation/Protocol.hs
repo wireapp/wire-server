@@ -36,11 +36,13 @@ import Control.Arrow
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
+import Data.Time.Clock
 import Imports
 import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.API.MLS.SubConversation
 import Wire.Arbitrary
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
@@ -52,6 +54,8 @@ data ConversationMLSData = ConversationMLSData
     cnvmlsGroupId :: GroupId,
     -- | The current epoch number of the corresponding MLS group.
     cnvmlsEpoch :: Epoch,
+    -- | The time stamp of the epoch.
+    cnvmlsEpochTimestamp :: Maybe UTCTime,
     -- | The cipher suite to be used in the MLS group.
     cnvmlsCipherSuite :: CipherSuiteTag
   }
@@ -126,6 +130,11 @@ mlsDataSchema =
         "epoch"
         (description ?~ "The epoch number of the corresponding MLS group")
         schema
+    <*> cnvmlsEpochTimestamp
+      .= fieldWithDocModifier
+        "epoch_timestamp"
+        (description ?~ "The timestamp of the epoch number")
+        schemaEpochTimestamp
     <*> cnvmlsCipherSuite
       .= fieldWithDocModifier
         "cipher_suite"

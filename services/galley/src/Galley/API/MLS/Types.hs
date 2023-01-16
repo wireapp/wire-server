@@ -85,6 +85,7 @@ toPublicSubConv (Qualified (SubConversation {..}) domain) =
           pscSubConvId = scSubConvId,
           pscGroupId = cnvmlsGroupId scMLSData,
           pscEpoch = cnvmlsEpoch scMLSData,
+          pscEpochTimestamp = cnvmlsEpochTimestamp scMLSData,
           pscCipherSuite = cnvmlsCipherSuite scMLSData,
           pscMembers = members
         }

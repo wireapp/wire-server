@@ -60,7 +60,7 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.Time (NominalDiffTime)
+import Data.Time.Clock
 import Galley.Data.Conversation
 import Galley.Data.Types
 import Galley.Types.Conversations.Members

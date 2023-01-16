@@ -18,8 +18,10 @@
 module Galley.Cassandra.SubConversation where
 
 import Cassandra
+import Cassandra.Util
 import Data.Id
 import Data.Qualified
+import Data.Time.Clock
 import Galley.API.MLS.Types (SubConversation (..))
 import Galley.Cassandra.Conversation.MLS (lookupMLSClients)
 import qualified Galley.Cassandra.Queries as Cql
@@ -37,7 +39,7 @@ import Wire.API.MLS.SubConversation
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = do
   m <- retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
-  for m $ \(suite, epoch, groupId) -> do
+  for m $ \(suite, epoch, timestamp, groupId) -> do
     cm <- lookupMLSClients groupId
     pure $
       SubConversation
@@ -47,10 +49,15 @@ selectSubConversation convId subConvId = do
             ConversationMLSData
               { cnvmlsGroupId = groupId,
                 cnvmlsEpoch = epoch,
+                cnvmlsEpochTimestamp = epoch `toMaybe` timestamp,
                 cnvmlsCipherSuite = suite
               },
           scMembers = cm
         }
+  where
+    toMaybe :: Epoch -> Writetime Epoch -> Maybe UTCTime
+    toMaybe (Epoch 0) _ = Nothing
+    toMaybe _ (Writetime t) = Just t
 
 insertSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Epoch -> GroupId -> Maybe OpaquePublicGroupState -> Client ()
 insertSubConversation convId subConvId suite epoch groupId mPgs =
