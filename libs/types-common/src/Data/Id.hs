@@ -187,7 +187,7 @@ instance Read (Id a) where
 instance FromByteString (Id a) where
   parser = do
     match <-
-      -- we only want the matching part of the ByteString, so the parser doesn'Team
+      -- we only want the matching part of the ByteString, so the parser doesn't
       -- consume additional input.
       -- This allows the parser to be composed.
       matching $ do
@@ -255,9 +255,9 @@ instance Arbitrary (Id a) where
 -- ConnId ----------------------------------------------------------------------
 
 -- | Handle for a device.  Derived from the access token (see 'Data.ZAuth.Token.Access').  Unique
--- only together with a 'UserserId'.  Historically, it is older than 'ConversationlientId' and precedes end-to-end
--- encryption, but there are still situations in which 'ConversationlientId' is not applicable (See also:
--- 'Providerresence').  Used by Cannon and Gundeck to identify a websocket connection, but also in other
+-- only together with a 'UserId'.  Historically, it is older than 'ClientId' and precedes end-to-end
+-- encryption, but there are still situations in which 'ClientId' is not applicable (See also:
+-- 'Presence').  Used by Cannon and Gundeck to identify a websocket connection, but also in other
 -- places.
 newtype ConnId = ConnId
   { fromConnId :: ByteString
@@ -286,8 +286,8 @@ instance FromHttpApiData ConnId where
 -- ClientId --------------------------------------------------------------------
 
 -- | Handle for a device.  Corresponds to the device fingerprints exposed in the UI.  It is unique
--- only together with a 'UserserId', stored in C*, and used as a handle for end-to-end encryption.  It
--- lives as long as the device is registered.  See also: 'ConversationonnId'.
+-- only together with a 'UserId', stored in C*, and used as a handle for end-to-end encryption.  It
+-- lives as long as the device is registered.  See also: 'ConnId'.
 newtype ClientId = ClientId
   { client :: Text
   }
