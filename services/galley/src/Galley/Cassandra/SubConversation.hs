@@ -81,10 +81,10 @@ interpretSubConversationStoreToCassandra ::
   Sem (SubConversationStore ': r) a ->
   Sem r a
 interpretSubConversationStoreToCassandra = interpret $ \case
-  GetSubConversation convId subConvId -> embedClient (selectSubConversation convId subConvId)
   CreateSubConversation convId subConvId suite epoch groupId mPgs -> embedClient (insertSubConversation convId subConvId suite epoch groupId mPgs)
-  SetSubConversationPublicGroupState convId subConvId mPgs -> embedClient (updateSubConvPublicGroupState convId subConvId mPgs)
+  GetSubConversation convId subConvId -> embedClient (selectSubConversation convId subConvId)
   GetSubConversationPublicGroupState convId subConvId -> embedClient (selectSubConvPublicGroupState convId subConvId)
+  SetSubConversationPublicGroupState convId subConvId mPgs -> embedClient (updateSubConvPublicGroupState convId subConvId mPgs)
   SetGroupIdForSubConversation gId cid sconv -> embedClient $ setGroupIdForSubConversation gId cid sconv
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
   DeleteGroupIdForSubConversation groupId -> embedClient $ deleteGroupId groupId
