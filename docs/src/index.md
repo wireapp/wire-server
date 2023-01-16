@@ -27,9 +27,7 @@ Installation <how-to/install/index>
 Configuration <configuration/index>
 Administration <how-to/administrate/index>
 Reference <understand/index>
-Connecting Wire Clients <how-to/associate/index>
-Client API documentation <understand/api-client-perspective/index>
-Notes for developers <developer/index>
+Developers Notes <developer/index>
 ```
 
 % Overview <understand/overview>
