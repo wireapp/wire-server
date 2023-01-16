@@ -126,7 +126,7 @@ type ConversationAPI =
     :<|> Named
            "get-conversation@v2"
            ( Summary "Get a conversation by ID"
-               :> Until 'V2
+               :> Until 'V3
                :> MakesFederatedCall 'Galley "get-conversations"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied

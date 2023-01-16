@@ -1051,6 +1051,29 @@ getConv u c = do
       . zConn "conn"
       . zType "access"
 
+getConvQualifiedV2 ::
+  ( Monad m,
+    MonadReader TestSetup m,
+    MonadHttp m,
+    MonadIO m
+  ) =>
+  UserId ->
+  Qualified ConvId ->
+  m ResponseLBS
+getConvQualifiedV2 u qcnv = do
+  g <- view tsUnversionedGalley
+  get $
+    g
+      . paths
+        [ "v2",
+          "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv)
+        ]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+
 getConvQualified :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> Qualified ConvId -> m ResponseLBS
 getConvQualified u (Qualified conv domain) = do
   g <- viewGalley

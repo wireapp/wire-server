@@ -127,6 +127,7 @@ tests s =
         "Main Conversations API"
         [ test s "status" status,
           test s "metrics" metrics,
+          test s "fetch conversation by qualified ID (v2)" testGetConvQualifiedV2,
           test s "create Proteus conversation" postProteusConvOk,
           test s "create conversation with remote users" postConvWithRemoteUsersOk,
           test s "get empty conversations" getConvsOk,
@@ -271,6 +272,26 @@ metrics = do
     const 200 === statusCode
     -- Should contain the request duration metric in its output
     const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
+
+testGetConvQualifiedV2 :: TestM ()
+testGetConvQualifiedV2 = do
+  alice <- randomUser
+  bob <- randomUser
+  connectUsers alice (list1 bob [])
+  conv <-
+    responseJsonError
+      =<< postConvQualified
+        alice
+        defNewProteusConv
+          { newConvUsers = [bob]
+          }
+        <!! const 201 === statusCode
+  let qcnv = cnvQualifiedId conv
+  conv' <-
+    fmap (unVersioned @'V2) . responseJsonError
+      =<< getConvQualifiedV2 alice qcnv
+        <!! const 200 === statusCode
+  liftIO $ conv @=? conv'
 
 postProteusConvOk :: TestM ()
 postProteusConvOk = do
