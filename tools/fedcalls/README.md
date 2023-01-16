@@ -15,10 +15,17 @@ dot -Tpng wire-fedcalls.dot > wire-fedcalls.png
 
 ### links
 
-- `./example.png`
+for users:
+
+- blog post explaining the technology: https://reasonablypolymorphic.com/blog/abusing-constraints/index.html
 - https://sketchviz.com/new
 - https://graphviz.org/doc/info/lang.html
-- `/libs/wire-api/src/Wire/API/MakesFederatedCall.hs`
+
+for developers:
+
+- `./example.png`
+- [MakesFederatedCall.hs (as of 2023-01-16)](https://github.com/wireapp/wire-server/blob/8760b4978ccb039b229d458b7a08136a05e12ff9/libs/wire-api/src/Wire/API/MakesFederatedCall.hs)
+- PRs: https://github.com/wireapp/wire-server/pull/2973, https://github.com/wireapp/wire-server/pull/2940, https://github.com/wireapp/wire-server/pull/2950, https://github.com/wireapp/wire-server/pull/2957
 
 ### swagger-ui
 
