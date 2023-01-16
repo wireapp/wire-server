@@ -39,7 +39,6 @@ module Wire.API.Routes.Version
   )
 where
 
-import Control.Exception (assert)
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
@@ -64,20 +63,12 @@ data Version = V0 | V1 | V2 | V3
 
 instance ToSchema Version where
   schema =
-    assert
-      (explicit == constructed)
-      (enum @Integer "Version" . mconcat . fmap (uncurry element) $ explicit)
-    where
-      constructed, explicit :: [(Integer, Version)]
-      constructed =
-        -- (fromEnum doesn't work as soon as we drop support for V0.)
-        (\v -> (read . Imports.tail . show $ v, v)) <$> [minBound @Version ..]
-      explicit =
-        [ (0, V0),
-          (1, V1),
-          (2, V2),
-          (3, V3)
-        ]
+    enum @Integer "Version" . mconcat $
+      [ element 0 V0,
+        element 1 V1,
+        element 2 V2,
+        element 3 V3
+      ]
 
 mkVersion :: Integer -> Maybe Version
 mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
