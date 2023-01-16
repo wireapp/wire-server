@@ -280,6 +280,7 @@ getVerificationCode uid action = do
       code <- wrapClientE $ Code.lookup key (Code.scopeFromAction a)
       pure $ Code.codeValue <$> code
 
+-- TODO: Unused?
 swaggerDocsAPI :: Servant.Server BrigIRoutes.SwaggerDocsAPI
 swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 
