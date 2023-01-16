@@ -113,6 +113,13 @@ html_css_files = [
 html_favicon = '_static/favicon/favicon.ico'
 html_logo = '_static/image/Wire_logo.svg'
 
+html_context = {
+  'display_github': True,
+  'github_user': 'wireapp',
+  'github_repo': 'wire-server',
+  'github_version': 'develop/docs/src/',
+}
+
 smv_tag_whitelist = ''
 smv_branch_whitelist = r'^(install-with-poetry)$'
 smv_remote_whitelist = r'^(origin)$'
@@ -128,6 +135,5 @@ redirects = {
         "security-responses/log4shell": "2021-12-15_log4shell.html",
         "security-responses/cve-2021-44521": "2022-02-21_cve-2021-44521.html",
         "security-responses/2022-05_website_outage": "2022-05-23_website_outage.html",
-        "how-to/single-sign-on/index": "../../understand/single-sign-on/main.html#setting-up-sso-externally",
-        "how-to/scim/index": "../../understand/single-sign-on/main.html#user-provisioning",
+        "how-to/scim/index": "../../understand/single-sign-on/main.html#user-provisioning"
 }

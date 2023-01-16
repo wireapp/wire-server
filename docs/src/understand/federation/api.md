@@ -1,48 +1,77 @@
 (federation-api)=
 
-# API
-
-The Federation API consists of two *layers*:
-
-1.  Between two backends (i.e. between a *Federator* and a
-    *Federation Ingress*)
-2.  Between backend-internal components
+# Federation API
 
 (qualified-identifiers-and-names)=
-
 ## Qualified Identifiers and Names
 
-The federated (and consequently distributed) architecture is reflected
-in the structure of the various identifiers and names used in the API.
-Before federation, identifiers were only unique in the context of a
-single backend; for federation, they are made globally unique by
-combining them with the federation domain of their backend. We call
-these combined identifiers *qualified* identifiers. While other parts of
-some identifiers or names may change, the domain name (i.e. the
-qualifying part) is static.
+The federated architecture is reflected in the structure of the various
+identifiers and names used in the API. Identifiers, such as user ids, are unique
+within the context of a backend. They are made unique within the context of all
+federating backend by combining them with the {ref}`backend domain
+<glossary_backend_domain>`.
 
-In particular, we use the following identifiers throughout the API:
+For example a user with user id `d389b370-5f7d-4efd-9f9a-8d525540ad93` on
+backend `b.example.com` has the *qualified user id*
+`d389b370-5f7d-4efd-9f9a-8d525540ad93@b.example.com`. In API request bodies
+qualified identities are encoded as objects, e.g.
 
--   {ref}`glossary_qualified-user-id`: *user_uuid@backend-domain.com*
--   {ref}`glossary_qualified-user-name`: *user_name@backend-domain.com*
--   {ref}`glossary_qualified-client-id` attached to a QUID: *client_uuid.user_uuid@backend-domain.com*
--   {ref}`glossary_qualified-conversation-id` / {ref}`glossary_qualified-group-id`: *backend-domain.com/groups/group_uuid*
--   {ref}`glossary_qualified-team-id`: *backend-domain.com/teams/team_uuid*
+```
+{
+  "user": {
+      "id": "d389b370-5f7d-4efd-9f9a-8d525540ad93",
+      "domain": "b.example.com"
+  }
+  ...
+}
 
-While the canonical representation for purposes of visualization is as
-displayed above, the API often decomposes the qualified identifiers into
-an (unqualified) id and a domain name. In the code and API
-documentation, we sometimes call a username a \"handle\" and a qualified
-username a \"qualified handle\".
+```
+In API path segments qualified identities are encoded with the domain first, e.g.
+```
+POST /connections/b.example.com/d389b370-5f7d-4efd-9f9a-8d525540ad93
+```
+to send a connection request to a user.
 
-Besides the above names and identifiers, there are also user
-{ref}`glossary_display-name` (sometimes also
-referred to as \"profile names\"), which are not unique on the user\'s
-backend, can be changed by the user at any time and are not qualified.
+Any identifier on a backend can be qualified:
+
+- conversation ids 
+- team ids
+- client ids
+- user ids
+- user handles, e.g. local handle `@alice` is displayed as `@alice@b.example.com` in federating users' devices
+
+User profile names (e.g. "Alice") which are not unique on the user\'s backend,
+can be changed by the user at any time and are not qualified.
 
 (api-between-federators)=
 
-## API between Federators
+## Federated requests
+
+Every federated API request is made by a service component (e.g. brig, galley,
+cargohold) in one backend and responded to by a service component in the other
+backend. The *Federators* of the backends are relaying the request between the
+components across backends . The components talk to each other via the
+*Federator* in the originating domain and *Federator Ingress* in the receiving
+domain (for details see {ref}`backend-to-backend-communication`).
+
+
+```{figure} ./img/federation-apis-flow.png
+---
+width: 100%
+---
+Federators relaying a request between components. See {ref}`federation-back2back-example` to see the discovery, authentication and authorization steps that are omitted from this figure.
+```
+
+### API From Components to Federator
+
+
+When making the call to the *Federator*, the components use HTTP2. They call the
+Federator's `Outward` service, which accepts `POST` requests with path
+`/rpc/:domain/:component/:rpc`. Such a request will be forwarded to the remote
+Federator with the given {ref}`backend domain<Backend-domains>`, and converted
+to the appropriate request of its `Inward` service.
+
+### API between Federators
 
 The layer between *Federator* acts as an envelope for communication
 between other components of wire server. The *Inward* service of
@@ -68,19 +97,10 @@ See {ref}`api-from-federator-to-components` for more details on RPCs and their p
 
 (api-from-components-to-federator)=
 
-## API From Components to Federator
-
-Between two federated backends, the components talk to each other via the
-*Federator* in the originating domain and *Ingress* in the receiving domain.
-When making the call to the *Federator*, the components use HTTP2. They call the
-`Outward` service, which accepts `POST` requests with path
-`/rpc/:domain/:component/:rpc`. Such a request will be forwarded to a remote
-federator with the given {ref}`Backend-domains`, and converted to the
-appropriate request for its `Inward` service.
 
 (api-from-federator-to-components)=
 
-## API From Federator to Components
+### API From Federator to Components
 
 The components expose a REST API over HTTP to be consumed by the
 *Federator*. All the paths start with `/federation`. When a *Federator*
@@ -107,13 +127,10 @@ attacks such as attempting to access `/federation/../users/by-handle`.
 ## List of Federation APIs exposed by Components
 
 Each component of the backend provides an API towards the *Federator*
-for access by other backends. For example on how these APIs are used,
-see the section on
-`end-to-end flows<end-to-end-flows>`{.interpreted-text role="ref"}.
-
+for access by other backends. 
 
 ```{note}
-This reflects status of API endpoints as of 2022-01-28. For latest APIs please
+This reflects status of API endpoints as of 2023-01-10. For latest APIs please
 refer to the corresponding source code linked in the individual section.
 ```
 
@@ -139,10 +156,15 @@ the backend.
     w.r.t. that term.
 -   `get-user-clients`: Given a list of user ids, return the lists of
     clients of each of the users.
+-   `get-user-clients`: Given a list of user ids, return a list of all their clients with public information
+-   `send-connection-action`: Make and also respond to user connection requests
+-   `on-user-deleted-connections`: Notify users that are connected to remote user about that user's deletion
+-   `get-mls-clients`: Request all [MLS](../../how-to/install/mls)-capable clients for a given user
+-   `claim-key-packages`: Claim a previously-uploaded KeyPackage of a remote user. User for adding users to MLS conversations.
 
 See [the brig source
 code](https://github.com/wireapp/wire-server/blob/master/libs/wire-api-federation/src/Wire/API/Federation/API/Brig.hs)
-for the current list of federated endpoints of the *Brig*, as well as
+for the current list of federated endpoints of *Brig*, as well as
 their precise inputs and outputs.
 
 (galley)=
@@ -153,48 +175,65 @@ Each backend keeps a record of the conversations that each of its
 members is a part of. The purpose of the Galley API is to allow backends
 to synchronize the state of the conversations of their members.
 
--   `on-conversation-created`: Given a name and a list of conversation
-    members, create a conversation locally. This is used to inform
-    another backend of a new conversation that involves their local
-    user(s).
--   `get-conversations`: Given a qualified user id and a list of
+- `get-conversations`: Given a qualified user id and a list of
     conversation ids, return the details of the conversations. This
     allows a remote backend to query conversation metadata of their
     local user from this backend. To avoid metadata leaks, the backend
     will check that the domain of the given user corresponds to the
     domain of the backend sending the request.
--   `on-conversation-updated`: Given a qualified user id and a qualified
+- `get-sub-conversation`: Get a MLS subconversation
+- `leave-conversation`: Given a remote user and a conversation id,
+    remove the the remote user from the (local) conversation.
+- `mls-welcome`: Send MLS welcome message to a new user owned by the called backend
+- `on-client-removed`: Inform called backend that a client of a user has been deleted
+- `on-conversation-created`: Given a name and a list of conversation
+    members, create a conversation locally. This is used to inform
+    another backend of a new conversation that involves their local
+    user(s).
+- `on-conversation-updated`: Given a qualified user id and a qualified
     conversation id, update the conversation details locally with the
     other data provided. This is used to alert remote backend of updates
     in the conversation metadata of conversations in which at least one
     of their local users is involved.
--   `leave-conversation`: Given a remote user and a conversation id,
-    remove the the remote user from the (local) conversation.
--   `on-message-sent`: Given a remote message and a conversation id,
+- `on-message-sent`: Given a remote message and a conversation id,
     propagate a message to local users. This is used whenever there is a
     remote user in a conversation (see end-to-end flows).
--   `send-message`: Given a sender and a raw message request, send a
+- `on-mls-message-sent`: Receive a MLS message that originates in the calling backend
+- `on-new-remote-conversation`: Inform the called backend about a conversation that exists on the calling backend. This request is made before the first time the backend might learn about this conversation, e.g. when its first user is added to the conversation.
+- `on-typing-indicator-updated`: Used by the calling backend (that owns a conversation) to inform the called backend about a change of the typing indicator status of remote user
+- `on-user-deleted-conversations`: When a user on calling backend this request is made for all conversations on the called backend was part of
+- `query-group-info`: Query the MLS public group state
+- `send-message`: Given a sender and a raw message request, send a
     message to a conversation owned by another backend. This is used
     when the user sending a message is not on the same backend as the
     conversation the message is sent in.
+- `send-mls-commit-bundle`: Send a MLS commit bundle to backend that owns the conversation
+- `send-mls-message`: Send MLS message to backend that owns the conversation
+- `update-conversation`: Calling backend requests a conversation action on the called backend which owns the conversation
 
 See [the galley source
 code](https://github.com/wireapp/wire-server/blob/master/libs/wire-api-federation/src/Wire/API/Federation/API/Galley.hs)
-for the current list of federated endpoints of the *Galley*, as well as
+for the current list of federated endpoints of *Galley*, as well as
 their precise inputs and outputs.
 
 (end-to-end-flows)=
 
-## End-to-End Flows
+### Cargohold
+- `get-asset`: Check if asset owned by called backend is available to calling backend
+- `stream-asset`: Stream asset owned by the called backend
 
-In the following end-to-end flows, we focus on the interaction between
-the Brigs and Galleys of federated backends. While the interactions are
-facilitated by the *Federator* and *Federation Ingress* components of
-the backends involved, which handle the necessary discovery,
-authentication and authorization steps, we won\'t mention these steps
-explicitly each time to keep the flows simple.
+See [the cargohold source
+code](https://github.com/wireapp/wire-server/blob/master/libs/wire-api-federation/src/Wire/API/Federation/API/Cargohold.hs)
+for the current list of federated endpoints of the *Cargohold*, as well as
+their precise inputs and outputs.
 
-Additionally we assume that the backend domain and the infra domain of
+## Example End-to-End Flows
+
+In the following the interactions between *Federator* and *Federation Ingress*
+components of the backends involved are omitted for simplicity. Also the backend
+domain and infrastructure domain are assumed the same.
+
+Additionally we assume that the backend domain and the infrastructure domain of
 the respective backends involved are the same and each domain identifies
 a distinct backend.
 
@@ -202,125 +241,98 @@ a distinct backend.
 
 ### User Discovery
 
-In this flow, the user *A* at *backend-a.com* tries to search for user
-*B* at *backend-b.com*.
+In this flow, the user *Alice* at *a.example.com* tries to search for user
+*Bob* at *b.example.com*.
 
-1.  User *A@backend-a.com* enters the qualified user name of the target
-    user *B@backend-b.com* into the search field of their Wire client.
+1.  User *Alice* enters the qualified user name of the target
+    user *Bob* : `@bob@b.example.com` into the search field of their Wire client.
 2.  The client issues a query to `/search/contacts` of the Brig
-    searching for *B* at *backend-b.com*.
-3.  The Brig in *A*\'s backend asks its local *Federator* to query the
-    `search-users` endpoint of B\'s backend for *B*.
-4.  *A*\'s *Federator* queries *B*\'s Brig via *B*\'s *Federation
+    searching for *Bob* at *b.example.com*.
+3.  The Brig in *Alice*\'s backend asks its local *Federator* to query the
+    `search-users` endpoint in *Bob*\'s backend.
+4.  *Alice*\'s *Federator* queries *Bob*\'s Brig via *Bob*\'s *Federation
     Ingress* and *Federator* as requested.
-5.  *B*\'s Brig replies with *B*\'s user name and qualified handle, the
-    response goes through *B*\'s *Federator* and *Federation Ingress*,
-    as well as *A*\'s *Federator* before it reaches *A*\'s Brig.
-6.  *A*\'s Brig forwards that information to *A*\'s client.
+5.  *Bob*\'s Brig replies with *Bob*\'s user name and qualified handle, the
+    response goes through *Bob*\'s *Federator* and *Federation Ingress*,
+    as well as *Alice*\'s *Federator* before it reaches *A*\'s Brig.
+6.  *Alice*\'s Brig forwards that information to *A*\'s client.
 
 (conversation-establishment)=
 
 ### Conversation Establishment
 
-After having discovered user *B* at *backend-b.com*, user *A* at
-*backend-a.com* wants to establish a conversation with *B*.
+After having discovered user *Bob* at *b.example.com*, user *Alice* at
+*a.example.com* wants to establish a conversation with *Bob*.
 
 1.  From the search results of a
     {ref}`user discovery<user-discovery>`
-    process, *A* chooses to create a conversation with *B*.
-2.  *A*\'s client issues a `/users/backend-b.com/B/prekeys` query to
-    *A*\'s Brig.
-3.  *A*\'s Brig asks its *Federator* to query the `claim-prekey-bundle`
-    endpoint of *B*\'s backend using *B*\'s user id.
-4.  *B*\'s *Federation Ingress* forwards the query to the *Federator*,
+    process, *Alice* chooses to create a conversation with *Bob*.
+2.  *Alice*\'s client issues a `/users/b.example.com/<bobs-user-id>/prekeys` query to
+    *Alice*\'s Brig.
+3.  *Alice*\'s Brig asks its *Federator* to query the `claim-prekey-bundle`
+    endpoint of *Bob*\'s backend using *Bob*\'s user id.
+4.  *Bob*\'s *Federation Ingress* forwards the query to the *Federator*,
     who in turn forwards it to the local Brig.
-5.  *B*\'s Brig replies with a prekey bundle for each of *B*\'s clients,
-    which is forwarded to *A*\'s Brig via *B*\'s *Federator* and
-    *Federation Ingress*, as well as *A*\'s *Federator*.
-6.  *A*\'s Brig forwards that information to *A*\'s client.
-7.  *A*\'s client queries the `/conversations` endpoint of its Galley
-    using *B*\'s user id.
-8.  *A*\'s Galley creates the conversation locally and queries the
-    `on-conversation-created` endpoint of *B*\'s Galley (again via its
-    local *Federator*, as well as *B*\'s *Federation Ingress* and
+5.  *Bob*\'s Brig replies with a prekey bundle for each of *Bob*\'s clients,
+    which is forwarded to *Alice*\'s Brig via *Bob*\'s *Federator* and
+    *Federation Ingress*, as well as *Alice*\'s *Federator*.
+6.  *Alice*\'s Brig forwards that information to *A*\'s client.
+7.  *Alice*\'s client queries the `/conversations` endpoint of its Galley
+    using *Bob*\'s user id.
+8.  *Alice*\'s Galley creates the conversation locally and queries the
+    `on-conversation-created` endpoint of *Bob*\'s Galley (again via its
+    local *Federator*, as well as *Bob*\'s *Federation Ingress* and
     *Federator*) to inform it about the new conversation, including the
     conversation metadata in the request.
-9.  *B*\'s Galley registers the conversation locally and confirms the
+9.  *Bob*\'s Galley registers the conversation locally and confirms the
     query.
-10. *B*\'s Galley notifies *B*\'s client of the creation of the
+10. *Bob*\'s Galley notifies *Bob*\'s client of the creation of the
     conversation.
 
 (message-sending-a)=
 
-### Message Sending (A)
+### Message Sending
 
-Having established a conversation with user *B* at *backend-b.com*, user
-*A* at *backend-a.com* wants to send a message to user *B*.
+Having established a conversation with user *Bob* at *b.example.com*, user
+*Alice* at *a.example.com* wants to send a message to user *Bob*.
 
-1.  In a conversation *conv-1@backend-a.com* on *A*\'s backend with
-    users *A@backend-a.com* and *B@backend-b.com*, *A* sends a message
-    by using the `/conversations/backend-a.com/conv-1/proteus/messages`
-    endpoint on *A*\'s Galley.
-2.  *A*\'s Galley checks if *A* included all necessary user devices in
+1.  In a conversation *\<conv-id-1\>@a.example.com* on *Alice*\'s backend with
+    users *Alice* and *Bob*, *Alice* sends a message
+    by using the `/conversations/a.example.com/<conv-id-1>/proteus/messages`
+    endpoint on *Alice*\'s Galley.
+2.  *Alice*\'s Galley checks if *A* included all necessary user devices in
     their request. For that it makes a `get-user-clients` request to
-    *B*\'s Galley. *A*\'s Galley checks that the returned list of
+    *Bob*\'s Galley. *Alice*\'s Galley checks that the returned list of
     clients matches the list of clients the message was encrypted for.
-3.  *A*\'s Galley sends the message to all clients in the conversation
-    that are part of *A*\'s backend.
-4.  *A*\'s Galley queries the `on-message-sent` endpoint on *B*\'s
-    Galley via its *Federator* and *B*\'s *Federation Ingress* and
+3.  *Alice*\'s Galley sends the message to all clients in the conversation
+    that are part of *Alice*\'s backend.
+4.  *Alice*\'s Galley queries the `on-message-sent` endpoint on *Bob*\'s
+    Galley via its *Federator* and *Bob*\'s *Federation Ingress* and
     *Federator*.
-5.  *B*\'s Galley will propagate the message to all local clients
+5.  *Bob*\'s Galley will propagate the message to all local clients
     involved in the conversation.
 
-(message-sending-b)=
+## Ownership
 
-### Message Sending (B)
+Wire uses the concept of **ownership** as a guiding principle in the design of
+Federation. Every resource, e.g. user, conversation, asset, is **owned** by the
+backend on which it was *created*.
 
-Having received a message from user *A* at *backend-a.com*, user *B* at
-*backend-b.com* wants send a reply.
+A backend that owns a resource is the source of truth for it. For example, for
+users this means that information about user *Alice* which is owned by backend
+*A* is stored only on backend *A*. If any federating backend needs information
+about the user *Alice*, e.g. the profile information, it needs to request that
+information from *A*.
 
-1.  In a conversation *conv-1@backend-a.com* on *A*\'s backend with
-    users *A@backend-a.com* and *B@backend-b.com*, *B* sends a message
-    by using the `/conversations/backend-a.com/conv-1/proteus/messages`
-    endpoint on *B*\'s backend.
-2.  *B*\'s Galley queries the `send-message` endpoint on *A*\'s backend.
-    *Steps 3-6 below are essentially the same as steps 2-5 in Message
-    Sending (A)*
-3.  *A*\'s Galley checks if *A* included all necessary user devices in
-    their request. For that it makes a `get-user-clients` request to
-    *B*\'s Galley. *A*\'s Galley checks that the returned list of
-    clients matches the list of clients the message was encrypted for.
-4.  *A*\'s Galley sends the message to all clients in the conversation
-    that are part of *A*\'s backend.
-5.  *A*\'s Galley queries the `on-message-sent` endpoint on *B*\'s
-    Galley via its *Federator* and *B*\'s *Federation Ingress* and
-    *Federator*.
-6.  *B*\'s Galley will propagate the message to all local clients
-    involved in the conversation.
+In some cases backends locally store partial information of resources they don't
+own. For example a backend stores a reference to any remotely-owned conversation
+any of its users is participating in. However, to get the full list of all
+participants of a remote conversation, the owning backend needs to be queried.
 
-(error-codes)=
-
-## Error Codes
-
-This page describes the errors that can occur during federation.
-
-(authentication-errors)= 
-
-### Authentication Errors
-
-TODO for now, we only describe the errors here. Later, we should add
-exact error codes.
-
-TODO we might want to merge one or more of these errors
-
--   *authentication error*: occurs when a backend queries another
-    backend and provides either no client certificate, or a client
-    certificate that the receiving backend cannot authenticate
--   *authorization error*: occurs when a sending backend
-    authenticates successfully, but is not on the allow list of the
-    receiving backend
--   *discovery error*: occurs when a sending backend authenticates
-    successfully, but the [SRV]{.title-ref} record published for the
-    claimed domain of the sending backend doesn\'t match the SAN of the
-    sending backend\'s client certificate
+Ownership is reflected in the naming convention of federation RPCs. Any rpc
+named with prefix `on-` is always invoked by the backend that owns the resource
+to inform federating backends. For example, if a user leaves a remote
+conversation its backend would call the `leave-conversation` rpc on the remote
+conversation. The remote backend would remove the user and inform all other
+federating backends that participate in that conversation of this change by
+calling their `on-conversation-updated` rpc.

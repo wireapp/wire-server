@@ -1,1 +1,0 @@
-The parser for the AWS/SNS error message to explain that an endpoint is already in use was incorrect. This lead to an "invalid token" error when registering push tokens for multiple user accounts (user ids) instead of updating the SNS endpoint with an additional user id.

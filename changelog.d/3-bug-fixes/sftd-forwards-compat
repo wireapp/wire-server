@@ -1,1 +1,0 @@
-Due to `sftd` changing how configuration is handled for "multi-SFT" calling (starting with version 3.1.10), new options have been added to the `sftd` Helm chart for compatibility with these newer versions.

@@ -1,1 +1,0 @@
-For sftd/coturn/restund, fixed a bug in external ip address lookup, in case Kubernetes Node Name doesn't equal hostname.
