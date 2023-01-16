@@ -1,1 +1,1 @@
-Fix `make clean`; allow new data constructors in `ToSchema Version` instance (#2965, #2978)
+Fix `make clean` (#2965, #2978)
