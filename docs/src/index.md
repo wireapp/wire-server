@@ -30,7 +30,7 @@ Connecting Wire Clients <how-to/associate/index>
 Optional Configuration <configuration-options>
 Understanding wire-server components <understand/index>
 Single-Sign-On and user provisioning <how-to/single-sign-on/index.rst>
-Client API documentation <understand/api-client-perspective/index>
+API documentation <understand/api-client-perspective/index>
 Security responses <security-responses/index>
 Notes for developers <developer/index>
 ```
