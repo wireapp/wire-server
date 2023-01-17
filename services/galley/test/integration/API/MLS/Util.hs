@@ -981,7 +981,7 @@ receiveNewRemoteConv ::
 receiveNewRemoteConv conv gid = do
   client <- view tsFedGalleyClient
   let nrc =
-        NewRemoteConversation (qUnqualified conv) $
+        NewRemoteConversation (qUnqualified conv) Nothing $
           ProtocolMLS
             ( ConversationMLSData
                 gid

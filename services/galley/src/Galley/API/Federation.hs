@@ -58,7 +58,7 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore (ProposalStore)
-import Galley.Effects.SubConversationStore
+import qualified Galley.Effects.SubConversationStore as E
 import Galley.Effects.SubConversationSupply
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -203,14 +203,27 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
 
 onNewRemoteConversation ::
-  Member ConversationStore r =>
+  Members
+    '[ ConversationStore,
+       SubConversationStore
+     ]
+    r =>
   Domain ->
   F.NewRemoteConversation ->
   Sem r EmptyResponse
 onNewRemoteConversation domain nrc = do
   -- update group_id -> conv_id mapping
   for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
-    E.setGroupIdForConversation (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
+    case F.nrcSubConvId nrc of
+      Just subConvId ->
+        E.setGroupIdForSubConversation
+          (cnvmlsGroupId mls)
+          (Qualified (F.nrcConvId nrc) domain)
+          subConvId
+      Nothing ->
+        E.setGroupIdForConversation
+          (cnvmlsGroupId mls)
+          (Qualified (F.nrcConvId nrc) domain)
 
   pure EmptyResponse
 

@@ -36,6 +36,7 @@ module Galley.Effects
     ClientStore,
     CodeStore,
     ConversationStore,
+    SubConversationStore,
     CustomBackendStore,
     LegalHoldStore,
     MemberStore,

@@ -41,7 +41,6 @@ import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.FederatorAccess
 import qualified Galley.Effects.MemberStore as Eff
-import Galley.Effects.SubConversationStore (SubConversationStore)
 import qualified Galley.Effects.SubConversationStore as Eff
 import Galley.Effects.SubConversationSupply (SubConversationSupply)
 import qualified Galley.Effects.SubConversationSupply as Eff

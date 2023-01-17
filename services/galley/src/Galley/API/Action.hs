@@ -750,6 +750,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   let nrc =
         NewRemoteConversation
           { nrcConvId = convId conv,
+            nrcSubConvId = Nothing,
             nrcProtocol = convProtocol conv
           }
   E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do

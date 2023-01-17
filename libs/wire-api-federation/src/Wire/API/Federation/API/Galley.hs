@@ -220,6 +220,8 @@ ccRemoteOrigUserId cc = qualifyAs (ccCnvId cc) (ccOrigUserId cc)
 data NewRemoteConversation = NewRemoteConversation
   { -- | The conversation ID, local to the backend invoking the RPC.
     nrcConvId :: ConvId,
+    -- | The subconversation, if set.
+    nrcSubConvId :: Maybe SubConvId,
     -- | The conversation protocol.
     nrcProtocol :: Protocol
   }
