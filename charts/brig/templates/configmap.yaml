@@ -317,5 +317,8 @@ data:
       {{- if .setOAuthRefreshTokenExpirationTimeSecs }}
       setOAuthRefreshTokenExpirationTimeSecs: {{ .setOAuthRefreshTokenExpirationTimeSecs }}
       {{- end }}
+      {{- if .setOAuthMaxActiveRefreshTokens }}
+      setOAuthMaxActiveRefreshTokens: {{ .setOAuthMaxActiveRefreshTokens }}
+      {{- end }}
     {{- end }}
   {{- end }}

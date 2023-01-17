@@ -91,6 +91,7 @@ config:
     setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
     setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
     setOAuthEnabled: true
+    setOAuthMaxActiveRefreshTokens: 10
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
     # setDisabledAPIVersions: [ 3 ]

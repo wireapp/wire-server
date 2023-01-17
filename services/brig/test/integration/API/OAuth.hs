@@ -19,19 +19,21 @@ module API.OAuth where
 
 import Bilge
 import Bilge.Assert
+import Brig.API.OAuth
 import Brig.Effects.Jwk (readJwk)
 import Brig.Options
 import qualified Brig.Options as Opt
+import qualified Cassandra as C
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
-import Crypto.JOSE (JWK, bestJWSAlg, newJWSHeader, runJOSE)
-import Crypto.JWT (Audience (Audience), JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, signJWT, stringOrUri)
+import Crypto.JOSE (JOSE, JWK, bestJWSAlg, newJWSHeader, runJOSE)
+import Crypto.JWT (Audience (Audience), ClaimsSet, JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, defaultJWTValidationSettings, signJWT, stringOrUri, verifyClaims)
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (fromByteString, fromByteString', toByteString')
 import Data.Domain (domainText)
-import Data.Id (OAuthClientId, UserId, idToText, randomId)
+import Data.Id
 import Data.Range (unsafeRange)
-import Data.Set as Set
+import Data.Set as Set hiding (null, (\\))
 import Data.String.Conversions (cs)
 import Data.Text.Ascii (encodeBase16)
 import Data.Time
@@ -49,16 +51,19 @@ import Wire.API.Routes.Bearer (Bearer (Bearer))
 import Wire.API.User (SelfProfile, User (userId), userEmail)
 import Wire.API.User.Auth (CookieType (PersistentCookie))
 
-tests :: Manager -> Brig -> Nginz -> Opts -> TestTree
-tests m b n o = do
-  testGroup "oauth" $
+tests :: Manager -> C.ClientState -> Brig -> Nginz -> Opts -> TestTree
+tests m db b n o = do
+  testGroup
+    "oauth"
     [ test m "register new oauth client" $ testRegisterNewOAuthClient b,
-      testGroup "create oauth code" $
+      testGroup
+        "create oauth code"
         [ test m "success" $ testCreateOAuthCodeSuccess b,
           test m "oauth client not found" $ testCreateOAuthCodeClientNotFound b,
           test m "redirect url mismatch" $ testCreateOAuthCodeRedirectUrlMismatch b
         ],
-      testGroup "create access token" $
+      testGroup
+        "create access token"
         [ test m "success" $ testCreateAccessTokenSuccess o b,
           test m "wrong client id fail" $ testCreateAccessTokenWrongClientId b,
           test m "wrong client secret fail" $ testCreateAccessTokenWrongClientSecret b,
@@ -66,13 +71,15 @@ tests m b n o = do
           test m "wrong redirect url fail" $ testCreateAccessTokenWrongUrl b,
           test m "expired code fail" $ testCreateAccessTokenExpiredCode o b
         ],
-      testGroup "access denied when disabled" $
+      testGroup
+        "access denied when disabled"
         [ test m "register" $ testRegisterOAuthClientAccessDeniedWhenDisabled o b,
           test m "get client info" $ testGetOAuthClientInfoAccessDeniedWhenDisabled o b,
           test m "create code" $ testCreateCodeOAuthClientAccessDeniedWhenDisabled o b,
           test m "create token" $ testCreateAccessTokenAccessDeniedWhenDisabled o b
         ],
-      testGroup "accessing a resource" $
+      testGroup
+        "accessing a resource"
         [ test m "success (internal)" $ testAccessResourceSuccessInternal b,
           test m "success (nginz)" $ testAccessResourceSuccessNginz b n,
           test m "insufficient scope" $ testAccessResourceInsufficientScope b,
@@ -80,6 +87,9 @@ tests m b n o = do
           test m "nonsense token" $ testAccessResourceNonsenseToken b,
           test m "no token" $ testAccessResourceNoToken b,
           test m "invalid signature" $ testAccessResourceInvalidSignature o b
+        ],
+      testGroup "refresh tokens" $
+        [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b
         ]
     ]
 
@@ -350,6 +360,69 @@ testAccessResourceInvalidSignature opts brig = do
     const "Access denied" === statusMessage
     const (Just "Invalid token: JWSError JWSInvalidSignature") === responseBody
 
+testRefreshTokenMaxActiveTokens :: Opts -> C.ClientState -> Brig -> Http ()
+testRefreshTokenMaxActiveTokens opts db brig =
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthMaxActiveRefreshTokensInternal ?~ 2) $ do
+    uid <- randomId
+    jwk <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+    let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+    let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+    let delayOneSec =
+          -- we have to wait ~1 sec before we create the next token, to make sure it is created with a different timestamp
+          -- this is due to the interpreter of the `Now` effect which auto-updates every second
+          -- FUTUREWORK: once the interpreter of the `Now` effect is changed to use a monotonic clock, we can remove this delay
+          threadDelay $ 1000 * 1000
+    (rid1, cid, secret) <- do
+      let testMsg = "0 active refresh tokens - 1st requested token will be active"
+      (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+      rt <- oatRefreshToken <$> createOAuthAccessToken brig accessTokenRequest
+      rid <- extractRefreshTokenId jwk rt
+      tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
+      liftIO $ assertBool testMsg $ [rid] ??=?? (oriId <$> tokens)
+      pure (rid, cid, secret)
+    delayOneSec
+    rid2 <- do
+      let testMsg = "1 active refresh token - 2nd requested token will added to active tokens"
+      code <- generateOAuthAuthCode brig uid cid scopes redirectUrl
+      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+      rt <- oatRefreshToken <$> createOAuthAccessToken brig accessTokenRequest
+      rid <- extractRefreshTokenId jwk rt
+      tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
+      liftIO $ assertBool testMsg $ [rid1, rid] ??=?? (oriId <$> tokens)
+      pure rid
+    delayOneSec
+    rid3 <- do
+      let testMsg = "2 active refresh tokens - 3rd token requested replaces the 1st one"
+      code <- generateOAuthAuthCode brig uid cid scopes redirectUrl
+      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+      rt <- oatRefreshToken <$> createOAuthAccessToken brig accessTokenRequest
+      rid <- extractRefreshTokenId jwk rt
+      tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
+      liftIO $ assertBool testMsg $ [rid2, rid] ??=?? (oriId <$> tokens)
+      pure rid
+    delayOneSec
+    do
+      let testMsg = "2 active refresh tokens - 4th token requests replaces the 2nd one"
+      code <- generateOAuthAuthCode brig uid cid scopes redirectUrl
+      let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+      rt <- oatRefreshToken <$> createOAuthAccessToken brig accessTokenRequest
+      rid <- extractRefreshTokenId jwk rt
+      tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
+      liftIO $ assertBool testMsg $ [rid3, rid] ??=?? (oriId <$> tokens)
+  where
+    extractRefreshTokenId :: MonadIO m => JWK -> OAuthRefreshToken -> m OAuthRefreshTokenId
+    extractRefreshTokenId jwk rt = do
+      fromMaybe (error "invalid sub") . hcsSub <$> liftIO (verifyRefreshToken jwk (unOAuthToken rt))
+
+    (??=??) :: (Eq a) => [a] -> [a] -> Bool
+    (??=??) x y = null (x \\ y) && null (y \\ x)
+
+    verifyRefreshToken :: JWK -> SignedJWT -> IO ClaimsSet
+    verifyRefreshToken jwk jwt =
+      fromRight (error "invalid jwt or jwk")
+        <$> runJOSE (verifyClaims (defaultJWTValidationSettings (const True)) jwk jwt :: JOSE JWTError IO ClaimsSet)
+
 -------------------------------------------------------------------------------
 -- Util
 
@@ -398,11 +471,15 @@ generateOAuthClientAndAuthCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCall
 generateOAuthClientAndAuthCode brig uid scope url = do
   let newOAuthClient = NewOAuthClient (OAuthApplicationName (unsafeRange "E Corp")) url
   OAuthClientCredentials cid secret <- registerNewOAuthClient brig newOAuthClient
+  (cid,secret,) <$> generateOAuthAuthCode brig uid cid scope url
+
+generateOAuthAuthCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthClientId -> OAuthScopes -> RedirectUrl -> m OAuthAuthCode
+generateOAuthAuthCode brig uid cid scope url = do
   let state = "foobar"
   response <-
     createOAuthCode brig uid (NewOAuthAuthCode cid scope OAuthResponseTypeCode url state) <!! do
       const 302 === statusCode
-  maybe (error "generating code failed") (pure . (,,) cid secret) $ (getHeader "Location" >=> fromByteString >=> getQueryParamValue "code" >=> fromByteString) response
+  pure $ fromMaybe (error "oauth auth code generation failed") $ (getHeader "Location" >=> fromByteString >=> getQueryParamValue "code" >=> fromByteString) response
   where
     getQueryParams :: RedirectUrl -> [(ByteString, ByteString)]
     getQueryParams (RedirectUrl uri) = uri ^. (queryL . queryPairsL)

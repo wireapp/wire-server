@@ -607,6 +607,15 @@ This options determines whether development versions should be enabled. If set t
 
 ### OAuth
 
+En-/Disable OAuth as follows (if not set the default is disabled):
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthEnabled: [true|false]
+```
+
 #### JWK
 
 Optionally, configure the JWK to sign and verify OAuth access tokens for local testing as follows:
@@ -631,13 +640,15 @@ optSettings:
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
 ```
 
-En-/Disable OAuth as follows (if not set the default is disabled):
+#### Max number of active refresh tokens
+
+The maximum number of active OAuth refresh tokens a user is allowed to have can be configured as follows:
 
 ```yaml
 # [brig.yaml]
 optSettings:
   # ...
-  setOAuthEnabled: [true|false]
+  setOAuthMaxActiveRefreshTokens: 20
 ```
 
 #### Disabling API versions

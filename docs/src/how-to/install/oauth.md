@@ -56,3 +56,17 @@ brig:
       setOAuthAccessTokenExpirationTimeSecs: 300 # 5 minutes
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
 ```
+
+### Maximum number of active refresh tokens
+
+The maximum number of active OAuth refresh tokens a user is allowed to have can be configured as follows:
+
+```yaml
+brig:
+  # ...
+  config:
+    # ...
+    optSettings:
+      # ...
+      setOAuthMaxActiveRefreshTokens: 20
+```

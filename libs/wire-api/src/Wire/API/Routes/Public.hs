@@ -314,7 +314,7 @@ checkZAuthOrOAuth oauthScope mJwk req = maybe tryOAuth (pure . Right) tryZUserAu
       pure $
         verifiedOrError >>= \claimSet ->
           if hasScope oauthScope claimSet
-            then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (csUserId claimSet)
+            then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (hcsSub claimSet)
             else Left insufficientScope
 
 instance (HasServer api context, HasContextEntry context (Maybe JWK), IsOAuthScope scope) => HasServer (ZUserOrOAuth scope :> api) context where

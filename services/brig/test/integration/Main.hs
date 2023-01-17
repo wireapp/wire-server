@@ -158,8 +158,7 @@ runTests iConf brigOpts otherArgs = do
   let smtp = SMTP.tests mg lg
       versionApi = API.Version.tests mg brigOpts b
       mlsApi = MLS.tests mg b brigOpts
-
-  let oauthAPI = API.OAuth.tests mg b n brigOpts
+      oauthAPI = API.OAuth.tests mg db b n brigOpts
 
   withArgs otherArgs . defaultMain
     $ testGroup

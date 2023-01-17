@@ -387,8 +387,8 @@ instance A.ToJSON OAuthsClaimSet where
       ins k v (A.Object o) = A.Object $ M.insert k (A.toJSON v) o
       ins _ _ a = a
 
-csUserId :: OAuthsClaimSet -> Maybe UserId
-csUserId =
+hcsSub :: HasClaimsSet hcs => hcs -> Maybe (Id a)
+hcsSub =
   view claimSub
     >=> preview string
     >=> either (const Nothing) pure . parseIdFromText

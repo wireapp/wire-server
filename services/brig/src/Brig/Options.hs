@@ -620,7 +620,10 @@ data Settings = Settings
     setOAuthEnabledInternal :: !(Maybe Bool),
     -- | The expiration time of an OAuth refresh token in seconds.
     -- use `setOAuthRefreshTokenExpirationTimeSecs` as the getter function which always provides a default value
-    setOAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64)
+    setOAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- | The maximum number of active OAuth refresh tokens a user is allowed to have.
+    -- use `setOAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
+    setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
   }
   deriving (Show, Generic)
 
@@ -689,6 +692,12 @@ defaultOAuthRefreshTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 4 * 6 -- 24 week
 
 setOAuthRefreshTokenExpirationTimeSecs :: Settings -> Word64
 setOAuthRefreshTokenExpirationTimeSecs = fromMaybe defaultOAuthRefreshTokenExpirationTimeSecs . setOAuthRefreshTokenExpirationTimeSecsInternal
+
+defaultOAuthMaxActiveRefreshTokens :: Word32
+defaultOAuthMaxActiveRefreshTokens = 10
+
+setOAuthMaxActiveRefreshTokens :: Settings -> Word32
+setOAuthMaxActiveRefreshTokens = fromMaybe defaultOAuthMaxActiveRefreshTokens . setOAuthMaxActiveRefreshTokensInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -877,6 +886,7 @@ instance FromJSON Settings where
               "setOAuthAccessTokenExpirationTimeSecsInternal" -> "setOAuthAccessTokenExpirationTimeSecs"
               "setOAuthEnabledInternal" -> "setOAuthEnabled"
               "setOAuthRefreshTokenExpirationTimeSecsInternal" -> "setOAuthRefreshTokenExpirationTimeSecs"
+              "setOAuthMaxActiveRefreshTokensInternal" -> "setOAuthMaxActiveRefreshTokens"
               other -> other
           }
 
@@ -909,7 +919,8 @@ Lens.makeLensesFor
     ("setOAuthAuthCodeExpirationTimeSecsInternal", "oauthAuthCodeExpirationTimeSecsInternal"),
     ("setOAuthAccessTokenExpirationTimeSecsInternal", "oauthAccessTokenExpirationTimeSecsInternal"),
     ("setDisabledAPIVersions", "disabledAPIVersions"),
-    ("setOAuthRefreshTokenExpirationTimeSecsInternal", "oauthRefreshTokenExpirationTimeSecsInternal")
+    ("setOAuthRefreshTokenExpirationTimeSecsInternal", "oauthRefreshTokenExpirationTimeSecsInternal"),
+    ("setOAuthMaxActiveRefreshTokensInternal", "oauthMaxActiveRefreshTokensInternal")
   ]
   ''Settings
 
