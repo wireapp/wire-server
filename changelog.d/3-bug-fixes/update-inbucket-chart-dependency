@@ -1,0 +1,1 @@
+Update `inbucket` (fake smtp server) chart dependency: The prior version relied on an image that has been removed from docker hub. Thus, our own `inbucket` chart could not be deployed anymore.
