@@ -64,7 +64,11 @@ data Version = V0 | V1 | V2 | V3
 instance ToSchema Version where
   schema =
     enum @Integer "Version" . mconcat $
-      (\v -> element (fromIntegral $ fromEnum v) v) <$> [minBound @Version ..]
+      [ element 0 V0,
+        element 1 V1,
+        element 2 V2,
+        element 3 V3
+      ]
 
 mkVersion :: Integer -> Maybe Version
 mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of

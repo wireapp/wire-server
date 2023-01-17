@@ -14,7 +14,7 @@ detailed in the sections below:
 
 -   Choose a backend domain name
 
--   DNS setup for federation (including a `SRV` record)
+-   DNS setup for federation (including an `SRV` record)
 
 -   Generate and configure TLS certificates:
 
@@ -31,7 +31,7 @@ detailed in the sections below:
 ## Choose a Backend Domain
 
 As of the release \[helm chart 0.129.0, Wire docker version 2.94.0\] from
-2020-12-15, the `federationDomain` is a mandatory configuration setting, which
+2020-12-15, `federationDomain` is a mandatory configuration setting, which
 defines the {ref}`backend domain <glossary_backend_domain>` of your
 installation. Regardless of whether you want to enable federation for a backend
 or not, you must decide what its domain is going to be. This helps in keeping
@@ -118,7 +118,7 @@ The fields of the SRV record need to be populated as follows
 -   `weight`: \>0 for your server to be reachable. A good default value
     could be 10
 -   `port`: `443`
--   `target`: the infra domain
+-   `target`: the infrastructure domain
 
 To give an example, assuming
 
@@ -237,7 +237,7 @@ trust when interacting with other backends.
 ### (B) Manual server and client certificates
 
 Use your usual method of obtaining X.509 certificates for your {ref}`federation
-infra domain <glossary_infra_domain>` (alongside the other domains needed for a
+infrastructure domain <glossary_infra_domain>` (alongside the other domains needed for a
 wire-server installation).
 
 You can use one single certificate and key for both server and client
@@ -266,7 +266,7 @@ X509v3 extensions:
         TLS Web Server Authentication, TLS Web Client Authentication
 ```
 
-And your {ref}`federation infra domain <glossary_infra_domain>` (e.g.
+And your {ref}`federation infrastructure domain <glossary_infra_domain>` (e.g.
 `federator.wire.example.com` from the running example) needs to either figure
 explictly in the list of your SAN (Subject Alternative Name):
 
@@ -304,7 +304,7 @@ The *server certificate* and *private key* need to be configured in
 just the federator component. If you have installed wire-server before
 without federation, server certificates may already be configured
 *(though you probably need to create new certificates to include the
-federation infra domain if you\'re not making use of wildcard
+federation infrastructure domain if you\'re not making use of wildcard
 certificates)*. Server certificates go here:
 
 ``` yaml
@@ -515,7 +515,7 @@ Ensure that the IP matches where your backend ingress runs.
 
 Refer to {ref}`how-to-see-tls-certs` and set
 DOMAIN to your
-{ref}`federation infra domain <glossary_infra_domain>`. They should include your domain as part of the SAN (Subject
+{ref}`federation infrastructure domain <glossary_infra_domain>`. They should include your domain as part of the SAN (Subject
 Alternative Names) and not have expired.
 
 ### Manually test that federation works 
