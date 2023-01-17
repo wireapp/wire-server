@@ -612,7 +612,7 @@ data Settings = Settings
     -- | The expiration time of an OAuth access token in seconds.
     -- use `setOAuthAccessTokenExpirationTimeSecs` as the getter function which always provides a default value
     setOAuthAccessTokenExpirationTimeSecsInternal :: !(Maybe Word64),
-    -- | The expiration time of an OAuth refresh token in seconds.
+    -- | The expiration time of an OAuth authorization code in seconds.
     -- use `setOAuthAuthCodeExpirationTimeSecs` as the getter function which always provides a default value
     setOAuthAuthCodeExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | En-/Disable OAuth
