@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
-cabalFiles=$(find "$ROOT_DIR" -name '*.cabal' \
+cabalFiles=$(find  -L "$ROOT_DIR" -name '*.cabal' \
                  | grep -v dist-newstyle | sort)
 
 warningFile=$(mktemp)
@@ -21,7 +21,7 @@ echo "$cabalFiles" \
 
 # shellcheck disable=SC2016
 echo "$cabalFiles" \
-    | xargs -I {} bash -c 'cd $(dirname {}); cabal2nix . --no-hpack --extra-arguments gitignoreSource | sed "s/.\/./gitignoreSource .\/./g" >> default.nix; nixpkgs-fmt default.nix &> /dev/null'
+    | xargs -I {} bash -c 'cd $(dirname {}); cabal2nix . --no-hpack --extra-arguments gitignoreSource | sed "s/src = \.\/\./src = gitignoreSource .\/./g" >> default.nix; nixpkgs-fmt default.nix &> /dev/null'
 
 overridesFile="$ROOT_DIR/nix/local-haskell-packages.nix"
 
