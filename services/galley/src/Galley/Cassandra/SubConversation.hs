@@ -39,7 +39,7 @@ import Wire.API.MLS.SubConversation
 selectSubConversation :: ConvId -> SubConvId -> Client (Maybe SubConversation)
 selectSubConversation convId subConvId = do
   m <- retry x5 (query1 Cql.selectSubConversation (params LocalQuorum (convId, subConvId)))
-  for m $ \(suite, epoch, timestamp, groupId) -> do
+  for m $ \(suite, epoch, epochWritetime, groupId) -> do
     cm <- lookupMLSClients groupId
     pure $
       SubConversation
@@ -49,15 +49,15 @@ selectSubConversation convId subConvId = do
             ConversationMLSData
               { cnvmlsGroupId = groupId,
                 cnvmlsEpoch = epoch,
-                cnvmlsEpochTimestamp = epoch `toMaybe` timestamp,
+                cnvmlsEpochTimestamp = epochTimestamp epoch epochWritetime,
                 cnvmlsCipherSuite = suite
               },
           scMembers = cm
         }
   where
-    toMaybe :: Epoch -> Writetime Epoch -> Maybe UTCTime
-    toMaybe (Epoch 0) _ = Nothing
-    toMaybe _ (Writetime t) = Just t
+    epochTimestamp :: Epoch -> Writetime Epoch -> Maybe UTCTime
+    epochTimestamp (Epoch 0) _ = Nothing
+    epochTimestamp _ (Writetime t) = Just t
 
 insertSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Epoch -> GroupId -> Maybe OpaquePublicGroupState -> Client ()
 insertSubConversation convId subConvId suite epoch groupId mPgs =
