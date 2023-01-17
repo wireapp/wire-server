@@ -253,19 +253,8 @@ getConversation conv = do
     toConv conv
       <$> members conv
       <*> UnliftIO.wait remoteMems
-      <*> UnliftIO.wait (convUTCTime <$$> cdata)
+      <*> UnliftIO.wait cdata
   runMaybeT $ conversationGC =<< maybe mzero pure mbConv
-
--- | The 'Cql.selectConv' query returns a @Maybe (Writetime Epoch)@ value, yet a
--- @Maybe UTCTime@ value is needed. This function does the conversion, leaving
--- all the other columns intact.
-convUTCTime ::
-  forall k1 (f1 :: * -> *) a1 b c d e f2 g h i j k2 l m (a2 :: k1) o.
-  Functor f1 =>
-  (a1, b, c, d, e, f2, g, h, i, j, k2, l, m, f1 (Writetime a2), o) ->
-  (a1, b, c, d, e, f2, g, h, i, j, k2, l, m, f1 UTCTime, o)
-convUTCTime (t, u, a, arl, ar, text, tid, b, mil, rm, p, gid, e, wt, cs) =
-  (t, u, a, arl, ar, text, tid, b, mil, rm, p, gid, e, writetimeToUTC <$> wt, cs)
 
 -- | "Garbage collect" a 'Conversation', i.e. if the conversation is
 -- marked as deleted, actually remove it from the database and return
@@ -288,9 +277,8 @@ localConversation cid =
       <$> UnliftIO.Concurrently (members cid)
       <*> UnliftIO.Concurrently (lookupRemoteMembers cid)
       <*> UnliftIO.Concurrently
-        ( fmap convUTCTime
-            <$$> retry x1
-            $ query1 Cql.selectConv (params LocalQuorum (Identity cid))
+        ( retry x1 $
+            query1 Cql.selectConv (params LocalQuorum (Identity cid))
         )
 
 localConversations ::
@@ -379,7 +367,7 @@ toConv ::
       Maybe ProtocolTag,
       Maybe GroupId,
       Maybe Epoch,
-      Maybe UTCTime,
+      Maybe (Writetime Epoch),
       Maybe CipherSuiteTag
     ) ->
   Maybe Conversation
@@ -388,7 +376,7 @@ toConv cid ms remoteMems mconv = do
   uid <- muid
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-  proto <- toProtocol ptag mgid mep mts mcs
+  proto <- toProtocol ptag mgid mep (writetimeToUTC <$> mts) mcs
   pure
     Conversation
       { convId = cid,
