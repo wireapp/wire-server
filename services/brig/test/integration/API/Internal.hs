@@ -384,7 +384,7 @@ testWritetimeRepresentation _ _mgr db brig _brigep _galley = do
 
   wt <- fromJust <$> (runIdentity <$$> Cass.runClient db (C.query1 q2 (C.params C.LocalQuorum (Identity uid))))
 
-  liftIO $ assertEqual "ts representaiton do not match" ref (writetimeToInt64 wt)
+  liftIO $ assertEqual "writetimeToInt64(<fromCql WRITETIME(status)>) does not match WRITETIME(status)" ref (writetimeToInt64 wt)
   where
     q1 :: C.PrepQuery C.R (Identity UserId) (Identity Int64)
     q1 = "SELECT WRITETIME(status) from user where id = ?"
