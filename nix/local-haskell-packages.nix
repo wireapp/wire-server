@@ -25,6 +25,7 @@
   sodium-crypto-sign = hself.callPackage ../libs/sodium-crypto-sign/default.nix { inherit gitignoreSource; };
   ssl-util = hself.callPackage ../libs/ssl-util/default.nix { inherit gitignoreSource; };
   tasty-cannon = hself.callPackage ../libs/tasty-cannon/default.nix { inherit gitignoreSource; };
+  tinylog = hself.callPackage ../libs/tinylog/default.nix { inherit gitignoreSource; };
   types-common-aws = hself.callPackage ../libs/types-common-aws/default.nix { inherit gitignoreSource; };
   types-common-journal = hself.callPackage ../libs/types-common-journal/default.nix { inherit gitignoreSource; };
   types-common = hself.callPackage ../libs/types-common/default.nix { inherit gitignoreSource; };
