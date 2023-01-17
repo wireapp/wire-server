@@ -18,6 +18,7 @@ import Data.Coerce (coerce)
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.Qualified
 import Data.Range
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -27,8 +28,10 @@ import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
+import Servant.API (toHeader)
 import System.Logger (Msg, field, msg, val)
 import Wire.API.Conversation hiding (Member)
+import Wire.API.Routes.Version
 import Wire.API.Team
 import qualified Wire.API.Team.Conversation as Conv
 import Wire.API.Team.Feature
@@ -84,7 +87,7 @@ createSelfConv u = do
   void $ ServiceRPC.request @'Galley POST req
   where
     req =
-      path "/conversations/self"
+      paths ["v" <> toHeader (maxBound :: Version), "conversations", "self"]
         . zUser u
         . expect2xx
 
@@ -97,12 +100,13 @@ getConv ::
      ]
     r =>
   UserId ->
-  ConvId ->
+  Local ConvId ->
   Sem r (Maybe Conversation)
-getConv usr cnv = do
+getConv usr lcnv = do
   debug $
     remote "galley"
-      . field "conv" (toByteString cnv)
+      . field "domain" (toByteString (tDomain lcnv))
+      . field "conv" (toByteString (tUnqualified lcnv))
       . msg (val "Getting conversation")
   rs <- ServiceRPC.request @'Galley GET req
   case Bilge.statusCode rs of
@@ -110,7 +114,12 @@ getConv usr cnv = do
     _ -> pure Nothing
   where
     req =
-      paths ["conversations", toByteString' cnv]
+      paths
+        [ "v" <> toHeader (maxBound :: Version),
+          "conversations",
+          toByteString' (tDomain lcnv),
+          toByteString' (tUnqualified lcnv)
+        ]
         . zUser usr
         . expect [status200, status404]
 
@@ -137,7 +146,13 @@ getTeamConv usr tid cnv = do
     _ -> pure Nothing
   where
     req =
-      paths ["teams", toByteString' tid, "conversations", toByteString' cnv]
+      paths
+        [ "v" <> toHeader (maxBound :: Version),
+          "teams",
+          toByteString' tid,
+          "conversations",
+          toByteString' cnv
+        ]
         . zUser usr
         . expect [status200, status404]
 

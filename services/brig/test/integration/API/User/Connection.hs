@@ -178,11 +178,11 @@ testCreateMutualConnections brig galley = do
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
   case responseJsonMaybe rsp >>= ucConvId of
     Nothing -> liftIO $ assertFailure "incomplete connection"
-    Just (Qualified cnv _) -> do
-      getConversation galley uid1 cnv !!! do
+    Just qcnv -> do
+      getConversationQualified galley uid1 qcnv !!! do
         const 200 === statusCode
         const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
-      getConversation galley uid2 cnv !!! do
+      getConversationQualified galley uid2 qcnv !!! do
         const 200 === statusCode
         const (Just One2OneConv) === fmap cnvType . responseJsonMaybe
 
@@ -304,32 +304,32 @@ testCancelConnection2 brig galley = do
   rsp <- putConnection brig uid1 uid2 Cancelled <!! const 200 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Cancelled]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Cancelled]
-  let Just (Qualified cnv _) = ucConvId =<< responseJsonMaybe rsp
+  let Just qcnv = ucConvId =<< responseJsonMaybe rsp
   -- A cannot see the conversation (due to cancelling)
-  getConversation galley uid1 cnv !!! do
+  getConversationQualified galley uid1 qcnv !!! do
     const 403 === statusCode
   -- B cannot see the conversation
-  getConversation galley uid2 cnv !!! const 403 === statusCode
+  getConversationQualified galley uid2 qcnv !!! const 403 === statusCode
   -- B initiates a connection request himself
   postConnection brig uid2 uid1 !!! const 200 === statusCode
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Sent]
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Pending]
   -- B is now a current member of the connect conversation
-  getConversation galley uid2 cnv !!! do
+  getConversationQualified galley uid2 qcnv !!! do
     const 200 === statusCode
     const (Just ConnectConv) === \rs -> do
       conv <- responseJsonMaybe rs
       Just (cnvType conv)
   -- A is a past member, cannot see the conversation
-  getConversation galley uid1 cnv !!! do
+  getConversationQualified galley uid1 qcnv !!! do
     const 403 === statusCode
   -- A finally accepts
   putConnection brig uid1 uid2 Accepted !!! const 200 === statusCode
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
-  getConversation galley uid1 cnv !!! do
+  getConversationQualified galley uid1 qcnv !!! do
     const 200 === statusCode
-  getConversation galley uid2 cnv !!! do
+  getConversationQualified galley uid2 qcnv !!! do
     const 200 === statusCode
 
 testCancelConnectionQualified2 :: Brig -> Galley -> Http ()
@@ -483,10 +483,10 @@ testBlockAndResendConnection brig galley = do
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Blocked]
   -- B never accepted and thus does not see the conversation
-  let Just (Qualified cnv _) = ucConvId =<< responseJsonMaybe rsp
-  getConversation galley uid2 cnv !!! const 403 === statusCode
+  let Just qcnv = ucConvId =<< responseJsonMaybe rsp
+  getConversationQualified galley uid2 qcnv !!! const 403 === statusCode
   -- A can see the conversation and is a current member
-  getConversation galley uid1 cnv !!! do
+  getConversationQualified galley uid1 qcnv !!! do
     const 200 === statusCode
 
 testBlockAndResendConnectionQualified :: Brig -> Galley -> Http ()
