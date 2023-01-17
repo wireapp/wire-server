@@ -121,7 +121,7 @@ createAccessToken req = do
   (rid, refreshToken) <- mkRefreshToken key
   now <- lift (liftSem Now.get)
   let refreshTokenInfo = OAuthRefreshTokenInfo rid cid uid scope now
-  let refreshTokenExpiration = 6 * 4 * 7 * 24 * 60 * 60 -- todo(leif): make this configurable (24 weeks)
+  refreshTokenExpiration <- Opt.setOAuthRefreshTokenExpirationTimeSecs <$> view settings
   lift $ wrapClient $ insertOAuthRefreshToken refreshTokenExpiration refreshTokenInfo
   pure $ OAuthAccessTokenResponse accessToken OAuthAccessTokenTypeBearer exp refreshToken
   where

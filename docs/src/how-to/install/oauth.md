@@ -41,7 +41,7 @@ Note that the JWK is a sensitive configuration value, so it is recommended to us
 
 Please keep in mind that OAuth is currently under development and may not be available for use yet. Once it is ready, you will be able to use the OAuth functionality by setting up the JWK as described above.
 
-### OAuth authorization code and access token expiration
+### OAuth authorization code, access token, and refresh token expiration
 
 The the OAuth authorization code expiration (default 5 minutes) and access token expiration (default 3 weeks) can be overridden in the Helm file as follows:
 
@@ -53,5 +53,6 @@ brig:
     optSettings:
       # ...
       setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
-      setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
+      setOAuthAccessTokenExpirationTimeSecs: 300 # 5 minutes
+      setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
 ```

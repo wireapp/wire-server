@@ -197,7 +197,7 @@ optSettings:
   setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
   setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
   setOAuthEnabled: true
-
+  setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
 #   produces too many logs, hence this is set to Warn.

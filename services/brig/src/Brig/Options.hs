@@ -617,7 +617,10 @@ data Settings = Settings
     setOAuthAuthCodeExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | En-/Disable OAuth
     -- use `setOAuthEnabled` as the getter function which always provides a default value
-    setOAuthEnabledInternal :: !(Maybe Bool)
+    setOAuthEnabledInternal :: !(Maybe Bool),
+    -- | The expiration time of an OAuth refresh token in seconds.
+    -- use `setOAuthRefreshTokenExpirationTimeSecs` as the getter function which always provides a default value
+    setOAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64)
   }
   deriving (Show, Generic)
 
@@ -681,11 +684,17 @@ defaultOAuthEnabled = False
 setOAuthEnabled :: Settings -> Bool
 setOAuthEnabled = fromMaybe defaultOAuthEnabled . setOAuthEnabledInternal
 
+defaultOAuthRefreshTokenExpirationTimeSecs :: Word64
+defaultOAuthRefreshTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 4 * 6 -- 24 weeks
+
+setOAuthRefreshTokenExpirationTimeSecs :: Settings -> Word64
+setOAuthRefreshTokenExpirationTimeSecs = fromMaybe defaultOAuthRefreshTokenExpirationTimeSecs . setOAuthRefreshTokenExpirationTimeSecsInternal
+
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
 --
 -- FUTUREWORK: it would be nice to have a system of feature configs that allows to coherently
--- express arbitrary logic accross personal and team accounts, teams, and instances; including
+-- express arbitrary logic across personal and team accounts, teams, and instances; including
 -- default values for new records, default for records that have a NULL value (eg., because
 -- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
 -- messages).  For now, we have something quick & simple.
@@ -867,6 +876,7 @@ instance FromJSON Settings where
               "setOAuthAuthCodeExpirationTimeSecsInternal" -> "setOAuthAuthCodeExpirationTimeSecs"
               "setOAuthAccessTokenExpirationTimeSecsInternal" -> "setOAuthAccessTokenExpirationTimeSecs"
               "setOAuthEnabledInternal" -> "setOAuthEnabled"
+              "setOAuthRefreshTokenExpirationTimeSecsInternal" -> "setOAuthRefreshTokenExpirationTimeSecs"
               other -> other
           }
 
@@ -898,7 +908,8 @@ Lens.makeLensesFor
     ("setOAuthEnabledInternal", "oauthEnabledInternal"),
     ("setOAuthAuthCodeExpirationTimeSecsInternal", "oauthAuthCodeExpirationTimeSecsInternal"),
     ("setOAuthAccessTokenExpirationTimeSecsInternal", "oauthAccessTokenExpirationTimeSecsInternal"),
-    ("setDisabledAPIVersions", "disabledAPIVersions")
+    ("setDisabledAPIVersions", "disabledAPIVersions"),
+    ("setOAuthRefreshTokenExpirationTimeSecsInternal", "oauthRefreshTokenExpirationTimeSecsInternal")
   ]
   ''Settings
 

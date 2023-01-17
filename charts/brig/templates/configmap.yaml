@@ -314,5 +314,8 @@ data:
       {{- if .setDisabledAPIVersions }}
       setDisabledAPIVersions: {{ .setDisabledAPIVersions }}
       {{- end }}
+      {{- if .setOAuthRefreshTokenExpirationTimeSecs }}
+      setOAuthRefreshTokenExpirationTimeSecs: {{ .setOAuthRefreshTokenExpirationTimeSecs }}
+      {{- end }}
     {{- end }}
   {{- end }}
