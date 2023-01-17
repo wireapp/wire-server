@@ -1393,7 +1393,23 @@ addMembers qusr con lconvOrSub users = case tUnqualified lconvOrSub of
       . filter (flip Set.notMember (existingMembers lconv))
       . toList
       $ users
-  SubConv _ _ -> pure []
+  SubConv mlsConv subConv -> do
+    -- call `on-new-remote-conversation` on backends that are seeing this
+    -- conversation for the first time
+    let newDomains =
+          Set.difference
+            (Set.fromList (map void (snd (partitionQualified lconvOrSub users))))
+            (Set.fromList (map (void . rmId) (mcRemoteMembers mlsConv)))
+    let nrc =
+          NewRemoteConversation
+            { nrcConvId = mcId mlsConv,
+              nrcSubConvId = Just . scSubConvId $ subConv,
+              nrcProtocol = ProtocolMLS (mcMLSData mlsConv)
+            }
+    runFederatedConcurrently_ (toList newDomains) $ \_ -> do
+      void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+
+    pure []
 
 removeMembers ::
   HasProposalActionEffects r =>
