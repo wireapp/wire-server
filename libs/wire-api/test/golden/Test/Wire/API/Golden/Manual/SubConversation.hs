@@ -24,6 +24,8 @@ where
 import Data.Domain
 import Data.Id
 import Data.Qualified
+import Data.Time.Calendar
+import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.MLS.CipherSuite
@@ -55,8 +57,14 @@ testObject_PublicSubConversation_1 =
     subConvId1
     (GroupId "test_group")
     (Epoch 5)
+    (Just (UTCTime day fromMidnight))
     MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
     []
+  where
+    fromMidnight :: DiffTime
+    fromMidnight = 42
+    day :: Day
+    day = fromGregorian 2023 1 17
 
 testObject_PublicSubConversation_2 :: PublicSubConversation
 testObject_PublicSubConversation_2 =
@@ -65,6 +73,7 @@ testObject_PublicSubConversation_2 =
     subConvId2
     (GroupId "test_group_2")
     (Epoch 0)
+    Nothing
     MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
     [mkClientIdentity user cid]
   where
