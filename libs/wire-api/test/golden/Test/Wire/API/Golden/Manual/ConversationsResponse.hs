@@ -141,4 +141,4 @@ conv2 =
     }
   where
     timestamp :: UTCTime
-    timestamp = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 42)
+    timestamp = UTCTime (fromGregorian 2023 1 17) (secondsToDiffTime 42)

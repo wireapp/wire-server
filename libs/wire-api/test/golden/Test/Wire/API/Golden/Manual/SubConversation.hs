@@ -64,7 +64,7 @@ testObject_PublicSubConversation_1 =
     fromMidnight :: DiffTime
     fromMidnight = 42
     day :: Day
-    day = ModifiedJulianDay 0
+    day = fromGregorian 2023 1 17
 
 testObject_PublicSubConversation_2 :: PublicSubConversation
 testObject_PublicSubConversation_2 =
