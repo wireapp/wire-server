@@ -218,6 +218,22 @@ let
         sha256 = "sha256-yiw6hg3guRWS6CVdrUY8wyIDxoqfGjIVMrEtP+Fys0Y=";
       };
     };
+    # Not tested/relased yet
+    # https://github.com/dylex/invertible/commit/e203c6a729fde87b1f903c3f468f739a085fb446
+    invertible = {
+      src = fetchgit {
+        url = "https://github.com/dylex/invertible.git";
+        rev = "e203c6a729fde87b1f903c3f468f739a085fb446";
+        sha256 = "sha256-G6PX5lpU18oWLkwIityN4Hs0HuwQrq9T51kxbsdpK3M=";
+      };
+    };
+    tinylog = {
+      src = fetchgit {
+        url = "https://gitlab.com/wireapp/forks/tinylog.git";
+        rev = "9609104263e8cd2a631417c1c3ef23e090de0d09";
+        sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
+      };
+    };
   };
   hackagePins = {
     wai-route = {
