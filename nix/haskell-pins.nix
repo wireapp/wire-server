@@ -241,12 +241,12 @@ let
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
     };
     kind-generics = {
-      version = "0.4.1.2";
-      sha256 = "sha256-orDfC5+QXRlAMVaqAhT1Fo7Eh/AnobROWeliZqEAXZU=";
+      version = "0.4.1.4";
+      sha256 = "sha256-vH4YO/2NtaLDn1pyAQYK9vC5dD0bpdk26aH5sA9+UT8=";
     };
     kind-generics-th = {
-      version = "0.2.2.2";
-      sha256 = "sha256-nPuRq19UGVXe4YrITAZcF+U4TUBo5APMT2Nh9NqIkxQ=";
+      version = "0.2.2.3";
+      sha256 = "sha256-LH2Wpo0v+RQSsvVbosuB99ekSzqsqMNjrd+w/B0SOUs=";
     };
     polysemy = {
       version = "1.8.0.0";
