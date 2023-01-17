@@ -465,17 +465,15 @@ createSubConv ::
   SubConvId ->
   MLSTest PublicSubConversation
 createSubConv qcnv creator subId = do
-  sub <-
-    liftTest $
-      responseJsonError
-        =<< getSubConv (ciUser creator) qcnv subId
-          <!! const 200 === statusCode
+  let getSC =
+        liftTest $
+          responseJsonError
+            =<< getSubConv (ciUser creator) qcnv subId
+              <!! const 200 === statusCode
+  sub <- getSC
   resetGroup creator (pscGroupId sub)
   void $ createPendingProposalCommit creator >>= sendAndConsumeCommitBundle
-  liftTest $
-    responseJsonError
-      =<< getSubConv (ciUser creator) qcnv subId
-        <!! const 200 === statusCode
+  getSC
 
 -- | Create a local group only without a conversation. This simulates creating
 -- an MLS conversation on a remote backend.
