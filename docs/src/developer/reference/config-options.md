@@ -629,7 +629,7 @@ optSettings:
 
 #### Expiration time
 
-Optionally, configure the OAuth authorization code, access token, and refresh token expiration time in seconds as follows:
+Optionally, configure the OAuth authorization code, access token, and refresh token expiration time in seconds.  Built-in defaults:
 
 ```yaml
 # [brig.yaml]
