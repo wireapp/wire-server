@@ -45,6 +45,8 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
 import Data.List1
+import qualified Data.Schema as S
+import qualified Data.Swagger as Swagger
 import Imports
 import Wire.API.Notification
 
@@ -57,21 +59,15 @@ data Notification = Notification
     ntfPayload :: !(List1 Object)
   }
   deriving (Eq, Show)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via S.Schema Notification
 
-instance FromJSON Notification where
-  parseJSON = withObject "notification" $ \o ->
-    Notification
-      <$> o .: "id"
-      <*> o .:? "transient" .!= False
-      <*> o .: "payload"
-
-instance ToJSON Notification where
-  toJSON (Notification i t p) =
-    object
-      [ "id" .= i,
-        "transient" .= t,
-        "payload" .= p
-      ]
+instance S.ToSchema Notification where
+  schema =
+    S.object "Notification" $
+      Notification
+        <$> ntfId S..= S.field "id" S.schema
+        <*> ntfTransient S..= (fromMaybe False <$> S.optField "transient" S.schema)
+        <*> ntfPayload S..= S.field "payload" S.schema
 
 --------------------------------------------------------------------------------
 -- NotificationTarget

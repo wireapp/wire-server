@@ -397,9 +397,10 @@ type AuthAPI =
                :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "OK")
            )
 
+-- TODO: Likely, not needed.
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 swaggerDoc :: Swagger
 swaggerDoc =
   toSwagger (Proxy @API)
-    & info . title .~ "Wire-Server API as Swagger 2.0 (internal end-points; incomplete) "
+    & info . title .~ "Wire-Server internal brig API as Swagger 2.0 (internal end-points; incomplete) "

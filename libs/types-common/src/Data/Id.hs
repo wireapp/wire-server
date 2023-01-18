@@ -70,6 +70,7 @@ import qualified Data.Char as Char
 import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.ProtocolBuffers.Internal
+import Data.Proxy
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
@@ -273,12 +274,13 @@ newtype ConnId = ConnId
       NFData,
       Generic
     )
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConnId
 
-instance ToJSON ConnId where
-  toJSON (ConnId c) = A.String (decodeUtf8 c)
+instance ToSchema ConnId where
+  schema = (decodeUtf8 . fromConnId) .= fmap (ConnId . encodeUtf8) (text "ConnId")
 
-instance FromJSON ConnId where
-  parseJSON x = ConnId . encodeUtf8 <$> A.withText "ConnId" pure x
+instance S.ToParamSchema ConnId where
+  toParamSchema _ = S.toParamSchema (Proxy @Text)
 
 instance FromHttpApiData ConnId where
   parseUrlPiece = Right . ConnId . encodeUtf8
@@ -402,4 +404,4 @@ instance ToSchema a => ToSchema (IdObject a) where
   schema =
     object "Id" $
       IdObject
-        <$> fromIdObject .= field "id" schema
+        <$> fromIdObject .= field "id" Data.Schema.schema

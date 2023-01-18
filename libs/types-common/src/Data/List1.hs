@@ -22,9 +22,14 @@
 module Data.List1 where
 
 import Cassandra
+-- import Control.Lens ((.~), (?~))
 import Data.Aeson
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
+-- import Data.Proxy
+import Data.Schema
+import Data.Swagger (ToParamSchema)
+import qualified Data.Swagger as Swagger
 import qualified Data.Vector as V
 import Imports
 import Test.QuickCheck (Arbitrary)
@@ -71,6 +76,20 @@ instance FromJSON a => FromJSON (List1 a) where
     | V.length v >= 1 = List1 . N.fromList <$> parseJSON a
     | otherwise = fail "At least 1 element in list required."
   parseJSON _ = mzero
+
+instance (FromJSON a, ToJSON a, Swagger.ToSchema a, Swagger.ToParamSchema a) => ToSchema (List1 a) where
+  schema = mkSchema nsDoc parseJSON (Just . toJSON)
+    where
+      -- TODO: Add minLength
+      nsDoc :: NamedSwaggerDoc
+      nsDoc = swaggerDoc @[a]
+
+instance ToParamSchema a => Swagger.ToParamSchema (List1 a) where
+  toParamSchema _ =
+    mempty
+      { Swagger._paramSchemaType = Just Swagger.SwaggerArray,
+        Swagger._paramSchemaMinLength = Just 1
+      }
 
 instance (Cql a) => Cql (List1 a) where
   ctype = Tagged (ListColumn (untag (ctype :: Tagged a ColumnType)))

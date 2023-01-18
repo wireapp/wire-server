@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumDecimals #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -67,6 +68,7 @@ import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
+-- for UTCTime
 import Data.Time.Clock
 import Data.Time.Format (formatTime, parseTimeM)
 import qualified Data.Time.Lens as TL
@@ -74,7 +76,6 @@ import Data.Time.Locale.Compat (defaultTimeLocale)
 import Imports
 import Servant
 import Test.QuickCheck (Arbitrary (arbitrary))
--- for UTCTime
 import Test.QuickCheck.Instances ()
 
 append :: A.Pair -> [A.Pair] -> [A.Pair]
@@ -156,6 +157,13 @@ class ToJSONObject a where
 
 instance ToJSONObject A.Object where
   toJSONObject = id
+
+-----------------------------------------------------------------------------
+-- Aeson Object
+
+instance S.ToParamSchema A.Object where
+  toParamSchema _ =
+    mempty & S.type_ ?~ S.SwaggerString
 
 -----------------------------------------------------------------------------
 -- toJSONFieldName
