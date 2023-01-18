@@ -103,12 +103,13 @@ type ConversationAPI =
   Named
     "get-unqualified-conversation"
     ( Summary "Get a conversation by ID"
+        :> Until 'V3
         :> CanThrow 'ConvNotFound
         :> CanThrow 'ConvAccessDenied
         :> ZLocalUser
         :> "conversations"
         :> Capture "cnv" ConvId
-        :> Get '[Servant.JSON] Conversation
+        :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" Conversation)
     )
     :<|> Named
            "get-unqualified-conversation-legalhold-alias"
@@ -121,18 +122,31 @@ type ConversationAPI =
                :> "legalhold"
                :> "conversations"
                :> Capture "cnv" ConvId
-               :> Get '[Servant.JSON] Conversation
+               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" Conversation)
            )
     :<|> Named
-           "get-conversation"
+           "get-conversation@v2"
            ( Summary "Get a conversation by ID"
+               :> Until 'V3
                :> MakesFederatedCall 'Galley "get-conversations"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> ZLocalUser
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
-               :> Get '[Servant.JSON] Conversation
+               :> MultiVerb1 'GET '[JSON] (VersionedRespond 'V2 200 "Conversation" Conversation)
+           )
+    :<|> Named
+           "get-conversation"
+           ( Summary "Get a conversation by ID"
+               :> From 'V3
+               :> MakesFederatedCall 'Galley "get-conversations"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> ZLocalUser
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> Get '[JSON] Conversation
            )
     :<|> Named
            "get-conversation-roles"
