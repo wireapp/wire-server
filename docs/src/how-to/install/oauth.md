@@ -39,7 +39,7 @@ brig:
 
 Note that the JWK is a sensitive configuration value, so it is recommended to use Helm's support for managing secrets instead of including it in a plaintext values.yaml file.
 
-Please keep in mind that OAuth is currently under development and may not be available for use yet. Once it is ready, you will be able to use the OAuth functionality by setting up the JWK as described above.
+[2023-01-16] OAuth is currently under development and may not be available for use yet. Once it is ready, you will be able to use the OAuth functionality by setting up the JWK as described above.
 
 ### OAuth authorization code, access token, and refresh token expiration
 
