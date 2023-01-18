@@ -642,7 +642,7 @@ optSettings:
 
 #### Max number of active refresh tokens
 
-The maximum number of active OAuth refresh tokens a user is allowed to have can be configured as follows:
+The maximum number of active OAuth refresh tokens a user is allowed to have.  Built-in default:
 
 ```yaml
 # [brig.yaml]
