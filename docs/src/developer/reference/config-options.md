@@ -618,7 +618,7 @@ optSettings:
 
 #### JWK
 
-Optionally, configure the JWK to sign and verify OAuth access tokens for local testing as follows:
+Optionally, configure the JSON Web Key to sign and verify OAuth access tokens for local testing as follows:
 
 ```yaml
 # [brig.yaml]
