@@ -47,6 +47,8 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time
+import Distribution.Simple.Utils
+import Distribution.Verbosity
 import Galley.Keys
 import Galley.Options
 import qualified Galley.Options as Opts
@@ -230,6 +232,23 @@ instance HasSettingsOverrides MLSTest where
 
 liftTest :: TestM a -> MLSTest a
 liftTest = MLSTest . lift
+
+forkMLSTest :: MLSTest a -> MLSTest a
+forkMLSTest (MLSTest m) = do
+  s <- State.get
+  let orig = mlsBaseDir s
+      dir = orig </> "sub"
+  liftTest $ do
+    liftIO $ do
+      copyDirectoryRecursive silent orig dir
+      fs <- getDirectoryContentsRecursive dir
+      for_ (fmap ((</>) dir) (filter (isSuffixOf "group.latest") fs)) removeFile
+
+    evalStateT
+      m
+      s
+        { mlsBaseDir = dir
+        }
 
 runMLSTest :: MLSTest a -> TestM a
 runMLSTest (MLSTest m) =
