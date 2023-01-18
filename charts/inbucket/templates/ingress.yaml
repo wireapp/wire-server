@@ -1,4 +1,6 @@
-apiVersion: extensions/v1beta1
+{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
+apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
   name: "inbucket"
@@ -14,6 +16,16 @@ spec:
       http:
         paths:
           - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+                {{- if $apiIsStable }}
+                service:
+                  name: {{ include "inbucket.fullname" . }}
+                  port:
+                    name: http
+                {{- else }}
                 serviceName: {{ include "inbucket.fullname" . }}
                 servicePort: http
+                {{- end }}

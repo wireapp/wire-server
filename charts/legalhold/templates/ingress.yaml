@@ -1,4 +1,6 @@
-apiVersion: extensions/v1beta1
+{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
+apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
   name: hold
@@ -16,6 +18,16 @@ spec:
       http:
         paths:
           - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: "{{ .Release.Name }}-hold"
+                port:
+                  number: 8080
+              {{- else }}
               serviceName: "{{ .Release.Name }}-hold"
               servicePort: 8080
+              {{- end }}
