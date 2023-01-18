@@ -897,7 +897,8 @@ addBot zuid zcon cid add = do
   let pid = addBotProvider add
   let sid = addBotService add
   -- Get the conversation and check preconditions
-  cnv <- lift (liftSem $ GalleyProvider.getConv zuid cid) >>= maybeConvNotFound
+  lcid <- qualifyLocal cid
+  cnv <- lift (liftSem $ GalleyProvider.getConv zuid lcid) >>= maybeConvNotFound
   -- Check that the user is a conversation admin and therefore is allowed to add a bot to this conversation.
   -- Note that this precondition is also checked in the internal galley API,
   -- but by having this check here we prevent any (useless) data to be written to the database
@@ -981,7 +982,8 @@ removeBotH (zusr ::: zcon ::: cid ::: bid) = do
 removeBot :: Members '[GalleyProvider] r => UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
   -- Get the conversation and check preconditions
-  cnv <- lift (liftSem $ GalleyProvider.getConv zusr cid) >>= maybeConvNotFound
+  lcid <- qualifyLocal cid
+  cnv <- lift (liftSem $ GalleyProvider.getConv zusr lcid) >>= maybeConvNotFound
   -- Check that the user is a conversation admin and therefore is allowed to remove a bot from the conversation.
   -- Note that this precondition is also checked in the internal galley API.
   -- However, in case we refine the roles model in the future, this check might not be granular enough.
