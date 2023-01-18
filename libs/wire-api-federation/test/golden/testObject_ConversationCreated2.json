@@ -13,6 +13,7 @@
     "protocol": {
         "cipher_suite": 1,
         "epoch": 3,
+        "epoch_timestamp": "2020-08-29T00:00:00Z",
         "group_id": "Z3JvdXA=",
         "protocol": "mls"
     },

@@ -1553,6 +1553,8 @@ fetchConvOrSub qusr convOrSubId = for convOrSubId $ \case
 incrementEpoch ::
   Members
     '[ ConversationStore,
+       ErrorS 'ConvNotFound,
+       MemberStore,
        SubConversationStore
      ]
     r =>
@@ -1561,9 +1563,11 @@ incrementEpoch ::
 incrementEpoch (Conv c) = do
   let epoch' = succ (cnvmlsEpoch (mcMLSData c))
   setConversationEpoch (mcId c) epoch'
-  pure $ Conv c {mcMLSData = (mcMLSData c) {cnvmlsEpoch = epoch'}}
+  conv <- getConversation (mcId c) >>= noteS @'ConvNotFound
+  fmap Conv (mkMLSConversation conv >>= noteS @'ConvNotFound)
 incrementEpoch (SubConv c s) = do
   let epoch' = succ (cnvmlsEpoch (scMLSData s))
   setSubConversationEpoch (scParentConvId s) (scSubConvId s) epoch'
-  let s' = s {scMLSData = (scMLSData s) {cnvmlsEpoch = epoch'}}
-  pure (SubConv c s')
+  subconv <-
+    getSubConversation (mcId c) (scSubConvId s) >>= noteS @'ConvNotFound
+  pure (SubConv c subconv)

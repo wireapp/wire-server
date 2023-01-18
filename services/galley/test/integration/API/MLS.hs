@@ -2341,10 +2341,22 @@ testCreateSubConv parentIsMLSConv = do
           cnvQualifiedId
             <$> liftTest (postConvQualified (qUnqualified alice) defNewProteusConv >>= responseJsonError)
     let sconv = SubConvId "conference"
-    liftTest $
-      getSubConv (qUnqualified alice) qcnv sconv
-        !!! do
-          const (if parentIsMLSConv then 200 else 404) === statusCode
+    if parentIsMLSConv
+      then do
+        sub <-
+          liftTest $
+            responseJsonError
+              =<< getSubConv (qUnqualified alice) qcnv sconv
+                <!! const 200 === statusCode
+        liftIO $
+          assertEqual
+            "The epoch timestamp is not null"
+            Nothing
+            (pscEpochTimestamp sub)
+      else
+        liftTest $
+          getSubConv (qUnqualified alice) qcnv sconv
+            !!! const 404 === statusCode
 
 testJoinSubConv :: TestM ()
 testJoinSubConv = do
@@ -2370,11 +2382,19 @@ testJoinSubConv = do
       -- bob adds his first client to the subconversation
       void $
         createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
+      subAfter <-
+        liftTest $
+          responseJsonError
+            =<< getSubConv (qUnqualified bob) qcnv subId
+              <!! const 200 === statusCode
       bobRefsAfter <- getClientsFromGroupState bob1 bob
-      liftIO $
+      liftIO $ do
         assertBool
           "Bob's key package has not been updated via the update path"
           (bobRefsBefore /= bobRefsAfter)
+        assertBool
+          "The epoch timestamp is null"
+          (isJust (pscEpochTimestamp subAfter))
 
       -- now alice joins with her own client
       void $
@@ -2487,6 +2507,7 @@ testGetRemoteSubConv isAMember = do
             pscSubConvId = sconv,
             pscGroupId = GroupId "deadbeef",
             pscEpoch = Epoch 0,
+            pscEpochTimestamp = Nothing,
             pscCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
             pscMembers = []
           }

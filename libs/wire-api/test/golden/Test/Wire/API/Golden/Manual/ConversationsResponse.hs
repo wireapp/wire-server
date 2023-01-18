@@ -25,6 +25,8 @@ import Data.Id (Id (Id))
 import Data.Misc
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.Time.Calendar
+import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.Conversation
@@ -128,5 +130,15 @@ conv2 =
                 },
             cmOthers = []
           },
-      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId "test_group") (Epoch 42) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
+      cnvProtocol =
+        ProtocolMLS
+          ( ConversationMLSData
+              (GroupId "test_group")
+              (Epoch 42)
+              (Just timestamp)
+              MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          )
     }
+  where
+    timestamp :: UTCTime
+    timestamp = UTCTime (fromGregorian 2023 1 17) (secondsToDiffTime 42)

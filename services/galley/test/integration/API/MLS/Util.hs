@@ -46,7 +46,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Data.Time.Clock (getCurrentTime)
+import Data.Time
 import Galley.Keys
 import Galley.Options
 import qualified Galley.Options as Opts
@@ -465,17 +465,15 @@ createSubConv ::
   SubConvId ->
   MLSTest PublicSubConversation
 createSubConv qcnv creator subId = do
-  sub <-
-    liftTest $
-      responseJsonError
-        =<< getSubConv (ciUser creator) qcnv subId
-          <!! const 200 === statusCode
+  let getSC =
+        liftTest $
+          responseJsonError
+            =<< getSubConv (ciUser creator) qcnv subId
+              <!! const 200 === statusCode
+  sub <- getSC
   resetGroup creator (pscGroupId sub)
   void $ createPendingProposalCommit creator >>= sendAndConsumeCommitBundle
-  liftTest $
-    responseJsonError
-      =<< getSubConv (ciUser creator) qcnv subId
-        <!! const 200 === statusCode
+  getSC
 
 -- | Create a local group only without a conversation. This simulates creating
 -- an MLS conversation on a remote backend.
@@ -988,6 +986,7 @@ receiveNewRemoteConv conv gid = do
             ( ConversationMLSData
                 gid
                 (Epoch 1)
+                (Just (UTCTime (fromGregorian 2020 8 29) 0))
                 MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
             )
   void $

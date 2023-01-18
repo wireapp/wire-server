@@ -29,10 +29,12 @@ import qualified Data.Aeson as A
 import Data.ByteArray
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Json.Util
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as T
+import Data.Time.Clock
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (toQueryParam))
 import Test.QuickCheck
@@ -77,6 +79,9 @@ data PublicSubConversation = PublicSubConversation
     pscSubConvId :: SubConvId,
     pscGroupId :: GroupId,
     pscEpoch :: Epoch,
+    -- | It is 'Nothing' when the epoch is 0, and otherwise a timestamp when the
+    -- epoch was bumped, i.e., it is a timestamp of the most recent commit.
+    pscEpochTimestamp :: Maybe UTCTime,
     pscCipherSuite :: CipherSuiteTag,
     pscMembers :: [ClientIdentity]
   }
@@ -87,14 +92,19 @@ instance ToSchema PublicSubConversation where
   schema =
     objectWithDocModifier
       "PublicSubConversation"
-      (description ?~ "A MLS subconversation")
+      (description ?~ "An MLS subconversation")
       $ PublicSubConversation
         <$> pscParentConvId .= field "parent_qualified_id" schema
         <*> pscSubConvId .= field "subconv_id" schema
         <*> pscGroupId .= field "group_id" schema
         <*> pscEpoch .= field "epoch" schema
+        <*> pscEpochTimestamp .= field "epoch_timestamp" schemaEpochTimestamp
         <*> pscCipherSuite .= field "cipher_suite" schema
         <*> pscMembers .= field "members" (array schema)
+
+schemaEpochTimestamp :: ValueSchema NamedSwaggerDoc (Maybe UTCTime)
+schemaEpochTimestamp =
+  named "Epoch Timestamp" . nullable . unnamed $ utcTimeSchema
 
 data ConvOrSubTag = ConvTag | SubConvTag
   deriving (Eq, Enum, Bounded)

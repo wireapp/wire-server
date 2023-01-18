@@ -128,6 +128,7 @@ getLocalSubConversation qusr lconv sconv = do
                   ConversationMLSData
                     { cnvmlsGroupId = groupId,
                       cnvmlsEpoch = epoch,
+                      cnvmlsEpochTimestamp = Nothing,
                       cnvmlsCipherSuite = suite
                     },
                 scMembers = mkClientMap []
