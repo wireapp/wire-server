@@ -1,7 +1,7 @@
 {{/* Allow KubeVersion to be overridden. */}}
 {{- define "kubeVersion" -}}
   {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}
-{{- end -
+{{- end -}}
 
 {{/* Get Batch API Version */}}
 {{- define "batch.apiVersion" -}}

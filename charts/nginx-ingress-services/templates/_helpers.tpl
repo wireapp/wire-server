@@ -63,7 +63,7 @@ Returns the Letsencrypt API server URL based on whether testMode is enabled or d
 {{/* Allow KubeVersion to be overridden. */}}
 {{- define "kubeVersion" -}}
   {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}
-{{- end -
+{{- end -}}
 
 {{/* Get Ingress API Version */}}
 {{- define "ingress.apiVersion" -}}
