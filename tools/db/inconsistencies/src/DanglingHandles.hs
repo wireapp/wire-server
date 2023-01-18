@@ -138,8 +138,9 @@ freeHandle l handle = do
     handleDelete = "DELETE FROM user_handle WHERE handle = ?"
 
 checkUser :: Logger -> ClientState -> Handle -> UserId -> Writetime UserId -> Bool -> IO (Maybe HandleInfo)
-checkUser l brig claimedHandle userId handleClaimTime fixClaim = do
+checkUser l brig claimedHandle userId handleClaimTime' fixClaim = do
   maybeDetails <- runClient brig $ getUserDetails userId
+  let handleClaimTime = Writetime . writetimeToUTC $ handleClaimTime'
   case maybeDetails of
     Nothing -> do
       let status = Nothing

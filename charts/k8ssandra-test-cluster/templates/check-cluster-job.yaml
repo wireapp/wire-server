@@ -1,0 +1,19 @@
+# This job fails until the Cassandra created database is reachable. The Helmfile
+# deployment can wait for it. This is used to start wire-server deployments only
+# with a reachable database.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: check-cluster-job
+  namespace: databases
+spec:
+  template:
+    spec:
+      containers:
+      - name: cassandra
+        image: cassandra:3.11
+        command: ["cqlsh", "k8ssandra-cluster-datacenter-1-service"]
+      restartPolicy: OnFailure
+  # Default is 6 retries. 8 is a bit arbitrary, but should be sufficient for
+  # low resource environments (e.g. Wire-in-a-box.)
+  backoffLimit: 8
