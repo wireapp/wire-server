@@ -258,7 +258,7 @@ team tid =
     toTeam (u, n, i, k, d, s, st, b, ss) =
       let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k & teamSplashScreen .~ fromMaybe DefaultIcon ss
           status = if d then PendingDelete else fromMaybe Active s
-       in TeamData t status (writeTimeToUTC <$> st)
+       in TeamData t status (writetimeToUTC <$> st)
 
 teamIdsOf :: UserId -> [TeamId] -> Client [TeamId]
 teamIdsOf usr tids =

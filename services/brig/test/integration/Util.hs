@@ -710,13 +710,6 @@ getTeamMember u tid galley =
           . expect2xx
       )
 
-getConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ConvId -> m ResponseLBS
-getConversation galley usr cnv =
-  get $
-    galley
-      . paths ["conversations", toByteString' cnv]
-      . zAuthAccess usr "conn"
-
 getConversationQualified :: (MonadIO m, MonadHttp m) => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
 getConversationQualified galley usr cnv =
   get $

@@ -144,7 +144,7 @@ testEmptyQuerySortedWithPagination :: TestConstraints m => Brig -> m ()
 testEmptyQuerySortedWithPagination brig = do
   (tid, userId -> ownerId, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 20
   refreshIndex brig
-  let teamUserSearch mPs = executeTeamUserSearchWithMaybeState brig tid ownerId (Just "") Nothing (Just SortByRole) (Just SortOrderAsc) (Just $ unsafeRange 10) mPs
+  let teamUserSearch mPs = executeTeamUserSearchWithMaybeState brig tid ownerId (Just "") Nothing Nothing Nothing (Just $ unsafeRange 10) mPs
   searchResultFirst10 <- teamUserSearch Nothing
   searchResultNext10 <- teamUserSearch (searchPagingState searchResultFirst10)
   searchResultLast1 <- teamUserSearch (searchPagingState searchResultNext10)

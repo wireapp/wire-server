@@ -7,6 +7,7 @@ import Brig.Team.Types (ShowOrHideInvitationUrl (..))
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import Data.Qualified
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
@@ -25,7 +26,7 @@ data GalleyProvider m a where
     GalleyProvider m ()
   GetConv ::
     UserId ->
-    ConvId ->
+    Local ConvId ->
     GalleyProvider m (Maybe Conversation)
   GetTeamConv ::
     UserId ->

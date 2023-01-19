@@ -28,7 +28,9 @@ import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import qualified Brig.Options as Opt
 import Brig.Types.Intra
+import qualified Cassandra as C
 import qualified Cassandra as Cass
+import Cassandra.Util
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
 import Control.Monad.Catch
@@ -77,7 +79,8 @@ tests opts mgr db brig brigep gundeck galley = do
               test mgr "get,get" $ testKpcGetGet brig,
               test mgr "put,put" $ testKpcPutPut brig,
               test mgr "add key package ref" $ testAddKeyPackageRef brig
-            ]
+            ],
+        test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley
       ]
 
 testSuspendUser :: forall m. TestConstraints m => Cass.ClientState -> Brig -> m ()
@@ -370,3 +373,20 @@ getFeatureConfig galley uid = do
 getAllFeatureConfigs :: (MonadIO m, MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
 getAllFeatureConfigs galley uid = do
   get $ galley . paths ["feature-configs"] . zUser uid
+
+testWritetimeRepresentation :: forall m. TestConstraints m => Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Galley -> m ()
+testWritetimeRepresentation _ _mgr db brig _brigep _galley = do
+  quid <- userQualifiedId <$> randomUser brig
+  let uid = qUnqualified quid
+
+  ref <- fromJust <$> (runIdentity <$$> Cass.runClient db (C.query1 q1 (C.params C.LocalQuorum (Identity uid))))
+
+  wt <- fromJust <$> (runIdentity <$$> Cass.runClient db (C.query1 q2 (C.params C.LocalQuorum (Identity uid))))
+
+  liftIO $ assertEqual "writetimeToInt64(<fromCql WRITETIME(status)>) does not match WRITETIME(status)" ref (writetimeToInt64 wt)
+  where
+    q1 :: C.PrepQuery C.R (Identity UserId) (Identity Int64)
+    q1 = "SELECT WRITETIME(status) from user where id = ?"
+
+    q2 :: C.PrepQuery C.R (Identity UserId) (Identity (Writetime ()))
+    q2 = "SELECT WRITETIME(status) from user where id = ?"
