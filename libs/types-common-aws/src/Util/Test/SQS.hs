@@ -189,7 +189,7 @@ waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
         case filter predicate events of
           [] -> (events, Nothing)
           (x : _) -> (delete x events, Just x)
-      maybe poll pure matched
+      maybe (threadDelay 1000 >> poll) pure matched
 
 assertMessage :: (Show a, MonadUnliftIO m, Eq a, HasCallStack) => SQSWatcher a -> String -> (a -> Bool) -> (String -> Maybe a -> m ()) -> m ()
 assertMessage watcher label predicate callback = do
