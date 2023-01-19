@@ -27,10 +27,9 @@ import Data.Aeson
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
 -- import Data.Proxy
-import Data.Schema
+import Data.Schema as S
 import Data.Swagger (ToParamSchema)
 import qualified Data.Swagger as Swagger
-import qualified Data.Vector as V
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Test.QuickCheck.Instances ()
@@ -40,6 +39,7 @@ newtype List1 a = List1
   }
   deriving stock (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
   deriving newtype (Applicative, Monad, Semigroup, Arbitrary)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via S.Schema (List1 a)
 
 infixr 5 <|
 
@@ -67,22 +67,10 @@ head :: List1 a -> a
 head = N.head . toNonEmpty
 {-# INLINE head #-}
 
-instance ToJSON a => ToJSON (List1 a) where
-  toJSON = toJSON . toList
-  toEncoding = toEncoding . toList
-
-instance FromJSON a => FromJSON (List1 a) where
-  parseJSON a@(Array v)
-    | V.length v >= 1 = List1 . N.fromList <$> parseJSON a
-    | otherwise = fail "At least 1 element in list required."
-  parseJSON _ = mzero
-
-instance (FromJSON a, ToJSON a, Swagger.ToSchema a, Swagger.ToParamSchema a) => ToSchema (List1 a) where
-  schema = mkSchema nsDoc parseJSON (Just . toJSON)
-    where
-      -- TODO: Add minLength
-      nsDoc :: NamedSwaggerDoc
-      nsDoc = swaggerDoc @[a]
+instance ToSchema a => ToSchema (List1 a) where
+  schema =
+    named "List1" $
+      toNonEmpty S..= fmap List1 (nonEmptyArray S.schema)
 
 instance ToParamSchema a => Swagger.ToParamSchema (List1 a) where
   toParamSchema _ =

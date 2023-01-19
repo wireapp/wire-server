@@ -165,6 +165,11 @@ instance S.ToParamSchema A.Object where
   toParamSchema _ =
     mempty & S.type_ ?~ S.SwaggerString
 
+instance ToSchema A.Object where
+  schema =
+    named "Object" $
+      id .= jsonObject
+
 -----------------------------------------------------------------------------
 -- toJSONFieldName
 
