@@ -67,7 +67,7 @@ instance S.ToSchema Notification where
       Notification
         <$> ntfId S..= S.field "id" S.schema
         <*> ntfTransient S..= (fromMaybe False <$> S.optField "transient" S.schema)
-        <*> ntfPayload S..= S.field "payload" S.schema
+        <*> (toNonEmpty . ntfPayload) S..= fmap List1 (S.field "payload" (S.nonEmptyArray S.jsonObject))
 
 --------------------------------------------------------------------------------
 -- NotificationTarget
