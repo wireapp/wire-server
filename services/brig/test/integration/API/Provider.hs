@@ -53,6 +53,7 @@ import Data.PEM
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Streaming.Network (bindRandomPortTCP)
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -64,8 +65,8 @@ import qualified Data.ZAuth.Token as ZAuth
 import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Socket
+import qualified Network.Socket as Socket
 import Network.Wai (Application, responseLBS, strictRequestBody)
-import qualified Network.Wai.Handler.Warp as Warn
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
@@ -635,8 +636,7 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
 
 testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
-testBadFingerprint config db brig galley _cannon = do
-  (sPort, sock) <- liftIO $ Warn.openFreePort
+testBadFingerprint config db brig galley _cannon = withFreePortAnyAddr $ \(sPort, sock) -> do
   -- Generate a random key and register a service using that key
   sref <- withSystemTempFile "wire-provider.key" $ \fp h -> do
     ServiceKeyPEM key <- randServiceKey
@@ -1698,6 +1698,12 @@ waitFor t f ma = do
           liftIO $ threadDelay (1 # Second)
           waitFor (t - 1 # Second) f ma
 
+withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
+withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
+
+openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
+openFreePortAnyAddr = liftIO $ bindRandomPortTCP "*"
+
 -- | Run a test case with an external service application.
 withTestService ::
   Config ->
@@ -1706,8 +1712,7 @@ withTestService ::
   (Chan e -> Application) ->
   (ServiceRef -> Chan e -> Http a) ->
   Http a
-withTestService config db brig mkApp go = do
-  (sPort, sock) <- liftIO $ Warn.openFreePort
+withTestService config db brig mkApp go = withFreePortAnyAddr $ \(sPort, sock) -> do
   sref <- registerService config sPort db brig
   runService config sPort sock mkApp (go sref)
 
