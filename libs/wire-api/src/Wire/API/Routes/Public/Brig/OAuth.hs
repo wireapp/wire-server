@@ -48,8 +48,8 @@ type OAuthAPI =
     :<|> Named
            "create-oauth-auth-code"
            ( Summary ""
-               :> CanThrow 'UnsupportedResponseType
-               :> CanThrow 'RedirectUrlMissMatch
+               :> CanThrow 'OAuthUnsupportedResponseType
+               :> CanThrow 'OAuthRedirectUrlMissMatch
                :> CanThrow 'OAuthClientNotFound
                :> CanThrow 'OAuthFeatureDisabled
                :> ZUser
@@ -66,12 +66,23 @@ type OAuthAPI =
     :<|> Named
            "create-oauth-access-token"
            ( Summary "Create an OAuth access token"
-               :> CanThrow 'JwtError
+               :> CanThrow 'OAuthJwtError
                :> CanThrow 'OAuthAuthCodeNotFound
                :> CanThrow 'OAuthClientNotFound
                :> CanThrow 'OAuthFeatureDisabled
                :> "oauth"
                :> "token"
                :> ReqBody '[FormUrlEncoded] OAuthAccessTokenRequest
+               :> Post '[JSON] OAuthAccessTokenResponse
+           )
+    :<|> Named
+           "create-oauth-access-token-with-refresh-token"
+           ( Summary "Create a new OAuth access token using a refresh token"
+               :> CanThrow 'OAuthJwtError
+               :> CanThrow 'OAuthClientNotFound
+               :> CanThrow 'OAuthFeatureDisabled
+               :> "oauth"
+               :> "token"
+               :> ReqBody '[FormUrlEncoded] OAuthRefreshAccessTokenRequest
                :> Post '[JSON] OAuthAccessTokenResponse
            )

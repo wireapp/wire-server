@@ -238,7 +238,7 @@ instance FromHttpApiData OAuthAuthCode where
 instance ToHttpApiData OAuthAuthCode where
   toQueryParam = toText . unOAuthAuthCode
 
-data OAuthGrantType = OAuthGrantTypeAuthorizationCode
+data OAuthGrantType = OAuthGrantTypeAuthorizationCode | OAuthGrantTypeRefreshToken
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthGrantType)
 
@@ -246,7 +246,8 @@ instance ToSchema OAuthGrantType where
   schema =
     enum @Text "OAuthGrantType" $
       mconcat
-        [ element "authorization_code" OAuthGrantTypeAuthorizationCode
+        [ element "authorization_code" OAuthGrantTypeAuthorizationCode,
+          element "refresh_token" OAuthGrantTypeRefreshToken
         ]
 
 instance FromByteString OAuthGrantType where
@@ -254,11 +255,13 @@ instance FromByteString OAuthGrantType where
     s <- parser
     case s & T.toLower of
       "authorization_code" -> pure OAuthGrantTypeAuthorizationCode
+      "refresh_token" -> pure OAuthGrantTypeRefreshToken
       _ -> fail "invalid OAuthGrantType"
 
 instance ToByteString OAuthGrantType where
   builder = \case
     OAuthGrantTypeAuthorizationCode -> "authorization_code"
+    OAuthGrantTypeRefreshToken -> "refresh_token"
 
 instance FromHttpApiData OAuthGrantType where
   parseQueryParam = maybe (Left "invalid OAuthGrantType") pure . fromByteString . cs
@@ -368,19 +371,19 @@ instance ToSchema OAuthAccessTokenResponse where
       roundDiffTime :: NominalDiffTime -> Int32
       roundDiffTime = round
 
-data OAuthsClaimSet = OAuthsClaimSet {jwtClaims :: ClaimsSet, scope :: OAuthScopes}
+data OAuthClaimsSet = OAuthClaimsSet {jwtClaims :: ClaimsSet, scope :: OAuthScopes}
   deriving (Eq, Show, Generic)
 
-instance HasClaimsSet OAuthsClaimSet where
+instance HasClaimsSet OAuthClaimsSet where
   claimsSet f s = fmap (\a' -> s {jwtClaims = a'}) (f (jwtClaims s))
 
-instance A.FromJSON OAuthsClaimSet where
-  parseJSON = A.withObject "OAuthsClaimSet" $ \o ->
-    OAuthsClaimSet
+instance A.FromJSON OAuthClaimsSet where
+  parseJSON = A.withObject "OAuthClaimsSet" $ \o ->
+    OAuthClaimsSet
       <$> A.parseJSON (A.Object o)
       <*> o A..: "scope"
 
-instance A.ToJSON OAuthsClaimSet where
+instance A.ToJSON OAuthClaimsSet where
   toJSON s =
     ins "scope" (scope s) (A.toJSON (jwtClaims s))
     where
@@ -393,13 +396,20 @@ hcsSub =
     >=> preview string
     >=> either (const Nothing) pure . parseIdFromText
 
-hasScope :: OAuthScope -> OAuthsClaimSet -> Bool
+hasScope :: OAuthScope -> OAuthClaimsSet -> Bool
 hasScope s claims = s `Set.member` unOAuthScopes (scope claims)
 
-verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthsClaimSet)
-verify k jwt = runJOSE $ do
+-- | Verify a JWT and return the claims set. Use this function if you have a custom claims set.
+verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimsSet)
+verify key token = do
   let audCheck = const True
-  verifyJWT (defaultJWTValidationSettings audCheck) k jwt
+  runJOSE $ verifyJWT (defaultJWTValidationSettings audCheck) key token
+
+-- | Verify a JWT and return the claims set. Use this if you are using the default claims set.
+verify' :: JWK -> SignedJWT -> IO (Either JWTError ClaimsSet)
+verify' key token = do
+  let audCheck = const True
+  runJOSE (verifyClaims (defaultJWTValidationSettings audCheck) key token)
 
 data OAuthRefreshTokenInfo = OAuthRefreshTokenInfo
   { oriId :: OAuthRefreshTokenId,
@@ -410,31 +420,73 @@ data OAuthRefreshTokenInfo = OAuthRefreshTokenInfo
   }
   deriving (Eq, Show, Generic)
 
+data OAuthRefreshAccessTokenRequest = OAuthRefreshAccessTokenRequest
+  { oartGrantType :: OAuthGrantType,
+    oartClientId :: OAuthClientId,
+    oartClientSecret :: OAuthClientPlainTextSecret,
+    oartRefreshToken :: OAuthRefreshToken
+  }
+  deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthRefreshAccessTokenRequest)
+
+instance ToSchema OAuthRefreshAccessTokenRequest where
+  schema =
+    object "OAuthRefreshAccessTokenRequest" $
+      OAuthRefreshAccessTokenRequest
+        <$> oartGrantType .= field "grant_type" schema
+        <*> oartClientId .= field "client_id" schema
+        <*> oartClientSecret .= field "client_secret" schema
+        <*> oartRefreshToken .= field "refresh_token" schema
+
+instance FromForm OAuthRefreshAccessTokenRequest where
+  fromForm :: Form -> Either Text OAuthRefreshAccessTokenRequest
+  fromForm f =
+    OAuthRefreshAccessTokenRequest
+      <$> parseUnique "grant_type" f
+      <*> parseUnique "client_id" f
+      <*> parseUnique "client_secret" f
+      <*> parseUnique "refresh_token" f
+
+instance ToForm OAuthRefreshAccessTokenRequest where
+  toForm req =
+    Form $
+      mempty
+        & HM.insert "grant_type" [toQueryParam (oartGrantType req)]
+        & HM.insert "client_id" [toQueryParam (oartClientId req)]
+        & HM.insert "client_secret" [toQueryParam (oartClientSecret req)]
+        & HM.insert "refresh_token" [toQueryParam (oartRefreshToken req)]
+
 --------------------------------------------------------------------------------
 -- Errors
 
 data OAuthError
   = OAuthClientNotFound
-  | RedirectUrlMissMatch
-  | UnsupportedResponseType
-  | JwtError
+  | OAuthRedirectUrlMissMatch
+  | OAuthUnsupportedResponseType
+  | OAuthJwtError
   | OAuthAuthCodeNotFound
   | OAuthFeatureDisabled
-  | InvalidClientCredentials
+  | OAuthInvalidClientCredentials
+  | OAuthInvalidGrantType
+  | OAuthInvalidRefreshToken
 
 type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
 
-type instance MapError 'RedirectUrlMissMatch = 'StaticError 400 "redirect-url-miss-match" "Redirect URL miss match"
+type instance MapError 'OAuthRedirectUrlMissMatch = 'StaticError 400 "redirect-url-miss-match" "Redirect URL miss match"
 
-type instance MapError 'UnsupportedResponseType = 'StaticError 400 "unsupported-response-type" "Unsupported response type"
+type instance MapError 'OAuthUnsupportedResponseType = 'StaticError 400 "unsupported-response-type" "Unsupported response type"
 
-type instance MapError 'JwtError = 'StaticError 500 "jwt-error" "Internal error while handling JWT token"
+type instance MapError 'OAuthJwtError = 'StaticError 500 "jwt-error" "Internal error while handling JWT token"
 
 type instance MapError 'OAuthAuthCodeNotFound = 'StaticError 404 "not-found" "OAuth authorization code not found"
 
 type instance MapError 'OAuthFeatureDisabled = 'StaticError 403 "forbidden" "OAuth is disabled"
 
-type instance MapError 'InvalidClientCredentials = 'StaticError 403 "forbidden" "Invalid client credentials"
+type instance MapError 'OAuthInvalidClientCredentials = 'StaticError 403 "forbidden" "Invalid client credentials"
+
+type instance MapError 'OAuthInvalidGrantType = 'StaticError 403 "forbidden" "Invalid grant type"
+
+type instance MapError 'OAuthInvalidRefreshToken = 'StaticError 403 "forbidden" "Invalid refresh token"
 
 --------------------------------------------------------------------------------
 -- CQL instances

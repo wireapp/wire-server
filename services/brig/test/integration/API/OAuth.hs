@@ -30,7 +30,7 @@ import Control.Monad.Catch (MonadCatch)
 import Crypto.JOSE (JOSE, JWK, bestJWSAlg, newJWSHeader, runJOSE)
 import Crypto.JWT (Audience (Audience), ClaimsSet, JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, defaultJWTValidationSettings, signJWT, stringOrUri, verifyClaims)
 import qualified Data.Aeson as A
-import Data.ByteString.Conversion (fromByteString, fromByteString', toByteString')
+import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Domain (domainText)
 import Data.Id
 import Data.Range (unsafeRange)
@@ -72,7 +72,8 @@ tests m db b n o = do
           test m "wrong client secret fail" $ testCreateAccessTokenWrongClientSecret b,
           test m "wrong code fail" $ testCreateAccessTokenWrongAuthCode b,
           test m "wrong redirect url fail" $ testCreateAccessTokenWrongUrl b,
-          test m "expired code fail" $ testCreateAccessTokenExpiredCode o b
+          test m "expired code fail" $ testCreateAccessTokenExpiredCode o b,
+          test m "wrong grant type fail" $ testCreateAccessTokenWrongGrantType b
         ],
       testGroup
         "access denied when disabled"
@@ -135,7 +136,7 @@ testCreateOAuthCodeRedirectUrlMismatch :: Brig -> Http ()
 testCreateOAuthCodeRedirectUrlMismatch brig = do
   cid <- occClientId <$> registerNewOAuthClient brig (newOAuthClientRequestBody "E Corp" "https://example.com")
   uid <- randomId
-  let differentUrl = fromMaybe (error "invalid url") $ fromByteString' "https://wire.com"
+  let differentUrl = mkUrl "https://wire.com"
   createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode differentUrl "") !!! do
     const 400 === statusCode
     const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
@@ -144,7 +145,7 @@ testCreateOAuthCodeClientNotFound :: Brig -> Http ()
 testCreateOAuthCodeClientNotFound brig = do
   cid <- randomId
   uid <- randomId
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let redirectUrl = mkUrl "https://example.com"
   createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode redirectUrl "") !!! do
     const 404 === statusCode
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
@@ -153,7 +154,7 @@ testCreateAccessTokenSuccess :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenSuccess opts brig = do
   now <- liftIO getCurrentTime
   uid <- userId <$> createUser "alice" brig
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [SelfRead]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
@@ -182,7 +183,7 @@ testCreateAccessTokenSuccess opts brig = do
 testCreateAccessTokenWrongClientId :: Brig -> Http ()
 testCreateAccessTokenWrongClientId brig = do
   uid <- randomId
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
   (_, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   cid <- randomId
@@ -194,7 +195,7 @@ testCreateAccessTokenWrongClientId brig = do
 testCreateAccessTokenWrongClientSecret :: Brig -> Http ()
 testCreateAccessTokenWrongClientSecret brig = do
   uid <- randomId
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
   (cid, _, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let secret = OAuthClientPlainTextSecret $ encodeBase16 "ee2316e304f5c318e4607d86748018eb9c66dc4f391c31bcccd9291d24b4c7e"
@@ -206,7 +207,7 @@ testCreateAccessTokenWrongClientSecret brig = do
 testCreateAccessTokenWrongAuthCode :: Brig -> Http ()
 testCreateAccessTokenWrongAuthCode brig = do
   uid <- randomId
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
   (cid, secret, _) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let code = OAuthAuthCode $ encodeBase16 "eb32eb9e2aa36c081c89067dddf81bce83c1c57e0b74cfb14c9f026f145f2b1f"
@@ -218,10 +219,10 @@ testCreateAccessTokenWrongAuthCode brig = do
 testCreateAccessTokenWrongUrl :: Brig -> Http ()
 testCreateAccessTokenWrongUrl brig = do
   uid <- randomId
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://wire.com"
+  let redirectUrl = mkUrl "https://wire.com"
   let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
-  let wrongUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let wrongUrl = mkUrl "https://example.com"
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code wrongUrl
   createOAuthAccessToken' brig accessTokenRequest !!! do
     const 400 === statusCode
@@ -231,7 +232,7 @@ testCreateAccessTokenExpiredCode :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenExpiredCode opts brig =
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAuthCodeExpirationTimeSecsInternal ?~ 1) $ do
     uid <- randomId
-    let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+    let redirectUrl = mkUrl "https://example.com"
     let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
     (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
     liftIO $ threadDelay (1 * 1200 * 1000)
@@ -239,6 +240,15 @@ testCreateAccessTokenExpiredCode opts brig =
     createOAuthAccessToken' brig accessTokenRequest !!! do
       const 404 === statusCode
       const (Just "not-found") === fmap Error.label . responseJsonMaybe
+
+testCreateAccessTokenWrongGrantType :: Brig -> Http ()
+testCreateAccessTokenWrongGrantType brig = do
+  uid <- randomId
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeRefreshToken cid secret code redirectUrl
+  createOAuthAccessToken' brig accessTokenRequest !!! assertAccessDenied
 
 testGetOAuthClientInfoAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testGetOAuthClientInfoAccessDeniedWhenDisabled opts brig =
@@ -252,7 +262,7 @@ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
     cid <- randomId
     uid <- randomId
-    let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+    let redirectUrl = mkUrl "https://example.com"
     createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode redirectUrl "") !!! assertAccessDenied
 
 testCreateAccessTokenAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
@@ -261,7 +271,7 @@ testCreateAccessTokenAccessDeniedWhenDisabled opts brig =
     cid <- randomId
     let secret = OAuthClientPlainTextSecret $ encodeBase16 "ee2316e304f5c318e4607d86748018eb9c66dc4f391c31bcccd9291d24b4c7e"
     let code = OAuthAuthCode $ encodeBase16 "eb32eb9e2aa36c081c89067dddf81bce83c1c57e0b74cfb14c9f026f145f2b1f"
-    let wrongUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+    let wrongUrl = mkUrl "https://example.com"
     let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code wrongUrl
     createOAuthAccessToken' brig accessTokenRequest !!! assertAccessDenied
 
@@ -279,7 +289,7 @@ assertAccessDenied = do
 testAccessResourceSuccessInternal :: Brig -> Http ()
 testAccessResourceSuccessInternal brig = do
   uid <- userId <$> createUser "alice" brig
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [SelfRead]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
@@ -299,7 +309,7 @@ testAccessResourceSuccessNginz brig nginz = do
   get (nginz . path "/self" . header "Authorization" ("Bearer " <> toByteString' zauthToken)) !!! const 200 === statusCode
 
   -- with Authorization header containing an OAuth bearer token
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [SelfRead]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig (userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
@@ -309,7 +319,7 @@ testAccessResourceSuccessNginz brig nginz = do
 testAccessResourceInsufficientScope :: Brig -> Http ()
 testAccessResourceInsufficientScope brig = do
   uid <- userId <$> createUser "alice" brig
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ConversationCreate]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
@@ -323,7 +333,7 @@ testAccessResourceExpiredToken :: Opt.Opts -> Brig -> Http ()
 testAccessResourceExpiredToken opts brig =
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAccessTokenExpirationTimeSecsInternal ?~ 1) $ do
     uid <- userId <$> createUser "alice" brig
-    let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+    let redirectUrl = mkUrl "https://example.com"
     let scopes = OAuthScopes $ Set.fromList [SelfRead]
     (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
     let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
@@ -350,7 +360,7 @@ testAccessResourceNoToken brig =
 testAccessResourceInvalidSignature :: Opt.Opts -> Brig -> Http ()
 testAccessResourceInvalidSignature opts brig = do
   uid <- userId <$> createUser "alice" brig
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+  let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [SelfRead]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
@@ -368,7 +378,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthMaxActiveRefreshTokensInternal ?~ 2) $ do
     uid <- randomId
     jwk <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
-    let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' "https://example.com"
+    let redirectUrl = mkUrl "https://example.com"
     let scopes = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
     let delayOneSec =
           -- we have to wait ~1 sec before we create the next token, to make sure it is created with a different timestamp
@@ -440,7 +450,7 @@ bearer name = header name . toHeader . Bearer
 
 newOAuthClientRequestBody :: Text -> Text -> NewOAuthClient
 newOAuthClientRequestBody name url =
-  let redirectUrl = fromMaybe (error "invalid url") $ fromByteString' (cs url)
+  let redirectUrl = mkUrl (cs url)
       applicationName = OAuthApplicationName (unsafeRange name)
    in NewOAuthClient applicationName redirectUrl
 
@@ -490,7 +500,7 @@ generateOAuthAuthCode brig uid cid scope url = do
     getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
     getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
 
-signJwtToken :: JWK -> OAuthsClaimSet -> Http SignedJWT
+signJwtToken :: JWK -> OAuthClaimsSet -> Http SignedJWT
 signJwtToken key claims = do
   jwtOrError <- liftIO $ doSignClaims
   either (const $ error "jwt error") pure jwtOrError
@@ -504,6 +514,9 @@ badKey :: JWK
 badKey = do
   fromMaybe (error "invalid jwk") . A.decode $
     [r| {"kty":"OKP","crv":"Ed25519","x":"VWWycQ0yCoKAwN-DjjyQVWMRan1VOFUGlZpSTaLw1OA","d":"kH9sO4hDmRQi31IncBvwiaRB9xo9UHVaSvfV7RWiQOg"} |]
+
+mkUrl :: ByteString -> RedirectUrl
+mkUrl = fromMaybe (error "invalid url") . fromByteString
 
 instance ToHttpApiData a => ToHttpApiData (Bearer a) where
   toHeader = (<>) "Bearer " . toHeader . unBearer

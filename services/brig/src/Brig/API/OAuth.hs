@@ -43,7 +43,7 @@ import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import URI.ByteString
 import Wire.API.Error
-import Wire.API.OAuth
+import Wire.API.OAuth as OAuth
 import Wire.API.Routes.Internal.Brig.OAuth (IOAuthAPI)
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
@@ -64,7 +64,8 @@ oauthAPI :: (Member Now r, Member Jwk r) => ServerT OAuthAPI (Handler r)
 oauthAPI =
   Named @"get-oauth-client" getOAuthClient
     :<|> Named @"create-oauth-auth-code" createNewOAuthAuthCode
-    :<|> Named @"create-oauth-access-token" createAccessToken
+    :<|> Named @"create-oauth-access-token" createAccessTokenWithAuthCode
+    :<|> Named @"create-oauth-access-token-with-refresh-token" createAccessTokenWithRefreshToken
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -91,9 +92,9 @@ getOAuthClient _ cid = do
 createNewOAuthAuthCode :: UserId -> NewOAuthAuthCode -> (Handler r) RedirectUrl
 createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl state) = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
-  unless (responseType == OAuthResponseTypeCode) $ throwStd (errorToWai @'UnsupportedResponseType)
+  unless (responseType == OAuthResponseTypeCode) $ throwStd (errorToWai @'OAuthUnsupportedResponseType)
   OAuthClient _ _ uri <- getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
-  unless (uri == redirectUrl) $ throwStd $ errorToWai @'RedirectUrlMissMatch
+  unless (uri == redirectUrl) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
   oauthCode <- OAuthAuthCode <$> rand32Bytes
   ttl <- Opt.setOAuthAuthCodeExpirationTimeSecs <$> view settings
   lift $ wrapClient $ insertOAuthAuthCode ttl oauthCode cid uid scope redirectUrl
@@ -101,24 +102,57 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
       returnedRedirectUrl = redirectUrl & unRedirectUrl & (queryL . queryPairsL) .~ queryParams & RedirectUrl
   pure returnedRedirectUrl
 
-createAccessToken :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
-createAccessToken req = do
+createAccessTokenWithRefreshToken :: (Member Now r, Member Jwk r) => OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
+createAccessTokenWithRefreshToken req = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  key <- signingKey
+  rid <- verifyRefreshToken key (oartRefreshToken req)
+  mInfo <- lift $ wrapClient $ lookupAndDeleteOAuthRefreshToken rid
+  info <- maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure mInfo
+  let uid = oriUserId info
+      cid = oriClientId info
+      scope = oriScopes info
+  oauthClient <- getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+
+  unless (cid == oartClientId req) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
+  unlessM (verifyClientSecret (oartClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
+
+  createAccessToken key uid cid scope
+  where
+    verifyRefreshToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenId
+    verifyRefreshToken key rt = do
+      eClaims <- liftIO (OAuth.verify' key (unOAuthToken rt))
+      case eClaims of
+        Left _ -> throwStd $ errorToWai @'OAuthInvalidRefreshToken
+        Right claims -> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure $ hcsSub claims
+
+createAccessTokenWithAuthCode :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
+createAccessTokenWithAuthCode req = do
+  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  unless (oatGrantType req == OAuthGrantTypeAuthorizationCode) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   (cid, uid, scope, uri) <-
     lift (wrapClient $ lookupAndDeleteOAuthAuthCode (oatCode req))
       >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure
   oauthClient <- getOAuthClient uid (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
-  unlessM (verifyClientSecret (oatClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'InvalidClientCredentials
-  unless (cid == oatClientId req) $ throwStd $ errorToWai @'InvalidClientCredentials
-  unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'RedirectUrlMissMatch
-  unless (uri == oatRedirectUri req) $ throwStd $ errorToWai @'RedirectUrlMissMatch
+  unless (uri == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
+  unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
+  unless (cid == oatClientId req) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
+  unlessM (verifyClientSecret (oatClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
 
+  key <- signingKey
+  createAccessToken key uid cid scope
+
+signingKey :: Member Jwk r => (Handler r) JWK
+signingKey = do
+  fp <- view settings >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure . Opt.setOAuthJwkKeyPair
+  lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'OAuthJwtError) pure
+
+createAccessToken :: (Member Now r) => JWK -> UserId -> OAuthClientId -> OAuthScopes -> (Handler r) OAuthAccessTokenResponse
+createAccessToken key uid cid scope = do
   exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
-  fp <- view settings >>= maybe (throwStd $ errorToWai @'JwtError) pure . Opt.setOAuthJwkKeyPair
-  key <- lift (liftSem $ Jwk.get fp) >>= maybe (throwStd $ errorToWai @'JwtError) pure
-  accessToken <- mkAccessToken key uid scope
-  (rid, refreshToken) <- mkRefreshToken key
+  accessToken <- mkAccessToken
+  (rid, refreshToken) <- mkRefreshToken
   now <- lift (liftSem Now.get)
   let refreshTokenInfo = OAuthRefreshTokenInfo rid cid uid scope now
   refreshTokenExpiration <- Opt.setOAuthRefreshTokenExpirationTimeSecs <$> view settings
@@ -126,25 +160,25 @@ createAccessToken req = do
   lift $ wrapClient $ insertOAuthRefreshToken maxActiveTokens refreshTokenExpiration refreshTokenInfo
   pure $ OAuthAccessTokenResponse accessToken OAuthAccessTokenTypeBearer exp refreshToken
   where
-    mkRefreshToken :: (Member Now r) => JWK -> (Handler r) (OAuthRefreshTokenId, OAuthRefreshToken)
-    mkRefreshToken key = do
+    mkRefreshToken :: (Handler r) (OAuthRefreshTokenId, OAuthRefreshToken)
+    mkRefreshToken = do
       rid :: OAuthRefreshTokenId <- randomId
-      sub <- maybe (throwStd $ errorToWai @'JwtError) pure $ idToText rid ^? stringOrUri
+      sub <- maybe (throwStd $ errorToWai @'OAuthJwtError) pure $ idToText rid ^? stringOrUri
       let claims = emptyClaimsSet & claimSub ?~ sub
-      (rid,) . OAuthToken <$> signRefreshToken key claims
+      (rid,) . OAuthToken <$> signRefreshToken claims
 
-    mkAccessToken :: (Member Now r, Member Jwk r) => JWK -> UserId -> OAuthScopes -> (Handler r) OAuthAccessToken
-    mkAccessToken key uid scope = do
+    mkAccessToken :: Member Now r => (Handler r) OAuthAccessToken
+    mkAccessToken = do
       domain <- Opt.setFederationDomain <$> view settings
       exp <- fromIntegral . Opt.setOAuthAccessTokenExpirationTimeSecs <$> view settings
       claims <- mkAccessTokenClaims uid domain scope exp
-      OAuthToken <$> signAccessToken key claims
+      OAuthToken <$> signAccessToken claims
 
-    mkAccessTokenClaims :: (Member Now r) => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthsClaimSet
+    mkAccessTokenClaims :: Member Now r => UserId -> Domain -> OAuthScopes -> NominalDiffTime -> (Handler r) OAuthClaimsSet
     mkAccessTokenClaims u domain scopes ttl = do
       iat <- lift (liftSem Now.get)
-      uri <- maybe (throwStd $ errorToWai @'JwtError) pure $ domainText domain ^? stringOrUri
-      sub <- maybe (throwStd $ errorToWai @'JwtError) pure $ idToText u ^? stringOrUri
+      uri <- maybe (throwStd $ errorToWai @'OAuthJwtError) pure $ domainText domain ^? stringOrUri
+      sub <- maybe (throwStd $ errorToWai @'OAuthJwtError) pure $ idToText u ^? stringOrUri
       let exp = addUTCTime ttl iat
       let claimSet =
             emptyClaimsSet
@@ -153,36 +187,36 @@ createAccessToken req = do
               & claimIat ?~ NumericDate iat
               & claimSub ?~ sub
               & claimExp ?~ NumericDate exp
-      pure $ OAuthsClaimSet claimSet scopes
+      pure $ OAuthClaimsSet claimSet scopes
 
-    signAccessToken :: JWK -> OAuthsClaimSet -> (Handler r) SignedJWT
-    signAccessToken key claims = do
+    signAccessToken :: OAuthClaimsSet -> (Handler r) SignedJWT
+    signAccessToken claims = do
       jwtOrError <- liftIO $ doSignClaims
-      either (const $ throwStd $ errorToWai @'JwtError) pure jwtOrError
+      either (const $ throwStd $ errorToWai @'OAuthJwtError) pure jwtOrError
       where
         doSignClaims :: IO (Either JWTError SignedJWT)
         doSignClaims = runJOSE $ do
           algo <- bestJWSAlg key
           signJWT key (newJWSHeader ((), algo)) claims
 
-    signRefreshToken :: JWK -> ClaimsSet -> (Handler r) SignedJWT
-    signRefreshToken key claims = do
+    signRefreshToken :: ClaimsSet -> (Handler r) SignedJWT
+    signRefreshToken claims = do
       jwtOrError <- liftIO $ doSignClaims
-      either (const $ throwStd $ errorToWai @'JwtError) pure jwtOrError
+      either (const $ throwStd $ errorToWai @'OAuthJwtError) pure jwtOrError
       where
         doSignClaims :: IO (Either JWTError SignedJWT)
         doSignClaims = runJOSE $ do
           algo <- bestJWSAlg key
           signClaims key (newJWSHeader ((), algo)) claims
 
-    verifyClientSecret :: OAuthClientPlainTextSecret -> OAuthClientId -> (Handler r) Bool
-    verifyClientSecret secret cid = do
-      let plainTextPw = PlainTextPassword $ toText $ unOAuthClientPlainTextSecret secret
-      lift $
-        wrapClient $
-          lookupOAuthClientSecret cid <&> \case
-            Nothing -> False
-            Just pw -> verifyPassword plainTextPw pw
+verifyClientSecret :: OAuthClientPlainTextSecret -> OAuthClientId -> (Handler r) Bool
+verifyClientSecret secret cid = do
+  let plainTextPw = PlainTextPassword $ toText $ unOAuthClientPlainTextSecret secret
+  lift $
+    wrapClient $
+      lookupOAuthClientSecret cid <&> \case
+        Nothing -> False
+        Just pw -> verifyPassword plainTextPw pw
 
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
@@ -283,3 +317,9 @@ deleteOAuthRefreshToken info = do
 
     qDeleteInfo :: PrepQuery W (Identity OAuthRefreshTokenId) ()
     qDeleteInfo = "DELETE FROM oauth_refresh_token WHERE id = ?"
+
+lookupAndDeleteOAuthRefreshToken :: (MonadClient m) => OAuthRefreshTokenId -> m (Maybe OAuthRefreshTokenInfo)
+lookupAndDeleteOAuthRefreshToken rid = do
+  mInfo <- lookupOAuthRefreshTokenInfo rid
+  for_ mInfo deleteOAuthRefreshToken
+  pure mInfo
