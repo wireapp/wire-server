@@ -22,18 +22,10 @@ brig:
   secrets:
     oauthJwkKeyPair: |
       {
-        "p":"8U9gI_...",
-        "kty":"RSA",
-        "q":"43dqC...",
-        "d":"ixZk7x...",
-        "e":"AQAB",
-        "use":"sig",
-        "kid":"QVapB_J...",
-        "qi":"sYHbPsy...",
-        "dp":"LFmnVNPW...",
-        "alg":"RS256",
-        "dq":"UXTY7...",
-        "n":"1mnyGVT..."
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "...",
+        "d": "..."
       }
 ```
 

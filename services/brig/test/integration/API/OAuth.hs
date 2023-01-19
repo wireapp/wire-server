@@ -163,11 +163,12 @@ testCreateAccessTokenSuccess opts brig = do
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
   k <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   verifiedOrError <- liftIO $ verify k (unOAuthToken $ oatAccessToken accessToken)
-  verifiedOrErrorWithWrongKey <- liftIO $ verify wrongKey (unOAuthToken $ oatAccessToken accessToken)
+  wk <- liftIO $ otherKey
+  verifiedOrErrorWithotherKey <- liftIO $ verify wk (unOAuthToken $ oatAccessToken accessToken)
   let expectedDomain = domainText $ Opt.setFederationDomain $ Opt.optSettings opts
   liftIO $ do
     isRight verifiedOrError @?= True
-    isLeft verifiedOrErrorWithWrongKey @?= True
+    isLeft verifiedOrErrorWithotherKey @?= True
     let claims = either (error "invalid token") id verifiedOrError
     scope claims @?= scopes
     (view claimIss $ claims) @?= (expectedDomain ^? stringOrUri @Text)
@@ -356,8 +357,9 @@ testAccessResourceInvalidSignature opts brig = do
   accessToken <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthToken $ oatAccessToken accessToken))
-  tokenSignedWithWrongKey <- signJwtToken wrongKey claimSet
-  get (brig . paths ["self"] . zOAuthHeader (OAuthToken tokenSignedWithWrongKey)) !!! do
+  wk <- liftIO $ otherKey
+  tokenSignedWithotherKey <- signJwtToken wk claimSet
+  get (brig . paths ["self"] . zOAuthHeader (OAuthToken tokenSignedWithotherKey)) !!! do
     const 403 === statusCode
     const "Access denied" === statusMessage
     const (Just "Invalid token: JWSError JWSInvalidSignature") === responseBody
@@ -381,7 +383,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
       rt <- oatRefreshToken <$> createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk rt
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
-      liftIO $ assertBool testMsg $ [rid] ??=?? (oriId <$> tokens)
+      liftIO $ assertBool testMsg $ [rid] `hasSameElems` (oriId <$> tokens)
       pure (rid, cid, secret)
     delayOneSec
     rid2 <- do
@@ -391,7 +393,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
       rt <- oatRefreshToken <$> createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk rt
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
-      liftIO $ assertBool testMsg $ [rid1, rid] ??=?? (oriId <$> tokens)
+      liftIO $ assertBool testMsg $ [rid1, rid] `hasSameElems` (oriId <$> tokens)
       pure rid
     delayOneSec
     rid3 <- do
@@ -401,7 +403,7 @@ testRefreshTokenMaxActiveTokens opts db brig =
       rt <- oatRefreshToken <$> createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk rt
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
-      liftIO $ assertBool testMsg $ [rid2, rid] ??=?? (oriId <$> tokens)
+      liftIO $ assertBool testMsg $ [rid2, rid] `hasSameElems` (oriId <$> tokens)
       pure rid
     delayOneSec
     do
@@ -411,14 +413,14 @@ testRefreshTokenMaxActiveTokens opts db brig =
       rt <- oatRefreshToken <$> createOAuthAccessToken brig accessTokenRequest
       rid <- extractRefreshTokenId jwk rt
       tokens <- C.runClient db (lookupOAuthRefreshTokens uid)
-      liftIO $ assertBool testMsg $ [rid3, rid] ??=?? (oriId <$> tokens)
+      liftIO $ assertBool testMsg $ [rid3, rid] `hasSameElems` (oriId <$> tokens)
   where
     extractRefreshTokenId :: MonadIO m => JWK -> OAuthRefreshToken -> m OAuthRefreshTokenId
     extractRefreshTokenId jwk rt = do
       fromMaybe (error "invalid sub") . hcsSub <$> liftIO (verifyRefreshToken jwk (unOAuthToken rt))
 
-    (??=??) :: (Eq a) => [a] -> [a] -> Bool
-    (??=??) x y = null (x \\ y) && null (y \\ x)
+    hasSameElems :: (Eq a) => [a] -> [a] -> Bool
+    hasSameElems x y = null (x \\ y) && null (y \\ x)
 
     verifyRefreshToken :: JWK -> SignedJWT -> IO ClaimsSet
     verifyRefreshToken jwk jwt =
@@ -499,8 +501,9 @@ signJwtToken key claims = do
       algo <- bestJWSAlg key
       signJWT key (newJWSHeader ((), algo)) claims
 
-wrongKey :: JWK
-wrongKey = fromMaybe (error "invalid jwk") $ A.decode "{\"p\":\"-Ahl1aNMOqXLUtJHVO1OLGt92EOrjzcNlwB5AL9hp8-GykJIK6BIfDvCCJgDUX-8ZZ-1R485XFVtUiI5W72MKbJ-qicTB7Smzd7St_zO6PZUbkgQoJiosAOMjP_8DBs9CbMl9FqUfE1pNo4O0gYHslUoCKwS5IsAB9HjuHGEQ38\",\"kty\":\"RSA\",\"q\":\"qRih0wBK2xg2wyJcBN6dDpUHTBxNEt8jxmvy33oMU-_Vx0hFLVeAqDYK-awlHGtJQJKp1mXdURXocKXKPukVitnfEH8nvl6vQIr4-uXyENe3yLgADi8VRDZCbWuDVWYAlYlFgdNODZ_A_fIqCmGAw27bwXyZZ3IRusnipyFN6iM\",\"d\":\"L0uBKJrI4I-_X9KPQawrLDEnPT7msevOH5Rf264CPZgwe8B9M0mbGmhIzYFIThNSaEzGoEtyJdTf27zoawh3O3KQO0aJr2HKSCTMZUh7fpqIjYlu5jA_dT3k7yHHMIR4lRLQV0vb936Mu09kTkRqMZ0jSo46dJ5iw0wnuSF0dAiqVG0rSJK-gVBdIbzZYxhSBW4ZF3n4CqtFb6lc1stfZHcnzWHyF6Cofzup6pJumeFe7xXF9-aGU-3UcTSzTnMa21NVP-vT2CXkH8dSfwLI-PuJwlW6tcpBwT2PXrCGyAGqQ3h5cdAmwcgfbla8wqrzj1A08SlkKHvTDixVvnnzpQ\",\"e\":\"AQAB\",\"use\":\"sig\",\"kid\":\"0makAydOdX3vNv4YTToO45ccQUCOoLisvAFVyhiKA4c\",\"qi\":\"phNbA_tiDLQq1omVgM1dHtOe6Dd7J_ZoRdz1Rmc4uaSQyJe-yn88DxXlX10DJkM9uqyzcojOtD5awBUXgYSzmasZvcZ0e2XNi7iXmSwsggTux3lUVVqKWV8HreaSywJ-HqitxjitooWSWOyD9o8yq9RS4r2QdXyuCfthwnEZdpc\",\"dp\":\"q0IJJmjZYolFiYsdq5sq5erWerPGyl0l6gRuiECcqiTVmeQINu81_Wm5gPuNFwHO0JBkt-NBpOprUFHHLvwCwmu3n77ZGfH3VqCq-FT7fMlQ5NCngmvF1bqtmlHJ84X_MCpdY4oDioxcwEl4HDYDrHO17774UItVWxDmXl0rCPs\",\"alg\":\"PS512\",\"dq\":\"NznQQDVsPTofSIPEQeLisIyDoZvsoCk4ael_nPUjaZZ-32L_FNvrLQTZeMl8JVf0yJ4d0ePa8EyTaZb8AqflXT_i1mRw-n-6BP5earMG5_FMGMXfXsKJ04lVEJ94eT-jGTOH--qjJ1fxk_6vNEy73RgrtXmYMGzU1Yhx-duqsrk\",\"n\":\"o9VozUwUc1mQMrAH2fEna_ihmNa3CVRzK7MUgDHEbfY0T71wREpK4f4fOkDysKIqnmMdxRzJhsXTDpxX8_8AlKcimPgR8Qb2z7GwDsnDZOdgAYrZ7l7gj0nX02IX35MBk7a7tWr0nILFLV9SxEu6UFcZo0bL2Rhck81TRqLbomJpIzAq8VCS8uMQeg6hEMarl9tGvSKyFuMdTCV3JE9dSv_NErAWx7uBIgkai3Imjs4ufatvRsi9ZHaUV5V3NtrFbYDulg-GOH1eXZwnO6UrKgcAdB3nS1WKL-vcxqupceAHeFHRjARm6AV07hJyXVOVHxdffv6BFX5GihFPFvpQXQ\"}"
+otherKey :: IO JWK
+otherKey = do
+  fromMaybe (error "invalid jwk") . A.decode . cs <$> readFile "test/resources/oauth/ed25519_jwk_1.json"
 
 instance ToHttpApiData a => ToHttpApiData (Bearer a) where
   toHeader = (<>) "Bearer " . toHeader . unBearer

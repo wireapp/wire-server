@@ -618,14 +618,17 @@ optSettings:
 
 #### JWK
 
-Optionally, configure the JSON Web Key to sign and verify OAuth access tokens for local testing as follows:
+The JSON Web Keys in `test/resources/oauth/` are used to sign and verify OAuth access tokens in the integration tests.
+The path to the JWK can be configured in `brig.integration.yaml` as follows:
 
 ```yaml
 # [brig.yaml]
 optSettings:
   # ...
-  setOAuthJwkKeyPair: test/resources/oauth/jwk.json
+  setOAuthJwkKeyPair: test/resources/oauth/ed25519_jwk.json
 ```
+
+A JWK can be generated with `didkit` e.g. Run `cargo install didkit-cli` to install and `didkit generate-ed25519-key` to generate a JWK.
 
 #### Expiration time
 
@@ -648,7 +651,7 @@ The maximum number of active OAuth refresh tokens a user is allowed to have.  Bu
 # [brig.yaml]
 optSettings:
   # ...
-  setOAuthMaxActiveRefreshTokens: 20
+  setOAuthMaxActiveRefreshTokens: 10
 ```
 
 #### Disabling API versions

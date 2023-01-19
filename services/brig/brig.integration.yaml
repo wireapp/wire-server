@@ -193,7 +193,7 @@ optSettings:
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
   setEnableMLS: true
-  setOAuthJwkKeyPair: test/resources/oauth/jwk.json
+  setOAuthJwkKeyPair: test/resources/oauth/ed25519_jwk.json
   setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
   setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
   setOAuthEnabled: true
