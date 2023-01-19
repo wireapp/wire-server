@@ -100,4 +100,4 @@ instance S.ToSchema (NotificationId, PushTarget, PushStatus) where
       (,,)
         <$> (\(a, _, _) -> a) S..= S.field "notif_id" S.schema
         <*> (\(_, b, _) -> b) S..= S.field "target" S.schema
-        <*> (\(_, _, c) -> c) S..= S.field "target" S.schema
+        <*> (\(_, _, c) -> c) S..= S.field "status" S.schema
