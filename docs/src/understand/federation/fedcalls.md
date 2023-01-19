@@ -1,4 +1,4 @@
-# Federated API calls by client API end-point
+# Federated API calls by client API end-point (generated)
 
 **Updated manually using using [the fedcalls tool](https://github.com/wireapp/wire-server/blob/8760b4978ccb039b229d458b7a08136a05e12ff9/tools/fedcalls/README.md); last change: 2023-01-16.**
 
