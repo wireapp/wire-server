@@ -1,8 +1,8 @@
+{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
 {{- if .Values.federator.enabled }}
 # We use a separate ingress for federator so that we can require client
 # certificates only for federation requests
-{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
-{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
 apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
