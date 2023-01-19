@@ -1271,11 +1271,6 @@ testDeleteUserByPassword brig cannon userJournalWatcher = do
   Util.assertUserActivateJournaled userJournalWatcher u "user activate"
   let uid1 = userId u
   let email = fromMaybe (error "Missing email") (userEmail u)
-  -- Initiate a change of email address, to verify that activation
-  -- does not work after the account has been deleted.
-  eml <- randomEmail
-  let Just oldeml = userEmail u
-  initiateEmailUpdateLogin brig eml (emailLogin oldeml defPassword Nothing) uid1 !!! (const 202 === statusCode)
   -- Establish some connections
   usr2 <- randomUser brig
   let uid2 = userId usr2
@@ -1298,6 +1293,11 @@ testDeleteUserByPassword brig cannon userJournalWatcher = do
     !!! const 200 === statusCode
   n1 <- countCookies brig uid1 defCookieLabel
   liftIO $ Just 1 @=? n1
+  -- Initiate a change of email address, to verify that activation
+  -- does not work after the account has been deleted.
+  eml <- randomEmail
+  let Just oldeml = userEmail u
+  initiateEmailUpdateLogin brig eml (emailLogin oldeml defPassword Nothing) uid1 !!! (const 202 === statusCode)
   setHandleAndDeleteUser brig cannon u [uid2, uid3] userJournalWatcher $
     \uid -> deleteUser uid (Just defPassword) brig !!! const 200 === statusCode
   -- Activating the new email address now should not work
