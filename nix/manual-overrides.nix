@@ -64,4 +64,7 @@ hself: hsuper: {
 
   # Postie has been fixed upstream (master)
   postie = hlib.markUnbroken (hlib.doJailbreak hsuper.postie);
+
+  # This would not be necessary if we could pull revision -r1 from 0.2.2.3
+  kind-generics-th = hlib.doJailbreak hsuper.kind-generics-th;
 }
