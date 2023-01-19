@@ -45,6 +45,7 @@ import qualified Network.Wai.Utilities as Error
 import Servant.API
 import Test.Tasty
 import Test.Tasty.HUnit
+import Text.RawString.QQ
 import URI.ByteString
 import Util
 import Web.FormUrlEncoded
@@ -163,8 +164,7 @@ testCreateAccessTokenSuccess opts brig = do
     const (Just "not-found") === fmap Error.label . responseJsonMaybe
   k <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   verifiedOrError <- liftIO $ verify k (unOAuthToken $ oatAccessToken accessToken)
-  wk <- liftIO $ otherKey
-  verifiedOrErrorWithotherKey <- liftIO $ verify wk (unOAuthToken $ oatAccessToken accessToken)
+  verifiedOrErrorWithotherKey <- liftIO $ verify badKey (unOAuthToken $ oatAccessToken accessToken)
   let expectedDomain = domainText $ Opt.setFederationDomain $ Opt.optSettings opts
   liftIO $ do
     isRight verifiedOrError @?= True
@@ -357,8 +357,7 @@ testAccessResourceInvalidSignature opts brig = do
   accessToken <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthToken $ oatAccessToken accessToken))
-  wk <- liftIO $ otherKey
-  tokenSignedWithotherKey <- signJwtToken wk claimSet
+  tokenSignedWithotherKey <- signJwtToken badKey claimSet
   get (brig . paths ["self"] . zOAuthHeader (OAuthToken tokenSignedWithotherKey)) !!! do
     const 403 === statusCode
     const "Access denied" === statusMessage
@@ -501,9 +500,10 @@ signJwtToken key claims = do
       algo <- bestJWSAlg key
       signJWT key (newJWSHeader ((), algo)) claims
 
-otherKey :: IO JWK
-otherKey = do
-  fromMaybe (error "invalid jwk") . A.decode . cs <$> readFile "test/resources/oauth/ed25519_jwk_1.json"
+badKey :: JWK
+badKey = do
+  fromMaybe (error "invalid jwk") . A.decode $
+    [r| {"kty":"OKP","crv":"Ed25519","x":"VWWycQ0yCoKAwN-DjjyQVWMRan1VOFUGlZpSTaLw1OA","d":"kH9sO4hDmRQi31IncBvwiaRB9xo9UHVaSvfV7RWiQOg"} |]
 
 instance ToHttpApiData a => ToHttpApiData (Bearer a) where
   toHeader = (<>) "Bearer " . toHeader . unBearer
