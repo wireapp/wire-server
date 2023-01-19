@@ -260,10 +260,6 @@ let
       version = "0.4.3.1";
       sha256 = "sha256-0vkLYNZISr3fmmQvD8qdLkn2GHc80l1GzJuOmqjqXE4=";
     };
-    singletons = {
-      version = "2.7";
-      sha256 = "sha256-q7yc/wyGSyYI0KdgHgRi0WISv9WEibxQ5yM7cSjXS2s=";
-    };
     one-liner = {
       version = "1.0";
       sha256 = "sha256-dv/W8hIPoHVevxiiCb6OfeP53O/9HPgUiqOHGSNb/pk=";
