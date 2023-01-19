@@ -193,6 +193,13 @@ let
         sha256 = "1zj3fqlvcvp9s0myb98b6s9mpmiqamyxn2d3jan55irdgm53prmv";
       };
     };
+    wai-predicates = {
+      src = fetchgit {
+        url = "https://gitlab.com/wireapp/forks/wai-predicates.git";
+        rev = "ff95282a982ab45cced70656475eaf2cefaa26ea";
+        sha256 = "sha256-x2XSv2+/+DG9FXN8hfUWGNIO7V4iBhlzYz19WWKaLKQ=";
+      };
+    };
     wai-routing = {
       src = fetchgit {
         url = "https://gitlab.com/twittner/wai-routing";
