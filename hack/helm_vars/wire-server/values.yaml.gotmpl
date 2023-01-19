@@ -34,6 +34,7 @@ brig:
     requests: {}
     limits:
       memory: 512Mi
+      cpu: 500m
   config:
     externalUrls:
       nginz: https://kube-staging-nginz-https.zinfra.io
@@ -129,6 +130,7 @@ cannon:
     requests: {}
     limits:
       memory: 512Mi
+      cpu: 500m
   drainTimeout: 0
 cargohold:
   replicaCount: 1
@@ -137,6 +139,7 @@ cargohold:
     requests: {}
     limits:
       memory: 512Mi
+      cpu: 500m
   config:
     aws:
       s3Bucket: dummy-bucket
@@ -189,6 +192,7 @@ gundeck:
     requests: {}
     limits:
       memory: 1024Mi
+      cpu: 1000m
   config:
     cassandra:
       host: cassandra-ephemeral
@@ -245,6 +249,7 @@ spar:
     requests: {}
     limits:
       memory: 1024Mi
+      cpu: 1000m
   config:
     tlsDisableCertValidation: true
     cassandra:
