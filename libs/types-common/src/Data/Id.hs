@@ -404,4 +404,4 @@ instance ToSchema a => ToSchema (IdObject a) where
   schema =
     object "Id" $
       IdObject
-        <$> fromIdObject .= field "id" Data.Schema.schema
+        <$> fromIdObject .= field "id" schema
