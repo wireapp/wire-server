@@ -35,10 +35,6 @@ instance FromHttpApiData a => FromHttpApiData (Bearer a) where
     _ -> Left "Invalid authorization scheme"
   parseUrlPiece = parseHeader . T.encodeUtf8
 
-instance ToHttpApiData a => ToHttpApiData (Bearer a) where
-  toHeader = (<>) "Bearer " . toHeader . unBearer
-  toUrlPiece = T.decodeUtf8 . toHeader
-
 type BearerHeader a = Header' '[Lenient] "Authorization" (Bearer a)
 
 type BearerQueryParam =
