@@ -290,6 +290,7 @@ instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
 --------------------------------------------------------------------------------
 -- Z-OAuth
 
+-- FUTUREWORK: it would be nice to have unit tests for this and the instances (esp. `HasServer`, but we cover this with integration tests in brig et al. for now.
 data ZUserOrOAuth (scope :: OAuthScope)
 
 instance HasSwagger api => HasSwagger (ZUserOrOAuth scope :> api) where
