@@ -702,27 +702,6 @@ testPrekeysNotEmptyRandomPrekeys opts brig = do
   let newOpts = opts {Opt.randomPrekeys = Just True}
   ensurePrekeysNotEmpty newOpts brig
 
--- TODO: re-enable fake dynamoDB for integration tests in charts to also test
--- with that feature flag.
-
--- Ensure that the list of prekeys for a user does not become empty, and the
--- last resort prekey keeps being returned if it's the only key left.
--- Test with featureFlag randomPrekeys=false
--- testPrekeysNotEmptyRandomPrekeys :: Opt.Opts -> Brig -> Http ()
--- testPrekeysNotEmptyRandomPrekeys opts brig = do
---   -- Run the test for behaviour using dynamoDB locking
---   let newOpts = opts {Opt.randomPrekeys = Just False}
---   ensurePrekeysNotEmpty newOpts brig
-
--- Ensure that the list of prekeys for a user does not become empty, and the
--- last resort prekey keeps being returned if it's the only key left.
--- Test with featureFlag randomPrekeys unset (empty)
--- testPrekeysNotEmptyRandomPrekeys :: Opt.Opts -> Brig -> Http ()
--- testPrekeysNotEmptyRandomPrekeys opts brig = do
---   -- Run the test for behaviour using dynamoDB locking
---   let newOpts = opts {Opt.randomPrekeys = Nothing}
---   ensurePrekeysNotEmpty newOpts brig
-
 ensurePrekeysNotEmpty :: Opt.Opts -> Brig -> Http ()
 ensurePrekeysNotEmpty opts brig = withSettingsOverrides opts $ do
   lgr <- Log.new Log.defSettings
