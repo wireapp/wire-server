@@ -93,7 +93,8 @@ tests m db b n o = do
           test m "invalid signature" $ testAccessResourceInvalidSignature o b
         ],
       testGroup "refresh tokens" $
-        [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b
+        [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b,
+          test m "refresh access token" $ testRefreshTokenRetrieveAccessToken o b
         ]
     ]
 
@@ -436,6 +437,23 @@ testRefreshTokenMaxActiveTokens opts db brig =
       fromRight (error "invalid jwt or jwk")
         <$> runJOSE (verifyClaims (defaultJWTValidationSettings (const True)) jwk jwt :: JOSE JWTError IO ClaimsSet)
 
+testRefreshTokenRetrieveAccessToken :: Opts -> Brig -> Http ()
+testRefreshTokenRetrieveAccessToken opts brig =
+  -- overriding settings and set access token to expire in 2 seconds
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAccessTokenExpirationTimeSecsInternal ?~ 2) $ do
+    uid <- userId <$> createUser "alice" brig
+    let redirectUrl = mkUrl "https://example.com"
+    let scopes = OAuthScopes $ Set.fromList [SelfRead]
+    (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+    accessToken <- createOAuthAccessToken brig accessTokenRequest
+    get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! const 200 === statusCode
+    threadDelay $ 2 * 1000 * 1000 -- wait 2 seconds
+    get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! const 403 === statusCode
+    let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret (oatRefreshToken accessToken)
+    refreshedToken <- refreshOAuthAccessToken brig refreshAccessTokenRequest
+    get (brig . paths ["self"] . zOAuthHeader (oatAccessToken refreshedToken)) !!! const 200 === statusCode
+
 -------------------------------------------------------------------------------
 -- Util
 
@@ -479,6 +497,12 @@ createOAuthAccessToken brig reqBody = responseJsonError =<< createOAuthAccessTok
 createOAuthAccessToken' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> OAuthAccessTokenRequest -> m ResponseLBS
 createOAuthAccessToken' brig reqBody = do
   post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
+
+refreshOAuthAccessToken :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> OAuthRefreshAccessTokenRequest -> m OAuthAccessTokenResponse
+refreshOAuthAccessToken brig reqBody =
+  responseJsonError
+    =<< post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
+      <!! const 200 === statusCode
 
 generateOAuthClientAndAuthCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthClientPlainTextSecret, OAuthAuthCode)
 generateOAuthClientAndAuthCode brig uid scope url = do

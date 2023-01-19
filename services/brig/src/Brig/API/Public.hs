@@ -119,6 +119,7 @@ import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
+import qualified Wire.API.Routes.Public.Brig.OAuth as OAuth
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
@@ -163,6 +164,7 @@ versionedSwaggerDocsAPI (Just V3) =
         <> CannonAPI.swaggerDoc
         <> GundeckAPI.swaggerDoc
         <> ProxyAPI.swaggerDoc
+        <> OAuth.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")

@@ -64,8 +64,7 @@ oauthAPI :: (Member Now r, Member Jwk r) => ServerT OAuthAPI (Handler r)
 oauthAPI =
   Named @"get-oauth-client" getOAuthClient
     :<|> Named @"create-oauth-auth-code" createNewOAuthAuthCode
-    :<|> Named @"create-oauth-access-token" createAccessTokenWithAuthCode
-    :<|> Named @"create-oauth-access-token-with-refresh-token" createAccessTokenWithRefreshToken
+    :<|> Named @"create-oauth-access-token" createAccessTokenWith
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -101,6 +100,11 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
   let queryParams = [("code", toByteString' oauthCode), ("state", cs state)]
       returnedRedirectUrl = redirectUrl & unRedirectUrl & (queryL . queryPairsL) .~ queryParams & RedirectUrl
   pure returnedRedirectUrl
+
+createAccessTokenWith :: (Member Now r, Member Jwk r) => Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
+createAccessTokenWith = \case
+  Left req -> createAccessTokenWithAuthCode req
+  Right req -> createAccessTokenWithRefreshToken req
 
 createAccessTokenWithRefreshToken :: (Member Now r, Member Jwk r) => OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWithRefreshToken req = do

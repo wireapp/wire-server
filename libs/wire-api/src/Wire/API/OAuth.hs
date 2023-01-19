@@ -31,6 +31,7 @@ import Data.Range
 import Data.Schema
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
+import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Text.Ascii
@@ -50,6 +51,9 @@ import Wire.API.Error
 newtype RedirectUrl = RedirectUrl {unRedirectUrl :: URIRef Absolute}
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RedirectUrl)
+
+instance ToParamSchema RedirectUrl where
+  toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance ToByteString RedirectUrl where
   builder = serializeURIRef . unRedirectUrl
@@ -456,6 +460,15 @@ instance ToForm OAuthRefreshAccessTokenRequest where
         & HM.insert "client_secret" [toQueryParam (oartClientSecret req)]
         & HM.insert "refresh_token" [toQueryParam (oartRefreshToken req)]
 
+instance FromForm (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest) where
+  fromForm :: Form -> Either Text (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest)
+  fromForm f = choose (fromForm @OAuthAccessTokenRequest f) (fromForm @OAuthRefreshAccessTokenRequest f)
+    where
+      choose :: Either Text OAuthAccessTokenRequest -> Either Text OAuthRefreshAccessTokenRequest -> Either Text (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest)
+      choose (Right a) _ = Right (Left a)
+      choose _ (Right a) = Right (Right a)
+      choose (Left err) _ = Left err
+
 --------------------------------------------------------------------------------
 -- Errors
 
@@ -469,6 +482,9 @@ data OAuthError
   | OAuthInvalidClientCredentials
   | OAuthInvalidGrantType
   | OAuthInvalidRefreshToken
+
+instance KnownError (MapError e) => IsSwaggerError (e :: OAuthError) where
+  addToSwagger = addStaticErrorToSwagger @(MapError e)
 
 type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
 

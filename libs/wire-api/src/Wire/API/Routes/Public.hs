@@ -290,11 +290,11 @@ instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
 --------------------------------------------------------------------------------
 -- Z-OAuth
 
--- FUTUREWORK: it would be nice to have unit tests for this and the instances (esp. `HasServer`, but we cover this with integration tests in brig et al. for now.
+-- FUTUREWORK: it would be nice to have unit tests for this and the instances (esp. `HasServer`, but we cover this with integration tests in brig et al. for now.)
 data ZUserOrOAuth (scope :: OAuthScope)
 
 instance HasSwagger api => HasSwagger (ZUserOrOAuth scope :> api) where
-  toSwagger _ = toSwagger (Proxy @(ZUserOrOAuth scope :> api))
+  toSwagger _ = toSwagger (Proxy @api)
 
 checkZAuthOrOAuth :: OAuthScope -> Maybe JWK -> Request -> DelayedIO (Either ServerError UserId)
 checkZAuthOrOAuth oauthScope mJwk req = maybe tryOAuth (pure . Right) tryZUserAuth

@@ -18,9 +18,11 @@
 module Wire.API.Routes.Public.Brig.OAuth where
 
 import Data.Id as Id
+import Data.Swagger (Swagger)
 import Imports hiding (exp, head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
+import Servant.Swagger
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Error
 import Wire.API.OAuth
@@ -72,17 +74,9 @@ type OAuthAPI =
                :> CanThrow 'OAuthFeatureDisabled
                :> "oauth"
                :> "token"
-               :> ReqBody '[FormUrlEncoded] OAuthAccessTokenRequest
+               :> ReqBody '[FormUrlEncoded] (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest)
                :> Post '[JSON] OAuthAccessTokenResponse
            )
-    :<|> Named
-           "create-oauth-access-token-with-refresh-token"
-           ( Summary "Create a new OAuth access token using a refresh token"
-               :> CanThrow 'OAuthJwtError
-               :> CanThrow 'OAuthClientNotFound
-               :> CanThrow 'OAuthFeatureDisabled
-               :> "oauth"
-               :> "token"
-               :> ReqBody '[FormUrlEncoded] OAuthRefreshAccessTokenRequest
-               :> Post '[JSON] OAuthAccessTokenResponse
-           )
+
+swaggerDoc :: Swagger
+swaggerDoc = toSwagger (Proxy @OAuthAPI)
