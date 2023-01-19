@@ -746,7 +746,7 @@ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate brig = do
         . body (RequestBodyLBS $ encode update)
     )
     !!! const 400
-    === statusCode
+      === statusCode
 
 -- @END
 
