@@ -22,11 +22,9 @@
 module Data.List1 where
 
 import Cassandra
--- import Control.Lens ((.~), (?~))
 import Data.Aeson
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
--- import Data.Proxy
 import Data.Schema as S
 import Data.Swagger (ToParamSchema)
 import qualified Data.Swagger as Swagger
