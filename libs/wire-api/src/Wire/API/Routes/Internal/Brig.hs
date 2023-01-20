@@ -27,7 +27,6 @@ module Wire.API.Routes.Internal.Brig
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
     DeleteAccountConferenceCallingConfig,
-    SwaggerDocsAPI,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     NewKeyPackageRef (..),
@@ -48,7 +47,6 @@ import Imports hiding (head)
 import Servant hiding (Handler, WithStatus, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Servant.Swagger.UI
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
@@ -398,9 +396,6 @@ type AuthAPI =
                :> ReqBody '[JSON] ReAuthUser
                :> MultiVerb1 'GET '[JSON] (RespondEmpty 200 "OK")
            )
-
--- TODO: Likely, not needed.
-type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 swaggerDoc :: Swagger
 swaggerDoc =

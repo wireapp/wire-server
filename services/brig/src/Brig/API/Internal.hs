@@ -17,9 +17,7 @@
 module Brig.API.Internal
   ( sitemap,
     servantSitemap,
-    swaggerDocsAPI,
     BrigIRoutes.API,
-    BrigIRoutes.SwaggerDocsAPI,
     getMLSClients,
   )
 where
@@ -81,7 +79,6 @@ import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
-import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import UnliftIO.Async
 import Wire.API.Connection
@@ -279,10 +276,6 @@ getVerificationCode uid action = do
       key <- Code.mkKey (Code.ForEmail e)
       code <- wrapClientE $ Code.lookup key (Code.scopeFromAction a)
       pure $ Code.codeValue <$> code
-
--- TODO: Unused?
-swaggerDocsAPI :: Servant.Server BrigIRoutes.SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)
