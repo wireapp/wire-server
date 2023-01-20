@@ -35,7 +35,7 @@ testStorage :: IO TestStorage
 testStorage = TestStorage <$> STMMap.newIO <*> STMMap.newIO
 
 spec :: Spec
-spec = beforeAll ((\s -> app @Mock empty (nt s)) <$> testStorage) $ do
+spec = with ((\s -> app @Mock empty (nt s)) <$> testStorage) $ do
   describe "/ServiceProviderConfig" $ do
     it "is accessible without authentication" $ do
       get "/ServiceProviderConfig" `shouldRespondWith` 200
