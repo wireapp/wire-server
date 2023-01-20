@@ -102,13 +102,15 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
   pure returnedRedirectUrl
 
 createAccessTokenWith :: (Member Now r, Member Jwk r) => Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
-createAccessTokenWith = \case
-  Left req -> createAccessTokenWithAuthCode req
-  Right req -> createAccessTokenWithRefreshToken req
+createAccessTokenWith req = do
+  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  case req of
+    Left reqAC -> createAccessTokenWithAuthCode reqAC
+    Right reqRT -> createAccessTokenWithRefreshToken reqRT
 
 createAccessTokenWithRefreshToken :: (Member Now r, Member Jwk r) => OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWithRefreshToken req = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
+  unless (oartGrantType req == OAuthGrantTypeRefreshToken) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   key <- signingKey
   rid <- verifyRefreshToken key (oartRefreshToken req)
   mInfo <- lift $ wrapClient $ lookupAndDeleteOAuthRefreshToken rid
@@ -132,7 +134,6 @@ createAccessTokenWithRefreshToken req = do
 
 createAccessTokenWithAuthCode :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWithAuthCode req = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   unless (oatGrantType req == OAuthGrantTypeAuthorizationCode) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   (cid, uid, scope, uri) <-
     lift (wrapClient $ lookupAndDeleteOAuthAuthCode (oatCode req))

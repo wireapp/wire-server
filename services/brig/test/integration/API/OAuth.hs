@@ -28,7 +28,7 @@ import qualified Cassandra as C
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
 import Crypto.JOSE (JOSE, JWK, bestJWSAlg, newJWSHeader, runJOSE)
-import Crypto.JWT (Audience (Audience), ClaimsSet, JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, defaultJWTValidationSettings, signJWT, stringOrUri, verifyClaims)
+import Crypto.JWT (Audience (Audience), ClaimsSet, JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, defaultJWTValidationSettings, emptyClaimsSet, signClaims, signJWT, stringOrUri, verifyClaims)
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Domain (domainText)
@@ -80,7 +80,8 @@ tests m db b n o = do
         [ test m "register" $ testRegisterOAuthClientAccessDeniedWhenDisabled o b,
           test m "get client info" $ testGetOAuthClientInfoAccessDeniedWhenDisabled o b,
           test m "create code" $ testCreateCodeOAuthClientAccessDeniedWhenDisabled o b,
-          test m "create token" $ testCreateAccessTokenAccessDeniedWhenDisabled o b
+          test m "create token" $ testCreateAccessTokenAccessDeniedWhenDisabled o b,
+          test m "refresh access token" $ testRefreshAccessTokenAccessDeniedWhenDisabled o b
         ],
       testGroup
         "accessing a resource"
@@ -94,7 +95,14 @@ tests m db b n o = do
         ],
       testGroup "refresh tokens" $
         [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b,
-          test m "refresh access token" $ testRefreshTokenRetrieveAccessToken o b
+          test m "refresh access token - success" $ testRefreshTokenRetrieveAccessToken o b,
+          test m "wrong signature - fail" $ testRefreshTokenWrongSignature o b,
+          test m "no token id - fail" $ testRefreshTokenNoTokenId o b,
+          test m "non-existing id - fail" $ testRefreshTokenNonExistingId o b,
+          test m "wrong client id - fail" $ testRefreshTokenWrongClientId b,
+          test m "wrong client secret - fail" $ testRefreshTokenWrongClientSecret b,
+          test m "wrong grant type - fail" $ testRefreshTokenWrongGrantType b,
+          test m "expired token - fail" $ testRefreshTokenExpiredToken o b
         ]
     ]
 
@@ -276,6 +284,18 @@ testCreateAccessTokenAccessDeniedWhenDisabled opts brig =
     let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code wrongUrl
     createOAuthAccessToken' brig accessTokenRequest !!! assertAccessDenied
 
+testRefreshAccessTokenAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
+testRefreshAccessTokenAccessDeniedWhenDisabled opts brig = do
+  uid <- randomId
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
+    let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret (oatRefreshToken accessToken)
+    refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! assertAccessDenied
+
 testRegisterOAuthClientAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testRegisterOAuthClientAccessDeniedWhenDisabled opts brig =
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
@@ -368,7 +388,7 @@ testAccessResourceInvalidSignature opts brig = do
   accessToken <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthToken $ oatAccessToken accessToken))
-  tokenSignedWithotherKey <- signJwtToken badKey claimSet
+  tokenSignedWithotherKey <- signAccessToken badKey claimSet
   get (brig . paths ["self"] . zOAuthHeader (OAuthToken tokenSignedWithotherKey)) !!! do
     const 403 === statusCode
     const "Access denied" === statusMessage
@@ -432,11 +452,6 @@ testRefreshTokenMaxActiveTokens opts db brig =
     hasSameElems :: (Eq a) => [a] -> [a] -> Bool
     hasSameElems x y = null (x \\ y) && null (y \\ x)
 
-    verifyRefreshToken :: JWK -> SignedJWT -> IO ClaimsSet
-    verifyRefreshToken jwk jwt =
-      fromRight (error "invalid jwt or jwk")
-        <$> runJOSE (verifyClaims (defaultJWTValidationSettings (const True)) jwk jwt :: JOSE JWTError IO ClaimsSet)
-
 testRefreshTokenRetrieveAccessToken :: Opts -> Brig -> Http ()
 testRefreshTokenRetrieveAccessToken opts brig =
   -- overriding settings and set access token to expire in 2 seconds
@@ -448,14 +463,125 @@ testRefreshTokenRetrieveAccessToken opts brig =
     let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
     accessToken <- createOAuthAccessToken brig accessTokenRequest
     get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! const 200 === statusCode
-    threadDelay $ 2 * 1000 * 1000 -- wait 2 seconds
+    threadDelay $ 2 * 1000 * 1000 -- wait 2 seconds for access token to expire
     get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! const 403 === statusCode
     let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret (oatRefreshToken accessToken)
     refreshedToken <- refreshOAuthAccessToken brig refreshAccessTokenRequest
     get (brig . paths ["self"] . zOAuthHeader (oatAccessToken refreshedToken)) !!! const 200 === statusCode
 
+testRefreshTokenWrongSignature :: Opts -> Brig -> Http ()
+testRefreshTokenWrongSignature opts brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  badRefreshToken <- liftIO $ do
+    claims <- verifyRefreshToken key (unOAuthToken $ oatRefreshToken accessToken)
+    OAuthToken <$> signRefreshToken badKey claims
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret badRefreshToken
+  refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
+    const 403 === statusCode
+    const "Forbidden" === statusMessage
+
+testRefreshTokenNoTokenId :: Opts -> Brig -> Http ()
+testRefreshTokenNoTokenId opts brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, _) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  badRefreshToken <- liftIO $ OAuthToken <$> signRefreshToken key emptyClaimsSet
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret badRefreshToken
+  refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
+    const 403 === statusCode
+    const "Forbidden" === statusMessage
+
+testRefreshTokenNonExistingId :: Opts -> Brig -> Http ()
+testRefreshTokenNonExistingId opts brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, _) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
+  badRefreshToken <-
+    liftIO $
+      OAuthToken <$> do
+        rid :: OAuthRefreshTokenId <- randomId
+        sub <- maybe (error "creating sub claim failed") pure $ idToText rid ^? stringOrUri
+        let claims = emptyClaimsSet & claimSub ?~ sub
+        signRefreshToken key claims
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret badRefreshToken
+  refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
+    const 403 === statusCode
+    const "Forbidden" === statusMessage
+
+testRefreshTokenWrongClientId :: Brig -> Http ()
+testRefreshTokenWrongClientId brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  badCid <- randomId
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken badCid secret (oatRefreshToken accessToken)
+  refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
+    const 403 === statusCode
+    const "Forbidden" === statusMessage
+
+testRefreshTokenWrongClientSecret :: Brig -> Http ()
+testRefreshTokenWrongClientSecret brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  let badSecret = OAuthClientPlainTextSecret $ encodeBase16 "ee2316e304f5c318e4607d86748018eb9c66dc4f391c31bcccd9291d24b4c7e"
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid badSecret (oatRefreshToken accessToken)
+  refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
+    const 403 === statusCode
+    const "Forbidden" === statusMessage
+
+testRefreshTokenWrongGrantType :: Brig -> Http ()
+testRefreshTokenWrongGrantType brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret (oatRefreshToken accessToken)
+  refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
+    const 403 === statusCode
+    const "Forbidden" === statusMessage
+
+testRefreshTokenExpiredToken :: Opts -> Brig -> Http ()
+testRefreshTokenExpiredToken opts brig =
+  -- overriding settings and set refresh token to expire in 2 seconds
+  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthRefreshTokenExpirationTimeSecsInternal ?~ 2) $ do
+    uid <- userId <$> createUser "alice" brig
+    let redirectUrl = mkUrl "https://example.com"
+    let scopes = OAuthScopes $ Set.fromList [SelfRead]
+    (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+    accessToken <- createOAuthAccessToken brig accessTokenRequest
+    let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret (oatRefreshToken accessToken)
+    threadDelay $ 2 * 1010 * 1000 -- wait for 2 seconds for the token to expire
+    refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
+      const 403 === statusCode
+      const "Forbidden" === statusMessage
+
 -------------------------------------------------------------------------------
 -- Util
+
+verifyRefreshToken :: JWK -> SignedJWT -> IO ClaimsSet
+verifyRefreshToken jwk jwt =
+  fromRight (error "invalid jwt or jwk")
+    <$> runJOSE (verifyClaims (defaultJWTValidationSettings (const True)) jwk jwt :: JOSE JWTError IO ClaimsSet)
 
 authHeader :: ToHttpApiData a => a -> Request -> Request
 authHeader = bearer "Authorization"
@@ -500,9 +626,11 @@ createOAuthAccessToken' brig reqBody = do
 
 refreshOAuthAccessToken :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> OAuthRefreshAccessTokenRequest -> m OAuthAccessTokenResponse
 refreshOAuthAccessToken brig reqBody =
-  responseJsonError
-    =<< post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
-      <!! const 200 === statusCode
+  responseJsonError =<< refreshOAuthAccessToken' brig reqBody <!! const 200 === statusCode
+
+refreshOAuthAccessToken' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> OAuthRefreshAccessTokenRequest -> m ResponseLBS
+refreshOAuthAccessToken' brig reqBody =
+  post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
 
 generateOAuthClientAndAuthCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthClientPlainTextSecret, OAuthAuthCode)
 generateOAuthClientAndAuthCode brig uid scope url = do
@@ -524,8 +652,8 @@ generateOAuthAuthCode brig uid cid scope url = do
     getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
     getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
 
-signJwtToken :: JWK -> OAuthClaimsSet -> Http SignedJWT
-signJwtToken key claims = do
+signAccessToken :: JWK -> OAuthClaimsSet -> Http SignedJWT
+signAccessToken key claims = do
   jwtOrError <- liftIO $ doSignClaims
   either (const $ error "jwt error") pure jwtOrError
   where
@@ -533,6 +661,16 @@ signJwtToken key claims = do
     doSignClaims = runJOSE $ do
       algo <- bestJWSAlg key
       signJWT key (newJWSHeader ((), algo)) claims
+
+signRefreshToken :: JWK -> ClaimsSet -> IO SignedJWT
+signRefreshToken key claims = do
+  jwtOrError <- doSignClaims
+  either (const $ error "jwt error") pure jwtOrError
+  where
+    doSignClaims :: IO (Either JWTError SignedJWT)
+    doSignClaims = runJOSE $ do
+      algo <- bestJWSAlg key
+      signClaims key (newJWSHeader ((), algo)) claims
 
 badKey :: JWK
 badKey = do
