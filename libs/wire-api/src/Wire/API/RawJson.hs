@@ -41,9 +41,10 @@ newtype RawJson = RawJson {rawJsonBytes :: LByteString}
 instance {-# OVERLAPPING #-} MimeUnrender JSON RawJson where
   mimeUnrender _ = pure . RawJson
 
--- TODO: unit test against MimeUnrender
 instance ToSchema RawJson where
   schema :: ValueSchema NamedSwaggerDoc RawJson
+  -- The conversion to `Text` narrows the domain to UTF-8 strings. As this is
+  -- about JSON (de-) serialization, that's probably fine.
   schema = textFromRawJson .= fmap rawJsonFromText ((text . T.pack) "RawJson")
     where
       textFromRawJson = TL.toStrict . decodeUtf8 . rawJsonBytes
