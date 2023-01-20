@@ -168,8 +168,8 @@ let
     saml2-web-sso = {
       src = fetchgit {
         url = "https://github.com/wireapp/saml2-web-sso";
-        rev = "74371cd775cb98d6cf85f6e182244a3c4fd48702";
-        sha256 = "1w23yz2iiayniymk7k4g8gww7268187cayw0c8m3bz2hbnvbyfbc";
+        rev = "b79a45ac98b1f592ac18511fce48ed88d2e931c9";
+        sha256 = "sha256-g2lbKt3+hToVFQvaHOa9dg4HqAL7YgReo8fy7wQavmY=";
       };
     };
     swagger2 = {
