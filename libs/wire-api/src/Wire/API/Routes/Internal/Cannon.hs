@@ -12,9 +12,11 @@ import Wire.API.Internal.BulkPush
 import Wire.API.RawJson
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
+import Wire.API.SwaggerServant
 
 type API =
-  "i"
+  SwaggerTag "cannon"
+    :> "i"
     :> ( Named
            "get-status"
            ( "status"

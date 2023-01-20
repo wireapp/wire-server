@@ -70,7 +70,7 @@ import Brig.User.Phone
 import qualified Cassandra as C
 import qualified Cassandra as Data
 import Control.Error hiding (bool)
-import Control.Lens (view, (%~), (.~), (<>~), (?~), (^.))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.Bifunctor
@@ -80,8 +80,6 @@ import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import qualified Data.HashSet.InsOrd as InsOrdSet
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
@@ -170,29 +168,12 @@ versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 internalEndpointsSwaggerDocsAPI :: Servant.Server InternalEndpointsSwaggerDocsAPI
 internalEndpointsSwaggerDocsAPI =
   swaggerSchemaUIServer $
-    ( prependTitle "brig" BrigInternalAPI.swaggerDoc
-        <> prependTitle "cannon" CannonInternalAPI.swaggerDoc
+    ( BrigInternalAPI.swaggerDoc
+        <> CannonInternalAPI.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server internal API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger-internal-endpoints.md")
       & cleanupSwagger
-  where
-    prependTitle :: Text -> S.Swagger -> S.Swagger
-    prependTitle tagName s = s & (S.paths . InsOrdHashMap.unorderedTraversal) %~ prependTitle' tagName
-
-    prependTitle' :: Text -> S.PathItem -> S.PathItem
-    prependTitle' tagName it =
-      it
-        & (S.get . traverse . S.tags) <>~ tag tagName
-        & (S.put . traverse . S.tags) <>~ tag tagName
-        & (S.post . traverse . S.tags) <>~ tag tagName
-        & (S.delete . traverse . S.tags) <>~ tag tagName
-        & (S.options . traverse . S.tags) <>~ tag tagName
-        & (S.patch . traverse . S.tags) <>~ tag tagName
-        & (S.head_ . traverse . S.tags) <>~ tag tagName
-
-    tag :: Text -> InsOrdSet.InsOrdHashSet S.TagName
-    tag tagName = InsOrdSet.singleton @S.TagName tagName
 
 servantSitemap ::
   forall r p.
