@@ -225,6 +225,15 @@ let
         sha256 = "sha256-yiw6hg3guRWS6CVdrUY8wyIDxoqfGjIVMrEtP+Fys0Y=";
       };
     };
+    # Not tested/relased yet
+    # https://github.com/dylex/invertible/commit/e203c6a729fde87b1f903c3f468f739a085fb446
+    invertible = {
+      src = fetchgit {
+        url = "https://github.com/dylex/invertible.git";
+        rev = "e203c6a729fde87b1f903c3f468f739a085fb446";
+        sha256 = "sha256-G6PX5lpU18oWLkwIityN4Hs0HuwQrq9T51kxbsdpK3M=";
+      };
+    };
   };
   hackagePins = {
     wai-route = {
