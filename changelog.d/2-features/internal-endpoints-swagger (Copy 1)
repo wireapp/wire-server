@@ -1,0 +1,1 @@
+Add Swagger documentation for internal endpoints. It's reachable at the path `/api-internal/swagger-ui/`.
