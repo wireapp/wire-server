@@ -24,7 +24,6 @@
 module Data.Range
   ( Range,
     toRange,
-    LTE,
     Within,
     Bounds (..),
     checked,
@@ -58,8 +57,6 @@ where
 import Cassandra (ColumnType, Cql (..), Tagged, retag)
 import Control.Lens ((%~), (?~))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
-import Data.Aeson.Types as Aeson (Parser)
-import qualified Data.Attoparsec.ByteString as Atto
 import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteString as B
 import Data.ByteString.Conversion
@@ -75,22 +72,20 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
 import Data.List1 (List1, toNonEmpty)
 import qualified Data.Map as Map
+import Data.Proxy
 import Data.Schema
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
-import Data.Singletons
-import Data.Singletons.Prelude.Num
-import Data.Singletons.Prelude.Ord
-import Data.Singletons.TypeLits
 import Data.Swagger (ParamSchema, ToParamSchema (..))
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiChar, AsciiChars, AsciiText, fromAsciiChars)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Lazy as TL
+import Data.Type.Ord
+import GHC.TypeNats
 import Imports
-import Numeric.Natural (Natural)
 import Servant (FromHttpApiData (..))
 import System.Random (Random)
 import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen)
@@ -103,7 +98,7 @@ newtype Range (n :: Nat) (m :: Nat) a = Range
   }
   deriving (Eq, Ord, Show)
 
-toRange :: (LTE n x, LTE x m, KnownNat x, Num a) => Proxy x -> Range n m a
+toRange :: (n <= x, x <= m, KnownNat x, Num a) => Proxy x -> Range n m a
 toRange = Range . fromIntegral . natVal
 
 instance (Show a, Num a, Within a n m, KnownNat n, KnownNat m) => Bounded (Range n m a) where
@@ -115,19 +110,18 @@ instance NFData (Range n m a) where rnf (Range a) = seq a ()
 instance ToJSON a => ToJSON (Range n m a) where
   toJSON = toJSON . fromRange
 
-instance (Within a n m, FromJSON a) => FromJSON (Range n m a) where
-  parseJSON v = parseJSON v >>= maybe (msg sing sing) pure . checked
+instance forall a n m. (KnownNat n, KnownNat m, Within a n m, FromJSON a) => FromJSON (Range n m a) where
+  parseJSON v = parseJSON v >>= maybe msg pure . checked
     where
-      msg :: Bounds a => SNat n -> SNat m -> Aeson.Parser (Range n m a)
-      msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
+      msg = fail (errorMsg (natVal (Proxy @n)) (natVal (Proxy @m)) "")
 
 rangedSchema ::
   forall n m d v w a b.
-  (Within a n m, HasRangedSchemaDocModifier d b) =>
+  (KnownNat n, KnownNat m, Within a n m, HasRangedSchemaDocModifier d b) =>
   SchemaP d v w a b ->
   SchemaP d v w a (Range n m b)
 rangedSchema sch =
-  Range <$> untypedRangedSchema (toInteger (demote @n)) (toInteger (demote @m)) sch
+  Range <$> untypedRangedSchema (toInteger (natVal (Proxy @n))) (toInteger (natVal (Proxy @m))) sch
 
 untypedRangedSchema ::
   forall d v w a b.
@@ -178,16 +172,15 @@ instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word32 where ran
 
 instance S.HasSchema d S.Schema => HasRangedSchemaDocModifier d Word64 where rangedSchemaDocModifier _ = numRangedSchemaDocModifier
 
-instance (Within a n m, ToSchema a, HasRangedSchemaDocModifier NamedSwaggerDoc a) => ToSchema (Range n m a) where
+instance (KnownNat n, KnownNat m, Within a n m, ToSchema a, HasRangedSchemaDocModifier NamedSwaggerDoc a) => ToSchema (Range n m a) where
   schema = fromRange .= rangedSchema schema
 
-instance (Within a n m, Cql a) => Cql (Range n m a) where
+instance forall a n m. (KnownNat n, KnownNat m, Within a n m, Cql a) => Cql (Range n m a) where
   ctype = retag (ctype :: Tagged a ColumnType)
   toCql = toCql . fromRange
-  fromCql c = fromCql c >>= maybe (msg sing sing) pure . checked
+  fromCql c = fromCql c >>= maybe msg pure . checked
     where
-      msg :: Bounds a => SNat n -> SNat m -> Either String (Range n m a)
-      msg sn sm = Left (errorMsg (fromSing sn) (fromSing sm) "")
+      msg = Left (errorMsg (natVal (Proxy @n)) (natVal (Proxy @m)) "")
 
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Integer) where toParamSchema = rangedNumToParamSchema
 
@@ -241,25 +234,21 @@ instance S.ToSchema a => S.ToSchema (Range n m a) where
   declareNamedSchema _ =
     S.declareNamedSchema (Proxy @a)
 
-instance (Within a n m, FromHttpApiData a) => FromHttpApiData (Range n m a) where
+instance (KnownNat n, KnownNat m, Within a n m, FromHttpApiData a) => FromHttpApiData (Range n m a) where
   parseUrlPiece t = do
     unchecked <- parseUrlPiece t
     Bifunctor.first T.pack $ checkedEither @_ @n @m unchecked
 
-type LTE (n :: Nat) (m :: Nat) = (SingI n, SingI m, (n <= m) ~ 'True)
+type Within a (n :: Nat) (m :: Nat) = (Bounds a, n <= m)
 
-type Within a (n :: Nat) (m :: Nat) = (Bounds a, LTE n m)
+mk :: Bounds a => a -> Nat -> Nat -> Maybe (Range n m a)
+mk a n m =
+  if within a (toInteger n) (toInteger m)
+    then Just (Range a)
+    else Nothing
 
-mk :: Bounds a => a -> SNat n -> SNat m -> Maybe (Range n m a)
-mk a sn sm =
-  let n = fromSing sn
-      m = fromSing sm
-   in if within a (toInteger n) (toInteger m)
-        then Just (Range a)
-        else Nothing
-
-checked :: Within a n m => a -> Maybe (Range n m a)
-checked x = mk x sing sing
+checked :: forall n m a. (KnownNat n, KnownNat m, Within a n m) => a -> Maybe (Range n m a)
+checked x = mk x (natVal (Proxy @n)) (natVal (Proxy @m))
 
 errorMsg :: (Show a, Show b) => a -> b -> ShowS
 errorMsg n m =
@@ -269,20 +258,20 @@ errorMsg n m =
     . shows m
     . showString "]"
 
-checkedEitherMsg :: forall a n m. Within a n m => String -> a -> Either String (Range n m a)
+checkedEitherMsg :: forall a n m. (KnownNat n, KnownNat m) => Within a n m => String -> a -> Either String (Range n m a)
 checkedEitherMsg msg x = do
-  let sn = sing :: SNat n
-      sm = sing :: SNat m
+  let sn = natVal (Proxy @n)
+      sm = natVal (Proxy @m)
   case mk x sn sm of
-    Nothing -> Left $ showString msg . showString ": " . errorMsg (fromSing sn) (fromSing sm) $ ""
+    Nothing -> Left $ showString msg . showString ": " . errorMsg sn sm $ ""
     Just r -> Right r
 
-checkedEither :: forall a n m. Within a n m => a -> Either String (Range n m a)
+checkedEither :: forall a n m. (KnownNat n, KnownNat m) => Within a n m => a -> Either String (Range n m a)
 checkedEither x = do
-  let sn = sing :: SNat n
-      sm = sing :: SNat m
+  let sn = natVal (Proxy @n)
+      sm = natVal (Proxy @m)
   case mk x sn sm of
-    Nothing -> Left (errorMsg (fromSing sn) (fromSing sm) "")
+    Nothing -> Left (errorMsg sn sm "")
     Just r -> Right r
 
 rangedChunks :: forall a n. (Within [a] 1 n, KnownNat n) => [a] -> [Range 1 n [a]]
@@ -293,34 +282,33 @@ rangedChunks xs =
         [] -> []
         _ -> Range headPart : rangedChunks tailPart
 
-unsafeRange :: (Show a, Within a n m) => a -> Range n m a
-unsafeRange x = fromMaybe (msg sing sing) (checked x)
+unsafeRange :: forall a n m. (Show a, KnownNat n, KnownNat m, Within a n m) => a -> Range n m a
+unsafeRange x = fromMaybe msg (checked x)
   where
-    msg :: SNat n -> SNat m -> Range n m a
-    msg sn sm =
+    msg =
       error
         . shows x
         . showString " "
-        . errorMsg (fromSing sn) (fromSing sm)
+        . errorMsg (natVal (Proxy @n)) (natVal (Proxy @m))
         $ ""
 
-rcast :: (LTE n m, (m <= m') ~ 'True, (n >= n') ~ 'True) => Range n m a -> Range n' m' a
+rcast :: (n <= m, m <= m', n >= n') => Range n m a -> Range n' m' a
 rcast (Range a) = Range a
 
 rnil :: Monoid a => Range 0 0 a
 rnil = Range mempty
 
-rcons, (<|) :: LTE n m => a -> Range n m [a] -> Range n (m + 1) [a]
+rcons, (<|) :: n <= m => a -> Range n m [a] -> Range n (m + 1) [a]
 rcons a (Range aa) = Range (a : aa)
 
 infixr 5 <|
 
 (<|) = rcons
 
-rinc :: (Integral a, LTE n m) => Range n m a -> Range n (m + 1) a
+rinc :: (Integral a, n <= m) => Range n m a -> Range n (m + 1) a
 rinc (Range a) = Range (a + 1)
 
-rappend :: (LTE n m, LTE n' m', Monoid a) => Range n m a -> Range n' m' a -> Range n (m + m') a
+rappend :: (n <= m, n' <= m', Monoid a) => Range n m a -> Range n' m' a -> Range n (m + m') a
 rappend (Range a) (Range b) = Range (a <> b)
 
 rsingleton :: a -> Range 1 1 [a]
@@ -413,7 +401,7 @@ instance Bounds (AsciiText r) where
 
 -----------------------------------------------------------------------------
 
-instance (Within a n m, Read a) => Read (Range n m a) where
+instance (KnownNat n, KnownNat m, Within a n m, Read a) => Read (Range n m a) where
   readsPrec p s = fromMaybe [] $ foldr f (Just []) (readsPrec p s)
     where
       f :: (Within a n m, Read a) => (a, String) -> Maybe [(Range n m a, String)] -> Maybe [(Range n m a, String)]
@@ -422,11 +410,10 @@ instance (Within a n m, Read a) => Read (Range n m a) where
 
 -----------------------------------------------------------------------------
 
-instance (Within a n m, FromByteString a) => FromByteString (Range n m a) where
-  parser = parser >>= maybe (msg sing sing) pure . checked
+instance (KnownNat n, KnownNat m, Within a n m, FromByteString a) => FromByteString (Range n m a) where
+  parser = parser >>= maybe msg pure . checked
     where
-      msg :: Bounds a => SNat n -> SNat m -> Atto.Parser (Range n m a)
-      msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
+      msg = fail (errorMsg (natVal (Proxy @n)) (natVal (Proxy @m)) "")
 
 instance ToByteString a => ToByteString (Range n m a) where
   builder = builder . fromRange
@@ -442,20 +429,20 @@ instance Arbitrary (Range m n a) => Arbitrary (Ranged m n a) where
   arbitrary = Ranged . fromRange <$> arbitrary @(Range m n a)
 
 instance
-  (KnownNat n, KnownNat m, LTE n m, Arbitrary a, Show a) =>
+  (KnownNat n, KnownNat m, n <= m, Arbitrary a, Show a) =>
   Arbitrary (Range n m [a])
   where
   arbitrary = genRangeList @n @m @a arbitrary
 
 genRangeList ::
-  forall (n :: Nat) (m :: Nat) (a :: *).
-  (Show a, KnownNat n, KnownNat m, LTE n m) =>
+  forall (n :: Nat) (m :: Nat) (a :: Type).
+  (Show a, KnownNat n, KnownNat m, n <= m) =>
   Gen a ->
   Gen (Range n m [a])
 genRangeList = genRange id
 
 instance
-  (KnownNat n, KnownNat m, LTE n m, Arbitrary a, Show a, Ord a) =>
+  (KnownNat n, KnownNat m, n <= m, Arbitrary a, Show a, Ord a) =>
   Arbitrary (Range n m (Set a))
   where
   arbitrary = genRangeSet @n @m @a arbitrary
@@ -465,14 +452,14 @@ instance
 -- However, it will only show up while running tests and might indicate deeper
 -- problems, so I'd say that's ok.
 genRangeSet ::
-  forall (n :: Nat) (m :: Nat) (a :: *).
-  (Show a, KnownNat n, KnownNat m, LTE n m, Ord a) =>
+  forall (n :: Nat) (m :: Nat) (a :: Type).
+  (Show a, KnownNat n, KnownNat m, n <= m, Ord a) =>
   Gen a ->
   Gen (Range n m (Set a))
 genRangeSet gc =
   (Set.fromList . fromRange <$> genRangeList @n @m @a gc) `QC.suchThatMap` checked
 
-instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Text) where
+instance (KnownNat n, KnownNat m, n <= m) => Arbitrary (Range n m Text) where
   arbitrary = genRangeText arbitrary
 
   -- FUTUREWORK: the shrinking could be more general (like genRange) and offer more options
@@ -480,27 +467,27 @@ instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Text) where
 
 genRangeText ::
   forall (n :: Nat) (m :: Nat).
-  (KnownNat n, KnownNat m, LTE n m) =>
+  (KnownNat n, KnownNat m, n <= m) =>
   Gen Char ->
   Gen (Range n m Text)
 genRangeText = genRange fromString
 
 instance
-  (AsciiChars c, KnownNat n, KnownNat m, LTE n m, Arbitrary (AsciiChar c)) =>
+  (AsciiChars c, KnownNat n, KnownNat m, n <= m, Arbitrary (AsciiChar c)) =>
   Arbitrary (Range n m (AsciiText c))
   where
   arbitrary = genRangeAsciiText (arbitrary @(AsciiChar c))
 
 genRangeAsciiText ::
   forall (n :: Nat) (m :: Nat) (c :: Type).
-  (HasCallStack, KnownNat n, KnownNat m, LTE n m, AsciiChars c) =>
+  (HasCallStack, KnownNat n, KnownNat m, n <= m, AsciiChars c) =>
   Gen (AsciiChar c) ->
   Gen (Range n m (AsciiText c))
 genRangeAsciiText = genRange @n @m fromAsciiChars
 
 genRange ::
-  forall (n :: Nat) (m :: Nat) (a :: *) (b :: *).
-  (Show b, Bounds b, KnownNat n, KnownNat m, LTE n m) =>
+  forall (n :: Nat) (m :: Nat) (a :: Type) (b :: Type).
+  (Show b, Bounds b, KnownNat n, KnownNat m, n <= m) =>
   ([a] -> b) ->
   Gen a ->
   Gen (Range n m b)
@@ -513,17 +500,17 @@ genRange pack_ gc =
   where
     grange mi ma gelem = (`replicateM` gelem) =<< QC.chooseInt (mi, ma)
 
-instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Integer) where
+instance (KnownNat n, KnownNat m, n <= m) => Arbitrary (Range n m Integer) where
   arbitrary = genIntegral
 
-instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Word) where
+instance (KnownNat n, KnownNat m, n <= m) => Arbitrary (Range n m Word) where
   arbitrary = genIntegral
 
 genIntegral ::
   forall n m i.
-  (KnownNat n, KnownNat m, LTE n m, Integral i, Show i, Bounds i, Random i) =>
+  (KnownNat n, KnownNat m, n <= m, Integral i, Show i, Bounds i, Random i) =>
   Gen (Range n m i)
 genIntegral = unsafeRange @i @n @m <$> QC.choose (fromKnownNat (Proxy @n), fromKnownNat (Proxy @m))
 
-fromKnownNat :: forall (k :: Nat) (i :: *). (Num i, KnownNat k) => Proxy k -> i
+fromKnownNat :: forall (k :: Nat) (i :: Type). (Num i, KnownNat k) => Proxy k -> i
 fromKnownNat p = fromIntegral $ natVal p
