@@ -312,9 +312,6 @@ tests =
       testRoundTrip @User.Search.TeamContact,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),
       testRoundTrip @Conversation.Action.SomeConversationAction
-      -- TODO: Enable
-      --      testRoundTrip @RawJson.RawJson
-      -- TODO: Add BulkPushRequest and BulkPushResponse
     ]
 
 testRoundTrip ::
