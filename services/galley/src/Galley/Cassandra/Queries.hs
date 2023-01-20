@@ -347,6 +347,9 @@ lookupGroupIdForSubConversation = "SELECT conv_id, domain, subconv_id from group
 insertEpochForSubConversation :: PrepQuery W (Epoch, ConvId, SubConvId) ()
 insertEpochForSubConversation = "UPDATE subconversation set epoch = ? WHERE conv_id = ? AND subconv_id = ?"
 
+listSubConversations :: PrepQuery R (Identity ConvId) (SubConvId, CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
+listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ?"
+
 -- Members ------------------------------------------------------------------
 
 type MemberStatus = Int32

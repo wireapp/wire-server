@@ -1116,6 +1116,7 @@ deleteTeamConversation ::
          GundeckAccess,
          Input Env,
          Input UTCTime,
+         SubConversationStore,
          TeamStore
        ]
       r,

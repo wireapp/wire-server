@@ -749,6 +749,7 @@ instance
              ListItems LegacyPaging ConvId,
              MemberStore,
              ProposalStore,
+             SubConversationStore,
              TeamFeatureStore db,
              TeamStore,
              TeamMemberStore InternalPaging,

@@ -362,6 +362,7 @@ leaveConversation ::
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
@@ -500,6 +501,7 @@ onUserDeleted ::
          Input Env,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
@@ -548,26 +550,27 @@ onUserDeleted origDomain udcn = do
 updateConversation ::
   forall r.
   ( Members
-      '[ BrigAccess,
+      '[ BotAccess,
+         BrigAccess,
          CodeStore,
-         BotAccess,
-         FireAndForget,
+         ConversationStore,
          Error FederationError,
+         Error InternalError,
          Error InvalidInput,
          ExternalAccess,
          FederatorAccess,
-         Error InternalError,
+         FireAndForget,
          GundeckAccess,
          Input Env,
+         Input (Local ()),
          Input Opts,
          Input UTCTime,
          LegalHoldStore,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
-         TinyLog,
-         ConversationStore,
-         Input (Local ())
+         TinyLog
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",

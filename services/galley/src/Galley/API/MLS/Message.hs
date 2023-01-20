@@ -1239,6 +1239,7 @@ type HasProposalActionEffects r =
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r,
     CallsFed 'Galley "on-conversation-updated",

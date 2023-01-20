@@ -68,6 +68,7 @@ import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
+import qualified Galley.Effects.SubConversationStore as E
 import qualified Galley.Effects.TeamStore as E
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -120,6 +121,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
          LegalHoldStore,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
          TinyLog,
          ConversationStore,
@@ -166,6 +168,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
          Input Env,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
          TinyLog,
          Input UTCTime,
@@ -449,6 +452,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
            LegalHoldStore,
            MemberStore,
            ProposalStore,
+           SubConversationStore,
            TeamStore,
            TinyLog
          ]
@@ -592,7 +596,8 @@ updateLocalConversation ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     HasConversationActionEffects tag r,
@@ -636,6 +641,7 @@ updateLocalConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member SubConversationStore r,
     HasConversationActionEffects tag r,
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-conversation-updated",
@@ -715,7 +721,14 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r,
+  ( Members
+      '[ FederatorAccess,
+         ExternalAccess,
+         GundeckAccess,
+         Input UTCTime,
+         SubConversationStore
+       ]
+      r,
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-conversation-updated"
   ) =>
@@ -741,20 +754,25 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           uids
           (SomeConversationAction tag action)
 
-  -- call `on-new-remote-conversation` on backends that are seeing this
-  -- conversation for the first time
+  -- Backends that are seeing this conversation for the first time need to be
+  -- notified about this conversation and all its subconversations
   let newDomains =
         Set.difference
           (Set.map void (bmRemotes targets))
           (Set.fromList (map (void . rmId) (convRemoteMembers conv)))
-  let nrc =
+  subConvs <-
+    ((Nothing, convProtocol conv) :) -- add main conversation to the list of subconversations
+      . map (bimap Just ProtocolMLS)
+      . Map.assocs
+      <$> E.listSubConversations (convId conv)
+  E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
+    for_ subConvs $ \(mSubId, proto) ->
+      fedClient @'Galley @"on-new-remote-conversation"
         NewRemoteConversation
           { nrcConvId = convId conv,
-            nrcSubConvId = Nothing,
-            nrcProtocol = convProtocol conv
+            nrcSubConvId = mSubId,
+            nrcProtocol = proto
           }
-  E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
-    void $ fedClient @'Galley @"on-new-remote-conversation" nrc
 
   update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
     . E.runFederatedConcurrently (toList (bmRemotes targets))
@@ -835,6 +853,7 @@ kickMember ::
     Member (Input UTCTime) r,
     Member (Input Env) r,
     Member MemberStore r,
+    Member SubConversationStore r,
     Member TinyLog r,
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-conversation-updated",

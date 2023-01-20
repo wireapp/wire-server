@@ -285,6 +285,7 @@ type UpdateConversationAccessEffects =
      Input UTCTime,
      MemberStore,
      ProposalStore,
+     SubConversationStore,
      TeamStore,
      TinyLog
    ]
@@ -339,6 +340,7 @@ updateConversationReceiptMode ::
          Input Env,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
@@ -419,6 +421,7 @@ updateConversationReceiptModeUnqualified ::
          Input Env,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
@@ -444,7 +447,8 @@ updateConversationMessageTimer ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
@@ -482,7 +486,8 @@ updateConversationMessageTimerUnqualified ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
@@ -509,6 +514,7 @@ deleteLocalConversation ::
          GundeckAccess,
          Input Env,
          Input UTCTime,
+         SubConversationStore,
          TeamStore
        ]
       r,
@@ -718,6 +724,7 @@ joinConversationByReusableCode ::
          Input Opts,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TeamStore,
          TeamFeatureStore db
        ]
@@ -752,6 +759,7 @@ joinConversationById ::
          Input Opts,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TeamStore,
          TeamFeatureStore db
        ]
@@ -781,6 +789,7 @@ joinConversation ::
          Input Opts,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TeamStore,
          TeamFeatureStore db
        ]
@@ -840,6 +849,7 @@ addMembers ::
          LegalHoldStore,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
          TinyLog
        ]
@@ -883,6 +893,7 @@ addMembersUnqualifiedV2 ::
          LegalHoldStore,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
          TinyLog
        ]
@@ -926,6 +937,7 @@ addMembersUnqualified ::
          LegalHoldStore,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
          TinyLog
        ]
@@ -1024,7 +1036,8 @@ updateOtherMemberLocalConv ::
          GundeckAccess,
          Input Env,
          Input UTCTime,
-         MemberStore
+         MemberStore,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
@@ -1055,7 +1068,8 @@ updateOtherMemberUnqualified ::
          GundeckAccess,
          Input Env,
          Input UTCTime,
-         MemberStore
+         MemberStore,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
@@ -1086,7 +1100,8 @@ updateOtherMember ::
          GundeckAccess,
          Input Env,
          Input UTCTime,
-         MemberStore
+         MemberStore,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
@@ -1126,6 +1141,7 @@ removeMemberUnqualified ::
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
@@ -1158,6 +1174,7 @@ removeMemberQualified ::
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
@@ -1234,6 +1251,7 @@ removeMemberFromLocalConv ::
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
@@ -1454,7 +1472,8 @@ updateConversationName ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
@@ -1484,7 +1503,8 @@ updateUnqualifiedConversationName ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
@@ -1510,7 +1530,8 @@ updateLocalConversationName ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
