@@ -17,6 +17,7 @@
 
 module Wire.API.Internal.BulkPush where
 
+import Control.Lens
 import Data.Aeson
 import Data.Id
 import qualified Data.Schema as S
@@ -98,6 +99,6 @@ instance S.ToSchema (NotificationId, PushTarget, PushStatus) where
   schema =
     S.object "(NotificationId, PushTarget, PushStatus)" $
       (,,)
-        <$> (\(a, _, _) -> a) S..= S.field "notif_id" S.schema
-        <*> (\(_, b, _) -> b) S..= S.field "target" S.schema
-        <*> (\(_, _, c) -> c) S..= S.field "status" S.schema
+        <$> view _1 S..= S.field "notif_id" S.schema
+        <*> view _2 S..= S.field "target" S.schema
+        <*> view _3 S..= S.field "status" S.schema
