@@ -21,6 +21,7 @@ module Servant.API.Extended where
 
 import qualified Data.ByteString.Lazy as BL
 import Data.EitherR (fmapL)
+import Data.Kind
 import Data.Metrics.Servant
 import Data.String.Conversions (cs)
 import Data.Typeable
@@ -54,12 +55,12 @@ import Prelude ()
 -- that'll be).
 --
 -- See also: https://github.com/haskell-servant/servant/issues/353
-data ReqBodyCustomError' (mods :: [*]) (list :: [ct]) (tag :: Symbol) (a :: *)
+data ReqBodyCustomError' (mods :: [Type]) (list :: [ct]) (tag :: Symbol) (a :: Type)
 
 type ReqBodyCustomError = ReqBodyCustomError' '[Required, Strict]
 
 -- | Custom parse error for bad request bodies.
-class MakeCustomError (tag :: Symbol) (a :: *) where
+class MakeCustomError (tag :: Symbol) (a :: Type) where
   makeCustomError :: String -> ServerError
 
 -- | Variant of the 'ReqBody'' instance that takes a 'ServerError' as argument instead of a
