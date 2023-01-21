@@ -264,6 +264,22 @@ let
       version = "1.0";
       sha256 = "sha256-dv/W8hIPoHVevxiiCb6OfeP53O/9HPgUiqOHGSNb/pk=";
     };
+    singletons = {
+      version = "3.0.1";
+      sha256 = "sha256-ixHWZae6AxjRUldMgpYolXBGsOUT5ZVIw9HZkxrhHQ0=";
+    };
+    singletons-base = {
+      version = "3.1";
+      sha256 = "sha256-SjpkQofdDMrUMi9cHNF5eyqic7WMAhWNqrKr4ip1RNs=";
+    };
+    singletons-th = {
+      version = "3.1";
+      sha256 = "sha256-34nyestxt8KNTSlmr1Y8nElNXa/wZ1+fuLEUVjZX8dk=";
+    };
+    th-desugar = {
+      version = "1.13";
+      sha256 = "sha256-xiAeSM2umcfsz5+mcW+oGKf/EmzvH0ch0lHoKBGzW9I=";
+    };
   };
   # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
