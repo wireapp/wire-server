@@ -58,6 +58,7 @@ import Data.Binary.Put
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Json.Util
+import Data.Kind
 import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
@@ -125,7 +126,7 @@ serialiseMLSOptional p (Just x) = do
 -- corresponding enumeration index. This makes it possible to parse enumeration
 -- types that don't contain an explicit constructor for a "reserved" value.
 parseMLSEnum ::
-  forall (w :: *) a.
+  forall (w :: Type) a.
   (Bounded a, Enum a, Integral w, Binary w) =>
   String ->
   Get a
