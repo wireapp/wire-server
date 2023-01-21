@@ -18,7 +18,8 @@
 module Wire.API.ApplyMods where
 
 import Servant.API
+import Data.Kind
 
-type family ApplyMods (mods :: [*]) api where
+type family ApplyMods (mods :: [Type]) api where
   ApplyMods '[] api = api
   ApplyMods (x ': xs) api = x :> ApplyMods xs api
