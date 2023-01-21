@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart for postgresql13
+name: postgres
+version: 0.0.42

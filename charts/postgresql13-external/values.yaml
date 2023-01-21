@@ -1,0 +1,13 @@
+global:
+  postgresql:
+    enabled: true
+    auth:
+      postgresPassword: externalPostgresql
+      username: externalPostgresql
+      password: externalPostgresql
+      database: externalPostgresql
+primary:
+  persistence:
+    existingClaim: postgresql-pv-claim
+volumePermissions:
+  enabled: true
