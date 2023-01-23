@@ -18,6 +18,7 @@
 , brig-types
 , bytestring
 , bytestring-conversion
+, Cabal
 , case-insensitive
 , cassandra-util
 , cassava
@@ -252,6 +253,7 @@ mkDerivation {
     brig-types
     bytestring
     bytestring-conversion
+    Cabal
     case-insensitive
     cassandra-util
     cassava
