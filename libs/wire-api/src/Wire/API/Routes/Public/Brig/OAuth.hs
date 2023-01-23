@@ -75,10 +75,26 @@ type OAuthAPI =
                :> CanThrow 'OAuthAuthCodeNotFound
                :> CanThrow 'OAuthClientNotFound
                :> CanThrow 'OAuthFeatureDisabled
+               :> CanThrow 'OAuthInvalidRefreshToken
+               :> CanThrow 'OAuthInvalidGrantType
+               :> CanThrow 'OAuthInvalidClientCredentials
                :> "oauth"
                :> "token"
                :> ReqBody '[FormUrlEncoded] (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest)
                :> Post '[JSON] OAuthAccessTokenResponse
+           )
+    :<|> Named
+           "revoke-refresh-token"
+           ( Summary "Revoke an OAuth refresh token"
+               :> Description "Revoke an access token."
+               :> CanThrow 'OAuthJwtError
+               :> CanThrow 'OAuthInvalidRefreshToken
+               :> CanThrow 'OAuthClientNotFound
+               :> CanThrow 'OAuthInvalidClientCredentials
+               :> "oauth"
+               :> "revoke"
+               :> ReqBody '[JSON] OAuthRevokeRefreshTokenRequest
+               :> Post '[JSON] ()
            )
 
 swaggerDoc :: Swagger

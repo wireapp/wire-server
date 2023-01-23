@@ -20,7 +20,7 @@ module API.OAuth where
 
 import Bilge
 import Bilge.Assert
-import Brig.API.OAuth
+import Brig.API.OAuth hiding (verifyRefreshToken)
 import Brig.Effects.Jwk (readJwk)
 import Brig.Options
 import qualified Brig.Options as Opt

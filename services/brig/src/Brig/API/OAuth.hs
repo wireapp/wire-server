@@ -65,6 +65,7 @@ oauthAPI =
   Named @"get-oauth-client" getOAuthClient
     :<|> Named @"create-oauth-auth-code" createNewOAuthAuthCode
     :<|> Named @"create-oauth-access-token" createAccessTokenWith
+    :<|> Named @"revoke-refresh-token" revokeRefreshToken
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -112,25 +113,29 @@ createAccessTokenWithRefreshToken :: (Member Now r, Member Jwk r) => OAuthRefres
 createAccessTokenWithRefreshToken req = do
   unless (oartGrantType req == OAuthGrantTypeRefreshToken) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   key <- signingKey
-  rid <- verifyRefreshToken key (oartRefreshToken req)
-  mInfo <- lift $ wrapClient $ lookupAndDeleteOAuthRefreshToken rid
-  info <- maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure mInfo
+  info <- verifyTokenAndGetInfo key (oartRefreshToken req)
   let uid = oriUserId info
       cid = oriClientId info
       scope = oriScopes info
-  oauthClient <- getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+  void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
   unless (cid == oartClientId req) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
-  unlessM (verifyClientSecret (oartClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
+  unlessM (verifyClientSecret (oartClientSecret req) cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
 
   createAccessToken key uid cid scope
-  where
-    verifyRefreshToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenId
-    verifyRefreshToken key rt = do
-      eClaims <- liftIO (OAuth.verify' key (unOAuthToken rt))
-      case eClaims of
-        Left _ -> throwStd $ errorToWai @'OAuthInvalidRefreshToken
-        Right claims -> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure $ hcsSub claims
+
+verifyTokenAndGetInfo :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
+verifyTokenAndGetInfo key =
+  verifyRefreshToken key
+    >=> lift . wrapClient . lookupAndDeleteOAuthRefreshToken
+    >=> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure
+
+verifyRefreshToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenId
+verifyRefreshToken key rt = do
+  eClaims <- liftIO (OAuth.verify' key (unOAuthToken rt))
+  case eClaims of
+    Left _ -> throwStd $ errorToWai @'OAuthInvalidRefreshToken
+    Right claims -> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure $ hcsSub claims
 
 createAccessTokenWithAuthCode :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWithAuthCode req = do
@@ -142,7 +147,6 @@ createAccessTokenWithAuthCode req = do
 
   unless (uri == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
   unless (ocRedirectUrl oauthClient == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
-  unless (cid == oatClientId req) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   unlessM (verifyClientSecret (oatClientSecret req) (ocId oauthClient)) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
 
   key <- signingKey
@@ -225,6 +229,17 @@ verifyClientSecret secret cid = do
 
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
+
+revokeRefreshToken :: Member Jwk r => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
+revokeRefreshToken req = do
+  key <- signingKey
+  info <- verifyTokenAndGetInfo key (ortrRefreshToken req)
+  let uid = oriUserId info
+      cid = oriClientId info
+  void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
+
+  unlessM (verifyClientSecret (ortrClientSecret req) cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
+  lift $ wrapClient $ deleteOAuthRefreshToken info
 
 --------------------------------------------------------------------------------
 -- DB

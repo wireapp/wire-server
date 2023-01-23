@@ -496,6 +496,26 @@ instance FromForm (Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest
       choose _ (Right a) = Right (Right a)
       choose (Left err) _ = Left err
 
+data OAuthRevokeRefreshTokenRequest = OAuthRevokeRefreshTokenRequest
+  { ortrClientId :: OAuthClientId,
+    ortrClientSecret :: OAuthClientPlainTextSecret,
+    ortrRefreshToken :: OAuthRefreshToken
+  }
+  deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthRevokeRefreshTokenRequest)
+
+instance ToSchema OAuthRevokeRefreshTokenRequest where
+  schema =
+    object "OAuthRevokeRefreshTokenRequest" $
+      OAuthRevokeRefreshTokenRequest
+        <$> ortrClientId .= fieldWithDocModifier "clientId" clientIdDescription schema
+        <*> ortrClientSecret .= fieldWithDocModifier "clientSecret" clientSecretDescription schema
+        <*> ortrRefreshToken .= fieldWithDocModifier "refreshToken" refreshTokenDescription schema
+    where
+      clientIdDescription = description ?~ "The OAuth client's ID"
+      clientSecretDescription = description ?~ "The OAuth client's secret"
+      refreshTokenDescription = description ?~ "The refresh token"
+
 --------------------------------------------------------------------------------
 -- Errors
 
