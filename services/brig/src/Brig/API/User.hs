@@ -948,8 +948,7 @@ activateWithCurrency tgt code usr cur = do
 
 preverify ::
   ( MonadClient m,
-    MonadReader Env m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadReader Env m
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -1270,11 +1269,7 @@ verifyDeleteUser d = do
 -- Called via @delete /i/user/:uid@.
 ensureAccountDeleted ::
   ( MonadLogger m,
-    MonadCatch m,
-    MonadThrow m,
     MonadIndexIO m,
-    MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,

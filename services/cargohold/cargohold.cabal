@@ -80,6 +80,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -185,7 +186,7 @@ executable cargohold
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -rtsopts -with-rtsopts=-T
+    -threaded -rtsopts -with-rtsopts=-T -Wredundant-constraints
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -271,6 +272,7 @@ executable cargohold-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       aeson                  >=2.0.1.0

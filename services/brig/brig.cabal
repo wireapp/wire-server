@@ -180,6 +180,7 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -fplugin=Polysemy.Plugin
+    -Wredundant-constraints
 
   build-depends:
       aeson                      >=2.0.1.0
@@ -362,7 +363,7 @@ executable brig
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts
+    -rtsopts -Wredundant-constraints
 
   build-depends:
       base
@@ -421,6 +422,7 @@ executable brig-index
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N
+    -Wredundant-constraints
 
   build-depends:
       base
@@ -516,7 +518,7 @@ executable brig-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields
+    -funbox-strict-fields -Wredundant-constraints
 
   build-depends:
       aeson
@@ -728,7 +730,7 @@ executable brig-schema
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields
+    -funbox-strict-fields -Wredundant-constraints
 
   build-depends:
       base
@@ -803,6 +805,7 @@ test-suite brig-tests
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N
+    -Wredundant-constraints
 
   build-depends:
       aeson

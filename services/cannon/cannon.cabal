@@ -73,6 +73,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -168,7 +169,7 @@ executable cannon
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -rtsopts -with-rtsopts=-N -with-rtsopts=-T
-    -with-rtsopts=-M1g -with-rtsopts=-ki4k
+    -with-rtsopts=-M1g -with-rtsopts=-ki4k -Wredundant-constraints
 
   build-depends:
       base
@@ -233,7 +234,7 @@ test-suite cannon-tests
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N
+    -threaded -with-rtsopts=-N -Wredundant-constraints
 
   build-depends:
       async
@@ -307,7 +308,7 @@ benchmark cannon-bench
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N
+    -threaded -with-rtsopts=-N -Wredundant-constraints
 
   build-depends:
       async

@@ -81,7 +81,7 @@ library
     TypeOperators
     TypeSynonymInstances
 
-  ghc-options:        -Wall -Werror
+  ghc-options:        -Wall -Werror -Wredundant-constraints
   build-depends:
       aeson                 >=2
     , aeson-qq              >=0.8.2   && <0.9
@@ -146,7 +146,10 @@ executable hscim-server
     TypeOperators
     TypeSynonymInstances
 
-  ghc-options:        -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:
+    -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
+    -Wredundant-constraints
+
   build-depends:
       aeson                 >=2
     , aeson-qq              >=0.8.2   && <0.9
@@ -229,7 +232,10 @@ test-suite spec
     TypeOperators
     TypeSynonymInstances
 
-  ghc-options:        -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:
+    -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
+    -Wredundant-constraints
+
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson                 >=2

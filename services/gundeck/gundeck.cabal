@@ -94,7 +94,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -fwarn-incomplete-uni-patterns
+    -Wredundant-constraints
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -207,7 +207,7 @@ executable gundeck
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -rtsopts -with-rtsopts=-T
+    -threaded -rtsopts -with-rtsopts=-T -Wredundant-constraints
 
   build-depends:
       base
@@ -279,7 +279,7 @@ executable gundeck-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded
+    -threaded -Wredundant-constraints
 
   build-depends:
       aeson
@@ -389,7 +389,7 @@ executable gundeck-schema
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded
+    -threaded -Wredundant-constraints
 
   build-depends:
       base
@@ -464,7 +464,7 @@ test-suite gundeck-tests
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded
+    -threaded -Wredundant-constraints
 
   build-depends:
       aeson
@@ -554,6 +554,7 @@ benchmark gundeck-bench
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       aeson
