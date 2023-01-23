@@ -113,8 +113,8 @@ let
     bloodhound = {
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";
-        rev = "c68e6d877d87988331bf391ed16780383a58eefa";
-        sha256 = "0fr5xgq8f1nmcbk8srrhyf4vad4xm5iqr974jgqfg1mg31y85h0x";
+        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
+        sha256 = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
       };
     };
     cryptobox-haskell = {
