@@ -31,12 +31,13 @@ module Wire.Sem.Paging
 where
 
 import Imports
+import Data.Kind
 
-type family Page p a :: (page :: *) | page -> p a
+type family Page p a :: (page :: Type) | page -> p a
 
-type family PagingState p a = (ps :: *)
+type family PagingState p a = (ps :: Type)
 
-type family PagingBounds p a :: *
+type family PagingBounds p a :: Type
 
 class Paging p where
   pageItems :: Page p a -> [a]
