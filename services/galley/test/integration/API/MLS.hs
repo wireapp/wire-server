@@ -1226,6 +1226,7 @@ testRemoteToLocal = do
           MLSMessageSendRequest
             { mmsrConvOrSubId = Conv (qUnqualified qcnv),
               mmsrSender = qUnqualified bob,
+              mmsrSenderClient = ciClient bob1,
               mmsrRawMessage = Base64ByteString (mpMessage message)
             }
 
@@ -1269,6 +1270,7 @@ testRemoteToLocalWrongConversation = do
           MLSMessageSendRequest
             { mmsrConvOrSubId = Conv randomConfId,
               mmsrSender = qUnqualified bob,
+              mmsrSenderClient = ciClient bob1,
               mmsrRawMessage = Base64ByteString (mpMessage message)
             }
 
@@ -1302,6 +1304,7 @@ testRemoteNonMemberToLocal = do
           MLSMessageSendRequest
             { mmsrConvOrSubId = Conv (qUnqualified qcnv),
               mmsrSender = qUnqualified bob,
+              mmsrSenderClient = ciClient bob1,
               mmsrRawMessage = Base64ByteString (mpMessage message)
             }
 
@@ -2041,7 +2044,14 @@ testRemoteUserPostsCommitBundle = do
         commitAddCharlie <- createAddCommit bob1 [charlie]
         commitBundle <- createBundle commitAddCharlie
 
-        let msr = MLSMessageSendRequest (Conv (qUnqualified qcnv)) (qUnqualified bob) (Base64ByteString commitBundle)
+        let msr =
+              MLSMessageSendRequest
+                { mmsrConvOrSubId = (Conv (qUnqualified qcnv)),
+                  mmsrSender = qUnqualified bob,
+                  mmsrSenderClient = ciClient bob1,
+                  mmsrRawMessage = Base64ByteString commitBundle
+                }
+
         -- we can't fully test it, because remote admins are not implemeted, but
         -- at least this proves that proposal processing has started on the
         -- backend

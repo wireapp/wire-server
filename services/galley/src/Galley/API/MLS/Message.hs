@@ -247,7 +247,7 @@ postMLSCommitBundle loc qusr mc qConvOrSub conn rawBundle =
   foldQualified
     loc
     (postMLSCommitBundleToLocalConv qusr mc conn rawBundle)
-    (postMLSCommitBundleToRemoteConv loc qusr conn rawBundle)
+    (postMLSCommitBundleToRemoteConv loc qusr mc conn rawBundle)
     qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
@@ -362,7 +362,8 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lConvOrSubId = do
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
     Members
-      '[ Error FederationError,
+      '[ BrigAccess,
+         Error FederationError,
          Error MLSProtocolError,
          Error MLSProposalFailure,
          ExternalAccess,
@@ -376,16 +377,25 @@ postMLSCommitBundleToRemoteConv ::
   ) =>
   Local x ->
   Qualified UserId ->
+  Maybe ClientId ->
   Maybe ConnId ->
   CommitBundle ->
   Remote ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
-postMLSCommitBundleToRemoteConv loc qusr con bundle rConvOrSubId = do
+postMLSCommitBundleToRemoteConv loc qusr mc con bundle rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send commit bundles to a remote conversation
 
   flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) (convOfConvOrSub <$> rConvOrSubId)
+
+  senderIdentity <-
+    noteS @'MLSMissingSenderClient
+      =<< getSenderIdentity
+        qusr
+        mc
+        SMLSPlainText
+        (rmValue (cbCommitMsg bundle))
 
   resp <-
     runFederated rConvOrSubId $
@@ -393,6 +403,7 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rConvOrSubId = do
         MLSMessageSendRequest
           { mmsrConvOrSubId = tUnqualified rConvOrSubId,
             mmsrSender = tUnqualified lusr,
+            mmsrSenderClient = ciClient senderIdentity,
             mmsrRawMessage = Base64ByteString (serializeCommitBundle bundle)
           }
   updates <- case resp of
@@ -577,11 +588,13 @@ postMLSMessageToRemoteConv ::
   RawMLS SomeMessage ->
   Remote ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
-postMLSMessageToRemoteConv loc qusr _senderClient con smsg rConvOrSubId = do
+postMLSMessageToRemoteConv loc qusr mc con smsg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
   flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) (convOfConvOrSub <$> rConvOrSubId)
+
+  senderClient <- noteS @'MLSMissingSenderClient mc
 
   resp <-
     runFederated rConvOrSubId $
@@ -589,6 +602,7 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rConvOrSubId = do
         MLSMessageSendRequest
           { mmsrConvOrSubId = tUnqualified rConvOrSubId,
             mmsrSender = tUnqualified lusr,
+            mmsrSenderClient = senderClient,
             mmsrRawMessage = Base64ByteString (rmRaw smsg)
           }
   updates <- case resp of

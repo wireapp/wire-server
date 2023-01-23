@@ -327,6 +327,7 @@ data MLSMessageSendRequest = MLSMessageSendRequest
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
     mmsrSender :: UserId,
+    mmsrSenderClient :: ClientId,
     mmsrRawMessage :: Base64ByteString
   }
   deriving stock (Eq, Show, Generic)
