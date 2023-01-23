@@ -19,6 +19,7 @@ environments:
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
       - imagePullPolicy: Always
+      - redisStorageClass: csi-hostpath-sc
   kind:
     values:
       - namespace: {{ requiredEnv "NAMESPACE_1" }}
@@ -26,6 +27,7 @@ environments:
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
       - imagePullPolicy: Never
+      - redisStorageClass: standard
 
 repositories:
   - name: stable
@@ -59,13 +61,13 @@ releases:
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/redis-cluster'
     values:
-      - './helm_vars/redis-cluster/values.yaml'
+      - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
   - name: '{{ .Values.namespace }}-redis-cluster-2'
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/redis-cluster'
     values:
-      - './helm_vars/redis-cluster/values.yaml'
+      - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
   - name: '{{ .Values.namespace }}-nginx-ingress-controller'
     namespace: '{{ .Values.namespace }}'
