@@ -35,10 +35,11 @@ type OAuthAPI =
     "get-oauth-client"
     ( Summary "Get OAuth client information"
         :> CanThrow 'OAuthFeatureDisabled
+        :> CanThrow 'OAuthClientNotFound
         :> ZUser
         :> "oauth"
         :> "clients"
-        :> Capture "ClientId" OAuthClientId
+        :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
         :> MultiVerb
              'GET
              '[JSON]
@@ -49,7 +50,8 @@ type OAuthAPI =
     )
     :<|> Named
            "create-oauth-auth-code"
-           ( Summary ""
+           ( Summary "Create an OAuth authorization code"
+               :> Description "Currently only supports the 'code' response type, which corresponds to the authorization code flow."
                :> CanThrow 'OAuthUnsupportedResponseType
                :> CanThrow 'OAuthRedirectUrlMissMatch
                :> CanThrow 'OAuthClientNotFound
@@ -68,6 +70,7 @@ type OAuthAPI =
     :<|> Named
            "create-oauth-access-token"
            ( Summary "Create an OAuth access token"
+               :> Description "Obtain a new access token from an authorization code or a refresh token."
                :> CanThrow 'OAuthJwtError
                :> CanThrow 'OAuthAuthCodeNotFound
                :> CanThrow 'OAuthClientNotFound

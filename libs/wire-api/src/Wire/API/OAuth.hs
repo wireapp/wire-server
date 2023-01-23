@@ -18,7 +18,7 @@
 module Wire.API.OAuth where
 
 import Cassandra hiding (Set)
-import Control.Lens (preview, view)
+import Control.Lens (preview, view, (?~))
 import Control.Monad.Except
 import Crypto.JWT hiding (Context, params, uri, verify)
 import qualified Data.Aeson.KeyMap as M
@@ -92,8 +92,11 @@ instance ToSchema NewOAuthClient where
   schema =
     object "NewOAuthClient" $
       NewOAuthClient
-        <$> nocApplicationName .= field "applicationName" schema
-        <*> nocRedirectUrl .= field "redirectUrl" schema
+        <$> nocApplicationName .= fieldWithDocModifier "applicationName" applicationNameDescription schema
+        <*> nocRedirectUrl .= fieldWithDocModifier "redirectUrl" redirectUrlDescription schema
+    where
+      applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application."
+      redirectUrlDescription = description ?~ "The URL to redirect to after the user has authorized the application."
 
 newtype OAuthClientPlainTextSecret = OAuthClientPlainTextSecret {unOAuthClientPlainTextSecret :: AsciiBase16}
   deriving (Eq, Generic)
@@ -122,8 +125,11 @@ instance ToSchema OAuthClientCredentials where
   schema =
     object "OAuthClientCredentials" $
       OAuthClientCredentials
-        <$> occClientId .= field "clientId" schema
-        <*> occClientSecret .= field "clientSecret" schema
+        <$> occClientId .= fieldWithDocModifier "clientId" clientIdDescription schema
+        <*> occClientSecret .= fieldWithDocModifier "clientSecret" clientSecretDescription schema
+    where
+      clientIdDescription = description ?~ "The ID of the application."
+      clientSecretDescription = description ?~ "The secret of the application."
 
 data OAuthClient = OAuthClient
   { ocId :: OAuthClientId,
@@ -215,11 +221,17 @@ instance ToSchema NewOAuthAuthCode where
   schema =
     object "NewOAuthAuthCode" $
       NewOAuthAuthCode
-        <$> noacClientId .= field "clientId" schema
-        <*> noacScope .= field "scope" schema
-        <*> noacResponseType .= field "responseType" schema
-        <*> noacRedirectUri .= field "redirectUri" schema
-        <*> noacState .= field "state" schema
+        <$> noacClientId .= fieldWithDocModifier "clientId" clientIdDescription schema
+        <*> noacScope .= fieldWithDocModifier "scope" scopeDescription schema
+        <*> noacResponseType .= fieldWithDocModifier "responseType" responseTypeDescription schema
+        <*> noacRedirectUri .= fieldWithDocModifier "redirectUri" redirectUriDescription schema
+        <*> noacState .= fieldWithDocModifier "state" stateDescription schema
+    where
+      clientIdDescription = description ?~ "The ID of the OAuth client"
+      scopeDescription = description ?~ "The scopes which are requested to get authorization for, separated by a space"
+      responseTypeDescription = description ?~ "Indicates which authorization flow to use. Use `code` for authorization code flow."
+      redirectUriDescription = description ?~ "The URL to which to redirect the browser after authorization has been granted by the user."
+      stateDescription = description ?~ "An opaque value used by the client to maintain state between the request and callback. The authorization server includes this value when redirecting the user-agent back to the client.  The parameter SHOULD be used for preventing cross-site request forgery"
 
 newtype OAuthAuthCode = OAuthAuthCode {unOAuthAuthCode :: AsciiBase16}
   deriving (Eq, Generic)
@@ -287,11 +299,17 @@ instance ToSchema OAuthAccessTokenRequest where
   schema =
     object "OAuthAccessTokenRequest" $
       OAuthAccessTokenRequest
-        <$> oatGrantType .= field "grantType" schema
-        <*> oatClientId .= field "clientId" schema
-        <*> oatClientSecret .= field "clientSecret" schema
-        <*> oatCode .= field "code" schema
-        <*> oatRedirectUri .= field "redirectUri" schema
+        <$> oatGrantType .= fieldWithDocModifier "grantType" grantTypeDescription schema
+        <*> oatClientId .= fieldWithDocModifier "clientId" clientIdDescription schema
+        <*> oatClientSecret .= fieldWithDocModifier "clientSecret" clientSecretDescription schema
+        <*> oatCode .= fieldWithDocModifier "code" codeDescription schema
+        <*> oatRedirectUri .= fieldWithDocModifier "redirectUri" redirectUriDescription schema
+    where
+      grantTypeDescription = description ?~ "Indicates which authorization flow to use. Use `authorization_code` for authorization code flow."
+      clientIdDescription = description ?~ "The ID of the OAuth client"
+      clientSecretDescription = description ?~ "The secret of the OAuth client"
+      codeDescription = description ?~ "The authorization code"
+      redirectUriDescription = description ?~ "The URL must match the URL that was used to generate the authorization code."
 
 instance FromForm OAuthAccessTokenRequest where
   fromForm f =
@@ -367,13 +385,17 @@ instance ToSchema OAuthAccessTokenResponse where
   schema =
     object "OAuthAccessTokenResponse" $
       OAuthAccessTokenResponse
-        <$> oatAccessToken .= field "accessToken" schema
-        <*> oatTokenType .= field "tokenType" schema
-        <*> oatExpiresIn .= field "expiresIn" (fromIntegral <$> roundDiffTime .= schema)
-        <*> oatRefreshToken .= field "refreshToken" schema
+        <$> oatAccessToken .= fieldWithDocModifier "accessToken" accessTokenDescription schema
+        <*> oatTokenType .= fieldWithDocModifier "tokenType" tokenTypeDescription schema
+        <*> oatExpiresIn .= fieldWithDocModifier "expiresIn" expiresInDescription (fromIntegral <$> roundDiffTime .= schema)
+        <*> oatRefreshToken .= fieldWithDocModifier "refreshToken" refreshTokenDescription schema
     where
       roundDiffTime :: NominalDiffTime -> Int32
       roundDiffTime = round
+      accessTokenDescription = description ?~ "The access token, which has a relatively short lifetime"
+      tokenTypeDescription = description ?~ "The type of the access token. Currently only `Bearer` is supported."
+      expiresInDescription = description ?~ "The lifetime of the access token in seconds"
+      refreshTokenDescription = description ?~ "The refresh token, which has a relatively long lifetime, and can be used to obtain a new access token"
 
 data OAuthClaimsSet = OAuthClaimsSet {jwtClaims :: ClaimsSet, scope :: OAuthScopes}
   deriving (Eq, Show, Generic)
@@ -437,10 +459,15 @@ instance ToSchema OAuthRefreshAccessTokenRequest where
   schema =
     object "OAuthRefreshAccessTokenRequest" $
       OAuthRefreshAccessTokenRequest
-        <$> oartGrantType .= field "grant_type" schema
-        <*> oartClientId .= field "client_id" schema
-        <*> oartClientSecret .= field "client_secret" schema
-        <*> oartRefreshToken .= field "refresh_token" schema
+        <$> oartGrantType .= fieldWithDocModifier "grant_type" grantTypeDescription schema
+        <*> oartClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> oartClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <*> oartRefreshToken .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
+    where
+      grantTypeDescription = description ?~ "The grant type. Must be `refresh_token`"
+      clientIdDescription = description ?~ "The OAuth client's ID"
+      clientSecretDescription = description ?~ "The OAuth client's secret"
+      refreshTokenDescription = description ?~ "The refresh token"
 
 instance FromForm OAuthRefreshAccessTokenRequest where
   fromForm :: Form -> Either Text OAuthRefreshAccessTokenRequest
