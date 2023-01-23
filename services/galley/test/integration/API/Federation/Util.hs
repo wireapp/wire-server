@@ -26,6 +26,7 @@ import Wire.API.Federation.Domain
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
+import Data.Kind
 
 class HasTrivialHandler api where
   trivialHandler :: String -> Server api
@@ -59,7 +60,7 @@ trivialNamedHandler = Named (trivialHandler @api (symbolVal (Proxy @name)))
 
 -- | Generate a servant handler from an incomplete list of handlers of named
 -- endpoints.
-class PartialAPI (api :: *) (hs :: *) where
+class PartialAPI (api :: Type) (hs :: Type) where
   mkHandler :: hs -> Server api
 
 instance

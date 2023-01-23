@@ -33,7 +33,7 @@ import Data.Misc
 import Data.Qualified
 import Data.Singletons
 import Federator.MockServer (FederatedRequest (..))
-import Imports hiding (head)
+import Imports hiding (head, singleton)
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))

@@ -69,7 +69,7 @@ import Galley.API.Mapping
 import Galley.Options (optFederator)
 import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
-import Imports
+import Imports hiding (singleton)
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai.Utilities.Error
 import Servant hiding (respond)

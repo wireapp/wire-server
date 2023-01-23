@@ -43,7 +43,7 @@ import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer (FederatedRequest (..))
 import Galley.Types.Conversations.Intra
-import Imports
+import Imports hiding (singleton)
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS

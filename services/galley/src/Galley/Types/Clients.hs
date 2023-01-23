@@ -41,7 +41,7 @@ import Data.Id
 import qualified Data.Map.Strict as Map
 import Data.Range
 import qualified Data.Set as Set
-import Imports hiding (filter, toList)
+import Imports hiding (filter, toList, singleton)
 import Wire.API.User.Client
 
 newtype Clients = Clients

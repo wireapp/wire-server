@@ -31,7 +31,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
 import Federator.MockServer (FederatedRequest (..))
-import Imports
+import Imports hiding (singleton)
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
