@@ -18,6 +18,7 @@
 module CargoHold.API.Public (servantSitemap, internalSitemap) where
 
 import qualified CargoHold.API.Legacy as LegacyAPI
+import Data.Kind
 import CargoHold.API.Util
 import qualified CargoHold.API.V3 as V3
 import CargoHold.App
@@ -96,7 +97,7 @@ instance HasLocation 'ProviderPrincipalTag where
       assetKeyToText (tUnqualified key)
     ]
 
-class HasLocation tag => MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
+class HasLocation tag => MakePrincipal (tag :: PrincipalTag) (id :: Type) | id -> tag, tag -> id where
   mkPrincipal :: id -> V3.Principal
 
 instance MakePrincipal 'UserPrincipalTag (Local UserId) where
