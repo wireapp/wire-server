@@ -48,6 +48,7 @@ import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util hiding ((#))
+import Data.Kind
 import Data.LegalHold (defUserLegalHoldStatus)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 as List1
@@ -72,6 +73,7 @@ import Data.UUID.V4
 import Federator.MockServer (FederatedRequest (..))
 import qualified Federator.MockServer as Mock
 import GHC.TypeLits (KnownSymbol)
+import GHC.TypeNats
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
@@ -724,7 +726,7 @@ postConvWithRemoteUsers u n =
         <!! const 201
           === statusCode
   where
-    setName :: Within Text n m => Maybe (Range n m Text) -> Maybe (Range n m Text)
+    setName :: (KnownNat n, KnownNat m, Within Text n m) => Maybe (Range n m Text) -> Maybe (Range n m Text)
     setName Nothing = checked "federated gossip"
     setName x = x
 
@@ -2634,7 +2636,7 @@ type CombinedBrigAndGalleyAPI = FedApi 'Brig :<|> FedApi 'Galley
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.
 makeFedRequestToServant ::
-  forall (api :: *).
+  forall (api :: Type).
   HasServer api '[] =>
   Domain ->
   Server api ->

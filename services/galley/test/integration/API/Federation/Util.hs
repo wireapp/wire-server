@@ -17,6 +17,7 @@
 
 module API.Federation.Util (mkHandler) where
 
+import Data.Kind
 import Data.SOP
 import Data.String.Conversions (cs)
 import GHC.TypeLits
@@ -59,7 +60,7 @@ trivialNamedHandler = Named (trivialHandler @api (symbolVal (Proxy @name)))
 
 -- | Generate a servant handler from an incomplete list of handlers of named
 -- endpoints.
-class PartialAPI (api :: *) (hs :: *) where
+class PartialAPI (api :: Type) (hs :: Type) where
   mkHandler :: hs -> Server api
 
 instance

@@ -605,7 +605,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
   mem1 <- Util.addUserToTeam owner tid
   assertQueue "team member join" $ tUpdate 3 [ownerWithPassword, owner]
   refreshIndex
-  Util.connectUsers owner (singleton mext)
+  Util.connectUsers owner (List1.singleton mext)
   cid1 <- Util.createTeamConv owner tid [mem1 ^. userId, mext] (Just "blaa") Nothing Nothing
   when ownerHasPassword $ do
     -- Deleting from a binding team with empty body is invalid
@@ -1987,7 +1987,7 @@ postCryptoBroadcastMessage100OrMaxConns bcast = do
   where
     createAndConnectUserWhileLimitNotReached alice remaining acc pk = do
       (uid, cid) <- randomUserWithClient pk
-      (r1, r2) <- List1.head <$> connectUsersUnchecked alice (singleton uid)
+      (r1, r2) <- List1.head <$> connectUsersUnchecked alice (List1.singleton uid)
       case (statusCode r1, statusCode r2, remaining, acc) of
         (201, 200, 0, []) -> error "Need to connect with at least 1 user"
         (201, 200, 0, x : xs) -> pure (x, xs)
