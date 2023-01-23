@@ -49,6 +49,7 @@ import qualified Data.Vector as Vec
 import qualified Data.ZAuth.Token as ZAuth
 import Federation.Util (withTempMockFederator)
 import Federator.MockServer (FederatedRequest (..))
+import Data.Kind
 import GHC.TypeLits (KnownSymbol)
 import Imports
 import Polysemy
@@ -539,7 +540,7 @@ setTeamSndFactorPasswordChallenge galley tid status = do
   put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 setTeamFeatureLockStatus ::
-  forall (cfg :: *) m.
+  forall (cfg :: Type) m.
   ( MonadCatch m,
     MonadIO m,
     MonadHttp m,
