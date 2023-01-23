@@ -40,10 +40,11 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
+import Data.Kind
 
 -- Note: this type family being injective means that in most cases there is no need
 -- to add component annotations when invoking the federator client
-type family FedApi (comp :: Component) = (api :: *) | api -> comp
+type family FedApi (comp :: Component) = (api :: Type) | api -> comp
 
 type instance FedApi 'Galley = GalleyApi
 
