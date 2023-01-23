@@ -68,7 +68,6 @@ import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
--- for UTCTime
 import Data.Time.Clock
 import Data.Time.Format (formatTime, parseTimeM)
 import qualified Data.Time.Lens as TL
