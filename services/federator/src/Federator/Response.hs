@@ -51,11 +51,12 @@ import Servant.Client.Core
 import Servant.Types.SourceT
 import Wire.Network.DNS.Effect
 import Wire.Sem.Logger.TinyLog
+import Data.Kind
 
 defaultHeaders :: [HTTP.Header]
 defaultHeaders = [("Content-Type", "application/json")]
 
-class ErrorEffects (ee :: [*]) r where
+class ErrorEffects (ee :: [Type]) r where
   type Row ee :: EffectRow
   runWaiErrors ::
     Sem (Append (Row ee) r) Wai.Response ->
