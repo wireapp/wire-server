@@ -153,7 +153,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import Data.Int
 -- 'insert' and 'delete' are common in database modules
-import Data.List hiding (delete, insert)
+import Data.List hiding (delete, insert, singleton)
 -- Lazy and strict versions are the same
 import Data.Map (Map)
 import Data.Maybe
