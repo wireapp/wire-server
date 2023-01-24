@@ -126,7 +126,6 @@ watchSQSQueue env queueUrl = do
       case fromMaybe [] $ view SQS.receiveMessageResponse_messages rcvRes of
         [] -> pure ()
         ms -> do
-          putStrLn $ "Found messages: " <> show ms
           execute env $ mapM_ (deleteMessage queueUrl) ms
           ensureEmpty
 
