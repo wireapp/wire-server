@@ -123,9 +123,10 @@ watchSQSQueue env queueUrl = do
                 . set SQS.receiveMessage_maxNumberOfMessages (Just 10) -- 10 is maximum allowed by AWS
                 . set SQS.receiveMessage_visibilityTimeout (Just 1)
       rcvRes <- execute env $ sendEnv rcvReq
-      case view SQS.receiveMessageResponse_messages rcvRes of
-        Nothing -> pure ()
-        Just ms -> do
+      case fromMaybe [] $ view SQS.receiveMessageResponse_messages rcvRes of
+        [] -> pure ()
+        ms -> do
+          putStrLn $ "Found messages: " <> show ms
           execute env $ mapM_ (deleteMessage queueUrl) ms
           ensureEmpty
 
