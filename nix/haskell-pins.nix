@@ -181,16 +181,16 @@ let
     };
     cql-io = {
       src = fetchgit {
-        url = "https://gitlab.com/axeman/cql-io";
+        url = "https://gitlab.com/wireapp/forks/cql-io";
         rev = "c2b6aa995b5817ed7c78c53f72d5aa586ef87c36";
-        sha256 = "1wncign8ilvqs9qyl6pkz66x2s8dgwhnfdjw82wv38ijmr95di0c";
+        sha256 = "sha256-DMRWUq4yorG5QFw2ZyF/DWnRjfnzGupx0njTiOyLzPI=";
       };
     };
     swagger = {
       src = fetchgit {
-        url = "https://gitlab.com/axeman/swagger";
+        url = "https://gitlab.com/wireapp/forks/swagger.git";
         rev = "e2d3f5b5274b8d8d301b5377b0af4319cea73f9e";
-        sha256 = "1zj3fqlvcvp9s0myb98b6s9mpmiqamyxn2d3jan55irdgm53prmv";
+        sha256 = "sha256-u+Y7Sn0tx1KskqMJ231VONZbkzYLpeUr0Olutil2Q/4=";
       };
     };
     wai-predicates = {
