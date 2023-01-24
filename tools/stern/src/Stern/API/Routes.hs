@@ -32,6 +32,7 @@ import Control.Monad.Trans.Except
 import qualified Data.Aeson as A
 import Data.Handle
 import Data.Id
+import Data.Kind
 import qualified Data.Schema as Schema
 import qualified Data.Swagger as S
 import Imports hiding (head)
@@ -422,7 +423,7 @@ doubleMaybeToEither _ (Just a) Nothing = pure $ Left a
 doubleMaybeToEither _ Nothing (Just b) = pure $ Right b
 doubleMaybeToEither msg _ _ = throwE $ mkError status400 "either-params" ("Must use exactly one of two query params: " <> msg)
 
-type MkFeatureGetRoute (feature :: *) =
+type MkFeatureGetRoute (feature :: Type) =
   Summary "Shows whether a feature flag is enabled or not for a given team."
     :> "teams"
     :> Capture "tid" TeamId
@@ -430,7 +431,7 @@ type MkFeatureGetRoute (feature :: *) =
     :> FeatureSymbol feature
     :> Get '[JSON] (WithStatus feature)
 
-type MkFeaturePutRouteTrivialConfigNoTTL (feature :: *) =
+type MkFeaturePutRouteTrivialConfigNoTTL (feature :: Type) =
   Summary "Disable / enable status for a given feature / team"
     :> "teams"
     :> Capture "tid" TeamId
@@ -439,7 +440,7 @@ type MkFeaturePutRouteTrivialConfigNoTTL (feature :: *) =
     :> QueryParam' [Required, Strict] "status" FeatureStatus
     :> Put '[JSON] NoContent
 
-type MkFeaturePutRouteTrivialConfigWithTTL (feature :: *) =
+type MkFeaturePutRouteTrivialConfigWithTTL (feature :: Type) =
   Summary "Disable / enable status for a given feature / team"
     :> Description "team feature time to live, given in days, or 'unlimited' (default).  only available on *some* features!"
     :> "teams"
@@ -450,7 +451,7 @@ type MkFeaturePutRouteTrivialConfigWithTTL (feature :: *) =
     :> QueryParam' [Required, Strict, Description "team feature time to live, given in days, or 'unlimited' (default)."] "ttl" FeatureTTLDays
     :> Put '[JSON] NoContent
 
-type MkFeaturePutRoute (feature :: *) =
+type MkFeaturePutRoute (feature :: Type) =
   Summary "Disable / enable feature flag for a given team"
     :> "teams"
     :> Capture "tid" TeamId

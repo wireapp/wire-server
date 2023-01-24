@@ -207,7 +207,7 @@ searchOnBehalf :: UserId -> Maybe T.Text -> Maybe Int32 -> Handler (SearchResult
 searchOnBehalf
   uid
   (fromMaybe "" -> q)
-  (fromMaybe (unsafeRange 10) . checked @Int32 @1 @100 . fromMaybe 10 -> s) =
+  (fromMaybe (unsafeRange 10) . checked @1 @100 @Int32 . fromMaybe 10 -> s) =
     Intra.getContacts uid q (fromRange s)
 
 revokeIdentity :: Maybe Email -> Maybe Phone -> Handler NoContent
