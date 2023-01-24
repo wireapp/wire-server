@@ -508,7 +508,8 @@ updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMess
 
 deleteLocalConversation ::
   ( Members
-      '[ CodeStore,
+      '[ BrigAccess,
+         CodeStore,
          ConversationStore,
          Error FederationError,
          ErrorS 'NotATeamMember,
@@ -518,6 +519,9 @@ deleteLocalConversation ::
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
+         SubConversationStore,
+         MemberStore,
+         ProposalStore,
          Input Env,
          Input UTCTime,
          SubConversationStore,

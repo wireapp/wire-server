@@ -39,5 +39,6 @@ data SubConversationStore m a where
   SetSubConversationEpoch :: ConvId -> SubConvId -> Epoch -> SubConversationStore m ()
   DeleteGroupIdForSubConversation :: GroupId -> SubConversationStore m ()
   ListSubConversations :: ConvId -> SubConversationStore m (Map SubConvId ConversationMLSData)
+  DeleteSubConversation :: ConvId -> SubConvId -> SubConversationStore m ()
 
 makeSem ''SubConversationStore

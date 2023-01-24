@@ -401,6 +401,10 @@ setGroupIdForConversation :: GroupId -> Qualified ConvId -> Client ()
 setGroupIdForConversation gId conv =
   write Cql.insertGroupIdForConversation (params LocalQuorum (gId, qUnqualified conv, qDomain conv))
 
+deleteGroupIdForConversation :: GroupId -> Client ()
+deleteGroupIdForConversation groupId =
+  retry x5 $ write Cql.deleteGroupId (params LocalQuorum (Identity groupId))
+
 lookupConvByGroupId :: GroupId -> Client (Maybe (Qualified ConvOrSubConvId))
 lookupConvByGroupId gId =
   toConvOrSubConv <$$> retry x1 (query1 Cql.lookupGroupId (params LocalQuorum (Identity gId)))
@@ -435,6 +439,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
   DeleteConversation cid -> embedClient $ deleteConversation cid
   SetGroupIdForConversation gId cid -> embedClient $ setGroupIdForConversation gId cid
+  DeleteGroupIdForConversation gId -> embedClient $ deleteGroupIdForConversation gId
   SetPublicGroupState cid gib -> embedClient $ setPublicGroupState cid gib
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch

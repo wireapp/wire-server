@@ -1200,7 +1200,7 @@ deleteSubConv ::
   UserId ->
   Qualified ConvId ->
   SubConvId ->
-  DeleteSubConversation ->
+  DeleteSubConversationRequest ->
   TestM ResponseLBS
 deleteSubConv u qcnv sconv dsc = do
   g <- viewGalley

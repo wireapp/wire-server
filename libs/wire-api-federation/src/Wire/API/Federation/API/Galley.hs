@@ -35,7 +35,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
-import Wire.API.MLS.SubConversation
+import Wire.API.MLS.SubConversation hiding (DeleteSubConversationRequest (..))
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
@@ -137,7 +137,7 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[MakesFederatedCall 'Galley "on-new-remote-subconversation"]
            "delete-sub-conversation"
-           DeleteSubConversationRequest
+           DeleteSubConversationFedRequest
            DeleteSubConversationResponse
     :<|> FedEndpointWithMods
            '[MakesFederatedCall 'Galley "on-mls-message-sent"]
@@ -480,7 +480,7 @@ data LeaveSubConversationResponse
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded LeaveSubConversationResponse)
 
-data DeleteSubConversationRequest = DeleteSubConversationRequest
+data DeleteSubConversationFedRequest = DeleteSubConversationFedRequest
   { dscreqUser :: UserId,
     dscreqConv :: ConvId,
     dscreqSubConv :: SubConvId,
@@ -488,7 +488,7 @@ data DeleteSubConversationRequest = DeleteSubConversationRequest
     dscreqEpoch :: Epoch
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationFedRequest)
 
 data DeleteSubConversationResponse
   = DeleteSubConversationResponseError GalleyError

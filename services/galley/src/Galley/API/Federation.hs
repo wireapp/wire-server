@@ -958,9 +958,9 @@ deleteSubConversationForRemoteUser ::
     CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Domain ->
-  DeleteSubConversationRequest ->
+  DeleteSubConversationFedRequest ->
   Sem r DeleteSubConversationResponse
-deleteSubConversationForRemoteUser domain DeleteSubConversationRequest {..} =
+deleteSubConversationForRemoteUser domain DeleteSubConversationFedRequest {..} =
   fmap
     ( either
         F.DeleteSubConversationResponseError
@@ -970,7 +970,7 @@ deleteSubConversationForRemoteUser domain DeleteSubConversationRequest {..} =
     . mapToGalleyError @MLSDeleteSubConvStaticErrors
     $ do
       let qusr = Qualified dscreqUser domain
-          dsc = DeleteSubConversation dscreqGroupId dscreqEpoch
+          dsc = DeleteSubConversationRequest dscreqGroupId dscreqEpoch
       lconv <- qualifyLocal dscreqConv
       deleteLocalSubConversation qusr lconv dscreqSubConv dsc
 

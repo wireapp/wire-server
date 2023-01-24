@@ -2238,7 +2238,7 @@ deleteSubConversationDisabled = do
   cnvId <- Qualified <$> randomId <*> pure (Domain "www.example.com")
   let scnvId = SubConvId "conference"
       dsc =
-        DeleteSubConversation
+        DeleteSubConversationRequest
           (GroupId "MLS")
           (Epoch 0)
   withMLSDisabled $
@@ -2644,7 +2644,7 @@ testRemoteMemberDeleteSubConv isAMember = do
 
   randUser <- randomId
   let delReq =
-        DeleteSubConversationRequest
+        DeleteSubConversationFedRequest
           { dscreqUser = if isAMember then qUnqualified bob else randUser,
             dscreqConv = cnv,
             dscreqSubConv = scnv,
@@ -2699,7 +2699,7 @@ testDeleteSubConv isAMember = do
     responseJsonError
       =<< getSubConv (qUnqualified alice) qcnv sconv
         <!! const 200 === statusCode
-  let dsc = DeleteSubConversation (pscGroupId sub) (pscEpoch sub)
+  let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
   deleteSubConv deleter qcnv sconv dsc !!! const expectedCode === statusCode
 
   newSub <-
@@ -2738,7 +2738,7 @@ testDeleteSubConvStale = do
     pure (qcnv, sub)
 
   -- the commit was made, yet the epoch for the request body is old
-  let dsc = DeleteSubConversation (pscGroupId sub) (pscEpoch sub)
+  let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
   deleteSubConv (qUnqualified alice) qcnv sconv dsc
     !!! do const 409 === statusCode
 
@@ -2752,7 +2752,7 @@ testDeleteRemoteSubConv isAMember = do
       groupId = GroupId "deadbeef"
       epoch = Epoch 0
       expectedReq =
-        DeleteSubConversationRequest
+        DeleteSubConversationFedRequest
           { dscreqUser = qUnqualified alice,
             dscreqConv = conv,
             dscreqSubConv = sconv,
@@ -2766,7 +2766,7 @@ testDeleteRemoteSubConv isAMember = do
           if isAMember
             then DeleteSubConversationResponseSuccess
             else DeleteSubConversationResponseError ConvNotFound
-      dsc = DeleteSubConversation groupId epoch
+      dsc = DeleteSubConversationRequest groupId epoch
 
   (_, reqs) <-
     withTempMockFederator' mock $
@@ -2774,7 +2774,7 @@ testDeleteRemoteSubConv isAMember = do
         <!! const (if isAMember then 200 else 404) === statusCode
   do
     actualReq <- assertOne (filter ((== "delete-sub-conversation") . frRPC) reqs)
-    let req :: Maybe DeleteSubConversationRequest =
+    let req :: Maybe DeleteSubConversationFedRequest =
           Aeson.decode (frBody actualReq)
     liftIO $ req @?= Just expectedReq
 

@@ -27,6 +27,7 @@ module Galley.Intra.Client
     addKeyPackageRef,
     updateKeyPackageRef,
     validateAndAddKeyPackageRef,
+    deleteKeyPackageRefs,
   )
 where
 
@@ -206,6 +207,17 @@ getLocalMLSClients lusr ss =
         . expect2xx
     )
     >>= parseResponse (mkError status502 "server-error")
+
+deleteKeyPackageRefs :: [KeyPackageRef] -> App ()
+deleteKeyPackageRefs refs =
+  void $
+    call
+      Brig
+      ( method DELETE
+          . paths ["i", "mls", "key-packages"]
+          . json (DeleteKeyPackageRefsRequest refs)
+          . expect2xx
+      )
 
 addKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> App ()
 addKeyPackageRef ref qusr cl qcnv =
