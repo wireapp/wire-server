@@ -1,1 +1,0 @@
-Remove support for compiling local docker images with buildah. Nix is used to build docker images these days

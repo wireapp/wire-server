@@ -1,0 +1,8 @@
+global:
+  storageClass: {{ .Values.redisStorageClass }}
+
+redis-cluster:
+  persistence:
+    size: 100Mi
+  volumePermissions:
+    enabled: true

@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -62,6 +61,7 @@ import Brig.Types.Intra
 import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
 import Brig.User.Search.Index.Types as Types
 import qualified Cassandra as C
+import Cassandra.Util
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM, try)
 import Control.Monad.Except
@@ -73,7 +73,6 @@ import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Conversion as Bytes
 import qualified Data.ByteString.Lazy as BL
-import Data.Fixed (Fixed (MkFixed))
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map as Map
@@ -85,8 +84,6 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
-import Data.Time (UTCTime, secondsToNominalDiffTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import qualified Data.UUID as UUID
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
@@ -775,12 +772,6 @@ scanForIndex num = do
 
 type Activated = Bool
 
-type Writetime a = Int64
-
--- Note: Writetime is in microseconds (e-6) https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useWritetime.html
-writeTimeToUTC :: Writetime a -> UTCTime
-writeTimeToUTC = posixSecondsToUTCTime . secondsToNominalDiffTime . MkFixed . (* 1_000_000) . fromIntegral @Int64 @Integer
-
 type ReindexRow =
   ( UserId,
     Maybe TeamId,
@@ -837,7 +828,20 @@ reindexRowToIndexUser
     )
   searchVisInbound =
     do
-      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId, tEmailUnvalidated]
+      iu <-
+        mkIndexUser u
+          <$> version
+            [ Just (v tName),
+              v <$> tStatus,
+              v <$> tHandle,
+              v <$> tEmail,
+              Just (v tColour),
+              Just (v tActivated),
+              v <$> tService,
+              v <$> tManagedBy,
+              v <$> tSsoId,
+              v <$> tEmailUnvalidated
+            ]
       pure $
         if shouldIndex
           then
@@ -850,7 +854,7 @@ reindexRowToIndexUser
                 . set iuAccountStatus status
                 . set iuSAMLIdP (idpUrl =<< ssoId)
                 . set iuManagedBy managedBy
-                . set iuCreatedAt (Just (writeTimeToUTC tActivated))
+                . set iuCreatedAt (Just (writetimeToUTC tActivated))
                 . set iuSearchVisibilityInbound (Just searchVisInbound)
                 . set iuScimExternalId (join $ User.scimExternalId <$> managedBy <*> ssoId)
                 . set iuSso (sso =<< ssoId)
@@ -861,8 +865,12 @@ reindexRowToIndexUser
               -- It's mostly empty, but having the status here might be useful in the future.
               & set iuAccountStatus status
     where
-      version :: [Maybe (Writetime Name)] -> m IndexVersion
+      v :: Writetime a -> Int64
+      v = writetimeToInt64
+
+      version :: [Maybe Int64] -> m IndexVersion
       version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
+
       shouldIndex =
         ( case status of
             Nothing -> True

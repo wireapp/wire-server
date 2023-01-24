@@ -1,10 +1,19 @@
 title: Federator to Ingress/Federator Flow
 
-Brig @infra.a.com -> Federator @infra.a.com: (domain="b.com", component="brig", handle="alice")
+Brig @infra.a.com -> Federator @infra.a.com: federated request
 
-Federator @infra.a.com -> DNS Resolver: DNS query: (service: "wire-server-federator", proto: "tcp", name: "b.com")
+note:
+- `/rpc/b.com/brig/get-user-by-handle`
+- `{"handle": "alice"}`
 
-DNS Resolver -> Federator @infra.a.com: DNS response: (target: "infra.b.com")
+
+Federator @infra.a.com -> DNS Resolver: DNS lookup
+
+note:
+`SRV _wire-server-federator._tcp.b.com`
+
+
+DNS Resolver -> Federator @infra.a.com: DNS response: `infra.b.com`
 
 Federator @infra.a.com -> Ingress @infra.b.com: mTLS session establishment
 
@@ -15,36 +24,52 @@ Ingress @infra.b.com -> Federator @infra.a.com: mTLS session establishment respo
 
 note: The channel between infra.a.com and infra.b.com is now encrypted and mutually authenticated.
 
-Federator @infra.a.com -> Ingress @infra.b.com: (originDomain="a.com", component="brig", path="get-user-by-handle", body="alice")
+Federator @infra.a.com -> Ingress @infra.b.com : request
+
+note:
+- `Wire-Origin-Domain: a.com`
+- `/federation/brig/get-user-by-handle`
 
 //group: TLS-secured backend-internal channel
 
-Ingress @infra.b.com -> Federator @infra.b.com: (domain= "a.com", client_cert="<infra.a.com client cert>",  component="brig", path="get-user-by-handle", body="alice")
+Ingress @infra.b.com -> Federator @infra.b.com: request + cert
+
+note:
+- `X-SSL-Certificate: <authenticated client cert for infra.a.com>`
 
 
 //end
 
-Federator @infra.b.com -> DNS Resolver: DNS query: (service: "wire-server-federator", proto: "tcp", name: "a.com")
+Federator @infra.b.com -> DNS Resolver: DNS query
 
-DNS Resolver -> Federator @infra.b.com: DNS response: (target: "infra.a.com")
+note:
+`SRV _wire-server-federator._tcp.a.com`
+
+DNS Resolver -> Federator @infra.b.com: DNS response: `infra.a.com`
 
 //group: TLS-secured backend-internal channel
 
-note: Check that the content of the _target_ field in the DNS response is one of the SANs in the client cert and that the content of the _domain_ field is on the allow list.
+note:
+Check that
+- that the `infra.a.com` is listed as one of SANs in the client cert
+- `a.com` is in the allow list
 
-Federator @infra.b.com -> Brig @infra.b.com: (originDomain= "a.com", component="brig", path="federation/get-user-by-handle" handle="alice")
+Federator @infra.b.com -> Brig @infra.b.com: request
 
+note:
+- `Wire-Origin-Domain: a.com`
+- `/federation/get-user-by-handle`
+- `{"handle": "alice"}`
 
-note: Perform per-request authorization.
+note: Brig perform per-request authorization.
 
-Brig @infra.b.com -> Federator @infra.b.com: (UserProfile(Alice))
+Brig @infra.b.com -> Federator @infra.b.com: response: alice's user profile
 
-Federator @infra.b.com -> Ingress @infra.b.com: (UserProfile(Alice))
-
+Federator @infra.b.com -> Ingress @infra.b.com:  response: alice's user profile
 //end
 
-Ingress @infra.b.com -> Federator @infra.a.com: (UserProfile(Alice))
+Ingress @infra.b.com -> Federator @infra.a.com:  response: alice's user profile
 
 note: Via the encrypted, mutually authenticated channel.
 
-Federator @infra.a.com -> Brig @infra.a.com: (UserProfile(Alice))
+Federator @infra.a.com -> Brig @infra.a.com:  response: alice's user profile

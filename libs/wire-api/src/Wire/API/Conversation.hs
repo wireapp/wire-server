@@ -25,6 +25,7 @@ module Wire.API.Conversation
     ConversationMetadata (..),
     defConversationMetadata,
     Conversation (..),
+    conversationSchema,
     cnvType,
     cnvCreator,
     cnvAccess,
@@ -162,6 +163,10 @@ defConversationMetadata creator =
       cnvmReceiptMode = Nothing
     }
 
+accessRolesVersionedSchema :: Version -> ObjectSchema SwaggerDoc (Set AccessRole)
+accessRolesVersionedSchema v =
+  if v > V2 then accessRolesSchema else accessRolesSchemaV2
+
 accessRolesSchema :: ObjectSchema SwaggerDoc (Set AccessRole)
 accessRolesSchema = field "access_role" (set schema)
 
@@ -269,15 +274,15 @@ cnvReceiptMode :: Conversation -> Maybe ReceiptMode
 cnvReceiptMode = cnvmReceiptMode . cnvMetadata
 
 instance ToSchema Conversation where
-  schema = conversationSchema accessRolesSchema
+  schema = conversationSchema V3
 
 instance ToSchema (Versioned 'V2 Conversation) where
-  schema = Versioned <$> unVersioned .= conversationSchema accessRolesSchemaV2
+  schema = Versioned <$> unVersioned .= conversationSchema V2
 
 conversationSchema ::
-  ObjectSchema SwaggerDoc (Set AccessRole) ->
+  Version ->
   ValueSchema NamedSwaggerDoc Conversation
-conversationSchema sch =
+conversationSchema v =
   objectWithDocModifier
     "Conversation"
     (description ?~ "A conversation object as returned from the server")
@@ -285,7 +290,7 @@ conversationSchema sch =
       <$> cnvQualifiedId .= field "qualified_id" schema
       <* (qUnqualified . cnvQualifiedId)
         .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-      <*> cnvMetadata .= conversationMetadataObjectSchema sch
+      <*> cnvMetadata .= conversationMetadataObjectSchema (accessRolesVersionedSchema v)
       <*> cnvMembers .= field "members" schema
       <*> cnvProtocol .= protocolSchema
 
@@ -371,7 +376,7 @@ instance ToSchema (Versioned 'V2 (ConversationList Conversation)) where
   schema =
     Versioned
       <$> unVersioned
-        .= conversationListSchema (conversationSchema accessRolesSchemaV2)
+        .= conversationListSchema (conversationSchema V2)
 
 conversationListSchema ::
   forall a.
@@ -433,24 +438,24 @@ data ConversationsResponse = ConversationsResponse
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationsResponse
 
 conversationsResponseSchema ::
-  ObjectSchema SwaggerDoc (Set AccessRole) ->
+  Version ->
   ValueSchema NamedSwaggerDoc ConversationsResponse
-conversationsResponseSchema sch =
+conversationsResponseSchema v =
   let notFoundDoc = description ?~ "These conversations either don't exist or are deleted."
       failedDoc = description ?~ "The server failed to fetch these conversations, most likely due to network issues while contacting a remote server"
    in objectWithDocModifier
         "ConversationsResponse"
         (description ?~ "Response object for getting metadata of a list of conversations")
         $ ConversationsResponse
-          <$> crFound .= field "found" (array (conversationSchema sch))
+          <$> crFound .= field "found" (array (conversationSchema v))
           <*> crNotFound .= fieldWithDocModifier "not_found" notFoundDoc (array schema)
           <*> crFailed .= fieldWithDocModifier "failed" failedDoc (array schema)
 
 instance ToSchema ConversationsResponse where
-  schema = conversationsResponseSchema accessRolesSchema
+  schema = conversationsResponseSchema V3
 
 instance ToSchema (Versioned 'V2 ConversationsResponse) where
-  schema = Versioned <$> unVersioned .= conversationsResponseSchema accessRolesSchemaV2
+  schema = Versioned <$> unVersioned .= conversationsResponseSchema V2
 
 --------------------------------------------------------------------------------
 -- Conversation properties
@@ -889,14 +894,11 @@ conversationAccessDataSchema v =
   object ("ConversationAccessData" <> suffix) $
     ConversationAccessData
       <$> cupAccess .= field "access" (set schema)
-      <*> cupAccessRoles .= sch
+      <*> cupAccessRoles .= accessRolesVersionedSchema v
   where
     suffix
       | v == maxBound = ""
       | otherwise = toUrlPiece v
-    sch = case v of
-      V2 -> accessRolesSchemaV2
-      _ -> accessRolesSchema
 
 instance ToSchema ConversationAccessData where
   schema = conversationAccessDataSchema V3

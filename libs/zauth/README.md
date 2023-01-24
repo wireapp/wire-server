@@ -7,10 +7,10 @@ version            ::= "v=" Integer
 key-index          ::= "k=" Integer (> 0)
 timestamp          ::= "d=" Integer (POSIX timestamp, expiration time)
 type               ::= "t=" ("a" | "u" | "b" | "p") ; access, user, bot, provider
-tag                ::= "l=" ("s" | ""  (session or nothing))
+tag                ::= "l=" ("s" | "") ; session or nothing
 type-specific-data ::= <access-data> | <user-data> | <bot-data> | <provider-data>
-access-data        ::= "u=" <UUID> "." "c=" <Word64>
-user-data          ::= "u=" <UUID> "." "r=" <Word32>
+access-data        ::= "u=" <UUID> "." "c=" <Word64> ("i=" <Word32> | "")
+user-data          ::= "u=" <UUID> "." "r=" <Word32> ("i=" <Word32> | "")
 bot-data           ::= "p=" <UUID> "." "b=" <UUID> "." "c=" <UUID>
 provider-data      ::= "p=" <UUID>
 ```
@@ -21,6 +21,10 @@ provider-data      ::= "p=" <UUID>
 
 `7B2fdkjqBm0BZEpvF_1itY-W22LM2RWLDIQgu2k7d-BJojlMfyNpVfXYPEQiWpcCztmwZO_yphgKhhtKetiuCw==.v=1.k=1.d=1409335821.t=u.l=.u=c5eda68f-93f3-4413-93fe-d45e81f8a9f9.r=bb3d1d9f`
 
+#### User-Token (with client id)
+
+`vpJs7PEgwtsuzGlMY0-Vqs22s8o9ZDlp7wJrPmhCgIfg0NoTAxvxq5OtknabLMfNTEW9amn5tyeUM7tbFZABBA==.v=1.k=1.d=1466770905.t=u.l=.u=6562d941-4f40-4db4-b96e-56a06d71c2c3.r=4feacc.i=deadbeef`
+
 ### User-Token (Session)
 
 `7CPhoJv6TOYr7epokS6S2pj0nLoV-mJ_o5iRUII3JM5jBItZzluXNNGb-u476EYQM0fpr1qUGK2eRuKCZuELBA==.v=1.k=1.d=1429832092.t=u.l=s.u=161e7fe7-9a71-4ffd-9a79-de9ee2fa178c.r=3f6a49c4`
@@ -28,6 +32,10 @@ provider-data      ::= "p=" <UUID>
 ### Access-Token
 
 `5Bdn6CnDO2yIng7_MblYFhMNEo27ESsHsZmD40fNpcTdEybk15dw7zUVOcJDeFyf6QbEsZF4ruNKRu1ICmbzCg==.v=1.k=1.d=1419834921.t=a.l=.u=c5eda68f-93f3-4413-93fe-d45e81f8a9f9.c=8875802285613998639`
+
+#### Access-Token (with client id)
+
+`aEPOxMwUriGEv2qc7Pb672ygy-6VeJ-8VrX3jmwalZr7xygU4izyCWxiT7IXfybnNGIsk1FQPb0RRVPx1s2UCw==.v=1.k=1.d=1466770783.t=a.l=.u=6562d941-4f40-4db4-b96e-56a06d71c2c3.c=11019722839397809329.i=deadbeef`
 
 # Token creation
 

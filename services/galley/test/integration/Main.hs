@@ -90,7 +90,7 @@ main = withOpenSSL $ runTests go
         "galley"
         [ testCase "sitemap" $
             assertEqual
-              "inconcistent sitemap"
+              "inconsistent sitemap"
               mempty
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
           API.tests setup

@@ -46,7 +46,7 @@ import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
-import Data.Qualified (Qualified (qUnqualified))
+import Data.Qualified
 import Data.Range (unsafeRange)
 import qualified Data.Text as Text
 import Data.Text.Ascii (AsciiChars (validate))
@@ -256,7 +256,7 @@ testNginzLegalHold b g n = do
 
   get (apiVersion "v1" . n . paths ["legalhold", "conversations", toByteString' (qUnqualified qconv)] . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
-  get (n . paths ["conversations", toByteString' (qUnqualified qconv)] . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
+  get (apiVersion "v2" . n . paths ["conversations", toByteString' (qUnqualified qconv)] . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
 -- | Corner case for 'testNginz': when upgrading a wire backend from the old behavior (setting
 -- cookie domain to eg. @*.wire.com@) to the new behavior (leaving cookie domain empty,

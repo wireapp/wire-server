@@ -232,8 +232,12 @@ newEnv o = do
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
   mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
   prekeyLocalLock <- case Opt.randomPrekeys o of
-    Just True -> Just <$> newMVar ()
-    _ -> pure Nothing
+    Just True -> do
+      Log.info lgr $ Log.msg (Log.val "randomPrekeys: active")
+      Just <$> newMVar ()
+    _ -> do
+      Log.info lgr $ Log.msg (Log.val "randomPrekeys: not active; using dynamoDB instead.")
+      pure Nothing
   kpLock <- newMVar ()
   pure $!
     Env

@@ -1,1 +1,0 @@
-Introduce a flag in brig to enable MLS explicitly. When this flag is set to false or absent, MLS functionality is completely disabled and all MLS endpoints fail immediately.

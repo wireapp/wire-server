@@ -1,0 +1,43 @@
+apiVersion: k8ssandra.io/v1alpha1
+kind: K8ssandraCluster
+metadata:
+  name: k8ssandra-cluster
+  namespace: databases
+spec:
+  auth: false
+  cassandra:
+    serverVersion: "3.11.11"
+    telemetry:
+      prometheus:
+        enabled: true
+    resources:
+      requests:
+        cpu: 1
+        memory: "4.0Gi"
+      limits:
+        memory: "4.0Gi"
+    config:
+      jvmOptions:
+        # Intentionally, half of the available memory
+        heap_max_size: "2G"
+        heap_initial_size: "2G"
+        gc_g1_rset_updating_pause_time_percent: 5
+        gc: "G1GC"
+        gc_g1_max_gc_pause_ms: 300
+        gc_g1_initiating_heap_occupancy_percent: 55
+        gc_g1_parallel_threads: 16
+    datacenters:
+        - metadata:
+            name: datacenter-1
+          size: 1
+          storageConfig:
+            cassandraDataVolumeClaimSpec:
+              storageClassName: {{ .Values.storageClassName }}
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: {{ .Values.storageSize }}
+  reaper:
+    autoScheduling:
+      enabled: true

@@ -1,1 +1,0 @@
-Remove cassandra queries to the user_keys_hash table, as they are never read anymore since 'onboarding' / auto-connect was removed in https://github.com/wireapp/wire-server/pull/1005
