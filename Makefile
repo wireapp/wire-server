@@ -438,6 +438,14 @@ kind-delete:
 .PHONY: kind-reset
 kind-reset: kind-delete kind-cluster
 
+.PHONY: kind-upload-images
+kind-upload-images:
+	DOCKER_TAG=$(DOCKER_TAG) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) ./hack/bin/kind-upload-images.sh
+
+.PHONY: kind-upload-image
+kind-upload-image-%:
+	DOCKER_TAG=$(DOCKER_TAG) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) ./hack/bin/kind-upload-image.sh wireServer.imagesUnoptimizedNoDocs.$(*)
+
 .local/kind-kubeconfig:
 	mkdir -p $(CURDIR)/.local
 	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig

@@ -36,5 +36,12 @@ while read -r ip; do
   alsoProxyOptions+=("--also-proxy=${ip}")
 done < <(kubectl get pods -n "$NAMESPACE" -l app=cannon -o json | jq -r '.items[].status.podIPs[].ip')
 
+AWS_ACCESS_KEY_ID="$(kubectl get secret -n "$NAMESPACE" brig -o json | jq -r '.data | map_values(@base64d) | .awsKeyId')"
+export AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY="$(kubectl get secret -n "$NAMESPACE" brig -o json | jq -r '.data | map_values(@base64d) | .awsSecretKey')"
+export AWS_SECRET_ACCESS_KEY
+AWS_REGION="$(kubectl get deployment -n "$NAMESPACE" brig -o json | jq -r '.spec.template.spec.containers | map(.env | map(select(.name == "AWS_REGION").value))[0][0]')"
+export AWS_REGION
+
 # shellcheck disable=SC2086
 telepresence --namespace "$NAMESPACE" --also-proxy=cassandra-ephemeral ${alsoProxyOptions[*]} --run bash -c "export INTEGRATION_FEDERATION_TESTS=1; ./dist/brig-integration -p federation-end2end-user -i i.yaml -s b.yaml"
