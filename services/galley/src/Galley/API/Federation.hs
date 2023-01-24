@@ -686,7 +686,13 @@ sendMLSCommitBundle remoteDomain msr =
       qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       F.MLSMessageResponseUpdates . map lcuUpdate
-        <$> postMLSCommitBundle loc (tUntagged sender) Nothing qConvOrSub Nothing bundle
+        <$> postMLSCommitBundle
+          loc
+          (tUntagged sender)
+          (Just (mmsrSenderClient msr))
+          qConvOrSub
+          Nothing
+          bundle
 
 sendMLSMessage ::
   ( Members
@@ -737,7 +743,13 @@ sendMLSMessage remoteDomain msr =
           qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
           when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
           F.MLSMessageResponseUpdates . map lcuUpdate
-            <$> postMLSMessage loc (tUntagged sender) Nothing qConvOrSub Nothing raw
+            <$> postMLSMessage
+              loc
+              (tUntagged sender)
+              (Just (mmsrSenderClient msr))
+              qConvOrSub
+              Nothing
+              raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::
