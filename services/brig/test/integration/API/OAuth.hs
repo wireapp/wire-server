@@ -102,7 +102,8 @@ tests m db b n o = do
           test m "wrong client id - fail" $ testRefreshTokenWrongClientId b,
           test m "wrong client secret - fail" $ testRefreshTokenWrongClientSecret b,
           test m "wrong grant type - fail" $ testRefreshTokenWrongGrantType b,
-          test m "expired token - fail" $ testRefreshTokenExpiredToken o b
+          test m "expired token - fail" $ testRefreshTokenExpiredToken o b,
+          test m "revoked token - fail" $ testRefreshTokenRevokedToken b
         ]
     ]
 
@@ -575,6 +576,20 @@ testRefreshTokenExpiredToken opts brig =
       const 403 === statusCode
       const "Forbidden" === statusMessage
 
+testRefreshTokenRevokedToken :: Brig -> Http ()
+testRefreshTokenRevokedToken brig = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [SelfRead]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret (oatRefreshToken accessToken)
+  revokeOAuthRefreshToken brig (OAuthRevokeRefreshTokenRequest cid secret (oatRefreshToken accessToken)) !!! const 200 === statusCode
+  refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
+    const 403 === statusCode
+    const "Forbidden" === statusMessage
+
 -------------------------------------------------------------------------------
 -- Util
 
@@ -679,6 +694,9 @@ badKey = do
 
 mkUrl :: ByteString -> RedirectUrl
 mkUrl = fromMaybe (error "invalid url") . fromByteString
+
+revokeOAuthRefreshToken :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> OAuthRevokeRefreshTokenRequest -> m ResponseLBS
+revokeOAuthRefreshToken brig req = post (brig . paths ["oauth", "revoke"] . json req)
 
 instance ToHttpApiData a => ToHttpApiData (Bearer a) where
   toHeader = (<>) "Bearer " . toHeader . unBearer
