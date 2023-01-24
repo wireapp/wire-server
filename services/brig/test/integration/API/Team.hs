@@ -109,7 +109,7 @@ tests conf m n b c g aws = do
             test m "post /register - 400 no wireless" $ testInvitationCodeNoIdentity b,
             test m "post /register - 400 mutually exclusive" $ testInvitationMutuallyExclusive b,
             test m "post /register - 403 too many members" $ testInvitationTooManyMembers b g tl,
-            test m "get /teams/:tid/invitations - 200 (paging)" $ testInvitationPaging b,
+            test m "get /teams/:tid/invitations - 200 (paging)" $ testInvitationPaging conf b,
             test m "get /teams/:tid/invitations/info - 200" $ testInvitationInfo b,
             test m "get /teams/:tid/invitations/info - 400" $ testInvitationInfoBadCode b,
             test m "get /teams/:tid/invitations/info - 400 expired" $ testInvitationInfoExpired b it,
@@ -721,16 +721,19 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
       const 403 === statusCode
       const (Just "too-many-team-members") === fmap Error.label . responseJsonMaybe
 
-testInvitationPaging :: HasCallStack => Brig -> Http ()
-testInvitationPaging brig = do
+testInvitationPaging :: HasCallStack => Opt.Opts -> Brig -> Http ()
+testInvitationPaging opts brig = do
   before <- liftIO $ toUTCTimeMillis . addUTCTime (-1) <$> getCurrentTime
   (uid, tid) <- createUserWithTeam brig
   let total = 5
       invite email = stdInvitationRequest email
-  emails <- replicateM total $ do
-    email <- randomEmail
-    postInvitation brig tid uid (invite email) !!! const 201 === statusCode
-    pure email
+      longerTimeout = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setTeamInvitationTimeout = 300}}
+  emails <-
+    withSettingsOverrides longerTimeout $
+      replicateM total $ do
+        email <- randomEmail
+        postInvitation brig tid uid (invite email) !!! const 201 === statusCode
+        pure email
   after1ms <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
   let getPages :: HasCallStack => Int -> Maybe InvitationId -> Int -> Http [[Invitation]]
       getPages count start step = do
