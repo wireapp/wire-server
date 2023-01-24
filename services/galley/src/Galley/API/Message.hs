@@ -553,9 +553,6 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
   runMessagePush @t loc qcnv (pushes ^. traversed)
   pure mempty
 
--- | Send remote messages to the backend given by the domain argument, and
--- return the set of clients for which sending has failed. In case there was no
--- failure, the empty set is returned.
 sendRemoteMessages ::
   forall r x.
   (Members '[FederatorAccess, P.TinyLog] r, CallsFed 'Galley "on-message-sent") =>
