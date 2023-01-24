@@ -678,8 +678,8 @@ prettyCallStackLines :: CallStack -> [String]
 prettyCallStackLines stack = case stack of
   [] -> []
   stk ->
-    "CallStack (from HasCallStack):" :
-    map (("  " ++) . prettyCallSite) stk
+    "CallStack (from HasCallStack):"
+      : map (("  " ++) . prettyCallSite) stk
   where
     prettyCallSite (f, loc) = f ++ ", called at " ++ prettySrcLoc loc
 
