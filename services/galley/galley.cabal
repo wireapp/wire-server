@@ -382,6 +382,7 @@ executable galley-integration
     API.Teams.Feature
     API.Teams.LegalHold
     API.Teams.LegalHold.DisabledByDefault
+    API.Teams.LegalHold.Util
     API.Util
     API.Util.TeamFeature
     Main
@@ -432,7 +433,7 @@ executable galley-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded
+    -threaded -with-rtsopts=-N
 
   build-depends:
       aeson
@@ -447,6 +448,7 @@ executable galley-integration
     , brig-types
     , bytestring
     , bytestring-conversion
+    , call-stack
     , case-insensitive
     , cassandra-util
     , cassava
@@ -484,6 +486,7 @@ executable galley-integration
     , memory
     , metrics-wai
     , mtl
+    , network
     , optparse-applicative
     , pem
     , process
@@ -505,6 +508,7 @@ executable galley-integration
     , singletons
     , sop-core
     , ssl-util
+    , streaming-commons
     , string-conversions
     , tagged
     , tasty                    >=0.8

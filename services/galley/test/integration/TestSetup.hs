@@ -88,8 +88,7 @@ data LegalHoldConfig = LegalHoldConfig
   { privateKey :: FilePath,
     publicKey :: FilePath,
     cert :: FilePath,
-    botHost :: Text,
-    botPort :: Int
+    botHost :: Text
   }
   deriving (Show, Generic)
 
