@@ -19,23 +19,13 @@
 -- instead.
 module API.SQS where
 
-import qualified Amazonka as AWS
-import qualified Amazonka.SQS as SQS
-import qualified Amazonka.SQS.Lens as SQS
-import Control.Exception (asyncExceptionFromException)
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch hiding (bracket)
-import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Lazy (fromStrict)
 import qualified Data.Currency as Currency
 import Data.Id
-import Data.ProtoLens.Encoding
 import qualified Data.Set as Set
 import Data.Text (pack)
-import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
-import Data.UUID.V4 (nextRandom)
-import Galley.Aws
 import qualified Galley.Aws as Aws
 import Galley.Options (JournalOpts)
 import Imports
@@ -44,9 +34,7 @@ import Network.HTTP.Client.OpenSSL
 import OpenSSL.Session as Ssl
 import Proto.TeamEvents as E
 import Proto.TeamEvents_Fields as E
-import Safe (headDef)
 import Ssl.Util
-import System.Logger.Class
 import qualified System.Logger.Class as L
 import Test.Tasty.HUnit
 import TestSetup
