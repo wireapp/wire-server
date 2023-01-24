@@ -100,7 +100,7 @@ As of release `2.117.0` from `2021-10-29` (see `release notes<release-notes>`), 
 
 ```yaml
 # override values for wire-server
-# (e.g. under ./helm_vars/wire-server/values.yaml)
+# (e.g. under ./values/wire-server/values.yaml)
 nginz:
   nginx_conf:
     deeplink:
