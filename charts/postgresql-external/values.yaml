@@ -1,0 +1,6 @@
+replicas: 3
+postgresImage: postgres:13
+storageSize: 15Gi
+postgresDb: externalPostgresql
+postgresUser: externalPostgresql
+postgresPassword: externalPostgresql
