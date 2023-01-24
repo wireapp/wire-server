@@ -1083,7 +1083,7 @@ testDeleteTeamVerificationCodeExpiredCode = do
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   code <- getVerificationCode (U.userId owner) Public.DeleteTeam
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
-  threadDelay $ (5 * 1000 * 1000) + 600 * 1000
+  threadDelay $ (10 * 1000 * 1000) + 600 * 1000
   delete
     ( g
         . paths ["teams", toByteString' tid]

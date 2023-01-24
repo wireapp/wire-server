@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
@@ -134,7 +135,7 @@ tests conf m z db b g n =
             [ test m "test-login-verify6-digit-email-code-success" $ testLoginVerify6DigitEmailCodeSuccess b g db,
               test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
               test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g,
-              test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails b g db,
+              test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails conf b g db,
               test m "test-login-verify6-digit-resend-code-success-and-rate-limiting" $ testLoginVerify6DigitResendCodeSuccessAndRateLimiting b g conf db,
               test m "test-login-verify6-digit-limit-retries" $ testLoginVerify6DigitLimitRetries b g conf db
             ]
@@ -529,8 +530,8 @@ testLoginVerify6DigitMissingCodeFails brig galley = do
 -- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that login fails with expired second factor email verification code
-testLoginVerify6DigitExpiredCodeFails :: Brig -> Galley -> DB.ClientState -> Http ()
-testLoginVerify6DigitExpiredCodeFails brig galley db = do
+testLoginVerify6DigitExpiredCodeFails :: Opts.Opts -> Brig -> Galley -> DB.ClientState -> Http ()
+testLoginVerify6DigitExpiredCodeFails opts brig galley db = do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
@@ -538,8 +539,8 @@ testLoginVerify6DigitExpiredCodeFails brig galley db = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   key <- Code.mkKey (Code.ForEmail email)
   Just vcode <- Util.lookupCode db key Code.AccountLogin
-  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
-  threadDelay $ (5 * 1000000) + 600000
+  let verificationTimeout = round (Opts.setVerificationTimeout (Opts.optSettings opts))
+  threadDelay $ ((verificationTimeout + 1) * 1000_000)
   checkLoginFails brig $
     PasswordLogin $
       PasswordLoginData

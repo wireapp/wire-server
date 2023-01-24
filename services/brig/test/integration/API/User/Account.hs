@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -161,7 +162,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
         ],
       testGroup
         "update user email by team owner"
-        [ test p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner b
+        [ test p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner opts b
         ],
       testGroup
         "delete /i/users/:uid"
@@ -200,8 +201,8 @@ testCreateUserWithInvalidVerificationCode brig = do
 
 -- @END
 
-testUpdateUserEmailByTeamOwner :: Brig -> Http ()
-testUpdateUserEmailByTeamOwner brig = do
+testUpdateUserEmailByTeamOwner :: Opt.Opts -> Brig -> Http ()
+testUpdateUserEmailByTeamOwner opts brig = do
   (_, teamOwner, emailOwner : otherTeamMember : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   (teamOwnerDifferentTeam, _) <- createUserWithTeam' brig
   newEmail <- randomEmail
@@ -223,8 +224,8 @@ testUpdateUserEmailByTeamOwner brig = do
   where
     checkLetActivationExpire :: Email -> Http ()
     checkLetActivationExpire email = do
-      -- assumption: `optSettings.setActivationTimeout = 5` in `brig.yaml`
-      threadDelay (5100 * 1000)
+      let timeout = round (Opt.setActivationTimeout (Opt.optSettings opts))
+      threadDelay ((timeout + 1) * 1000_000)
       checkActivationCode email False
 
     checkActivationCode :: Email -> Bool -> Http ()
