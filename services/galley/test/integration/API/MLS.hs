@@ -62,6 +62,7 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -313,11 +314,6 @@ testRemoteWelcome :: TestM ()
 testRemoteWelcome = do
   [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
 
-  let mockedResponse fedReq =
-        case frRPC fedReq of
-          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
   runMLSTest $ do
     alice1 <- createMLSClient alice
     _bob1 <- createFakeMLSClient bob
@@ -328,7 +324,7 @@ testRemoteWelcome = do
       Nothing -> assertFailure "Expected welcome message"
       Just w -> pure w
     (_, reqs) <-
-      withTempMockFederator' mockedResponse $
+      withTempMockFederator' welcomeMock $
         postWelcome (ciUser (mpSender commit)) welcome
           !!! const 201 === statusCode
     consumeWelcome welcome
@@ -630,21 +626,9 @@ testAddRemoteUser = do
     [alice1, bob1] <- traverse createMLSClient users
     (_, qcnv) <- setupMLSGroup alice1
 
-    let mock req = case frRPC req of
-          "on-conversation-updated" -> pure (Aeson.encode ())
-          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "get-mls-clients" ->
-            pure
-              . Aeson.encode
-              . Set.fromList
-              . map (flip ClientInfo True . ciClient)
-              $ [bob1]
-          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
     commit <- createAddCommit alice1 [bob]
     (events, reqs) <-
-      withTempMockFederator' mock $
+      withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
         sendAndConsumeCommit commit
     pure (events, reqs, qcnv)
 
@@ -820,17 +804,7 @@ testRemoteAppMessage = do
 
     (_, qcnv) <- setupMLSGroup alice1
 
-    let mock req = case frRPC req of
-          "on-conversation-updated" -> pure (Aeson.encode ())
-          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "on-mls-message-sent" -> pure (Aeson.encode RemoteMLSMessageOk)
-          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-          "get-mls-clients" ->
-            pure
-              . Aeson.encode
-              . Set.singleton
-              $ ClientInfo (ciClient bob1) True
-          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+    let mock = receiveCommitMock [bob1] <|> messageSentMock <|> welcomeMock
 
     ((message, events), reqs) <- withTempMockFederator' mock $ do
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
@@ -905,12 +879,8 @@ testLocalToRemote = do
     -- A notifies B about bob being in the conversation (Join event): step 5
     receiveOnConvUpdated qcnv alice bob
 
-    let mock req = case frRPC req of
-          "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
-          rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
-
     (_, reqs) <-
-      withTempMockFederator' mock $
+      withTempMockFederator' sendMessageMock $
         -- bob sends a message: step 12
         sendAndConsumeMessage message
 
@@ -949,12 +919,8 @@ testLocalToRemoteNonMember = do
     -- register remote conversation: step 4
     receiveNewRemoteConv qcnv groupId
 
-    let mock req = case frRPC req of
-          "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
-          rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
-
     void $
-      withTempMockFederator' mock $ do
+      withTempMockFederator' sendMessageMock $ do
         galley <- viewGalley
 
         -- bob sends a message: step 12
@@ -1208,20 +1174,8 @@ testRemoteToLocal = do
     kpb <- claimKeyPackages alice1 bob
     mp <- createAddCommit alice1 [bob]
 
-    let mockedResponse fedReq =
-          case frRPC fedReq of
-            "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-            "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-            "on-conversation-updated" -> pure (Aeson.encode ())
-            "get-mls-clients" ->
-              pure
-                . Aeson.encode
-                . Set.singleton
-                $ ClientInfo (ciClient bob1) True
-            "claim-key-packages" -> pure . Aeson.encode $ kpb
-            ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
-    void . withTempMockFederator' mockedResponse $
+    let mock = receiveCommitMock [bob1] <|> welcomeMock <|> claimKeyPackagesMock kpb
+    void . withTempMockFederator' mock $
       sendAndConsumeCommit mp
 
     traverse_ consumeWelcome (mpWelcome mp)
@@ -1266,19 +1220,8 @@ testRemoteToLocalWrongConversation = do
     void $ setupMLSGroup alice1
     mp <- createAddCommit alice1 [bob]
 
-    let mockedResponse fedReq =
-          case frRPC fedReq of
-            "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-            "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-            "on-conversation-updated" -> pure (Aeson.encode ())
-            "get-mls-clients" ->
-              pure
-                . Aeson.encode
-                . Set.singleton
-                $ ClientInfo (ciClient bob1) True
-            ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
-    void . withTempMockFederator' mockedResponse $ sendAndConsumeCommit mp
+    let mock = receiveCommitMock [bob1] <|> welcomeMock
+    void . withTempMockFederator' mock $ sendAndConsumeCommit mp
     traverse_ consumeWelcome (mpWelcome mp)
     message <- createApplicationMessage bob1 "hello from another backend"
 
@@ -1636,19 +1579,7 @@ testBackendRemoveProposalLocalConvRemoteUser = do
     (_, qcnv) <- setupMLSGroup alice1
     commit <- createAddCommit alice1 [bob]
 
-    let mock req = case frRPC req of
-          "on-conversation-updated" -> pure (Aeson.encode ())
-          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "on-mls-message-sent" -> pure (Aeson.encode RemoteMLSMessageOk)
-          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-          "get-mls-clients" ->
-            pure
-              . Aeson.encode
-              . Set.fromList
-              . map (flip ClientInfo True . ciClient)
-              $ [bob1, bob2]
-          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
+    let mock = receiveCommitMock [bob1, bob2] <|> welcomeMock <|> messageSentMock
     void . withTempMockFederator' mock $ do
       mlsBracket [alice1] $ \[wsA] -> do
         void $ sendAndConsumeCommit commit
@@ -1813,19 +1744,7 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
     (_, qcnv) <- setupMLSGroup alice1
     commit <- createAddCommit alice1 [bob]
 
-    let mock req = case frRPC req of
-          "on-conversation-updated" -> pure (Aeson.encode ())
-          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "on-mls-message-sent" -> pure (Aeson.encode RemoteMLSMessageOk)
-          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-          "get-mls-clients" ->
-            pure
-              . Aeson.encode
-              . Set.fromList
-              . map (flip ClientInfo True . ciClient)
-              $ [bob1, bob2]
-          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
+    let mock = receiveCommitMock [bob1, bob2] <|> welcomeMock <|> messageSentMock
     bobClients <- getClientsFromGroupState alice1 bob
     void . withTempMockFederator' mock $ do
       mlsBracket [alice1] $ \[wsA] -> void $ do
@@ -1889,21 +1808,8 @@ testBackendRemoveProposalLocalConvRemoteClient = do
     (_, qcnv) <- setupMLSGroup alice1
     commit <- createAddCommit alice1 [bob]
 
-    let mock req = case frRPC req of
-          "on-conversation-updated" -> pure (Aeson.encode ())
-          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-          "on-mls-message-sent" -> pure (Aeson.encode RemoteMLSMessageOk)
-          "get-mls-clients" ->
-            pure
-              . Aeson.encode
-              . Set.fromList
-              . map (flip ClientInfo True)
-              $ [ciClient bob1]
-          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
     [(_, bob1KP)] <- getClientsFromGroupState alice1 bob
-
+    let mock = receiveCommitMock [bob1] <|> welcomeMock <|> messageSentMock
     void . withTempMockFederator' mock $ do
       mlsBracket [alice1] $ \[wsA] -> void $ do
         void $ sendAndConsumeCommit commit
@@ -1957,16 +1863,7 @@ testGetGroupInfoOfRemoteConv = do
     receiveOnConvUpdated qcnv alice bob
 
     let fakeGroupState = "\xde\xad\xbe\xef"
-    let mock req = case frRPC req of
-          "query-group-info" -> do
-            request <- either (assertFailure . ("Parse failure in query-group-info " <>)) pure (Aeson.eitherDecode (frBody req))
-            let uid = ggireqSender request
-            pure . Aeson.encode $
-              if uid == qUnqualified bob
-                then GetGroupInfoResponseState (Base64ByteString fakeGroupState)
-                else GetGroupInfoResponseError ConvNotFound
-          s -> error ("unmocked: " <> T.unpack s)
-
+    let mock = queryGroupStateMock fakeGroupState bob
     (_, reqs) <- withTempMockFederator' mock $ do
       res <-
         fmap responseBody $
@@ -1994,18 +1891,7 @@ testFederatedGetGroupInfo = do
     commit <- createAddCommit alice1 [bob]
     groupState <- assertJust (mpPublicGroupState commit)
 
-    let mock req = case frRPC req of
-          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "on-conversation-updated" -> pure (Aeson.encode ())
-          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-          "get-mls-clients" ->
-            pure
-              . Aeson.encode
-              . Set.fromList
-              . map (flip ClientInfo True)
-              $ [ciClient bob1]
-          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
+    let mock = receiveCommitMock [bob1] <|> welcomeMock
     void . withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 
@@ -2080,9 +1966,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock req = case frRPC req of
-          "send-mls-commit-bundle" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
-          s -> error ("unmocked: " <> T.unpack s)
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates []
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 
@@ -2109,20 +1993,9 @@ testRemoteUserPostsCommitBundle = do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     (_, qcnv) <- setupMLSGroup alice1
 
-    let mock req = case frRPC req of
-          "on-conversation-updated" -> pure (Aeson.encode ())
-          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-          "get-mls-clients" ->
-            pure
-              . Aeson.encode
-              . Set.fromList
-              . map (flip ClientInfo True . ciClient)
-              $ [bob1]
-          "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
     commit <- createAddCommit alice1 [bob]
-    void $
+    void $ do
+      let mock = receiveCommitMock [bob1] <|> welcomeMock
       withTempMockFederator' mock $ do
         void $ sendAndConsumeCommit commit
         putOtherMemberQualified (qUnqualified alice) bob (OtherMemberUpdate (Just roleNameWireAdmin)) qcnv
@@ -2276,3 +2149,38 @@ getGroupInfoDisabled = do
     withMLSDisabled $
       getGroupInfo (qUnqualified alice) qcnv
         !!! assertMLSNotEnabled
+
+--------------------------------------------------------------------------------
+-- Mock utilities
+
+receiveCommitMock :: [ClientIdentity] -> Mock LByteString
+receiveCommitMock clients =
+  asum
+    [ "on-conversation-updated" ~> (),
+      "on-new-remote-conversation" ~> EmptyResponse,
+      "get-mls-clients" ~>
+        Set.fromList
+          ( map (flip ClientInfo True . ciClient) clients
+          )
+    ]
+
+messageSentMock :: Mock LByteString
+messageSentMock = "on-mls-message-sent" ~> RemoteMLSMessageOk
+
+welcomeMock :: Mock LByteString
+welcomeMock = "mls-welcome" ~> MLSWelcomeSent
+
+sendMessageMock :: Mock LByteString
+sendMessageMock = "send-mls-message" ~> MLSMessageResponseUpdates []
+
+claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
+claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
+
+queryGroupStateMock :: ByteString -> Qualified UserId -> Mock LByteString
+queryGroupStateMock gs qusr = do
+  guardRPC "query-group-info"
+  uid <- ggireqSender <$> getRequestBody
+  mockReply $
+    if uid == qUnqualified qusr
+      then GetGroupInfoResponseState (Base64ByteString gs)
+      else GetGroupInfoResponseError ConvNotFound

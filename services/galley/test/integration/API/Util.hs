@@ -24,6 +24,7 @@ import Bilge.Assert
 import Bilge.TestSession
 import Brig.Types.Connection
 import Brig.Types.Intra (UserAccount (..))
+import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens hiding (from, to, uncons, (#), (.=))
@@ -69,7 +70,7 @@ import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
 import qualified Data.UUID as UUID
 import Data.UUID.V4
-import Federator.MockServer (FederatedRequest (..))
+import Federator.MockServer
 import qualified Federator.MockServer as Mock
 import GHC.TypeLits (KnownSymbol)
 import Galley.Intra.User (chunkify)
@@ -719,7 +720,7 @@ postConvWithRemoteUsers ::
   TestM (Response (Maybe LByteString))
 postConvWithRemoteUsers u n =
   fmap fst $
-    withTempMockFederator (const ()) $
+    withTempMockFederator' (mockReply ()) $
       postConvQualified u n {newConvName = setName (newConvName n)}
         <!! const 201
           === statusCode
@@ -2572,26 +2573,18 @@ mkProfile quid name =
 
 -- | Run the given action on a temporary galley instance with access to a mock
 -- federator.
---
--- The `resp :: FederatedRequest -> a` argument can be used to provide a fake
--- federator response (of an arbitrary JSON-serialisable type a) for every
--- expected request.
-withTempMockFederator ::
-  ToJSON a =>
-  (FederatedRequest -> a) ->
-  TestM b ->
-  TestM (b, [FederatedRequest])
-withTempMockFederator resp = withTempMockFederator' $ pure . encode . resp
-
 withTempMockFederator' ::
   (MonadIO m, MonadMask m, HasSettingsOverrides m) =>
-  (FederatedRequest -> IO LByteString) ->
+  Mock LByteString ->
   m b ->
   m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
+  let mock = runMock (assertFailure . Text.unpack) $ do
+        r <- resp
+        pure ("application" // "json", r)
   Mock.withTempMockFederator
     [("Content-Type", "application/json")]
-    ((\r -> pure ("application" // "json", r)) <=< resp)
+    mock
     $ \mockPort -> do
       withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
 
@@ -2608,9 +2601,10 @@ withTempServantMockFederator brigApi galleyApi originDomain =
     server :: Domain -> ServerT CombinedBrigAndGalleyAPI Handler
     server d = brigApi d :<|> galleyApi d
 
-    mock :: FederatedRequest -> IO LByteString
-    mock req =
-      makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (frTargetDomain req)) req
+    mock :: Mock LByteString
+    mock = do
+      req <- getRequest
+      liftIO $ makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (frTargetDomain req)) req
 
 type CombinedBrigAndGalleyAPI = FedApi 'Brig :<|> FedApi 'Galley
 
@@ -2772,28 +2766,11 @@ checkTimeout = 3 # Second
 
 -- | The function is used in conjuction with 'withTempMockFederator' to mock
 -- responses by Brig on the mocked side of federation.
-mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> FederatedRequest -> Maybe Value
-mockedFederatedBrigResponse users req
-  | frComponent req == Brig =
-      Just . toJSON $ [mkProfile mem (Name name) | (mem, name) <- users]
-  | otherwise = Nothing
-
--- | Combine two mocked services such that for a given request a JSON response
--- is produced.
-joinMockedFederatedResponses ::
-  (FederatedRequest -> Maybe Value) ->
-  (FederatedRequest -> Maybe Value) ->
-  FederatedRequest ->
-  Value
-joinMockedFederatedResponses service1 service2 req =
-  fromMaybe (toJSON ()) (service1 req <|> service2 req)
-
--- | Only Brig is mocked.
-onlyMockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> FederatedRequest -> Value
-onlyMockedFederatedBrigResponse users =
-  joinMockedFederatedResponses
-    (mockedFederatedBrigResponse users)
-    (const Nothing)
+mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> Mock LByteString
+mockedFederatedBrigResponse users = do
+  comp <- frComponent <$> getRequest
+  guard (comp == Brig)
+  mockReply [mkProfile mem (Name name) | (mem, name) <- users]
 
 fedRequestsForDomain :: HasCallStack => Domain -> Component -> [FederatedRequest] -> [FederatedRequest]
 fedRequestsForDomain domain component =

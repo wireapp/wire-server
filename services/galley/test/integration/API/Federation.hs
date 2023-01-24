@@ -22,7 +22,6 @@ import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Control.Lens hiding ((#))
-import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain
@@ -41,7 +40,7 @@ import Data.String.Conversions
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
-import Federator.MockServer (FederatedRequest (..))
+import Federator.MockServer
 import Galley.Types.Conversations.Intra
 import Imports
 import Test.QuickCheck (arbitrary, generate)
@@ -643,21 +642,18 @@ leaveConversationSuccess = do
   connectWithRemoteUser alice qDee
   connectWithRemoteUser alice qEve
 
-  let mockedResponse fedReq = do
-        let success :: ToJSON a => a -> IO LByteString
-            success = pure . A.encode
-            getUsersRPC = "get-users-by-ids"
-        case (frTargetDomain fedReq, frRPC fedReq) of
-          (d, mp)
-            | d == remoteDomain1 && mp == getUsersRPC ->
-                success [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")]
-          (d, mp)
-            | d == remoteDomain2 && mp == getUsersRPC ->
-                success [mkProfile qEve (Name "Eve")]
-          _ -> success ()
+  let mock = do
+        guardRPC "get-users-by-ids"
+        d <- frTargetDomain <$> getRequest
+        asum
+          [ guard (d == remoteDomain1)
+              *> mockReply [mkProfile qChad (Name "Chad"), mkProfile qDee (Name "Dee")],
+            guard (d == remoteDomain2)
+              *> mockReply [mkProfile qEve (Name "Eve")]
+          ]
 
   (convId, _) <-
-    withTempMockFederator' mockedResponse $
+    withTempMockFederator' (mock <|> mockReply ()) $
       decodeConvId
         <$> postConvQualified
           alice
@@ -668,7 +664,7 @@ leaveConversationSuccess = do
 
   (_, federatedRequests) <-
     WS.bracketR2 c alice bob $ \(wsAlice, wsBob) -> do
-      withTempMockFederator' mockedResponse $ do
+      withTempMockFederator' mock $ do
         g <- viewGalley
         let leaveRequest = FedGalley.LeaveConversationRequest convId (qUnqualified qChad)
         respBS <-
@@ -842,12 +838,12 @@ sendMessage = do
   connectWithRemoteUser aliceId bob
   connectWithRemoteUser aliceId chad
   -- conversation
-  let responses1 req
-        | frComponent req == Brig =
-            toJSON [bobProfile, chadProfile]
-        | otherwise = toJSON ()
+  let responses1 = do
+        comp <- frComponent <$> getRequest
+        guard (comp == Brig)
+        mockReply [bobProfile, chadProfile]
   (convId, requests1) <-
-    withTempMockFederator responses1 $
+    withTempMockFederator' (responses1 <|> mockReply ()) $
       fmap decodeConvId $
         postConvQualified
           aliceId
@@ -878,16 +874,15 @@ sendMessage = do
             FedGalley.pmsrSender = bobId,
             FedGalley.pmsrRawMessage = Base64ByteString (Protolens.encodeMessage msg)
           }
-  let responses2 req
-        | frComponent req == Brig =
-            toJSON
-              ( Map.fromList
-                  [ (chadId, Set.singleton (PubClient chadClient Nothing)),
-                    (bobId, Set.singleton (PubClient bobClient Nothing))
-                  ]
-              )
-        | otherwise = toJSON ()
-  (_, requests2) <- withTempMockFederator responses2 $ do
+  let mock = do
+        comp <- frComponent <$> getRequest
+        guard (comp == Brig)
+        mockReply $
+          Map.fromList
+            [ (chadId, Set.singleton (PubClient chadClient Nothing)),
+              (bobId, Set.singleton (PubClient bobClient Nothing))
+            ]
+  (_, requests2) <- withTempMockFederator' (mock <|> mockReply ()) $ do
     WS.bracketR cannon aliceId $ \ws -> do
       g <- viewGalley
       msresp <-
@@ -982,7 +977,7 @@ onUserDeleted = do
         <!! const 201 === statusCode
 
   WS.bracketR2 cannon (tUnqualified alice) (qUnqualified alex) $ \(wsAlice, wsAlex) -> do
-    (resp, rpcCalls) <- withTempMockFederator (const ()) $ do
+    (resp, rpcCalls) <- withTempMockFederator' (mockReply ()) $ do
       let udcn =
             FedGalley.UserDeletedConversationsNotification
               { FedGalley.udcvUser = tUnqualified bob,
@@ -1060,7 +1055,7 @@ updateConversationByRemoteAdmin = do
   let convName = "Test Conv"
   WS.bracketR c alice $ \wsAlice -> do
     (rsp, _federatedRequests) <-
-      withTempMockFederator (const ()) $ do
+      withTempMockFederator' (mockReply ()) $ do
         postConvQualified alice defNewProteusConv {newConvName = checked convName, newConvQualifiedUsers = [qbob, qcharlie]}
           <!! const 201 === statusCode
 
@@ -1070,7 +1065,7 @@ updateConversationByRemoteAdmin = do
     let action = SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) (ConversationReceiptModeUpdate newReceiptMode)
 
     (_, federatedRequests) <-
-      withTempMockFederator (const ()) $ do
+      withTempMockFederator' (mockReply ()) $ do
         -- promote chad to admin
         putOtherMemberQualified alice qbob (OtherMemberUpdate (Just roleNameWireAdmin)) cnv
           !!! const 200 === statusCode
