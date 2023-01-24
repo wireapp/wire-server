@@ -431,11 +431,11 @@ helm upgrade --install --namespace metallb-system metallb wire/metallb \
 Install `nginx-ingress-[controller,services]`:
 
 ::
-: helm upgrade --install --namespace demo demo-nginx-ingress-controller wire/nginx-ingress-controller 
+: helm upgrade --install --namespace demo demo-nginx-ingress-controller wire/nginx-ingress-controller
 
   : --wait
 
-  helm upgrade --install --namespace demo demo-nginx-ingress-services wire/nginx-ingress-services 
+  helm upgrade --install --namespace demo demo-nginx-ingress-services wire/nginx-ingress-services
 
   : -f values/nginx-ingress-services/demo-values.yaml -f values/nginx-ingress-services/demo-secrets.yaml --wait
 
@@ -633,7 +633,7 @@ account-pages:
 
 ## Configuring authentication cookie throttling
 
-Authentication cookies and the related throttling mechanism is described in the *Client API documentation*:
+Authentication cookies and the related throttling mechanism is described in the *API documentation*:
 {ref}`login-cookies`
 
 The maximum number of cookies per account and type is defined by the brig option

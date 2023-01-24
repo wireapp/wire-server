@@ -1,4 +1,6 @@
-apiVersion: extensions/v1beta1
+{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
+apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
   name: "{{ include "sftd.fullname" . }}"
@@ -18,14 +20,44 @@ spec:
       http:
         paths:
           - path: /sft/
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: {{ include "sftd.fullname" . }}
+                port:
+                  name: sft
+              {{- else }}
               serviceName: "{{ include "sftd.fullname" . }}"
               servicePort: sft
+              {{- end }}
           - path: /sfts/
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: "{{ include "sftd.fullname" . }}-join-call"
+                port:
+                  name: http
+              {{- else }}
               serviceName: "{{ include "sftd.fullname" . }}-join-call"
               servicePort: http
+              {{- end }}
           - path: /sft_servers_all.json
+            {{- if $ingressSupportsPathType }}
+            pathType: Exact
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: "{{ include "sftd.fullname" . }}-join-call"
+                port:
+                  name: http
+              {{- else }}
               serviceName: "{{ include "sftd.fullname" . }}-join-call"
               servicePort: http
+              {{- end }}

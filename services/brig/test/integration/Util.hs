@@ -687,7 +687,13 @@ defNewClientWithVerificationCode mbCode ty pks lpk =
       newClientVerificationCode = mbCode
     }
 
-getPreKey :: Brig -> UserId -> UserId -> ClientId -> Http ResponseLBS
+getPreKey ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  UserId ->
+  UserId ->
+  ClientId ->
+  m ResponseLBS
 getPreKey brig zusr u c =
   get $
     apiVersion "v1"
@@ -709,13 +715,6 @@ getTeamMember u tid galley =
           . zUser u
           . expect2xx
       )
-
-getConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ConvId -> m ResponseLBS
-getConversation galley usr cnv =
-  get $
-    galley
-      . paths ["conversations", toByteString' cnv]
-      . zAuthAccess usr "conn"
 
 getConversationQualified :: (MonadIO m, MonadHttp m) => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
 getConversationQualified galley usr cnv =

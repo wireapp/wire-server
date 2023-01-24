@@ -52,13 +52,9 @@ install: init
 .PHONY: full-clean
 full-clean: clean
 	rm -rf ~/.cache/hie-bios
-ifdef CABAL_DIR
-	rm -rf $(CABAL_DIR)/store
-else
-	rm -rf ~/.cabal/store
-endif
 	rm -rf ./dist-newstyle ./.env
 	direnv reload
+	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
 .PHONY: clean
 clean:
