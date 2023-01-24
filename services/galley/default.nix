@@ -18,6 +18,7 @@
 , brig-types
 , bytestring
 , bytestring-conversion
+, call-stack
 , case-insensitive
 , cassandra-util
 , cassava
@@ -61,6 +62,7 @@
 , metrics-core
 , metrics-wai
 , mtl
+, network
 , optparse-applicative
 , pem
 , polysemy
@@ -90,6 +92,7 @@
 , split
 , ssl-util
 , stm
+, streaming-commons
 , string-conversions
 , swagger
 , swagger2
@@ -251,6 +254,7 @@ mkDerivation {
     brig-types
     bytestring
     bytestring-conversion
+    call-stack
     case-insensitive
     cassandra-util
     cassava
@@ -288,6 +292,7 @@ mkDerivation {
     memory
     metrics-wai
     mtl
+    network
     optparse-applicative
     pem
     process
@@ -309,6 +314,7 @@ mkDerivation {
     singletons
     sop-core
     ssl-util
+    streaming-commons
     string-conversions
     tagged
     tasty
@@ -321,6 +327,7 @@ mkDerivation {
     tls
     transformers
     types-common
+    types-common-aws
     types-common-journal
     unix
     unliftio
