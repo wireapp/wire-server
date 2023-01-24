@@ -732,19 +732,22 @@ testInvitationPaging brig = do
     postInvitation brig tid uid (invite email) !!! const 201 === statusCode
     pure email
   after1ms <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
-  let next :: HasCallStack => Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
-      next step (count, start) actualPageLen = do
-        let count' = count + step
+  let getPages :: HasCallStack => Int -> Maybe InvitationId -> Int -> Http [[Invitation]]
+      getPages count start step = do
         let range = queryRange (toByteString' <$> start) (Just step)
         r <-
           get (brig . paths ["teams", toByteString' tid, "invitations"] . zUser uid . range)
             <!! const 200
               === statusCode
-        let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> responseJsonMaybe r
-        liftIO $ assertEqual "page size" actualPageLen (length invs)
-        liftIO $ assertEqual "has more" (count' < total) more
-        liftIO $ validateInv `mapM_` invs
-        pure (count', fmap inInvitation . listToMaybe . reverse $ invs)
+        (invs, more) <- (ilInvitations &&& ilHasMore) <$> responseJsonError r
+        if more
+          then (invs :) <$> getPages (count + step) (fmap inInvitation . listToMaybe . reverse $ invs) step
+          else pure [invs]
+  let checkSize :: HasCallStack => Int -> [Int] -> Http ()
+      checkSize pageSize expectedSizes =
+        getPages 0 Nothing pageSize >>= \invss -> liftIO $ do
+          assertEqual "page sizes" expectedSizes (take (length expectedSizes) (map length invss))
+          mapM_ validateInv $ concat invss
       validateInv :: Invitation -> Assertion
       validateInv inv = do
         assertEqual "tid" tid (inTeam inv)
@@ -755,9 +758,9 @@ testInvitationPaging brig = do
         assertEqual "uid" (Just uid) (inCreatedBy inv)
   -- not checked: @inInvitation inv :: InvitationId@
 
-  foldM_ (next 2) (0, Nothing) [2, 2, 1, 0]
-  foldM_ (next total) (0, Nothing) [total, 0]
-  foldM_ (next (total + 1)) (0, Nothing) [total, 0]
+  checkSize 2 [2, 2, 1]
+  checkSize total [total]
+  checkSize (total + 1) [total]
 
 testInvitationInfo :: Brig -> Http ()
 testInvitationInfo brig = do
