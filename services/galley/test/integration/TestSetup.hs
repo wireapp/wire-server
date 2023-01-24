@@ -135,7 +135,8 @@ runFedClient ::
   forall (name :: Symbol) comp m api.
   ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient Servant.ClientM api,
-    MonadIO m
+    MonadIO m,
+    HasCallStack
   ) =>
   FedClient comp ->
   Domain ->
