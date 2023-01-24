@@ -1461,10 +1461,10 @@ postConvertTeamConv = do
   (alice, tid) <- createBindingTeam
   let qalice = Qualified alice localDomain
   bob <- view Teams.userId <$> addUserToTeam alice tid
-  assertQueue "team member (bob) join" $ tUpdate 2 [alice]
+  assertTeamUpdate "team member (bob) join" tid 2 [alice]
   refreshIndex
   dave <- view Teams.userId <$> addUserToTeam alice tid
-  assertQueue "team member (dave) join" $ tUpdate 3 [alice]
+  assertTeamUpdate "team member (dave) join" tid 3 [alice]
   refreshIndex
   (eve, qeve) <- randomUserTuple
   connectUsers alice (singleton eve)

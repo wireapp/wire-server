@@ -18,7 +18,7 @@
 
 module API.Teams.Feature (tests) where
 
-import API.SQS (assertQueue, tActivate)
+import API.SQS (assertTeamActivate)
 import API.Util
 import API.Util.TeamFeature hiding (getFeatureConfig, setLockStatusInternal)
 import qualified API.Util.TeamFeature as Util
@@ -1167,7 +1167,7 @@ testExposeInvitationURLsToTeamAdminTeamIdInAllowList :: TestM ()
 testExposeInvitationURLsToTeamAdminTeamIdInAllowList = do
   owner <- randomUser
   tid <- createBindingTeamInternal "foo" owner
-  assertQueue "create team" tActivate
+  assertTeamActivate "create team" tid
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
       g <- viewGalley
@@ -1182,7 +1182,7 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList :: TestM ()
 testExposeInvitationURLsToTeamAdminEmptyAllowList = do
   owner <- randomUser
   tid <- createBindingTeamInternal "foo" owner
-  assertQueue "create team" tActivate
+  assertTeamActivate "create team" tid
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist .~ Nothing) $ do
       g <- viewGalley
@@ -1203,7 +1203,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence :: TestM ()
 testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
   owner <- randomUser
   tid <- createBindingTeamInternal "foo" owner
-  assertQueue "create team" tActivate
+  assertTeamActivate "create team" tid
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
       g <- viewGalley
