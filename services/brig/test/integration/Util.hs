@@ -1311,11 +1311,12 @@ spawn cp minput = do
   (mout, ex) <- withCreateProcess
     cp
       { std_out = CreatePipe,
-        std_in = if isJust minput then CreatePipe else Inherit
+        std_in = CreatePipe
       }
     $ \minh mouth _ ph ->
-      let writeInput = for_ ((,) <$> minput <*> minh) $ \(input, inh) ->
-            BS.hPutStr inh input >> hClose inh
+      let writeInput = for_ minh $ \inh -> do
+            forM_ minput $ BS.hPutStr inh
+            hClose inh
           readOutput = (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
        in snd <$> concurrently writeInput readOutput
   case (mout, ex) of
