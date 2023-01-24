@@ -2469,7 +2469,7 @@ waitForMemberDeletion zusr tid uid = do
       res <- get (galley . paths ["teams", toByteString' tid, "members", toByteString' uid] . zUser zusr)
       case statusCode res of
         404 -> pure ()
-        _ -> loop
+        _ -> threadDelay 1000 >> loop
 
 deleteTeamMember :: (MonadIO m, MonadCatch m, MonadHttp m) => (Request -> Request) -> TeamId -> UserId -> UserId -> m ()
 deleteTeamMember g tid owner deletee =
