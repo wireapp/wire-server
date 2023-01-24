@@ -40,13 +40,13 @@ import Test.Tasty.HUnit
 import TestSetup
 import qualified Util.Test.SQS as SQS
 
-withTeamEventWatcher :: (SQS.SQSWatcher TeamEvent -> TestM ()) -> TestM ()
+withTeamEventWatcher :: HasCallStack => (SQS.SQSWatcher TeamEvent -> TestM ()) -> TestM ()
 withTeamEventWatcher action = do
   view tsTeamEventWatcher >>= \case
     Nothing -> pure ()
     Just w -> action w
 
-assertIfWatcher :: String -> (TeamEvent -> Bool) -> (String -> Maybe TeamEvent -> TestM ()) -> TestM ()
+assertIfWatcher :: HasCallStack => String -> (TeamEvent -> Bool) -> (String -> Maybe TeamEvent -> TestM ()) -> TestM ()
 assertIfWatcher l matcher assertion =
   view tsTeamEventWatcher >>= \case
     Nothing -> pure ()
@@ -71,7 +71,7 @@ tActivate l (Just e) = liftIO $ do
   assertEqual "count" 1 (e ^. eventData . memberCount)
 tActivate l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
-assertTeamActivate :: String -> TeamId -> TestM ()
+assertTeamActivate :: HasCallStack => String -> TeamId -> TestM ()
 assertTeamActivate l tid =
   assertIfWatcher l (teamActivateMatcher tid) tActivate
 
