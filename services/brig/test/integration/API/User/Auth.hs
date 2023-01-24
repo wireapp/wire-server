@@ -152,7 +152,11 @@ tests conf m z db b g n =
           test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
-          test m "suspend-inactive" (testSuspendInactiveUsers conf b),
+          testGroup "suspend-inactive" $ do
+            cookieType <- [SessionCookie, PersistentCookie]
+            endPoint <- ["/access", "/login"]
+            let testName = "cookieType=" <> show cookieType <> ",endPoint=" <> show endPoint
+            pure $ test m testName $ testSuspendInactiveUsers conf b cookieType endPoint,
           test m "client access" (testAccessWithClientId b),
           test m "client access with old token" (testAccessWithClientIdAndOldToken b),
           test m "client access incorrect" (testAccessWithIncorrectClientId b),
@@ -1200,51 +1204,46 @@ testNewSessionCookie config b = do
     const 200 === statusCode
     const Nothing === getHeader "Set-Cookie"
 
-testSuspendInactiveUsers :: HasCallStack => Opts.Opts -> Brig -> Http ()
-testSuspendInactiveUsers config brig = do
-  -- (context information: cookies are stored by user, not be device; so if there if the
-  -- cookie is old it means none of the devices of a user has used it for a request.)
+testSuspendInactiveUsers :: HasCallStack => Opts.Opts -> Brig -> CookieType -> String -> Http ()
+testSuspendInactiveUsers config brig cookieType endPoint = do
+  -- (context information: cookies are stored by user, not by device; so if there is a
+  -- cookie that is old, it means none of the devices of the user has used it for a request.)
 
   let Just suspendAge = Opts.suspendTimeout <$> Opts.setSuspendInactiveUsers (Opts.optSettings config)
   unless (suspendAge <= 30) $
     error "`suspendCookiesOlderThanSecs` is the number of seconds this test is running.  Please pick a value < 30."
-  let check :: HasCallStack => CookieType -> String -> Http ()
-      check cookieType endPoint = do
-        user <- randomUser brig
-        let Just email = userEmail user
-        rs <-
-          login brig (emailLogin email defPassword Nothing) cookieType
-            <!! const 200 === statusCode
-        let cky = decodeCookie rs
-        -- wait slightly longer than required for being marked as inactive.
-        let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
-        liftIO $ threadDelay (1000000 * waitTime)
-        case endPoint of
-          "/access" -> do
-            post (unversioned . brig . path "/access" . cookie cky) !!! do
-              const 403 === statusCode
-              const Nothing === getHeader "Set-Cookie"
-          "/login" -> do
-            login brig (emailLogin email defPassword Nothing) cookieType !!! do
-              const 403 === statusCode
-              const Nothing === getHeader "Set-Cookie"
-        let assertStatus want = do
-              have <-
-                retrying
-                  (exponentialBackoff 200000 <> limitRetries 6)
-                  (\_ have -> pure $ have == Suspended)
-                  (\_ -> getStatus brig (userId user))
-              let errmsg = "testSuspendInactiveUsers: " <> show (want, cookieType, endPoint, waitTime, suspendAge)
-              liftIO $ HUnit.assertEqual errmsg want have
-        assertStatus Suspended
-        setStatus brig (userId user) Active
-        assertStatus Active
-        login brig (emailLogin email defPassword Nothing) cookieType
-          !!! const 200 === statusCode
-  check SessionCookie "/access"
-  check SessionCookie "/login"
-  check PersistentCookie "/access"
-  check PersistentCookie "/login"
+
+  user <- randomUser brig
+  let Just email = userEmail user
+  rs <-
+    login brig (emailLogin email defPassword Nothing) cookieType
+      <!! const 200 === statusCode
+  let cky = decodeCookie rs
+  -- wait slightly longer than required for being marked as inactive.
+  let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
+  liftIO $ threadDelay (1000000 * waitTime)
+  case endPoint of
+    "/access" -> do
+      post (unversioned . brig . path "/access" . cookie cky) !!! do
+        const 403 === statusCode
+        const Nothing === getHeader "Set-Cookie"
+    "/login" -> do
+      login brig (emailLogin email defPassword Nothing) cookieType !!! do
+        const 403 === statusCode
+        const Nothing === getHeader "Set-Cookie"
+  let assertStatus want = do
+        have <-
+          retrying
+            (exponentialBackoff 200000 <> limitRetries 6)
+            (\_ have -> pure $ have == Suspended)
+            (\_ -> getStatus brig (userId user))
+        let errmsg = "testSuspendInactiveUsers: " <> show (want, cookieType, endPoint, waitTime, suspendAge)
+        liftIO $ HUnit.assertEqual errmsg want have
+  assertStatus Suspended
+  setStatus brig (userId user) Active
+  assertStatus Active
+  login brig (emailLogin email defPassword Nothing) cookieType
+    !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Cookie Management
