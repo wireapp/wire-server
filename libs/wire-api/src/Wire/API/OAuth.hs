@@ -535,7 +535,7 @@ instance KnownError (MapError e) => IsSwaggerError (e :: OAuthError) where
 
 type instance MapError 'OAuthClientNotFound = 'StaticError 404 "not-found" "OAuth client not found"
 
-type instance MapError 'OAuthRedirectUrlMissMatch = 'StaticError 400 "redirect-url-miss-match" "Redirect URL miss match"
+type instance MapError 'OAuthRedirectUrlMissMatch = 'StaticError 400 "redirect-url-miss-match" "The redirect URL does not match the one registered with the client"
 
 type instance MapError 'OAuthUnsupportedResponseType = 'StaticError 400 "unsupported-response-type" "Unsupported response type"
 

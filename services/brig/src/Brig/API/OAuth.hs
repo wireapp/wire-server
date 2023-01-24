@@ -46,7 +46,7 @@ import Wire.API.Error
 import Wire.API.OAuth as OAuth
 import qualified Wire.API.Routes.Internal.Brig.OAuth as I
 import Wire.API.Routes.Named (Named (..))
-import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
+import Wire.API.Routes.Public.Brig.OAuth (CreateOAuthCodeError, OAuthAPI)
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 
@@ -89,7 +89,7 @@ getOAuthClient _ cid = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   lift $ wrapClient $ lookupOauthClient cid
 
-createNewOAuthAuthCode :: UserId -> NewOAuthAuthCode -> (Handler r) RedirectUrl
+createNewOAuthAuthCode :: UserId -> NewOAuthAuthCode -> (Handler r) (RedirectUrl, Maybe CreateOAuthCodeError)
 createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl state) = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   unless (responseType == OAuthResponseTypeCode) $ throwStd (errorToWai @'OAuthUnsupportedResponseType)
@@ -100,7 +100,7 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
   lift $ wrapClient $ insertOAuthAuthCode ttl oauthCode cid uid scope redirectUrl
   let queryParams = [("code", toByteString' oauthCode), ("state", cs state)]
       returnedRedirectUrl = redirectUrl & unRedirectUrl & (queryL . queryPairsL) .~ queryParams & RedirectUrl
-  pure returnedRedirectUrl
+  pure (returnedRedirectUrl, Nothing)
 
 createAccessTokenWith :: (Member Now r, Member Jwk r) => Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWith req = do

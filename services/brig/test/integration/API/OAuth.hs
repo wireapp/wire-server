@@ -660,12 +660,6 @@ generateOAuthAuthCode brig uid cid scope url = do
     createOAuthCode brig uid (NewOAuthAuthCode cid scope OAuthResponseTypeCode url state) <!! do
       const 302 === statusCode
   pure $ fromMaybe (error "oauth auth code generation failed") $ (getHeader "Location" >=> fromByteString >=> getQueryParamValue "code" >=> fromByteString) response
-  where
-    getQueryParams :: RedirectUrl -> [(ByteString, ByteString)]
-    getQueryParams (RedirectUrl uri) = uri ^. (queryL . queryPairsL)
-
-    getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
-    getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
 
 signAccessToken :: JWK -> OAuthClaimsSet -> Http SignedJWT
 signAccessToken key claims = do
@@ -701,3 +695,15 @@ revokeOAuthRefreshToken brig req = post (brig . paths ["oauth", "revoke"] . json
 instance ToHttpApiData a => ToHttpApiData (Bearer a) where
   toHeader = (<>) "Bearer " . toHeader . unBearer
   toUrlPiece = T.decodeUtf8 . toHeader
+
+getLocation :: ResponseLBS -> Maybe RedirectUrl
+getLocation = getHeader "Location" >=> fromByteString
+
+getPath :: RedirectUrl -> ByteString
+getPath (RedirectUrl uri) = uri ^. pathL
+
+getQueryParams :: RedirectUrl -> [(ByteString, ByteString)]
+getQueryParams (RedirectUrl uri) = uri ^. (queryL . queryPairsL)
+
+getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
+getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)

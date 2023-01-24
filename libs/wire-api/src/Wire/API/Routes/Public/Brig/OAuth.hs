@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Wire.API.Routes.Public.Brig.OAuth where
 
@@ -48,25 +49,7 @@ type OAuthAPI =
               ]
              (Maybe OAuthClient)
     )
-    :<|> Named
-           "create-oauth-auth-code"
-           ( Summary "Create an OAuth authorization code"
-               :> Description "Currently only supports the 'code' response type, which corresponds to the authorization code flow."
-               :> CanThrow 'OAuthUnsupportedResponseType
-               :> CanThrow 'OAuthRedirectUrlMissMatch
-               :> CanThrow 'OAuthClientNotFound
-               :> CanThrow 'OAuthFeatureDisabled
-               :> ZUser
-               :> "oauth"
-               :> "authorization"
-               :> "codes"
-               :> ReqBody '[JSON] NewOAuthAuthCode
-               :> MultiVerb
-                    'POST
-                    '[JSON]
-                    '[WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (RespondEmpty 302 "Found")]
-                    RedirectUrl
-           )
+    :<|> Doo
     :<|> Named
            "create-oauth-access-token"
            ( Summary "Create an OAuth access token"
@@ -96,6 +79,45 @@ type OAuthAPI =
                :> ReqBody '[JSON] OAuthRevokeRefreshTokenRequest
                :> Post '[JSON] ()
            )
+
+type CreateOAuthAuthCodeResponses =
+  '[ WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (RespondEmpty 302 "Found"),
+     WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (ErrorResponse 'OAuthFeatureDisabled),
+     WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (ErrorResponse 'OAuthUnsupportedResponseType),
+     WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (ErrorResponse 'OAuthClientNotFound),
+     WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (ErrorResponse 'OAuthRedirectUrlMissMatch)
+   ]
+
+type Doo =
+  Named
+    "create-oauth-auth-code"
+    ( Summary "Create an OAuth authorization code"
+        :> Description "Currently only supports the 'code' response type, which corresponds to the authorization code flow."
+        :> CanThrow 'OAuthFeatureDisabled
+        :> CanThrow 'OAuthUnsupportedResponseType
+        :> CanThrow 'OAuthClientNotFound
+        :> CanThrow 'OAuthRedirectUrlMissMatch
+        :> ZUser
+        :> "oauth"
+        :> "authorization"
+        :> "codes"
+        :> ReqBody '[JSON] NewOAuthAuthCode
+        :> MultiVerb
+             'POST
+             '[JSON]
+             CreateOAuthAuthCodeResponses
+             (RedirectUrl, Maybe CreateOAuthCodeError)
+    )
+
+data CreateOAuthCodeError
+  = CreateOAuthCodeFeatureDisabled
+  | CreateOAuthCodeUnsupportedResponseType
+  | CreateOAuthCodeClientNotFound
+  | CreateOAuthCodeRedirectUrlMissMatch
+
+instance AsHeaders '[RedirectUrl] CreateOAuthCodeError RedirectUrl where
+  toHeaders = undefined
+  fromHeaders = undefined
 
 swaggerDoc :: Swagger
 swaggerDoc = toSwagger (Proxy @OAuthAPI)
