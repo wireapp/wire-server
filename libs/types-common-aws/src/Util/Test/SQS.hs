@@ -177,8 +177,10 @@ watchSQSQueue env queueUrl = do
       rcvRes <- execute env $ sendEnv rcvReq
       let msgs = fromMaybe [] $ view SQS.receiveMessageResponse_messages rcvRes
       parsedMsgs <- fmap catMaybes . execute env $ mapM (parseDeleteMessage queueUrl) msgs
-      atomicModifyIORef ref $ \xs ->
-        (parsedMsgs <> xs, ())
+      case parsedMsgs of
+        [] -> pure ()
+        _ -> atomicModifyIORef ref $ \xs ->
+          (parsedMsgs <> xs, ())
       recieveLoop ref
 
 waitForMessage :: (MonadUnliftIO m, Eq a, Show a) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
