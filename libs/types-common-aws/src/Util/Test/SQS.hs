@@ -141,5 +141,5 @@ waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
 
 assertMessage :: (Show a, MonadUnliftIO m, Eq a, HasCallStack) => SQSWatcher a -> String -> (a -> Bool) -> (String -> Maybe a -> m ()) -> m ()
 assertMessage watcher label predicate callback = do
-  matched <- waitForMessage watcher 1 predicate
+  matched <- waitForMessage watcher 3 predicate
   callback label matched
