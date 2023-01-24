@@ -29,5 +29,5 @@ image_file="$tmp_link_store/image"
 image_file_tagged="$tmp_link_store/image-tagged"
 "$image_stream_file" > "$image_file"
 repo=$(skopeo list-tags "docker-archive://$image_file" | jq -r '.Tags[0] | split(":") | .[0]')
-skopeo copy --additional-tag "$repo:$DOCKER_TAG" "docker-archive://$image_file" "docker-archive://$image_file_tagged"
+skopeo copy --insecure-policy --additional-tag "$repo:$DOCKER_TAG" "docker-archive://$image_file" "docker-archive://$image_file_tagged"
 kind load image-archive "$image_file_tagged" --name "$KIND_CLUSTER_NAME"
