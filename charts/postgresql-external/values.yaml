@@ -4,3 +4,4 @@ storageSize: 15Gi
 postgresDb: externalPostgresql
 postgresUser: externalPostgresql
 postgresPassword: externalPostgresql
+containerVolumeMountPath: /var/lib/postgresql/data
