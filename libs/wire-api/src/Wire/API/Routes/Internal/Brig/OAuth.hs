@@ -27,12 +27,11 @@ import Wire.API.Routes.Named (Named (..))
 --------------------------------------------------------------------------------
 -- API Internal
 
-type IOAuthAPI =
+type OAuthAPI =
   Named
     "create-oauth-client"
     ( Summary "Register an OAuth client"
         :> CanThrow 'OAuthFeatureDisabled
-        :> "i"
         :> "oauth"
         :> "clients"
         :> ReqBody '[JSON] NewOAuthClient

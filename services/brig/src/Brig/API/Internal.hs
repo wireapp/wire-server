@@ -95,7 +95,6 @@ import Wire.API.MLS.Serialisation
 import Wire.API.Routes.Internal.Brig
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Routes.Internal.Brig.OAuth (IOAuthAPI)
 import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
@@ -114,8 +113,8 @@ servantSitemap ::
        UserPendingActivationStore p
      ]
     r =>
-  ServerT (BrigIRoutes.API :<|> IOAuthAPI) (Handler r)
-servantSitemap = brigInternalAPI :<|> internalOauthAPI
+  ServerT BrigIRoutes.API (Handler r)
+servantSitemap = brigInternalAPI
 
 brigInternalAPI ::
   Members
@@ -133,6 +132,7 @@ brigInternalAPI =
     :<|> teamsAPI
     :<|> userAPI
     :<|> authAPI
+    :<|> internalOauthAPI
 
 ejpdAPI ::
   Members

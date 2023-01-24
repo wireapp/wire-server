@@ -118,7 +118,6 @@ import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
-import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import qualified Wire.API.Routes.Public.Brig.OAuth as OAuth
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
@@ -191,8 +190,8 @@ servantSitemap ::
        Jwk
      ]
     r =>
-  ServerT (BrigAPI :<|> OAuthAPI) (Handler r)
-servantSitemap = brigAPI :<|> oauthAPI
+  ServerT BrigAPI (Handler r)
+servantSitemap = brigAPI
   where
     brigAPI :: ServerT BrigAPI (Handler r)
     brigAPI =
@@ -211,6 +210,7 @@ servantSitemap = brigAPI :<|> oauthAPI
         :<|> callingAPI
         :<|> Team.servantAPI
         :<|> systemSettingsAPI
+        :<|> oauthAPI
 
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =

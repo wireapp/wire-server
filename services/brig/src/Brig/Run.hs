@@ -78,9 +78,7 @@ import System.Logger.Class (MonadLogger, err)
 import Util.Options
 import Wire.API.Federation.API
 import Wire.API.Routes.API
-import Wire.API.Routes.Internal.Brig.OAuth
 import Wire.API.Routes.Public.Brig
-import Wire.API.Routes.Public.Brig.OAuth
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
 import qualified Wire.Sem.Paging as P
@@ -149,8 +147,8 @@ mkApp o = do
             (Proxy @ServantCombinedAPI)
             (mJwk :. customFormatters :. localDomain :. Servant.EmptyContext)
             ( docsAPI
-                :<|> hoistServerWithContext' @(BrigAPI :<|> OAuthAPI) (toServantHandler e) servantSitemap
-                :<|> hoistServerWithDomain @(IAPI.API :<|> IOAuthAPI) (toServantHandler e) IAPI.servantSitemap
+                :<|> hoistServerWithContext' @BrigAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
                 :<|> Servant.Tagged (app e)
@@ -166,8 +164,8 @@ hoistServerWithContext' = hoistServerWithContext (Proxy @api) (Proxy @'[Domain, 
 
 type ServantCombinedAPI =
   ( DocsAPI
-      :<|> (BrigAPI :<|> OAuthAPI)
-      :<|> (IAPI.API :<|> IOAuthAPI)
+      :<|> BrigAPI
+      :<|> IAPI.API
       :<|> FederationAPI
       :<|> VersionAPI
       :<|> Servant.Raw

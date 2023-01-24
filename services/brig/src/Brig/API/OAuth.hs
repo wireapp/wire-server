@@ -44,7 +44,7 @@ import Servant hiding (Handler, Tagged)
 import URI.ByteString
 import Wire.API.Error
 import Wire.API.OAuth as OAuth
-import Wire.API.Routes.Internal.Brig.OAuth (IOAuthAPI)
+import qualified Wire.API.Routes.Internal.Brig.OAuth as I
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.Sem.Now (Now)
@@ -53,7 +53,7 @@ import qualified Wire.Sem.Now as Now
 --------------------------------------------------------------------------------
 -- API Internal
 
-internalOauthAPI :: ServerT IOAuthAPI (Handler r)
+internalOauthAPI :: ServerT I.OAuthAPI (Handler r)
 internalOauthAPI =
   Named @"create-oauth-client" createNewOAuthClient
 
