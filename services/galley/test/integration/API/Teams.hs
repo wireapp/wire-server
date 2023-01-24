@@ -133,7 +133,6 @@ tests s =
       test s "add team conversation with role" testAddTeamConvWithRole,
       test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner,
       test s "add team MLS conversation" testCreateTeamMLSConv,
-      -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "add team member to conversation without connection" testAddTeamMemberToConv,
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
       test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner roleNameWireMember),
@@ -154,7 +153,6 @@ tests s =
       test s "update team data icon validation" testUpdateTeamIconValidation,
       test s "update team member" testUpdateTeamMember,
       test s "update team status" testUpdateTeamStatus,
-      -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "team tests around truncation limits - no events, too large team" testTeamAddRemoveMemberAboveThresholdNoEvents,
       test s "send billing events to owners even in large teams" testBillingInLargeTeam,
       test s "send billing events to some owners in large teams (indexedBillingTeamMembers disabled)" testBillingInLargeTeamWithoutIndexedBillingTeamMembers,
