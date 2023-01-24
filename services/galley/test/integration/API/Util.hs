@@ -840,12 +840,10 @@ postProteusMessageQualifiedWithMockFederator ::
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
-  (Domain -> ServerT (FedApi 'Brig) Handler) ->
-  (Domain -> ServerT (FedApi 'Galley) Handler) ->
+  Mock LByteString ->
   TestM (ResponseLBS, [FederatedRequest])
-postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
-  localDomain <- viewFederationDomain
-  withTempServantMockFederator brigApi galleyApi localDomain $
+postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat mock =
+  withTempMockFederator' mock $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -2587,26 +2585,6 @@ withTempMockFederator' resp action = do
     mock
     $ \mockPort -> do
       withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
-
--- Start a mock federator. Use provided Servant handler for the mocking function.
-withTempServantMockFederator ::
-  (Domain -> ServerT (FedApi 'Brig) Handler) ->
-  (Domain -> ServerT (FedApi 'Galley) Handler) ->
-  Domain ->
-  TestM b ->
-  TestM (b, [FederatedRequest])
-withTempServantMockFederator brigApi galleyApi originDomain =
-  withTempMockFederator' mock
-  where
-    server :: Domain -> ServerT CombinedBrigAndGalleyAPI Handler
-    server d = brigApi d :<|> galleyApi d
-
-    mock :: Mock LByteString
-    mock = do
-      req <- getRequest
-      liftIO $ makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (frTargetDomain req)) req
-
-type CombinedBrigAndGalleyAPI = FedApi 'Brig :<|> FedApi 'Galley
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.

@@ -24,7 +24,6 @@ where
 
 import qualified API.CustomBackend as CustomBackend
 import qualified API.Federation as Federation
-import API.Federation.Util
 import qualified API.MLS
 import qualified API.MessageTimer as MessageTimer
 import qualified API.Roles as Roles
@@ -70,8 +69,8 @@ import Galley.Options (optFederator)
 import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
 import Imports
+import qualified Network.HTTP.Types.Status as HTTP
 import Network.Wai.Utilities.Error
-import Servant hiding (respond)
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -96,7 +95,6 @@ import Wire.API.Internal.Notification
 import Wire.API.Message
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.Routes.Named
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import qualified Wire.API.Team.Feature as Public
@@ -716,23 +714,30 @@ postMessageQualifiedLocalOwningBackendSuccess = do
           ]
 
     let mkPubClient c = PubClient c Nothing
-        brigApi d =
-          mkHandler @(FedApi 'Brig) $
-            Named @"get-user-clients" $ \_ _ ->
-              pure $
-                if
-                    | d == bDomain ->
-                        UserMap . Map.fromList $
-                          [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
-                            (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
-                          ]
-                    | d == cDomain -> UserMap (Map.singleton (qUnqualified carl) (Set.singleton (PubClient carlClient Nothing)))
-                    | otherwise -> mempty
+        brigMock = do
+          guardRPC "get-user-clients"
+          d <- frTargetDomain <$> getRequest
+          asum
+            [ do
+                guard (d == bDomain)
 
-        galleyApi _ =
-          mkHandler @(FedApi 'Galley) $ Named @"on-message-sent" $ \_ _ -> pure ()
+                mockReply $
+                  UserMap . Map.fromList $
+                    [ (qUnqualified bob, Set.singleton (mkPubClient bobClient)),
+                      (qUnqualified bart, Set.fromList (map mkPubClient [bartClient1, bartClient2]))
+                    ],
+              do
+                guard (d == cDomain)
+                mockReply $
+                  UserMap
+                    ( Map.singleton
+                        (qUnqualified carl)
+                        (Set.singleton (PubClient carlClient Nothing))
+                    )
+            ]
+        galleyMock = "on-message-sent" ~> ()
 
-    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceU aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+    (resp2, requests) <- postProteusMessageQualifiedWithMockFederator aliceU aliceClient convId message "data" Message.MismatchReportAll (brigMock <|> galleyMock)
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty mempty
@@ -834,13 +839,8 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
   -- FUTUREWORK: Mock federator and ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    let brigApi _ =
-          mkHandler @(FedApi 'Brig) $
-            Named @"get-user-clients" $ \_ _ ->
-              pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-        galleyApi _ = mkHandler @(FedApi 'Galley) EmptyAPI
-
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+    let mock = "get-user-clients" ~> UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll mock
 
     pure resp2 !!! do
       const 412 === statusCode
@@ -912,20 +912,17 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
           ]
 
     -- FUTUREWORK: Mock federator and ensure that a message to Dee is sent
-    let brigApi _ =
-          mkHandler @(FedApi 'Brig) $
-            Named @"get-user-clients" $ \_ getUserClients ->
-              let lookupClients uid
-                    | uid == deeRemoteUnqualified = Just (uid, Set.fromList [PubClient deeClient Nothing])
-                    | uid == nonMemberRemoteUnqualified = Just (uid, Set.fromList [PubClient nonMemberRemoteClient Nothing])
-                    | otherwise = Nothing
-               in pure $ UserMap . Map.fromList . mapMaybe lookupClients $ F.gucUsers getUserClients
-        galleyApi _ =
-          mkHandler @(FedApi 'Galley) $
-            Named @"on-message-sent" $
-              \_ _ -> pure ()
+    let brigMock = do
+          guardRPC "get-user-clients"
+          getUserClients <- getRequestBody
+          let lookupClients uid
+                | uid == deeRemoteUnqualified = Just (uid, Set.fromList [PubClient deeClient Nothing])
+                | uid == nonMemberRemoteUnqualified = Just (uid, Set.fromList [PubClient nonMemberRemoteClient Nothing])
+                | otherwise = Nothing
+          mockReply $ UserMap . Map.fromList . mapMaybe lookupClients $ F.gucUsers getUserClients
+        galleyMock = "on-message-sent" ~> ()
 
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll (brigMock <|> galleyMock)
     pure resp2 !!! do
       const 201 === statusCode
       let expectedRedundant =
@@ -992,18 +989,16 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
       defNewProteusConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
-  let brigApi _ =
-        mkHandler @(FedApi 'Brig) $
-          Named @"get-user-clients" $ \_ _ ->
-            pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-      galleyApi _ = mkHandler @(FedApi 'Galley) EmptyAPI
+  let mock =
+        "get-user-clients" ~>
+          UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
 
   -- Missing Bob, chadClient2 and Dee
   let message = [(chadOwningDomain, chadClient, "text-for-chad")]
   -- FUTUREWORK: Mock federator and ensure that clients of Dee are checked. Also
   -- ensure that message is not propagated to remotes
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll brigApi galleyApi
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchIgnoreAll mock
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty mempty
@@ -1014,7 +1009,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
 
   -- Another way to ignore all is to report nobody
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) brigApi galleyApi
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" (Message.MismatchReportOnly mempty) mock
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty mempty
@@ -1033,8 +1028,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
         message
         "data"
         (Message.MismatchIgnoreOnly (Set.fromList [bobOwningDomain, chadOwningDomain, deeRemote]))
-        brigApi
-        galleyApi
+        mock
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified mempty mempty mempty mempty
@@ -1054,8 +1048,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
         message
         "data"
         (Message.MismatchReportOnly (Set.fromList [chadOwningDomain]))
-        brigApi
-        galleyApi
+        mock
     pure resp2 !!! do
       const 412 === statusCode
       let expectedMissing =
@@ -1075,8 +1068,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
         message
         "data"
         (Message.MismatchReportOnly (Set.fromList [deeRemote]))
-        brigApi
-        galleyApi
+        mock
     pure resp2 !!! do
       const 412 === statusCode
       let expectedMissing =
@@ -1127,16 +1119,15 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
             (deeRemote, deeClient, "text-for-dee")
           ]
 
-    let brigApi _ =
-          mkHandler @(FedApi 'Brig) $
-            Named @"get-user-clients" $ \_ _ ->
-              pure $ UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
-        galleyApi _ =
-          mkHandler @(FedApi 'Galley) $
-            Named @"on-message-sent" $ \_ _ ->
-              throwError err503 {errBody = "Down for maintenance."}
+    let mock =
+          ( "get-user-clients" ~>
+              UserMap (Map.singleton (qUnqualified deeRemote) (Set.singleton (PubClient deeClient Nothing)))
+          )
+            <|> ( guardRPC "on-message-sent"
+                    *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+                )
 
-    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+    (resp2, _requests) <- postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll mock
 
     let expectedFailedToSend =
           QualifiedUserClients . Map.fromList $
@@ -1165,16 +1156,12 @@ postMessageQualifiedRemoteOwningBackendFailure = do
   let remoteDomain = Domain "far-away.example.com"
       convId = Qualified convIdUnqualified remoteDomain
 
-  let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
-  let galleyApi _ =
-        mkHandler @(FedApi 'Galley) $
-          Named @"send-message" $
-            callsFed $
-              callsFed $ \_ _ ->
-                throwError err503 {errBody = "Down for maintenance."}
+  let mock =
+        guardRPC "send-message"
+          *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
 
   (resp2, _requests) <-
-    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll brigApi galleyApi
+    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId [] "data" Message.MismatchReportAll mock
 
   pure resp2 !!! do
     const 503 === statusCode
@@ -1208,15 +1195,9 @@ postMessageQualifiedRemoteOwningBackendSuccess = do
             Message.mssFailedToSend = mempty
           }
       message = [(bobOwningDomain, bobClient, "text-for-bob"), (deeRemote, deeClient, "text-for-dee")]
-      brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
-      galleyApi _ = mkHandler @(FedApi 'Galley) $
-        Named @"send-message" $
-          callsFed $
-            callsFed $ \_ _ ->
-              pure (F.MessageSendResponse (Right mss))
-
+      mock = "send-message" ~> F.MessageSendResponse (Right mss)
   (resp2, _requests) <-
-    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll brigApi galleyApi
+    postProteusMessageQualifiedWithMockFederator aliceUnqualified aliceClient convId message "data" Message.MismatchReportAll mock
 
   pure resp2 !!! do
     const 201 === statusCode
@@ -2441,7 +2422,8 @@ testAddRemoteMember = do
     respond bob =
       asum
         [ guardComponent Brig *> mockReply [mkProfile bob (Name "bob")],
-          "on-new-remote-conversation" ~> EmptyResponse
+          "on-new-remote-conversation" ~> EmptyResponse,
+          "on-conversation-updated" ~> ()
         ]
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
@@ -2459,13 +2441,10 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   connectWithRemoteUser alice remoteBob
 
-  let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
-      galleyApi _ =
-        mkHandler @(FedApi 'Galley) $
-          (Named @"on-new-remote-conversation" $ \_ _ -> pure EmptyResponse)
-            :<|> (Named @"on-conversation-updated" $ \_ _ -> pure ())
-
-  (_, received) <- withTempServantMockFederator brigApi galleyApi localDomain $ do
+  let mock =
+        ("on-new-remote-conversation" ~> EmptyResponse)
+          <|> ("on-conversation-updated" ~> ())
+  (_, received) <- withTempMockFederator' mock $ do
     postQualifiedMembers alice (remoteBob :| []) convId
       !!! const 200 === statusCode
 
@@ -2909,7 +2888,9 @@ deleteLocalMemberConvLocalQualifiedOk = do
         defNewProteusConv {newConvQualifiedUsers = [qBob, qEve]}
   let qconvId = Qualified convId localDomain
 
-  let mockReturnEve = mockedFederatedBrigResponse [(qEve, "Eve")]
+  let mockReturnEve =
+        mockedFederatedBrigResponse [(qEve, "Eve")]
+          <|> mockReply ()
   (respDel, fedRequests) <-
     withTempMockFederator' mockReturnEve $
       deleteMemberQualified alice qBob qconvId
@@ -2956,7 +2937,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
               *> mockReply [mkProfile qEve (Name "Eve")]
           ]
   (convId, _) <-
-    withTempMockFederator' mockedResponse $
+    withTempMockFederator' (mockedResponse <|> mockReply ()) $
       fmap decodeConvId $
         postConvQualified
           alice
@@ -2965,7 +2946,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
   let qconvId = Qualified convId localDomain
 
   (respDel, federatedRequests) <-
-    withTempMockFederator' mockedResponse $
+    withTempMockFederator' (mockedResponse <|> mockReply ()) $
       deleteMemberQualified alice qChad qconvId
   liftIO $ do
     statusCode respDel @?= 200
