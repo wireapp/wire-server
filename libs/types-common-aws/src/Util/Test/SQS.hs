@@ -96,6 +96,7 @@ data SQSWatcher a = SQSWatcher
 watchSQSQueue :: Message a => AWS.Env -> Text -> IO (SQSWatcher a)
 watchSQSQueue env queueUrl = do
   eventsRef <- newIORef []
+  ensureEmpty
   process <- async $ recieveLoop eventsRef
   pure $ SQSWatcher process eventsRef
   where
@@ -113,6 +114,20 @@ watchSQSQueue env queueUrl = do
         _ -> atomicModifyIORef ref $ \xs ->
           (parsedMsgs <> xs, ())
       recieveLoop ref
+
+    ensureEmpty :: IO ()
+    ensureEmpty = do
+      let rcvReq =
+            SQS.newReceiveMessage queueUrl
+              & set SQS.receiveMessage_waitTimeSeconds (Just 1)
+                . set SQS.receiveMessage_maxNumberOfMessages (Just 10) -- 10 is maximum allowed by AWS
+                . set SQS.receiveMessage_visibilityTimeout (Just 1)
+      rcvRes <- execute env $ sendEnv rcvReq
+      case view SQS.receiveMessageResponse_messages rcvRes of
+        Nothing -> pure ()
+        Just ms -> do
+          execute env $ mapM_ (deleteMessage queueUrl) ms
+          ensureEmpty
 
 waitForMessage :: (MonadUnliftIO m, Eq a, Show a) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
 waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
