@@ -318,6 +318,8 @@ type SternAPI =
                :> ReqBody '[JSON] TeamSearchVisibility
                :> Get '[JSON] NoContent
            )
+    :<|> Named "get-route-outlook-cal-config" (MkFeatureGetRoute OutlookCalIntegrationConfig)
+    :<|> Named "put-route-outlook-cal-config" (MkFeaturePutRouteTrivialConfigNoTTL OutlookCalIntegrationConfig)
     :<|> Named
            "get-team-invoice"
            ( Summary "Get a specific invoice by Number"

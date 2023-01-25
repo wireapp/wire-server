@@ -38,6 +38,7 @@ module Galley.Types.Teams
     flagsTeamFeatureValidateSAMLEmailsStatus,
     flagTeamFeatureSndFactorPasswordChallengeStatus,
     flagTeamFeatureSearchVisibilityInbound,
+    flagOutlookCalIntegration,
     flagMLS,
     Defaults (..),
     ImplicitLockStatus (..),
@@ -150,7 +151,8 @@ data FeatureFlags = FeatureFlags
     _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
     _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
-    _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig))
+    _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig)),
+    _flagOutlookCalIntegration :: !(Defaults (WithStatus OutlookCalIntegrationConfig))
   }
   deriving (Eq, Show, Generic)
 
@@ -200,6 +202,7 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
       <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
       <*> withImplicitLockStatusOrDefault obj "mls"
+      <*> (fromMaybe (Defaults (defFeatureStatus @OutlookCalIntegrationConfig)) <$> (obj .:? "outlookCalIntegration"))
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
@@ -220,6 +223,7 @@ instance ToJSON FeatureFlags where
         sndFactorPasswordChallenge
         searchVisibilityInbound
         mls
+        outlookCalIntegration
       ) =
       object
         [ "sso" .= sso,
@@ -234,7 +238,8 @@ instance ToJSON FeatureFlags where
           "validateSAMLEmails" .= validateSAMLEmails,
           "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
           "searchVisibilityInbound" .= searchVisibilityInbound,
-          "mls" .= mls
+          "mls" .= mls,
+          "outlookCalIntegration" .= outlookCalIntegration
         ]
 
 instance FromJSON FeatureSSO where
