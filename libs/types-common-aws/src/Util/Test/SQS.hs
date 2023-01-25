@@ -95,7 +95,7 @@ waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
         case filter predicate events of
           [] -> (events, Nothing)
           (x : _) -> (delete x events, Just x)
-      maybe (threadDelay 1000 >> poll) pure matched
+      maybe (threadDelay 10000 >> poll) pure matched
 
 -- | First waits for a message matching a given predicate for 3 seconds (this
 -- number could be chosen more scientifically) and then uses a callback to make
