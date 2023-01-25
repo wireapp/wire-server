@@ -150,7 +150,7 @@ withTempMockFederator headers resp action = do
 --------------------------------------------------------------------------------
 -- Mock creation utilities
 
--- | This is monad that can be used to create mocked reponses. It is a very
+-- | This is a monad that can be used to create mocked responses. It is a very
 -- minimalistic web framework. One can expect a certain request (using
 -- 'guardRPC') and reply accordingly (using 'mockReply'). Multiple possible
 -- requests and responses can be combined using the 'Alternative' instance.  In
