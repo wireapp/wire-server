@@ -75,6 +75,7 @@ module Wire.API.Team.Feature
     AppLockConfig (..),
     FileSharingConfig (..),
     MLSConfig (..),
+    OutlookCalIntegrationConfig (..),
     AllFeatureConfigs (..),
     typeFeatureTTL,
     unImplicitLockStatus,
@@ -119,11 +120,11 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 1. Add a data type for your feature's "config" part, naming convention:
 -- **<NameOfFeature>Config**. If your feature doesn't have a config besides
 -- being enabled/disabled, locked/unlocked, then the config should be a unit
--- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type clases
+-- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type classes
 -- 'ToSchema', 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a
 -- config implement 'FeatureTrivialConfig'.
 --
--- 2. Add the config to to 'AllFeatureConfigs'. Add your feature to 'allFeatureModels'.
+-- 2. Add the config to to 'AllFeatureConfigs'.
 --
 -- 3. If your feature is configurable on a per-team basis, add a schema
 -- migration in galley and add 'FeatureStatusCassandra' instance in
@@ -136,14 +137,14 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- Galley.API.Teams.Features which defines the main business logic for getting
 -- and setting (with side-effects).
 --
--- 6. Add public routes to Routes.Public.Galley: 'FeatureStatusGet',
+-- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature: 'FeatureStatusGet',
 -- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
--- implement them in Galley.API.Public.
+-- implement them in Galley.API.Public.Feature.
 --
 -- 7. Add internal routes in Galley.API.Internal
 --
 -- 8. If the feature should be configurable via Stern add routes to Stern.API.
--- Manually check that the swagger looks okay.
+-- Manually check that the swagger looks okay and works.
 --
 -- 9. If the feature is configured on a per-user level, see the
 -- 'ConferenceCallingConfig' as an example.
@@ -852,6 +853,24 @@ instance FeatureTrivialConfig ExposeInvitationURLsToTeamAdminConfig where
   trivialConfig = ExposeInvitationURLsToTeamAdminConfig
 
 ----------------------------------------------------------------------
+-- OutlookCalIntegrationConfig
+
+data OutlookCalIntegrationConfig = OutlookCalIntegrationConfig
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OutlookCalIntegrationConfig)
+
+instance IsFeatureConfig OutlookCalIntegrationConfig where
+  type FeatureSymbol OutlookCalIntegrationConfig = "outlookCalIntegration"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited
+  objectSchema = pure OutlookCalIntegrationConfig
+
+instance ToSchema OutlookCalIntegrationConfig where
+  schema = object "OutlookCalIntegrationConfig" objectSchema
+
+instance FeatureTrivialConfig OutlookCalIntegrationConfig where
+  trivialConfig = OutlookCalIntegrationConfig
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -925,7 +944,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcGuestLink :: WithStatus GuestLinksConfig,
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
     afcMLS :: WithStatus MLSConfig,
-    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig
+    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
+    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -949,6 +969,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcSndFactorPasswordChallenge .= featureField
         <*> afcMLS .= featureField
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
+        <*> afcOutlookCalIntegration .= featureField
     where
       featureField ::
         forall cfg.
@@ -960,6 +981,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

@@ -80,6 +80,7 @@ import qualified V74_ExposeInvitationsToTeamAdmin
 import qualified V75_MLSGroupInfo
 import qualified V76_ProposalOrigin
 import qualified V77_MLSGroupMemberClient
+import qualified V78_TeamFeatureCalendarIntegration
 
 main :: IO ()
 main = do
@@ -145,7 +146,8 @@ main = do
       V74_ExposeInvitationsToTeamAdmin.migration,
       V75_MLSGroupInfo.migration,
       V76_ProposalOrigin.migration,
-      V77_MLSGroupMemberClient.migration
+      V77_MLSGroupMemberClient.migration,
+      V78_TeamFeatureCalendarIntegration.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)
