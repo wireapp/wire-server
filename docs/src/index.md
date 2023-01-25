@@ -23,6 +23,7 @@ Release notes of `wire-server` can be found [here](https://github.com/wireapp/wi
 :maxdepth: 1
 
 Security responses <security-responses/index>
+Release Notes <changelog/index>
 Installation <how-to/install/index>
 Administration <how-to/administrate/index>
 Reference <understand/index>
