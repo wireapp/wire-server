@@ -112,21 +112,19 @@ This can be useful to get quicker feedback while working on multi-backend code o
 
 FUTUREWORK: this process is in development (update this section after it's confirmed to work):
 
-##### (i) Build images
-
-(FUTUREWORK: implement a convenient shortcut to build images without actually uploading them also)
-```
-make upload-images-dev
-```
-
-##### (ii) Run tests in kind
+##### Run tests in kind
 
 0. Create a local kind cluster with `make kind-cluster`
-1. Install wire-server using `make kind-integration-setup`.
-2. Run tests using `make kind-integration-test`.
-3. Run end2end integration tests: `make kind-integration-e2e`.
+1. Upload images in docker-daemon running inside kind with `make kind-upload-images`
 
-* Implement re-tagging development tags as your user tag?
+   *Note:* First time all the images need to be uploaded. When working on one
+   service it can be selectively uploaded using `make kind-upload-image-<name>`
+   (e.g. `make kind-upload-image-brig`).
+2. Install wire-server using `make kind-integration-setup`.
+3. Run tests using `make kind-integration-test`.
+4. Run end2end integration tests: `make kind-integration-e2e`.
+
+
 
 #### 2.4 Deploy your local code to a kubernetes cluster
 

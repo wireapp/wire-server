@@ -1,5 +1,5 @@
 (configure-federation)=
-# Configure Wire-Server for Federation
+# Federation
 
 See also {ref}`federation-understand`, which explains the architecture and concepts.
 

@@ -37,7 +37,7 @@ releases:
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/redis-cluster'
     values:
-      - './helm_vars/redis-cluster/values.yaml'
+      - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
   - name: '{{ .Values.namespace }}-nginx-ingress-controller'
     namespace: '{{ .Values.namespace }}'

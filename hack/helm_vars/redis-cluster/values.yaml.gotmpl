@@ -1,5 +1,5 @@
 global:
-  storageClass: csi-hostpath-sc
+  storageClass: {{ .Values.redisStorageClass }}
 
 redis-cluster:
   persistence:
