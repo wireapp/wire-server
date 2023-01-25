@@ -26,7 +26,8 @@ import qualified Brig.Options as Opt
 import Brig.Password (Password, mkSafePassword, verifyPassword)
 import Cassandra hiding (Set)
 import qualified Cassandra as C
-import Control.Lens (view, (.~), (?~), (^?))
+import Control.Error (assertMay, failWith, failWithM)
+import Control.Lens (view, (?~), (^?))
 import Control.Monad.Except
 import Crypto.JWT hiding (params, uri)
 import Data.ByteString.Conversion
@@ -41,12 +42,11 @@ import Imports hiding (exp)
 import OpenSSL.Random (randBytes)
 import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
-import URI.ByteString
 import Wire.API.Error
 import Wire.API.OAuth as OAuth
 import qualified Wire.API.Routes.Internal.Brig.OAuth as I
 import Wire.API.Routes.Named (Named (..))
-import Wire.API.Routes.Public.Brig.OAuth (CreateOAuthCodeError, OAuthAPI)
+import Wire.API.Routes.Public.Brig.OAuth (CreateOAuthCodeError (..), OAuthAPI)
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 
@@ -91,16 +91,32 @@ getOAuthClient _ cid = do
 
 createNewOAuthAuthCode :: UserId -> NewOAuthAuthCode -> (Handler r) (RedirectUrl, Maybe CreateOAuthCodeError)
 createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl state) = do
-  unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
-  unless (responseType == OAuthResponseTypeCode) $ throwStd (errorToWai @'OAuthUnsupportedResponseType)
-  OAuthClient _ _ uri <- getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
-  unless (uri == redirectUrl) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
-  oauthCode <- OAuthAuthCode <$> rand32Bytes
-  ttl <- Opt.setOAuthAuthCodeExpirationTimeSecs <$> view settings
-  lift $ wrapClient $ insertOAuthAuthCode ttl oauthCode cid uid scope redirectUrl
-  let queryParams = [("code", toByteString' oauthCode), ("state", cs state)]
-      returnedRedirectUrl = redirectUrl & unRedirectUrl & (queryL . queryPairsL) .~ queryParams & RedirectUrl
-  pure (returnedRedirectUrl, Nothing)
+  runExceptT validateAndCreateAuthCode >>= \case
+    Left e@CreateOAuthCodeRedirectUrlMissMatch ->
+      pure (redirectUrl & addParams [("error", "access_denied"), ("error_description", "The redirect URL does not match the one that was registered"), ("state", cs state)], Just e)
+    Left e@CreateOAuthCodeClientNotFound ->
+      pure (redirectUrl & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs state)], Just e)
+    Left e@CreateOAuthCodeFeatureDisabled ->
+      pure (redirectUrl & addParams [("error", "access_denied"), ("error_description", "OAuth is not enabled"), ("state", cs state)], Just e)
+    Left e@CreateOAuthCodeUnsupportedResponseType ->
+      pure (redirectUrl & addParams [("error", "unsupported_response_type"), ("state", cs state)], Just e)
+    Right oauthCode ->
+      pure (redirectUrl & addParams [("code", toByteString' oauthCode), ("state", cs state)], Nothing)
+  where
+    validateAndCreateAuthCode :: ExceptT CreateOAuthCodeError (Handler r) OAuthAuthCode
+    validateAndCreateAuthCode = do
+      failWithM CreateOAuthCodeFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
+      failWith CreateOAuthCodeUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
+      OAuthClient _ _ uri <- failWithM CreateOAuthCodeClientNotFound $ getOAuthClient uid cid
+      failWith CreateOAuthCodeRedirectUrlMissMatch (assertMay $ uri == redirectUrl)
+      lift mkAuthCode
+      where
+        mkAuthCode :: (Handler r) OAuthAuthCode
+        mkAuthCode = do
+          oauthCode <- OAuthAuthCode <$> rand32Bytes
+          ttl <- Opt.setOAuthAuthCodeExpirationTimeSecs <$> view settings
+          lift $ wrapClient $ insertOAuthAuthCode ttl oauthCode cid uid scope redirectUrl
+          pure oauthCode
 
 createAccessTokenWith :: (Member Now r, Member Jwk r) => Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWith req = do

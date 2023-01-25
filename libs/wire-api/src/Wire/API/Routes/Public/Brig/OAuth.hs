@@ -14,11 +14,11 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Wire.API.Routes.Public.Brig.OAuth where
 
 import Data.Id as Id
+import Data.SOP
 import Data.Swagger (Swagger)
 import Imports hiding (exp, head)
 import Servant (JSON)
@@ -80,12 +80,19 @@ type OAuthAPI =
                :> Post '[JSON] ()
            )
 
+type CreateOAuthAuthCodeHeaders = '[Header "Location" RedirectUrl]
+
 type CreateOAuthAuthCodeResponses =
-  '[ WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (RespondEmpty 302 "Found"),
-     WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (ErrorResponse 'OAuthFeatureDisabled),
-     WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (ErrorResponse 'OAuthUnsupportedResponseType),
-     WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (ErrorResponse 'OAuthClientNotFound),
-     WithHeaders '[Header "Location" RedirectUrl] RedirectUrl (ErrorResponse 'OAuthRedirectUrlMissMatch)
+  '[ -- success
+     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 302 "Found"),
+     -- feature disabled
+     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 403 "Forbidden"),
+     -- unsupported response type
+     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 400 "Bad Request"),
+     -- client not found
+     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 404 "Not Found"),
+     -- redirect url mismatch
+     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 400 "Bad Request")
    ]
 
 type Doo =
@@ -93,10 +100,6 @@ type Doo =
     "create-oauth-auth-code"
     ( Summary "Create an OAuth authorization code"
         :> Description "Currently only supports the 'code' response type, which corresponds to the authorization code flow."
-        :> CanThrow 'OAuthFeatureDisabled
-        :> CanThrow 'OAuthUnsupportedResponseType
-        :> CanThrow 'OAuthClientNotFound
-        :> CanThrow 'OAuthRedirectUrlMissMatch
         :> ZUser
         :> "oauth"
         :> "authorization"
@@ -115,9 +118,20 @@ data CreateOAuthCodeError
   | CreateOAuthCodeClientNotFound
   | CreateOAuthCodeRedirectUrlMissMatch
 
-instance AsHeaders '[RedirectUrl] CreateOAuthCodeError RedirectUrl where
-  toHeaders = undefined
-  fromHeaders = undefined
+instance AsUnion CreateOAuthAuthCodeResponses (RedirectUrl, Maybe CreateOAuthCodeError) where
+  toUnion :: (RedirectUrl, Maybe CreateOAuthCodeError) -> Union (ResponseTypes CreateOAuthAuthCodeResponses)
+  toUnion (url, Nothing) = Z (I url)
+  toUnion (url, Just CreateOAuthCodeFeatureDisabled) = S (Z (I url))
+  toUnion (url, Just CreateOAuthCodeUnsupportedResponseType) = S (S (Z (I url)))
+  toUnion (url, Just CreateOAuthCodeClientNotFound) = S (S (S (Z (I url))))
+  toUnion (url, Just CreateOAuthCodeRedirectUrlMissMatch) = S (S (S (S (Z (I url)))))
+  fromUnion :: Union (ResponseTypes CreateOAuthAuthCodeResponses) -> (RedirectUrl, Maybe CreateOAuthCodeError)
+  fromUnion (Z (I url)) = (url, Nothing)
+  fromUnion (S (Z (I url))) = (url, Just CreateOAuthCodeFeatureDisabled)
+  fromUnion (S (S (Z (I url)))) = (url, Just CreateOAuthCodeUnsupportedResponseType)
+  fromUnion (S (S (S (Z (I url))))) = (url, Just CreateOAuthCodeClientNotFound)
+  fromUnion (S (S (S (S (Z (I url)))))) = (url, Just CreateOAuthCodeRedirectUrlMissMatch)
+  fromUnion (S (S (S (S (S x))))) = case x of {}
 
 swaggerDoc :: Swagger
 swaggerDoc = toSwagger (Proxy @OAuthAPI)

@@ -129,36 +129,33 @@ testCreateOAuthCodeSuccess brig = do
     const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
     const (Just $ ["code", "state"]) === (fmap (fmap fst . getQueryParams) . getLocation)
     const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
-  where
-    getLocation :: ResponseLBS -> Maybe RedirectUrl
-    getLocation = getHeader "Location" >=> fromByteString
-
-    getPath :: RedirectUrl -> ByteString
-    getPath (RedirectUrl uri) = uri ^. pathL
-
-    getQueryParams :: RedirectUrl -> [(ByteString, ByteString)]
-    getQueryParams (RedirectUrl uri) = uri ^. (queryL . queryPairsL)
-
-    getQueryParamValue :: ByteString -> RedirectUrl -> Maybe ByteString
-    getQueryParamValue key uri = snd <$> find ((== key) . fst) (getQueryParams uri)
 
 testCreateOAuthCodeRedirectUrlMismatch :: Brig -> Http ()
 testCreateOAuthCodeRedirectUrlMismatch brig = do
-  cid <- occClientId <$> registerNewOAuthClient brig (newOAuthClientRequestBody "E Corp" "https://example.com")
+  let newOAuthClient@(NewOAuthClient _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
+  cid <- occClientId <$> registerNewOAuthClient brig newOAuthClient
   uid <- randomId
+  let state = "foobar"
   let differentUrl = mkUrl "https://wire.com"
-  createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode differentUrl "") !!! do
+  createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode differentUrl state) !!! do
     const 400 === statusCode
-    const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
+    const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
+    const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
+    const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
+    const Nothing === (getLocation >=> getQueryParamValue "code")
 
 testCreateOAuthCodeClientNotFound :: Brig -> Http ()
 testCreateOAuthCodeClientNotFound brig = do
   cid <- randomId
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
-  createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode redirectUrl "") !!! do
+  let state = "foobar"
+  createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode redirectUrl state) !!! do
     const 404 === statusCode
-    const (Just "not-found") === fmap Error.label . responseJsonMaybe
+    const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
+    const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
+    const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
+    const Nothing === (getLocation >=> getQueryParamValue "code")
 
 testCreateAccessTokenSuccess :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenSuccess opts brig = do
@@ -272,8 +269,14 @@ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
     cid <- randomId
     uid <- randomId
+    let state = "state"
     let redirectUrl = mkUrl "https://example.com"
-    createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode redirectUrl "") !!! assertAccessDenied
+    createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode redirectUrl state) !!! do
+      const 403 === statusCode
+      const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
+      const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
+      const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
+      const Nothing === (getLocation >=> getQueryParamValue "code")
 
 testCreateAccessTokenAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
 testCreateAccessTokenAccessDeniedWhenDisabled opts brig =

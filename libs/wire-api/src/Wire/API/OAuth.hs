@@ -18,7 +18,7 @@
 module Wire.API.OAuth where
 
 import Cassandra hiding (Set)
-import Control.Lens (preview, view, (?~))
+import Control.Lens (preview, view, (.~), (?~), (^.))
 import Control.Monad.Except
 import Crypto.JWT hiding (Context, params, uri, verify)
 import qualified Data.Aeson.KeyMap as M
@@ -51,6 +51,9 @@ import Wire.API.Error
 newtype RedirectUrl = RedirectUrl {unRedirectUrl :: URIRef Absolute}
   deriving (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RedirectUrl)
+
+addParams :: [(ByteString, ByteString)] -> RedirectUrl -> RedirectUrl
+addParams ps (RedirectUrl uri) = uri & (queryL . queryPairsL) .~ (ps ++ (uri ^. (queryL . queryPairsL))) & RedirectUrl
 
 instance ToParamSchema RedirectUrl where
   toParamSchema _ = toParamSchema (Proxy @Text)
