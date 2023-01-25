@@ -688,14 +688,49 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
     _ <- waitFor (5 # Second) not (isMember galley lbuid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
-    svcAssertConvAccessUpdate
-      buf
-      (tUntagged luid1)
-      (ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole]))
-      qcid
-    svcAssertMemberLeave buf (tUntagged lbuid) [tUntagged lbuid] qcid
+    -- Two events are sent concurrently:
+    -- - ConvAccessUpdate
+    -- - MemberLeave (for the bot)
+    --
+    -- We cannot guarantee the order, so we have to check for both
+    let expectedConvAccessData = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole])
+        expectedMemberLeave = [tUntagged lbuid]
+        assertAndRetrieveEvent = do
+          event <-
+            timeout (5 # Second) (readChan buf)
+              >>= assertJust
+              >>= assertBotMessage
+          assertAccessUpdateOrMemberLeave (tUntagged luid1) expectedConvAccessData (tUntagged lbuid) expectedMemberLeave qcid event
+          pure event
+    event1 <- assertAndRetrieveEvent
+    event2 <- assertAndRetrieveEvent
+    -- Ensure there is exactly one of each types of event
+    liftIO $
+      assertEqual
+        "there should be 1 ConvAccessUpdate and 1 MemberLeave event"
+        (Set.fromList [ConvAccessUpdate, MemberLeave])
+        (Set.fromList (map evtType [event1, event2]))
     wsAssertMemberLeave ws qcid (tUntagged lbuid) [tUntagged lbuid]
   where
+    assertBotMessage :: (HasCallStack, MonadIO m) => TestBotEvent -> m Event
+    assertBotMessage =
+      liftIO . \case
+        TestBotMessage e -> pure e
+        evt -> assertFailure $ "expected TestBotMessage, got: " <> show evt
+    assertAccessUpdateOrMemberLeave :: (HasCallStack, MonadIO m) => Qualified UserId -> ConversationAccessData -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> Event -> m ()
+    assertAccessUpdateOrMemberLeave updFrom upd leaveFrom gone cnv e = liftIO $
+      case evtType e of
+        ConvAccessUpdate -> do
+          assertEqual "conv" cnv (evtConv e)
+          assertEqual "user" updFrom (evtFrom e)
+          assertEqual "event data" (EdConvAccessUpdate upd) (evtData e)
+        MemberLeave -> do
+          let msg = QualifiedUserIdList gone
+          assertEqual "conv" cnv (evtConv e)
+          assertEqual "user" leaveFrom (evtFrom e)
+          assertEqual "event data" (EdMembersLeave msg) (evtData e)
+        _ ->
+          assertFailure $ "expected event of type: ConvAccessUpdate or MemberLeave, got: " <> show e
     setAccessRole uid qcid role =
       updateConversationAccess galley uid qcid [InviteAccess] role
         !!! const 200 === statusCode
@@ -1763,6 +1798,7 @@ data TestBot = TestBot
 data TestBotEvent
   = TestBotCreated TestBot
   | TestBotMessage Event
+  deriving (Show, Eq)
 
 -- TODO: Test that the authorization header is properly set
 defServiceApp :: Chan TestBotEvent -> Application
@@ -1809,7 +1845,7 @@ defServiceApp buf =
           writeChan buf (TestBotMessage ev)
           k $ responseLBS status200 [] "success"
 
-wsAssertMemberJoin :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
+wsAssertMemberJoin :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
 wsAssertMemberJoin ws conv usr new = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1821,7 +1857,7 @@ wsAssertMemberJoin ws conv usr new = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new))
 
-wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
+wsAssertMemberLeave :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1833,7 +1869,7 @@ wsAssertMemberLeave ws conv usr old = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersLeave (QualifiedUserIdList old)
 
-wsAssertConvDelete :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
+wsAssertConvDelete :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
 wsAssertConvDelete ws conv from = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1845,7 +1881,7 @@ wsAssertConvDelete ws conv from = void $
         evtFrom e @?= from
         evtData e @?= EdConvDelete
 
-wsAssertMessage :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> m ()
+wsAssertMessage :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1857,7 +1893,7 @@ wsAssertMessage ws conv fromu fromc to txt = void $
         evtFrom e @?= fromu
         evtData e @?= EdOtrMessage (OtrMessage fromc to txt (Just "data"))
 
-svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
+svcAssertMemberJoin :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
 svcAssertMemberJoin buf usr new cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1869,7 +1905,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
       assertEqual "event data" (EdMembersJoin msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-join)"
 
-svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
+svcAssertMemberLeave :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
 svcAssertMemberLeave buf usr gone cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1881,20 +1917,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event data" (EdMembersLeave msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
-svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> ConversationAccessData -> Qualified ConvId -> m ()
-svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
-  evt <- timeout (5 # Second) $ readChan buf
-  case evt of
-    Just (TestBotMessage e) -> do
-      -- FUTUREWORK: Sometimes the assertion on the event type fails, but not
-      -- always. See https://wearezeta.atlassian.net/browse/BE-522.
-      assertEqual "event type" ConvAccessUpdate (evtType e)
-      assertEqual "conv" cnv (evtConv e)
-      assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (EdConvAccessUpdate upd) (evtData e)
-    _ -> assertFailure "Event timeout (TestBotMessage: conv-access-update)"
-
-svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
+svcAssertConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
 svcAssertConvDelete buf usr cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1905,7 +1928,7 @@ svcAssertConvDelete buf usr cnv = liftIO $ do
       assertEqual "event data" EdConvDelete (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
-svcAssertBotCreated :: MonadIO m => Chan TestBotEvent -> BotId -> ConvId -> m TestBot
+svcAssertBotCreated :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> BotId -> ConvId -> m TestBot
 svcAssertBotCreated buf bid cid = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1917,7 +1940,7 @@ svcAssertBotCreated buf bid cid = liftIO $ do
       pure b
     _ -> assertFailure "Event timeout (TestBotCreated)"
 
-svcAssertMessage :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified ConvId -> m ()
+svcAssertMessage :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified ConvId -> m ()
 svcAssertMessage buf from msg cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1928,7 +1951,7 @@ svcAssertMessage buf from msg cnv = liftIO $ do
       assertEqual "event data" (EdOtrMessage msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: otr-message-add)"
 
-svcAssertEventuallyConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
+svcAssertEventuallyConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
 svcAssertEventuallyConvDelete buf usr cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of

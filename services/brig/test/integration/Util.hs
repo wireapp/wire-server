@@ -1321,3 +1321,7 @@ spawn cp minput = do
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
     _ -> assertFailure "Failed spawning process"
+
+assertJust :: (HasCallStack, MonadIO m) => Maybe a -> m a
+assertJust (Just a) = pure a
+assertJust Nothing = liftIO $ error "Expected Just, got Nothing"
