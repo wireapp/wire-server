@@ -838,10 +838,7 @@ sendMessage = do
   connectWithRemoteUser aliceId bob
   connectWithRemoteUser aliceId chad
   -- conversation
-  let responses1 = do
-        comp <- frComponent <$> getRequest
-        guard (comp == Brig)
-        mockReply [bobProfile, chadProfile]
+  let responses1 = guardComponent Brig *> mockReply [bobProfile, chadProfile]
   (convId, requests1) <-
     withTempMockFederator' (responses1 <|> mockReply ()) $
       fmap decodeConvId $
@@ -875,8 +872,7 @@ sendMessage = do
             FedGalley.pmsrRawMessage = Base64ByteString (Protolens.encodeMessage msg)
           }
   let mock = do
-        comp <- frComponent <$> getRequest
-        guard (comp == Brig)
+        guardComponent Brig
         mockReply $
           Map.fromList
             [ (chadId, Set.singleton (PubClient chadClient Nothing)),

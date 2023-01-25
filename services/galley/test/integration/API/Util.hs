@@ -2746,8 +2746,7 @@ checkTimeout = 3 # Second
 -- responses by Brig on the mocked side of federation.
 mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> Mock LByteString
 mockedFederatedBrigResponse users = do
-  comp <- frComponent <$> getRequest
-  guard (comp == Brig)
+  guardComponent Brig
   mockReply [mkProfile mem (Name name) | (mem, name) <- users]
 
 fedRequestsForDomain :: HasCallStack => Domain -> Component -> [FederatedRequest] -> [FederatedRequest]
