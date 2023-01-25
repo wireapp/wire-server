@@ -23,7 +23,6 @@ library
     Stern.App
     Stern.Intra
     Stern.Options
-    Stern.Swagger
     Stern.Types
 
   other-modules:      Paths_stern
