@@ -19,6 +19,7 @@
 
 module API.MLS (tests) where
 
+import API.MLS.Mocks
 import API.MLS.Util
 import API.Util
 import Bilge hiding (head)
@@ -59,10 +60,8 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
-import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -70,7 +69,6 @@ import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
-import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -2149,38 +2147,3 @@ getGroupInfoDisabled = do
     withMLSDisabled $
       getGroupInfo (qUnqualified alice) qcnv
         !!! assertMLSNotEnabled
-
---------------------------------------------------------------------------------
--- Mock utilities
-
-receiveCommitMock :: [ClientIdentity] -> Mock LByteString
-receiveCommitMock clients =
-  asum
-    [ "on-conversation-updated" ~> (),
-      "on-new-remote-conversation" ~> EmptyResponse,
-      "get-mls-clients" ~>
-        Set.fromList
-          ( map (flip ClientInfo True . ciClient) clients
-          )
-    ]
-
-messageSentMock :: Mock LByteString
-messageSentMock = "on-mls-message-sent" ~> RemoteMLSMessageOk
-
-welcomeMock :: Mock LByteString
-welcomeMock = "mls-welcome" ~> MLSWelcomeSent
-
-sendMessageMock :: Mock LByteString
-sendMessageMock = "send-mls-message" ~> MLSMessageResponseUpdates []
-
-claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
-claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
-
-queryGroupStateMock :: ByteString -> Qualified UserId -> Mock LByteString
-queryGroupStateMock gs qusr = do
-  guardRPC "query-group-info"
-  uid <- ggireqSender <$> getRequestBody
-  mockReply $
-    if uid == qUnqualified qusr
-      then GetGroupInfoResponseState (Base64ByteString gs)
-      else GetGroupInfoResponseError ConvNotFound
