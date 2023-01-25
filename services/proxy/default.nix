@@ -10,6 +10,7 @@
 , case-insensitive
 , configurator
 , data-default
+, errors
 , exceptions
 , extended
 , gitignoreSource
@@ -22,6 +23,13 @@
 , lib
 , metrics-wai
 , retry
+, servant
+, servant-server
+, servant-swagger
+, servant-swagger-ui
+, string-conversions
+, swagger
+, swagger2
 , text
 , tinylog
 , types-common
@@ -47,6 +55,7 @@ mkDerivation {
     case-insensitive
     configurator
     data-default
+    errors
     exceptions
     extended
     http-client
@@ -57,6 +66,13 @@ mkDerivation {
     lens
     metrics-wai
     retry
+    servant
+    servant-server
+    servant-swagger
+    servant-swagger-ui
+    string-conversions
+    swagger
+    swagger2
     text
     tinylog
     types-common
