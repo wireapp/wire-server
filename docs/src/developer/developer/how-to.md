@@ -123,6 +123,7 @@ FUTUREWORK: this process is in development (update this section after it's confi
 2. Install wire-server using `make kind-integration-setup`.
 3. Run tests using `make kind-integration-test`.
 4. Run end2end integration tests: `make kind-integration-e2e`.
+5. Check service logs: `make kind-logs-<name>`.
 
 
 

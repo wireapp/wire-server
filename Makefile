@@ -500,6 +500,14 @@ kind-restart-%: .local/kind-kubeconfig
 	kubectl delete pod -n $(NAMESPACE) -l app=$(*) && \
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
 
+.PHONY: kind-logs
+kind-logs-%:
+	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
+	echo "-- fed 1" && \
+	kubectl logs -n $(NAMESPACE) -l app=$(*) && \
+	echo "-- fed 2" && \
+	kubectl logs -n $(NAMESPACE)-fed2 -l app=$(*)
+
 # This target can be used to template a helm chart with values filled in from
 # hack/helm_vars (what CI uses) as overrrides, if available. This allows debugging helm
 # templating issues without actually installing anything, and without needing

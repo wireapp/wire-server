@@ -1,0 +1,1 @@
+Add kind-logs-<name> Makefile target to inspect service logs after running end2end tests.
