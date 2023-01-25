@@ -15,9 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V78_TeamFeatureCalendarIntegration
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 78
+migration :: Migration
+migration = Migration 78 "Add feature config for team feature calendar integration" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          outlook_cal_integration_status int,
+          outlook_cal_integration_lock_status int
+        )
+     |]

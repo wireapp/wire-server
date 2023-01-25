@@ -691,6 +691,8 @@ executable galley-schema
     V75_MLSGroupInfo
     V76_ProposalOrigin
     V77_MLSGroupMemberClient
+    V78_TeamFeatureCalendarIntegration
+    V78_TeamFeatureOutlookCalendarIntegration
 
   hs-source-dirs:     schema/src
   default-extensions:
