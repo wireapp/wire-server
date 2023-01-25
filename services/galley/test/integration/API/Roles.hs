@@ -30,7 +30,7 @@ import qualified Data.List1 as List1
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
-import Federator.MockServer (FederatedRequest (..))
+import Federator.MockServer
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -175,7 +175,7 @@ roleUpdateRemoteMember = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -244,7 +244,7 @@ roleUpdateWithRemotes = do
 
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -303,7 +303,7 @@ accessUpdateWithRemotes = do
   let access = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putQualifiedAccessUpdate bob qconv access
           !!! const 200 === statusCode
 

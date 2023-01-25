@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -18,17 +19,33 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Federator.MockServer
-  ( MockException (..),
+  ( -- * Federator mock server
+    MockException (..),
     withTempMockFederator,
     FederatedRequest (..),
+
+    -- * Mock utilities
+    Mock,
+    runMock,
+    mockReply,
+    mockFail,
+    guardRPC,
+    guardComponent,
+    (~>),
+    getRequest,
+    getRequestRPC,
+    getRequestBody,
   )
 where
 
 import qualified Control.Exception as Exception
 import Control.Exception.Base (throw)
 import Control.Monad.Catch hiding (fromException)
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.Maybe
 import qualified Data.Aeson as Aeson
 import Data.Domain (Domain)
+import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LText
 import Federator.Error
 import Federator.Error.ServerError
@@ -129,3 +146,70 @@ withTempMockFederator headers resp action = do
       (\(_close, port) -> action port)
   calls <- readIORef remoteCalls
   pure (result, calls)
+
+--------------------------------------------------------------------------------
+-- Mock creation utilities
+
+-- | This is a monad that can be used to create mocked responses. It is a very
+-- minimalistic web framework. One can expect a certain request (using
+-- 'guardRPC') and reply accordingly (using 'mockReply'). Multiple possible
+-- requests and responses can be combined using the 'Alternative' instance.  In
+-- simple cases, one can also use the infix '(~>)' combinator, which concisely
+-- binds a request to a hardcoded pure response.
+newtype Mock a = Mock {unMock :: ReaderT FederatedRequest (MaybeT (ExceptT Text IO)) a}
+  deriving newtype (Functor, Applicative, Alternative, Monad, MonadIO)
+
+-- | Convert a mocked response to a function which can be used as input to
+-- 'tempMockFederator'.
+runMock :: (Text -> IO a) -> Mock a -> FederatedRequest -> IO a
+runMock err m req =
+  runExceptT (runMaybeT (runReaderT (unMock m) req)) >>= \case
+    Right Nothing -> err ("unmocked endpoint called: " <> frRPC req)
+    Right (Just x) -> pure x
+    Left e -> err e
+
+-- | Retrieve the current request.
+getRequest :: Mock FederatedRequest
+getRequest = Mock $ ReaderT pure
+
+-- | Retrieve the RPC of the current request.
+getRequestRPC :: Mock Text
+getRequestRPC = frRPC <$> getRequest
+
+-- | Retrieve and deserialise the body of the current request.
+getRequestBody :: Aeson.FromJSON a => Mock a
+getRequestBody = do
+  b <- frBody <$> getRequest
+  case Aeson.eitherDecode b of
+    Left e -> do
+      rpc <- getRequestRPC
+      mockFail ("Parse failure in " <> rpc <> ": " <> Text.pack e)
+    Right x -> pure x
+
+-- | Expect a given RPC. If the current request does not match, the whole
+-- action fails. This can be used in combination with the 'Alternative'
+-- instance to provide responses for multiple requests.
+guardRPC :: Text -> Mock ()
+guardRPC rpc = do
+  rpc' <- getRequestRPC
+  guard (rpc' == rpc)
+
+guardComponent :: Component -> Mock ()
+guardComponent c = do
+  c' <- frComponent <$> getRequest
+  guard (c == c')
+
+-- | Serialise and return a response.
+mockReply :: Aeson.ToJSON a => a -> Mock LByteString
+mockReply = pure . Aeson.encode
+
+-- | Abort the mock with an error.
+mockFail :: Text -> Mock a
+mockFail = Mock . lift . lift . throwE
+
+infixl 5 ~>
+
+-- | Expect a given RPC and simply return a pure response when the current
+-- request matches.
+(~>) :: Aeson.ToJSON a => Text -> a -> Mock LByteString
+(~>) rpc x = guardRPC rpc *> mockReply x
