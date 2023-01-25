@@ -1,3 +1,5 @@
+(sso-main-documentation)=
+
 # Single Sign-On and User Provisioning
 
 ```{toctree}
