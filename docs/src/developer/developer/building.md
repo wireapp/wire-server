@@ -74,9 +74,22 @@ deploy/dockerephemeral/run.sh
 After all containers are up you can use these Makefile targets to run the tests locally:
 
 ```
+# build and run all integration tests
+make ci
+
 # build and run galley's integration tests
 make ci package=galley
 
 # run galley's integration tests that match a pattern
 TASTY_PATTERN="/MLS/" make ci package=galley
+
+# run spar's integration tests that match a pattern
+HSPEC_MATCH='Scim' make ci package=spar
+
+# run brig tests without any parallelism
+TASTY_NUM_THREADS=1 make ci package=brig
 ```
+
+For more details on pattern/match formats:
+- tasty docs: https://github.com/UnkindPartition/tasty#patterns
+- hspec docs: https://hspec.github.io/match.html
