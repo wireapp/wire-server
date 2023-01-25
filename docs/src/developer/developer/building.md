@@ -73,23 +73,31 @@ deploy/dockerephemeral/run.sh
 
 After all containers are up you can use these Makefile targets to run the tests locally:
 
-```
-# build and run all integration tests
-make ci
+1. Build and run all integration tests
+   ```bash
+   make ci
+   ```
 
-# build and run galley's integration tests
-make ci package=galley
+2. Build and run integration tests for a service (say galley)
+   ```bash
+   make ci package=galley
+   ```
 
-# run galley's integration tests that match a pattern
-TASTY_PATTERN="/MLS/" make ci package=galley
+3. Run integration tests written using `tasty` for a service (say galley) that match a pattern
+   ```bash
+   TASTY_PATTERN="/MLS/" make ci package=galley
+   ```
+   For more details on pattern formats, see tasty docs: https://github.com/UnkindPartition/tasty#patterns
 
-# run spar's integration tests that match a pattern
-HSPEC_MATCH='Scim' make ci package=spar
+4. Run integration tests written using `hspec` for a service (say spar) that match a pattern
+   ```bash
+   HSPEC_MATCH='Scim' make ci package=spar
+   ```
+   For more details on match formats, see hspec docs: https://hspec.github.io/match.html
 
-# run brig tests without any parallelism
-TASTY_NUM_THREADS=1 make ci package=brig
-```
+5. Run integration tests without any parallelism
+   ```bash
+   TASTY_NUM_THREADS=1 make ci package=brig
+   ```
 
-For more details on pattern/match formats:
-- tasty docs: https://github.com/UnkindPartition/tasty#patterns
-- hspec docs: https://hspec.github.io/match.html
+   `TASTY_NUM_THREADS` can also be set to other values, it defaults to number of cores available.
