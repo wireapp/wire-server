@@ -2382,15 +2382,12 @@ testGetRemoteSubConv isAMember = do
             pscCipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
             pscMembers = []
           }
-
-  let mock req = case frRPC req of
-        "get-sub-conversation" ->
-          pure $
-            if isAMember
-              then Aeson.encode (GetSubConversationsResponseSuccess fakeSubConv)
-              else Aeson.encode (GetSubConversationsResponseError ConvNotFound)
-        rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
-
+  let mock = do
+        guardRPC "get-sub-conversation"
+        mockReply $
+          if isAMember
+            then GetSubConversationsResponseSuccess fakeSubConv
+            else GetSubConversationsResponseError ConvNotFound
   (_, reqs) <-
     withTempMockFederator' mock $
       getSubConv (qUnqualified alice) qconv sconv
@@ -2417,20 +2414,8 @@ testRemoteMemberGetSubConv isAMember = do
     kpb <- claimKeyPackages alice1 bob
     mp <- createAddCommit alice1 [bob]
 
-    let mockedResponse fedReq =
-          case frRPC fedReq of
-            "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-            "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-            "on-conversation-updated" -> pure (Aeson.encode ())
-            "get-mls-clients" ->
-              pure
-                . Aeson.encode
-                . Set.singleton
-                $ ClientInfo (ciClient bob1) True
-            "claim-key-packages" -> pure . Aeson.encode $ kpb
-            ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
-    void . withTempMockFederator' mockedResponse $
+    let mock = receiveCommitMock [bob1] <|> welcomeMock <|> claimKeyPackagesMock kpb
+    void . withTempMockFederator' mock $
       sendAndConsumeCommit mp
 
     let subconv = SubConvId "conference"
@@ -2479,19 +2464,8 @@ testRemoteMemberDeleteSubConv isAMember = do
     (_cnvGroupId, qcnv) <- setupMLSGroup alice1
     mp <- createAddCommit alice1 [bob]
 
-    let mockedResponse fedReq =
-          case frRPC fedReq of
-            "mls-welcome" -> pure (Aeson.encode MLSWelcomeSent)
-            "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-            "on-conversation-updated" -> pure (Aeson.encode ())
-            "get-mls-clients" ->
-              pure
-                . Aeson.encode
-                . Set.singleton
-                $ ClientInfo (ciClient bob1) True
-            ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-
-    void . withTempMockFederator' mockedResponse . sendAndConsumeCommit $ mp
+    let mock = receiveCommitMock [bob1] <|> welcomeMock
+    void . withTempMockFederator' mock . sendAndConsumeCommit $ mp
 
     sub <-
       liftTest $
@@ -2608,13 +2582,12 @@ testDeleteRemoteSubConv isAMember = do
             dscreqEpoch = epoch
           }
 
-  let mock req = case frRPC req of
-        "delete-sub-conversation" ->
-          pure $
-            if isAMember
-              then Aeson.encode DeleteSubConversationResponseSuccess
-              else Aeson.encode (DeleteSubConversationResponseError ConvNotFound)
-        rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+  let mock = do
+        guardRPC "delete-sub-conversation"
+        mockReply $
+          if isAMember
+            then DeleteSubConversationResponseSuccess
+            else (DeleteSubConversationResponseError ConvNotFound)
       dsc = DeleteSubConversation groupId epoch
 
   (_, reqs) <-
