@@ -30,6 +30,7 @@ import Galley.API.Public.TeamMember
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
+import Galley.API.Public.TeamNotification
 
 servantSitemap :: API ServantAPI GalleyEffects
 servantSitemap =
@@ -43,3 +44,4 @@ servantSitemap =
     <@> customBackendAPI
     <@> legalHoldAPI
     <@> teamMemberAPI
+    <@> teamNotificationAPI
