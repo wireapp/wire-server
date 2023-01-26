@@ -2587,7 +2587,7 @@ testDeleteRemoteSubConv isAMember = do
         mockReply $
           if isAMember
             then DeleteSubConversationResponseSuccess
-            else (DeleteSubConversationResponseError ConvNotFound)
+            else DeleteSubConversationResponseError ConvNotFound
       dsc = DeleteSubConversation groupId epoch
 
   (_, reqs) <-
