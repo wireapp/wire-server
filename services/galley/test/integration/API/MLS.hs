@@ -22,16 +22,16 @@ module API.MLS (tests) where
 import API.MLS.Mocks
 import API.MLS.Util
 import API.Util
-import Bilge hiding (head)
+import Bilge hiding (empty, head)
 import Bilge.Assert
 import Cassandra
+import Control.Applicative
 import Control.Lens (view)
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Data.Aeson as Aeson
 import Data.Binary.Put
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
@@ -48,7 +48,6 @@ import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
-import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -60,6 +59,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
@@ -393,12 +393,9 @@ testAddUserWithBundle = do
       "Users added to an MLS group should find it when listing conversations"
       (qcnv `elem` map cnvQualifiedId convs)
 
-  returnedGS <-
-    fmap responseBody $
-      getGroupInfo (qUnqualified alice) (fmap Conv qcnv)
-        <!! const 200 === statusCode
+  returnedGS <- getGroupInfo alice (fmap Conv qcnv)
   liftIO $ assertBool "Commit does not contain a public group State" (isJust (mpPublicGroupState commit))
-  liftIO $ mpPublicGroupState commit @=? LBS.toStrict <$> returnedGS
+  liftIO $ mpPublicGroupState commit @?= Just returnedGS
 
 testAddUserWithBundleIncompleteWelcome :: TestM ()
 testAddUserWithBundleIncompleteWelcome = do
@@ -423,7 +420,7 @@ testAddUserWithBundleIncompleteWelcome = do
     bundle <- createBundle commit
     err <-
       responseJsonError
-        =<< postCommitBundle (mpSender commit) bundle
+        =<< localPostCommitBundle (mpSender commit) bundle
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-welcome-mismatch"
 
@@ -562,12 +559,10 @@ testAddUsersToProteus :: TestM ()
 testAddUsersToProteus = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   void $ postConvQualified (qUnqualified alice) defNewProteusConv
-  groupId <-
-    liftIO $ fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
-    createGroup alice1 groupId
+    void $ setupFakeMLSGroup alice1
     mp <- createAddCommit alice1 [bob]
     err <-
       responseJsonError
@@ -981,12 +976,10 @@ testExternalCommitNotMember = do
     -- so that we have the public group state
     void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommitBundle
 
-    pgs <-
-      LBS.toStrict . fromJust . responseBody
-        <$> getGroupInfo (ciUser alice1) (fmap Conv qcnv)
+    pgs <- liftTest $ getGroupInfo (cidQualifiedUser alice1) (fmap Conv qcnv)
     mp <- createExternalCommit bob1 (Just pgs) (fmap Conv qcnv)
     bundle <- createBundle mp
-    postCommitBundle (mpSender mp) bundle
+    localPostCommitBundle (mpSender mp) bundle
       !!! const 404 === statusCode
 
 testExternalCommitSameClient :: TestM ()
@@ -1320,7 +1313,7 @@ propNonExistingConv = do
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
-    createGroup alice1 "test_group"
+    void $ setupFakeMLSGroup alice1
 
     [prop] <- createAddProposals alice1 [bob]
     postMessage alice1 (mpMessage prop) !!! do
@@ -1879,11 +1872,8 @@ testGetGroupInfoOfLocalConv = do
 
     -- check the group info matches
     gs <- assertJust (mpPublicGroupState commit)
-    returnedGS <-
-      fmap responseBody $
-        getGroupInfo (qUnqualified alice) (fmap Conv qcnv)
-          <!! const 200 === statusCode
-    liftIO $ Just gs @=? LBS.toStrict <$> returnedGS
+    returnedGS <- liftTest $ getGroupInfo alice (fmap Conv qcnv)
+    liftIO $ gs @=? returnedGS
 
 testGetGroupInfoOfRemoteConv :: TestM ()
 testGetGroupInfoOfRemoteConv = do
@@ -1904,15 +1894,10 @@ testGetGroupInfoOfRemoteConv = do
     let fakeGroupState = "\xde\xad\xbe\xef"
     let mock = queryGroupStateMock fakeGroupState bob
     (_, reqs) <- withTempMockFederator' mock $ do
-      res <-
-        fmap responseBody $
-          getGroupInfo (qUnqualified bob) (fmap Conv qcnv)
-            <!! const 200 === statusCode
-
-      getGroupInfo (qUnqualified charlie) (fmap Conv qcnv)
-        !!! const 404 === statusCode
-
-      liftIO $ res @?= Just (LBS.fromStrict fakeGroupState)
+      res <- liftTest $ getGroupInfo bob (fmap Conv qcnv)
+      localGetGroupInfo (qUnqualified charlie) (fmap Conv qcnv)
+        !!! const 200 === statusCode
+      liftIO $ res @?= fakeGroupState
 
     -- check requests to mock federator: step 14
     liftIO $ do
@@ -2046,7 +2031,7 @@ testRemoteUserPostsCommitBundle = do
 
         let msr =
               MLSMessageSendRequest
-                { mmsrConvOrSubId = (Conv (qUnqualified qcnv)),
+                { mmsrConvOrSubId = Conv (qUnqualified qcnv),
                   mmsrSender = qUnqualified bob,
                   mmsrSenderClient = ciClient bob1,
                   mmsrRawMessage = Base64ByteString commitBundle
@@ -2180,7 +2165,7 @@ postMLSBundleDisabled = do
     mp <- createAddCommit alice1 [bob]
     withMLSDisabled $ do
       bundle <- createBundle mp
-      postCommitBundle (mpSender mp) bundle
+      localPostCommitBundle (mpSender mp) bundle
         !!! assertMLSNotEnabled
 
 getGroupInfoDisabled :: TestM ()
@@ -2193,7 +2178,7 @@ getGroupInfoDisabled = do
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
     withMLSDisabled $
-      getGroupInfo (qUnqualified alice) (fmap Conv qcnv)
+      localGetGroupInfo (qUnqualified alice) (fmap Conv qcnv)
         !!! assertMLSNotEnabled
 
 deleteSubConversationDisabled :: TestM ()
@@ -2257,7 +2242,7 @@ testJoinSubConv = do
             =<< getSubConv (qUnqualified bob) qcnv subId
               <!! const 200 === statusCode
 
-      resetGroup bob1 (pscGroupId sub)
+      resetGroup bob1 (fmap (flip SubConv subId) qcnv) (pscGroupId sub)
 
       bobRefsBefore <- getClientsFromGroupState bob1 bob
       -- bob adds his first client to the subconversation
@@ -2299,7 +2284,7 @@ testJoinSubNonMemberClient = do
     -- now Bob attempts to get the group info so he can join via external commit
     -- with his own client, but he cannot because he is not a member of the
     -- parent conversation
-    getGroupInfo (ciUser bob1) (fmap (flip SubConv subId) qcnv)
+    localGetGroupInfo (ciUser bob1) (fmap (flip SubConv subId) qcnv)
       !!! const 404 === statusCode
 
 testAddClientSubConvFailure :: TestM ()
@@ -2317,7 +2302,7 @@ testAddClientSubConvFailure = do
     void $ uploadNewKeyPackage bob1
 
     commit <- createAddCommit alice1 [bob]
-    (createBundle commit >>= postCommitBundle (mpSender commit))
+    (createBundle commit >>= localPostCommitBundle (mpSender commit))
       !!! do
         const 400 === statusCode
         const (Just "Add proposals in subconversations are not supported")
@@ -2347,7 +2332,51 @@ testJoinRemoteSubConv :: TestM ()
 testJoinRemoteSubConv = pure ()
 
 testRemoteUserJoinSubConv :: TestM ()
-testRemoteUserJoinSubConv = pure ()
+testRemoteUserJoinSubConv = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+
+  runMLSTest $ do
+    alice1 <- createMLSClient alice
+    (_, qcnv) <- setupMLSGroup alice1
+
+    bob1 <- createFakeMLSClient bob
+    void $ do
+      commit <- createAddCommit alice1 [bob]
+      withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
+        sendAndConsumeCommit commit
+
+    let mock =
+          asum
+            [ "on-new-remote-conversation" ~> EmptyResponse,
+              messageSentMock
+            ]
+    let subId = SubConvId "conference"
+    (psc, reqs) <- withTempMockFederator' mock $ createSubConv qcnv alice1 subId
+    let qcs = convsub qcnv (Just subId)
+
+    -- check that the remote backend is notified when a subconversation is
+    -- created locally
+    req <- assertOne $ filter ((== "on-new-remote-conversation") . frRPC) reqs
+    nrc <- assertOne . toList $ Aeson.decode (frBody req)
+    liftIO $ do
+      nrcConvId nrc @?= qUnqualified qcnv
+      nrcSubConvId nrc @?= Just subId
+      case nrcProtocol nrc of
+        ProtocolProteus -> assertFailure "Unexpected protocol"
+        ProtocolMLS mls -> do
+          cnvmlsGroupId mls @?= pscGroupId psc
+          cnvmlsEpoch mls @?= Epoch 0
+
+    -- bob joins the subconversation
+    void $ createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
+
+    -- check that bob is now part of the subconversation
+    liftTest $ do
+      psc' <-
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv subId
+            <!! const 200 === statusCode
+      liftIO $ Set.fromList (pscMembers psc') @?= Set.fromList [alice1, bob1]
 
 testSendMessageSubConv :: TestM ()
 testSendMessageSubConv = do
@@ -2481,7 +2510,7 @@ testRemoteMemberDeleteSubConv isAMember = do
       liftTest $
         responseJsonError
           =<< getSubConv (qUnqualified alice) qcnv scnv
-    resetGroup alice1 (pscGroupId sub)
+    resetGroup alice1 (fmap (flip SubConv scnv) qcnv) (pscGroupId sub)
 
     pure (qUnqualified qcnv, pscGroupId sub, pscEpoch sub)
 
@@ -2563,7 +2592,7 @@ testDeleteSubConvStale = do
           =<< getSubConv (qUnqualified alice) qcnv sconv
             <!! do const 200 === statusCode
 
-    resetGroup alice1 (pscGroupId sub)
+    resetGroup alice1 (fmap (flip SubConv sconv) qcnv) (pscGroupId sub)
 
     void $
       createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle

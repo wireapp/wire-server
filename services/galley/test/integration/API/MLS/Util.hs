@@ -126,7 +126,7 @@ postMessage sender msg = do
         . bytes msg
     )
 
-postCommitBundle ::
+localPostCommitBundle ::
   ( HasCallStack,
     MonadIO m,
     MonadCatch m,
@@ -137,7 +137,7 @@ postCommitBundle ::
   ClientIdentity ->
   ByteString ->
   m ResponseLBS
-postCommitBundle sender bundle = do
+localPostCommitBundle sender bundle = do
   galley <- viewGalley
   post
     ( galley
@@ -148,6 +148,53 @@ postCommitBundle sender bundle = do
         . content "application/x-protobuf"
         . bytes bundle
     )
+
+remotePostCommitBundle ::
+  ( MonadIO m,
+    MonadReader TestSetup m
+  ) =>
+  Remote ClientIdentity ->
+  Qualified ConvOrSubConvId ->
+  ByteString ->
+  m [Event]
+remotePostCommitBundle rsender qcs bundle = do
+  client <- view tsFedGalleyClient
+  let msr =
+        MLSMessageSendRequest
+          { mmsrConvOrSubId = qUnqualified qcs,
+            mmsrSender = ciUser (tUnqualified rsender),
+            mmsrSenderClient = ciClient (tUnqualified rsender),
+            mmsrRawMessage = Base64ByteString bundle
+          }
+  runFedClient
+    @"send-mls-commit-bundle"
+    client
+    (tDomain rsender)
+    msr
+    >>= liftIO . \case
+      MLSMessageResponseError e ->
+        assertFailure $
+          "error while receiving commit bundle: " <> show e
+      MLSMessageResponseProtocolError e ->
+        assertFailure $
+          "protocol error while receiving commit bundle: " <> T.unpack e
+      MLSMessageResponseProposalFailure e ->
+        assertFailure $
+          "proposal failure while receiving commit bundle: " <> displayException e
+      MLSMessageResponseUpdates _ -> pure []
+
+postCommitBundle :: ClientIdentity -> Qualified ConvOrSubConvId -> ByteString -> TestM [Event]
+postCommitBundle sender qcs bundle = do
+  loc <- qualifyLocal ()
+  foldQualified
+    loc
+    ( \_ ->
+        fmap mmssEvents . responseJsonError
+          =<< localPostCommitBundle sender bundle
+            <!! const 201 === statusCode
+    )
+    (\rsender -> remotePostCommitBundle rsender qcs bundle)
+    (cidQualifiedUser sender $> sender)
 
 postWelcome :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ByteString -> m ResponseLBS
 postWelcome uid welcome = do
@@ -198,6 +245,7 @@ data MLSState = MLSState
     -- | users expected to receive a welcome message after the next commit
     mlsNewMembers :: Set ClientIdentity,
     mlsGroupId :: Maybe GroupId,
+    mlsConvId :: Maybe (Qualified ConvOrSubConvId),
     mlsEpoch :: Word64
   }
 
@@ -243,6 +291,7 @@ runMLSTest (MLSTest m) =
           mlsMembers = mempty,
           mlsNewMembers = mempty,
           mlsGroupId = Nothing,
+          mlsConvId = Nothing,
           mlsEpoch = 0
         }
 
@@ -413,8 +462,9 @@ setupMLSGroupWithConv convAction creator = do
         fromJust
           (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
 
-  createGroup creator groupId
-  pure (groupId, cnvQualifiedId conv)
+  let qcnv = cnvQualifiedId conv
+  createGroup creator (fmap Conv qcnv) groupId
+  pure (groupId, qcnv)
 
 -- | Create conversation and corresponding group.
 setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
@@ -439,27 +489,34 @@ setupMLSSelfGroup creator = setupMLSGroupWithConv action creator
           (getSelfConv (ciUser creator))
           <!! const 200 === statusCode
 
-createGroup :: ClientIdentity -> GroupId -> MLSTest ()
-createGroup cid gid = do
+createGroup :: ClientIdentity -> Qualified ConvOrSubConvId -> GroupId -> MLSTest ()
+createGroup cid qcs gid = do
   State.gets mlsGroupId >>= \case
     Just _ -> liftIO $ assertFailure "only one group can be created"
     Nothing -> pure ()
-  resetGroup cid gid
+  resetGroup cid qcs gid
 
-resetGroup :: ClientIdentity -> GroupId -> MLSTest ()
-resetGroup cid gid = do
+resetGroup :: ClientIdentity -> Qualified ConvOrSubConvId -> GroupId -> MLSTest ()
+resetGroup cid qcs gid = do
   groupJSON <- mlscli cid ["group", "create", T.unpack (toBase64Text (unGroupId gid))] Nothing
   g <- nextGroupFile cid
   liftIO $ BS.writeFile g groupJSON
   State.modify $ \s ->
     s
       { mlsGroupId = Just gid,
+        mlsConvId = Just qcs,
         mlsMembers = Set.singleton cid,
         mlsEpoch = 0,
         mlsNewMembers = mempty
       }
 
+getConvId :: MLSTest (Qualified ConvOrSubConvId)
+getConvId =
+  State.gets mlsConvId
+    >>= maybe (liftIO (assertFailure "Uninitialised test conversation")) pure
+
 createSubConv ::
+  HasCallStack =>
   Qualified ConvId ->
   ClientIdentity ->
   SubConvId ->
@@ -471,19 +528,22 @@ createSubConv qcnv creator subId = do
             =<< getSubConv (ciUser creator) qcnv subId
               <!! const 200 === statusCode
   sub <- getSC
-  resetGroup creator (pscGroupId sub)
+  resetGroup creator (fmap (flip SubConv subId) qcnv) (pscGroupId sub)
   void $ createPendingProposalCommit creator >>= sendAndConsumeCommitBundle
   getSC
 
 -- | Create a local group only without a conversation. This simulates creating
 -- an MLS conversation on a remote backend.
-setupFakeMLSGroup :: ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupFakeMLSGroup ::
+  HasCallStack =>
+  ClientIdentity ->
+  MLSTest (GroupId, Qualified ConvId)
 setupFakeMLSGroup creator = do
   groupId <-
     liftIO $
       fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
-  createGroup creator groupId
   qcnv <- randomQualifiedId (ciDomain creator)
+  createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
 
 keyPackageFile :: HasCallStack => ClientIdentity -> KeyPackageRef -> MLSTest FilePath
@@ -574,11 +634,7 @@ createExternalCommit qcid mpgs qcs = do
   gNew <- nextGroupFile qcid
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
   pgs <- case mpgs of
-    Nothing ->
-      LBS.toStrict . fromJust . responseBody
-        <$> ( getGroupInfo (ciUser qcid) qcs
-                <!! const 200 === statusCode
-            )
+    Nothing -> liftTest $ getGroupInfo (cidQualifiedUser qcid) qcs
     Just v -> pure v
   commit <-
     mlscli
@@ -912,12 +968,9 @@ sendAndConsumeCommitBundle ::
   MessagePackage ->
   MLSTest [Event]
 sendAndConsumeCommitBundle mp = do
+  qcs <- getConvId
   bundle <- createBundle mp
-  events <-
-    fmap mmssEvents
-      . responseJsonError
-      =<< postCommitBundle (mpSender mp) bundle
-        <!! const 201 === statusCode
+  events <- liftTest $ postCommitBundle (mpSender mp) qcs bundle
   consumeMessage mp
   traverse_ consumeWelcome (mpWelcome mp)
 
@@ -1026,7 +1079,22 @@ receiveOnConvUpdated conv origUser joiner = do
       (qDomain conv)
       cu
 
-getGroupInfo ::
+getGroupInfo :: Qualified UserId -> Qualified ConvOrSubConvId -> TestM ByteString
+getGroupInfo qusr qcs = do
+  loc <- qualifyLocal ()
+  foldQualified
+    loc
+    ( \lusr ->
+        fmap (LBS.toStrict . fromJust . responseBody) $
+          localGetGroupInfo
+            (tUnqualified lusr)
+            qcs
+            <!! const 200 === statusCode
+    )
+    (\rusr -> remoteGetGroupInfo rusr qcs)
+    qusr
+
+localGetGroupInfo ::
   ( HasCallStack,
     MonadIO m,
     MonadCatch m,
@@ -1037,7 +1105,7 @@ getGroupInfo ::
   UserId ->
   Qualified ConvOrSubConvId ->
   m ResponseLBS
-getGroupInfo sender qcs = do
+localGetGroupInfo sender qcs = do
   galley <- viewGalley
   case qUnqualified qcs of
     Conv cnv ->
@@ -1066,6 +1134,23 @@ getGroupInfo sender qcs = do
             . zUser sender
             . zConn "conn"
         )
+
+remoteGetGroupInfo ::
+  Remote UserId ->
+  Qualified ConvOrSubConvId ->
+  TestM ByteString
+remoteGetGroupInfo rusr qcs = do
+  client <- view tsFedGalleyClient
+  GetGroupInfoResponseState (Base64ByteString pgs) <-
+    runFedClient
+      @"query-group-info"
+      client
+      (tDomain rusr)
+      GetGroupInfoRequest
+        { ggireqConv = qUnqualified qcs,
+          ggireqSender = tUnqualified rusr
+        }
+  pure pgs
 
 getSelfConv ::
   UserId ->

@@ -1358,6 +1358,7 @@ executeProposalAction qusr con lconvOrSub action = do
   for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
     removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Map.keysSet clients)
 
+  -- TODO: only do this for new subconversations (i.e. Epoch 1)
   -- call `on-new-remote-conversation` on all the remote backends involved in
   -- the main conversation
   forOf_ _SubConv convOrSub $ \(mlsConv, subConv) -> do
@@ -1371,7 +1372,7 @@ executeProposalAction qusr con lconvOrSub action = do
           NewRemoteConversation
             { nrcConvId = mcId mlsConv,
               nrcSubConvId = Just . scSubConvId $ subConv,
-              nrcProtocol = ProtocolMLS (mcMLSData mlsConv)
+              nrcProtocol = ProtocolMLS (scMLSData subConv)
             }
     runFederatedConcurrently_ (toList remoteDomains) $ \_ -> do
       void $ fedClient @'Galley @"on-new-remote-conversation" nrc
