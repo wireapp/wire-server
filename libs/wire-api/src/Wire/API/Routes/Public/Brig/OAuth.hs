@@ -81,7 +81,7 @@ type OAuthAPI =
                :> Post '[JSON] OAuthAccessTokenResponse
            )
     :<|> Named
-           "revoke-refresh-token"
+           "revoke-oauth-refresh-token"
            ( Summary "Revoke an OAuth refresh token"
                :> Description "Revoke an access token."
                :> CanThrow 'OAuthJwtError
@@ -92,6 +92,31 @@ type OAuthAPI =
                :> "revoke"
                :> ReqBody '[JSON] OAuthRevokeRefreshTokenRequest
                :> Post '[JSON] ()
+           )
+    :<|> Named
+           "get-oauth-applications"
+           ( Summary "Get OAuth applications with account access"
+               :> Description "Get all OAuth applications with active account access for a user."
+               :> ZUser
+               :> "oauth"
+               :> "applications"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (Respond 200 "OAuth applications found" [OAuthApplication])
+           )
+    :<|> Named
+           "revoke-oauth-account-access"
+           ( Summary "Revoke account access from an OAuth application"
+               :> ZUser
+               :> "oauth"
+               :> "applications"
+               :> Capture' '[Description "The ID of the OAuth client"] "OAuthClientId" OAuthClientId
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    '[RespondEmpty 204 "OAuth application access revoked"]
+                    ()
            )
 
 type CreateOAuthAuthCodeHeaders = '[Header "Location" RedirectUrl]

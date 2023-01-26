@@ -34,7 +34,7 @@ import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Domain (domainText)
 import Data.Id
 import Data.Range (unsafeRange)
-import Data.Set as Set hiding (null, (\\))
+import Data.Set as Set hiding (delete, null, (\\))
 import Data.String.Conversions (cs)
 import Data.Text.Ascii (encodeBase16)
 import qualified Data.Text.Encoding as T
@@ -104,6 +104,10 @@ tests m db b n o = do
           test m "wrong grant type - fail" $ testRefreshTokenWrongGrantType b,
           test m "expired token - fail" $ testRefreshTokenExpiredToken o b,
           test m "revoked token - fail" $ testRefreshTokenRevokedToken b
+        ],
+      testGroup "oauth applications" $
+        [ test m "list applications with account access" $ testListApplicationsWithAccountAccess b,
+          test m "revoke application account access" $ testRevokeApplicationAccountAccess b
         ]
     ]
 
@@ -593,8 +597,56 @@ testRefreshTokenRevokedToken brig = do
     const 403 === statusCode
     const "Forbidden" === statusMessage
 
+testListApplicationsWithAccountAccess :: Brig -> Http ()
+testListApplicationsWithAccountAccess brig = do
+  uid <- userId <$> createUser "alice" brig
+  do
+    apps <- listOauthApplications brig uid
+    liftIO $ assertEqual "apps" 0 (length apps)
+  void $ createOAuthApplicationWithAccountAccess brig uid
+  void $ createOAuthApplicationWithAccountAccess brig uid
+  do
+    apps <- listOauthApplications brig uid
+    liftIO $ assertEqual "apps" 2 (length apps)
+  void $ createOAuthApplicationWithAccountAccess brig uid
+  do
+    apps <- listOauthApplications brig uid
+    liftIO $ assertEqual "apps" 3 (length apps)
+
+testRevokeApplicationAccountAccess :: Brig -> Http ()
+testRevokeApplicationAccountAccess brig = do
+  uid <- userId <$> createUser "alice" brig
+  do
+    apps <- listOauthApplications brig uid
+    liftIO $ assertEqual "apps" 0 (length apps)
+  for_ [1 .. 3 :: Int] $ const $ createOAuthApplicationWithAccountAccess brig uid
+  cids <- fmap oaId <$> listOauthApplications brig uid
+  liftIO $ assertEqual "apps" 3 (length cids)
+  case cids of
+    [cid1, cid2, cid3] -> do
+      revokeOAuthApplicationAccess brig uid cid1
+      do
+        apps <- listOauthApplications brig uid
+        liftIO $ assertEqual "apps" 2 (length apps)
+      revokeOAuthApplicationAccess brig uid cid2
+      do
+        apps <- listOauthApplications brig uid
+        liftIO $ assertEqual "apps" 1 (length apps)
+      revokeOAuthApplicationAccess brig uid cid3
+      do
+        apps <- listOauthApplications brig uid
+        liftIO $ assertEqual "apps" 0 (length apps)
+    _ -> liftIO $ assertFailure "unexpected number of apps"
+
 -------------------------------------------------------------------------------
 -- Util
+
+createOAuthApplicationWithAccountAccess :: Brig -> UserId -> Http OAuthAccessTokenResponse
+createOAuthApplicationWithAccountAccess brig uid = do
+  let redirectUrl = mkUrl "https://example.com"
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid (OAuthScopes $ mempty) redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  createOAuthAccessToken brig accessTokenRequest
 
 verifyRefreshToken :: JWK -> SignedJWT -> IO ClaimsSet
 verifyRefreshToken jwk jwt =
@@ -649,6 +701,22 @@ refreshOAuthAccessToken brig reqBody =
 refreshOAuthAccessToken' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> OAuthRefreshAccessTokenRequest -> m ResponseLBS
 refreshOAuthAccessToken' brig reqBody =
   post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
+
+listOauthApplications' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> m ResponseLBS
+listOauthApplications' brig uid =
+  get (brig . paths ["oauth", "applications"] . zUser uid)
+
+listOauthApplications :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> m [OAuthApplication]
+listOauthApplications brig uid =
+  responseJsonError =<< listOauthApplications' brig uid <!! const 200 === statusCode
+
+revokeOAuthApplicationAccess' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> OAuthClientId -> m ResponseLBS
+revokeOAuthApplicationAccess' brig uid cid =
+  delete (brig . paths ["oauth", "applications", toByteString' cid] . zUser uid)
+
+revokeOAuthApplicationAccess :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthClientId -> m ()
+revokeOAuthApplicationAccess brig uid cid =
+  void $ revokeOAuthApplicationAccess' brig uid cid <!! const 204 === statusCode
 
 generateOAuthClientAndAuthCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthClientPlainTextSecret, OAuthAuthCode)
 generateOAuthClientAndAuthCode brig uid scope url = do

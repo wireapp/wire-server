@@ -44,6 +44,57 @@ import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import Wire.API.Error
 import Wire.API.OAuth as OAuth
+  ( NewOAuthAuthCode (NewOAuthAuthCode),
+    NewOAuthClient (NewOAuthClient),
+    OAuthAccessToken,
+    OAuthAccessTokenRequest
+      ( oatClientId,
+        oatClientSecret,
+        oatCode,
+        oatGrantType,
+        oatRedirectUri
+      ),
+    OAuthAccessTokenResponse (OAuthAccessTokenResponse),
+    OAuthAccessTokenType (OAuthAccessTokenTypeBearer),
+    OAuthApplication (OAuthApplication),
+    OAuthApplicationName,
+    OAuthAuthCode (OAuthAuthCode),
+    OAuthClaimsSet (OAuthClaimsSet),
+    OAuthClient (..),
+    OAuthClientCredentials (OAuthClientCredentials),
+    OAuthClientPlainTextSecret (..),
+    OAuthError
+      ( OAuthAuthCodeNotFound,
+        OAuthClientNotFound,
+        OAuthFeatureDisabled,
+        OAuthInvalidClientCredentials,
+        OAuthInvalidGrantType,
+        OAuthInvalidRefreshToken,
+        OAuthJwtError,
+        OAuthRedirectUrlMissMatch
+      ),
+    OAuthGrantType
+      ( OAuthGrantTypeAuthorizationCode,
+        OAuthGrantTypeRefreshToken
+      ),
+    OAuthRefreshAccessTokenRequest
+      ( oartClientId,
+        oartClientSecret,
+        oartGrantType,
+        oartRefreshToken
+      ),
+    OAuthRefreshToken,
+    OAuthRefreshTokenInfo (..),
+    OAuthResponseType (OAuthResponseTypeCode),
+    OAuthRevokeRefreshTokenRequest (ortrClientSecret, ortrRefreshToken),
+    OAuthScope,
+    OAuthScopes (..),
+    OAuthToken (OAuthToken, unOAuthToken),
+    RedirectUrl,
+    addParams,
+    hcsSub,
+    verify',
+  )
 import qualified Wire.API.Routes.Internal.Brig.OAuth as I
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public.Brig.OAuth (CreateOAuthCodeError (..), OAuthAPI)
@@ -65,7 +116,9 @@ oauthAPI =
   Named @"get-oauth-client" getOAuthClient
     :<|> Named @"create-oauth-auth-code" createNewOAuthAuthCode
     :<|> Named @"create-oauth-access-token" createAccessTokenWith
-    :<|> Named @"revoke-refresh-token" revokeRefreshToken
+    :<|> Named @"revoke-oauth-refresh-token" revokeRefreshToken
+    :<|> Named @"get-oauth-applications" getOAuthApplications
+    :<|> Named @"revoke-oauth-account-access" revokeOAuthAccountAccess
 
 --------------------------------------------------------------------------------
 -- Handlers
@@ -257,6 +310,19 @@ revokeRefreshToken req = do
   unlessM (verifyClientSecret (ortrClientSecret req) cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   lift $ wrapClient $ deleteOAuthRefreshToken info
 
+getOAuthApplications :: UserId -> (Handler r) [OAuthApplication]
+getOAuthApplications uid = do
+  activeRefreshTokens <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
+  nub . catMaybes <$> for activeRefreshTokens oauthApp
+  where
+    oauthApp :: OAuthRefreshTokenInfo -> (Handler r) (Maybe OAuthApplication)
+    oauthApp info = (OAuthApplication (oriClientId info) . ocName) <$$> getOAuthClient (oriUserId info) (oriClientId info)
+
+revokeOAuthAccountAccess :: UserId -> OAuthClientId -> (Handler r) ()
+revokeOAuthAccountAccess uid cid = do
+  rts <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
+  for_ rts $ \rt -> when (oriClientId rt == cid) $ lift $ wrapClient $ deleteOAuthRefreshToken rt
+
 --------------------------------------------------------------------------------
 -- DB
 
@@ -329,7 +395,7 @@ insertOAuthRefreshToken maxActiveTokens ttl info = do
 lookupOAuthRefreshTokens :: (MonadClient m) => UserId -> m [OAuthRefreshTokenInfo]
 lookupOAuthRefreshTokens uid = do
   ids <- runIdentity <$$> (retry x5 . query q $ params LocalQuorum (Identity uid))
-  catMaybes <$> forM ids lookupOAuthRefreshTokenInfo
+  catMaybes <$> for ids lookupOAuthRefreshTokenInfo
   where
     q :: PrepQuery R (Identity UserId) (Identity OAuthRefreshTokenId)
     q = "SELECT token_id FROM oauth_user_refresh_token WHERE user = ?"

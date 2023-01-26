@@ -78,7 +78,7 @@ instance FromHttpApiData RedirectUrl where
   parseHeader = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
 
 newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: Range 1 256 Text}
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Ord)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthApplicationName)
 
 instance ToSchema OAuthApplicationName where
@@ -518,6 +518,23 @@ instance ToSchema OAuthRevokeRefreshTokenRequest where
       clientIdDescription = description ?~ "The OAuth client's ID"
       clientSecretDescription = description ?~ "The OAuth client's secret"
       refreshTokenDescription = description ?~ "The refresh token"
+
+data OAuthApplication = OAuthApplication
+  { oaId :: OAuthClientId,
+    oaName :: OAuthApplicationName
+  }
+  deriving (Eq, Show, Ord)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthApplication)
+
+instance ToSchema OAuthApplication where
+  schema =
+    object "OAuthApplication" $
+      OAuthApplication
+        <$> oaId .= fieldWithDocModifier "id" idDescription schema
+        <*> oaName .= fieldWithDocModifier "name" nameDescription schema
+    where
+      idDescription = description ?~ "The OAuth client's ID"
+      nameDescription = description ?~ "The OAuth client's name"
 
 --------------------------------------------------------------------------------
 -- Errors
