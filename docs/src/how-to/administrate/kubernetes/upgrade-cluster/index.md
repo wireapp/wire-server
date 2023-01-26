@@ -73,3 +73,24 @@ the components, and draining/uncordon nodes.
 ## Kubeadm
 
 Please refer to the *official documentation:* [Upgrading kubeadm clusters](https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/)
+
+# Troubleshooting problems arising after kubernetes cluster upgrades
+
+## Helm and kubernetes API changes
+
+If you upgrade to new versions of kubernetes while wire-server is deployed, you may find that after that version update, deploying a new version of wire-server or nginx-ingress-services (or another helm chart we provide) using `helm update` or `helmfile apply/sync` gives an error like this:
+
+> Error: UPGRADE FAILED: current release manifest contains removed kubernetes api(s) for this kubernetes version and it is therefore unable to build the kubernetes objects for performing the diff. error from kubernetes: unable to recognize "": no matches for kind "Ingress" in version "extensions/v1beta1"
+
+What's happening here is that some [deprecated](https://kubernetes.io/docs/reference/using-api/deprecation-guide/)  kubernetes API versions may potentially have been removed. While we strive to keep maximum compatibility of kubernetes versions in our helm charts, that's not sufficient when doing k8s upgrades while wire-server helm charts are in use: you need to tell a helm release about the difference in API version.
+
+In which case you can use the [helm mapkubeapis plugin](https://github.com/helm/helm-mapkubeapis) to upgrade an existing release with the following command:
+
+```sh
+# install plugin version 0.1.0 (more recent may not work)
+helm plugin install --version v0.1.0 https://github.com/helm/helm-mapkubeapis
+# adjust helm release name and namespace as required
+helm mapkubeapis --namespace wire nginx-ingress-services
+```
+
+Alternatively, if a few minutes of downtime are not a problem; you can `helm delete` a release and re-install it again, which will work without the above plugin.

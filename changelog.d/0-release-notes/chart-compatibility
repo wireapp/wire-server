@@ -1,1 +1,16 @@
-wire-server helm charts using Ingress resources are now compatible with kubernetes versions 1.22, 1.23 and 1.24 (but keep being compatible with older versions of kubernetes).
+wire-server helm charts using Ingress resources are now compatible with kubernetes versions 1.22, 1.23 and 1.24 (but remain compatible with older versions of kubernetes).
+
+If you upgrade to this version of helm charts and/or you upgrade your version of kubernetes while wire-server is deployed, you may find that `helm update` or `helmfile apply/sync` gives an error like this:
+
+> Error: UPGRADE FAILED: current release manifest contains removed kubernetes api(s) for this kubernetes version and it is therefore unable to build the kubernetes objects for performing the diff. error from kubernetes: unable to recognize "": no matches for kind "Ingress" in version "extensions/v1beta1"
+
+In which case you can use the [helm mapkubeapis plugin](https://github.com/helm/helm-mapkubeapis) to upgrade an existing release with the following command:
+
+```sh
+# install plugin version 0.1.0 (more recent may not work)
+helm plugin install --version v0.1.0 https://github.com/helm/helm-mapkubeapis
+# adjust helm release name and namespace as required
+helm mapkubeapis --namespace wire nginx-ingress-services
+```
+
+Alternatively, if a few minutes of downtime are not a problem; you can `helm delete` a release and re-install it again, which will work without the above plugin.
