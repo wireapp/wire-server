@@ -15,24 +15,19 @@ The targeted audience of this documentation is:
 
 If you are a developer, you may want to check out the "Notes for developers" first.
 
-This documentation may be expanded in the future to cover other aspects of Wire.
+Release notes of `wire-server` can be found [here](https://github.com/wireapp/wire-server/releases).
 
 ```{toctree}
 :caption: 'Contents:'
 :glob: true
 :maxdepth: 1
 
-Release notes <release-notes>
-
+Security responses <security-responses/index>
+Release Notes <changelog/index>
 Installation <how-to/install/index>
 Administration <how-to/administrate/index>
-Connecting Wire Clients <how-to/associate/index>
-Optional Configuration <configuration-options>
-Understanding wire-server components <understand/index>
-Single-Sign-On and user provisioning <how-to/single-sign-on/index.rst>
-Client API documentation <understand/api-client-perspective/index>
-Security responses <security-responses/index>
-Notes for developers <developer/index>
+Reference <understand/index>
+Developers Notes <developer/index>
 ```
 
 % Overview <understand/overview>

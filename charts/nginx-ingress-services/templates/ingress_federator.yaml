@@ -1,7 +1,9 @@
+{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
 {{- if .Values.federator.enabled }}
 # We use a separate ingress for federator so that we can require client
 # certificates only for federation requests
-apiVersion: extensions/v1beta1
+apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
   name: federator-ingress
@@ -24,6 +26,13 @@ spec:
       http:
         paths:
           - backend:
+              {{- if $apiIsStable }}
+              service:
+                name: federator
+                port:
+                  name: federator-ext
+              {{- else }}
               serviceName: federator
               servicePort: federator-ext # name must be below 15 chars
+              {{- end }}
 {{- end }}

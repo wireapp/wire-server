@@ -159,7 +159,7 @@ the backend.
 -   `get-user-clients`: Given a list of user ids, return a list of all their clients with public information
 -   `send-connection-action`: Make and also respond to user connection requests
 -   `on-user-deleted-connections`: Notify users that are connected to remote user about that user's deletion
--   `get-mls-clients`: Request all [MLS](../../how-to/install/mls)-capable clients for a given user
+-   `get-mls-clients`: Request all {ref}`MLS <mls-message-layer-security>`-capable clients for a given user
 -   `claim-key-packages`: Claim a previously-uploaded KeyPackage of a remote user. User for adding users to MLS conversations.
 
 See [the brig source
