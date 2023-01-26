@@ -6,7 +6,6 @@ on:
 jobs:
   treefmt:
    name: Run treefmt
-   environment: cachix # for secrets
    runs-on: ubuntu-latest
    steps:
      - uses: actions/checkout@v2
@@ -25,7 +24,6 @@ jobs:
 
   build-docs:
     name: Build docs
-    environment: cachix
     runs-on: ubuntu-latest
     permissions:
       id-token: write
