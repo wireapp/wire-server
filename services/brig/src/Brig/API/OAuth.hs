@@ -357,5 +357,4 @@ deleteOAuthRefreshToken info = do
 lookupAndDeleteOAuthRefreshToken :: (MonadClient m) => OAuthRefreshTokenId -> m (Maybe OAuthRefreshTokenInfo)
 lookupAndDeleteOAuthRefreshToken rid = do
   mInfo <- lookupOAuthRefreshTokenInfo rid
-  for_ mInfo deleteOAuthRefreshToken
-  pure mInfo
+  for_ mInfo deleteOAuthRefreshToken $> mInfo

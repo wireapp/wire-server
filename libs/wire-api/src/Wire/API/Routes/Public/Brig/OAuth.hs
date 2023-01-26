@@ -49,7 +49,21 @@ type OAuthAPI =
               ]
              (Maybe OAuthClient)
     )
-    :<|> Doo
+    :<|> Named
+           "create-oauth-auth-code"
+           ( Summary "Create an OAuth authorization code"
+               :> Description "Currently only supports the 'code' response type, which corresponds to the authorization code flow."
+               :> ZUser
+               :> "oauth"
+               :> "authorization"
+               :> "codes"
+               :> ReqBody '[JSON] NewOAuthAuthCode
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    CreateOAuthAuthCodeResponses
+                    (RedirectUrl, Maybe CreateOAuthCodeError)
+           )
     :<|> Named
            "create-oauth-access-token"
            ( Summary "Create an OAuth access token"
@@ -94,23 +108,6 @@ type CreateOAuthAuthCodeResponses =
      -- redirect url mismatch
      WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 400 "Bad Request")
    ]
-
-type Doo =
-  Named
-    "create-oauth-auth-code"
-    ( Summary "Create an OAuth authorization code"
-        :> Description "Currently only supports the 'code' response type, which corresponds to the authorization code flow."
-        :> ZUser
-        :> "oauth"
-        :> "authorization"
-        :> "codes"
-        :> ReqBody '[JSON] NewOAuthAuthCode
-        :> MultiVerb
-             'POST
-             '[JSON]
-             CreateOAuthAuthCodeResponses
-             (RedirectUrl, Maybe CreateOAuthCodeError)
-    )
 
 data CreateOAuthCodeError
   = CreateOAuthCodeFeatureDisabled
