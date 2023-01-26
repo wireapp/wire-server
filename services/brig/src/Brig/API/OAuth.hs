@@ -44,57 +44,6 @@ import Polysemy (Member)
 import Servant hiding (Handler, Tagged)
 import Wire.API.Error
 import Wire.API.OAuth as OAuth
-  ( NewOAuthAuthCode (NewOAuthAuthCode),
-    NewOAuthClient (NewOAuthClient),
-    OAuthAccessToken,
-    OAuthAccessTokenRequest
-      ( oatClientId,
-        oatClientSecret,
-        oatCode,
-        oatGrantType,
-        oatRedirectUri
-      ),
-    OAuthAccessTokenResponse (OAuthAccessTokenResponse),
-    OAuthAccessTokenType (OAuthAccessTokenTypeBearer),
-    OAuthApplication (OAuthApplication),
-    OAuthApplicationName,
-    OAuthAuthCode (OAuthAuthCode),
-    OAuthClaimsSet (OAuthClaimsSet),
-    OAuthClient (..),
-    OAuthClientCredentials (OAuthClientCredentials),
-    OAuthClientPlainTextSecret (..),
-    OAuthError
-      ( OAuthAuthCodeNotFound,
-        OAuthClientNotFound,
-        OAuthFeatureDisabled,
-        OAuthInvalidClientCredentials,
-        OAuthInvalidGrantType,
-        OAuthInvalidRefreshToken,
-        OAuthJwtError,
-        OAuthRedirectUrlMissMatch
-      ),
-    OAuthGrantType
-      ( OAuthGrantTypeAuthorizationCode,
-        OAuthGrantTypeRefreshToken
-      ),
-    OAuthRefreshAccessTokenRequest
-      ( oartClientId,
-        oartClientSecret,
-        oartGrantType,
-        oartRefreshToken
-      ),
-    OAuthRefreshToken,
-    OAuthRefreshTokenInfo (..),
-    OAuthResponseType (OAuthResponseTypeCode),
-    OAuthRevokeRefreshTokenRequest (ortrClientSecret, ortrRefreshToken),
-    OAuthScope,
-    OAuthScopes (..),
-    OAuthToken (OAuthToken, unOAuthToken),
-    RedirectUrl,
-    addParams,
-    hcsSub,
-    verify',
-  )
 import qualified Wire.API.Routes.Internal.Brig.OAuth as I
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public.Brig.OAuth (CreateOAuthCodeError (..), OAuthAPI)
