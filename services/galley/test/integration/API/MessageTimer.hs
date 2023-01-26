@@ -32,7 +32,7 @@ import qualified Data.List1 as List1
 import Data.Misc
 import Data.Qualified
 import Data.Singletons
-import Federator.MockServer (FederatedRequest (..))
+import Federator.MockServer
 import Imports hiding (head)
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -156,7 +156,7 @@ messageTimerChangeWithRemotes = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
           !!! const 200 === statusCode
 

@@ -24,6 +24,7 @@ import Bilge.Assert
 import Bilge.TestSession
 import Brig.Types.Connection
 import Brig.Types.Intra (UserAccount (..))
+import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens hiding (from, to, uncons, (#), (.=))
@@ -69,7 +70,7 @@ import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
 import qualified Data.UUID as UUID
 import Data.UUID.V4
-import Federator.MockServer (FederatedRequest (..))
+import Federator.MockServer
 import qualified Federator.MockServer as Mock
 import GHC.TypeLits (KnownSymbol)
 import Galley.API.MLS.Types
@@ -721,7 +722,7 @@ postConvWithRemoteUsers ::
   TestM (Response (Maybe LByteString))
 postConvWithRemoteUsers u n =
   fmap fst $
-    withTempMockFederator (const ()) $
+    withTempMockFederator' (mockReply ()) $
       postConvQualified u n {newConvName = setName (newConvName n)}
         <!! const 201
           === statusCode
@@ -841,12 +842,10 @@ postProteusMessageQualifiedWithMockFederator ::
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
-  (Domain -> ServerT (FedApi 'Brig) Handler) ->
-  (Domain -> ServerT (FedApi 'Galley) Handler) ->
+  Mock LByteString ->
   TestM (ResponseLBS, [FederatedRequest])
-postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
-  localDomain <- viewFederationDomain
-  withTempServantMockFederator brigApi galleyApi localDomain $
+postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat mock =
+  withTempMockFederator' mock $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -2578,47 +2577,20 @@ mkProfile quid name =
 
 -- | Run the given action on a temporary galley instance with access to a mock
 -- federator.
---
--- The `resp :: FederatedRequest -> a` argument can be used to provide a fake
--- federator response (of an arbitrary JSON-serialisable type a) for every
--- expected request.
-withTempMockFederator ::
-  ToJSON a =>
-  (FederatedRequest -> a) ->
-  TestM b ->
-  TestM (b, [FederatedRequest])
-withTempMockFederator resp = withTempMockFederator' $ pure . encode . resp
-
 withTempMockFederator' ::
   (MonadIO m, MonadMask m, HasSettingsOverrides m) =>
-  (FederatedRequest -> IO LByteString) ->
+  Mock LByteString ->
   m b ->
   m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
+  let mock = runMock (assertFailure . Text.unpack) $ do
+        r <- resp
+        pure ("application" // "json", r)
   Mock.withTempMockFederator
     [("Content-Type", "application/json")]
-    ((\r -> pure ("application" // "json", r)) <=< resp)
+    mock
     $ \mockPort -> do
       withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
-
--- Start a mock federator. Use provided Servant handler for the mocking function.
-withTempServantMockFederator ::
-  (Domain -> ServerT (FedApi 'Brig) Handler) ->
-  (Domain -> ServerT (FedApi 'Galley) Handler) ->
-  Domain ->
-  TestM b ->
-  TestM (b, [FederatedRequest])
-withTempServantMockFederator brigApi galleyApi originDomain =
-  withTempMockFederator' mock
-  where
-    server :: Domain -> ServerT CombinedBrigAndGalleyAPI Handler
-    server d = brigApi d :<|> galleyApi d
-
-    mock :: FederatedRequest -> IO LByteString
-    mock req =
-      makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (frTargetDomain req)) req
-
-type CombinedBrigAndGalleyAPI = FedApi 'Brig :<|> FedApi 'Galley
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.
@@ -2778,28 +2750,10 @@ checkTimeout = 3 # Second
 
 -- | The function is used in conjuction with 'withTempMockFederator' to mock
 -- responses by Brig on the mocked side of federation.
-mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> FederatedRequest -> Maybe Value
-mockedFederatedBrigResponse users req
-  | frComponent req == Brig =
-      Just . toJSON $ [mkProfile mem (Name name) | (mem, name) <- users]
-  | otherwise = Nothing
-
--- | Combine two mocked services such that for a given request a JSON response
--- is produced.
-joinMockedFederatedResponses ::
-  (FederatedRequest -> Maybe Value) ->
-  (FederatedRequest -> Maybe Value) ->
-  FederatedRequest ->
-  Value
-joinMockedFederatedResponses service1 service2 req =
-  fromMaybe (toJSON ()) (service1 req <|> service2 req)
-
--- | Only Brig is mocked.
-onlyMockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> FederatedRequest -> Value
-onlyMockedFederatedBrigResponse users =
-  joinMockedFederatedResponses
-    (mockedFederatedBrigResponse users)
-    (const Nothing)
+mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> Mock LByteString
+mockedFederatedBrigResponse users = do
+  guardComponent Brig
+  mockReply [mkProfile mem (Name name) | (mem, name) <- users]
 
 fedRequestsForDomain :: HasCallStack => Domain -> Component -> [FederatedRequest] -> [FederatedRequest]
 fedRequestsForDomain domain component =
