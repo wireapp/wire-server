@@ -51,7 +51,6 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as B8
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id
@@ -758,7 +757,7 @@ createMLSSubConversation galley zusr qcnv sconv =
           toByteString' (qDomain qcnv),
           toByteString' (qUnqualified qcnv),
           "subconversations",
-          LBS.toStrict (toLazyByteString (toEncodedUrlPiece sconv))
+          toHeader sconv
         ]
       . zUser zusr
 

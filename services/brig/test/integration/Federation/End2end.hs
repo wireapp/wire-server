@@ -122,7 +122,7 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "claim remote key packages" $ claimRemoteKeyPackages brig brigTwo,
         test mg "send an MLS message to a remote user" $
           testSendMLSMessage brig brigTwo galley galleyTwo cannon cannonTwo,
-        test mg "send an MLS message to a federated user" $
+        test mg "send an MLS subconversation message to a federated user" $
           testSendMLSMessageToSubConversation brig brigTwo galley galleyTwo cannon cannonTwo
       ]
 
@@ -1155,9 +1155,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
       responseJsonError
         =<< createMLSSubConversation galley2 (userId bob) qconvId (SubConvId "sub")
           <!! const 200 === statusCode
-    subGroupId <- case cnvProtocol subConv of
-      ProtocolMLS p -> pure (unGroupId (cnvmlsGroupId p))
-      ProtocolProteus -> liftIO $ assertFailure "Expected MLS conversation"
+    let subGroupId = unGroupId . pscGroupId $ subConv
     subGroupJSON <-
       liftIO $
         spawn
