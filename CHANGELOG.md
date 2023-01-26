@@ -1,3 +1,80 @@
+# [2023-01-26] (Chart Release 4.31.0)
+
+## Release notes
+
+
+* wire-server helm charts using Ingress resources are now compatible with kubernetes versions 1.22, 1.23 and 1.24 (but remain compatible with older versions of kubernetes).
+
+  If you upgrade to this version of helm charts and/or you upgrade your version of kubernetes while wire-server is deployed, you may find that `helm update` or `helmfile apply/sync` gives an error like this:
+
+  > Error: UPGRADE FAILED: current release manifest contains removed kubernetes api(s) for this kubernetes version and it is therefore unable to build the kubernetes objects for performing the diff. error from kubernetes: unable to recognize "": no matches for kind "Ingress" in version "extensions/v1beta1"
+
+  In which case you can use the [helm mapkubeapis plugin](https://github.com/helm/helm-mapkubeapis) to upgrade an existing release with the following command:
+
+  ```sh
+  # install plugin version 0.1.0 (more recent may not work)
+  helm plugin install --version v0.1.0 https://github.com/helm/helm-mapkubeapis
+  # adjust helm release name and namespace as required
+  helm mapkubeapis --namespace wire nginx-ingress-services
+  ```
+
+  Alternatively, if a few minutes of downtime are not a problem; you can `helm delete` a release and re-install it again, which will work without the above plugin. (#3002)
+
+* Upgrade team-settings version to 4.14.0-v0.31.9-0-bf82b46 (#2180)
+
+* Upgrade webapp version to 2023-01-24-production.0-v0.31.9-0-17b742f (#2302)
+
+
+## API changes
+
+
+* The unqualified `GET /conversations/:id` endpoint has been removed from API v3, and is restored to the previous behaviour of returning a Conversation using the v2 schema. Similarly, its qualified counterpart `GET /conversations/:domain/:id` now returns a v2 Conversation when accessed through API v2. (#2992)
+
+
+## Bug fixes and other updates
+
+
+* Fix pagination in team user search (make search key unique) (#2968)
+
+* Update `inbucket` (fake smtp server) chart dependency: The prior version relied on an image that has been removed from docker hub. Thus, our own `inbucket` chart could not be deployed anymore. (#2998)
+
+
+## Documentation
+
+
+* Add sphinx-copybutton plugin to make copying snippets of code from docs.wire.com easier. (#PR_NOT_FOUND)
+
+* Hook federated API call documentation into docs.wire.com (manually). (#2988)
+
+* Tool for dumping fed call graphs (dot/graphviz and csv); see README for details (#2973)
+
+
+## Internal changes
+
+
+* Add Helm chart to configure clusters managed by k8ssandra-operator for test environments. (#2981)
+
+* Fix kind setup for running end-to-end federation tests locally. (#3008)
+
+* Fix Makefile target kind-restart-all. (#3015)
+
+* Add combinators for creating mocked federator responses in integration tests (#3014)
+
+* Add two integration tests arounds last prekeys (#2694)
+
+* Fix `make clean` (#2965, #2978)
+
+* Make ID tags more readable by expanding abbreviations to full names. (#2991)
+
+* Unused old swagger code removed from stern and team features (#3017)
+
+* Refactor Writetime from Int64 to wrapper of UTCTime (#2994)
+
+* Restructure docs.wire.com (#2986)
+
+* Fixed flaky team user search integration test (#2996)
+
+
 # [2023-01-12] (Chart Release 4.30.0)
 
 ## Release notes
