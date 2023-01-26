@@ -42,7 +42,7 @@ import Data.Qualified
 import Data.Range (checked)
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import Federation.Util (connectUsersEnd2End, generateClientPrekeys, getConvQualified)
+import Federation.Util
 import Imports
 import System.FilePath
 import qualified System.Logger as Log
@@ -60,9 +60,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification (ntfTransient)
-import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -1198,24 +1196,13 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
                 ]
             )
             Nothing
-
-      subGroupStateRaw <- liftIO $ BS.readFile $ tmp </> "subgroupstate.mls"
-      subGroupState <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subGroupStateRaw
-      subCommit <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subCommitRaw
-      let subGroupBundle = CommitBundle subCommit Nothing (GroupInfoBundle UnencryptedGroupInfo TreeFull subGroupState)
-      let subGroupBundleRaw = serializeCommitBundle subGroupBundle
-      post
-        ( galley2
-            . paths
-              ["mls", "commit-bundles"]
-            . zUser (userId bob)
-            . zClient bobClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "application/x-protobuf"
-            . bytes subGroupBundleRaw
-        )
-        !!! const 201 === statusCode
+      sendCommitBundle
+        tmp
+        "subgroupstate.mls"
+        galley2
+        (userId bob)
+        bobClient
+        subCommitRaw
 
     -- alice sends an external commit to add herself to the subconveration
     do
@@ -1235,24 +1222,13 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
                 ]
             )
             Nothing
-
-      subGroupStateRaw <- liftIO $ BS.readFile $ tmp </> "subgroupstateA.mls"
-      subGroupState <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subGroupStateRaw
-      subCommit <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subCommitRaw
-      let subGroupBundle = CommitBundle subCommit Nothing (GroupInfoBundle UnencryptedGroupInfo TreeFull subGroupState)
-      let subGroupBundleRaw = serializeCommitBundle subGroupBundle
-      post
-        ( galley1
-            . paths
-              ["mls", "commit-bundles"]
-            . zUser (userId alice)
-            . zClient aliceClient
-            . zConn "conn"
-            . header "Z-Type" "access"
-            . content "application/x-protobuf"
-            . bytes subGroupBundleRaw
-        )
-        !!! const 201 === statusCode
+      sendCommitBundle
+        tmp
+        "subgroupstateA.mls"
+        galley1
+        (userId alice)
+        aliceClient
+        subCommitRaw
 
     -- prepare bob's message to the subconversation
     dove <-
