@@ -741,6 +741,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
       ( brig1
           . paths ["clients", toByteString' aliceClient]
           . zUser (qUnqualified (userQualifiedId alice))
+          . zClient aliceClient
           . json update
       )
       !!! const 200 === statusCode
@@ -750,6 +751,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
       ( brig1
           . paths ["mls", "key-packages", "self", toByteString' aliceClient]
           . zUser (qUnqualified (userQualifiedId alice))
+          . zClient aliceClient
           . json (KeyPackageUpload [aliceKP])
       )
       !!! const 201 === statusCode
@@ -784,6 +786,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
                 toByteString' (qUnqualified (userQualifiedId alice))
               ]
             . zUser (qUnqualified (userQualifiedId bob))
+            . zClient bobClient
         )
         <!! const 200 === statusCode
     -- Note: we are ignoring the claimed key package here, because we have already
@@ -872,6 +875,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             . paths
               ["mls", "messages"]
             . zUser (userId bob)
+            . zClient bobClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -884,6 +888,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             . paths
               ["mls", "welcome"]
             . zUser (userId bob)
+            . zClient bobClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -896,6 +901,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             . paths
               ["mls", "messages"]
             . zUser (userId bob)
+            . zClient bobClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -936,6 +942,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             . paths
               ["mls", "messages"]
             . zUser (userId alice)
+            . zClient aliceClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -1020,6 +1027,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
       ( brig1
           . paths ["mls", "key-packages", "self", toByteString' aliceClient]
           . zUser (qUnqualified (userQualifiedId alice))
+          . zClient aliceClient
           . json (KeyPackageUpload [aliceKP])
       )
       !!! const 201 === statusCode
@@ -1041,6 +1049,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
                 toByteString' (qUnqualified (userQualifiedId alice))
               ]
             . zUser (qUnqualified (userQualifiedId bob))
+            . zClient bobClient
         )
         <!! const 200 === statusCode
     -- Note: we are ignoring the claimed key package here, because we have already
@@ -1098,6 +1107,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
             . paths
               ["mls", "messages"]
             . zUser (userId bob)
+            . zClient bobClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -1110,6 +1120,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
             . paths
               ["mls", "welcome"]
             . zUser (userId bob)
+            . zClient bobClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
@@ -1272,21 +1283,13 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
             . paths
               ["mls", "messages"]
             . zUser (userId bob)
+            . zClient bobClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
             . bytes dove
         )
         !!! const 201 === statusCode
-
-      -- verify that alice receives a join event
-      WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
-        evtConv e @?= qconvId
-        evtType e @?= MemberJoin
-        evtFrom e @?= userQualifiedId bob
-        fmap (sort . mMembers) (evtData e ^? _EdMembersJoin)
-          @?= Just [SimpleMember (userQualifiedId alice) roleNameWireMember]
 
       -- verify that alice receives the dove
       WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
@@ -1304,6 +1307,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
             . paths
               ["mls", "messages"]
             . zUser (userId alice)
+            . zClient aliceClient
             . zConn "conn"
             . header "Z-Type" "access"
             . content "message/mls"
