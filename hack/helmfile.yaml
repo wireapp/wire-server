@@ -19,7 +19,7 @@ environments:
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
       - imagePullPolicy: Always
-      - redisStorageClass: csi-hostpath-sc
+      - redisStorageClass: hcloud-volumes
   kind:
     values:
       - namespace: {{ requiredEnv "NAMESPACE_1" }}
