@@ -1133,7 +1133,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
         let e = List1.head (WS.unpackPayload n)
         ntfTransient n @?= False
         evtType e @?= MLSWelcome
-        evtFrom e @?= userQualifiedId alice -- TODO(SB) why not bob?
+        evtFrom e @?= userQualifiedId alice
         evtData e @?= EdMLSWelcome welcome
 
       -- verify that alice receives a join event
@@ -1181,8 +1181,8 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
           Nothing
     liftIO $ BS.writeFile (tmp </> "subgroup.json") subGroupJSON
 
+    -- bob sends commit bundle for subconversation
     do
-      -- invite alice to subconversation
       subCommitRaw <-
         liftIO $
           spawn
@@ -1199,7 +1199,6 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
             )
             Nothing
 
-      -- send welcome and commit bundle
       subGroupStateRaw <- liftIO $ BS.readFile $ tmp </> "subgroupstate.mls"
       subGroupState <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subGroupStateRaw
       subCommit <- either (liftIO . assertFailure . T.unpack) pure . decodeMLS' $ subCommitRaw
@@ -1218,9 +1217,8 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
         )
         !!! const 201 === statusCode
 
+    -- alice sends an external commit to add herself to the subconveration
     do
-      -- TODO(SB) create function
-      -- alice creates the group for the subconversation
       subCommitRaw <-
         liftIO $
           spawn
@@ -1256,7 +1254,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
         )
         !!! const 201 === statusCode
 
-    -- send a message to the group
+    -- prepare bob's message to the subconversation
     dove <-
       liftIO $
         spawn
@@ -1267,6 +1265,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
           )
           Nothing
 
+    -- prepare alice's reply to the subconversation
     reply <-
       liftIO $
         spawn
@@ -1277,6 +1276,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
           )
           Nothing
 
+    -- send bob's message
     WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
       post
         ( galley2
@@ -1291,7 +1291,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
         )
         !!! const 201 === statusCode
 
-      -- verify that alice receives the dove
+      -- verify that alice receives bob's message in the subconversation
       WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
         let e = List1.head (WS.unpackPayload n)
         ntfTransient n @?= False
@@ -1300,7 +1300,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
         evtFrom e @?= userQualifiedId bob
         evtData e @?= EdMLSMessage dove
 
-    -- send the reply and assert reception
+    -- send alice's message
     WS.bracketR cannon2 (userId bob) $ \wsBob -> do
       post
         ( galley1
@@ -1315,7 +1315,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
         )
         !!! const 201 === statusCode
 
-      -- verify that bob receives the reply
+      -- verify that bob receives alice's message in the subconversation
       WS.assertMatch_ (5 # Second) wsBob $ \n -> do
         let e = List1.head (WS.unpackPayload n)
         ntfTransient n @?= False
