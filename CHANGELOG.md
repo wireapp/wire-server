@@ -42,7 +42,7 @@
 ## Documentation
 
 
-* Add sphinx-copybutton plugin to make copying snippets of code from docs.wire.com easier. (#PR_NOT_FOUND)
+* Add sphinx-copybutton plugin to make copying snippets of code from docs.wire.com easier. (#2900)
 
 * Hook federated API call documentation into docs.wire.com (manually). (#2988)
 
