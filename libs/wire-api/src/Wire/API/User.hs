@@ -150,7 +150,7 @@ import qualified Data.Text.Encoding as T
 import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
 import Deriving.Swagger
-import GHC.TypeLits (KnownNat, Nat)
+import GHC.TypeLits
 import qualified Generics.SOP as GSOP
 import Imports
 import qualified SAML2.WebSSO as SAML
@@ -226,14 +226,14 @@ newtype LimitedQualifiedUserIdList (max :: Nat) = LimitedQualifiedUserIdList
   deriving stock (Eq, Show, Generic)
   deriving (S.ToSchema) via CustomSwagger '[FieldLabelModifier CamelToSnake] (LimitedQualifiedUserIdList max)
 
-instance (KnownNat max, LTE 1 max) => Arbitrary (LimitedQualifiedUserIdList max) where
+instance (KnownNat max, 1 <= max) => Arbitrary (LimitedQualifiedUserIdList max) where
   arbitrary = LimitedQualifiedUserIdList <$> arbitrary
 
-instance LTE 1 max => FromJSON (LimitedQualifiedUserIdList max) where
+instance (KnownNat max, 1 <= max) => FromJSON (LimitedQualifiedUserIdList max) where
   parseJSON = A.withObject "LimitedQualifiedUserIdList" $ \o ->
     LimitedQualifiedUserIdList <$> o A..: "qualified_users"
 
-instance LTE 1 max => ToJSON (LimitedQualifiedUserIdList max) where
+instance 1 <= max => ToJSON (LimitedQualifiedUserIdList max) where
   toJSON e = A.object ["qualified_users" A..= qualifiedUsers e]
 
 --------------------------------------------------------------------------------

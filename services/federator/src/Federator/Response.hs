@@ -27,6 +27,7 @@ where
 import Control.Lens
 import Control.Monad.Codensity
 import Data.ByteString.Builder
+import Data.Kind
 import Federator.Discovery
 import Federator.Env
 import Federator.Error
@@ -55,7 +56,7 @@ import Wire.Sem.Logger.TinyLog
 defaultHeaders :: [HTTP.Header]
 defaultHeaders = [("Content-Type", "application/json")]
 
-class ErrorEffects (ee :: [*]) r where
+class ErrorEffects (ee :: [Type]) r where
   type Row ee :: EffectRow
   runWaiErrors ::
     Sem (Append (Row ee) r) Wai.Response ->

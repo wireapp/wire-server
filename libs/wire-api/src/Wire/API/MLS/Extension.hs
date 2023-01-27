@@ -44,6 +44,7 @@ module Wire.API.MLS.Extension
 where
 
 import Data.Binary
+import Data.Kind
 import Data.Singletons.TH
 import Data.Time.Clock.POSIX
 import Imports
@@ -86,7 +87,7 @@ data ExtensionTag
 
 $(genSingletons [''ExtensionTag])
 
-type family ExtensionType (t :: ExtensionTag) :: * where
+type family ExtensionType (t :: ExtensionTag) :: Type where
   ExtensionType 'CapabilitiesExtensionTag = Capabilities
   ExtensionType 'LifetimeExtensionTag = Lifetime
 

@@ -29,13 +29,13 @@ module Galley.Effects.TeamFeatureStore
 where
 
 import Data.Id
-import Data.Kind (Constraint)
+import Data.Kind
 import Data.Proxy
 import Imports
 import Polysemy
 import Wire.API.Team.Feature
 
-type family FeaturePersistentConstraint db :: * -> Constraint
+type family FeaturePersistentConstraint db :: Type -> Constraint
 
 data TeamFeatureStore db m a where
   -- the proxy argument makes sure that makeSem below generates type-inference-friendly code

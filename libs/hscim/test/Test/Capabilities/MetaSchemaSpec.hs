@@ -44,9 +44,9 @@ app = do
 
 shouldSatisfy ::
   (Show a, FromJSON a) =>
-  WaiSession SResponse ->
+  WaiSession st SResponse ->
   (a -> Bool) ->
-  WaiExpectation
+  WaiExpectation st
 shouldSatisfy resp predicate = do
   maybeDecoded <- eitherDecode . simpleBody <$> resp
   case maybeDecoded of
@@ -69,7 +69,7 @@ coreSchemas =
   ]
 
 spec :: Spec
-spec = beforeAll app $ do
+spec = with app $ do
   describe "GET /Schemas" $ do
     it "lists schemas" $ do
       get "/Schemas" `shouldRespondWith` 200

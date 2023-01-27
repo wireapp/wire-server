@@ -53,7 +53,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits (testBit, (.|.))
 import Data.Schema
 import qualified Data.Set as Set
-import Data.Singletons.TH
+import Data.Singletons.Base.TH
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
@@ -211,4 +211,5 @@ instance Cql.Cql Permissions where
   fromCql _ = Left "permissions: udt expected"
 
 $(genSingletons [''Perm])
+
 $(promoteShowInstances [''Perm])

@@ -44,6 +44,7 @@ import Data.Domain
 import Data.Either.Combinators
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
@@ -98,8 +99,8 @@ class
   IsZType (ztype :: ZType) ctx
   where
   type ZHeader ztype :: Symbol
-  type ZParam ztype :: *
-  type ZQualifiedParam ztype :: *
+  type ZParam ztype :: Type
+  type ZQualifiedParam ztype :: Type
 
   qualifyZParam :: Context ctx -> ZParam ztype -> ZQualifiedParam ztype
 
@@ -165,7 +166,7 @@ instance IsZType 'ZAuthProvider ctx where
 instance HasTokenType 'ZAuthProvider where
   tokenType = Just "provider"
 
-data ZAuthServant (ztype :: ZType) (opts :: [*])
+data ZAuthServant (ztype :: ZType) (opts :: [Type])
 
 type InternalAuthDefOpts = '[Servant.Required, Servant.Strict]
 

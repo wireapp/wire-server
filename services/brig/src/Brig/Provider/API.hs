@@ -78,6 +78,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
 import qualified Data.ZAuth.Token as ZAuth
+import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -1234,7 +1235,7 @@ maybeInvalidBot = maybe (throwStd invalidBot) pure
 maybeInvalidUser :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidUser = maybe (throwStd (errorToWai @'E.InvalidUser)) pure
 
-rangeChecked :: (Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
+rangeChecked :: (KnownNat n, KnownNat m, Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) pure . checkedEither
 
 invalidServiceKey :: Wai.Error

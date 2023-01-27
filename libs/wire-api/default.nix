@@ -80,6 +80,8 @@
 , servant-swagger
 , servant-swagger-ui
 , singletons
+, singletons-base
+, singletons-th
 , sop-core
 , string-conversions
 , swagger
@@ -179,6 +181,8 @@ mkDerivation {
     servant-swagger
     servant-swagger-ui
     singletons
+    singletons-base
+    singletons-th
     sop-core
     string-conversions
     swagger

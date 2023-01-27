@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Named where
 
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
 import GHC.TypeLits
@@ -51,7 +52,7 @@ instance HasClient m api => HasClient m (Named n api) where
   clientWithRoute pm _ req = clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
 
-type family FindName n (api :: *) :: (n, *) where
+type family FindName n (api :: Type) :: (n, Type) where
   FindName n (Named name api) = '(name, api)
   FindName n (x :> api) = AddPrefix x (FindName n api)
   FindName n api = '(TypeError ('Text "Named combinator not found"), api)
@@ -89,7 +90,7 @@ type family FMap (f :: a -> b) (m :: Maybe a) :: Maybe b where
   FMap _ 'Nothing = 'Nothing
   FMap f ('Just a) = 'Just (f a)
 
-type family LookupEndpoint api name :: Maybe (*) where
+type family LookupEndpoint api name :: Maybe Type where
   LookupEndpoint (Named name endpoint) name = 'Just endpoint
   LookupEndpoint (api1 :<|> api2) name =
     MappendMaybe
