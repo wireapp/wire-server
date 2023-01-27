@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -236,7 +237,7 @@ jsonRoundtrip = testProperty msg trip
       counterexample (show $ toJSON v) $
         Right v === (Aeson.parseEither parseJSON . toJSON) v
 
-jsonKeyRoundtrip :: forall a. (Arbitrary a, Typeable a, ToJSONKey a, FromJSONKey a, Eq a, Show a, Ord a) => TestTree
+jsonKeyRoundtrip :: forall a. (Arbitrary a, Typeable a, ToJSONKey a, FromJSONKey a, Show a, Ord a) => TestTree
 jsonKeyRoundtrip = testProperty msg trip
   where
     msg = "json key round trip: " <> show (typeRep @a)

@@ -147,7 +147,7 @@ toInfo (Path p) =
 -- | Checks whether a given key exists in a mutable hashmap (i.e. one inside an IORef)
 -- If it exists it is returned, if it does not then one is initialized using the provided
 -- initializer, then stored, then returned.
-getOrCreate :: (MonadIO m, Eq k, Hashable k) => IORef (HashMap k v) -> k -> IO v -> m v
+getOrCreate :: (MonadIO m, Hashable k) => IORef (HashMap k v) -> k -> IO v -> m v
 getOrCreate mapRef key initializer = liftIO $ do
   hMap <- readIORef mapRef
   maybe initialize pure (HM.lookup key hMap)

@@ -1,5 +1,8 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -23,7 +26,7 @@ import API.User.Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import Control.Lens ((^?))
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -128,7 +131,7 @@ createTeam u galley = do
 -- | Create user and binding team.
 --
 -- NB: the created user is the team owner.
-createUserWithTeam :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) => Brig -> m (UserId, TeamId)
+createUserWithTeam :: (MonadIO m, MonadHttp m, MonadCatch m) => Brig -> m (UserId, TeamId)
 createUserWithTeam brig = do
   (user, tid) <- createUserWithTeam' brig
   pure (userId user, tid)
@@ -136,7 +139,7 @@ createUserWithTeam brig = do
 -- | Create user and binding team.
 --
 -- NB: the created user is the team owner.
-createUserWithTeam' :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m, HasCallStack) => Brig -> m (User, TeamId)
+createUserWithTeam' :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> m (User, TeamId)
 createUserWithTeam' brig = do
   e <- randomEmail
   n <- randomName
@@ -382,7 +385,7 @@ deleteInvitation brig tid iid uid =
   delete (brig . paths ["teams", toByteString' tid, "invitations", toByteString' iid] . zUser uid) !!! const 200 === statusCode
 
 postInvitation ::
-  (MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   Brig ->
   TeamId ->
   UserId ->

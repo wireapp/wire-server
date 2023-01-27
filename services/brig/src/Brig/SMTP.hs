@@ -214,14 +214,14 @@ ensureSMTPConnectionTimeout timeoutDuration action =
 -- a timeout happens and on every other network failure.
 --
 -- `defaultTimeoutDuration` is used as timeout duration for all actions.
-sendMail :: (MonadIO m, MonadCatch m) => Logger -> SMTP -> Mail -> m ()
+sendMail :: MonadIO m => Logger -> SMTP -> Mail -> m ()
 sendMail = sendMail' defaultTimeoutDuration
 
 -- | `sendMail` with configurable timeout duration
 --
 -- This is mostly useful for testing. (We don't want to waste the amount of
 -- `defaultTimeoutDuration` in tests with waiting.)
-sendMail' :: (MonadIO m, MonadCatch m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
+sendMail' :: (MonadIO m, TimeUnit t) => t -> Logger -> SMTP -> Mail -> m ()
 sendMail' timeoutDuration lg s m = liftIO $ withResource (s ^. pool) sendMail''
   where
     sendMail'' :: SMTP.SMTPConnection -> IO ()

@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --

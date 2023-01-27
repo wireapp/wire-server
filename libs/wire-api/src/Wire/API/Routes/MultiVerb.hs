@@ -282,7 +282,7 @@ instance
     guard (responseStatusCode resp == statusVal (Proxy @s))
     pure $ responseBody resp
 
-instance (KnownStatus s, KnownSymbol desc) => IsSwaggerResponse (RespondStreaming s desc framing ct) where
+instance KnownSymbol desc => IsSwaggerResponse (RespondStreaming s desc framing ct) where
   responseSwagger =
     pure $
       mempty
@@ -335,7 +335,6 @@ headerName =
 instance
   ( KnownSymbol name,
     ServantHeader h name x,
-    ToHttpApiData x,
     FromHttpApiData x,
     ServantHeaders hs xs
   ) =>

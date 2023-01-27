@@ -1,5 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -77,7 +80,7 @@ newtype Assertions a = Assertions
 -- assertion that failed). It will also return the response,
 -- so it can be used for further inspection.
 (<!!) ::
-  (HasCallStack, Functor m, MonadIO m, MonadCatch m) =>
+  (HasCallStack, MonadIO m, MonadCatch m) =>
   m (Response (Maybe Lazy.ByteString)) ->
   Assertions () ->
   m (Response (Maybe Lazy.ByteString))
@@ -95,12 +98,12 @@ io <!! aa = do
     msg :: (Int, Maybe String) -> String
     msg (i, Just m) = printf "%2d: " i ++ err m
     msg _ = ""
-    printErr :: MonadIO m => SomeException -> m a
+    printErr :: SomeException -> m a
     printErr e = error $ title "Error executing request: " ++ err (show e)
 
 -- | Like '<!!' but discards the 'Response'.
 (!!!) ::
-  (HasCallStack, Functor m, MonadIO m, MonadCatch m) =>
+  (HasCallStack, MonadIO m, MonadCatch m) =>
   m (Response (Maybe Lazy.ByteString)) ->
   Assertions () ->
   m ()

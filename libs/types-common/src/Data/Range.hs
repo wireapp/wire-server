@@ -4,6 +4,9 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
+-- Disabling due to the use of LTE and other type level checks
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -118,7 +121,7 @@ instance ToJSON a => ToJSON (Range n m a) where
 instance (Within a n m, FromJSON a) => FromJSON (Range n m a) where
   parseJSON v = parseJSON v >>= maybe (msg sing sing) pure . checked
     where
-      msg :: Bounds a => SNat n -> SNat m -> Aeson.Parser (Range n m a)
+      msg :: SNat n -> SNat m -> Aeson.Parser (Range n m a)
       msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
 
 rangedSchema ::
@@ -186,7 +189,7 @@ instance (Within a n m, Cql a) => Cql (Range n m a) where
   toCql = toCql . fromRange
   fromCql c = fromCql c >>= maybe (msg sing sing) pure . checked
     where
-      msg :: Bounds a => SNat n -> SNat m -> Either String (Range n m a)
+      msg :: SNat n -> SNat m -> Either String (Range n m a)
       msg sn sm = Left (errorMsg (fromSing sn) (fromSing sm) "")
 
 instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Integer) where toParamSchema = rangedNumToParamSchema
@@ -416,7 +419,7 @@ instance Bounds (AsciiText r) where
 instance (Within a n m, Read a) => Read (Range n m a) where
   readsPrec p s = fromMaybe [] $ foldr f (Just []) (readsPrec p s)
     where
-      f :: (Within a n m, Read a) => (a, String) -> Maybe [(Range n m a, String)] -> Maybe [(Range n m a, String)]
+      f :: (a, String) -> Maybe [(Range n m a, String)] -> Maybe [(Range n m a, String)]
       f _ Nothing = Nothing
       f (a, t) (Just acc) = (\a' -> (a', t) : acc) <$> checked a
 
@@ -425,7 +428,7 @@ instance (Within a n m, Read a) => Read (Range n m a) where
 instance (Within a n m, FromByteString a) => FromByteString (Range n m a) where
   parser = parser >>= maybe (msg sing sing) pure . checked
     where
-      msg :: Bounds a => SNat n -> SNat m -> Atto.Parser (Range n m a)
+      msg :: SNat n -> SNat m -> Atto.Parser (Range n m a)
       msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
 
 instance ToByteString a => ToByteString (Range n m a) where

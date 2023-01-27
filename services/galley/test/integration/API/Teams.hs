@@ -1,5 +1,8 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -260,7 +263,7 @@ testListTeamMembersCsv numMembers = do
     users <- Util.getUsersByHandle (catMaybes someHandles)
     mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
 
-    let check :: (Show a, Eq a) => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
+    let check :: Eq a => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
         check msg getTeamExportUserAttr uid userAttr = do
           assertBool msg (isJust userAttr)
           assertEqual (msg <> ": " <> show uid) 1 (countOn getTeamExportUserAttr userAttr usersInCsv)
@@ -1134,7 +1137,7 @@ testDeleteTeamVerificationCodeWrongCode = do
 
 -- @END
 
-setFeatureLockStatus :: forall cfg. (Public.IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => TeamId -> Public.LockStatus -> TestM ()
+setFeatureLockStatus :: forall cfg. (KnownSymbol (Public.FeatureSymbol cfg)) => TeamId -> Public.LockStatus -> TestM ()
 setFeatureLockStatus tid status = do
   g <- viewGalley
   put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' status]) !!! const 200 === statusCode
@@ -2011,14 +2014,14 @@ putSSOEnabledInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM
 putSSOEnabledInternal tid statusValue =
   void $ Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig Public.FeatureTTLUnlimited)
 
-getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> MonadHttp m => m ResponseLBS
 getSearchVisibility g uid tid = do
   get $
     g
       . paths ["teams", toByteString' tid, "search-visibility"]
       . zUser uid
 
-putSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> TeamSearchVisibility -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> TeamSearchVisibility -> MonadHttp m => m ResponseLBS
 putSearchVisibility g uid tid vis = do
   put $
     g

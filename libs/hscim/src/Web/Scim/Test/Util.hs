@@ -86,7 +86,7 @@ shouldRespondWith :: HasCallStack => WaiSession SResponse -> ResponseMatcher -> 
 shouldRespondWith action matcher =
   either (liftIO . expectationFailure) pure =<< doesRespondWith action matcher
 
-doesRespondWith :: HasCallStack => WaiSession SResponse -> ResponseMatcher -> WaiSession (Either String ())
+doesRespondWith :: WaiSession SResponse -> ResponseMatcher -> WaiSession (Either String ())
 doesRespondWith action matcher = do
   r <- action
   let extmsg = "  details:  " <> show r <> "\n"

@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -336,7 +339,7 @@ checkHandleAvailable hnd = do
 
 -- | Call brig to delete a user.
 -- If the user wasn't deleted completely before, another deletion attempt will be made.
-deleteBrigUserInternal :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m DeleteUserResult
+deleteBrigUserInternal :: (HasCallStack, MonadSparToBrig m) => UserId -> m DeleteUserResult
 deleteBrigUserInternal buid = do
   resp <-
     call $

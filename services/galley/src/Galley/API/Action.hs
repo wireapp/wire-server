@@ -524,7 +524,7 @@ performConversationAccessData qusr lconv action = do
     lcnv = fmap convId lconv
     conv = tUnqualified lconv
 
-    maybeRemoveBots :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveBots :: BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveBots bm =
       if Set.member ServiceAccessRole (cupAccessRoles action)
         then pure bm

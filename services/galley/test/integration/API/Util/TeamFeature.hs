@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -33,17 +36,16 @@ import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
 import TestSetup
-import Wire.API.Team.Feature (IsFeatureConfig)
 import qualified Wire.API.Team.Feature as Public
 
 withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do
   Util.withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamSearchVisibility .~ flag) action
 
-getTeamSearchVisibilityAvailable :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getTeamSearchVisibilityAvailable :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> MonadHttp m => m ResponseLBS
 getTeamSearchVisibilityAvailable = getTeamFeatureFlagWithGalley @Public.SearchVisibilityAvailableConfig
 
-getTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> MonadHttp m => m ResponseLBS
 getTeamSearchVisibilityAvailableInternal =
   getTeamFeatureFlagInternalWithGalley @Public.SearchVisibilityAvailableConfig
 
@@ -64,14 +66,14 @@ putTeamSearchVisibilityAvailableInternal g tid statusValue =
 
 getTeamFeatureFlagInternal ::
   forall cfg m.
-  (HasGalley m, MonadIO m, MonadHttp m, IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) =>
+  (HasGalley m, MonadIO m, MonadHttp m, KnownSymbol (Public.FeatureSymbol cfg)) =>
   TeamId ->
   m ResponseLBS
 getTeamFeatureFlagInternal tid = do
   g <- viewGalley
   getTeamFeatureFlagInternalWithGalley @cfg g tid
 
-getTeamFeatureFlagInternalWithGalley :: forall cfg m. (MonadIO m, MonadHttp m, HasCallStack, IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => (Request -> Request) -> TeamId -> m ResponseLBS
+getTeamFeatureFlagInternalWithGalley :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (Public.FeatureSymbol cfg)) => (Request -> Request) -> TeamId -> m ResponseLBS
 getTeamFeatureFlagInternalWithGalley g tid = do
   get $
     g
@@ -79,7 +81,7 @@ getTeamFeatureFlagInternalWithGalley g tid = do
 
 getTeamFeatureFlag ::
   forall cfg m.
-  (HasGalley m, MonadIO m, MonadHttp m, HasCallStack, IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) =>
+  (HasGalley m, MonadIO m, MonadHttp m, HasCallStack, KnownSymbol (Public.FeatureSymbol cfg)) =>
   UserId ->
   TeamId ->
   m ResponseLBS
@@ -110,14 +112,14 @@ getAllTeamFeaturesPersonal uid = do
       . paths ["feature-configs"]
       . zUser uid
 
-getTeamFeatureFlagWithGalley :: forall cfg m. (MonadIO m, MonadHttp m, HasCallStack, IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> TeamId -> m ResponseLBS
+getTeamFeatureFlagWithGalley :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (Public.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> TeamId -> m ResponseLBS
 getTeamFeatureFlagWithGalley galley uid tid = do
   get $
     galley
       . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg]
       . zUser uid
 
-getFeatureConfig :: forall cfg m. (HasCallStack, MonadThrow m, HasGalley m, MonadIO m, MonadHttp m, IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg), FromJSON (Public.WithStatus cfg)) => UserId -> m (Public.WithStatus cfg)
+getFeatureConfig :: forall cfg m. (HasCallStack, MonadThrow m, HasGalley m, MonadHttp m, KnownSymbol (Public.FeatureSymbol cfg), FromJSON (Public.WithStatus cfg)) => UserId -> m (Public.WithStatus cfg)
 getFeatureConfig uid = do
   galley <- viewGalley
   response :: Value <- responseJsonError =<< getAllFeatureConfigsWithGalley galley uid
@@ -133,7 +135,7 @@ getAllFeatureConfigs uid = do
   g <- viewGalley
   getAllFeatureConfigsWithGalley g uid
 
-getAllFeatureConfigsWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
+getAllFeatureConfigsWithGalley :: (MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
 getAllFeatureConfigsWithGalley galley uid = do
   get $
     galley
@@ -143,7 +145,6 @@ getAllFeatureConfigsWithGalley galley uid = do
 putTeamFeatureFlagWithGalley ::
   forall cfg.
   ( HasCallStack,
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
     ToJSON (Public.WithStatusNoLock cfg)
   ) =>
@@ -162,7 +163,6 @@ putTeamFeatureFlagWithGalley galley uid tid status =
 putTeamFeatureFlagInternalTTL ::
   forall cfg.
   ( HasCallStack,
-    Typeable cfg,
     Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
     ToSchema cfg
@@ -178,7 +178,6 @@ putTeamFeatureFlagInternalTTL reqmod tid status = do
 putTeamFeatureFlagInternal ::
   forall cfg.
   ( HasCallStack,
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
     ToJSON (Public.WithStatusNoLock cfg)
   ) =>
@@ -192,10 +191,8 @@ putTeamFeatureFlagInternal reqmod tid status = do
 
 putTeamFeatureFlagInternalWithGalleyAndMod ::
   forall cfg m.
-  ( MonadIO m,
-    MonadHttp m,
+  ( MonadHttp m,
     HasCallStack,
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
     ToJSON (Public.WithStatusNoLock cfg)
   ) =>
@@ -214,9 +211,7 @@ putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
 setLockStatusInternal ::
   forall cfg.
   ( HasCallStack,
-    Public.IsFeatureConfig cfg,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON Public.LockStatus
+    KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   (Request -> Request) ->
   TeamId ->
@@ -232,9 +227,7 @@ setLockStatusInternal reqmod tid lockStatus = do
 getFeatureStatusInternal ::
   forall cfg.
   ( HasCallStack,
-    Public.IsFeatureConfig cfg,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON Public.LockStatus
+    KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
   TestM ResponseLBS
@@ -247,9 +240,7 @@ getFeatureStatusInternal tid = do
 patchFeatureStatusInternal ::
   forall cfg.
   ( HasCallStack,
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON Public.LockStatus,
     ToSchema cfg
   ) =>
   TeamId ->
@@ -265,9 +256,7 @@ patchFeatureStatusInternal tid reqBody = do
 patchFeatureStatusInternalWithMod ::
   forall cfg.
   ( HasCallStack,
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON Public.LockStatus,
     ToSchema cfg
   ) =>
   (Request -> Request) ->

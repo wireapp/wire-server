@@ -380,7 +380,6 @@ updateRemoteConversation ::
          TinyLog
        ]
       r,
-    Members (HasConversationActionGalleyErrors tag) r,
     RethrowErrors (HasConversationActionGalleyErrors tag) (Error NoChanges : r),
     SingI tag,
     CallsFed 'Galley "update-conversation"

@@ -1,6 +1,9 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -851,7 +854,7 @@ putEnabled' extra tid enabled = do
   g <- viewGalley
   putEnabledM' g extra tid enabled
 
-putEnabledM' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> m ResponseLBS
+putEnabledM' :: (HasCallStack, MonadHttp m) => GalleyR -> (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> m ResponseLBS
 putEnabledM' g extra tid enabled = do
   put $
     g
@@ -912,7 +915,7 @@ getUserStatusTyped' g uid tid = do
   resp <- getUserStatus' g uid tid <!! testResponse 200 Nothing
   pure $ responseJsonUnsafe resp
 
-getUserStatus' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> TeamId -> m ResponseLBS
+getUserStatus' :: (HasCallStack, MonadHttp m) => GalleyR -> UserId -> TeamId -> m ResponseLBS
 getUserStatus' g uid tid = do
   get $
     g
@@ -927,7 +930,7 @@ approveLegalHoldDevice mPassword zusr uid tid = do
   approveLegalHoldDevice' g mPassword zusr uid tid
 
 approveLegalHoldDevice' ::
-  (HasCallStack, MonadHttp m, MonadIO m) =>
+  (HasCallStack, MonadHttp m) =>
   GalleyR ->
   Maybe PlainTextPassword ->
   UserId ->
@@ -955,7 +958,7 @@ disableLegalHoldForUser mPassword tid zusr uid = do
   disableLegalHoldForUser' g mPassword tid zusr uid
 
 disableLegalHoldForUser' ::
-  (HasCallStack, MonadHttp m, MonadIO m) =>
+  (HasCallStack, MonadHttp m) =>
   GalleyR ->
   Maybe PlainTextPassword ->
   TeamId ->
@@ -1016,7 +1019,7 @@ requestLegalHoldDevice zusr uid tid = do
   g <- viewGalley
   requestLegalHoldDevice' g zusr uid tid
 
-requestLegalHoldDevice' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> UserId -> TeamId -> m ResponseLBS
+requestLegalHoldDevice' :: (HasCallStack, MonadHttp m) => GalleyR -> UserId -> UserId -> TeamId -> m ResponseLBS
 requestLegalHoldDevice' g zusr uid tid = do
   post $
     g
@@ -1274,7 +1277,7 @@ assertNotification ws predicate =
 assertNoNotification :: (HasCallStack, MonadIO m) => WS.WebSocket -> m ()
 assertNoNotification ws = void . liftIO $ WS.assertNoEvent (5 WS.# WS.Second) [ws]
 
-assertMatchJSON :: (HasCallStack, FromJSON a, MonadThrow m, MonadCatch m, MonadIO m) => Chan (Wai.Request, LBS) -> (a -> m ()) -> m ()
+assertMatchJSON :: (HasCallStack, FromJSON a, MonadCatch m, MonadIO m) => Chan (Wai.Request, LBS) -> (a -> m ()) -> m ()
 assertMatchJSON c match = do
   assertMatchChan c $ \(_, reqBody) -> do
     case Aeson.eitherDecode reqBody of

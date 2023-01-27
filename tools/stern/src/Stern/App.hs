@@ -93,7 +93,7 @@ deriving instance MonadUnliftIO App
 
 type App = AppT IO
 
-instance (Functor m, MonadIO m) => MonadLogger (AppT m) where
+instance MonadIO m => MonadLogger (AppT m) where
   log l m = do
     g <- view applog
     r <- view requestId

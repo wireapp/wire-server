@@ -33,7 +33,7 @@ import qualified Brig.Options as Opt
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
@@ -470,7 +470,6 @@ createAndVerifyInvitation' ::
   ( HasCallStack,
     MonadIO m,
     MonadHttp m,
-    MonadThrow m,
     MonadCatch m,
     MonadFail m,
     a ~ (Maybe (UserId, UTCTimeMillis), Invitation, UserId, ResponseLBS)
@@ -488,7 +487,6 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
         ( HasCallStack,
           MonadIO m',
           MonadHttp m',
-          MonadThrow m',
           MonadCatch m',
           MonadFail m'
         ) =>

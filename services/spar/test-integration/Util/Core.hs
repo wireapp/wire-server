@@ -2,6 +2,9 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -386,7 +389,7 @@ createUserWithTeamDisableSSO brg gly = do
       pure ()
   pure (uid, tid)
 
-getSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> m ResponseLBS
+getSSOEnabledInternal :: (HasCallStack, MonadHttp m) => GalleyReq -> TeamId -> m ResponseLBS
 getSSOEnabledInternal gly tid = do
   get $
     gly
@@ -441,7 +444,7 @@ inviteAndRegisterUser brig u tid inviteeEmail = do
           ]
     --
     postInvitation ::
-      (MonadIO m, MonadHttp m, HasCallStack) =>
+      (MonadHttp m, HasCallStack) =>
       TeamId ->
       UserId ->
       TeamInvitation.InvitationRequest ->
@@ -500,7 +503,7 @@ createTeamMember brigreq galleyreq teamid perms = do
 -- that builds up the internal structure from scratch, without too much thought.  For
 -- instance, the team field in the user in brig won't be updated.
 addTeamMember ::
-  (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) =>
+  (HasCallStack, MonadCatch m, MonadHttp m) =>
   GalleyReq ->
   TeamId ->
   NewTeamMember ->
@@ -517,7 +520,7 @@ addTeamMember galleyreq tid mem =
 
 -- | Delete a user from Brig and wait until it's gone.
 deleteUserOnBrig ::
-  (HasCallStack, MonadMask m, MonadCatch m, MonadIO m, MonadHttp m) =>
+  (HasCallStack, MonadMask m, MonadIO m, MonadHttp m) =>
   BrigReq ->
   UserId ->
   m ()
@@ -529,7 +532,7 @@ deleteUserOnBrig brigreq uid = do
 
 -- | Delete a user from Brig but don't wait.
 deleteUserNoWait ::
-  (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) =>
+  (HasCallStack, MonadCatch m, MonadHttp m) =>
   BrigReq ->
   UserId ->
   m ()
@@ -709,7 +712,7 @@ getActivationCode brig_ ep = do
   pure $ (,) <$> akey <*> acode
 
 activate ::
-  (HasCallStack, MonadIO m, MonadHttp m) =>
+  (HasCallStack, MonadHttp m) =>
   BrigReq ->
   ActivationPair ->
   m ResponseLBS
@@ -1018,15 +1021,15 @@ parseAuthnReqResp (Just raw) = do
       >>= either (throwError . show) pure . SAML.decodeElem . cs
   pure (reqUri, reqBody)
 
-safeHead :: forall n a. (MonadError String n, Show a) => String -> [a] -> n a
+safeHead :: forall n a. (MonadError String n) => String -> [a] -> n a
 safeHead _ (a : _) = pure a
 safeHead msg [] = throwError $ msg <> ": []"
 
-callAuthnReq' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
+callAuthnReq' :: MonadHttp m => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReq' sparreq_ idpid = do
   get $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
-callAuthnReqPrecheck' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
+callAuthnReqPrecheck' :: MonadHttp m => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReqPrecheck' sparreq_ idpid = do
   head $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
@@ -1036,7 +1039,7 @@ callIdpGet sparreq_ muid idpid = do
   either (liftIO . throwIO . ErrorCall . show) pure $
     responseJsonEither @IdP resp
 
-callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
+callIdpGet' :: MonadHttp m => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
 
@@ -1045,7 +1048,7 @@ callIdpGetRaw sparreq_ muid idpid = do
   resp <- callIdpGetRaw' (sparreq_ . expect2xx) muid idpid
   maybe (liftIO . throwIO $ ErrorCall "Nothing") (pure . cs) (responseBody resp)
 
-callIdpGetRaw' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
+callIdpGetRaw' :: MonadHttp m => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGetRaw' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid -/ "raw")
 
@@ -1055,7 +1058,7 @@ callIdpGetAll sparreq_ muid = do
   either (liftIO . throwIO . ErrorCall . show) pure $
     responseJsonEither resp
 
-callIdpGetAll' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
+callIdpGetAll' :: MonadHttp m => SparReq -> Maybe UserId -> m ResponseLBS
 callIdpGetAll' sparreq_ muid = do
   get $ sparreq_ . maybe id zUser muid . path "/identity-providers"
 
@@ -1088,7 +1091,7 @@ callIdpCreateRaw sparreq_ muid ctyp metadata = do
   either (liftIO . throwIO . ErrorCall . show) pure $
     responseJsonEither @IdP resp
 
-callIdpCreateRaw' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SBS -> LBS -> m ResponseLBS
+callIdpCreateRaw' :: MonadHttp m => SparReq -> Maybe UserId -> SBS -> LBS -> m ResponseLBS
 callIdpCreateRaw' sparreq_ muid ctyp metadata = do
   post $
     sparreq_
@@ -1153,7 +1156,7 @@ callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 
-callIdpUpdate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS
+callIdpUpdate :: MonadHttp m => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS
 callIdpUpdate sparreq_ muid idpid (IdPMetadataValue metadata _) = do
   put $
     sparreq_
@@ -1162,7 +1165,7 @@ callIdpUpdate sparreq_ muid idpid (IdPMetadataValue metadata _) = do
       . body (RequestBodyLBS $ cs metadata)
       . header "Content-Type" "application/xml"
 
-callIdpUpdateWithHandle :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> IdPHandle -> m ResponseLBS
+callIdpUpdateWithHandle :: MonadHttp m => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> IdPHandle -> m ResponseLBS
 callIdpUpdateWithHandle sparreq_ muid idpid (IdPMetadataValue metadata _) idpHandle = do
   put $
     sparreq_
@@ -1172,17 +1175,17 @@ callIdpUpdateWithHandle sparreq_ muid idpid (IdPMetadataValue metadata _) idpHan
       . body (RequestBodyLBS $ cs metadata)
       . header "Content-Type" "application/xml"
 
-callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()
+callIdpDelete :: (Functor m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()
 callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid
 
-callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
+callIdpDelete' :: MonadHttp m => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
   delete $
     sparreq_
       . maybe id zUser muid
       . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
 
-callIdpDeletePurge' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
+callIdpDeletePurge' :: MonadHttp m => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDeletePurge' sparreq_ muid idpid = do
   delete $
     sparreq_
@@ -1190,13 +1193,13 @@ callIdpDeletePurge' sparreq_ muid idpid = do
       . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
       . queryItem "purge" "true"
 
-callGetDefaultSsoCode :: (MonadIO m, MonadHttp m) => SparReq -> m ResponseLBS
+callGetDefaultSsoCode :: MonadHttp m => SparReq -> m ResponseLBS
 callGetDefaultSsoCode sparreq_ = do
   get $
     sparreq_
       . path "/sso/settings/"
 
-callSetDefaultSsoCode :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
+callSetDefaultSsoCode :: MonadHttp m => SparReq -> SAML.IdPId -> m ResponseLBS
 callSetDefaultSsoCode sparreq_ ssoCode = do
   let settings =
         RequestBodyLBS . Aeson.encode $
@@ -1209,7 +1212,7 @@ callSetDefaultSsoCode sparreq_ ssoCode = do
       . body settings
       . header "Content-Type" "application/json"
 
-callDeleteDefaultSsoCode :: (MonadIO m, MonadHttp m) => SparReq -> m ResponseLBS
+callDeleteDefaultSsoCode :: MonadHttp m => SparReq -> m ResponseLBS
 callDeleteDefaultSsoCode sparreq_ = do
   let settings =
         RequestBodyLBS . Aeson.encode $
@@ -1298,7 +1301,7 @@ stdInvitationRequest' loc role email =
   TeamInvitation.InvitationRequest loc role Nothing email Nothing
 
 changeHandleBrig ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   BrigReq ->
   UserId ->
   Text ->
@@ -1314,7 +1317,7 @@ changeHandleBrig brig uid handlTxt = do
     )
 
 updateProfileBrig ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   BrigReq ->
   UserId ->
   UserUpdate ->

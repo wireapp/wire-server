@@ -205,10 +205,10 @@ instance A.FromJSON RichInfoMapAndList where
               v -> Aeson.typeMismatch "A.Object or A.Array" v
           Just v -> Aeson.typeMismatch "A.Object" v
 
-      mapKeys :: (Eq k2, Ord k2) => (k1 -> k2) -> Map k1 v -> Map k2 v
+      mapKeys :: Ord k2 => (k1 -> k2) -> Map k1 v -> Map k2 v
       mapKeys f = Map.fromList . map (Data.Bifunctor.first f) . Map.toList
 
-      lookupOrFail :: (MonadFail m, Show k, Eq k, Ord k) => k -> Map k v -> m v
+      lookupOrFail :: (MonadFail m, Show k, Ord k) => k -> Map k v -> m v
       lookupOrFail key theMap = case Map.lookup key theMap of
         Nothing -> fail $ "key '" ++ show key ++ "' not found"
         Just v -> pure v
