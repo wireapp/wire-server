@@ -158,7 +158,8 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 --     - optionally add the config for local integration tests to 'galley.integration.yaml'
 --     - add a config mapping to 'charts/galley/templates/configmap.yaml'
 --     - add the defaults to 'charts/galley/values.yaml'
---     - optionally add cofig for CI to 'hack/helm_vars/wire-server/values.yaml'
+--     - optionally add config for CI to 'hack/helm_vars/wire-server/values.yaml'
+--
 -- 12. Add a section to the documentation at an appropriate place (e.g. 'docs/src/developer/reference/config-options.md' or 'docs/src/understand/team-feature-settings.md')
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
