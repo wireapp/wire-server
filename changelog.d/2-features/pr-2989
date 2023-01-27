@@ -1,0 +1,1 @@
+New OAuth endpoints for registering an OAuth app, for retrieving an authorization code, and for retrieving an access token; oauth can be dis-/enabled via a backend wide feature flag; endpoints can be configured (in code) to enable OAuth access
