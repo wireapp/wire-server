@@ -102,6 +102,7 @@ library
     , servant-client-core
     , servant-server
     , singletons
+    , singletons-th
     , sop-core
     , streaming-commons
     , swagger2
@@ -214,6 +215,7 @@ test-suite spec
     , servant-client-core
     , servant-server
     , singletons
+    , singletons-th
     , sop-core
     , streaming-commons
     , swagger2

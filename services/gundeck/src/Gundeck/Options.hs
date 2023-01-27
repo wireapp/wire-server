@@ -87,10 +87,6 @@ data MaxConcurrentNativePushes = MaxConcurrentNativePushes
   }
   deriving (Show, Generic)
 
-deriveFromJSON toOptionFieldName ''Settings
-
-makeLenses ''Settings
-
 deriveFromJSON toOptionFieldName ''MaxConcurrentNativePushes
 
 makeLenses ''MaxConcurrentNativePushes
@@ -112,6 +108,10 @@ data RedisEndpoint = RedisEndpoint
 deriveFromJSON toOptionFieldName ''RedisEndpoint
 
 makeLenses ''RedisEndpoint
+
+makeLenses ''Settings
+
+deriveFromJSON toOptionFieldName ''Settings
 
 data Opts = Opts
   { -- | Hostname and port to bind to

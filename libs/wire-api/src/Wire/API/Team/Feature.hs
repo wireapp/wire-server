@@ -92,6 +92,7 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
+import Data.Kind
 import Data.Proxy
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
@@ -176,7 +177,7 @@ featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 ----------------------------------------------------------------------
 -- WithStatusBase
 
-data WithStatusBase (m :: * -> *) (cfg :: *) = WithStatusBase
+data WithStatusBase (m :: Type -> Type) (cfg :: Type) = WithStatusBase
   { wsbStatus :: m FeatureStatus,
     wsbLockStatus :: m LockStatus,
     wsbConfig :: m cfg,
@@ -215,7 +216,7 @@ setConfig c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (Identity c) ttl
 setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
 setWsTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (Identity ttl)
 
-type WithStatus (cfg :: *) = WithStatusBase Identity cfg
+type WithStatus (cfg :: Type) = WithStatusBase Identity cfg
 
 deriving instance (Eq cfg) => Eq (WithStatus cfg)
 
@@ -245,7 +246,7 @@ instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus cfg) wher
 ----------------------------------------------------------------------
 -- WithStatusPatch
 
-type WithStatusPatch (cfg :: *) = WithStatusBase Maybe cfg
+type WithStatusPatch (cfg :: Type) = WithStatusBase Maybe cfg
 
 deriving instance (Eq cfg) => Eq (WithStatusPatch cfg)
 
@@ -303,7 +304,7 @@ instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusPatch cfg)
 -- if we switch to `unlocked`, we auto-enable the feature, and if we switch to locked, we
 -- auto-disable it.  But we need to change the API to force clients to use `lockStatus`
 -- instead of `status`, current behavior is just wrong.
-data WithStatusNoLock (cfg :: *) = WithStatusNoLock
+data WithStatusNoLock (cfg :: Type) = WithStatusNoLock
   { wssStatus :: FeatureStatus,
     wssConfig :: cfg,
     wssTTL :: FeatureTTL
@@ -500,7 +501,7 @@ instance ToSchema LockStatusResponse where
       LockStatusResponse
         <$> _unlockStatus .= field "lockStatus" schema
 
-newtype ImplicitLockStatus (cfg :: *) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
+newtype ImplicitLockStatus (cfg :: Type) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
   deriving newtype (Eq, Show, Arbitrary)
 
 instance (IsFeatureConfig a, ToSchema a) => ToJSON (ImplicitLockStatus a) where

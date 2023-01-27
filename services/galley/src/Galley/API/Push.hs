@@ -46,7 +46,6 @@ import Galley.Data.Services
 import Galley.Effects.ExternalAccess
 import Galley.Effects.GundeckAccess hiding (Push)
 import Galley.Intra.Push
-import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Polysemy
@@ -82,10 +81,6 @@ newBotPush :: BotMember -> Event -> MessagePush 'NormalMessage
 newBotPush b e = NormalMessagePush {userPushes = mempty, botPushes = pure (b, e)}
 
 type BotMap = Map UserId BotMember
-
-type family LocalMemberMap (t :: MessageType) = (m :: *) | m -> t where
-  LocalMemberMap 'NormalMessage = Map UserId LocalMember
-  LocalMemberMap 'Broadcast = ()
 
 type family MessagePushEffects (t :: MessageType) :: [Effect]
 

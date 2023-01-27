@@ -49,8 +49,8 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteArray as BA
--- import qualified Data.ByteString as BS
 import Data.Json.Util
+import Data.Kind
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
@@ -74,7 +74,7 @@ $(genSingletons [''WireFormatTag])
 instance ParseMLS WireFormatTag where
   parseMLS = parseMLSEnum @Word8 "wire format"
 
-data family MessageExtraFields (tag :: WireFormatTag) :: *
+data family MessageExtraFields (tag :: WireFormatTag) :: Type
 
 data instance MessageExtraFields 'MLSPlainText = MessageExtraFields
   { msgSignature :: ByteString,
@@ -226,7 +226,7 @@ instance ParseMLS SomeMessage where
       MLSPlainText -> SomeMessage SMLSPlainText <$> parseMLS
       MLSCipherText -> SomeMessage SMLSCipherText <$> parseMLS
 
-data family Sender (tag :: WireFormatTag) :: *
+data family Sender (tag :: WireFormatTag) :: Type
 
 data instance Sender 'MLSCipherText = EncryptedSender {esData :: ByteString}
   deriving (Eq, Show)
@@ -268,7 +268,7 @@ instance SerialiseMLS (Sender 'MLSPlainText) where
     put x
   serialiseMLS NewMemberSender = serialiseMLS NewMemberSenderTag
 
-data family MessagePayload (tag :: WireFormatTag) :: *
+data family MessagePayload (tag :: WireFormatTag) :: Type
 
 deriving instance Eq (MessagePayload 'MLSPlainText)
 

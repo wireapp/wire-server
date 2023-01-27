@@ -94,7 +94,6 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
 import Data.Qualified
 import Data.Schema
-import qualified Data.Semigroup as Semigroup
 import qualified Data.Set as Set
 import Data.Swagger hiding (Schema, ToSchema, schema)
 import qualified Data.Swagger as Swagger
@@ -316,7 +315,7 @@ newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema QualifiedUserClientPrekeyMap
-  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (Semigroup.Option (Semigroup.First Prekey)))
+  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (Alt Maybe Prekey))
 
 instance ToSchema QualifiedUserClientPrekeyMap where
   schema =

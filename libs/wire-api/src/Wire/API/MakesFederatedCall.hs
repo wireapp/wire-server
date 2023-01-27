@@ -27,6 +27,7 @@ where
 
 import Data.Aeson (Value (..))
 import Data.Constraint
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.Swagger.Operation (addExtensions)
@@ -72,7 +73,7 @@ synthesizeCallsFed = unsafeCoerce $ Dict @Nullary
 -- constraints on handlers.
 data MakesFederatedCall (comp :: Component) (name :: Symbol)
 
-instance (HasServer api ctx) => HasServer (MakesFederatedCall comp name :> api :: *) ctx where
+instance (HasServer api ctx) => HasServer (MakesFederatedCall comp name :> api :: Type) ctx where
   -- \| This should have type @CallsFed comp name => ServerT api m@, but GHC
   -- complains loudly thinking this is a polytype. We need to introduce the
   -- 'CallsFed' constraint so that we can eliminate it via
@@ -82,11 +83,11 @@ instance (HasServer api ctx) => HasServer (MakesFederatedCall comp name :> api :
   route _ ctx f = route (Proxy @api) ctx $ fmap ($ synthesizeCallsFed @comp @name) f
   hoistServerWithContext _ ctx f s = hoistServerWithContext (Proxy @api) ctx f . s
 
-instance HasLink api => HasLink (MakesFederatedCall comp name :> api :: *) where
+instance HasLink api => HasLink (MakesFederatedCall comp name :> api :: Type) where
   type MkLink (MakesFederatedCall comp name :> api) x = MkLink api x
   toLink f _ l = toLink f (Proxy @api) l
 
-instance RoutesToPaths api => RoutesToPaths (MakesFederatedCall comp name :> api :: *) where
+instance RoutesToPaths api => RoutesToPaths (MakesFederatedCall comp name :> api :: Type) where
   getRoutes = getRoutes @api
 
 -- | Get a symbol representation of our component.
@@ -97,7 +98,7 @@ type family ShowComponent (x :: Component) :: Symbol where
 
 -- | 'MakesFederatedCall' annotates the swagger documentation with an extension
 -- tag @x-wire-makes-federated-calls-to@.
-instance (HasSwagger api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasSwagger (MakesFederatedCall comp name :> api :: *) where
+instance (HasSwagger api, KnownSymbol name, KnownSymbol (ShowComponent comp)) => HasSwagger (MakesFederatedCall comp name :> api :: Type) where
   toSwagger _ =
     toSwagger (Proxy @api)
       & addExtensions
@@ -116,7 +117,7 @@ mergeJSONArray :: Value -> Value -> Value
 mergeJSONArray (Array x) (Array y) = Array $ x <> y
 mergeJSONArray _ _ = error "impossible! bug in construction of federated calls JSON"
 
-instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: *) where
+instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: Type) where
   type Client m (MakesFederatedCall comp name :> api) = Client m api
   clientWithRoute p _ = clientWithRoute p $ Proxy @api
   hoistClientMonad p _ f c = hoistClientMonad p (Proxy @api) f c

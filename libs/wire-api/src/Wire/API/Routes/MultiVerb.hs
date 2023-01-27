@@ -58,6 +58,7 @@ import Data.Containers.ListUtils
 import Data.Either.Combinators (leftToMaybe)
 import Data.HashMap.Strict.InsOrd (InsOrdHashMap)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.SOP
@@ -94,13 +95,13 @@ type Declare = S.Declare (S.Definitions S.Schema)
 -- Includes status code, description, and return type. The content type of the
 -- response is determined dynamically using the accept header and the list of
 -- supported content types specified in the containing 'MultiVerb' type.
-data Respond (s :: Nat) (desc :: Symbol) (a :: *)
+data Respond (s :: Nat) (desc :: Symbol) (a :: Type)
 
 -- | A type to describe a 'MultiVerb' response with a fixed content type.
 --
 -- Similar to 'Respond', but hardcodes the content type to be used for
 -- generating the response.
-data RespondAs ct (s :: Nat) (desc :: Symbol) (a :: *)
+data RespondAs ct (s :: Nat) (desc :: Symbol) (a :: Type)
 
 -- | A type to describe a 'MultiVerb' response with an empty body.
 --
@@ -111,7 +112,7 @@ type RespondEmpty s desc = RespondAs '() s desc ()
 --
 -- Includes status code, description, framing strategy and content type. Note
 -- that the handler return type is hardcoded to be 'SourceIO ByteString'.
-data RespondStreaming (s :: Nat) (desc :: Symbol) (framing :: *) (ct :: *)
+data RespondStreaming (s :: Nat) (desc :: Symbol) (framing :: Type) (ct :: Type)
 
 -- | The result of parsing a response as a union alternative of type 'a'.
 --
@@ -151,11 +152,11 @@ instance MonadPlus UnrenderResult where
 class IsSwaggerResponse a where
   responseSwagger :: Declare S.Response
 
-type family ResponseType a :: *
+type family ResponseType a :: Type
 
 class IsWaiBody (ResponseBody a) => IsResponse cs a where
   type ResponseStatus a :: Nat
-  type ResponseBody a :: *
+  type ResponseBody a :: Type
 
   responseRender :: AcceptHeader -> ResponseType a -> Maybe (ResponseF (ResponseBody a))
   responseUnrender :: M.MediaType -> ResponseF (ResponseBody a) -> UnrenderResult (ResponseType a)
@@ -211,7 +212,7 @@ instance
     MimeRender ct a,
     MimeUnrender ct a
   ) =>
-  IsResponse cs (RespondAs (ct :: *) s desc a)
+  IsResponse cs (RespondAs (ct :: Type) s desc a)
   where
   type ResponseStatus (RespondAs ct s desc a) = s
   type ResponseBody (RespondAs ct s desc a) = LByteString
@@ -248,7 +249,7 @@ instance KnownStatus s => IsResponse cs (RespondAs '() s desc ()) where
 
 instance
   (KnownSymbol desc, S.ToSchema a) =>
-  IsSwaggerResponse (RespondAs (ct :: *) s desc a)
+  IsSwaggerResponse (RespondAs (ct :: Type) s desc a)
   where
   responseSwagger = simpleResponseSwagger @a @desc
 
@@ -294,7 +295,7 @@ instance (KnownStatus s, KnownSymbol desc) => IsSwaggerResponse (RespondStreamin
 --  * @hs@: type-level list of headers
 --  * @a@: return type (with headers)
 --  * @r@: underlying response (without headers)
-data WithHeaders (hs :: [*]) (a :: *) (r :: *)
+data WithHeaders (hs :: [Type]) (a :: Type) (r :: Type)
 
 -- | This is used to convert a response containing headers to a custom type
 -- including the information in the headers.
@@ -312,7 +313,7 @@ instance AsHeaders '[h] a (a, h) where
   toHeaders (t, cc) = (I cc :* Nil, t)
   fromHeaders (I cc :* Nil, t) = (t, cc)
 
-data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
+data DescHeader (name :: Symbol) (desc :: Symbol) (a :: Type)
 
 -- | A wrapper to turn a response header into an optional one.
 data OptHeader h
@@ -425,7 +426,7 @@ instance
 class IsSwaggerResponseList as where
   responseListSwagger :: Declare (InsOrdHashMap S.HttpStatusCode S.Response)
 
-type family ResponseTypes (as :: [*]) where
+type family ResponseTypes (as :: [Type]) where
   ResponseTypes '[] = '[]
   ResponseTypes (a ': as) = ResponseType a ': ResponseTypes as
 
@@ -501,7 +502,7 @@ combineSwaggerSchema s1 s2
 --    instance.
 --  * Headers can be attached to individual responses, also without affecting
 --    the handler return type.
-data MultiVerb (method :: StdMethod) cs (as :: [*]) (r :: *)
+data MultiVerb (method :: StdMethod) cs (as :: [Type]) (r :: Type)
 
 -- | A 'MultiVerb' endpoint with a single response.
 type MultiVerb1 m cs a = MultiVerb m cs '[a] (ResponseType a)
@@ -512,7 +513,7 @@ type MultiVerb1 m cs a = MultiVerb m cs '[a] (ResponseType a)
 -- Any glue code necessary to convert application types to and from the
 -- canonical 'Union' type corresponding to a 'MultiVerb' endpoint should be
 -- packaged into an 'AsUnion' instance.
-class AsUnion (as :: [*]) (r :: *) where
+class AsUnion (as :: [Type]) (r :: Type) where
   toUnion :: r -> Union (ResponseTypes as)
   fromUnion :: Union (ResponseTypes as) -> r
 
@@ -622,7 +623,7 @@ instance AsConstructor '[a] (Respond code desc a) where
   toConstructor x = I x :* Nil
   fromConstructor = unI . hd
 
-instance AsConstructor '[a] (RespondAs (ct :: *) code desc a) where
+instance AsConstructor '[a] (RespondAs (ct :: Type) code desc a) where
   toConstructor x = I x :* Nil
   fromConstructor = unI . hd
 
@@ -718,7 +719,7 @@ instance
 
 instance
   (SwaggerMethod method, IsSwaggerResponseList as, AllMime cs) =>
-  S.HasSwagger (MultiVerb method (cs :: [*]) as r)
+  S.HasSwagger (MultiVerb method (cs :: [Type]) as r)
   where
   toSwagger _ =
     mempty

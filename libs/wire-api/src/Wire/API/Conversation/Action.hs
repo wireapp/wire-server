@@ -36,6 +36,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as A
 import Data.Id
+import Data.Kind
 import qualified Data.List.NonEmpty as NonEmptyList
 import Data.Qualified (Qualified)
 import Data.Schema hiding (tag)
@@ -52,7 +53,7 @@ import Wire.Arbitrary (Arbitrary (..))
 
 -- | We use this type family instead of a sum type to be able to define
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
-type family ConversationAction (tag :: ConversationActionTag) :: * where
+type family ConversationAction (tag :: ConversationActionTag) :: Type where
   ConversationAction 'ConversationJoinTag = ConversationJoin
   ConversationAction 'ConversationLeaveTag = ()
   ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
