@@ -30,6 +30,7 @@ import Control.Monad.Catch (MonadCatch)
 import Crypto.JOSE (JOSE, JWK, bestJWSAlg, newJWSHeader, runJOSE)
 import Crypto.JWT (Audience (Audience), ClaimsSet, JWTError, NumericDate (NumericDate), SignedJWT, claimAud, claimExp, claimIat, claimIss, claimSub, defaultJWTValidationSettings, emptyClaimsSet, signClaims, signJWT, stringOrUri, verifyClaims)
 import qualified Data.Aeson as A
+import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Domain (domainText)
 import Data.Id
@@ -133,6 +134,10 @@ testCreateOAuthCodeSuccess brig = do
     const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
     const (Just $ ["code", "state"]) === (fmap (fmap fst . getQueryParams) . getLocation)
     const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
+    const (Just True) === (getLocation >=> getQueryParamValue "code" >=> checkCode)
+  where
+    checkCode :: ByteString -> Maybe Bool
+    checkCode bs = Just $ BS.all isHexDigit bs && BS.length bs == 64
 
 testCreateOAuthCodeRedirectUrlMismatch :: Brig -> Http ()
 testCreateOAuthCodeRedirectUrlMismatch brig = do
