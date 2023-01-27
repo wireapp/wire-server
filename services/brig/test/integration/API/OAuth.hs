@@ -40,6 +40,8 @@ import Data.String.Conversions (cs)
 import Data.Text.Ascii (encodeBase16)
 import qualified Data.Text.Encoding as T
 import Data.Time
+import qualified Data.UUID as UUID
+import Data.UUID.V4 (nextRandom)
 import Imports
 import Network.HTTP.Types (HeaderName)
 import qualified Network.Wai.Utilities as Error
@@ -128,7 +130,7 @@ testCreateOAuthCodeSuccess brig = do
   cid <- occClientId <$> registerNewOAuthClient brig newOAuthClient
   uid <- randomId
   let scope = OAuthScopes $ Set.fromList [ConversationCreate, ConversationCodeCreate]
-  let state = "foobar"
+  state <- UUID.toText <$> liftIO nextRandom
   createOAuthCode brig uid (NewOAuthAuthCode cid scope OAuthResponseTypeCode redirectUrl state) !!! do
     const 302 === statusCode
     const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
@@ -144,7 +146,7 @@ testCreateOAuthCodeRedirectUrlMismatch brig = do
   let newOAuthClient@(NewOAuthClient _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   cid <- occClientId <$> registerNewOAuthClient brig newOAuthClient
   uid <- randomId
-  let state = "foobar"
+  state <- UUID.toText <$> liftIO nextRandom
   let differentUrl = mkUrl "https://wire.com"
   createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode differentUrl state) !!! do
     const 400 === statusCode
@@ -158,7 +160,7 @@ testCreateOAuthCodeClientNotFound brig = do
   cid <- randomId
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
-  let state = "foobar"
+  state <- UUID.toText <$> liftIO nextRandom
   createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode redirectUrl state) !!! do
     const 404 === statusCode
     const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
@@ -278,7 +280,7 @@ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthEnabledInternal ?~ False) $ do
     cid <- randomId
     uid <- randomId
-    let state = "state"
+    state <- UUID.toText <$> liftIO nextRandom
     let redirectUrl = mkUrl "https://example.com"
     createOAuthCode brig uid (NewOAuthAuthCode cid (OAuthScopes Set.empty) OAuthResponseTypeCode redirectUrl state) !!! do
       const 403 === statusCode
@@ -731,7 +733,7 @@ generateOAuthClientAndAuthCode brig uid scope url = do
 
 generateOAuthAuthCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthClientId -> OAuthScopes -> RedirectUrl -> m OAuthAuthCode
 generateOAuthAuthCode brig uid cid scope url = do
-  let state = "foobar"
+  state <- UUID.toText <$> liftIO nextRandom
   response <-
     createOAuthCode brig uid (NewOAuthAuthCode cid scope OAuthResponseTypeCode url state) <!! do
       const 302 === statusCode
