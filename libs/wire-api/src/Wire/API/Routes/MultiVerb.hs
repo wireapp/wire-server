@@ -19,7 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Routes.MultiVerb
-  ( -- Type MultiVerb types
+  ( -- * MultiVerb types
     MultiVerb,
     MultiVerb1,
     Respond,
