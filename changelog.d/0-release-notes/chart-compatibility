@@ -1,1 +1,0 @@
-wire-server helm charts using Ingress resources are now compatible with kubernetes versions 1.22, 1.23 and 1.24 (but keep being compatible with older versions of kubernetes).

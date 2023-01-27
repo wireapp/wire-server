@@ -1,1 +1,0 @@
-The unqualified `GET /conversations/:id` endpoint has been removed from API v3, and is restored to the previous behaviour of returning a Conversation using the v2 schema. Similarly, its qualified counterpart `GET /conversations/:domain/:id` now returns a v2 Conversation when accessed through API v2.

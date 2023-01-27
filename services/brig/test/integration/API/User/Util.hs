@@ -40,6 +40,7 @@ import qualified Data.ByteString.Lazy as LB
 import Data.Domain
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
+import Data.Kind
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
@@ -539,7 +540,7 @@ setTeamSndFactorPasswordChallenge galley tid status = do
   put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 setTeamFeatureLockStatus ::
-  forall (cfg :: *) m.
+  forall (cfg :: Type) m.
   ( MonadCatch m,
     MonadIO m,
     MonadHttp m,

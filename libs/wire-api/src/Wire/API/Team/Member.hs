@@ -71,6 +71,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..), Value (..))
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id (UserId)
 import Data.Json.Util
+import Data.Kind
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
@@ -86,7 +87,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 data PermissionTag = Required | Optional
 
-type family PermissionType (tag :: PermissionTag) = (t :: *) | t -> tag where
+type family PermissionType (tag :: PermissionTag) = (t :: Type) | t -> tag where
   PermissionType 'Required = Permissions
   PermissionType 'Optional = Maybe Permissions
 

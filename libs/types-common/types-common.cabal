@@ -122,7 +122,6 @@ library
     , schema-profunctor
     , scientific             >=0.3.4
     , servant-server
-    , singletons             >=2.0
     , string-conversions
     , swagger                >=0.3
     , swagger2

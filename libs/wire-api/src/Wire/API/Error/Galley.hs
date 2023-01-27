@@ -31,8 +31,7 @@ where
 
 import Control.Lens ((%~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.Singletons.CustomStar (genSingletons)
-import Data.Singletons.Prelude (Show_)
+import Data.Singletons.TH (genSingletons)
 import qualified Data.Swagger as S
 import Data.Tagged
 import GHC.TypeLits
@@ -40,6 +39,7 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
+import Prelude.Singletons (Show_)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
