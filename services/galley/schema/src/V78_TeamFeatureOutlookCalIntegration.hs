@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V78_TeamFeatureCalendarIntegration
+module V78_TeamFeatureOutlookCalIntegration
   ( migration,
   )
 where
@@ -25,7 +25,7 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 78 "Add feature config for team feature calendar integration" $ do
+migration = Migration 78 "Add feature config for team feature outlook calendar integration" $ do
   schema'
     [r| ALTER TABLE team_features ADD (
           outlook_cal_integration_status int,
