@@ -36,6 +36,7 @@ let
         sphinx-multiversion
         sphinx_rtd_theme
         sphinx_reredirects
+        sphinx-copybutton
         sphinxcontrib-fulltoc
         sphinxcontrib-kroki
       ]))
@@ -48,7 +49,9 @@ let
         nativeBuildInputs = docsPkgs ++ [ pkgs.gnumake ];
       }
       ''
-        cp -r ${pkgs.nix-gitignore.gitignoreSource [] ../docs}/* .
+        cp -rH ${pkgs.nix-gitignore.gitignoreSource [] ../docs}/* .
+        chmod -R +w ./src
+        cp ${../CHANGELOG.md} ./src/changelog/changelog.md
         make docs-all
         mkdir $out
         cp -r build/* $out/

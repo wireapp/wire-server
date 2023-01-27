@@ -111,7 +111,7 @@ testSort brig = do
   let sortByProperty' :: (TestConstraints m, Ord a) => TeamUserSearchSortBy -> (User -> a) -> TeamUserSearchSortOrder -> m ()
       sortByProperty' = sortByProperty tid users ownerId
   for_ [SortOrderAsc, SortOrderDesc] $ \sortOrder -> do
-    -- FUTUREWORK: Test SortByRole when role is avaible in index
+    -- FUTUREWORK: Test SortByRole when role is available in index
     sortByProperty' SortByEmail userEmail sortOrder
     sortByProperty' SortByName userDisplayName sortOrder
     sortByProperty' SortByHandle (fmap fromHandle . userHandle) sortOrder
@@ -144,12 +144,17 @@ testEmptyQuerySortedWithPagination :: TestConstraints m => Brig -> m ()
 testEmptyQuerySortedWithPagination brig = do
   (tid, userId -> ownerId, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 20
   refreshIndex brig
-  searchResultFirst10 <- executeTeamUserSearchWithMaybeState brig tid ownerId (Just "") Nothing Nothing Nothing (Just $ unsafeRange 10) Nothing
-  searchResultLast11 <- executeTeamUserSearchWithMaybeState brig tid ownerId (Just "") Nothing Nothing Nothing Nothing (searchPagingState searchResultFirst10)
+  let teamUserSearch mPs = executeTeamUserSearchWithMaybeState brig tid ownerId (Just "") Nothing Nothing Nothing (Just $ unsafeRange 10) mPs
+  searchResultFirst10 <- teamUserSearch Nothing
+  searchResultNext10 <- teamUserSearch (searchPagingState searchResultFirst10)
+  searchResultLast1 <- teamUserSearch (searchPagingState searchResultNext10)
   liftIO $ do
     searchReturned searchResultFirst10 @?= 10
     searchFound searchResultFirst10 @?= 21
     searchHasMore searchResultFirst10 @?= Just True
-    searchReturned searchResultLast11 @?= 11
-    searchFound searchResultLast11 @?= 21
-    searchHasMore searchResultLast11 @?= Just False
+    searchReturned searchResultNext10 @?= 10
+    searchFound searchResultNext10 @?= 21
+    searchHasMore searchResultNext10 @?= Just True
+    searchReturned searchResultLast1 @?= 1
+    searchFound searchResultLast1 @?= 21
+    searchHasMore searchResultLast1 @?= Just False

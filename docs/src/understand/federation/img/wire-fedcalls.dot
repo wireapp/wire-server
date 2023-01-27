@@ -1,0 +1,219 @@
+strict digraph {
+  graph [rankdir=LR]
+  node [shape=rectangle]
+  edge [style=dashed]
+  subgraph {
+    "37: delete /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}":w
+    "3: delete /self":w
+    "5: delete /self/email":w
+    "4: delete /self/phone":w
+    "46: delete /teams/{tid}/conversations/{cid}":w
+    "54: delete /teams/{tid}/legalhold/settings":w
+    "56: delete /teams/{tid}/legalhold/{uid}":w
+    "10: get /activate":w
+    "25: get /assets/{key_domain}/{key}":w
+    "27: get /conversations/{cnv_domain}/{cnv}":w
+    "28: get /conversations/{cnv_domain}/{cnv}/groupinfo":w
+    "21: get /search/contacts":w
+    "0: get /users/{uid_domain}/{uid}":w
+    "12: get /users/{uid_domain}/{uid}/clients":w
+    "13: get /users/{uid_domain}/{uid}/clients/{client}":w
+    "16: get /users/{uid_domain}/{uid}/prekeys":w
+    "15: get /users/{uid_domain}/{uid}/prekeys/{client}":w
+    "23: post /access":w
+    "11: post /activate":w
+    "49: post /bot/messages":w
+    "18: post /clients":w
+    "20: post /connections/{uid_domain}/{uid}":w
+    "31: post /conversations":w
+    "30: post /conversations/join":w
+    "29: post /conversations/list":w
+    "32: post /conversations/one2one":w
+    "33: post /conversations/{cnv_domain}/{cnv}/members":w
+    "48: post /conversations/{cnv_domain}/{cnv}/proteus/messages":w
+    "35: post /conversations/{cnv_domain}/{cnv}/typing":w
+    "34: post /conversations/{cnv}/join":w
+    "47: post /conversations/{cnv}/otr/messages":w
+    "9: post /delete":w
+    "61: post /i/legalhold-login":w
+    "62: post /i/sso-login":w
+    "59: post /i/users":w
+    "60: post /i/users/spar":w
+    "1: post /list-users":w
+    "24: post /login":w
+    "53: post /mls/commit-bundles":w
+    "22: post /mls/key-packages/claim/{user_domain}/{user}":w
+    "52: post /mls/messages":w
+    "51: post /mls/welcome":w
+    "8: post /register":w
+    "57: post /teams/{tid}/legalhold/consent":w
+    "55: post /teams/{tid}/legalhold/{uid}":w
+    "14: post /users/list-clients":w
+    "17: post /users/list-prekeys":w
+    "19: put /connections/{uid_domain}/{uid}":w
+    "45: put /conversations/{cnv_domain}/{cnv}/access":w
+    "36: put /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}":w
+    "42: put /conversations/{cnv_domain}/{cnv}/message-timer":w
+    "40: put /conversations/{cnv_domain}/{cnv}/name":w
+    "44: put /conversations/{cnv_domain}/{cnv}/receipt-mode":w
+    "26: put /conversations/{cnv}":w
+    "38: put /conversations/{cnv}/members/{usr}":w
+    "41: put /conversations/{cnv}/message-timer":w
+    "39: put /conversations/{cnv}/name":w
+    "43: put /conversations/{cnv}/receipt-mode":w
+    "2: put /self":w
+    "7: put /self/handle":w
+    "6: put /self/locale":w
+    "50: put /teams/{tid}/features/legalhold":w
+    "58: put /teams/{tid}/legalhold/{uid}/approve":w
+  }
+  subgraph {
+    "71: [brig]:claim-key-packages":e
+    "68: [brig]:claim-multi-prekey-bundle":e
+    "66: [brig]:claim-prekey":e
+    "67: [brig]:claim-prekey-bundle":e
+    "87: [brig]:get-mls-clients":e
+    "65: [brig]:get-user-clients":e
+    "63: [brig]:get-users-by-ids":e
+    "64: [brig]:on-user-deleted-connections":e
+    "70: [brig]:search-users":e
+    "69: [brig]:send-connection-action":e
+    "72: [cargohold]:get-asset":e
+    "73: [cargohold]:stream-asset":e
+    "77: [galley]:get-conversations":e
+    "81: [galley]:leave-conversation":e
+    "85: [galley]:mls-welcome":e
+    "79: [galley]:on-conversation-created":e
+    "74: [galley]:on-conversation-updated":e
+    "83: [galley]:on-message-sent":e
+    "75: [galley]:on-mls-message-sent":e
+    "76: [galley]:on-new-remote-conversation":e
+    "80: [galley]:on-typing-indicator-updated":e
+    "78: [galley]:query-group-info":e
+    "84: [galley]:send-message":e
+    "88: [galley]:send-mls-commit-bundle":e
+    "86: [galley]:send-mls-message":e
+    "82: [galley]:update-conversation":e
+  }
+  "0: get /users/{uid_domain}/{uid}":w -> "63: [brig]:get-users-by-ids":e
+  "1: post /list-users":w -> "63: [brig]:get-users-by-ids":e
+  "2: put /self":w -> "64: [brig]:on-user-deleted-connections":e
+  "3: delete /self":w -> "64: [brig]:on-user-deleted-connections":e
+  "4: delete /self/phone":w -> "64: [brig]:on-user-deleted-connections":e
+  "5: delete /self/email":w -> "64: [brig]:on-user-deleted-connections":e
+  "6: put /self/locale":w -> "64: [brig]:on-user-deleted-connections":e
+  "7: put /self/handle":w -> "64: [brig]:on-user-deleted-connections":e
+  "8: post /register":w -> "64: [brig]:on-user-deleted-connections":e
+  "9: post /delete":w -> "64: [brig]:on-user-deleted-connections":e
+  "10: get /activate":w -> "64: [brig]:on-user-deleted-connections":e
+  "11: post /activate":w -> "64: [brig]:on-user-deleted-connections":e
+  "12: get /users/{uid_domain}/{uid}/clients":w -> "65: [brig]:get-user-clients":e
+  "13: get /users/{uid_domain}/{uid}/clients/{client}":w -> "65: [brig]:get-user-clients":e
+  "14: post /users/list-clients":w -> "65: [brig]:get-user-clients":e
+  "15: get /users/{uid_domain}/{uid}/prekeys/{client}":w -> "66: [brig]:claim-prekey":e
+  "16: get /users/{uid_domain}/{uid}/prekeys":w -> "67: [brig]:claim-prekey-bundle":e
+  "17: post /users/list-prekeys":w -> "68: [brig]:claim-multi-prekey-bundle":e
+  "18: post /clients":w -> "64: [brig]:on-user-deleted-connections":e
+  "19: put /connections/{uid_domain}/{uid}":w -> "69: [brig]:send-connection-action":e
+  "20: post /connections/{uid_domain}/{uid}":w -> "69: [brig]:send-connection-action":e
+  "21: get /search/contacts":w -> "63: [brig]:get-users-by-ids":e
+  "21: get /search/contacts":w -> "70: [brig]:search-users":e
+  "22: post /mls/key-packages/claim/{user_domain}/{user}":w -> "71: [brig]:claim-key-packages":e
+  "23: post /access":w -> "64: [brig]:on-user-deleted-connections":e
+  "24: post /login":w -> "64: [brig]:on-user-deleted-connections":e
+  "25: get /assets/{key_domain}/{key}":w -> "72: [cargohold]:get-asset":e
+  "25: get /assets/{key_domain}/{key}":w -> "73: [cargohold]:stream-asset":e
+  "26: put /conversations/{cnv}":w -> "74: [galley]:on-conversation-updated":e
+  "26: put /conversations/{cnv}":w -> "75: [galley]:on-mls-message-sent":e
+  "26: put /conversations/{cnv}":w -> "76: [galley]:on-new-remote-conversation":e
+  "27: get /conversations/{cnv_domain}/{cnv}":w -> "77: [galley]:get-conversations":e
+  "28: get /conversations/{cnv_domain}/{cnv}/groupinfo":w -> "78: [galley]:query-group-info":e
+  "29: post /conversations/list":w -> "77: [galley]:get-conversations":e
+  "30: post /conversations/join":w -> "74: [galley]:on-conversation-updated":e
+  "30: post /conversations/join":w -> "76: [galley]:on-new-remote-conversation":e
+  "31: post /conversations":w -> "79: [galley]:on-conversation-created":e
+  "32: post /conversations/one2one":w -> "79: [galley]:on-conversation-created":e
+  "33: post /conversations/{cnv_domain}/{cnv}/members":w -> "74: [galley]:on-conversation-updated":e
+  "33: post /conversations/{cnv_domain}/{cnv}/members":w -> "75: [galley]:on-mls-message-sent":e
+  "33: post /conversations/{cnv_domain}/{cnv}/members":w -> "76: [galley]:on-new-remote-conversation":e
+  "34: post /conversations/{cnv}/join":w -> "74: [galley]:on-conversation-updated":e
+  "34: post /conversations/{cnv}/join":w -> "76: [galley]:on-new-remote-conversation":e
+  "35: post /conversations/{cnv_domain}/{cnv}/typing":w -> "80: [galley]:on-typing-indicator-updated":e
+  "36: put /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}":w -> "74: [galley]:on-conversation-updated":e
+  "36: put /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}":w -> "75: [galley]:on-mls-message-sent":e
+  "36: put /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}":w -> "76: [galley]:on-new-remote-conversation":e
+  "37: delete /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}":w -> "81: [galley]:leave-conversation":e
+  "37: delete /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}":w -> "74: [galley]:on-conversation-updated":e
+  "37: delete /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}":w -> "75: [galley]:on-mls-message-sent":e
+  "37: delete /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}":w -> "76: [galley]:on-new-remote-conversation":e
+  "38: put /conversations/{cnv}/members/{usr}":w -> "74: [galley]:on-conversation-updated":e
+  "38: put /conversations/{cnv}/members/{usr}":w -> "75: [galley]:on-mls-message-sent":e
+  "38: put /conversations/{cnv}/members/{usr}":w -> "76: [galley]:on-new-remote-conversation":e
+  "39: put /conversations/{cnv}/name":w -> "74: [galley]:on-conversation-updated":e
+  "39: put /conversations/{cnv}/name":w -> "75: [galley]:on-mls-message-sent":e
+  "39: put /conversations/{cnv}/name":w -> "76: [galley]:on-new-remote-conversation":e
+  "40: put /conversations/{cnv_domain}/{cnv}/name":w -> "74: [galley]:on-conversation-updated":e
+  "40: put /conversations/{cnv_domain}/{cnv}/name":w -> "75: [galley]:on-mls-message-sent":e
+  "40: put /conversations/{cnv_domain}/{cnv}/name":w -> "76: [galley]:on-new-remote-conversation":e
+  "41: put /conversations/{cnv}/message-timer":w -> "74: [galley]:on-conversation-updated":e
+  "41: put /conversations/{cnv}/message-timer":w -> "75: [galley]:on-mls-message-sent":e
+  "41: put /conversations/{cnv}/message-timer":w -> "76: [galley]:on-new-remote-conversation":e
+  "42: put /conversations/{cnv_domain}/{cnv}/message-timer":w -> "74: [galley]:on-conversation-updated":e
+  "42: put /conversations/{cnv_domain}/{cnv}/message-timer":w -> "75: [galley]:on-mls-message-sent":e
+  "42: put /conversations/{cnv_domain}/{cnv}/message-timer":w -> "76: [galley]:on-new-remote-conversation":e
+  "43: put /conversations/{cnv}/receipt-mode":w -> "74: [galley]:on-conversation-updated":e
+  "43: put /conversations/{cnv}/receipt-mode":w -> "75: [galley]:on-mls-message-sent":e
+  "43: put /conversations/{cnv}/receipt-mode":w -> "76: [galley]:on-new-remote-conversation":e
+  "43: put /conversations/{cnv}/receipt-mode":w -> "82: [galley]:update-conversation":e
+  "44: put /conversations/{cnv_domain}/{cnv}/receipt-mode":w -> "74: [galley]:on-conversation-updated":e
+  "44: put /conversations/{cnv_domain}/{cnv}/receipt-mode":w -> "75: [galley]:on-mls-message-sent":e
+  "44: put /conversations/{cnv_domain}/{cnv}/receipt-mode":w -> "76: [galley]:on-new-remote-conversation":e
+  "44: put /conversations/{cnv_domain}/{cnv}/receipt-mode":w -> "82: [galley]:update-conversation":e
+  "45: put /conversations/{cnv_domain}/{cnv}/access":w -> "74: [galley]:on-conversation-updated":e
+  "45: put /conversations/{cnv_domain}/{cnv}/access":w -> "75: [galley]:on-mls-message-sent":e
+  "45: put /conversations/{cnv_domain}/{cnv}/access":w -> "76: [galley]:on-new-remote-conversation":e
+  "46: delete /teams/{tid}/conversations/{cid}":w -> "74: [galley]:on-conversation-updated":e
+  "46: delete /teams/{tid}/conversations/{cid}":w -> "75: [galley]:on-mls-message-sent":e
+  "46: delete /teams/{tid}/conversations/{cid}":w -> "76: [galley]:on-new-remote-conversation":e
+  "47: post /conversations/{cnv}/otr/messages":w -> "83: [galley]:on-message-sent":e
+  "47: post /conversations/{cnv}/otr/messages":w -> "65: [brig]:get-user-clients":e
+  "48: post /conversations/{cnv_domain}/{cnv}/proteus/messages":w -> "65: [brig]:get-user-clients":e
+  "48: post /conversations/{cnv_domain}/{cnv}/proteus/messages":w -> "83: [galley]:on-message-sent":e
+  "48: post /conversations/{cnv_domain}/{cnv}/proteus/messages":w -> "84: [galley]:send-message":e
+  "49: post /bot/messages":w -> "83: [galley]:on-message-sent":e
+  "49: post /bot/messages":w -> "65: [brig]:get-user-clients":e
+  "50: put /teams/{tid}/features/legalhold":w -> "74: [galley]:on-conversation-updated":e
+  "50: put /teams/{tid}/features/legalhold":w -> "75: [galley]:on-mls-message-sent":e
+  "50: put /teams/{tid}/features/legalhold":w -> "76: [galley]:on-new-remote-conversation":e
+  "51: post /mls/welcome":w -> "85: [galley]:mls-welcome":e
+  "52: post /mls/messages":w -> "75: [galley]:on-mls-message-sent":e
+  "52: post /mls/messages":w -> "86: [galley]:send-mls-message":e
+  "52: post /mls/messages":w -> "74: [galley]:on-conversation-updated":e
+  "52: post /mls/messages":w -> "76: [galley]:on-new-remote-conversation":e
+  "52: post /mls/messages":w -> "87: [brig]:get-mls-clients":e
+  "53: post /mls/commit-bundles":w -> "75: [galley]:on-mls-message-sent":e
+  "53: post /mls/commit-bundles":w -> "85: [galley]:mls-welcome":e
+  "53: post /mls/commit-bundles":w -> "88: [galley]:send-mls-commit-bundle":e
+  "53: post /mls/commit-bundles":w -> "74: [galley]:on-conversation-updated":e
+  "53: post /mls/commit-bundles":w -> "76: [galley]:on-new-remote-conversation":e
+  "53: post /mls/commit-bundles":w -> "87: [brig]:get-mls-clients":e
+  "54: delete /teams/{tid}/legalhold/settings":w -> "74: [galley]:on-conversation-updated":e
+  "54: delete /teams/{tid}/legalhold/settings":w -> "75: [galley]:on-mls-message-sent":e
+  "54: delete /teams/{tid}/legalhold/settings":w -> "76: [galley]:on-new-remote-conversation":e
+  "55: post /teams/{tid}/legalhold/{uid}":w -> "74: [galley]:on-conversation-updated":e
+  "55: post /teams/{tid}/legalhold/{uid}":w -> "75: [galley]:on-mls-message-sent":e
+  "55: post /teams/{tid}/legalhold/{uid}":w -> "76: [galley]:on-new-remote-conversation":e
+  "56: delete /teams/{tid}/legalhold/{uid}":w -> "74: [galley]:on-conversation-updated":e
+  "56: delete /teams/{tid}/legalhold/{uid}":w -> "75: [galley]:on-mls-message-sent":e
+  "56: delete /teams/{tid}/legalhold/{uid}":w -> "76: [galley]:on-new-remote-conversation":e
+  "57: post /teams/{tid}/legalhold/consent":w -> "74: [galley]:on-conversation-updated":e
+  "57: post /teams/{tid}/legalhold/consent":w -> "75: [galley]:on-mls-message-sent":e
+  "57: post /teams/{tid}/legalhold/consent":w -> "76: [galley]:on-new-remote-conversation":e
+  "58: put /teams/{tid}/legalhold/{uid}/approve":w -> "74: [galley]:on-conversation-updated":e
+  "58: put /teams/{tid}/legalhold/{uid}/approve":w -> "75: [galley]:on-mls-message-sent":e
+  "58: put /teams/{tid}/legalhold/{uid}/approve":w -> "76: [galley]:on-new-remote-conversation":e
+  "59: post /i/users":w -> "64: [brig]:on-user-deleted-connections":e
+  "60: post /i/users/spar":w -> "64: [brig]:on-user-deleted-connections":e
+  "61: post /i/legalhold-login":w -> "64: [brig]:on-user-deleted-connections":e
+  "62: post /i/sso-login":w -> "64: [brig]:on-user-deleted-connections":e
+}

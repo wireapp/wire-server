@@ -32,6 +32,7 @@ conversationAPI :: API ConversationAPI GalleyEffects
 conversationAPI =
   mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
     <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
+    <@> mkNamedAPI @"get-conversation@v2" (callsFed getConversation)
     <@> mkNamedAPI @"get-conversation" (callsFed getConversation)
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
     <@> mkNamedAPI @"get-group-info" (callsFed getGroupInfo)

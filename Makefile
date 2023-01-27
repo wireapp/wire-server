@@ -13,7 +13,12 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws 
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE        := wire-server redis-ephemeral redis-cluster databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn inbucket
+CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster databases-ephemeral	\
+fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
+calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
+elasticsearch-ephemeral minio-external cassandra-external						\
+nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn		\
+inbucket k8ssandra-test-cluster
 KIND_CLUSTER_NAME     := wire-server
 
 package ?= all
@@ -47,13 +52,9 @@ install: init
 .PHONY: full-clean
 full-clean: clean
 	rm -rf ~/.cache/hie-bios
-ifdef CABAL_DIR
-	rm -rf $(CABAL_DIR)/store
-else
-	rm -rf ~/.cabal/store
-endif
 	rm -rf ./dist-newstyle ./.env
 	direnv reload
+	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
 .PHONY: clean
 clean:
@@ -437,6 +438,14 @@ kind-delete:
 .PHONY: kind-reset
 kind-reset: kind-delete kind-cluster
 
+.PHONY: kind-upload-images
+kind-upload-images:
+	DOCKER_TAG=$(DOCKER_TAG) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) ./hack/bin/kind-upload-images.sh
+
+.PHONY: kind-upload-image
+kind-upload-image-%:
+	DOCKER_TAG=$(DOCKER_TAG) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) ./hack/bin/kind-upload-image.sh wireServer.imagesUnoptimizedNoDocs.$(*)
+
 .local/kind-kubeconfig:
 	mkdir -p $(CURDIR)/.local
 	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig
@@ -479,7 +488,7 @@ kind-integration-e2e: .local/kind-kubeconfig
 kind-restart-all: .local/kind-kubeconfig
 	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
 	kubectl delete pod -n $(NAMESPACE) -l release=$(NAMESPACE)-wire-server && \
-	kubectl delete pod -n $(NAMESPACE)-fed2 -l release=$(NAMESPACE)-fed2-wire-server
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l release=$(NAMESPACE)-wire-server-2
 
 kind-restart-nginx-ingress: .local/kind-kubeconfig
 	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \

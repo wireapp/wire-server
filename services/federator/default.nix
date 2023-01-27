@@ -129,6 +129,7 @@ mkDerivation {
     time-manager
     tinylog
     tls
+    transformers
     types-common
     unix
     uri-bytestring

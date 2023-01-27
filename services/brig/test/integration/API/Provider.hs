@@ -734,7 +734,7 @@ testDeleteConvBotTeam config db brig galley cannon = withTestService config db b
     svcAssertConvDelete buf quid2 qcid
   -- Check that the conversation no longer exists
   forM_ [uid1, uid2] $ \uid ->
-    getConversation galley uid cid !!! const 404 === statusCode
+    getConversationQualified galley uid qcid !!! const 404 === statusCode
   getBotConv galley bid cid !!! const 404 === statusCode
 
 testDeleteTeamBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -758,7 +758,7 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   forM_ [uid1, uid2] $ \uid -> do
     void $ retryWhileN 20 (/= Intra.Deleted) (getStatus brig uid)
     chkStatus brig uid Intra.Deleted
-    aFewTimes 11 (getConversation galley uid cid) ((== 404) . statusCode)
+    aFewTimes 11 (getConversationQualified galley uid qcid) ((== 404) . statusCode)
   -- Check the bot cannot see the conversation either
   getBotConv galley bid cid !!! const 404 === statusCode
 
@@ -2088,7 +2088,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     assertEqual "id" cid (bcnv ^. Ext.botConvId)
     assertEqual "members" [OtherMember quid Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
   -- The user can identify the bot in the member list
-  mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
+  mems <- fmap cnvMembers . responseJsonError =<< getConversationQualified galley uid qcid
   let other = listToMaybe (cmOthers mems)
   liftIO $ do
     assertEqual "id" (Just buid) (qUnqualified . omQualifiedId <$> other)

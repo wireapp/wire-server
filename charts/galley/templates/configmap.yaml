@@ -111,10 +111,6 @@ data:
         conversationGuestLinks:
           {{- toYaml .settings.featureFlags.conversationGuestLinks | nindent 10 }}
         {{- end }}
-        {{- if .settings.featureFlags.searchVisibilityInbound }}
-        searchVisibilityInbound:
-          {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
-        {{- end }}
         {{- if .settings.featureFlags.mls }}
         mls:
           {{- toYaml .settings.featureFlags.mls | nindent 10 }}

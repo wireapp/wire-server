@@ -24,6 +24,7 @@ import Bilge.Assert
 import Bilge.TestSession
 import Brig.Types.Connection
 import Brig.Types.Intra (UserAccount (..))
+import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens hiding (from, to, uncons, (#), (.=))
@@ -69,7 +70,7 @@ import Data.Time (getCurrentTime)
 import Data.Tuple.Extra
 import qualified Data.UUID as UUID
 import Data.UUID.V4
-import Federator.MockServer (FederatedRequest (..))
+import Federator.MockServer
 import qualified Federator.MockServer as Mock
 import GHC.TypeLits (KnownSymbol)
 import Galley.Intra.User (chunkify)
@@ -719,7 +720,7 @@ postConvWithRemoteUsers ::
   TestM (Response (Maybe LByteString))
 postConvWithRemoteUsers u n =
   fmap fst $
-    withTempMockFederator (const ()) $
+    withTempMockFederator' (mockReply ()) $
       postConvQualified u n {newConvName = setName (newConvName n)}
         <!! const 201
           === statusCode
@@ -839,12 +840,10 @@ postProteusMessageQualifiedWithMockFederator ::
   [(Qualified UserId, ClientId, ByteString)] ->
   ByteString ->
   ClientMismatchStrategy ->
-  (Domain -> ServerT (FedApi 'Brig) Handler) ->
-  (Domain -> ServerT (FedApi 'Galley) Handler) ->
+  Mock LByteString ->
   TestM (ResponseLBS, [FederatedRequest])
-postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat brigApi galleyApi = do
-  localDomain <- viewFederationDomain
-  withTempServantMockFederator brigApi galleyApi localDomain $
+postProteusMessageQualifiedWithMockFederator senderUser senderClient convId recipients dat strat mock =
+  withTempMockFederator' mock $
     postProteusMessageQualified senderUser senderClient convId recipients dat strat
 
 postProteusMessageQualified ::
@@ -1033,12 +1032,43 @@ listConvs u req = do
       . zType "access"
       . json req
 
-getConv :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ConvId -> m ResponseLBS
+getConv ::
+  ( MonadIO m,
+    MonadHttp m,
+    MonadReader TestSetup m,
+    HasCallStack
+  ) =>
+  UserId ->
+  ConvId ->
+  m ResponseLBS
 getConv u c = do
-  g <- viewGalley
+  g <- view tsUnversionedGalley
   get $
     g
-      . paths ["conversations", toByteString' c]
+      . paths ["v2", "conversations", toByteString' c]
+      . zUser u
+      . zConn "conn"
+      . zType "access"
+
+getConvQualifiedV2 ::
+  ( Monad m,
+    MonadReader TestSetup m,
+    MonadHttp m,
+    MonadIO m
+  ) =>
+  UserId ->
+  Qualified ConvId ->
+  m ResponseLBS
+getConvQualifiedV2 u qcnv = do
+  g <- view tsUnversionedGalley
+  get $
+    g
+      . paths
+        [ "v2",
+          "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv)
+        ]
       . zUser u
       . zConn "conn"
       . zType "access"
@@ -1531,10 +1561,10 @@ assertConv ::
   ConvType ->
   UserId ->
   Qualified UserId ->
-  [UserId] ->
+  [Qualified UserId] ->
   Maybe Text ->
   Maybe Milliseconds ->
-  TestM ConvId
+  TestM (Qualified ConvId)
 assertConv r t c s us n mt = assertConvWithRole r t c s us n mt roleNameWireAdmin
 
 assertConvWithRole ::
@@ -1543,83 +1573,35 @@ assertConvWithRole ::
   ConvType ->
   UserId ->
   Qualified UserId ->
-  [UserId] ->
+  [Qualified UserId] ->
   Maybe Text ->
   Maybe Milliseconds ->
   RoleName ->
-  TestM ConvId
+  TestM (Qualified ConvId)
 assertConvWithRole r t c s us n mt role = do
   cId <- fromBS $ getHeader' "Location" r
-  let cnv = responseJsonMaybe @Conversation r
-  let _self = cmSelf . cnvMembers <$> cnv
-  let others = cmOthers . cnvMembers <$> cnv
+  cnv <- responseJsonError r
+  let _self = cmSelf (cnvMembers cnv)
+  let others = cmOthers (cnvMembers cnv)
   liftIO $ do
-    assertEqual "id" (Just cId) (qUnqualified . cnvQualifiedId <$> cnv)
-    assertEqual "name" n (cnv >>= cnvName)
-    assertEqual "type" (Just t) (cnvType <$> cnv)
-    assertEqual "creator" (Just c) (cnvCreator <$> cnv)
-    assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
-    assertEqual "self" (Just s) (memId <$> _self)
-    assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map (qUnqualified . omQualifiedId) . toList <$> others)
-    assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
-    assertBool "others role" (all (== role) $ maybe (error "Cannot be null") (map omConvRoleName . toList) others)
-    assertBool "otr muted ref not empty" (isNothing (memOtrMutedRef =<< _self))
-    assertBool "otr archived not false" (Just False == (memOtrArchived <$> _self))
-    assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef =<< _self))
+    assertEqual "id" cId (qUnqualified (cnvQualifiedId cnv))
+    assertEqual "name" n (cnvName cnv)
+    assertEqual "type" t (cnvType cnv)
+    assertEqual "creator" c (cnvCreator cnv)
+    assertEqual "message_timer" mt (cnvMessageTimer cnv)
+    assertEqual "self" s (memId _self)
+    assertEqual "others" (Set.fromList $ us) (Set.fromList . map omQualifiedId . toList $ others)
+    assertEqual "creator is always and admin" roleNameWireAdmin (memConvRoleName _self)
+    assertBool "others role" (all ((== role) . omConvRoleName) (toList others))
+    assertBool "otr muted ref not empty" (isNothing (memOtrMutedRef _self))
+    assertBool "otr archived not false" (not (memOtrArchived _self))
+    assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef _self))
     case t of
-      SelfConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
-      ConnectConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
-      One2OneConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
+      SelfConv -> assertEqual "access" privateAccess (cnvAccess cnv)
+      ConnectConv -> assertEqual "access" privateAccess (cnvAccess cnv)
+      One2OneConv -> assertEqual "access" privateAccess (cnvAccess cnv)
       _ -> pure ()
-  pure cId
-
-assertConvQualified ::
-  HasCallStack =>
-  Response (Maybe Lazy.ByteString) ->
-  ConvType ->
-  UserId ->
-  Qualified UserId ->
-  [Qualified UserId] ->
-  Maybe Text ->
-  Maybe Milliseconds ->
-  TestM ConvId
-assertConvQualified r t c s us n mt = assertConvQualifiedWithRole r t c s us n mt roleNameWireAdmin
-
-assertConvQualifiedWithRole ::
-  HasCallStack =>
-  Response (Maybe Lazy.ByteString) ->
-  ConvType ->
-  UserId ->
-  Qualified UserId ->
-  [Qualified UserId] ->
-  Maybe Text ->
-  Maybe Milliseconds ->
-  RoleName ->
-  TestM ConvId
-assertConvQualifiedWithRole r t c s us n mt role = do
-  cId <- fromBS $ getHeader' "Location" r
-  let cnv = responseJsonMaybe @Conversation r
-  let _self = cmSelf . cnvMembers <$> cnv
-  let others = cmOthers . cnvMembers <$> cnv
-  liftIO $ do
-    assertEqual "id" (Just cId) (qUnqualified . cnvQualifiedId <$> cnv)
-    assertEqual "name" n (cnv >>= cnvName)
-    assertEqual "type" (Just t) (cnvType <$> cnv)
-    assertEqual "creator" (Just c) (cnvCreator <$> cnv)
-    assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
-    assertEqual "self" (Just s) (memId <$> _self)
-    assertEqual "others" (Just . Set.fromList $ us) (Set.fromList . map omQualifiedId . toList <$> others)
-    assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
-    assertBool "others role" (all (== role) $ maybe (error "Cannot be null") (map omConvRoleName . toList) others)
-    assertBool "otr muted ref not empty" (isNothing (memOtrMutedRef =<< _self))
-    assertBool "otr archived not false" (Just False == (memOtrArchived <$> _self))
-    assertBool "otr archived ref not empty" (isNothing (memOtrArchivedRef =<< _self))
-    case t of
-      SelfConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
-      ConnectConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
-      One2OneConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
-      _ -> pure ()
-  pure cId
+  pure (cnvQualifiedId cnv)
 
 wsAssertOtr ::
   HasCallStack =>
@@ -2589,47 +2571,20 @@ mkProfile quid name =
 
 -- | Run the given action on a temporary galley instance with access to a mock
 -- federator.
---
--- The `resp :: FederatedRequest -> a` argument can be used to provide a fake
--- federator response (of an arbitrary JSON-serialisable type a) for every
--- expected request.
-withTempMockFederator ::
-  ToJSON a =>
-  (FederatedRequest -> a) ->
-  TestM b ->
-  TestM (b, [FederatedRequest])
-withTempMockFederator resp = withTempMockFederator' $ pure . encode . resp
-
 withTempMockFederator' ::
   (MonadIO m, MonadMask m, HasSettingsOverrides m) =>
-  (FederatedRequest -> IO LByteString) ->
+  Mock LByteString ->
   m b ->
   m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
+  let mock = runMock (assertFailure . Text.unpack) $ do
+        r <- resp
+        pure ("application" // "json", r)
   Mock.withTempMockFederator
     [("Content-Type", "application/json")]
-    ((\r -> pure ("application" // "json", r)) <=< resp)
+    mock
     $ \mockPort -> do
       withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
-
--- Start a mock federator. Use provided Servant handler for the mocking function.
-withTempServantMockFederator ::
-  (Domain -> ServerT (FedApi 'Brig) Handler) ->
-  (Domain -> ServerT (FedApi 'Galley) Handler) ->
-  Domain ->
-  TestM b ->
-  TestM (b, [FederatedRequest])
-withTempServantMockFederator brigApi galleyApi originDomain =
-  withTempMockFederator' mock
-  where
-    server :: Domain -> ServerT CombinedBrigAndGalleyAPI Handler
-    server d = brigApi d :<|> galleyApi d
-
-    mock :: FederatedRequest -> IO LByteString
-    mock req =
-      makeFedRequestToServant @CombinedBrigAndGalleyAPI originDomain (server (frTargetDomain req)) req
-
-type CombinedBrigAndGalleyAPI = FedApi 'Brig :<|> FedApi 'Galley
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.
@@ -2789,28 +2744,10 @@ checkTimeout = 3 # Second
 
 -- | The function is used in conjuction with 'withTempMockFederator' to mock
 -- responses by Brig on the mocked side of federation.
-mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> FederatedRequest -> Maybe Value
-mockedFederatedBrigResponse users req
-  | frComponent req == Brig =
-      Just . toJSON $ [mkProfile mem (Name name) | (mem, name) <- users]
-  | otherwise = Nothing
-
--- | Combine two mocked services such that for a given request a JSON response
--- is produced.
-joinMockedFederatedResponses ::
-  (FederatedRequest -> Maybe Value) ->
-  (FederatedRequest -> Maybe Value) ->
-  FederatedRequest ->
-  Value
-joinMockedFederatedResponses service1 service2 req =
-  fromMaybe (toJSON ()) (service1 req <|> service2 req)
-
--- | Only Brig is mocked.
-onlyMockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> FederatedRequest -> Value
-onlyMockedFederatedBrigResponse users =
-  joinMockedFederatedResponses
-    (mockedFederatedBrigResponse users)
-    (const Nothing)
+mockedFederatedBrigResponse :: [(Qualified UserId, Text)] -> Mock LByteString
+mockedFederatedBrigResponse users = do
+  guardComponent Brig
+  mockReply [mkProfile mem (Name name) | (mem, name) <- users]
 
 fedRequestsForDomain :: HasCallStack => Domain -> Component -> [FederatedRequest] -> [FederatedRequest]
 fedRequestsForDomain domain component =

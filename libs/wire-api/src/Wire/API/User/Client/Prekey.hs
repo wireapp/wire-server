@@ -25,6 +25,7 @@ module Wire.API.User.Client.Prekey
     LastPrekey,
     lastPrekey,
     unpackLastPrekey,
+    fakeLastPrekey,
     lastPrekeyId,
     PrekeyBundle (..),
     ClientPrekey (..),
@@ -100,6 +101,11 @@ lastPrekeyId = PrekeyId maxBound
 
 lastPrekey :: Text -> LastPrekey
 lastPrekey = LastPrekey . Prekey lastPrekeyId
+
+-- for tests only
+-- This fake last prekey has the wrong prekeyId
+fakeLastPrekey :: LastPrekey
+fakeLastPrekey = LastPrekey $ Prekey (PrekeyId 7) "pQABAQcCoQBYIDXdN8VlKb5lbgPmoDPLPyqNIEyShG4oT/DlW0peRRZUA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY="
 
 --------------------------------------------------------------------------------
 -- PrekeyBundle

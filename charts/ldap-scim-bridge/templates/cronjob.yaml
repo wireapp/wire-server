@@ -1,4 +1,4 @@
-apiVersion: batch/v1beta1
+apiVersion: {{ include "batch.apiVersion" . }}
 kind: CronJob
 metadata:
   name: {{ .Release.Name }}

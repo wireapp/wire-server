@@ -30,7 +30,7 @@ import qualified Data.List1 as List1
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
-import Federator.MockServer (FederatedRequest (..))
+import Federator.MockServer
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -84,8 +84,8 @@ handleConversationRoleAdmin = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, qalice) <- randomUserTuple
-  bob <- randomUser
-  chuck <- randomUser
+  (bob, qbob) <- randomUserTuple
+  (chuck, qchuck) <- randomUserTuple
   (eve, qeve) <- randomUserTuple
   (jack, qjack) <- randomUserTuple
   connectUsers alice (list1 bob [chuck, eve, jack])
@@ -94,7 +94,7 @@ handleConversationRoleAdmin = do
   let role = roleNameWireAdmin
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv alice qalice [qbob, qchuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
@@ -123,10 +123,9 @@ handleConversationRoleMember :: TestM ()
 handleConversationRoleMember = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
-  alice <- randomUser
-  let qalice = Qualified alice localDomain
-  bob <- randomUser
-  chuck <- randomUser
+  (alice, qalice) <- randomUserTuple
+  (bob, qbob) <- randomUserTuple
+  (chuck, qchuck) <- randomUserTuple
   eve <- randomUser
   let qeve = Qualified eve localDomain
   jack <- randomUser
@@ -136,7 +135,7 @@ handleConversationRoleMember = do
   let role = roleNameWireMember
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv alice qalice [qbob, qchuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
@@ -176,7 +175,7 @@ roleUpdateRemoteMember = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -245,7 +244,7 @@ roleUpdateWithRemotes = do
 
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -304,7 +303,7 @@ accessUpdateWithRemotes = do
   let access = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putQualifiedAccessUpdate bob qconv access
           !!! const 200 === statusCode
 
