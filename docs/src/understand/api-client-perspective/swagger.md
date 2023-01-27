@@ -39,14 +39,39 @@ docs:
 - Version `v2`:
     - [new staging swagger page - **public**
     endpoints](https://staging-nginz-https.zinfra.io/v2/api/swagger-ui/)
-- Version `v3` (current *development* version):
-    - [new staging swagger page - **public**
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/)
 - Unversioned
     - [new staging swagger page - **internal** (private)
     endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/)
 
 The first part of the URL's path is the version. No specified version means
-version `v0`. In case this page gets outdated and e.g. you'll like to look at
-the docs of `v4` (which does not exist at the time of writing): Just update the
-first path element of an existing link.
+version `v0`. New versions are added from time to time. If you would like to
+look at the docs of another version (which did not exist at the time of
+writing): Just update the first path element of an existing link.
+
+The URL pattern is `https://<nginz-host>/v<version>/api/swagger-ui/`. To figure
+out which versions are supported by your backend, query
+`https://<nginz-host>/<version>/api-version`.
+
+The [API versioning](../../developer/developer/api-versioning.md) article
+discusses the versioning topic in detail.
+
+### Example
+
+To get the versions a backend (`staging-nginz-https.zinfra.io` in this case) supports, execute:
+```sh
+curl https://staging-nginz-https.zinfra.io/api-version 
+{"development":[3],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
+```
+
+The URL to open in your browser for the development version `3` is
+`https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/`.
+
+
+## Old docs (swagger 1.2)
+
+If you are an employee of Wire, you can log in here and try out requests in the browser; if not, you can make use of the "List Operations" button on both 1.2 and 2.0 pages to see the possible API requests.
+
+Browse to our [old staging swagger page](https://staging-nginz-https.zinfra.io/swagger-ui/) to see rendered swagger documentation for the remaining endpoints.
+
+```{image} img/swagger.png
+```
