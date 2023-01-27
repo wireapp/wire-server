@@ -46,7 +46,7 @@ Next, MLS needs to be explictly enabled in brig. This can be configured at
 brig:
   config:
     optSettings:
-      enableMLS: true
+      setEnableMLS: true
 ```
 
 Finally, the web applications need to be made aware of *MLS*. This is done by
