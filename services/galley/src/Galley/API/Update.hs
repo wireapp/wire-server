@@ -294,6 +294,7 @@ updateConversationAccess ::
   ( Members UpdateConversationAccessEffects r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-conversation-updated"
   ) =>
   Local UserId ->
@@ -310,6 +311,7 @@ updateConversationAccessUnqualified ::
   ( Members UpdateConversationAccessEffects r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-conversation-updated"
   ) =>
   Local UserId ->
@@ -346,6 +348,7 @@ updateConversationReceiptMode ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "update-conversation"
   ) =>
   Local UserId ->
@@ -427,6 +430,7 @@ updateConversationReceiptModeUnqualified ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "update-conversation"
   ) =>
   Local UserId ->
@@ -452,7 +456,8 @@ updateConversationMessageTimer ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -491,7 +496,8 @@ updateConversationMessageTimerUnqualified ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -519,7 +525,8 @@ deleteLocalConversation ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -731,7 +738,8 @@ joinConversationByReusableCode ::
       r,
     FeaturePersistentConstraint db GuestLinksConfig,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -765,7 +773,8 @@ joinConversationById ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -795,7 +804,8 @@ joinConversation ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -856,7 +866,8 @@ addMembers ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -900,7 +911,8 @@ addMembersUnqualifiedV2 ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -944,7 +956,8 @@ addMembersUnqualified ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1041,7 +1054,8 @@ updateOtherMemberLocalConv ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1073,7 +1087,8 @@ updateOtherMemberUnqualified ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1105,7 +1120,8 @@ updateOtherMember ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1148,7 +1164,8 @@ removeMemberUnqualified ::
     CallsFed 'Galley "leave-conversation",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1181,7 +1198,8 @@ removeMemberQualified ::
     CallsFed 'Galley "leave-conversation",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1257,7 +1275,8 @@ removeMemberFromLocalConv ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1477,7 +1496,8 @@ updateConversationName ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1508,7 +1528,8 @@ updateUnqualifiedConversationName ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1535,7 +1556,8 @@ updateLocalConversationName ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->

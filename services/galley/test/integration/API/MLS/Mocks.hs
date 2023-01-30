@@ -43,6 +43,7 @@ receiveCommitMock clients =
   asum
     [ "on-conversation-updated" ~> (),
       "on-new-remote-conversation" ~> EmptyResponse,
+      "on-new-remote-subconversation" ~> EmptyResponse,
       "get-mls-clients" ~>
         Set.fromList
           ( map (flip ClientInfo True . ciClient) clients

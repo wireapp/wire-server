@@ -70,6 +70,7 @@ type TeamConversationAPI =
            ( Summary "Remove a team conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow ('ActionDenied 'DeleteConversation)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation

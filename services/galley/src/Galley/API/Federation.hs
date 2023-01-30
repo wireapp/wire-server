@@ -108,6 +108,7 @@ federationSitemap ::
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
     :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
+    :<|> Named @"on-new-remote-subconversation" onNewRemoteSubConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"leave-conversation" (callsFed leaveConversation)
@@ -214,17 +215,26 @@ onNewRemoteConversation ::
 onNewRemoteConversation domain nrc = do
   -- update group_id -> conv_id mapping
   for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
-    case F.nrcSubConvId nrc of
-      Just subConvId ->
-        E.setGroupIdForSubConversation
-          (cnvmlsGroupId mls)
-          (Qualified (F.nrcConvId nrc) domain)
-          subConvId
-      Nothing ->
-        E.setGroupIdForConversation
-          (cnvmlsGroupId mls)
-          (Qualified (F.nrcConvId nrc) domain)
+    E.setGroupIdForConversation
+      (cnvmlsGroupId mls)
+      (Qualified (F.nrcConvId nrc) domain)
 
+  pure EmptyResponse
+
+onNewRemoteSubConversation ::
+  Members
+    '[ ConversationStore,
+       SubConversationStore
+     ]
+    r =>
+  Domain ->
+  F.NewRemoteSubConversation ->
+  Sem r EmptyResponse
+onNewRemoteSubConversation domain nrsc = do
+  E.setGroupIdForSubConversation
+    (cnvmlsGroupId (F.nrscMlsData nrsc))
+    (Qualified (F.nrscConvId nrsc) domain)
+    (F.nrscSubConvId nrsc)
   pure EmptyResponse
 
 getConversations ::
@@ -368,7 +378,8 @@ leaveConversation ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Domain ->
   F.LeaveConversationRequest ->
@@ -507,7 +518,8 @@ onUserDeleted ::
       r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Domain ->
   F.UserDeletedConversationsNotification ->
@@ -575,7 +587,8 @@ updateConversation ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Domain ->
   F.ConversationUpdateRequest ->
@@ -663,6 +676,7 @@ sendMLSCommitBundle ::
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "send-mls-commit-bundle",
     CallsFed 'Brig "get-mls-clients"
   ) =>
@@ -719,6 +733,7 @@ sendMLSMessage ::
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Brig "get-mls-clients"
   ) =>
@@ -939,7 +954,7 @@ deleteSubConversationForRemoteUser ::
          SubConversationSupply
        ]
       r,
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Domain ->
   DeleteSubConversationRequest ->

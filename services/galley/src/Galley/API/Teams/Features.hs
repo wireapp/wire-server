@@ -715,7 +715,8 @@ instance GetFeatureConfig db LegalholdConfig where
 instance
   ( CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   SetFeatureConfig db LegalholdConfig
   where

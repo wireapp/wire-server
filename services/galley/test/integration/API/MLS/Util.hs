@@ -24,7 +24,7 @@ import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Error.Util
-import Control.Lens (preview, to, view, (.~), (^..), (^?), _2)
+import Control.Lens (preview, to, view, (.~), (^..))
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
@@ -47,7 +47,6 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time
-import Galley.API.MLS.Types
 import Galley.Keys
 import Galley.Options
 import qualified Galley.Options as Opts
@@ -184,7 +183,12 @@ remotePostCommitBundle rsender qcs bundle = do
           "proposal failure while receiving commit bundle: " <> displayException e
       MLSMessageResponseUpdates _ -> pure []
 
-postCommitBundle :: ClientIdentity -> Qualified ConvOrSubConvId -> ByteString -> TestM [Event]
+postCommitBundle ::
+  HasCallStack =>
+  ClientIdentity ->
+  Qualified ConvOrSubConvId ->
+  ByteString ->
+  TestM [Event]
 postCommitBundle sender qcs bundle = do
   loc <- qualifyLocal ()
   foldQualified
@@ -1038,22 +1042,38 @@ receiveNewRemoteConv ::
   m ()
 receiveNewRemoteConv qcs gid = do
   client <- view tsFedGalleyClient
-  let cs = qUnqualified qcs
-      nrc =
-        NewRemoteConversation (convOfConvOrSub cs) (cs ^? _SubConv . _2) $
-          ProtocolMLS
-            ( ConversationMLSData
-                gid
-                (Epoch 1)
-                (Just (UTCTime (fromGregorian 2020 8 29) 0))
-                MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-            )
-  void $
-    runFedClient
-      @"on-new-remote-conversation"
-      client
-      (qDomain qcs)
-      nrc
+  case qUnqualified qcs of
+    Conv c -> do
+      let nrc =
+            NewRemoteConversation c $
+              ProtocolMLS
+                ( ConversationMLSData
+                    gid
+                    (Epoch 1)
+                    (Just (UTCTime (fromGregorian 2020 8 29) 0))
+                    MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+                )
+      void $
+        runFedClient
+          @"on-new-remote-conversation"
+          client
+          (qDomain qcs)
+          nrc
+    SubConv c s -> do
+      let nrc =
+            NewRemoteSubConversation c s $
+              ( ConversationMLSData
+                  gid
+                  (Epoch 1)
+                  (Just (UTCTime (fromGregorian 2020 8 29) 0))
+                  MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+              )
+      void $
+        runFedClient
+          @"on-new-remote-subconversation"
+          client
+          (qDomain qcs)
+          nrc
 
 receiveOnConvUpdated ::
   (MonadReader TestSetup m, MonadIO m) =>

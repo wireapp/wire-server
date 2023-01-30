@@ -151,6 +151,7 @@ postMLSMessageFromLocalUserV1 ::
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local UserId ->
@@ -196,6 +197,7 @@ postMLSMessageFromLocalUser ::
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local UserId ->
@@ -234,6 +236,7 @@ postMLSCommitBundle ::
     CallsFed 'Galley "send-mls-commit-bundle",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local x ->
@@ -273,6 +276,7 @@ postMLSCommitBundleFromLocalUser ::
     CallsFed 'Galley "send-mls-commit-bundle",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local UserId ->
@@ -311,6 +315,7 @@ postMLSCommitBundleToLocalConv ::
     CallsFed 'Galley "mls-welcome",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
@@ -446,6 +451,7 @@ postMLSMessage ::
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local x ->
@@ -541,6 +547,7 @@ postMLSMessageToLocalConv ::
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
@@ -713,6 +720,7 @@ processCommit ::
     Member SubConversationStore r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
@@ -868,6 +876,7 @@ processCommitWithAction ::
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
@@ -907,6 +916,7 @@ processInternalCommit ::
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
@@ -1258,7 +1268,8 @@ type HasProposalActionEffects r =
     Member TinyLog r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   )
 
 executeProposalAction ::
@@ -1369,13 +1380,13 @@ executeProposalAction qusr con lconvOrSub action = do
                 (mcRemoteMembers mlsConv)
             )
     let nrc =
-          NewRemoteConversation
-            { nrcConvId = mcId mlsConv,
-              nrcSubConvId = Just . scSubConvId $ subConv,
-              nrcProtocol = ProtocolMLS (scMLSData subConv)
+          NewRemoteSubConversation
+            { nrscConvId = mcId mlsConv,
+              nrscSubConvId = scSubConvId subConv,
+              nrscMlsData = scMLSData subConv
             }
     runFederatedConcurrently_ (toList remoteDomains) $ \_ -> do
-      void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+      void $ fedClient @'Galley @"on-new-remote-subconversation" nrc
 
   pure (addEvents <> removeEvents)
   where

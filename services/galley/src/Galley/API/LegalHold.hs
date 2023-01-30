@@ -222,7 +222,8 @@ removeSettingsInternalPaging ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
@@ -271,7 +272,8 @@ removeSettings ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   UserId ->
@@ -334,7 +336,8 @@ removeSettings' ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   TeamId ->
   Sem r ()
@@ -427,7 +430,8 @@ grantConsent ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   TeamId ->
@@ -479,7 +483,8 @@ requestDevice ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
@@ -564,7 +569,8 @@ approveDevice ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
@@ -645,7 +651,8 @@ disableForUser ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   TeamId ->
@@ -703,7 +710,8 @@ changeLegalholdStatus ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   TeamId ->
   Local UserId ->
@@ -824,7 +832,8 @@ handleGroupConvPolicyConflicts ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->

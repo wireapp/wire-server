@@ -281,12 +281,14 @@ type family PerformActionCalls tag where
   PerformActionCalls 'ConversationAccessDataTag =
     ( CallsFed 'Galley "on-conversation-updated",
       CallsFed 'Galley "on-mls-message-sent",
-      CallsFed 'Galley "on-new-remote-conversation"
+      CallsFed 'Galley "on-new-remote-conversation",
+      CallsFed 'Galley "on-new-remote-subconversation"
     )
   PerformActionCalls 'ConversationJoinTag =
     ( CallsFed 'Galley "on-conversation-updated",
       CallsFed 'Galley "on-mls-message-sent",
-      CallsFed 'Galley "on-new-remote-conversation"
+      CallsFed 'Galley "on-new-remote-conversation",
+      CallsFed 'Galley "on-new-remote-subconversation"
     )
   PerformActionCalls 'ConversationLeaveTag =
     ( CallsFed 'Galley "on-mls-message-sent"
@@ -370,7 +372,8 @@ performConversationJoin ::
   ( HasConversationActionEffects 'ConversationJoinTag r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -501,7 +504,8 @@ performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -603,6 +607,7 @@ updateLocalConversation ::
     HasConversationActionEffects tag r,
     SingI tag,
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-conversation-updated",
     PerformActionCalls tag
   ) =>
@@ -644,6 +649,7 @@ updateLocalConversationUnchecked ::
     Member SubConversationStore r,
     HasConversationActionEffects tag r,
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-conversation-updated",
     PerformActionCalls tag
   ) =>
@@ -730,6 +736,7 @@ notifyConversationAction ::
        ]
       r,
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-conversation-updated"
   ) =>
   Sing tag ->
@@ -760,18 +767,20 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
         Set.difference
           (Set.map void (bmRemotes targets))
           (Set.fromList (map (void . rmId) (convRemoteMembers conv)))
-  subConvs <-
-    ((Nothing, convProtocol conv) :) -- add main conversation to the list of subconversations
-      . map (bimap Just ProtocolMLS)
-      . Map.assocs
-      <$> E.listSubConversations (convId conv)
+  subConvs <- Map.assocs <$> E.listSubConversations (convId conv)
   E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
-    for_ subConvs $ \(mSubId, proto) ->
+    void $
       fedClient @'Galley @"on-new-remote-conversation"
         NewRemoteConversation
           { nrcConvId = convId conv,
-            nrcSubConvId = mSubId,
-            nrcProtocol = proto
+            nrcProtocol = convProtocol conv
+          }
+    for_ subConvs $ \(mSubId, mlsData) ->
+      fedClient @'Galley @"on-new-remote-subconversation"
+        NewRemoteSubConversation
+          { nrscConvId = convId conv,
+            nrscSubConvId = mSubId,
+            nrscMlsData = mlsData
           }
 
   update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
@@ -856,6 +865,7 @@ kickMember ::
     Member SubConversationStore r,
     Member TinyLog r,
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-conversation-updated",
     PerformActionCalls 'ConversationLeaveTag
   ) =>

@@ -424,6 +424,7 @@ type ConversationAPI =
            ( Summary "Delete an MLS subconversation"
                :> MakesFederatedCall 'Galley "delete-sub-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'MLSNotEnabled
@@ -514,6 +515,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> Until 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
@@ -538,6 +540,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> Until 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
@@ -563,6 +566,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> From 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
@@ -588,6 +592,7 @@ type ConversationAPI =
            ( Summary "Join a conversation by its ID (if link access enabled)"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -610,6 +615,7 @@ type ConversationAPI =
                \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/code-check` which responds with 404 CodeNotFound if guest links are disabled."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow 'CodeNotFound
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
@@ -740,6 +746,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> Until 'V2
                :> ZLocalUser
                :> ZConn
@@ -761,6 +768,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
@@ -780,6 +788,7 @@ type ConversationAPI =
                :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow 'ConvNotFound
@@ -804,6 +813,7 @@ type ConversationAPI =
                :> Description "**Note**: at least one field has to be provided."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow 'ConvNotFound
@@ -830,6 +840,7 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -850,6 +861,7 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:conv/name` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -870,6 +882,7 @@ type ConversationAPI =
            ( Summary "Update conversation name"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow ('ActionDenied 'ModifyConversationName)
                :> CanThrow 'ConvNotFound
                :> CanThrow 'InvalidOperation
@@ -893,6 +906,7 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'ModifyConversationMessageTimer)
@@ -914,6 +928,7 @@ type ConversationAPI =
            ( Summary "Update the message timer for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'ModifyConversationMessageTimer)
@@ -938,6 +953,7 @@ type ConversationAPI =
                :> Description "Use `PUT /conversations/:domain/:cnv/receipt-mode` instead."
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> MakesFederatedCall 'Galley "update-conversation"
                :> ZLocalUser
                :> ZConn
@@ -960,6 +976,7 @@ type ConversationAPI =
            ( Summary "Update receipt mode for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> MakesFederatedCall 'Galley "update-conversation"
                :> ZLocalUser
                :> ZConn
@@ -986,6 +1003,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> Until 'V3
                :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
                :> ZLocalUser
@@ -1012,6 +1030,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> Until 'V3
                :> ZLocalUser
                :> ZConn
@@ -1037,6 +1056,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-conversation-updated"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> From 'V3
                :> ZLocalUser
                :> ZConn

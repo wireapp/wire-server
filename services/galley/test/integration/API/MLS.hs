@@ -2391,18 +2391,15 @@ testRemoteSubConvNotificationWhenUserJoins = do
       withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
         createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
 
-    let nrcReqs = filter ((== "on-new-remote-conversation") . frRPC) reqs
-    liftIO $ do
-      length nrcReqs @?= 2
-      Set.fromList
-        [ (nrcConvId nrc, nrcSubConvId nrc)
-          | req <- nrcReqs,
-            nrc <- toList (Aeson.decode (frBody req))
-        ]
-        @?= Set.fromList
-          [ (qUnqualified qcnv, Nothing),
-            (qUnqualified qcnv, Just subId)
-          ]
+    do
+      req <- assertOne $ filter ((== "on-new-remote-conversation") . frRPC) reqs
+      nrc <- assertOne (toList (Aeson.decode (frBody req)))
+      liftIO $ nrcConvId nrc @?= qUnqualified qcnv
+    do
+      req <- assertOne $ filter ((== "on-new-remote-subconversation") . frRPC) reqs
+      nrsc <- assertOne (toList (Aeson.decode (frBody req)))
+      liftIO $ nrscConvId nrsc @?= qUnqualified qcnv
+      liftIO $ nrscSubConvId nrsc @?= subId
 
 testRemoteUserJoinSubConv :: TestM ()
 testRemoteUserJoinSubConv = do
@@ -2420,7 +2417,7 @@ testRemoteUserJoinSubConv = do
 
     let mock =
           asum
-            [ "on-new-remote-conversation" ~> EmptyResponse,
+            [ "on-new-remote-subconversation" ~> EmptyResponse,
               messageSentMock
             ]
     let subId = SubConvId "conference"
@@ -2429,16 +2426,14 @@ testRemoteUserJoinSubConv = do
 
     -- check that the remote backend is notified when a subconversation is
     -- created locally
-    req <- assertOne $ filter ((== "on-new-remote-conversation") . frRPC) reqs
-    nrc <- assertOne . toList $ Aeson.decode (frBody req)
+    req <- assertOne $ filter ((== "on-new-remote-subconversation") . frRPC) reqs
+    nrsc <- assertOne . toList $ Aeson.decode (frBody req)
     liftIO $ do
-      nrcConvId nrc @?= qUnqualified qcnv
-      nrcSubConvId nrc @?= Just subId
-      case nrcProtocol nrc of
-        ProtocolProteus -> assertFailure "Unexpected protocol"
-        ProtocolMLS mls -> do
-          cnvmlsGroupId mls @?= pscGroupId psc
-          cnvmlsEpoch mls @?= Epoch 0
+      nrscConvId nrsc @?= qUnqualified qcnv
+      nrscSubConvId nrsc @?= subId
+      let mls = nrscMlsData nrsc
+      cnvmlsGroupId mls @?= pscGroupId psc
+      cnvmlsEpoch mls @?= Epoch 0
 
     -- bob joins the subconversation
     void $ createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
@@ -2600,15 +2595,15 @@ testRemoteMemberDeleteSubConv isAMember = do
   -- Bob is a member of the parent conversation so he's allowed to delete the
   -- subconversation.
   (res, reqs) <-
-    withTempMockFederator' ("on-new-remote-conversation" ~> EmptyResponse) $ do
+    withTempMockFederator' ("on-new-remote-subconversation" ~> EmptyResponse) $ do
       fedGalleyClient <- view tsFedGalleyClient
       runFedClient @"delete-sub-conversation" fedGalleyClient bobDomain delReq
-  do
-    req <- assertOne (filter ((== "on-new-remote-conversation") . frRPC) reqs)
-    nrc <- assertOne (toList (Aeson.decode (frBody req)))
+  when isAMember $ do
+    req <- assertOne (filter ((== "on-new-remote-subconversation") . frRPC) reqs)
+    nrsc <- assertOne (toList (Aeson.decode (frBody req)))
     liftIO $ do
-      nrcConvId nrc @?= cnv
-      nrcSubConvId nrc @?= Just scnv
+      nrscConvId nrsc @?= cnv
+      nrscSubConvId nrsc @?= scnv
 
   if isAMember then expectSuccess res else expectFailure ConvNotFound res
   where

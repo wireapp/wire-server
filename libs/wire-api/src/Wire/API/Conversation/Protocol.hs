@@ -61,6 +61,34 @@ data ConversationMLSData = ConversationMLSData
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ConversationMLSData
+  deriving (ToJSON, FromJSON) via Schema ConversationMLSData
+
+mlsDataSchema :: ObjectSchema SwaggerDoc ConversationMLSData
+mlsDataSchema =
+  ConversationMLSData
+    <$> cnvmlsGroupId
+      .= fieldWithDocModifier
+        "group_id"
+        (description ?~ "An MLS group identifier (at most 256 bytes long)")
+        schema
+    <*> cnvmlsEpoch
+      .= fieldWithDocModifier
+        "epoch"
+        (description ?~ "The epoch number of the corresponding MLS group")
+        schema
+    <*> cnvmlsEpochTimestamp
+      .= fieldWithDocModifier
+        "epoch_timestamp"
+        (description ?~ "The timestamp of the epoch number")
+        schemaEpochTimestamp
+    <*> cnvmlsCipherSuite
+      .= fieldWithDocModifier
+        "cipher_suite"
+        (description ?~ "The cipher suite of the corresponding MLS group")
+        schema
+
+instance ToSchema ConversationMLSData where
+  schema = object "ConversationMLSData" mlsDataSchema
 
 -- | Conversation protocol and protocol-specific data.
 data Protocol
@@ -116,27 +144,3 @@ deriving via (Schema Protocol) instance ToJSON Protocol
 protocolDataSchema :: ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema ProtocolProteusTag = tag _ProtocolProteus (pure ())
 protocolDataSchema ProtocolMLSTag = tag _ProtocolMLS mlsDataSchema
-
-mlsDataSchema :: ObjectSchema SwaggerDoc ConversationMLSData
-mlsDataSchema =
-  ConversationMLSData
-    <$> cnvmlsGroupId
-      .= fieldWithDocModifier
-        "group_id"
-        (description ?~ "An MLS group identifier (at most 256 bytes long)")
-        schema
-    <*> cnvmlsEpoch
-      .= fieldWithDocModifier
-        "epoch"
-        (description ?~ "The epoch number of the corresponding MLS group")
-        schema
-    <*> cnvmlsEpochTimestamp
-      .= fieldWithDocModifier
-        "epoch_timestamp"
-        (description ?~ "The timestamp of the epoch number")
-        schemaEpochTimestamp
-    <*> cnvmlsCipherSuite
-      .= fieldWithDocModifier
-        "cipher_suite"
-        (description ?~ "The cipher suite of the corresponding MLS group")
-        schema

@@ -236,7 +236,7 @@ deleteSubConversation ::
        ]
       r,
     CallsFed 'Galley "delete-sub-conversation",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -265,7 +265,7 @@ deleteLocalSubConversation ::
          SubConversationSupply
        ]
       r,
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -298,11 +298,11 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
   -- notify all backends that the subconversation has a new ID
   let remotes = Set.fromList (map (void . rmId) (convRemoteMembers cnv))
   Eff.runFederatedConcurrently_ (toList remotes) $ \_ -> do
-    fedClient @'Galley @"on-new-remote-conversation"
-      NewRemoteConversation
-        { nrcConvId = cnvId,
-          nrcSubConvId = Just scnvId,
-          nrcProtocol = ProtocolMLS mlsData
+    fedClient @'Galley @"on-new-remote-subconversation"
+      NewRemoteSubConversation
+        { nrscConvId = cnvId,
+          nrscSubConvId = scnvId,
+          nrscMlsData = mlsData
         }
 
 deleteRemoteSubConversation ::
