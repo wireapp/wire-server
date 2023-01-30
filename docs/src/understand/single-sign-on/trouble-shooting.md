@@ -7,20 +7,45 @@
 In order for us to analyse and understand your problem, we need at least the following information up-front:
 
 - Have you followed the following instructions?
-  : - {ref}`FAQ <trouble-shooting-faq>` (This document)
+    - {ref}`FAQ <trouble-shooting-faq>` (This document)
     - [Howtos](https://docs.wire.com/how-to/single-sign-on/index.html) for supported vendors
     - [General documentation on the setup flow](https://support.wire.com/hc/en-us/articles/360001285718-Set-up-SSO-externally)
-- Vendor information (octa, azure, centrica, other (which one)?)
+- Which vendor (and product if /a) are you using (octa, azure, centrica, other (which one)?)
 - Team ID (looks like eg. `2e9a9c9c-6f83-11eb-a118-3342c6f16f4e`, can be found in team settings)
+- User ID of the account that has the problem (alternatively: handle, email address)
 - What do you expect to happen?
-  : - eg.: "I enter login code, authenticate successfully against IdP, get redirected, and see the wire landing page."
+    - eg.: "I enter login code, authenticate successfully against IdP, get redirected, and see the wire landing page."
 - What does happen instead?
-  : - Screenshots
+    - Screenshots
     - Copy the text into your report where applicable in addition to screenshots (for automatic processing).
     - eg.: "instead of being logged into wire, I see the following error page: ..."
 - Screenshots of the Configuration (both SAML and SCIM, as applicable), including, but not limited to:
-  : - If you are using SAML: SAML IdP metadata file
+    - If you are using SAML: SAML IdP metadata file
     - If you are using SCIM for provisioning: Which attributes in the User schema are mapped?  How?
+- If you have successfully authenticated on your IdP and are
+  redirected into wire, and then see a white page with an error
+  message that contains a lot of machine-readable info: copy the full
+  message to the clipboard and insert it into your report.  We do not
+  log this information for privacy reasons, but we can use it to
+  investigate your problem.  (Hint, if you want to investigate
+  yourself: it's base64 encoded!
+
+### notes for wire support / development
+
+Not officially supported IdP vendors may work out of the box, as we
+are requiring a minimum amount of SAML features.
+
+If there are problems: collect the metadata xml and an authentication
+response xml (either from the browser http logs via a more technically
+savvy customer; or from the "white page with an error" mentioned
+above.
+
+https://github.com/wireapp/saml2-web-sso supports writing [unit vendor
+compatibility
+tests](https://github.com/wireapp/saml2-web-sso/blob/ff9b9f445475809d1fa31ef7f2932caa0ed31613/test/Test/SAML2/WebSSO/APISpec.hs#L266-L329)
+against that response value.  once that test passes, it should all
+work fine.
+
 
 ## Can I use the same SSO login code for multiple teams?
 
@@ -281,23 +306,3 @@ clash.
 
 Do not rely on case sensitivity of `IssuerID` or `NameID`, or on
 `NameID` qualifiers for distinguishing user identifiers.
-
-## How to report problems
-
-If you have a problem you cannot resolve by yourself, please get in touch.  Add as much of the following details to your report as possible:
-
-- Are you on cloud or on-prem?  (If on-prem: which instance?)
-- XML IdP metadata
-- SSL Login code or IdP Issuer EntityID
-- NameID of the account that has the problem
-- SP metadata
-
-Problem description, including, but not limited to:
-
-- what happened?
-- what did you want to happen?
-- what does your idp config in the wire team management app look like?
-- what does your wire config in your IdP management app look like?
-- Please include screenshots *and* copied text (for cut&paste when we investigate) *and* further description and comments where feasible.
-
-(If you can't produce some of this information of course please get in touch anyway!  It'll merely be harder for us to resolve your issue quickly, and we may need to make a few extra rounds of data gathering together with you.)

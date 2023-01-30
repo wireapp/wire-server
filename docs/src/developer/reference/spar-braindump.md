@@ -226,35 +226,6 @@ This entry gets removed automatically when the corresponding idp is deleted. You
 Clients can then ask for the default SSO code on `/sso/settings` and use it to initiate single sign-on.
 
 
-### troubleshooting
-
-#### gathering information
-
-- find metadata for team in table `spar.idp_raw_metadata` via cqlsh
-  (since https://github.com/wireapp/wire-server/pull/872)
-
-- ask user for screenshots of the error message, or even better, for
-  the text.  the error message contains lots of strings that you can
-  grep for in the spar sources.
-
-
-#### making spar work with a new IdP
-
-often, new IdPs work out of the box, because there appears to be some
-consensus about what minimum feature set everybody should support.
-
-if there are problems: collect the metadata xml and an authentication
-response xml (either from the browser http logs via a more technically
-savvy customer; FUTUREWORK: it would be nice to log all saml response
-xml files that spar receives in prod and cannot process).
-
-https://github.com/wireapp/saml2-web-sso supports writing [unit vendor
-compatibility
-tests](https://github.com/wireapp/saml2-web-sso/blob/ff9b9f445475809d1fa31ef7f2932caa0ed31613/test/Test/SAML2/WebSSO/APISpec.hs#L266-L329)
-against that response value.  once that test passes, it should all
-work fine.
-
-
 ### common misconceptions
 
 
