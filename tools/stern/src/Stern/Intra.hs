@@ -62,7 +62,8 @@ module Stern.Intra
   )
 where
 
-import Bilge hiding (head, options, requestId)
+import Bilge hiding (head, options, path, paths, requestId)
+import qualified Bilge
 import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
@@ -127,9 +128,15 @@ assertBackendApiVersion = recoverAll (constantDelay 1000000 <> limitRetries 5) $
   b <- view brig
   vinfo :: VersionInfo <-
     responseJsonError
-      =<< rpc' "brig" b (method GET . path "/api-version" . contentJson . expect2xx)
+      =<< rpc' "brig" b (method GET . Bilge.path "/api-version" . contentJson . expect2xx)
   unless (maximum (vinfoSupported vinfo) == backendApiVersion) $ do
     throwIO . ErrorCall $ "newest supported backend api version must be " <> show backendApiVersion
+
+path :: ByteString -> Request -> Request
+path = Bilge.path . ((toByteString' backendApiVersion <> "/") <>)
+
+paths :: [ByteString] -> Request -> Request
+paths = Bilge.paths . (toByteString' backendApiVersion :)
 
 -------------------------------------------------------------------------------
 
@@ -765,7 +772,7 @@ getUserConversations uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . paths [toByteString' backendApiVersion, "conversations"]
+                . path "conversations"
                 . queryItem "size" (toByteString' batchSize)
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
