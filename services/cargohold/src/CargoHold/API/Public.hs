@@ -28,6 +28,7 @@ import Data.ByteString.Builder
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
+import Data.Kind
 import Data.Qualified
 import Imports hiding (head)
 import qualified Network.HTTP.Types as HTTP
@@ -96,7 +97,7 @@ instance HasLocation 'ProviderPrincipalTag where
       assetKeyToText (tUnqualified key)
     ]
 
-class HasLocation tag => MakePrincipal (tag :: PrincipalTag) (id :: *) | id -> tag, tag -> id where
+class HasLocation tag => MakePrincipal (tag :: PrincipalTag) (id :: Type) | id -> tag, tag -> id where
   mkPrincipal :: id -> V3.Principal
 
 instance MakePrincipal 'UserPrincipalTag (Local UserId) where

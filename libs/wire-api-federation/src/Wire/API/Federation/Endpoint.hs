@@ -21,12 +21,13 @@ module Wire.API.Federation.Endpoint
   )
 where
 
+import Data.Kind
 import Servant.API
 import Wire.API.ApplyMods
 import Wire.API.Federation.Domain
 import Wire.API.Routes.Named
 
-type FedEndpointWithMods (mods :: [*]) name input output =
+type FedEndpointWithMods (mods :: [Type]) name input output =
   Named
     name
     ( ApplyMods

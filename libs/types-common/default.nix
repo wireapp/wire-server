@@ -41,7 +41,6 @@
 , schema-profunctor
 , scientific
 , servant-server
-, singletons
 , string-conversions
 , swagger
 , swagger2
@@ -100,7 +99,6 @@ mkDerivation {
     schema-profunctor
     scientific
     servant-server
-    singletons
     string-conversions
     swagger
     swagger2

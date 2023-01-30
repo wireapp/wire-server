@@ -326,7 +326,7 @@ servantSitemap =
         :<|> Named @"get-calls-config-v2" Calling.getCallsConfigV2
 
     systemSettingsAPI :: ServerT SystemSettingsAPI (Handler r)
-    systemSettingsAPI = Named @ "get-system-settings" getSystemSettings
+    systemSettingsAPI = Named @"get-system-settings" getSystemSettings
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

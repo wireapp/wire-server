@@ -18,6 +18,7 @@
 module Wire.API.Routes.Public.Cargohold where
 
 import Data.Id
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
@@ -40,7 +41,7 @@ import Wire.API.Routes.Version
 data PrincipalTag = UserPrincipalTag | BotPrincipalTag | ProviderPrincipalTag
   deriving (Eq, Show)
 
-type family PrincipalId (tag :: PrincipalTag) = (id :: *) | id -> tag where
+type family PrincipalId (tag :: PrincipalTag) = (id :: Type) | id -> tag where
   PrincipalId 'UserPrincipalTag = Local UserId
   PrincipalId 'BotPrincipalTag = BotId
   PrincipalId 'ProviderPrincipalTag = ProviderId

@@ -137,7 +137,6 @@ library
     Galley.Types.ToUserRole
     Galley.Types.UserList
     Galley.Validation
-    Main
 
   other-modules:      Paths_galley
   hs-source-dirs:     src
@@ -257,6 +256,7 @@ library
     , servant-swagger
     , servant-swagger-ui
     , singletons
+    , singletons-th
     , sop-core
     , split                      >=0.2
     , ssl-util                   >=0.1
@@ -292,7 +292,7 @@ library
   default-language:   Haskell2010
 
 executable galley
-  main-is:            src/Main.hs
+  main-is:            exec/Main.hs
   other-modules:      Paths_galley
   default-extensions:
     NoImplicitPrelude
@@ -507,6 +507,7 @@ executable galley-integration
     , servant-server
     , servant-swagger
     , singletons
+    , singletons-th
     , sop-core
     , ssl-util
     , streaming-commons

@@ -88,6 +88,7 @@
 , servant-swagger
 , servant-swagger-ui
 , singletons
+, singletons-th
 , sop-core
 , split
 , ssl-util
@@ -209,6 +210,7 @@ mkDerivation {
     servant-swagger
     servant-swagger-ui
     singletons
+    singletons-th
     sop-core
     split
     ssl-util
@@ -312,6 +314,7 @@ mkDerivation {
     servant-server
     servant-swagger
     singletons
+    singletons-th
     sop-core
     ssl-util
     streaming-commons
