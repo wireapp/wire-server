@@ -1062,12 +1062,11 @@ receiveNewRemoteConv qcs gid = do
     SubConv c s -> do
       let nrc =
             NewRemoteSubConversation c s $
-              ( ConversationMLSData
-                  gid
-                  (Epoch 1)
-                  (Just (UTCTime (fromGregorian 2020 8 29) 0))
-                  MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-              )
+              ConversationMLSData
+                gid
+                (Epoch 1)
+                (Just (UTCTime (fromGregorian 2020 8 29) 0))
+                MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
       void $
         runFedClient
           @"on-new-remote-subconversation"
