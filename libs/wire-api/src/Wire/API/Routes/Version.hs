@@ -43,6 +43,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
+import Data.ByteString.Conversion (ToByteString (builder))
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Schema
@@ -82,6 +83,9 @@ instance FromHttpApiData Version where
 instance ToHttpApiData Version where
   toHeader = LBS.toStrict . Aeson.encode
   toUrlPiece = Text.decodeUtf8 . toHeader
+
+instance ToByteString Version where
+  builder = toEncodedUrlPiece
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
