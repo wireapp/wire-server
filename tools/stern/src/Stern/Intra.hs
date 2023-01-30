@@ -757,7 +757,7 @@ getUserConversations uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . path "/v2/conversations"
+                . paths [toByteString' backendApiVersion, "conversations"]
                 . queryItem "size" (toByteString' batchSize)
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
