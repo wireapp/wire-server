@@ -66,6 +66,7 @@ import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
+import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Data.Aeson hiding (Error)
@@ -95,6 +96,7 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
+import UnliftIO.Retry (constantDelay, limitRetries, recoverAll)
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Internal.Notification
@@ -121,13 +123,13 @@ backendApiVersion = V2
 -- | Make sure the backend supports `backendApiVersion`.  Crash if it doesn't.  (Call this so
 -- problems are caught by the integration tests.)
 assertBackendApiVersion :: App ()
-assertBackendApiVersion = do
+assertBackendApiVersion = recoverAll (constantDelay 1000000 <> limitRetries 5) $ \_retryStatus -> do
   b <- view brig
   vinfo :: VersionInfo <-
     responseJsonError
       =<< rpc' "brig" b (method GET . path "/api-version" . contentJson . expect2xx)
   unless (maximum (vinfoSupported vinfo) == backendApiVersion) $ do
-    throwError . ErrorCall $ "newest supported backend api version must be " <> show backendApiVersion
+    throwIO . ErrorCall $ "newest supported backend api version must be " <> show backendApiVersion
 
 -------------------------------------------------------------------------------
 

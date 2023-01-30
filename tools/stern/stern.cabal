@@ -91,6 +91,7 @@ library
     , lens                   >=4.4
     , metrics-wai            >=0.3
     , mtl                    >=2.1
+    , retry
     , schema-profunctor
     , servant
     , servant-server
