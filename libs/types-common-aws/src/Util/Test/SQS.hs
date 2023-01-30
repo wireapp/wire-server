@@ -50,13 +50,13 @@ assertNoMessages url env = do
 
 -----------------------------------------------------------------------------
 -- Queue operations
-purgeQueue :: (Monad m, MonadReader AWS.Env m, MonadResource m) => Text -> m ()
+purgeQueue :: (MonadReader AWS.Env m, MonadResource m) => Text -> m ()
 purgeQueue = void . readAndDeleteAllUntilEmpty
 
 -- Note that Amazon's purge queue is a bit incovenient for testing purposes because
 -- it may be delayed in ~60 seconds which causes messages that are published later
 -- to be (unintentionally) deleted which is why we have our own for testing purposes
-readAndDeleteAllUntilEmpty :: (Monad m, MonadReader AWS.Env m, MonadResource m) => Text -> m [SQS.Message]
+readAndDeleteAllUntilEmpty :: (MonadReader AWS.Env m, MonadResource m) => Text -> m [SQS.Message]
 readAndDeleteAllUntilEmpty url = do
   firstBatch <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> sendEnv (receive 1 url)
   readUntilEmpty firstBatch firstBatch
@@ -68,7 +68,7 @@ readAndDeleteAllUntilEmpty url = do
       forM_ newMsgs $ deleteMessage url
       readUntilEmpty (acc ++ newMsgs) newMsgs
 
-deleteMessage :: (Monad m, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m ()
+deleteMessage :: (MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m ()
 deleteMessage url m = do
   for_
     (m ^. SQS.message_receiptHandle)
@@ -92,13 +92,13 @@ receive n url =
       . set SQS.receiveMessage_maxNumberOfMessages (Just n)
       . set SQS.receiveMessage_visibilityTimeout (Just 1)
 
-fetchMessage :: (MonadIO m, Message a, MonadReader AWS.Env m, MonadResource m) => Text -> String -> (String -> Maybe a -> IO ()) -> m ()
+fetchMessage :: (Message a, MonadReader AWS.Env m, MonadResource m) => Text -> String -> (String -> Maybe a -> IO ()) -> m ()
 fetchMessage url label callback = do
   msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> sendEnv (receive 1 url)
   events <- mapM (parseDeleteMessage url) msgs
   liftIO $ callback label (headDef Nothing events)
 
-parseDeleteMessage :: (Monad m, Message a, MonadIO m, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m (Maybe a)
+parseDeleteMessage :: (Message a, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m (Maybe a)
 parseDeleteMessage url m = do
   let decodedMessage = decodeMessage <=< (B64.decode . Text.encodeUtf8)
   evt <- case decodedMessage <$> (m ^. SQS.message_body) of

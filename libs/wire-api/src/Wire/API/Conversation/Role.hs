@@ -86,6 +86,64 @@ import qualified Test.QuickCheck as QC
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
+-- Action
+
+newtype Actions = Actions
+  { allowedActions :: Set Action
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+
+allActions :: Actions
+allActions = Actions $ Set.fromList [minBound .. maxBound]
+
+-- | These conversation-level permissions.  Analogous to the team-level permissions called
+-- 'Perm' (or 'Permissions').
+data Action
+  = AddConversationMember
+  | RemoveConversationMember
+  | ModifyConversationName
+  | ModifyConversationMessageTimer
+  | ModifyConversationReceiptMode
+  | ModifyConversationAccess
+  | ModifyOtherConversationMember
+  | LeaveConversation
+  | DeleteConversation
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform Action)
+  deriving (S.ToSchema) via (S.CustomSwagger '[S.ConstructorTagModifier S.CamelToSnake] Action)
+
+type family ActionName (a :: Action) :: Symbol where
+  ActionName 'AddConversationMember = "add_conversation_member"
+  ActionName 'RemoveConversationMember = "remove_conversation_member"
+  ActionName 'ModifyConversationName = "modify_conversation_name"
+  ActionName 'ModifyConversationMessageTimer = "modify_conversation_message_timer"
+  ActionName 'ModifyConversationReceiptMode = "modify_conversation_receipt_mode"
+  ActionName 'ModifyConversationAccess = "modify_conversation_access"
+  ActionName 'ModifyOtherConversationMember = "modify_other_conversation_member"
+  ActionName 'LeaveConversation = "leave_conversation"
+  ActionName 'DeleteConversation = "delete_conversation"
+
+typeConversationRoleAction :: Doc.DataType
+typeConversationRoleAction =
+  Doc.string $
+    Doc.enum
+      [ "add_conversation_member",
+        "remove_conversation_member",
+        "modify_conversation_name",
+        "modify_conversation_message_timer",
+        "modify_conversation_receipt_mode",
+        "modify_conversation_access",
+        "modify_other_conversation_member",
+        "leave_conversation",
+        "delete_conversation"
+      ]
+
+A.deriveJSON A.defaultOptions {A.constructorTagModifier = A.camelTo2 '_'} ''Action
+
+$(genSingletons [''Action])
+
+--------------------------------------------------------------------------------
 -- Role
 
 -- | A conversation role is associated to a user in the scope of a conversation and implies
@@ -251,61 +309,3 @@ isValidRoleName =
         *> count 126 (optional (satisfy chars))
         *> endOfInput
     chars = inClass "a-z0-9_"
-
---------------------------------------------------------------------------------
--- Action
-
-newtype Actions = Actions
-  { allowedActions :: Set Action
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-
-allActions :: Actions
-allActions = Actions $ Set.fromList [minBound .. maxBound]
-
--- | These conversation-level permissions.  Analogous to the team-level permissions called
--- 'Perm' (or 'Permissions').
-data Action
-  = AddConversationMember
-  | RemoveConversationMember
-  | ModifyConversationName
-  | ModifyConversationMessageTimer
-  | ModifyConversationReceiptMode
-  | ModifyConversationAccess
-  | ModifyOtherConversationMember
-  | LeaveConversation
-  | DeleteConversation
-  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
-  deriving (Arbitrary) via (GenericUniform Action)
-  deriving (S.ToSchema) via (S.CustomSwagger '[S.ConstructorTagModifier S.CamelToSnake] Action)
-
-type family ActionName (a :: Action) :: Symbol where
-  ActionName 'AddConversationMember = "add_conversation_member"
-  ActionName 'RemoveConversationMember = "remove_conversation_member"
-  ActionName 'ModifyConversationName = "modify_conversation_name"
-  ActionName 'ModifyConversationMessageTimer = "modify_conversation_message_timer"
-  ActionName 'ModifyConversationReceiptMode = "modify_conversation_receipt_mode"
-  ActionName 'ModifyConversationAccess = "modify_conversation_access"
-  ActionName 'ModifyOtherConversationMember = "modify_other_conversation_member"
-  ActionName 'LeaveConversation = "leave_conversation"
-  ActionName 'DeleteConversation = "delete_conversation"
-
-typeConversationRoleAction :: Doc.DataType
-typeConversationRoleAction =
-  Doc.string $
-    Doc.enum
-      [ "add_conversation_member",
-        "remove_conversation_member",
-        "modify_conversation_name",
-        "modify_conversation_message_timer",
-        "modify_conversation_receipt_mode",
-        "modify_conversation_access",
-        "modify_other_conversation_member",
-        "leave_conversation",
-        "delete_conversation"
-      ]
-
-A.deriveJSON A.defaultOptions {A.constructorTagModifier = A.camelTo2 '_'} ''Action
-
-$(genSingletons [''Action])

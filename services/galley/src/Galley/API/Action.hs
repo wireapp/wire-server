@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE StandaloneKindSignatures #-}
 
 module Galley.API.Action
   ( -- * Conversation action types
@@ -272,14 +273,29 @@ ensureAllowed tag loc action conv origUser = do
             throwS @'InvalidTargetAccess
     _ -> pure ()
 
+type PerformActionCalls :: ConversationActionTag -> Constraint
+type family PerformActionCalls tag where
+  PerformActionCalls 'ConversationAccessDataTag =
+    ( CallsFed 'Galley "on-conversation-updated",
+      CallsFed 'Galley "on-mls-message-sent",
+      CallsFed 'Galley "on-new-remote-conversation"
+    )
+  PerformActionCalls 'ConversationJoinTag =
+    ( CallsFed 'Galley "on-conversation-updated",
+      CallsFed 'Galley "on-mls-message-sent",
+      CallsFed 'Galley "on-new-remote-conversation"
+    )
+  PerformActionCalls 'ConversationLeaveTag =
+    ( CallsFed 'Galley "on-mls-message-sent"
+    )
+  PerformActionCalls tag = ()
+
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
 -- and also returns the (possible modified) action that was performed
 performAction ::
   forall tag r.
   ( HasConversationActionEffects tag r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    PerformActionCalls tag
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -581,9 +597,9 @@ updateLocalConversation ::
       r,
     HasConversationActionEffects tag r,
     SingI tag,
-    CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated"
+    CallsFed 'Galley "on-conversation-updated",
+    PerformActionCalls tag
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -621,9 +637,9 @@ updateLocalConversationUnchecked ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     HasConversationActionEffects tag r,
-    CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated"
+    CallsFed 'Galley "on-conversation-updated",
+    PerformActionCalls tag
   ) =>
   Local Conversation ->
   Qualified UserId ->
@@ -819,9 +835,9 @@ kickMember ::
     Member (Input Env) r,
     Member MemberStore r,
     Member TinyLog r,
-    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    PerformActionCalls 'ConversationLeaveTag
   ) =>
   Qualified UserId ->
   Local Conversation ->

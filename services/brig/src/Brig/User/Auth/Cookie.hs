@@ -264,7 +264,7 @@ newCookieLimited u c typ label = do
 -- HTTP
 
 setResponseCookie ::
-  (Monad m, MonadReader Env m, ZAuth.UserTokenLike u) =>
+  (MonadReader Env m, ZAuth.UserTokenLike u) =>
   Cookie (ZAuth.Token u) ->
   Response ->
   m Response
@@ -272,8 +272,9 @@ setResponseCookie c r = do
   hdr <- toByteString' . WebCookie.renderSetCookie <$> toWebCookie c
   pure (addHeader "Set-Cookie" hdr r)
 
-toWebCookie :: (Monad m, MonadReader Env m, ZAuth.UserTokenLike u) => Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
+toWebCookie :: (MonadReader Env m, ZAuth.UserTokenLike u) =>Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
 toWebCookie c = do
+
   s <- view settings
   pure $
     WebCookie.def

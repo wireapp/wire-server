@@ -113,8 +113,8 @@ let
     bloodhound = {
       src = fetchgit {
         url = "https://github.com/wireapp/bloodhound";
-        rev = "c68e6d877d87988331bf391ed16780383a58eefa";
-        sha256 = "0fr5xgq8f1nmcbk8srrhyf4vad4xm5iqr974jgqfg1mg31y85h0x";
+        rev = "abf819a4a6ec7601f1e58cb8da13b2fdad377d9e";
+        sha256 = "sha256-m1O+F/mOJN5z5WNChmeyHP4dtmLRkl2YnLlTuwzRelk=";
       };
     };
     cryptobox-haskell = {
@@ -141,8 +141,8 @@ let
     hspec-wai = {
       src = fetchgit {
         url = "https://github.com/wireapp/hspec-wai";
-        rev = "0a5142cd3ba48116ff059c041348b817fb7bdb25";
-        sha256 = "1yqkla7467fgb23yw689xh15zjn38rkc7ckf18cfalpc2ff5wfq1";
+        rev = "6984a06b0c6294677c49d59382d48f975a8733d4";
+        sha256 = "sha256-6FLTMMqvL0xFa5zsMnjVAmdpghmdeBl813bWcOyQo5E=";
       };
     };
     http-client = {
@@ -168,8 +168,8 @@ let
     saml2-web-sso = {
       src = fetchgit {
         url = "https://github.com/wireapp/saml2-web-sso";
-        rev = "74371cd775cb98d6cf85f6e182244a3c4fd48702";
-        sha256 = "1w23yz2iiayniymk7k4g8gww7268187cayw0c8m3bz2hbnvbyfbc";
+        rev = "b79a45ac98b1f592ac18511fce48ed88d2e931c9";
+        sha256 = "sha256-g2lbKt3+hToVFQvaHOa9dg4HqAL7YgReo8fy7wQavmY=";
       };
     };
     swagger2 = {
@@ -181,16 +181,23 @@ let
     };
     cql-io = {
       src = fetchgit {
-        url = "https://gitlab.com/axeman/cql-io";
+        url = "https://gitlab.com/wireapp/forks/cql-io";
         rev = "c2b6aa995b5817ed7c78c53f72d5aa586ef87c36";
-        sha256 = "1wncign8ilvqs9qyl6pkz66x2s8dgwhnfdjw82wv38ijmr95di0c";
+        sha256 = "sha256-DMRWUq4yorG5QFw2ZyF/DWnRjfnzGupx0njTiOyLzPI=";
       };
     };
     swagger = {
       src = fetchgit {
-        url = "https://gitlab.com/axeman/swagger";
+        url = "https://gitlab.com/wireapp/forks/swagger.git";
         rev = "e2d3f5b5274b8d8d301b5377b0af4319cea73f9e";
-        sha256 = "1zj3fqlvcvp9s0myb98b6s9mpmiqamyxn2d3jan55irdgm53prmv";
+        sha256 = "sha256-u+Y7Sn0tx1KskqMJ231VONZbkzYLpeUr0Olutil2Q/4=";
+      };
+    };
+    wai-predicates = {
+      src = fetchgit {
+        url = "https://gitlab.com/wireapp/forks/wai-predicates.git";
+        rev = "ff95282a982ab45cced70656475eaf2cefaa26ea";
+        sha256 = "sha256-x2XSv2+/+DG9FXN8hfUWGNIO7V4iBhlzYz19WWKaLKQ=";
       };
     };
     wai-routing = {
@@ -218,23 +225,35 @@ let
         sha256 = "sha256-yiw6hg3guRWS6CVdrUY8wyIDxoqfGjIVMrEtP+Fys0Y=";
       };
     };
+    # Not tested/relased yet
+    # https://github.com/dylex/invertible/commit/e203c6a729fde87b1f903c3f468f739a085fb446
+    invertible = {
+      src = fetchgit {
+        url = "https://github.com/dylex/invertible.git";
+        rev = "e203c6a729fde87b1f903c3f468f739a085fb446";
+        sha256 = "sha256-G6PX5lpU18oWLkwIityN4Hs0HuwQrq9T51kxbsdpK3M=";
+      };
+    };
+    tinylog = {
+      src = fetchgit {
+        url = "https://gitlab.com/wireapp/forks/tinylog.git";
+        rev = "9609104263e8cd2a631417c1c3ef23e090de0d09";
+        sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
+      };
+    };
   };
   hackagePins = {
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
     };
-    partial-isomorphisms = {
-      version = "0.2.2.1";
-      sha256 = "sha256-TdsLB0ueaUUllLdvcGu3YNQXCfGRRk5WxP3deHEbHGI=";
-    };
     kind-generics = {
-      version = "0.4.1.2";
-      sha256 = "sha256-orDfC5+QXRlAMVaqAhT1Fo7Eh/AnobROWeliZqEAXZU=";
+      version = "0.4.1.4";
+      sha256 = "sha256-vH4YO/2NtaLDn1pyAQYK9vC5dD0bpdk26aH5sA9+UT8=";
     };
     kind-generics-th = {
-      version = "0.2.2.2";
-      sha256 = "sha256-nPuRq19UGVXe4YrITAZcF+U4TUBo5APMT2Nh9NqIkxQ=";
+      version = "0.2.2.3";
+      sha256 = "sha256-LH2Wpo0v+RQSsvVbosuB99ekSzqsqMNjrd+w/B0SOUs=";
     };
     polysemy = {
       version = "1.8.0.0";
@@ -248,17 +267,25 @@ let
       version = "0.4.3.1";
       sha256 = "sha256-0vkLYNZISr3fmmQvD8qdLkn2GHc80l1GzJuOmqjqXE4=";
     };
-    singletons = {
-      version = "2.7";
-      sha256 = "sha256-q7yc/wyGSyYI0KdgHgRi0WISv9WEibxQ5yM7cSjXS2s=";
-    };
-    th-desugar = {
-      version = "1.11";
-      sha256 = "sha256-07sUW1ufEM7Xqv6C2rlFGI5CDO5cchDOND7QFstKu5g=";
-    };
     one-liner = {
       version = "1.0";
       sha256 = "sha256-dv/W8hIPoHVevxiiCb6OfeP53O/9HPgUiqOHGSNb/pk=";
+    };
+    singletons = {
+      version = "3.0.1";
+      sha256 = "sha256-ixHWZae6AxjRUldMgpYolXBGsOUT5ZVIw9HZkxrhHQ0=";
+    };
+    singletons-base = {
+      version = "3.1";
+      sha256 = "sha256-SjpkQofdDMrUMi9cHNF5eyqic7WMAhWNqrKr4ip1RNs=";
+    };
+    singletons-th = {
+      version = "3.1";
+      sha256 = "sha256-34nyestxt8KNTSlmr1Y8nElNXa/wZ1+fuLEUVjZX8dk=";
+    };
+    th-desugar = {
+      version = "1.13";
+      sha256 = "sha256-xiAeSM2umcfsz5+mcW+oGKf/EmzvH0ch0lHoKBGzW9I=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv

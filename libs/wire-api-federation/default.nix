@@ -37,6 +37,7 @@
 , servant-client-core
 , servant-server
 , singletons
+, singletons-th
 , sop-core
 , streaming-commons
 , swagger2
@@ -83,6 +84,7 @@ mkDerivation {
     servant-client-core
     servant-server
     singletons
+    singletons-th
     sop-core
     streaming-commons
     swagger2
@@ -128,6 +130,7 @@ mkDerivation {
     servant-client-core
     servant-server
     singletons
+    singletons-th
     sop-core
     streaming-commons
     swagger2

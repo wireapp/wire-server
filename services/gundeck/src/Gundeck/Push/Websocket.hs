@@ -28,7 +28,7 @@ import Bilge.Retry (rpcHandlers)
 import Control.Arrow ((&&&))
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (view, (%~), (^.), _2)
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, catch, throwM, try)
+import Control.Monad.Catch (MonadMask, MonadThrow, catch, throwM, try)
 import Control.Retry
 import Data.Aeson (eitherDecode, encode)
 import Data.ByteString.Conversion
@@ -145,8 +145,7 @@ fanOut =
 
 bulkSend ::
   forall m.
-  ( MonadIO m,
-    MonadMask m,
+  ( MonadMask m,
     HasRequestId m,
     MonadHttp m,
     MonadUnliftIO m,
@@ -160,11 +159,9 @@ bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Lef
 bulkSend' ::
   forall m.
   ( MonadIO m,
-    MonadCatch m,
     MonadMask m,
     HasRequestId m,
     MonadHttp m,
-    MonadUnliftIO m,
     Log.MonadLogger m
   ) =>
   URI ->

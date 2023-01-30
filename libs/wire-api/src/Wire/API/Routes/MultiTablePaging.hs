@@ -62,7 +62,7 @@ data GetMultiTablePageRequest (name :: Symbol) (tables :: Type) (max :: Nat) (de
 -- 24 |   deriving ToJSON via Schema (GetMultiTablePageRequest name tables max def)
 --    |            ^^^^^^
 
-type RequestSchemaConstraint name tables max def = (KnownNat max, KnownNat def, Within Int32 1 max, LTE 1 def, LTE def max, PagingTable tables, KnownSymbol name)
+type RequestSchemaConstraint name tables max def = (KnownNat max, KnownNat def, Within Int32 1 max, 1 <= def, def <= max, PagingTable tables, KnownSymbol name)
 
 deriving via
   Schema (GetMultiTablePageRequest name tables max def)

@@ -188,5 +188,4 @@ instance Semigroup Result where
 
 instance Monoid Result where
   mempty = Result 0 0 []
-  mappend (Result n1 v1 i1) (Result n2 v2 i2) =
-    Result (n1 + n2) (v1 + v2) (i1 <> i2)
+  mappend = (<>)

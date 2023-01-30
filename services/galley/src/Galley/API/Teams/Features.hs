@@ -40,7 +40,7 @@ import Control.Lens
 import Data.Bifunctor (second)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Data.Kind (Constraint)
+import Data.Kind
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Local, tUnqualified)
 import Data.Schema
@@ -86,7 +86,7 @@ import Wire.Sem.Paging.Cassandra
 data DoAuth = DoAuth UserId | DontDoAuth
 
 -- | Don't export methods of this typeclass
-class GetFeatureConfig (db :: *) cfg where
+class GetFeatureConfig (db :: Type) cfg where
   type GetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
   type GetConfigForTeamConstraints db cfg (r :: EffectRow) = (FeaturePersistentConstraint db cfg, Members '[Input Opts, TeamFeatureStore db] r)
 
@@ -140,7 +140,7 @@ class GetFeatureConfig (db :: *) cfg where
   getConfigForUser = genericGetConfigForUser @db
 
 -- | Don't export methods of this typeclass
-class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
+class GetFeatureConfig (db :: Type) cfg => SetFeatureConfig (db :: Type) cfg where
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) = ()
 
@@ -334,7 +334,7 @@ updateLockStatus tid lockStatus = do
 -- Here we explicitly return the team setting if the user is a team member.
 -- In `getConfigForUser` this is mostly also the case. But there are exceptions, e.g. `ConferenceCallingConfig`
 getFeatureStatusForUser ::
-  forall (db :: *) cfg r.
+  forall (db :: Type) cfg r.
   ( Members
       '[ ErrorS 'NotATeamMember,
          ErrorS OperationDenied,
@@ -564,7 +564,7 @@ genericGetConfigForUser uid = do
       genericGetConfigForTeam @db tid
 
 persistAndPushEvent ::
-  forall (db :: *) cfg r.
+  forall (db :: Type) cfg r.
   ( IsFeatureConfig cfg,
     KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,

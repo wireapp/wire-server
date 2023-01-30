@@ -1367,7 +1367,7 @@ deleteAccount account@(accountUser -> user) = do
 -- Lookups
 
 lookupActivationCode ::
-  (MonadIO m, MonadClient m) =>
+  MonadClient m =>
   Either Email Phone ->
   m (Maybe ActivationPair)
 lookupActivationCode emailOrPhone = do

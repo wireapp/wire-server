@@ -189,7 +189,6 @@ onClientEvent orig conn e = do
 
 updateSearchIndex ::
   ( MonadClient m,
-    MonadCatch m,
     MonadLogger m,
     MonadIndexIO m
   ) =>
@@ -244,8 +243,7 @@ journalEvent orig e = case e of
 -- as well as his other clients about a change to his user account
 -- or profile.
 dispatchNotifications ::
-  ( MonadIO m,
-    Log.MonadLogger m,
+  ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
     MonadHttp m,
@@ -281,8 +279,7 @@ dispatchNotifications orig conn e = case e of
     event = singleton $ UserEvent e
 
 notifyUserDeletionLocals ::
-  ( MonadIO m,
-    Log.MonadLogger m,
+  ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
     MonadHttp m,
@@ -422,8 +419,7 @@ rawPush (toList -> events) usrs orig route conn = do
 
 -- | (Asynchronously) notifies other users of events.
 notify ::
-  ( MonadIO m,
-    Log.MonadLogger m,
+  ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
     MonadHttp m,
@@ -445,7 +441,7 @@ notify events orig route conn recipients = fork (Just orig) $ do
   push events rs orig route conn
 
 fork ::
-  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
+  (MonadUnliftIO m, MonadReader Env m) =>
   Maybe UserId ->
   m a ->
   m ()
@@ -462,8 +458,7 @@ fork u ma = do
     user = maybe id (field "user" . toByteString)
 
 notifySelf ::
-  ( MonadIO m,
-    Log.MonadLogger m,
+  ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
     MonadHttp m,

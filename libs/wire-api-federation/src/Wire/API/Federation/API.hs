@@ -32,6 +32,7 @@ module Wire.API.Federation.API
   )
 where
 
+import Data.Kind
 import Data.Proxy
 import GHC.TypeLits
 import Imports
@@ -46,7 +47,7 @@ import Wire.API.Routes.Named
 
 -- Note: this type family being injective means that in most cases there is no need
 -- to add component annotations when invoking the federator client
-type family FedApi (comp :: Component) = (api :: *) | api -> comp
+type family FedApi (comp :: Component) = (api :: Type) | api -> comp
 
 type instance FedApi 'Galley = GalleyApi
 
