@@ -43,7 +43,6 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
-import Data.ByteString.Builder (string7)
 import Data.ByteString.Conversion (ToByteString (builder))
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
