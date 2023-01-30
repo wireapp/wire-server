@@ -298,6 +298,7 @@ let
     pkgs.cabal2nix
     pkgs.gnumake
     pkgs.gnused
+    pkgs.parallel
     pkgs.helm
     pkgs.helmfile
     pkgs.hlint
