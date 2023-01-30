@@ -902,7 +902,7 @@ testLocalToRemote = do
     message <- createApplicationMessage bob1 "hi"
 
     -- register remote conversation: step 4
-    receiveNewRemoteConv qcnv groupId
+    receiveNewRemoteConv (fmap Conv qcnv) groupId
     -- A notifies B about bob being in the conversation (Join event): step 5
     receiveOnConvUpdated qcnv alice bob
 
@@ -944,7 +944,7 @@ testLocalToRemoteNonMember = do
     message <- createApplicationMessage bob1 "hi"
 
     -- register remote conversation: step 4
-    receiveNewRemoteConv qcnv groupId
+    receiveNewRemoteConv (fmap Conv qcnv) groupId
 
     void $
       withTempMockFederator' sendMessageMock $ do
@@ -1888,11 +1888,11 @@ testGetGroupInfoOfRemoteConv = do
     mp <- createAddCommit alice1 [bob]
     traverse_ consumeWelcome (mpWelcome mp)
 
-    receiveNewRemoteConv qcnv groupId
+    receiveNewRemoteConv (fmap Conv qcnv) groupId
     receiveOnConvUpdated qcnv alice bob
 
     let fakeGroupState = "\xde\xad\xbe\xef"
-    let mock = queryGroupStateMock fakeGroupState bob
+        mock = queryGroupStateMock fakeGroupState bob
     (_, reqs) <- withTempMockFederator' mock $ do
       res <- liftTest $ getGroupInfo bob (fmap Conv qcnv)
       localGetGroupInfo (qUnqualified charlie) (fmap Conv qcnv)
@@ -1980,7 +1980,7 @@ testAddUserToRemoteConvWithBundle = do
     mp <- createAddCommit alice1 [bob]
     traverse_ consumeWelcome (mpWelcome mp)
 
-    receiveNewRemoteConv qcnv groupId
+    receiveNewRemoteConv (fmap Conv qcnv) groupId
     receiveOnConvUpdated qcnv alice bob
 
     -- NB. this commit would be rejected by the owning backend, but for the
@@ -2323,13 +2323,50 @@ testAddClientSubConvFailure = do
         (Epoch 1)
         (pscEpoch finalSub)
 
--- FUTUREWORK: implement the following tests
+-- FUTUREWORK: implement the following test
 
 testRemoveClientSubConv :: TestM ()
 testRemoveClientSubConv = pure ()
 
 testJoinRemoteSubConv :: TestM ()
-testJoinRemoteSubConv = pure ()
+testJoinRemoteSubConv = do
+  [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
+
+  runMLSTest $ do
+    alice1 <- createFakeMLSClient alice
+    bob1 <- createMLSClient bob
+    void $ uploadNewKeyPackage bob1
+
+    -- setup fake group for the subconversation
+    let subId = SubConvId "conference"
+    (subGroupId, qcnv) <- setupFakeMLSGroup alice1
+    let qcs = convsub qcnv (Just subId)
+    initialCommit <- createPendingProposalCommit alice1
+
+    -- create a fake group ID for the main (we don't need the actual group)
+    mainGroupId <- fakeGroupId
+
+    -- inform backend about the main conversation
+    receiveNewRemoteConv (fmap Conv qcnv) mainGroupId
+    receiveOnConvUpdated qcnv alice bob
+
+    -- inform backend about the subconversation
+    receiveNewRemoteConv qcs subGroupId
+
+    -- bob joins subconversation
+    let pgs = mpPublicGroupState initialCommit
+    let mock = queryGroupStateMock (fold pgs) bob <|> sendMessageMock
+    (_, reqs) <- withTempMockFederator' mock $ do
+      commit <- createExternalCommit bob1 Nothing qcs
+      sendAndConsumeCommitBundle commit
+
+    -- check that commit bundle is sent to remote backend
+    fr <- assertOne (filter ((== "send-mls-commit-bundle") . frRPC) reqs)
+    liftIO $ do
+      mmsr <- assertJust (Aeson.decode (frBody fr))
+      mmsrConvOrSubId mmsr @?= qUnqualified qcs
+      mmsrSender mmsr @?= ciUser bob1
+      mmsrSenderClient mmsr @?= ciClient bob1
 
 testRemoteUserJoinSubConv :: TestM ()
 testRemoteUserJoinSubConv = do

@@ -24,7 +24,7 @@ import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Error.Util
-import Control.Lens (preview, to, view, (.~), (^..))
+import Control.Lens (preview, to, view, (.~), (^..), (^?), _2)
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
@@ -47,6 +47,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time
+import Galley.API.MLS.Types
 import Galley.Keys
 import Galley.Options
 import qualified Galley.Options as Opts
@@ -539,12 +540,15 @@ setupFakeMLSGroup ::
   ClientIdentity ->
   MLSTest (GroupId, Qualified ConvId)
 setupFakeMLSGroup creator = do
-  groupId <-
-    liftIO $
-      fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
+  groupId <- fakeGroupId
   qcnv <- randomQualifiedId (ciDomain creator)
   createGroup creator (fmap Conv qcnv) groupId
   pure (groupId, qcnv)
+
+fakeGroupId :: MLSTest GroupId
+fakeGroupId =
+  liftIO $
+    fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
 
 keyPackageFile :: HasCallStack => ClientIdentity -> KeyPackageRef -> MLSTest FilePath
 keyPackageFile qcid ref =
@@ -621,6 +625,7 @@ bundleKeyPackages bundle = do
 createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest MessagePackage
 createAddCommit cid users = do
   kps <- concat <$> traverse (bundleKeyPackages <=< claimKeyPackages cid) users
+  liftIO $ assertBool "no key packages could be claimed" (not (null kps))
   createAddCommitWithKeyPackages cid kps
 
 createExternalCommit ::
@@ -1028,13 +1033,14 @@ clientKeyPair cid = do
 
 receiveNewRemoteConv ::
   (MonadReader TestSetup m, MonadIO m) =>
-  Qualified ConvId ->
+  Qualified ConvOrSubConvId ->
   GroupId ->
   m ()
-receiveNewRemoteConv conv gid = do
+receiveNewRemoteConv qcs gid = do
   client <- view tsFedGalleyClient
-  let nrc =
-        NewRemoteConversation (qUnqualified conv) Nothing $
+  let cs = qUnqualified qcs
+      nrc =
+        NewRemoteConversation (convOfConvOrSub cs) (cs ^? _SubConv . _2) $
           ProtocolMLS
             ( ConversationMLSData
                 gid
@@ -1046,7 +1052,7 @@ receiveNewRemoteConv conv gid = do
     runFedClient
       @"on-new-remote-conversation"
       client
-      (qDomain conv)
+      (qDomain qcs)
       nrc
 
 receiveOnConvUpdated ::
@@ -1079,7 +1085,7 @@ receiveOnConvUpdated conv origUser joiner = do
       (qDomain conv)
       cu
 
-getGroupInfo :: Qualified UserId -> Qualified ConvOrSubConvId -> TestM ByteString
+getGroupInfo :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> TestM ByteString
 getGroupInfo qusr qcs = do
   loc <- qualifyLocal ()
   foldQualified

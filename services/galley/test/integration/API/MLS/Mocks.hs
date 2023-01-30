@@ -56,7 +56,11 @@ welcomeMock :: Mock LByteString
 welcomeMock = "mls-welcome" ~> MLSWelcomeSent
 
 sendMessageMock :: Mock LByteString
-sendMessageMock = "send-mls-message" ~> MLSMessageResponseUpdates []
+sendMessageMock =
+  asum
+    [ "send-mls-message" ~> MLSMessageResponseUpdates [],
+      "send-mls-commit-bundle" ~> MLSMessageResponseUpdates []
+    ]
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
