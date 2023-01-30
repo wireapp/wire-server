@@ -402,15 +402,15 @@ getUserData uid = do
   convs <- Intra.getUserConversations uid
   clts <- Intra.getUserClients uid
   notfs <- Intra.getUserNotifications uid
-  consent <- (Intra.getUserConsentValue uid <&> Just) `catchE` \_ -> pure Nothing
-  consentLog <- (Intra.getUserConsentLog uid <&> Just) `catchE` \_ -> pure Nothing
+  consent <- (Intra.getUserConsentValue uid <&> toJSON @ConsentValue) `catchE` (pure . String . cs . show)
+  consentLog <- (Intra.getUserConsentLog uid <&> toJSON @ConsentLog) `catchE` (pure . String . cs . show)
   cookies <- Intra.getUserCookies uid
   properties <- Intra.getUserProperties uid
   -- Get all info from Marketo too
   let em = userEmail $ accountUser account
   marketo <- do
     let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
-    maybe (pure noEmail) (\e -> Intra.getMarketoResult e `catchE` \_ -> pure noEmail) em
+    maybe (pure $ toJSON noEmail) (\e -> (Intra.getMarketoResult e <&> toJSON) `catchE` (pure . String . cs . show)) em
   pure . UserMetaInfo . KeyMap.fromList $
     [ "account" .= account,
       "cookies" .= cookies,
