@@ -14,9 +14,7 @@ CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 
 echo "updating recursive dependencies ..."
 charts=(fake-aws databases-ephemeral redis-cluster wire-server nginx-ingress-controller nginx-ingress-services)
-for chart in "${charts[@]}"; do
-    "$DIR/update.sh" "$CHARTS_DIR/$chart"
-done
+printf '%s\n' "${charts[@]}" | parallel "$DIR/update.sh" "$CHARTS_DIR/{}"
 
 echo "Generating self-signed certificates..."
 export FEDERATION_DOMAIN_BASE="$NAMESPACE.svc.cluster.local"
