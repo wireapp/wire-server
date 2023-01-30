@@ -22,7 +22,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Stern.Intra
-  ( putUser,
+  ( assertBackendApiVersion,
+    putUser,
     putUserStatus,
     getContacts,
     getUserConnections,
@@ -111,6 +112,16 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Search
+
+-------------------------------------------------------------------------------
+
+backendApiVersion :: Version
+backendApiVersion = V2
+
+-- | Make sure the backend supports `backendApiVersion`.  Crash horribly if it doesn't.  (This
+-- should be caught by the integration tests.)
+assertBackendApiVersion :: IO ()
+assertBackendApiVersion = undefined backendApiVersion
 
 -------------------------------------------------------------------------------
 
