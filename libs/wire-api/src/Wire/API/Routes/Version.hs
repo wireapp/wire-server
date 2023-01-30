@@ -63,9 +63,6 @@ data Version = V0 | V1 | V2 | V3
   deriving stock (Eq, Ord, Bounded, Enum, Show)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
-instance ToByteString Version where
-  builder = string7 . show
-
 instance ToSchema Version where
   schema =
     enum @Integer "Version" . mconcat $
@@ -87,6 +84,9 @@ instance FromHttpApiData Version where
 instance ToHttpApiData Version where
   toHeader = LBS.toStrict . Aeson.encode
   toUrlPiece = Text.decodeUtf8 . toHeader
+
+instance ToByteString Version where
+  builder = toEncodedUrlPiece
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
