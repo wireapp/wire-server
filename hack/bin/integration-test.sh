@@ -17,15 +17,29 @@ printf '%s\n' "${tests[@]}" | parallel -P 6 --results results.csv \
     helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" '> {};' \
     echo '$? > stat-{};' \
     echo "==== Done testing {}. Here are logs: ====" '>> {};' \
-    kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" '>> {};' \
-    echo "==== Above logs are for {}.====" '>> {};'
+    kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" '>> {};'
+
+echo "==============="
+echo "=== summary ==="
+echo "==============="
 printf '%s\n' "${tests[@]}" | parallel echo "=== tail {}: ===" ';' tail -3 {}
 
-# in case any integration test suite failed, exit this script with an error.
-for res in "${tests[@]}"; do
-    x=$(cat "stat-$res")
+echo "======================="
+echo "=== failed job logs ==="
+echo "======================="
+# in case a integration test suite failed, print relevant logs
+for t in "${tests[@]}"; do
+    x=$(cat "stat-$t")
     if ((x > 0)); then
-        echo "$res FAILED. pfff..."
+        cat "$t"
+    fi
+done
+
+# in case any integration test suite failed, exit this script with an error.
+for t in "${tests[@]}"; do
+    x=$(cat "stat-$t")
+    if ((x > 0)); then
+        echo "$t FAILED. pfff..."
         exit 1
     fi
 done
