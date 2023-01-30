@@ -128,7 +128,11 @@ type GalleyApi =
            EmptyResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
     :<|> FedEndpoint "get-sub-conversation" GetSubConversationsRequest GetSubConversationsResponse
-    :<|> FedEndpoint "delete-sub-conversation" DeleteSubConversationRequest DeleteSubConversationResponse
+    :<|> FedEndpointWithMods
+           '[MakesFederatedCall 'Galley "on-new-remote-conversation"]
+           "delete-sub-conversation"
+           DeleteSubConversationRequest
+           DeleteSubConversationResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { tdurTypingStatus :: TypingStatus,

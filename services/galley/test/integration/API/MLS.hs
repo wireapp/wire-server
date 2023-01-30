@@ -1896,9 +1896,10 @@ testGetGroupInfoOfRemoteConv = do
         mock = queryGroupStateMock fakeGroupState bob
     (_, reqs) <- withTempMockFederator' mock $ do
       res <- liftTest $ getGroupInfo bob (fmap Conv qcnv)
-      localGetGroupInfo (qUnqualified charlie) (fmap Conv qcnv)
-        !!! const 200 === statusCode
       liftIO $ res @?= fakeGroupState
+
+      localGetGroupInfo (qUnqualified charlie) (fmap Conv qcnv)
+        !!! const 404 === statusCode
 
     -- check requests to mock federator: step 14
     liftIO $ do
@@ -2596,11 +2597,12 @@ testRemoteMemberDeleteSubConv isAMember = do
             dscreqEpoch = epoch
           }
 
-  fedGalleyClient <- view tsFedGalleyClient
   -- Bob is a member of the parent conversation so he's allowed to delete the
   -- subconversation.
-  res <-
-    runFedClient @"delete-sub-conversation" fedGalleyClient bobDomain delReq
+  (res, _) <-
+    withTempMockFederator' ("on-new-remote-conversation" ~> EmptyResponse) $ do
+      fedGalleyClient <- view tsFedGalleyClient
+      runFedClient @"delete-sub-conversation" fedGalleyClient bobDomain delReq
 
   if isAMember then expectSuccess res else expectFailure ConvNotFound res
   where

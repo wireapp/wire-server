@@ -123,7 +123,7 @@ federationSitemap =
     :<|> Named @"on-client-removed" (callsFed onClientRemoved)
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
     :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
-    :<|> Named @"delete-sub-conversation" deleteSubConversationForRemoteUser
+    :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
 
 onClientRemoved ::
   ( Members
@@ -928,16 +928,19 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
       getLocalSubConversation qusr lconv gsreqSubConv
 
 deleteSubConversationForRemoteUser ::
-  Members
-    '[ ConversationStore,
-       Input (Local ()),
-       Input Env,
-       MemberStore,
-       Resource,
-       SubConversationStore,
-       SubConversationSupply
-     ]
-    r =>
+  ( Members
+      '[ ConversationStore,
+         FederatorAccess,
+         Input (Local ()),
+         Input Env,
+         MemberStore,
+         Resource,
+         SubConversationStore,
+         SubConversationSupply
+       ]
+      r,
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Domain ->
   DeleteSubConversationRequest ->
   Sem r DeleteSubConversationResponse
