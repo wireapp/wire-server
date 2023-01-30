@@ -864,6 +864,8 @@ instance FeatureTrivialConfig ExposeInvitationURLsToTeamAdminConfig where
 ----------------------------------------------------------------------
 -- OutlookCalIntegrationConfig
 
+-- | This feature setting only applies to the Outlook Calendar extension for Wire.
+-- As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
 data OutlookCalIntegrationConfig = OutlookCalIntegrationConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OutlookCalIntegrationConfig)
