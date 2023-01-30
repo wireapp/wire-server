@@ -48,7 +48,7 @@ updates: <https://github.com/wireapp/wire-server/issues/1151>
 
 ## Can the SSO feature be disabled for a team?
 
-No, this is [not implemented](https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215).
+No, this is [not implemented](https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215).  But the team admin can remove all IdPs, which will effectively disable all SAML logins.
 
 ## Can you remove a SAML connection?
 
@@ -75,7 +75,7 @@ that contains a lot of machine-readable info.
 With all this information, please get in touch with our customer
 support.
 
-## Do I need any firewall settings?
+## Do I need to change any firewall settings in order to use SAML?
 
 No.
 
@@ -158,7 +158,7 @@ minimal example that still works, we'd be love to take a look.
 
 ## Why does the auth response not contain a reference to an auth request?  (Also: can i use IdP-initiated login?)
 
-tl;dr: Wire only supports SP-initiated login, where the user selects
+**tl;dr:** Wire only supports SP-initiated login, where the user selects
 the auth method from inside the app's login screen.  It does not
 support IdP-initiated login, where the user enters the app from a list
 of applications in the IdP UI.
