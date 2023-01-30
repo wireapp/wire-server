@@ -108,6 +108,11 @@ class GetFeatureConfig (db :: Type) cfg where
   getConfigForServer ::
     Members '[Input Opts] r =>
     Sem r (WithStatus cfg)
+  -- only override if there is additional business logic for getting the feature config
+  -- and/or if the feature flag is configured for the backend in 'FeatureFlags' for galley in 'Galley.Types.Teams'
+  -- otherwise this will return the default config from wire-api
+  default getConfigForServer :: (IsFeatureConfig cfg) => Sem r (WithStatus cfg)
+  getConfigForServer = pure defFeatureStatus
 
   getConfigForTeam ::
     GetConfigForTeamConstraints db cfg r =>
@@ -670,10 +675,9 @@ instance GetFeatureConfig db ValidateSAMLEmailsConfig where
 instance SetFeatureConfig db ValidateSAMLEmailsConfig where
   setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
-instance GetFeatureConfig db DigitalSignaturesConfig where
-  -- FUTUREWORK: we may also want to get a default from the server config file here, like for
-  -- sso, and team search visibility.
-  getConfigForServer = pure defFeatureStatus
+-- FUTUREWORK: we may also want to get a default from the server config file here, like for
+-- sso, and team search visibility.
+instance GetFeatureConfig db DigitalSignaturesConfig
 
 instance SetFeatureConfig db DigitalSignaturesConfig where
   setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
@@ -698,8 +702,6 @@ instance GetFeatureConfig db LegalholdConfig where
            ]
           r
       )
-
-  getConfigForServer = pure defFeatureStatus
 
   getConfigForTeam tid = do
     status <-
@@ -862,15 +864,6 @@ instance SetFeatureConfig db MLSConfig where
     persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
-  getConfigForServer =
-    -- we could look at the galley settings, but we don't have a team here, so there is not much else we can say.
-    pure $
-      withStatus
-        FeatureStatusDisabled
-        LockStatusLocked
-        ExposeInvitationURLsToTeamAdminConfig
-        FeatureTTLUnlimited
-
   getConfigForTeam tid = do
     allowList <- input <&> view (optSettings . setExposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     mbOldStatus <- TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus
@@ -893,11 +886,7 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
 
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
-  setConfigForTeam tid wsnl = do
-    lockStatus <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsLockStatus
-    case lockStatus of
-      LockStatusLocked -> throwS @OperationDenied
-      LockStatusUnlocked -> persistAndPushEvent @db tid wsnl
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --
