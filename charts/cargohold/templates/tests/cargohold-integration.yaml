@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: "{{ .Release.Name }}-cargohold-integration"
   annotations:
-    "helm.sh/hook": test-success
+    "helm.sh/hook": test
 spec:
   volumes:
     - name: "cargohold-integration"
