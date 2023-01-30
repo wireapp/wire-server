@@ -19,23 +19,13 @@
 -- instead.
 module API.SQS where
 
-import qualified Amazonka as AWS
-import qualified Amazonka.SQS as SQS
-import qualified Amazonka.SQS.Lens as SQS
-import Control.Exception (asyncExceptionFromException)
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch hiding (bracket)
-import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Lazy (fromStrict)
 import qualified Data.Currency as Currency
 import Data.Id
-import Data.ProtoLens.Encoding
 import qualified Data.Set as Set
 import Data.Text (pack)
-import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
-import Data.UUID.V4 (nextRandom)
-import Galley.Aws
 import qualified Galley.Aws as Aws
 import Galley.Options (JournalOpts)
 import Imports
@@ -44,72 +34,72 @@ import Network.HTTP.Client.OpenSSL
 import OpenSSL.Session as Ssl
 import Proto.TeamEvents as E
 import Proto.TeamEvents_Fields as E
-import Safe (headDef)
 import Ssl.Util
-import System.Logger.Class
 import qualified System.Logger.Class as L
 import Test.Tasty.HUnit
 import TestSetup
+import qualified Util.Test.SQS as SQS
 
-ensureQueueEmpty :: TestM ()
-ensureQueueEmpty = view tsAwsEnv >>= ensureQueueEmptyIO
-
-ensureQueueEmptyIO :: MonadIO m => Maybe Aws.Env -> m ()
-ensureQueueEmptyIO (Just env) = liftIO $ Aws.execute env purgeQueue
-ensureQueueEmptyIO Nothing = pure ()
-
-assertQueue :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
-assertQueue label check =
-  view tsAwsEnv >>= \case
-    Just env -> liftIO $ Aws.execute env $ fetchMessage label check
+withTeamEventWatcher :: HasCallStack => (SQS.SQSWatcher TeamEvent -> TestM ()) -> TestM ()
+withTeamEventWatcher action = do
+  view tsTeamEventWatcher >>= \case
     Nothing -> pure ()
+    Just w -> action w
 
--- Try to assert an event in the queue for a `timeout` amount of seconds
-tryAssertQueue :: Int -> String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
-tryAssertQueue timeout label check =
-  view tsAwsEnv >>= \case
-    Just env -> liftIO $ Aws.execute env $ awaitMessage label timeout check
+assertIfWatcher :: HasCallStack => String -> (TeamEvent -> Bool) -> (String -> Maybe TeamEvent -> TestM ()) -> TestM ()
+assertIfWatcher l matcher assertion =
+  view tsTeamEventWatcher >>= \case
     Nothing -> pure ()
+    Just w -> SQS.assertMessage w l matcher assertion
 
-assertQueueEmpty :: HasCallStack => TestM ()
-assertQueueEmpty =
-  view tsAwsEnv >>= \case
-    Just env -> liftIO $ Aws.execute env ensureNoMessages
-    Nothing -> pure ()
-
-tActivateWithCurrency :: HasCallStack => Maybe Currency.Alpha -> String -> Maybe E.TeamEvent -> IO ()
-tActivateWithCurrency c l (Just e) = do
+tActivateWithCurrency :: (HasCallStack, MonadIO m) => Maybe Currency.Alpha -> String -> Maybe E.TeamEvent -> m ()
+tActivateWithCurrency c l (Just e) = liftIO $ do
   assertEqual (l <> ": eventType") E.TeamEvent'TEAM_ACTIVATE (e ^. eventType)
   assertEqual "count" 1 (e ^. eventData . memberCount)
   -- NOTE: protobuf used to decodes absent, optional fields as (Just "") but not when using `maybe'<field>`
   let cur = pack . show <$> c
   assertEqual "currency" cur (e ^. eventData . maybe'currency)
-tActivateWithCurrency _ l Nothing = assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
+tActivateWithCurrency _ l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
-tActivate :: HasCallStack => String -> Maybe E.TeamEvent -> IO ()
-tActivate l (Just e) = do
+assertTeamActivateWithCurrency :: HasCallStack => String -> TeamId -> Maybe Currency.Alpha -> TestM ()
+assertTeamActivateWithCurrency l tid c =
+  assertIfWatcher l (teamActivateMatcher tid) (tActivateWithCurrency c)
+
+tActivate :: (HasCallStack, MonadIO m) => String -> Maybe E.TeamEvent -> m ()
+tActivate l (Just e) = liftIO $ do
   assertEqual (l <> ": eventType") E.TeamEvent'TEAM_ACTIVATE (e ^. eventType)
   assertEqual "count" 1 (e ^. eventData . memberCount)
-tActivate l Nothing = assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
+tActivate l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
-tDelete :: HasCallStack => String -> Maybe E.TeamEvent -> IO ()
-tDelete l (Just e) = assertEqual (l <> ": eventType") E.TeamEvent'TEAM_DELETE (e ^. eventType)
-tDelete l Nothing = assertFailure $ l <> ": Expected 1 TeamDelete, got nothing"
+assertTeamActivate :: HasCallStack => String -> TeamId -> TestM ()
+assertTeamActivate l tid =
+  assertIfWatcher l (teamActivateMatcher tid) tActivate
 
-tSuspend :: HasCallStack => String -> Maybe E.TeamEvent -> IO ()
-tSuspend l (Just e) = assertEqual (l <> "eventType") E.TeamEvent'TEAM_SUSPEND (e ^. eventType)
-tSuspend l Nothing = assertFailure $ l <> ": Expected 1 TeamSuspend, got nothing"
+teamActivateMatcher :: TeamId -> TeamEvent -> Bool
+teamActivateMatcher tid e = e ^. eventType == E.TeamEvent'TEAM_ACTIVATE && decodeIdFromBS (e ^. teamId) == tid
 
-tUpdate :: HasCallStack => Int32 -> [UserId] -> String -> Maybe E.TeamEvent -> IO ()
-tUpdate c = tUpdateUncertainCount [c]
+tDelete :: (HasCallStack, MonadIO m) => String -> Maybe E.TeamEvent -> m ()
+tDelete l (Just e) = liftIO $ assertEqual (l <> ": eventType") E.TeamEvent'TEAM_DELETE (e ^. eventType)
+tDelete l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamDelete, got nothing"
 
-tUpdateUncertainCount :: HasCallStack => [Int32] -> [UserId] -> String -> Maybe E.TeamEvent -> IO ()
-tUpdateUncertainCount countPossibilities uids l (Just e) = do
+assertTeamDelete :: HasCallStack => Int -> String -> TeamId -> TestM ()
+assertTeamDelete maxWaitSeconds l tid =
+  withTeamEventWatcher $ \w -> do
+    mEvent <- SQS.waitForMessage w maxWaitSeconds (\e -> e ^. eventType == E.TeamEvent'TEAM_DELETE && decodeIdFromBS (e ^. teamId) == tid)
+    tDelete l mEvent
+
+tSuspend :: (HasCallStack, MonadIO m) => String -> Maybe E.TeamEvent -> m ()
+tSuspend l (Just e) = liftIO $ assertEqual (l <> "eventType") E.TeamEvent'TEAM_SUSPEND (e ^. eventType)
+tSuspend l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamSuspend, got nothing"
+
+assertTeamSuspend :: HasCallStack => String -> TeamId -> TestM ()
+assertTeamSuspend l tid =
+  assertIfWatcher l (\e -> e ^. eventType == E.TeamEvent'TEAM_SUSPEND && decodeIdFromBS (e ^. teamId) == tid) tSuspend
+
+tUpdate :: (HasCallStack, MonadIO m) => Int32 -> [UserId] -> String -> Maybe E.TeamEvent -> m ()
+tUpdate expectedCount uids l (Just e) = liftIO $ do
   assertEqual (l <> ": eventType") E.TeamEvent'TEAM_UPDATE (e ^. eventType)
-  let actualCount = e ^. eventData . memberCount
-  assertBool
-    (l <> ": count, expected one of: " <> show countPossibilities <> ", got: " <> show actualCount)
-    (actualCount `elem` countPossibilities)
+  assertEqual (l <> ": member count") expectedCount (e ^. eventData . memberCount)
   let maybeBillingUserIds = map (UUID.fromByteString . fromStrict) (e ^. eventData . billingUser)
   assertBool "Invalid UUID found" (all isJust maybeBillingUserIds)
   let billingUserIds = catMaybes maybeBillingUserIds
@@ -117,122 +107,14 @@ tUpdateUncertainCount countPossibilities uids l (Just e) = do
     (l <> ": billing users")
     (Set.fromList $ toUUID <$> uids)
     (Set.fromList $ billingUserIds)
-tUpdateUncertainCount _ _ l Nothing = assertFailure $ l <> ": Expected 1 TeamUpdate, got nothing"
+tUpdate _ _ l Nothing = liftIO $ assertFailure $ l <> ": Expected 1 TeamUpdate, got nothing"
 
-ensureNoMessages :: HasCallStack => Amazon ()
-ensureNoMessages = do
-  QueueUrl url <- view eventQueue
-  amazonkaEnv <- view awsEnv
-  msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 1 url)
-  liftIO $ assertEqual "ensureNoMessages: length" 0 (length msgs)
+updateMatcher :: TeamId -> TeamEvent -> Bool
+updateMatcher tid e = e ^. eventType == E.TeamEvent'TEAM_UPDATE && decodeIdFromBS (e ^. teamId) == tid
 
-fetchMessage :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> Amazon ()
-fetchMessage label callback = do
-  QueueUrl url <- view eventQueue
-  amazonkaEnv <- view awsEnv
-  msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 1 url)
-  events <- mapM (parseDeleteMessage url) msgs
-  liftIO $ callback label (headDef Nothing events)
-
-awaitMessage :: String -> Int -> (String -> Maybe E.TeamEvent -> IO ()) -> Amazon ()
-awaitMessage label timeout callback = do
-  QueueUrl url <- view eventQueue
-  tryMatch label timeout url callback
-
-newtype MatchFailure = MatchFailure {mFailure :: (Maybe E.TeamEvent, SomeException)}
-
-type MatchSuccess = String
-
--- Try to match some assertions (callback) during the given timeout; if there's no
--- match during the timeout, it asserts with the given label
--- Matched matches are consumed while unmatched ones are republished to the queue
-tryMatch ::
-  HasCallStack =>
-  String ->
-  Int ->
-  Text ->
-  (String -> Maybe E.TeamEvent -> IO ()) ->
-  Amazon ()
-tryMatch label tries url callback = go tries
-  where
-    go 0 = liftIO (assertFailure $ label <> ": No matching team event found")
-    go n = do
-      msgs <- readAllUntilEmpty
-      (bad, ok) <- partitionEithers <$> mapM (check <=< parseDeleteMessage url) msgs
-      -- Requeue all failed checks
-      forM_ bad $ \x -> for_ (fst . mFailure $ x) queueEvent
-      -- If no success, continue!
-      when (null ok) $ do
-        liftIO $ threadDelay (10 ^ (6 :: Int))
-        go (n - 1)
-    check :: Maybe E.TeamEvent -> Amazon (Either MatchFailure String)
-    check e =
-      do
-        liftIO $ callback label e
-        pure (Right $ show e)
-        `catchAll` \ex -> case asyncExceptionFromException ex of
-          Just x -> throwM (x :: SomeAsyncException)
-          Nothing -> pure . Left $ MatchFailure (e, ex)
-
--- Note that Amazon's purge queue is a bit incovenient for testing purposes because
--- it may be delayed in ~60 seconds which causes messages that are published later
--- to be (unintentionally) deleted
-purgeQueue :: Amazon ()
-purgeQueue = void $ readAllUntilEmpty
-
-receive :: Int -> Text -> SQS.ReceiveMessage
-receive n url =
-  SQS.newReceiveMessage url
-    & set SQS.receiveMessage_waitTimeSeconds (Just 1)
-      . set SQS.receiveMessage_maxNumberOfMessages (Just n)
-      . set SQS.receiveMessage_visibilityTimeout (Just 1)
-
-queueEvent :: E.TeamEvent -> Amazon ()
-queueEvent e = do
-  QueueUrl url <- view eventQueue
-  rnd <- liftIO nextRandom
-  amazonkaEnv <- view awsEnv
-  void $ AWS.send amazonkaEnv (req url rnd)
-  where
-    event = Text.decodeLatin1 $ B64.encode $ encodeMessage e
-    req url dedup =
-      SQS.newSendMessage url event
-        & SQS.sendMessage_messageGroupId ?~ "team.events"
-        & SQS.sendMessage_messageDeduplicationId ?~ UUID.toText dedup
-
-readAllUntilEmpty :: Amazon [SQS.Message]
-readAllUntilEmpty = do
-  QueueUrl url <- view eventQueue
-  amazonkaEnv <- view awsEnv
-  msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 10 url)
-  readUntilEmpty msgs url msgs
-  where
-    readUntilEmpty acc _ [] = pure acc
-    readUntilEmpty acc url msgs = do
-      forM_ msgs $ deleteMessage url
-      amazonkaEnv <- view awsEnv
-      newMsgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 10 url)
-      readUntilEmpty (acc ++ newMsgs) url newMsgs
-
-deleteMessage :: Text -> SQS.Message -> Amazon ()
-deleteMessage url m = do
-  amazonkaEnv <- view awsEnv
-  for_
-    (m ^. SQS.message_receiptHandle)
-    (void . AWS.send amazonkaEnv . SQS.newDeleteMessage url)
-
-parseDeleteMessage :: Text -> SQS.Message -> Amazon (Maybe E.TeamEvent)
-parseDeleteMessage url m = do
-  let decodedMessage = decodeMessage <=< (B64.decode . Text.encodeUtf8)
-  evt <- case decodedMessage <$> (m ^. SQS.message_body) of
-    Just (Right e) -> do
-      trace $ msg $ val "SQS event received"
-      pure (Just e)
-    _ -> do
-      err . msg $ val "Failed to parse SQS message or event"
-      pure Nothing
-  deleteMessage url m
-  pure evt
+assertTeamUpdate :: HasCallStack => String -> TeamId -> Int32 -> [UserId] -> TestM ()
+assertTeamUpdate l tid c uids =
+  assertIfWatcher l (\e -> e ^. eventType == E.TeamEvent'TEAM_UPDATE && decodeIdFromBS (e ^. teamId) == tid) $ tUpdate c uids
 
 initHttpManager :: IO Manager
 initHttpManager = do
@@ -255,3 +137,6 @@ mkAWSEnv opts = do
   l <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings -- TODO: use mkLogger'?
   mgr <- initHttpManager
   Aws.mkEnv l mgr opts
+
+decodeIdFromBS :: ByteString -> Id a
+decodeIdFromBS = Id . fromMaybe (error "failed to decode userId") . UUID.fromByteString . fromStrict

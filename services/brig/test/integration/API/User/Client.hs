@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -97,7 +98,7 @@ tests _cl _at opts p db b c g =
         [ test p "success" $ testAddGetClientVerificationCode db b g,
           test p "missing code" $ testAddGetClientMissingCode b g,
           test p "wrong code" $ testAddGetClientWrongCode b g,
-          test p "expired code" $ testAddGetClientCodeExpired db b g
+          test p "expired code" $ testAddGetClientCodeExpired db opts b g
         ],
       test p "post /clients - 201 (with mls keys)" $ testAddGetClient def {addWithMLSKeys = True} b c,
       test p "post /clients - 403" $ testClientReauthentication b,
@@ -190,8 +191,8 @@ testAddGetClientWrongCode brig galley = do
 -- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with expired second factor email verification code when this feature is enabled
-testAddGetClientCodeExpired :: DB.ClientState -> Brig -> Galley -> Http ()
-testAddGetClientCodeExpired db brig galley = do
+testAddGetClientCodeExpired :: DB.ClientState -> Opt.Opts -> Brig -> Galley -> Http ()
+testAddGetClientCodeExpired db opts brig galley = do
   (u, tid) <- Util.createUserWithTeam' brig
   let uid = userId u
   let Just email = userEmail u
@@ -206,8 +207,8 @@ testAddGetClientCodeExpired db brig galley = do
   checkLoginSucceeds $
     PasswordLogin $
       PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
-  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
-  threadDelay $ (5 * 1000000) + 600000
+  let verificationTimeout = round (Opt.setVerificationTimeout (Opt.optSettings opts))
+  threadDelay $ ((verificationTimeout + 1) * 1000_000)
   addClient' codeValue !!! do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
