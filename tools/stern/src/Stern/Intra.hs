@@ -121,8 +121,8 @@ import Wire.API.User.Search
 backendApiVersion :: Version
 backendApiVersion = V2
 
--- | Make sure the backend supports `backendApiVersion`.  Crash if it doesn't.  (Call this so
--- problems are caught by the integration tests.)
+-- | Make sure the backend supports `backendApiVersion`.  Crash if it doesn't.  (This is called
+-- in `Stern.API` so problems make `./services/integration.sh` crash.)
 assertBackendApiVersion :: App ()
 assertBackendApiVersion = recoverAll (constantDelay 1000000 <> limitRetries 5) $ \_retryStatus -> do
   b <- view brig
