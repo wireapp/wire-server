@@ -2599,10 +2599,16 @@ testRemoteMemberDeleteSubConv isAMember = do
 
   -- Bob is a member of the parent conversation so he's allowed to delete the
   -- subconversation.
-  (res, _) <-
+  (res, reqs) <-
     withTempMockFederator' ("on-new-remote-conversation" ~> EmptyResponse) $ do
       fedGalleyClient <- view tsFedGalleyClient
       runFedClient @"delete-sub-conversation" fedGalleyClient bobDomain delReq
+  do
+    req <- assertOne (filter ((== "on-new-remote-conversation") . frRPC) reqs)
+    nrc <- assertOne (toList (Aeson.decode (frBody req)))
+    liftIO $ do
+      nrcConvId nrc @?= cnv
+      nrcSubConvId nrc @?= Just scnv
 
   if isAMember then expectSuccess res else expectFailure ConvNotFound res
   where
@@ -2707,7 +2713,8 @@ testDeleteRemoteSubConv isAMember = do
     withTempMockFederator' mock $
       deleteSubConv (qUnqualified alice) qconv sconv dsc
         <!! const (if isAMember then 200 else 404) === statusCode
-  actualReq <- assertOne (filter ((== "delete-sub-conversation") . frRPC) reqs)
-  let req :: Maybe DeleteSubConversationRequest =
-        Aeson.decode (frBody actualReq)
-  liftIO $ req @?= Just expectedReq
+  do
+    actualReq <- assertOne (filter ((== "delete-sub-conversation") . frRPC) reqs)
+    let req :: Maybe DeleteSubConversationRequest =
+          Aeson.decode (frBody actualReq)
+    liftIO $ req @?= Just expectedReq
