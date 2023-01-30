@@ -226,6 +226,7 @@ tests s =
             [ test s "get subconversation of remote conversation - member" (testGetRemoteSubConv True),
               test s "get subconversation of remote conversation - not member" (testGetRemoteSubConv False),
               test s "join remote subconversation" testJoinRemoteSubConv,
+              test s "backends and notified about subconvs when a user joins" testRemoteSubConvNotificationWhenUserJoins,
               test s "reset a subconversation - member" (testDeleteRemoteSubConv True),
               test s "reset a subconversation - not member" (testDeleteRemoteSubConv False)
             ],
@@ -2367,6 +2368,40 @@ testJoinRemoteSubConv = do
       mmsrConvOrSubId mmsr @?= qUnqualified qcs
       mmsrSender mmsr @?= ciUser bob1
       mmsrSenderClient mmsr @?= ciClient bob1
+
+testRemoteSubConvNotificationWhenUserJoins :: TestM ()
+testRemoteSubConvNotificationWhenUserJoins = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+
+  runMLSTest $ do
+    alice1 <- createMLSClient alice
+    bob1 <- createFakeMLSClient bob
+
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+    let subId = SubConvId "conference"
+    s <- State.get
+    void $ createSubConv qcnv alice1 subId
+    -- revert first commit and subconv
+    void . replicateM 2 $ rollBackClient alice1
+    State.put s
+
+    (_, reqs) <-
+      withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
+        createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+    let nrcReqs = filter ((== "on-new-remote-conversation") . frRPC) reqs
+    liftIO $ do
+      length nrcReqs @?= 2
+      Set.fromList
+        [ (nrcConvId nrc, nrcSubConvId nrc)
+          | req <- nrcReqs,
+            nrc <- toList (Aeson.decode (frBody req))
+        ]
+        @?= Set.fromList
+          [ (qUnqualified qcnv, Nothing),
+            (qUnqualified qcnv, Just subId)
+          ]
 
 testRemoteUserJoinSubConv :: TestM ()
 testRemoteUserJoinSubConv = do
