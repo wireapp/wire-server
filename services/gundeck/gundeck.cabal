@@ -47,7 +47,6 @@ library
     Gundeck.Util
     Gundeck.Util.DelayQueue
     Gundeck.Util.Redis
-    Main
 
   other-modules:      Paths_gundeck
   hs-source-dirs:     src
@@ -162,7 +161,7 @@ library
   default-language:   Haskell2010
 
 executable gundeck
-  main-is:            src/Main.hs
+  main-is:            exec/Main.hs
   other-modules:      Paths_gundeck
   default-extensions:
     NoImplicitPrelude

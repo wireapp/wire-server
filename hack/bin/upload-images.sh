@@ -28,10 +28,7 @@ nix -v --show-trace -L build -f "$ROOT_DIR/nix" wireServer.imagesList -o "$image
 # Build everything first so we can benefit the most from having many cores.
 nix -v --show-trace -L build -f "$ROOT_DIR/nix" "wireServer.$IMAGES_ATTR" --no-link
 
-while IFS="" read -r image_name || [ -n "$image_name" ]; do
-    printf '*** Uploading image %s\n' "$image_name"
-    "$SCRIPT_DIR/upload-image.sh" "wireServer.$IMAGES_ATTR.$image_name"
-done <"$image_list_file"
+xargs -I {} -P 10 "$SCRIPT_DIR/upload-image.sh" "wireServer.$IMAGES_ATTR.{}" < "$image_list_file"
 
 for image_name in nginz nginz-disco; do
     printf '*** Uploading image %s\n' "$image_name"

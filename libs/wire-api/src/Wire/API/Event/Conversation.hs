@@ -133,7 +133,7 @@ data EventType
   | MLSMessageAdd
   | MLSWelcome
   | Typing
-  deriving stock (Eq, Show, Generic, Enum, Bounded)
+  deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema EventType
 

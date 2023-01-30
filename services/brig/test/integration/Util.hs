@@ -23,7 +23,6 @@ module Util where
 
 import Bilge
 import Bilge.Assert
-import qualified Brig.AWS as AWS
 import Brig.AWS.Types
 import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
@@ -102,7 +101,6 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Text.Printf (printf)
 import qualified UnliftIO.Async as Async
-import Util.AWS
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Conversation
@@ -228,9 +226,6 @@ instance ToJSON SESNotification where
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
 
-test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
-test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
-
 twoRandomUsers :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (Qualified UserId, UserId, Qualified UserId, UserId)
 twoRandomUsers brig = do
   quid1 <- userQualifiedId <$> randomUser brig
@@ -352,7 +347,7 @@ getPhoneLoginCode brig p = do
   let lbs = fromMaybe "" $ responseBody r
   pure (LoginCode <$> (lbs ^? key "code" . _String))
 
-assertUpdateNotification :: WS.WebSocket -> UserId -> UserUpdate -> IO ()
+assertUpdateNotification :: HasCallStack => WS.WebSocket -> UserId -> UserUpdate -> IO ()
 assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
   let j = Object $ List1.head (ntfPayload n)
   j ^? key "type" . _String @?= Just "user.update"
@@ -1315,13 +1310,18 @@ spawn cp minput = do
   (mout, ex) <- withCreateProcess
     cp
       { std_out = CreatePipe,
-        std_in = if isJust minput then CreatePipe else Inherit
+        std_in = CreatePipe
       }
     $ \minh mouth _ ph ->
-      let writeInput = for_ ((,) <$> minput <*> minh) $ \(input, inh) ->
-            BS.hPutStr inh input >> hClose inh
+      let writeInput = for_ minh $ \inh -> do
+            forM_ minput $ BS.hPutStr inh
+            hClose inh
           readOutput = (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
        in snd <$> concurrently writeInput readOutput
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
     _ -> assertFailure "Failed spawning process"
+
+assertJust :: (HasCallStack, MonadIO m) => Maybe a -> m a
+assertJust (Just a) = pure a
+assertJust Nothing = liftIO $ error "Expected Just, got Nothing"

@@ -188,7 +188,7 @@ createBindingTeam' = do
   teams <- getTeams (userId owner) []
   let [team] = view teamListTeams teams
   let tid = view teamId team
-  SQS.assertQueue "create team" SQS.tActivate
+  SQS.assertTeamActivate "create team" tid
   refreshIndex
   pure (owner, tid)
 
@@ -197,7 +197,7 @@ createBindingTeamWithMembers numUsers = do
   (owner, tid) <- createBindingTeam
   members <- forM [2 .. numUsers] $ \n -> do
     mem <- addUserToTeam owner tid
-    SQS.assertQueue "add member" $ SQS.tUpdate (fromIntegral n) [owner]
+    SQS.assertTeamUpdate "add member" tid (fromIntegral n) [owner]
     -- 'refreshIndex' needs to happen here to make tests more realistic.  one effect of
     -- refreshing the index once at the end would be that the hard member limit wouldn't hold
     -- any more.
@@ -239,7 +239,6 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
     addTeamMemberInternal tid member1 (Team.rolePermissions RoleMember) Nothing
     setHandle member1
     pure member1
-  SQS.ensureQueueEmpty
   pure (owner, tid, mems)
   where
     mkRandomHandle :: MonadIO m => m Text
@@ -2460,7 +2459,7 @@ waitForMemberDeletion zusr tid uid = do
       res <- get (galley . paths ["teams", toByteString' tid, "members", toByteString' uid] . zUser zusr)
       case statusCode res of
         404 -> pure ()
-        _ -> loop
+        _ -> threadDelay 1000 >> loop
 
 deleteTeamMember :: (MonadIO m, MonadCatch m, MonadHttp m) => (Request -> Request) -> TeamId -> UserId -> UserId -> m ()
 deleteTeamMember g tid owner deletee =
