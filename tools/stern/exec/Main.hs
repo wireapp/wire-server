@@ -22,11 +22,10 @@ where
 
 import Imports
 import Stern.API
-import Stern.Intra (assertBackendApiVersion)
 import Util.Options
 
 main :: IO ()
-main = assertBackendApiVersion >> getOptions desc Nothing defaultPath >>= start
+main = getOptions desc Nothing defaultPath >>= start
   where
     desc = "Stern - Backoffice Service"
     defaultPath = "/etc/wire/stern/conf/stern.yaml"

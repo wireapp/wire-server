@@ -118,10 +118,16 @@ import Wire.API.User.Search
 backendApiVersion :: Version
 backendApiVersion = V2
 
--- | Make sure the backend supports `backendApiVersion`.  Crash horribly if it doesn't.  (This
--- should be caught by the integration tests.)
-assertBackendApiVersion :: IO ()
-assertBackendApiVersion = undefined backendApiVersion
+-- | Make sure the backend supports `backendApiVersion`.  Crash if it doesn't.  (Call this so
+-- problems are caught by the integration tests.)
+assertBackendApiVersion :: App ()
+assertBackendApiVersion = do
+  b <- view brig
+  vinfo :: VersionInfo <-
+    responseJsonError
+      =<< rpc' "brig" b (method GET . path "/api-version" . contentJson . expect2xx)
+  unless (maximum (vinfoSupported vinfo) == backendApiVersion) $ do
+    throwError . ErrorCall $ "newest supported backend api version must be " <> show backendApiVersion
 
 -------------------------------------------------------------------------------
 
