@@ -1,5 +1,7 @@
 (trouble-shooting-faq)=
 
+TODO: toc
+
 # Trouble shooting & FAQ
 
 ## Reporting a problem with user provisioning or SSO authentication
@@ -45,6 +47,16 @@ compatibility
 tests](https://github.com/wireapp/saml2-web-sso/blob/ff9b9f445475809d1fa31ef7f2932caa0ed31613/test/Test/SAML2/WebSSO/APISpec.hs#L266-L329)
 against that response value.  once that test passes, it should all
 work fine.
+
+
+## Can I use SCIM without SAML?
+
+TODO: move https://docs.wire.com/developer/reference/spar-braindump.html#scim-without-saml here!
+
+
+## Can I use SAML without SCIM?
+
+Yes, but this is not recommended.  User (de-)provisioning requires more manual work without SCIM, and some of the account information cannot be provisioned at all via SAML.
 
 
 ## Can I use the same SSO login code for multiple teams?
