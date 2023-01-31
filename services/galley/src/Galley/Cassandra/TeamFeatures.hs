@@ -317,3 +317,10 @@ instance FeatureStatusCassandra MLSConfig where
 instance FeatureStatusCassandra ExposeInvitationURLsToTeamAdminConfig where
   getFeatureConfig _ = getTrivialConfigC "expose_invitation_urls_to_team_admin"
   setFeatureConfig _ tid statusNoLock = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid (wssStatus statusNoLock)
+
+instance FeatureStatusCassandra OutlookCalIntegrationConfig where
+  getFeatureConfig _ = getTrivialConfigC "outlook_cal_integration_status"
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "outlook_cal_integration_status" tid (wssStatus statusNoLock)
+
+  getFeatureLockStatus _ = getLockStatusC "outlook_cal_integration_lock_status"
+  setFeatureLockStatus _ = setLockStatusC "outlook_cal_integration_lock_status"
