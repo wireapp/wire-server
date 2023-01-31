@@ -3,6 +3,8 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE=${NAMESPACE:-test-integration}
+# set to 1 to disable running helm tests in parallel
+HELM_PARALLELISM=${HELM_PARALLELISM:-6}
 
 echo "Running integration tests on wire-server"
 
@@ -31,7 +33,7 @@ summary() {
 # - run all tests. Perhaps multiple flaky tests in multiple services exist, if so, we wish to see all problems
 touch ~/.parallel/will-cite
 printf '%s\n' "${tests[@]}" | parallel echo "Running helm tests for {}..."
-printf '%s\n' "${tests[@]}" | parallel -P 6 \
+printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
     helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" '> logs-{};' \
     echo '$? > stat-{};' \
     echo "==== Done testing {}. ====" '};' \
