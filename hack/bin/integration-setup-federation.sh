@@ -20,6 +20,7 @@ ${DIR}/integration-cleanup.sh
 # (e.g. cassandra from underneath databases-ephemeral)
 echo "updating recursive dependencies ..."
 charts=(fake-aws databases-ephemeral redis-cluster wire-server nginx-ingress-controller nginx-ingress-services)
+touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel "$DIR/update.sh" "$CHARTS_DIR/{}"
 
 # FUTUREWORK: use helm functions instead, see https://wearezeta.atlassian.net/browse/SQPIT-723
