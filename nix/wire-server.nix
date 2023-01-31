@@ -299,6 +299,7 @@ let
     pkgs.gnumake
     pkgs.gnused
     pkgs.parallel
+    pkgs.ripgrep
     pkgs.helm
     pkgs.helmfile
     pkgs.hlint
@@ -375,7 +376,6 @@ in
       pkgs.rsync
       pkgs.wget
       pkgs.yq
-      pkgs.ripgrep
       pkgs.nginz
 
       pkgs.cabal-install
