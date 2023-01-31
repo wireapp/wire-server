@@ -53,8 +53,13 @@ work fine.
 
 ## Can I use SCIM without SAML?
 
-TODO: move https://docs.wire.com/developer/reference/spar-braindump.html#scim-without-saml here!
+Yes.  Scim is a technology for onboarding alternative to the team management app, and can produce both user accounts authenticated via SAML or via email and password.  (Phone may or may not work, but is not officially supported.)
 
+How does it work?  -- Make sure your team has no SAML IdPs registered.  Set up your SCIM peer to provision users with valid email addresses as `externalIds`.  Newly provisioned users will be created in status `PendingInvitation`, and an invitation email will be sent.  From here on out, the flow is exactly the same as if you had added the user to your team in the team management app.
+
+Upcoming features:
+- support for the `emails` field in the scim user record (so you can choose non-email `externalId` values).
+- flexible mapping between any number of SAML IdPs and any number of SCIM tokens in team management.
 
 ## Can I use SAML without SCIM?
 
