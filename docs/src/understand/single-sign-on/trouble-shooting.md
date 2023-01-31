@@ -64,7 +64,51 @@ Yes, but this is not recommended.  User (de-)provisioning requires more manual w
 TODO: this works, but we need to change the docs everywhere to not use
 the old api!
 
+No, but there is a good reason for it and a work-around.
+
+Reason: we *could* implement this, but that would require that we
+disable implicit user creation for those teams.  Implicit user
+creation means that a person who has never logged onto wire before can
+use her credentials for the IdP to get access to wire, and create a
+new user based on those credentials.  In order for this to work, the
+IdP must uniquely determine the team.
+
+Work-around: on your IdP dashboard, you can set up a separate app for
+every wire team you own.  Each IdP will get a different metadata file,
+and can be registered with its target team only.  This way, users from
+different teams have different SSO logins, but the IdP operators can
+still use the same user base for all teams.  This has the extra
+advantage that a user can be part of two teams with the same
+credentials, which would be impossible even with the hypothetical fix.
+
+
+## Can an existing user without IdP (or with a different IdP) be bound to a new IdP?
+
+TODO: yes, but you need scim!  it's documented in spar-braindump, move that content here.
+
+## Can the SSO feature be disabled for a team?
+
+No, this is [not implemented](https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215).  But the team admin can remove all IdPs, which will effectively disable all SAML logins.
+
+## Can you remove a SAML connection?
+
+TODO: is this up to date?
+
+It is not possible to delete a SAML connection in the Team Settings app, however it can be overwritten with a new connection.
+It is possible do delete a SAML connection directly via the API endpoint `DELETE /identity-providers/{id}`. However deleting a SAML connection also requires deleting all users that can log in with this SAML connection. To prevent accidental deletion of users this functionality is not available directly from Team Settings.
+
+## Do I need to change any firewall settings in order to use SAML?
+
+No.
+
+There is nothing to be done here.  There is no internet traffic
+between your SAML IdP and the wire service.  All communication happens
+via the browser or app.
+
+
 ## using the same IdP (same entityID, or Issuer) with different teams
+
+TODO: go over this section again!
 
 Some SAML IdP vendors do not allow to set up fresh entityIDs (issuers)
 for fresh apps; instead, all apps controlled by the IdP are receiving
@@ -141,33 +185,6 @@ would break the (admittedly leaky) abstarctions of saml2-web-sso.
 [V15](https://github.com/wireapp/wire-server/blob/b97439756cfe0721164934db1f80658b60de1e5e/services/spar/schema/src/V15.hs#L29-L43)
 
 
-
-
-
-
-
-## Can an existing user without IdP (or with a different IdP) be bound to a new IdP?
-
-TODO: yes, but you need scim!  it's documented in spar-braindump, move that content here.
-
-## Can the SSO feature be disabled for a team?
-
-No, this is [not implemented](https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215).  But the team admin can remove all IdPs, which will effectively disable all SAML logins.
-
-## Can you remove a SAML connection?
-
-TODO: is this up to date?
-
-It is not possible to delete a SAML connection in the Team Settings app, however it can be overwritten with a new connection.
-It is possible do delete a SAML connection directly via the API endpoint `DELETE /identity-providers/{id}`. However deleting a SAML connection also requires deleting all users that can log in with this SAML connection. To prevent accidental deletion of users this functionality is not available directly from Team Settings.
-
-## Do I need to change any firewall settings in order to use SAML?
-
-No.
-
-There is nothing to be done here.  There is no internet traffic
-between your SAML IdP and the wire service.  All communication happens
-via the browser or app.
 
 ## Why does the team owner have to keep using password?
 
