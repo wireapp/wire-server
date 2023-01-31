@@ -65,7 +65,7 @@ if ((exit_code > 0)); then
         x=$(cat "stat-$t")
         if ((x > 0)); then
             echo "=== (relevant) logs for failed $t-integration ==="
-            grep -v '"level"' "logs-$t" | "$DIR/integration-logs-relevant-bits.sh"
+            "$DIR/integration-logs-relevant-bits.sh" < "logs-$t"
         fi
     done
     summary

@@ -26,13 +26,22 @@ exit_usage() {
     exit 1
 }
 
+# remove debug/info logs
+# often this is just noise like connection to cassandra.
+excludeLogEntries() {
+    grep -v '^{".*Info"' |
+        grep -v '^{".*Debug"'
+}
+
 cleanup() {
     # replace backspaces with newlines
     # remove "Progress" lines
     # Remove blank lines
+    # add newline between interleaved test name and log output lines
     sed 's/\x08\+/\n/g' |
         sed '/^Progress [0-9]\+/d' |
-        sed '/^\s\+$/d'
+        sed '/^\s\+$/d' |
+        sed 's/:\s\+{/:\n{/g'
 }
 
 grepper() {
@@ -40,4 +49,4 @@ grepper() {
     rg "$problem_markers" --color=always -A 10 -B 10
 }
 
-cleanup | grepper
+cleanup | excludeLogEntries | grepper
