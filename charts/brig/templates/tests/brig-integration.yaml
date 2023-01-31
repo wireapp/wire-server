@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: "brig-integration"
+  annotations:
+    "helm.sh/hook": test
   labels:
     app: brig-integration
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
@@ -19,7 +21,7 @@ kind: Pod
 metadata:
   name: "{{ .Release.Name }}-brig-integration"
   annotations:
-    "helm.sh/hook": test-success
+    "helm.sh/hook": test
   labels:
     app: brig-integration
     release: {{ .Release.Name }}

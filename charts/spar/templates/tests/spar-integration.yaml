@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: "{{ .Release.Name }}-spar-integration"
   annotations:
-    "helm.sh/hook": test-success
+    "helm.sh/hook": test
   labels:
     app: spar-integration
     release: {{ .Release.Name }}
