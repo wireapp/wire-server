@@ -308,6 +308,7 @@ let
     pkgs.ormolu
     pkgs.shellcheck
     pkgs.treefmt
+    pkgs.gawk
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
