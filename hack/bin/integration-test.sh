@@ -4,7 +4,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE=${NAMESPACE:-test-integration}
 # set to 1 to disable running helm tests in parallel
-HELM_PARALLELISM=${HELM_PARALLELISM:-6}
+HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 
 echo "Running integration tests on wire-server"
 
