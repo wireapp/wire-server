@@ -675,8 +675,6 @@ instance GetFeatureConfig db ValidateSAMLEmailsConfig where
 instance SetFeatureConfig db ValidateSAMLEmailsConfig where
   setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
--- FUTUREWORK: we may also want to get a default from the server config file here, like for
--- sso, and team search visibility.
 instance GetFeatureConfig db DigitalSignaturesConfig
 
 instance SetFeatureConfig db DigitalSignaturesConfig where
