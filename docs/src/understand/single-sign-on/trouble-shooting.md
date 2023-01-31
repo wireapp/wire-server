@@ -15,7 +15,7 @@ In order for us to analyse and understand your problem, we need at least the fol
     - [Howtos](https://docs.wire.com/how-to/single-sign-on/index.html) for supported vendors
     - [General documentation on the setup flow](https://support.wire.com/hc/en-us/articles/360001285718-Set-up-SSO-externally)
 - Which vendor (and product if /a) are you using (octa, azure, centrica, other (which one)?)
-- Team ID (looks like eg. `2e9a9c9c-6f83-11eb-a118-3342c6f16f4e`, can be found in team settings)
+- Team ID (looks like eg. `2e9a9c9c-6f83-11eb-a118-3342c6f16f4e`, can be found in the team management app)
 - User ID of the account that has the problem (alternatively: handle, email address)
 - What do you expect to happen?
     - eg.: "I enter login code, authenticate successfully against IdP, get redirected, and see the wire landing page."
@@ -101,8 +101,8 @@ No, this is [not implemented](https://github.com/wireapp/wire-server/blob/7a97cb
 
 TODO: is this up to date?
 
-It is not possible to delete a SAML connection in the Team Settings app, however it can be overwritten with a new connection.
-It is possible do delete a SAML connection directly via the API endpoint `DELETE /identity-providers/{id}`. However deleting a SAML connection also requires deleting all users that can log in with this SAML connection. To prevent accidental deletion of users this functionality is not available directly from Team Settings.
+It is not possible to delete a SAML connection in the team management app, however it can be overwritten with a new connection.
+It is possible do delete a SAML connection directly via the API endpoint `DELETE /identity-providers/{id}`. However deleting a SAML connection also requires deleting all users that can log in with this SAML connection. To prevent accidental deletion of users this functionality is not available directly from team management.
 
 ## Do I need to change any firewall settings in order to use SAML?
 
@@ -145,7 +145,7 @@ the release notes, and give you time to react.
 
 If your IdP does not support different entityID / issuer for different
 apps, keep reading.  At the time of writing this section, there is no
-support for multi-team IdP issuers in team-settings, so you have two
+support for multi-team IdP issuers in the team management app, so you have two
 options: (1) use the rest API directly; or (2) contact our customer
 support and send them the link to this section.
 
@@ -202,7 +202,7 @@ that's the team owner with their password.
 
 (It is also unwise to bind that owner to SAML once it's installed.  If
 there is ever any issue with SAML authentication that can only be
-resolved by updating the IdP metadata in team settings, the owner must
+resolved by updating the IdP metadata in the team management app, the owner must
 still have a way to authenticate in order to do that.)
 
 There is a good workaround, though: you can create a team with user A
@@ -335,7 +335,7 @@ in your wire team:
       `unspecified`.
    2. If email/password authentication is used, SCIM's `externalId` is
       mapped on wire's email address, and provisioning works like in
-      team settings with invitation emails.
+      the team management app with invitation emails.
 
 This means that if you use email/password authentication, you **must**
 map an email address to `externalId` on your side.  With `userName`
@@ -351,8 +351,8 @@ contact customer support if this causes any issues.
 
 Users may find it awkward to copy and paste the login code into the
 form.  If they are using the webapp, an alternative is to give them
-the following URL (fill in the login code that you can find in your
-team settings):
+the following URL (fill in the login code that you can find in the
+team management app):
 
 ```bash
 https://wire-webapp-dev.zinfra.io/auth#sso/3c4f050a-f073-11eb-b4c9-931bceeed13e
