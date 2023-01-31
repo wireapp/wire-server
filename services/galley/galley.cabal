@@ -705,7 +705,8 @@ executable galley-schema
     V75_MLSGroupInfo
     V76_ProposalOrigin
     V77_MLSGroupMemberClient
-    V78_MLSSubconversation
+    V78_TeamFeatureOutlookCalIntegration
+    V79_MLSSubconversation
 
   hs-source-dirs:     schema/src
   default-extensions:

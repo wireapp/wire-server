@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V78_MLSSubconversation (migration) where
+module V79_MLSSubconversation (migration) where
 
 import Cassandra.Schema
 import Imports
@@ -23,7 +23,7 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 78 "Add the MLS subconversation tables" $ do
+  Migration 79 "Add the MLS subconversation tables" $ do
     schema'
       [r| CREATE TABLE subconversation (
             conv_id uuid,

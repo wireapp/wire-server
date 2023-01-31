@@ -68,6 +68,10 @@ settings:
     conferenceCalling:
       defaults:
         status: enabled
+    outlookCalIntegration:
+      defaults:
+        status: disabled
+        lockStatus: locked
 
 logLevel: Info
 logNetStrings: false

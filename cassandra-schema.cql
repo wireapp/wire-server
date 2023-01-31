@@ -139,6 +139,8 @@ CREATE TABLE galley_test.team_features (
     mls_default_protocol int,
     mls_protocol_toggle_users set<uuid>,
     mls_status int,
+    outlook_cal_integration_lock_status int,
+    outlook_cal_integration_status int,
     search_visibility_inbound_status int,
     search_visibility_status int,
     self_deleting_messages_lock_status int,

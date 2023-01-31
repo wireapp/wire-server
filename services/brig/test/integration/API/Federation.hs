@@ -40,6 +40,7 @@ import Data.Timeout
 import qualified Data.UUID.V4 as UUIDv4
 import Federation.Util (generateClientPrekeys)
 import Imports
+import qualified Network.Wai.Test as WaiTest
 import Test.QuickCheck hiding ((===))
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
@@ -196,7 +197,8 @@ testSearchRestrictions opts brig = do
                  Opt.FederationDomainConfig domainFullSearch FullSearch
                ]
 
-  let expectSearch domain squery expectedUsers expectedSearchPolicy = do
+  let expectSearch :: HasCallStack => Domain -> Text -> [Qualified UserId] -> FederatedUserSearchPolicy -> WaiTest.Session ()
+      expectSearch domain squery expectedUsers expectedSearchPolicy = do
         searchResponse <-
           runWaiTestFedClient domain $
             createWaiTestFedClient @"search-users" @'Brig (SearchRequest squery)
