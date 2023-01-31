@@ -61,27 +61,94 @@ Yes, but this is not recommended.  User (de-)provisioning requires more manual w
 
 ## Can I use the same SSO login code for multiple teams?
 
-No, but there is a good reason for it and a work-around.
+TODO: this works, but we need to change the docs everywhere to not use
+the old api!
 
-Reason: we *could* implement this, but that would require that we
-disable implicit user creation for those teams.  Implicit user
-creation means that a person who has never logged onto wire before can
-use her credentials for the IdP to get access to wire, and create a
-new user based on those credentials.  In order for this to work, the
-IdP must uniquely determine the team.
+## using the same IdP (same entityID, or Issuer) with different teams
 
-Work-around: on your IdP dashboard, you can set up a separate app for
-every wire team you own.  Each IdP will get a different metadata file,
-and can be registered with its target team only.  This way, users from
-different teams have different SSO logins, but the IdP operators can
-still use the same user base for all teams.  This has the extra
-advantage that a user can be part of two teams with the same
-credentials, which would be impossible even with the hypothetical fix.
+Some SAML IdP vendors do not allow to set up fresh entityIDs (issuers)
+for fresh apps; instead, all apps controlled by the IdP are receiving
+SAML credentials from the same issuer.
+
+In the past, wire has used the a tuple of IdP issuer and 'NameID'
+(Haskell type 'UserRef') to uniquely identity users (tables
+`spar.user_v2` and `spar.issuer_idp`).
+
+In order to allow one IdP to serve more than one team, this has been
+changed: we now allow to identity an IdP by a combination of
+entityID/issuer and wire `TeamId`.  The necessary tweaks to the
+protocol are listed here.
+
+For everybody using IdPs that do not have this limitation, we have
+taken great care to not change the behavior.
+
+
+### what you need to know when operating a team or an instance
+
+No instance-level configuration is required.
+
+If your IdP supports different entityID / issuer for different apps,
+you don't need to change anything.  We hope to deprecate the old
+flavor of the SAML protocol eventually, but we will keep you posted in
+the release notes, and give you time to react.
+
+If your IdP does not support different entityID / issuer for different
+apps, keep reading.  At the time of writing this section, there is no
+support for multi-team IdP issuers in team-settings, so you have two
+options: (1) use the rest API directly; or (2) contact our customer
+support and send them the link to this section.
+
+If you feel up to calling the rest API, try the following:
+
+- Use the above end-point `GET /sso/metadata/:tid` with your `TeamId`
+  for pulling the SP metadata.
+- When calling `POST /identity-provider`, make sure to add
+  `?api_version=v2`.  (`?api_version=v1` or no omission of the query
+  param both invoke the old behavior.)
+
+NB: Neither version of the API allows you to provision a user with the
+same Issuer and same NamdID.  RATIONALE: this allows us to implement
+'getSAMLUser' without adding 'TeamId' to 'UserRef', which in turn
+would break the (admittedly leaky) abstarctions of saml2-web-sso.
+
+
+### API changes in more detail
+
+- New query param `api_version=<v1|v2>` for `POST
+  /identity-providers`.  The version is stored in `spar.idp` together
+  with the rest of the IdP setup, and is used by `GET
+  /sso/initiate-login` (see below).
+- `GET /sso/initiate-login` sends audience based on api_version stored
+  in `spar.idp`: for v1, the audience is `/sso/finalize-login`; for
+  v2, it's `/sso/finalize-login/:tid`.
+- New end-point `POST /sso/finalize-login/:tid` that behaves
+  indistinguishable from `POST /sso/finalize-login`, except when more
+  than one IdP with the same issuer, but different teams are
+  registered.  In that case, this end-point can process the
+  credentials by discriminating on the `TeamId`.
+- `POST /sso/finalize-login/:tid` remains unchanged.
+- New end-point `GET /sso/metadata/:tid` returns the same SP metadata as
+  `GET /sso/metadata`, with the exception that it lists
+  `"/sso/finalize-login/:tid"` as the path of the
+  `AssertionConsumerService` (rather than `"/sso/finalize-login"` as
+  before).
+- `GET /sso/metadata` remains unchanged, and still returns the old SP
+  metadata, without the `TeamId` in the paths.
+
+
+### database schema changes
+
+[V15](https://github.com/wireapp/wire-server/blob/b97439756cfe0721164934db1f80658b60de1e5e/services/spar/schema/src/V15.hs#L29-L43)
+
+
+
+
+
+
 
 ## Can an existing user without IdP (or with a different IdP) be bound to a new IdP?
 
-No.  This is a feature we never fully implemented.  Details / latest
-updates: <https://github.com/wireapp/wire-server/issues/1151>
+TODO: yes, but you need scim!  it's documented in spar-braindump, move that content here.
 
 ## Can the SSO feature be disabled for a team?
 
@@ -89,28 +156,10 @@ No, this is [not implemented](https://github.com/wireapp/wire-server/blob/7a97cb
 
 ## Can you remove a SAML connection?
 
+TODO: is this up to date?
+
 It is not possible to delete a SAML connection in the Team Settings app, however it can be overwritten with a new connection.
 It is possible do delete a SAML connection directly via the API endpoint `DELETE /identity-providers/{id}`. However deleting a SAML connection also requires deleting all users that can log in with this SAML connection. To prevent accidental deletion of users this functionality is not available directly from Team Settings.
-
-## If you get an error when returning from your IdP
-
-`Symptoms:`
-
-You have successfully authenticated on your IdP and are
-redirected into wire.  Wire shows a white page with an error message
-that contains a lot of machine-readable info.
-
-`What we need from you:`
-
-- Your SSO metadata file
-- The SSO login code (eg. `wire-3f61d2ce-525c-11ea-b8da-cf641a7b716a`;
-  you can find it in the team settings where you registered your IdP)
-- The full browser page with the error message (copy it into your
-  clipboard and insert it into an email to us, or save the page as an
-  html file and send that to us)
-
-With all this information, please get in touch with our customer
-support.
 
 ## Do I need to change any firewall settings in order to use SAML?
 
