@@ -45,6 +45,7 @@ import Data.Singletons
 import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
+import Debug.Trace
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
@@ -1593,6 +1594,7 @@ testBackendRemoveProposalRecreateClient = do
     void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
     (_, ref) <- assertOne =<< getClientsFromGroupState alice1 alice
+    traceM ("test: the ref " <> show ref)
     liftTest $
       deleteClient (qUnqualified alice) (ciClient alice1) (Just defPassword)
         !!! const 200 === statusCode
@@ -1607,6 +1609,7 @@ testBackendRemoveProposalRecreateClient = do
 
     consumeMessage1 alice2 proposal
 
+    -- this fails with 404 mls-key-package-ref-not-found
     void $ createPendingProposalCommit alice2 >>= sendAndConsumeCommitBundle
 
     void $ createApplicationMessage alice1 "hello" >>= sendAndConsumeMessage

@@ -45,6 +45,7 @@ import Data.Id
 import Data.Qualified
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import Debug.Trace
 import Imports
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -187,6 +188,7 @@ keyPackageRefSetConvId ref convId = do
 
 addKeyPackageRef :: MonadClient m => KeyPackageRef -> NewKeyPackageRef -> m ()
 addKeyPackageRef ref nkpr = do
+  traceM ("addKeyPackageRef " <> show ref)
   retry x5 $
     write
       q
@@ -203,11 +205,14 @@ addKeyPackageRef ref nkpr = do
 -- FUTUREWORK: this function has to be extended if a table mapping (client,
 -- conversation) to key package ref is added, for instance, when implementing
 -- external delete proposals.
-updateKeyPackageRef :: MonadClient m => KeyPackageRef -> KeyPackageRef -> m ()
+updateKeyPackageRef :: (MonadClient m) => KeyPackageRef -> KeyPackageRef -> m ()
 updateKeyPackageRef prevRef newRef =
   void . runMaybeT $ do
     backup <- backupKeyPackageMeta prevRef
-    lift $ restoreKeyPackageMeta newRef backup >> deleteKeyPackage prevRef
+    lift $ do
+      restoreKeyPackageMeta newRef backup
+      traceM ("updateKeyPackageRef: calling deleteKeyPackage with ref " <> show prevRef)
+      deleteKeyPackage prevRef
 
 --------------------------------------------------------------------------------
 -- Utilities

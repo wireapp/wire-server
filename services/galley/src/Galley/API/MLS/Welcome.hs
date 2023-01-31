@@ -28,6 +28,7 @@ import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Time
+import Debug.Trace
 import Galley.API.MLS.Enabled
 import Galley.API.MLS.KeyPackage
 import Galley.API.Push
@@ -110,7 +111,12 @@ welcomeRecipients ::
 welcomeRecipients =
   traverse
     ( fmap cidQualifiedClient
-        . derefKeyPackage
+        . ( \x -> do
+              traceM "welcomeRecipients before"
+              res <- derefKeyPackage x
+              traceM "welcomeRecipients after"
+              pure res
+          )
         . gsNewMember
     )
     . welSecrets
