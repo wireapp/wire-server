@@ -463,6 +463,20 @@ federator:
     clientPrivateKey: client-key.pem
 ```
 
+## Outlook calalendar integration
+
+This feature setting only applies to the Outlook Calendar extension for Wire. As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
+
+Example default configuration:
+
+```yaml
+# galley.yaml
+outlookCalIntegration:
+  defaults:
+    status: disabled
+    lockStatus: locked
+```
+
 ## Settings in brig
 
 Some features (as of the time of writing this: only

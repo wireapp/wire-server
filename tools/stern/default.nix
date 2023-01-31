@@ -24,6 +24,7 @@
 , lib
 , metrics-wai
 , mtl
+, retry
 , schema-profunctor
 , servant
 , servant-server
@@ -75,6 +76,7 @@ mkDerivation {
     lens
     metrics-wai
     mtl
+    retry
     schema-profunctor
     servant
     servant-server

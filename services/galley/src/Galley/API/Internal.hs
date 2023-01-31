@@ -210,6 +210,11 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
     :<|> IFeatureStatusPut '[] '() SearchVisibilityInboundConfig
     :<|> IFeatureStatusPatch '[] '() SearchVisibilityInboundConfig
+    -- OutlookCalIntegrationConfig
+    :<|> IFeatureStatusGet OutlookCalIntegrationConfig
+    :<|> IFeatureStatusPut '[] '() OutlookCalIntegrationConfig
+    :<|> IFeatureStatusPatch '[] '() OutlookCalIntegrationConfig
+    :<|> IFeatureStatusLockStatusPut OutlookCalIntegrationConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -571,6 +576,10 @@ featureAPI =
     <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", OutlookCalIntegrationConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ilock", OutlookCalIntegrationConfig) (updateLockStatus @Cassandra @OutlookCalIntegrationConfig)
     <@> mkNamedAPI @"feature-configs-internal" (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()

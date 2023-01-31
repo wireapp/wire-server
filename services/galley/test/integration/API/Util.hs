@@ -2741,7 +2741,7 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ checkTimeout w $ \notif ->
     other -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTimeout :: WS.Timeout
-checkTimeout = 3 # Second
+checkTimeout = 4 # Second
 
 -- | The function is used in conjuction with 'withTempMockFederator' to mock
 -- responses by Brig on the mocked side of federation.
