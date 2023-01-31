@@ -5,6 +5,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nginz-integration-http
+  annotations:
+    "helm.sh/hook": test
 spec:
   type: ClusterIP
   ports:
