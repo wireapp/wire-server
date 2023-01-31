@@ -25,4 +25,3 @@ data:
       publicKey: /etc/wire/integration-secrets/provider-publickey.pem
       cert: /etc/wire/integration-secrets/provider-publiccert.pem
       botHost: https://galley-integration
-      botPort: 9000

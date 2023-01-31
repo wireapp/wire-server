@@ -9,9 +9,7 @@ metadata:
     heritage: {{ .Release.Service }}
 spec:
   type: ClusterIP
-  ports:
-    - port: 9000
-      targetPort: 9000
+  clusterIP: None
   selector:
     app: galley-integration
     release: {{ .Release.Name }}

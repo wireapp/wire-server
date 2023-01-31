@@ -138,9 +138,9 @@ turn:
   tokenTTL: 21600
 
 optSettings:
-  setActivationTimeout: 5
-  setVerificationTimeout: 5
-  setTeamInvitationTimeout: 5
+  setActivationTimeout: 10
+  setVerificationTimeout: 10
+  setTeamInvitationTimeout: 10
   setExpiredUserCleanupTimeout: 1
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml

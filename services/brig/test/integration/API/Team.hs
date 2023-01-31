@@ -28,7 +28,6 @@ import API.User.Util as Util
 import Bilge hiding (accept, head, timeout)
 import qualified Bilge
 import Bilge.Assert
-import qualified Brig.AWS as AWS
 import qualified Brig.Options as Opt
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
@@ -80,7 +79,7 @@ import Wire.API.User.Client (ClientType (PermanentClientType))
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 
-tests :: Opt.Opts -> Manager -> Nginz -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
+tests :: Opt.Opts -> Manager -> Nginz -> Brig -> Cannon -> Galley -> UserJournalWatcher -> IO TestTree
 tests conf m n b c g aws = do
   let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
   let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
@@ -99,18 +98,18 @@ tests conf m n b c g aws = do
             test m "post /teams/:tid/invitations - 403 no permission" $ testInvitationNoPermission b,
             test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b tl,
             test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
-            test' aws m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
-            test' aws m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
-            test' aws m "post /register - 201 extended accepted" $ testInvitationEmailAndPhoneAccepted b g,
-            test' aws m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
-            test' aws m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
+            test m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
+            test m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
+            test m "post /register - 201 extended accepted" $ testInvitationEmailAndPhoneAccepted b g,
+            test m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
+            test m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
             test m "post /register - 400 no passwordless" $ testTeamNoPassword b,
             test m "post /register - 400 code already used" $ testInvitationCodeExists b,
             test m "post /register - 400 bad code" $ testInvitationInvalidCode b,
             test m "post /register - 400 no wireless" $ testInvitationCodeNoIdentity b,
             test m "post /register - 400 mutually exclusive" $ testInvitationMutuallyExclusive b,
             test m "post /register - 403 too many members" $ testInvitationTooManyMembers b g tl,
-            test m "get /teams/:tid/invitations - 200 (paging)" $ testInvitationPaging b,
+            test m "get /teams/:tid/invitations - 200 (paging)" $ testInvitationPaging conf b,
             test m "get /teams/:tid/invitations/info - 200" $ testInvitationInfo b,
             test m "get /teams/:tid/invitations/info - 400" $ testInvitationInfoBadCode b,
             test m "get /teams/:tid/invitations/info - 400 expired" $ testInvitationInfoExpired b it,
@@ -526,8 +525,8 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
   pure (responseJsonMaybe rsp2, invitation)
 
-testCreateTeam :: Brig -> Galley -> AWS.Env -> Http ()
-testCreateTeam brig galley aws = do
+testCreateTeam :: Brig -> Galley -> UserJournalWatcher -> Http ()
+testCreateTeam brig galley userJournalWatcher = do
   email <- randomEmail
   usr <- responseJsonError =<< register email newTeam brig
   let uid = userId usr
@@ -549,13 +548,13 @@ testCreateTeam brig galley aws = do
   case act of
     Nothing -> liftIO $ assertFailure "activation key/code not found"
     Just kc -> activate brig kc !!! const 200 === statusCode
-  liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
+  Util.assertUserActivateJournaled userJournalWatcher usr "user activate"
   -- Verify that Team has status Active now
   team3 <- getTeam galley (team ^. teamId)
   liftIO $ assertEqual "status" Team.Active (Team.tdStatus team3)
 
-testCreateTeamPreverified :: Brig -> Galley -> AWS.Env -> Http ()
-testCreateTeamPreverified brig galley aws = do
+testCreateTeamPreverified :: Brig -> Galley -> UserJournalWatcher -> Http ()
+testCreateTeamPreverified brig galley userJournalWatcher = do
   email <- randomEmail
   requestActivationCode brig 200 (Left email)
   act <- getActivationCode brig (Left email)
@@ -564,7 +563,7 @@ testCreateTeamPreverified brig galley aws = do
     Just (_, c) -> do
       usr <- responseJsonError =<< register' email newTeam c brig <!! const 201 === statusCode
       let uid = userId usr
-      liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
+      Util.assertUserActivateJournaled userJournalWatcher usr "user activate"
       teams <- view teamListTeams <$> getTeams uid galley
       liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
       let team = fromMaybe (error "No team??") $ listToMaybe teams
@@ -722,30 +721,36 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
       const 403 === statusCode
       const (Just "too-many-team-members") === fmap Error.label . responseJsonMaybe
 
-testInvitationPaging :: HasCallStack => Brig -> Http ()
-testInvitationPaging brig = do
+testInvitationPaging :: HasCallStack => Opt.Opts -> Brig -> Http ()
+testInvitationPaging opts brig = do
   before <- liftIO $ toUTCTimeMillis . addUTCTime (-1) <$> getCurrentTime
   (uid, tid) <- createUserWithTeam brig
   let total = 5
       invite email = stdInvitationRequest email
-  emails <- replicateM total $ do
-    email <- randomEmail
-    postInvitation brig tid uid (invite email) !!! const 201 === statusCode
-    pure email
+      longerTimeout = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setTeamInvitationTimeout = 300}}
+  emails <-
+    withSettingsOverrides longerTimeout $
+      replicateM total $ do
+        email <- randomEmail
+        postInvitation brig tid uid (invite email) !!! const 201 === statusCode
+        pure email
   after1ms <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
-  let next :: HasCallStack => Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
-      next step (count, start) actualPageLen = do
-        let count' = count + step
+  let getPages :: HasCallStack => Int -> Maybe InvitationId -> Int -> Http [[Invitation]]
+      getPages count start step = do
         let range = queryRange (toByteString' <$> start) (Just step)
         r <-
           get (brig . paths ["teams", toByteString' tid, "invitations"] . zUser uid . range)
             <!! const 200
               === statusCode
-        let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> responseJsonMaybe r
-        liftIO $ assertEqual "page size" actualPageLen (length invs)
-        liftIO $ assertEqual "has more" (count' < total) more
-        liftIO $ validateInv `mapM_` invs
-        pure (count', fmap inInvitation . listToMaybe . reverse $ invs)
+        (invs, more) <- (ilInvitations &&& ilHasMore) <$> responseJsonError r
+        if more
+          then (invs :) <$> getPages (count + step) (fmap inInvitation . listToMaybe . reverse $ invs) step
+          else pure [invs]
+  let checkSize :: HasCallStack => Int -> [Int] -> Http ()
+      checkSize pageSize expectedSizes =
+        getPages 0 Nothing pageSize >>= \invss -> liftIO $ do
+          assertEqual "page sizes" expectedSizes (take (length expectedSizes) (map length invss))
+          mapM_ validateInv $ concat invss
       validateInv :: Invitation -> Assertion
       validateInv inv = do
         assertEqual "tid" tid (inTeam inv)
@@ -756,9 +761,9 @@ testInvitationPaging brig = do
         assertEqual "uid" (Just uid) (inCreatedBy inv)
   -- not checked: @inInvitation inv :: InvitationId@
 
-  foldM_ (next 2) (0, Nothing) [2, 2, 1, 0]
-  foldM_ (next total) (0, Nothing) [total, 0]
-  foldM_ (next (total + 1)) (0, Nothing) [total, 0]
+  checkSize 2 [2, 2, 1]
+  checkSize total [total]
+  checkSize (total + 1) [total]
 
 testInvitationInfo :: Brig -> Http ()
 testInvitationInfo brig = do

@@ -181,7 +181,8 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db SndFactorPasswordChallengeConfig,
     FeaturePersistentConstraint db MLSConfig,
     FeaturePersistentConstraint db SearchVisibilityInboundConfig,
-    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig
+    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig,
+    FeaturePersistentConstraint db OutlookCalIntegrationConfig
   )
 
 getFeatureStatus ::
@@ -443,6 +444,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
     <*> getConfigForServer @db @MLSConfig
     <*> getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
+    <*> getConfigForServer @db @OutlookCalIntegrationConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -477,6 +479,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @SndFactorPasswordChallengeConfig uid
     <*> getConfigForUser @db @MLSConfig uid
     <*> getConfigForUser @db @ExposeInvitationURLsToTeamAdminConfig uid
+    <*> getConfigForUser @db @OutlookCalIntegrationConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -510,6 +513,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @SndFactorPasswordChallengeConfig tid
     <*> getConfigForTeam @db @MLSConfig tid
     <*> getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid
+    <*> getConfigForTeam @db @OutlookCalIntegrationConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -898,6 +902,13 @@ instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
     case lockStatus of
       LockStatusLocked -> throwS @OperationDenied
       LockStatusUnlocked -> persistAndPushEvent @db tid wsnl
+
+instance SetFeatureConfig db OutlookCalIntegrationConfig where
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+
+instance GetFeatureConfig db OutlookCalIntegrationConfig where
+  getConfigForServer =
+    input <&> view (optSettings . setFeatureFlags . flagOutlookCalIntegration . unDefaults)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

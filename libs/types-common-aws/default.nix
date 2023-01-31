@@ -21,6 +21,7 @@
 , tasty-hunit
 , text
 , time
+, unliftio
 }:
 mkDerivation {
   pname = "types-common-aws";
@@ -43,6 +44,7 @@ mkDerivation {
     tasty-hunit
     text
     time
+    unliftio
   ];
   description = "Shared AWS type definitions";
   license = lib.licenses.agpl3Only;

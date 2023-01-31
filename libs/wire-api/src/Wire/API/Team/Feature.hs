@@ -75,6 +75,7 @@ module Wire.API.Team.Feature
     AppLockConfig (..),
     FileSharingConfig (..),
     MLSConfig (..),
+    OutlookCalIntegrationConfig (..),
     AllFeatureConfigs (..),
     typeFeatureTTL,
     unImplicitLockStatus,
@@ -120,11 +121,11 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 1. Add a data type for your feature's "config" part, naming convention:
 -- **<NameOfFeature>Config**. If your feature doesn't have a config besides
 -- being enabled/disabled, locked/unlocked, then the config should be a unit
--- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type clases
+-- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type classes
 -- 'ToSchema', 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a
 -- config implement 'FeatureTrivialConfig'.
 --
--- 2. Add the config to to 'AllFeatureConfigs'. Add your feature to 'allFeatureModels'.
+-- 2. Add the config to to 'AllFeatureConfigs'.
 --
 -- 3. If your feature is configurable on a per-team basis, add a schema
 -- migration in galley and add 'FeatureStatusCassandra' instance in
@@ -137,14 +138,14 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- Galley.API.Teams.Features which defines the main business logic for getting
 -- and setting (with side-effects).
 --
--- 6. Add public routes to Routes.Public.Galley: 'FeatureStatusGet',
+-- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature: 'FeatureStatusGet',
 -- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
--- implement them in Galley.API.Public.
+-- implement them in Galley.API.Public.Feature.
 --
 -- 7. Add internal routes in Galley.API.Internal
 --
 -- 8. If the feature should be configurable via Stern add routes to Stern.API.
--- Manually check that the swagger looks okay.
+-- Manually check that the swagger looks okay and works.
 --
 -- 9. If the feature is configured on a per-user level, see the
 -- 'ConferenceCallingConfig' as an example.
@@ -152,6 +153,14 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- https://github.com/wireapp/wire-server/pull/1818)
 --
 -- 10. Extend the integration tests with cases
+--
+-- 11. Edit/update the configurations:
+--     - optionally add the config for local integration tests to 'galley.integration.yaml'
+--     - add a config mapping to 'charts/galley/templates/configmap.yaml'
+--     - add the defaults to 'charts/galley/values.yaml'
+--     - optionally add config for CI to 'hack/helm_vars/wire-server/values.yaml'
+--
+-- 12. Add a section to the documentation at an appropriate place (e.g. 'docs/src/developer/reference/config-options.md' or 'docs/src/understand/team-feature-settings.md')
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
@@ -853,6 +862,26 @@ instance FeatureTrivialConfig ExposeInvitationURLsToTeamAdminConfig where
   trivialConfig = ExposeInvitationURLsToTeamAdminConfig
 
 ----------------------------------------------------------------------
+-- OutlookCalIntegrationConfig
+
+-- | This feature setting only applies to the Outlook Calendar extension for Wire.
+-- As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
+data OutlookCalIntegrationConfig = OutlookCalIntegrationConfig
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OutlookCalIntegrationConfig)
+
+instance IsFeatureConfig OutlookCalIntegrationConfig where
+  type FeatureSymbol OutlookCalIntegrationConfig = "outlookCalIntegration"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited
+  objectSchema = pure OutlookCalIntegrationConfig
+
+instance ToSchema OutlookCalIntegrationConfig where
+  schema = object "OutlookCalIntegrationConfig" objectSchema
+
+instance FeatureTrivialConfig OutlookCalIntegrationConfig where
+  trivialConfig = OutlookCalIntegrationConfig
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -926,7 +955,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcGuestLink :: WithStatus GuestLinksConfig,
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
     afcMLS :: WithStatus MLSConfig,
-    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig
+    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
+    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -950,6 +980,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcSndFactorPasswordChallenge .= featureField
         <*> afcMLS .= featureField
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
+        <*> afcOutlookCalIntegration .= featureField
     where
       featureField ::
         forall cfg.
@@ -961,6 +992,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

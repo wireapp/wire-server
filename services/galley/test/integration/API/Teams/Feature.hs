@@ -18,7 +18,7 @@
 
 module API.Teams.Feature (tests) where
 
-import API.SQS (assertQueue, tActivate)
+import API.SQS (assertTeamActivate)
 import API.Util
 import API.Util.TeamFeature hiding (getFeatureConfig, setLockStatusInternal)
 import qualified API.Util.TeamFeature as Util
@@ -84,6 +84,7 @@ tests s =
       test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @Public.SndFactorPasswordChallengeConfig Public.FeatureStatusDisabled Public.LockStatusLocked,
       test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
       test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
+      test s "OutlookCalIntegration" $ testSimpleFlagWithLockStatus @Public.OutlookCalIntegrationConfig Public.FeatureStatusDisabled Public.LockStatusLocked,
       testGroup
         "TTL / Conference calling"
         [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited,
@@ -135,7 +136,9 @@ tests s =
           test s (unpack $ Public.featureNameBS @Public.SndFactorPasswordChallengeConfig) $
             testPatch AssertLockStatusChange Public.FeatureStatusDisabled Public.SndFactorPasswordChallengeConfig,
           test s (unpack $ Public.featureNameBS @Public.SelfDeletingMessagesConfig) $
-            testPatch AssertLockStatusChange Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0)
+            testPatch AssertLockStatusChange Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0),
+          test s (unpack $ Public.featureNameBS @Public.OutlookCalIntegrationConfig) $
+            testPatch AssertLockStatusChange Public.FeatureStatusDisabled Public.OutlookCalIntegrationConfig
         ],
       testGroup
         "ExposeInvitationURLsToTeamAdmin"
@@ -1020,7 +1023,8 @@ testAllFeatures = do
           Public.afcSndFactorPasswordChallenge = Public.withStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig Public.FeatureTTLUnlimited,
           Public.afcMLS = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519) Public.FeatureTTLUnlimited,
           Public.afcSearchVisibilityInboundConfig = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityInboundConfig Public.FeatureTTLUnlimited,
-          Public.afcExposeInvitationURLsToTeamAdmin = Public.withStatus FeatureStatusDisabled Public.LockStatusLocked Public.ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
+          Public.afcExposeInvitationURLsToTeamAdmin = Public.withStatus FeatureStatusDisabled Public.LockStatusLocked Public.ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited,
+          Public.afcOutlookCalIntegration = Public.withStatus FeatureStatusDisabled Public.LockStatusLocked Public.OutlookCalIntegrationConfig Public.FeatureTTLUnlimited
         }
 
 testFeatureConfigConsistency :: TestM ()
@@ -1167,7 +1171,7 @@ testExposeInvitationURLsToTeamAdminTeamIdInAllowList :: TestM ()
 testExposeInvitationURLsToTeamAdminTeamIdInAllowList = do
   owner <- randomUser
   tid <- createBindingTeamInternal "foo" owner
-  assertQueue "create team" tActivate
+  assertTeamActivate "create team" tid
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
       g <- viewGalley
@@ -1182,7 +1186,7 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList :: TestM ()
 testExposeInvitationURLsToTeamAdminEmptyAllowList = do
   owner <- randomUser
   tid <- createBindingTeamInternal "foo" owner
-  assertQueue "create team" tActivate
+  assertTeamActivate "create team" tid
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist .~ Nothing) $ do
       g <- viewGalley
@@ -1203,7 +1207,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence :: TestM ()
 testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
   owner <- randomUser
   tid <- createBindingTeamInternal "foo" owner
-  assertQueue "create team" tActivate
+  assertTeamActivate "create team" tid
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setExposeInvitationURLsTeamAllowlist ?~ [tid]) $ do
       g <- viewGalley
