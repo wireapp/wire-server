@@ -46,7 +46,7 @@ import Wire.API.Error
 import Wire.API.OAuth as OAuth
 import qualified Wire.API.Routes.Internal.Brig.OAuth as I
 import Wire.API.Routes.Named (Named (..))
-import Wire.API.Routes.Public.Brig.OAuth (CreateOAuthCodeError (..), OAuthAPI)
+import Wire.API.Routes.Public.Brig.OAuth
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 
@@ -91,26 +91,32 @@ getOAuthClient _ cid = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   lift $ wrapClient $ lookupOauthClient cid
 
-createNewOAuthAuthCode :: UserId -> NewOAuthAuthCode -> (Handler r) (RedirectUrl, Maybe CreateOAuthCodeError)
+data CreateNewOAuthCodeError
+  = CreateNewOAuthCodeErrorFeatureDisabled
+  | CreateNewOAuthCodeErrorClientNotFound
+  | CreateNewOAuthCodeErrorUnsupportedResponseType
+  | CreateNewOAuthCodeErrorRedirectUrlMissMatch
+
+createNewOAuthAuthCode :: UserId -> NewOAuthAuthCode -> (Handler r) CreateOAuthCodeResponse
 createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl state) = do
   runExceptT validateAndCreateAuthCode >>= \case
-    Left e@CreateOAuthCodeRedirectUrlMissMatch ->
-      pure (redirectUrl & addParams [("error", "access_denied"), ("error_description", "The redirect URL does not match the one that was registered"), ("state", cs state)], Just e)
-    Left e@CreateOAuthCodeClientNotFound ->
-      pure (redirectUrl & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs state)], Just e)
-    Left e@CreateOAuthCodeFeatureDisabled ->
-      pure (redirectUrl & addParams [("error", "access_denied"), ("error_description", "OAuth is not enabled"), ("state", cs state)], Just e)
-    Left e@CreateOAuthCodeUnsupportedResponseType ->
-      pure (redirectUrl & addParams [("error", "unsupported_response_type"), ("state", cs state)], Just e)
     Right oauthCode ->
-      pure (redirectUrl & addParams [("code", toByteString' oauthCode), ("state", cs state)], Nothing)
+      pure $ CreateOAuthCodeSuccess $ redirectUrl & addParams [("code", toByteString' oauthCode), ("state", cs state)]
+    Left CreateNewOAuthCodeErrorFeatureDisabled ->
+      pure $ CreateOAuthCodeFeatureDisabled $ redirectUrl & addParams [("error", "access_denied"), ("error_description", "OAuth is not enabled"), ("state", cs state)]
+    Left CreateNewOAuthCodeErrorClientNotFound ->
+      pure $ CreateOAuthCodeClientNotFound $ redirectUrl & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs state)]
+    Left CreateNewOAuthCodeErrorUnsupportedResponseType ->
+      pure $ CreateOAuthCodeUnsupportedResponseType $ redirectUrl & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs state)]
+    Left CreateNewOAuthCodeErrorRedirectUrlMissMatch ->
+      pure CreateOAuthCodeRedirectUrlMissMatch
   where
-    validateAndCreateAuthCode :: ExceptT CreateOAuthCodeError (Handler r) OAuthAuthCode
+    validateAndCreateAuthCode :: ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthCode
     validateAndCreateAuthCode = do
-      failWithM CreateOAuthCodeFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
-      failWith CreateOAuthCodeUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
-      OAuthClient _ _ uri <- failWithM CreateOAuthCodeClientNotFound $ getOAuthClient uid cid
-      failWith CreateOAuthCodeRedirectUrlMissMatch (assertMay $ uri == redirectUrl)
+      failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
+      OAuthClient _ _ uri <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
+      failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
+      failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ uri == redirectUrl)
       lift mkAuthCode
       where
         mkAuthCode :: (Handler r) OAuthAuthCode

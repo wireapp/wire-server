@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Wire.API.OAuth where
 
@@ -196,7 +197,7 @@ instance FromByteString OAuthScope where
       _ -> fail "invalid scope"
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Monoid, Semigroup)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthScopes)
 
 instance ToSchema OAuthScopes where

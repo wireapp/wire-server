@@ -62,7 +62,7 @@ type OAuthAPI =
                     'POST
                     '[JSON]
                     CreateOAuthAuthCodeResponses
-                    (RedirectUrl, Maybe CreateOAuthCodeError)
+                    CreateOAuthCodeResponse
            )
     :<|> Named
            "create-oauth-access-token"
@@ -131,28 +131,29 @@ type CreateOAuthAuthCodeResponses =
      -- client not found
      WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 404 "Not Found"),
      -- redirect url mismatch
-     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 400 "Bad Request")
+     ErrorResponse 'OAuthRedirectUrlMissMatch
    ]
 
-data CreateOAuthCodeError
-  = CreateOAuthCodeFeatureDisabled
-  | CreateOAuthCodeUnsupportedResponseType
-  | CreateOAuthCodeClientNotFound
+data CreateOAuthCodeResponse
+  = CreateOAuthCodeSuccess RedirectUrl
+  | CreateOAuthCodeFeatureDisabled RedirectUrl
+  | CreateOAuthCodeUnsupportedResponseType RedirectUrl
+  | CreateOAuthCodeClientNotFound RedirectUrl
   | CreateOAuthCodeRedirectUrlMissMatch
 
-instance AsUnion CreateOAuthAuthCodeResponses (RedirectUrl, Maybe CreateOAuthCodeError) where
-  toUnion :: (RedirectUrl, Maybe CreateOAuthCodeError) -> Union (ResponseTypes CreateOAuthAuthCodeResponses)
-  toUnion (url, Nothing) = Z (I url)
-  toUnion (url, Just CreateOAuthCodeFeatureDisabled) = S (Z (I url))
-  toUnion (url, Just CreateOAuthCodeUnsupportedResponseType) = S (S (Z (I url)))
-  toUnion (url, Just CreateOAuthCodeClientNotFound) = S (S (S (Z (I url))))
-  toUnion (url, Just CreateOAuthCodeRedirectUrlMissMatch) = S (S (S (S (Z (I url)))))
-  fromUnion :: Union (ResponseTypes CreateOAuthAuthCodeResponses) -> (RedirectUrl, Maybe CreateOAuthCodeError)
-  fromUnion (Z (I url)) = (url, Nothing)
-  fromUnion (S (Z (I url))) = (url, Just CreateOAuthCodeFeatureDisabled)
-  fromUnion (S (S (Z (I url)))) = (url, Just CreateOAuthCodeUnsupportedResponseType)
-  fromUnion (S (S (S (Z (I url))))) = (url, Just CreateOAuthCodeClientNotFound)
-  fromUnion (S (S (S (S (Z (I url)))))) = (url, Just CreateOAuthCodeRedirectUrlMissMatch)
+instance AsUnion CreateOAuthAuthCodeResponses CreateOAuthCodeResponse where
+  toUnion :: CreateOAuthCodeResponse -> Union (ResponseTypes CreateOAuthAuthCodeResponses)
+  toUnion (CreateOAuthCodeSuccess url) = Z (I url)
+  toUnion (CreateOAuthCodeFeatureDisabled url) = S (Z (I url))
+  toUnion (CreateOAuthCodeUnsupportedResponseType url) = S (S (Z (I url)))
+  toUnion (CreateOAuthCodeClientNotFound url) = S (S (S (Z (I url))))
+  toUnion CreateOAuthCodeRedirectUrlMissMatch = S (S (S (S (Z (I (dynError @(MapError 'OAuthRedirectUrlMissMatch)))))))
+  fromUnion :: Union (ResponseTypes CreateOAuthAuthCodeResponses) -> CreateOAuthCodeResponse
+  fromUnion (Z (I url)) = CreateOAuthCodeSuccess url
+  fromUnion (S (Z (I url))) = CreateOAuthCodeFeatureDisabled url
+  fromUnion (S (S (Z (I url)))) = CreateOAuthCodeUnsupportedResponseType url
+  fromUnion (S (S (S (Z (I url))))) = CreateOAuthCodeClientNotFound url
+  fromUnion (S (S (S (S (Z (I _)))))) = CreateOAuthCodeRedirectUrlMissMatch
   fromUnion (S (S (S (S (S x))))) = case x of {}
 
 swaggerDoc :: Swagger
