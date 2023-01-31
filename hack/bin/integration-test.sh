@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE=${NAMESPACE:-test-integration}
 
 echo "Running integration tests on wire-server"
@@ -56,6 +57,14 @@ if ((exit_code > 0)); then
         if ((x > 0)); then
             echo "=== logs for failed $t-integration ==="
             cat "logs-$t"
+        fi
+    done
+    summary
+    for t in "${tests[@]}"; do
+        x=$(cat "stat-$t")
+        if ((x > 0)); then
+            echo "=== (relevant) logs for failed $t-integration ==="
+            grep -v '"level"' "logs-$t" | "$DIR/integration-logs-relevant-bits.sh"
         fi
     done
     summary
