@@ -1,6 +1,8 @@
 (trouble-shooting-faq)=
 
-TODO: toc
+```{contents}
+:depth: 2
+```
 
 # Trouble shooting & FAQ
 
