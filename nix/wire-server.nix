@@ -374,6 +374,7 @@ in
       pkgs.rsync
       pkgs.wget
       pkgs.yq
+      pkgs.ripgrep
       pkgs.nginz
 
       pkgs.cabal-install
