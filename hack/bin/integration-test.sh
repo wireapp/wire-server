@@ -31,7 +31,7 @@ summary() {
 # The below commands are a little convoluted, but we wish to:
 # - run integration tests. If they fail, keep track of this, but still go and get logs, so we see what failed
 # - run all tests. Perhaps multiple flaky tests in multiple services exist, if so, we wish to see all problems
-touch ~/.parallel/will-cite
+mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${tests[@]}" | parallel echo "Running helm tests for {}..."
 printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
     helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" '> logs-{};' \
