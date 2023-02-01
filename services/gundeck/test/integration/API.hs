@@ -117,6 +117,7 @@ tests s =
       testGroup
         "Websocket pingpong"
         [ test s "pings produce pongs" testPingPong,
+          test s "pings with payload produce pongs with the same payload" testPingPongWithData,
           test s "non-pings are ignored" testNoPingNoPong
         ],
       testGroup
@@ -851,6 +852,19 @@ testPingPong = do
     atomically $ writeTChan chwrite "ping"
     msg <- waitForMessage chread
     assertBool "no pong" $ msg == Just "pong"
+
+testPingPongWithData :: TestM ()
+testPingPongWithData = do
+  ca <- view tsCannon
+  uid :: UserId <- randomId
+  connid :: ConnId <- randomConnId
+  [(_, [(chread, chwrite)] :: [(TChan ByteString, TChan ByteString)])] <-
+    connectUsersAndDevicesWithSendingClients ca [(uid, [connid])]
+  liftIO $ do
+    let pingPayload = "ping 3e4ac0590d55a24af7298b ping"
+    atomically $ writeTChan chwrite pingPayload
+    msg <- waitForMessage chread
+    assertBool "no pong with the same payload" $ msg == Just pingPayload
 
 testNoPingNoPong :: TestM ()
 testNoPingNoPong = do
