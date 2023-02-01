@@ -262,7 +262,7 @@ type SelfAPI =
   Named
     "get-self"
     ( Summary "Get your own profile"
-        :> ZUserOrOAuth 'SelfRead
+        :> ZOauthUser 'SelfRead
         :> "self"
         :> Get '[JSON] SelfProfile
     )

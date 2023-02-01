@@ -426,8 +426,8 @@ hcsSub =
     >=> preview string
     >=> either (const Nothing) pure . parseIdFromText
 
-hasScope :: OAuthScope -> OAuthClaimsSet -> Bool
-hasScope s claims = s `Set.member` unOAuthScopes (scope claims)
+hasScope :: forall scope. IsOAuthScope scope => OAuthClaimsSet -> Bool
+hasScope claims = (toOAuthScope @scope) `Set.member` unOAuthScopes (scope claims)
 
 -- | Verify a JWT and return the claims set. Use this function if you have a custom claims set.
 verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimsSet)

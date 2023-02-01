@@ -30,7 +30,7 @@ module Wire.API.Routes.Public
     ZBot,
     ZConversation,
     ZProvider,
-    ZUserOrOAuth,
+    ZOauthUser,
 
     -- * Swagger combinators
     OmitDocs,
@@ -166,7 +166,7 @@ instance IsZType 'ZAuthProvider ctx where
 instance HasTokenType 'ZAuthProvider where
   tokenType = Just "provider"
 
-data ZAuthServant (ztype :: ZType) (opts :: [Type])
+data ZAuthServant (ztype :: ZType) (opts :: [Type]) (scopes :: Maybe OAuthScope)
 
 type InternalAuthDefOpts = '[Servant.Required, Servant.Strict]
 
@@ -176,27 +176,30 @@ type InternalAuth ztype opts =
     (ZHeader ztype)
     (ZParam ztype)
 
-type ZLocalUser = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts
+type ZLocalUser = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts 'Nothing
 
-type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts
+type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts 'Nothing
 
-type ZClient = ZAuthServant 'ZAuthClient InternalAuthDefOpts
+type ZOauthUser scopes = ZAuthServant 'ZAuthUser InternalAuthDefOpts ('Just scopes)
 
-type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts
+type ZClient = ZAuthServant 'ZAuthClient InternalAuthDefOpts 'Nothing
 
-type ZBot = ZAuthServant 'ZAuthBot InternalAuthDefOpts
+type ZConn = ZAuthServant 'ZAuthConn InternalAuthDefOpts 'Nothing
 
-type ZConversation = ZAuthServant 'ZAuthConv InternalAuthDefOpts
+type ZBot = ZAuthServant 'ZAuthBot InternalAuthDefOpts 'Nothing
 
-type ZProvider = ZAuthServant 'ZAuthProvider InternalAuthDefOpts
+type ZConversation = ZAuthServant 'ZAuthConv InternalAuthDefOpts 'Nothing
 
-type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Optional, Servant.Strict]
+type ZProvider = ZAuthServant 'ZAuthProvider InternalAuthDefOpts 'Nothing
 
-type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict]
+type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Optional, Servant.Strict] 'Nothing
 
-type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict]
+type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict] 'Nothing
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) where
+type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict] 'Nothing
+
+-- TODO(leif): doc for scopes (also other instances)
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts scopes :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
       & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
@@ -208,19 +211,111 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts :> api) whe
             _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
           }
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts :> api) where
-  toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts :> api))
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts scopes :> api) where
+  toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts scopes :> api))
 
-instance HasLink endpoint => HasLink (ZAuthServant usr opts :> endpoint) where
-  type MkLink (ZAuthServant _ _ :> endpoint) a = MkLink endpoint a
+instance HasLink endpoint => HasLink (ZAuthServant usr opts scopes :> endpoint) where
+  type MkLink (ZAuthServant _ _ _ :> endpoint) a = MkLink endpoint a
   toLink toA _ = toLink toA (Proxy @endpoint)
 
 instance
   {-# OVERLAPPABLE #-}
   HasSwagger api =>
-  HasSwagger (ZAuthServant ztype _opts :> api)
+  HasSwagger (ZAuthServant ztype _opts scopes :> api)
   where
   toSwagger _ = toSwagger (Proxy @api)
+
+_routeZAuth ::
+  forall ztype opts scopes api env ctx a.
+  ( IsZType ztype ctx,
+    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasContextEntry ctx (Maybe JWK),
+    opts ~ InternalAuthDefOpts,
+    HasServer api ctx,
+    IsOAuthScope scopes,
+    ZQualifiedParam ztype ~ Id a
+  ) =>
+  Proxy (ZAuthServant ztype opts ('Just scopes) :> api) ->
+  Context ctx ->
+  Delayed env (Server (ZAuthServant ztype opts ('Just scopes) :> api)) ->
+  Router env
+_routeZAuth _ ctx subserver = route (Proxy @(ZAuthServant ztype opts 'Nothing :> api)) ctx subserver
+
+_routeOAuth ::
+  forall ztype opts scopes api env ctx a.
+  ( IsZType ztype ctx,
+    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasContextEntry ctx (Maybe JWK),
+    opts ~ InternalAuthDefOpts,
+    HasServer api ctx,
+    IsOAuthScope scopes,
+    ZQualifiedParam ztype ~ Id a
+  ) =>
+  Proxy (ZAuthServant ztype opts ('Just scopes) :> api) ->
+  Context ctx ->
+  Delayed env (Server (ZAuthServant ztype opts ('Just scopes) :> api)) ->
+  Router env
+_routeOAuth _ ctx subserver = route (Proxy @api) ctx (addAuthCheck subserver (withRequest checkAuth))
+  where
+    -- todo(leif): add sig and toplevel
+
+    checkAuth :: Request -> DelayedIO (ZQualifiedParam ztype)
+    checkAuth = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
+
+    doOAuth :: Maybe JWK -> Request -> DelayedIO (Either ServerError (ZQualifiedParam ztype))
+    doOAuth mJwk req = tryOAuth
+      where
+        tryOAuth :: DelayedIO (Either ServerError (ZQualifiedParam ztype))
+        tryOAuth = do
+          let headerOrError = maybeToRight oauthTokenMissing $ lookup "Z-OAuth" (requestHeaders req)
+          let jwkOrError = maybeToRight jwtError mJwk
+          let tokenOrError = headerOrError >>= mapLeft invalidOAuthToken . parseHeader
+          either (pure . Left) verifyOAuthToken $ (,) <$> tokenOrError <*> jwkOrError
+
+        verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError (ZQualifiedParam ztype))
+        verifyOAuthToken (token, key) = do
+          verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthToken . unBearer $ token))
+          pure $
+            verifiedOrError >>= \claimSet ->
+              if hasScope @scopes claimSet
+                then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (hcsSub claimSet)
+                else Left insufficientScope
+
+instance
+  ( IsZType ztype ctx,
+    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasContextEntry ctx (Maybe JWK),
+    opts ~ InternalAuthDefOpts,
+    HasServer api ctx,
+    IsOAuthScope scopes,
+    ZQualifiedParam ztype ~ Id a
+  ) =>
+  HasServer (ZAuthServant ztype opts ('Just scopes) :> api) ctx
+  where
+  type
+    ServerT (ZAuthServant ztype opts ('Just scopes) :> api) m =
+      RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
+
+  route ::
+    ( IsZType ztype ctx,
+      HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+      HasContextEntry ctx (Maybe JWK),
+      SBoolI (FoldLenient opts),
+      SBoolI (FoldRequired opts),
+      HasServer api ctx,
+      IsOAuthScope scopes
+    ) =>
+    Proxy (ZAuthServant ztype opts ('Just scopes) :> api) ->
+    Context ctx ->
+    Delayed env (Server (ZAuthServant ztype opts ('Just scopes) :> api)) ->
+    Router env
+  route _ _ctx _subserver =
+    -- withRequest $ \req -> maybe routeOAuth (const routeZAuth) $ lookup "Z-Type" (requestHeaders req)
+    undefined
+
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
+
+-- TODO(leif): remove Nothing instance
 
 instance
   ( IsZType ztype ctx,
@@ -229,12 +324,23 @@ instance
     SBoolI (FoldRequired opts),
     HasServer api ctx
   ) =>
-  HasServer (ZAuthServant ztype opts :> api) ctx
+  HasServer (ZAuthServant ztype opts 'Nothing :> api) ctx
   where
   type
-    ServerT (ZAuthServant ztype opts :> api) m =
+    ServerT (ZAuthServant ztype opts 'Nothing :> api) m =
       RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
 
+  route ::
+    ( IsZType ztype ctx,
+      HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+      SBoolI (FoldLenient opts),
+      SBoolI (FoldRequired opts),
+      HasServer api ctx
+    ) =>
+    Proxy (ZAuthServant ztype opts 'Nothing :> api) ->
+    Context ctx ->
+    Delayed env (Server (ZAuthServant ztype opts 'Nothing :> api)) ->
+    Router env
   route _ ctx subserver = do
     Servant.route
       (Proxy @(InternalAuth ztype opts :> api))
@@ -259,7 +365,7 @@ instance
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
-instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) where
+instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts scopes :> api) where
   getRoutes = getRoutes @api
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
@@ -296,54 +402,6 @@ data ZUserOrOAuth (scope :: OAuthScope)
 
 instance HasSwagger api => HasSwagger (ZUserOrOAuth scope :> api) where
   toSwagger _ = toSwagger (Proxy @api)
-
-checkZAuthOrOAuth :: OAuthScope -> Maybe JWK -> Request -> DelayedIO (Either ServerError UserId)
-checkZAuthOrOAuth oauthScope mJwk req = maybe tryOAuth (pure . Right) tryZUserAuth
-  where
-    tryZUserAuth :: Maybe UserId
-    tryZUserAuth = lookup "Z-User" (requestHeaders req) >>= (either (const Nothing) pure . parseHeader)
-
-    tryOAuth :: DelayedIO (Either ServerError UserId)
-    tryOAuth = do
-      let headerOrError = maybeToRight oauthTokenMissing $ lookup "Z-OAuth" (requestHeaders req)
-      let jwkOrError = maybeToRight jwtError mJwk
-      let tokenOrError = headerOrError >>= mapLeft invalidOAuthToken . parseHeader
-      either (pure . Left) verifyOAuthToken $ (,) <$> tokenOrError <*> jwkOrError
-
-    verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError UserId)
-    verifyOAuthToken (token, key) = do
-      verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthToken . unBearer $ token))
-      pure $
-        verifiedOrError >>= \claimSet ->
-          if hasScope oauthScope claimSet
-            then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (hcsSub claimSet)
-            else Left insufficientScope
-
-instance (HasServer api context, HasContextEntry context (Maybe JWK), IsOAuthScope scope) => HasServer (ZUserOrOAuth scope :> api) context where
-  type ServerT (ZUserOrOAuth scope :> api) m = UserId -> ServerT api m
-
-  route ::
-    (HasServer api context, HasContextEntry context (Maybe JWK)) =>
-    Proxy (ZUserOrOAuth scope :> api) ->
-    Context context ->
-    Delayed env (Server (ZUserOrOAuth scope :> api)) ->
-    Router env
-  route _ ctx svr = route (Proxy @api) ctx (addAuthCheck svr (withRequest checkAuth))
-    where
-      checkAuth :: Request -> DelayedIO UserId
-      checkAuth = checkZAuthOrOAuth (toOAuthScope @scope) (getContextEntry ctx) >=> either delayedFailFatal pure
-
-  hoistServerWithContext ::
-    (HasServer api context, HasContextEntry context (Maybe JWK)) =>
-    Proxy (ZUserOrOAuth scope :> api) ->
-    Proxy context ->
-    (forall x. m x -> n x) ->
-    ServerT (ZUserOrOAuth scope :> api) m ->
-    ServerT (ZUserOrOAuth scope :> api) n
-  hoistServerWithContext _ pc f s = hoistServerWithContext (Proxy :: Proxy api) pc f . s
-
-instance RoutesToPaths api => RoutesToPaths (ZUserOrOAuth scope :> api) where
-  getRoutes = getRoutes @api
 
 --------------------------------------------------------------------------------
 -- Util
