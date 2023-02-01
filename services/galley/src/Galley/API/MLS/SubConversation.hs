@@ -30,7 +30,6 @@ where
 import Control.Arrow
 import Data.Id
 import Data.Qualified
-import qualified Data.Set as Set
 import Galley.API.MLS
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Types
@@ -296,8 +295,8 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
     pure (scMLSData sconv)
 
   -- notify all backends that the subconversation has a new ID
-  let remotes = Set.fromList (map (void . rmId) (convRemoteMembers cnv))
-  Eff.runFederatedConcurrently_ (toList remotes) $ \_ -> do
+  let remotes = bucketRemote (map rmId (convRemoteMembers cnv))
+  Eff.runFederatedConcurrently_ remotes $ \_ -> do
     fedClient @'Galley @"on-new-remote-subconversation"
       NewRemoteSubConversation
         { nrscConvId = cnvId,
