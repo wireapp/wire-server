@@ -171,6 +171,10 @@ galley:
             status: enabled # or "disabled" (default is "disabled")
 ```
 
+```{note}
+Changing this setting in the instance configuration doesn't affect any users that have already been created. To affect these users please toggle the setting on a per-team basis (see below). Switching between "enabled" and "disabled" setting for the team causes a re-indexing of all the users of the team, thereby making the setting effective, e.g. changing to a "disabled" setting first, followed by changing to an "enabled" setting (or vice versa).
+```
+
 #### Overriding the default setting
 
 Individual teams can overwrite the default setting with API calls:
