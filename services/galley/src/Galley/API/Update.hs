@@ -285,6 +285,7 @@ type UpdateConversationAccessEffects =
      Input UTCTime,
      MemberStore,
      ProposalStore,
+     SubConversationStore,
      TeamStore,
      TinyLog
    ]
@@ -293,6 +294,7 @@ updateConversationAccess ::
   ( Members UpdateConversationAccessEffects r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-conversation-updated"
   ) =>
   Local UserId ->
@@ -309,6 +311,7 @@ updateConversationAccessUnqualified ::
   ( Members UpdateConversationAccessEffects r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-conversation-updated"
   ) =>
   Local UserId ->
@@ -339,11 +342,13 @@ updateConversationReceiptMode ::
          Input Env,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "update-conversation"
   ) =>
   Local UserId ->
@@ -419,11 +424,13 @@ updateConversationReceiptModeUnqualified ::
          Input Env,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "update-conversation"
   ) =>
   Local UserId ->
@@ -444,11 +451,13 @@ updateConversationMessageTimer ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -482,11 +491,13 @@ updateConversationMessageTimerUnqualified ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -509,11 +520,13 @@ deleteLocalConversation ::
          GundeckAccess,
          Input Env,
          Input UTCTime,
+         SubConversationStore,
          TeamStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -718,13 +731,15 @@ joinConversationByReusableCode ::
          Input Opts,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TeamStore,
          TeamFeatureStore db
        ]
       r,
     FeaturePersistentConstraint db GuestLinksConfig,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -752,12 +767,14 @@ joinConversationById ::
          Input Opts,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TeamStore,
          TeamFeatureStore db
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -781,12 +798,14 @@ joinConversation ::
          Input Opts,
          Input UTCTime,
          MemberStore,
+         SubConversationStore,
          TeamStore,
          TeamFeatureStore db
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -840,13 +859,15 @@ addMembers ::
          LegalHoldStore,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -883,13 +904,15 @@ addMembersUnqualifiedV2 ::
          LegalHoldStore,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -926,13 +949,15 @@ addMembersUnqualified ::
          LegalHoldStore,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1024,11 +1049,13 @@ updateOtherMemberLocalConv ::
          GundeckAccess,
          Input Env,
          Input UTCTime,
-         MemberStore
+         MemberStore,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1055,11 +1082,13 @@ updateOtherMemberUnqualified ::
          GundeckAccess,
          Input Env,
          Input UTCTime,
-         MemberStore
+         MemberStore,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1086,11 +1115,13 @@ updateOtherMember ::
          GundeckAccess,
          Input Env,
          Input UTCTime,
-         MemberStore
+         MemberStore,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1126,13 +1157,15 @@ removeMemberUnqualified ::
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "leave-conversation",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1158,13 +1191,15 @@ removeMemberQualified ::
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "leave-conversation",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1234,12 +1269,14 @@ removeMemberFromLocalConv ::
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1454,11 +1491,13 @@ updateConversationName ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1484,11 +1523,13 @@ updateUnqualifiedConversationName ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -1510,11 +1551,13 @@ updateLocalConversationName ::
          FederatorAccess,
          GundeckAccess,
          Input Env,
-         Input UTCTime
+         Input UTCTime,
+         SubConversationStore
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   ConnId ->

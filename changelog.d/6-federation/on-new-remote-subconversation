@@ -1,0 +1,4 @@
+Split federation endpoint into on-new-remote-conversation and on-new-remote-subconversation
+Call on-new-remote-subconversation when a new subconversation is created
+Call on-new-remote-subconversation for all existing subconversations when a new backend gets involved
+Call on-new-remote-subconversation when a subconversation is reset

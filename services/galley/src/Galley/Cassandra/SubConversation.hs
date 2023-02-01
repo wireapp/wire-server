@@ -20,6 +20,7 @@ module Galley.Cassandra.SubConversation where
 import Cassandra
 import Cassandra.Util
 import Data.Id
+import qualified Data.Map as Map
 import Data.Qualified
 import Data.Time.Clock
 import Galley.API.MLS.Types (SubConversation (..))
@@ -54,10 +55,6 @@ selectSubConversation convId subConvId = do
               },
           scMembers = cm
         }
-  where
-    epochTimestamp :: Epoch -> Writetime Epoch -> Maybe UTCTime
-    epochTimestamp (Epoch 0) _ = Nothing
-    epochTimestamp _ (Writetime t) = Just t
 
 insertSubConversation :: ConvId -> SubConvId -> CipherSuiteTag -> Epoch -> GroupId -> Maybe OpaquePublicGroupState -> Client ()
 insertSubConversation convId subConvId suite epoch groupId mPgs =
@@ -83,6 +80,21 @@ deleteGroupId :: GroupId -> Client ()
 deleteGroupId groupId =
   retry x5 $ write Cql.deleteGroupIdForSubconv (params LocalQuorum (Identity groupId))
 
+listSubConversations :: ConvId -> Client (Map SubConvId ConversationMLSData)
+listSubConversations cid = do
+  subs <- retry x1 (query Cql.listSubConversations (params LocalQuorum (Identity cid)))
+  pure . Map.fromList $ do
+    (subId, cs, epoch, ts, gid) <- subs
+    pure
+      ( subId,
+        ConversationMLSData
+          { cnvmlsGroupId = gid,
+            cnvmlsEpoch = epoch,
+            cnvmlsEpochTimestamp = epochTimestamp epoch ts,
+            cnvmlsCipherSuite = cs
+          }
+      )
+
 interpretSubConversationStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
   Sem (SubConversationStore ': r) a ->
@@ -95,3 +107,11 @@ interpretSubConversationStoreToCassandra = interpret $ \case
   SetGroupIdForSubConversation gId cid sconv -> embedClient $ setGroupIdForSubConversation gId cid sconv
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
   DeleteGroupIdForSubConversation groupId -> embedClient $ deleteGroupId groupId
+  ListSubConversations cid -> embedClient $ listSubConversations cid
+
+--------------------------------------------------------------------------------
+-- Utilities
+
+epochTimestamp :: Epoch -> Writetime Epoch -> Maybe UTCTime
+epochTimestamp (Epoch 0) _ = Nothing
+epochTimestamp _ (Writetime t) = Just t

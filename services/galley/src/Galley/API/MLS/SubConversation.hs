@@ -40,11 +40,12 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Conversation.Types
 import Galley.Effects
 import Galley.Effects.FederatorAccess
+import qualified Galley.Effects.FederatorAccess as Eff
 import qualified Galley.Effects.MemberStore as Eff
-import Galley.Effects.SubConversationStore (SubConversationStore)
 import qualified Galley.Effects.SubConversationStore as Eff
 import Galley.Effects.SubConversationSupply (SubConversationSupply)
 import qualified Galley.Effects.SubConversationSupply as Eff
+import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -233,7 +234,8 @@ deleteSubConversation ::
          SubConversationSupply
        ]
       r,
-    CallsFed 'Galley "delete-sub-conversation"
+    CallsFed 'Galley "delete-sub-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -248,19 +250,22 @@ deleteSubConversation lusr qconv sconv dsc =
     qconv
 
 deleteLocalSubConversation ::
-  Members
-    '[ ConversationStore,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'ConvNotFound,
-       ErrorS 'MLSNotEnabled,
-       ErrorS 'MLSStaleMessage,
-       Input Env,
-       MemberStore,
-       Resource,
-       SubConversationStore,
-       SubConversationSupply
-     ]
-    r =>
+  ( Members
+      '[ ConversationStore,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvNotFound,
+         ErrorS 'MLSNotEnabled,
+         ErrorS 'MLSStaleMessage,
+         FederatorAccess,
+         Input Env,
+         MemberStore,
+         Resource,
+         SubConversationStore,
+         SubConversationSupply
+       ]
+      r,
+    CallsFed 'Galley "on-new-remote-subconversation"
+  ) =>
   Qualified UserId ->
   Local ConvId ->
   SubConvId ->
@@ -271,7 +276,7 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
   let cnvId = tUnqualified lcnvId
   cnv <- getConversationAndCheckMembership qusr lcnvId
   cs <- cnvmlsCipherSuite <$> noteS @'ConvNotFound (mlsMetadata cnv)
-  withCommitLock (dscGroupId dsc) (dscEpoch dsc) $ do
+  mlsData <- withCommitLock (dscGroupId dsc) (dscEpoch dsc) $ do
     sconv <-
       Eff.getSubConversation cnvId scnvId
         >>= noteS @'ConvNotFound
@@ -287,6 +292,17 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
 
     -- the following overwrites any prior information about the subconversation
     Eff.createSubConversation cnvId scnvId cs (Epoch 0) newGid Nothing
+    pure (scMLSData sconv)
+
+  -- notify all backends that the subconversation has a new ID
+  let remotes = bucketRemote (map rmId (convRemoteMembers cnv))
+  Eff.runFederatedConcurrently_ remotes $ \_ -> do
+    fedClient @'Galley @"on-new-remote-subconversation"
+      NewRemoteSubConversation
+        { nrscConvId = cnvId,
+          nrscSubConvId = scnvId,
+          nrscMlsData = mlsData
+        }
 
 deleteRemoteSubConversation ::
   ( Members

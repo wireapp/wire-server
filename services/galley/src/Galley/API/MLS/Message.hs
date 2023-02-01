@@ -151,6 +151,7 @@ postMLSMessageFromLocalUserV1 ::
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local UserId ->
@@ -196,6 +197,7 @@ postMLSMessageFromLocalUser ::
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local UserId ->
@@ -234,6 +236,7 @@ postMLSCommitBundle ::
     CallsFed 'Galley "send-mls-commit-bundle",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local x ->
@@ -247,7 +250,7 @@ postMLSCommitBundle loc qusr mc qConvOrSub conn rawBundle =
   foldQualified
     loc
     (postMLSCommitBundleToLocalConv qusr mc conn rawBundle)
-    (postMLSCommitBundleToRemoteConv loc qusr conn rawBundle)
+    (postMLSCommitBundleToRemoteConv loc qusr mc conn rawBundle)
     qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
@@ -273,6 +276,7 @@ postMLSCommitBundleFromLocalUser ::
     CallsFed 'Galley "send-mls-commit-bundle",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local UserId ->
@@ -311,6 +315,7 @@ postMLSCommitBundleToLocalConv ::
     CallsFed 'Galley "mls-welcome",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
@@ -362,7 +367,8 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lConvOrSubId = do
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
     Members
-      '[ Error FederationError,
+      '[ BrigAccess,
+         Error FederationError,
          Error MLSProtocolError,
          Error MLSProposalFailure,
          ExternalAccess,
@@ -376,16 +382,25 @@ postMLSCommitBundleToRemoteConv ::
   ) =>
   Local x ->
   Qualified UserId ->
+  Maybe ClientId ->
   Maybe ConnId ->
   CommitBundle ->
   Remote ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
-postMLSCommitBundleToRemoteConv loc qusr con bundle rConvOrSubId = do
+postMLSCommitBundleToRemoteConv loc qusr mc con bundle rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send commit bundles to a remote conversation
 
   flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) (convOfConvOrSub <$> rConvOrSubId)
+
+  senderIdentity <-
+    noteS @'MLSMissingSenderClient
+      =<< getSenderIdentity
+        qusr
+        mc
+        SMLSPlainText
+        (rmValue (cbCommitMsg bundle))
 
   resp <-
     runFederated rConvOrSubId $
@@ -393,6 +408,7 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rConvOrSubId = do
         MLSMessageSendRequest
           { mmsrConvOrSubId = tUnqualified rConvOrSubId,
             mmsrSender = tUnqualified lusr,
+            mmsrSenderClient = ciClient senderIdentity,
             mmsrRawMessage = Base64ByteString (serializeCommitBundle bundle)
           }
   updates <- case resp of
@@ -435,6 +451,7 @@ postMLSMessage ::
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local x ->
@@ -530,6 +547,7 @@ postMLSMessageToLocalConv ::
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
@@ -577,11 +595,13 @@ postMLSMessageToRemoteConv ::
   RawMLS SomeMessage ->
   Remote ConvOrSubConvId ->
   Sem r [LocalConversationUpdate]
-postMLSMessageToRemoteConv loc qusr _senderClient con smsg rConvOrSubId = do
+postMLSMessageToRemoteConv loc qusr mc con smsg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
   flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) (convOfConvOrSub <$> rConvOrSubId)
+
+  senderClient <- noteS @'MLSMissingSenderClient mc
 
   resp <-
     runFederated rConvOrSubId $
@@ -589,6 +609,7 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rConvOrSubId = do
         MLSMessageSendRequest
           { mmsrConvOrSubId = tUnqualified rConvOrSubId,
             mmsrSender = tUnqualified lusr,
+            mmsrSenderClient = senderClient,
             mmsrRawMessage = Base64ByteString (rmRaw smsg)
           }
   updates <- case resp of
@@ -699,6 +720,7 @@ processCommit ::
     Member SubConversationStore r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
@@ -854,6 +876,7 @@ processCommitWithAction ::
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
@@ -893,6 +916,7 @@ processInternalCommit ::
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Qualified UserId ->
@@ -1239,11 +1263,13 @@ type HasProposalActionEffects r =
     Member LegalHoldStore r,
     Member MemberStore r,
     Member ProposalStore r,
+    Member SubConversationStore r,
     Member TeamStore r,
     Member TinyLog r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   )
 
 executeProposalAction ::
@@ -1342,6 +1368,25 @@ executeProposalAction qusr con lconvOrSub action = do
   -- of all types (see Note [client removal]).
   for_ (Map.assocs (paRemove action)) $ \(qtarget, clients) -> do
     removeMLSClients (cnvmlsGroupId mlsMeta) qtarget (Map.keysSet clients)
+
+  -- if this is a new subconversation, call `on-new-remote-conversation` on all
+  -- the remote backends involved in the main conversation
+  forOf_ _SubConv convOrSub $ \(mlsConv, subConv) -> do
+    when (cnvmlsEpoch (scMLSData subConv) == Epoch 0) $ do
+      let remoteDomains =
+            Set.fromList
+              ( map
+                  (void . rmId)
+                  (mcRemoteMembers mlsConv)
+              )
+      let nrc =
+            NewRemoteSubConversation
+              { nrscConvId = mcId mlsConv,
+                nrscSubConvId = scSubConvId subConv,
+                nrscMlsData = scMLSData subConv
+              }
+      runFederatedConcurrently_ (toList remoteDomains) $ \_ -> do
+        void $ fedClient @'Galley @"on-new-remote-subconversation" nrc
 
   pure (addEvents <> removeEvents)
   where

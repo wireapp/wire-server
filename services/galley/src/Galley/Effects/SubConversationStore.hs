@@ -24,8 +24,8 @@ import Data.Qualified
 import Galley.API.MLS.Types
 import Imports
 import Polysemy
+import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.SubConversation
@@ -38,5 +38,6 @@ data SubConversationStore m a where
   SetGroupIdForSubConversation :: GroupId -> Qualified ConvId -> SubConvId -> SubConversationStore m ()
   SetSubConversationEpoch :: ConvId -> SubConvId -> Epoch -> SubConversationStore m ()
   DeleteGroupIdForSubConversation :: GroupId -> SubConversationStore m ()
+  ListSubConversations :: ConvId -> SubConversationStore m (Map SubConvId ConversationMLSData)
 
 makeSem ''SubConversationStore

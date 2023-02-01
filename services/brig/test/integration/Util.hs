@@ -102,6 +102,7 @@ import Test.Tasty.HUnit
 import Text.Printf (printf)
 import qualified UnliftIO.Async as Async
 import Util.Options
+import Web.Internal.HttpApiData
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
@@ -109,6 +110,7 @@ import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
+import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
@@ -740,6 +742,25 @@ createMLSConversation galley zusr c = do
       . zConn "conn"
       . json conv
 
+createMLSSubConversation ::
+  (MonadIO m, MonadHttp m) =>
+  Galley ->
+  UserId ->
+  Qualified ConvId ->
+  SubConvId ->
+  m ResponseLBS
+createMLSSubConversation galley zusr qcnv sconv =
+  get $
+    galley
+      . paths
+        [ "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "subconversations",
+          toHeader sconv
+        ]
+      . zUser zusr
+
 createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
   let conv =
@@ -843,6 +864,9 @@ zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . B8.pack . show
+
+zClient :: ClientId -> Request -> Request
+zClient = header "Z-Client" . toByteString'
 
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"

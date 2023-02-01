@@ -58,7 +58,7 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore (ProposalStore)
-import Galley.Effects.SubConversationStore
+import qualified Galley.Effects.SubConversationStore as E
 import Galley.Effects.SubConversationSupply
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -108,6 +108,7 @@ federationSitemap ::
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
     :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
+    :<|> Named @"on-new-remote-subconversation" onNewRemoteSubConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"leave-conversation" (callsFed leaveConversation)
@@ -123,7 +124,7 @@ federationSitemap =
     :<|> Named @"on-client-removed" (callsFed onClientRemoved)
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
     :<|> Named @"get-sub-conversation" getSubConversationForRemoteUser
-    :<|> Named @"delete-sub-conversation" deleteSubConversationForRemoteUser
+    :<|> Named @"delete-sub-conversation" (callsFed deleteSubConversationForRemoteUser)
 
 onClientRemoved ::
   ( Members
@@ -203,15 +204,37 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
 
 onNewRemoteConversation ::
-  Member ConversationStore r =>
+  Members
+    '[ ConversationStore,
+       SubConversationStore
+     ]
+    r =>
   Domain ->
   F.NewRemoteConversation ->
   Sem r EmptyResponse
 onNewRemoteConversation domain nrc = do
   -- update group_id -> conv_id mapping
   for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
-    E.setGroupIdForConversation (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
+    E.setGroupIdForConversation
+      (cnvmlsGroupId mls)
+      (Qualified (F.nrcConvId nrc) domain)
 
+  pure EmptyResponse
+
+onNewRemoteSubConversation ::
+  Members
+    '[ ConversationStore,
+       SubConversationStore
+     ]
+    r =>
+  Domain ->
+  F.NewRemoteSubConversation ->
+  Sem r EmptyResponse
+onNewRemoteSubConversation domain nrsc = do
+  E.setGroupIdForSubConversation
+    (cnvmlsGroupId (F.nrscMlsData nrsc))
+    (Qualified (F.nrscConvId nrsc) domain)
+    (F.nrscSubConvId nrsc)
   pure EmptyResponse
 
 getConversations ::
@@ -349,12 +372,14 @@ leaveConversation ::
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Domain ->
   F.LeaveConversationRequest ->
@@ -487,12 +512,14 @@ onUserDeleted ::
          Input Env,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Domain ->
   F.UserDeletedConversationsNotification ->
@@ -535,31 +562,33 @@ onUserDeleted origDomain udcn = do
 updateConversation ::
   forall r.
   ( Members
-      '[ BrigAccess,
+      '[ BotAccess,
+         BrigAccess,
          CodeStore,
-         BotAccess,
-         FireAndForget,
+         ConversationStore,
          Error FederationError,
+         Error InternalError,
          Error InvalidInput,
          ExternalAccess,
          FederatorAccess,
-         Error InternalError,
+         FireAndForget,
          GundeckAccess,
          Input Env,
+         Input (Local ()),
          Input Opts,
          Input UTCTime,
          LegalHoldStore,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TeamStore,
-         TinyLog,
-         ConversationStore,
-         Input (Local ())
+         TinyLog
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
   Domain ->
   F.ConversationUpdateRequest ->
@@ -647,6 +676,7 @@ sendMLSCommitBundle ::
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "send-mls-commit-bundle",
     CallsFed 'Brig "get-mls-clients"
   ) =>
@@ -670,7 +700,13 @@ sendMLSCommitBundle remoteDomain msr =
       qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       F.MLSMessageResponseUpdates . map lcuUpdate
-        <$> postMLSCommitBundle loc (tUntagged sender) Nothing qConvOrSub Nothing bundle
+        <$> postMLSCommitBundle
+          loc
+          (tUntagged sender)
+          (Just (mmsrSenderClient msr))
+          qConvOrSub
+          Nothing
+          bundle
 
 sendMLSMessage ::
   ( Members
@@ -697,6 +733,7 @@ sendMLSMessage ::
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Brig "get-mls-clients"
   ) =>
@@ -721,7 +758,13 @@ sendMLSMessage remoteDomain msr =
           qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
           when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
           F.MLSMessageResponseUpdates . map lcuUpdate
-            <$> postMLSMessage loc (tUntagged sender) Nothing qConvOrSub Nothing raw
+            <$> postMLSMessage
+              loc
+              (tUntagged sender)
+              (Just (mmsrSenderClient msr))
+              qConvOrSub
+              Nothing
+              raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::
@@ -900,16 +943,19 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
       getLocalSubConversation qusr lconv gsreqSubConv
 
 deleteSubConversationForRemoteUser ::
-  Members
-    '[ ConversationStore,
-       Input (Local ()),
-       Input Env,
-       MemberStore,
-       Resource,
-       SubConversationStore,
-       SubConversationSupply
-     ]
-    r =>
+  ( Members
+      '[ ConversationStore,
+         FederatorAccess,
+         Input (Local ()),
+         Input Env,
+         MemberStore,
+         Resource,
+         SubConversationStore,
+         SubConversationSupply
+       ]
+      r,
+    CallsFed 'Galley "on-new-remote-subconversation"
+  ) =>
   Domain ->
   DeleteSubConversationRequest ->
   Sem r DeleteSubConversationResponse

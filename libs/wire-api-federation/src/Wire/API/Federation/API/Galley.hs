@@ -56,6 +56,7 @@ type GalleyApi =
     -- This endpoint is called the first time a user from this backend is
     -- added to a remote conversation.
     :<|> FedEndpoint "on-new-remote-conversation" NewRemoteConversation EmptyResponse
+    :<|> FedEndpoint "on-new-remote-subconversation" NewRemoteSubConversation EmptyResponse
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
@@ -63,7 +64,8 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation"
+              MakesFederatedCall 'Galley "on-new-remote-conversation",
+              MakesFederatedCall 'Galley "on-new-remote-subconversation"
             ]
            "leave-conversation"
            LeaveConversationRequest
@@ -83,7 +85,8 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-conversation-updated",
-              MakesFederatedCall 'Galley "on-new-remote-conversation"
+              MakesFederatedCall 'Galley "on-new-remote-conversation",
+              MakesFederatedCall 'Galley "on-new-remote-subconversation"
             ]
            "on-user-deleted-conversations"
            UserDeletedConversationsNotification
@@ -91,7 +94,8 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
-              MakesFederatedCall 'Galley "on-new-remote-conversation"
+              MakesFederatedCall 'Galley "on-new-remote-conversation",
+              MakesFederatedCall 'Galley "on-new-remote-subconversation"
             ]
            "update-conversation"
            ConversationUpdateRequest
@@ -102,6 +106,7 @@ type GalleyApi =
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-new-remote-conversation",
+              MakesFederatedCall 'Galley "on-new-remote-subconversation",
               MakesFederatedCall 'Galley "send-mls-message",
               MakesFederatedCall 'Brig "get-mls-clients"
             ]
@@ -113,6 +118,7 @@ type GalleyApi =
               MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-new-remote-conversation",
+              MakesFederatedCall 'Galley "on-new-remote-subconversation",
               MakesFederatedCall 'Galley "send-mls-commit-bundle",
               MakesFederatedCall 'Brig "get-mls-clients"
             ]
@@ -128,7 +134,11 @@ type GalleyApi =
            EmptyResponse
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
     :<|> FedEndpoint "get-sub-conversation" GetSubConversationsRequest GetSubConversationsResponse
-    :<|> FedEndpoint "delete-sub-conversation" DeleteSubConversationRequest DeleteSubConversationResponse
+    :<|> FedEndpointWithMods
+           '[MakesFederatedCall 'Galley "on-new-remote-subconversation"]
+           "delete-sub-conversation"
+           DeleteSubConversationRequest
+           DeleteSubConversationResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { tdurTypingStatus :: TypingStatus,
@@ -225,6 +235,17 @@ data NewRemoteConversation = NewRemoteConversation
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded NewRemoteConversation)
+
+data NewRemoteSubConversation = NewRemoteSubConversation
+  { -- | The ID of the parent conversation
+    nrscConvId :: ConvId,
+    -- | The subconversation ID
+    nrscSubConvId :: SubConvId,
+    -- | MLS data
+    nrscMlsData :: ConversationMLSData
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded NewRemoteSubConversation)
 
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,
@@ -325,6 +346,7 @@ data MLSMessageSendRequest = MLSMessageSendRequest
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
     mmsrSender :: UserId,
+    mmsrSenderClient :: ClientId,
     mmsrRawMessage :: Base64ByteString
   }
   deriving stock (Eq, Show, Generic)

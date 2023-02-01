@@ -43,6 +43,7 @@ receiveCommitMock clients =
   asum
     [ "on-conversation-updated" ~> (),
       "on-new-remote-conversation" ~> EmptyResponse,
+      "on-new-remote-subconversation" ~> EmptyResponse,
       "get-mls-clients" ~>
         Set.fromList
           ( map (flip ClientInfo True . ciClient) clients
@@ -56,7 +57,11 @@ welcomeMock :: Mock LByteString
 welcomeMock = "mls-welcome" ~> MLSWelcomeSent
 
 sendMessageMock :: Mock LByteString
-sendMessageMock = "send-mls-message" ~> MLSMessageResponseUpdates []
+sendMessageMock =
+  asum
+    [ "send-mls-message" ~> MLSMessageResponseUpdates [],
+      "send-mls-commit-bundle" ~> MLSMessageResponseUpdates []
+    ]
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb
