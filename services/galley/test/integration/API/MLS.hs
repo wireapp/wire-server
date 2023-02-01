@@ -226,7 +226,7 @@ tests s =
             [ test s "get subconversation of remote conversation - member" (testGetRemoteSubConv True),
               test s "get subconversation of remote conversation - not member" (testGetRemoteSubConv False),
               test s "join remote subconversation" testJoinRemoteSubConv,
-              test s "backends and notified about subconvs when a user joins" testRemoteSubConvNotificationWhenUserJoins,
+              test s "backends are notified about subconvs when a user joins" testRemoteSubConvNotificationWhenUserJoins,
               test s "reset a subconversation - member" (testDeleteRemoteSubConv True),
               test s "reset a subconversation - not member" (testDeleteRemoteSubConv False)
             ],
