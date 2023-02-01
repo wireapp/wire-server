@@ -20,7 +20,7 @@ elasticsearch-ephemeral minio-external cassandra-external						\
 nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn		\
 inbucket k8ssandra-test-cluster
 KIND_CLUSTER_NAME     := wire-server
-HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for parallel tests
+HELM_PARALLELISM      ?= 6 # 1 for sequential tests; 6 for parallel tests
 
 package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
