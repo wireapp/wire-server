@@ -2732,25 +2732,42 @@ testDeleteRemoteSubConv isAMember = do
 
 testLeaveSubConv :: TestM ()
 testLeaveSubConv = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Just "charlie.example.com"]
 
   runMLSTest $ do
-    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    [alice1, bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
     traverse_ uploadNewKeyPackage [bob1, bob2]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
     let subId = SubConvId "conference"
-    qsub <- createSubConv qcnv bob1 subId
-    void $ createExternalCommit alice1 Nothing qsub >>= sendAndConsumeCommitBundle
-    void $ createExternalCommit bob2 Nothing qsub >>= sendAndConsumeCommitBundle
+    (qsub, _) <- withTempMockFederator'
+      ( receiveCommitMock [charlie1]
+          <|> welcomeMock
+      )
+      $ do
+        void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
+
+        qsub <- createSubConv qcnv bob1 subId
+        void $ createExternalCommit alice1 Nothing qsub >>= sendAndConsumeCommitBundle
+        void $ createExternalCommit bob2 Nothing qsub >>= sendAndConsumeCommitBundle
+        void $ createExternalCommit charlie1 Nothing qsub >>= sendAndConsumeCommitBundle
+        pure qsub
 
     -- bob1 (the creator of the subconv) leaves
     [bob1KP] <-
       map snd . filter (\(cid, _) -> cid == bob1)
         <$> getClientsFromGroupState alice1 bob
     mlsBracket [alice1, bob2] $ \wss -> do
-      leaveCurrentConv bob1 qsub
+      (_, reqs) <- withTempMockFederator' messageSentMock $ leaveCurrentConv bob1 qsub
+      req <-
+        assertOne
+          ( toList . Aeson.decode . frBody
+              =<< filter ((== "on-mls-message-sent") . frRPC) reqs
+          )
+      let msg = fromBase64ByteString $ rmmMessage req
+      liftIO $
+        rmmRecipients req @?= [(ciUser charlie1, ciClient charlie1)]
+      consumeMessage1 charlie1 msg
 
       msgs <-
         WS.assertMatchN (5 # WS.Second) wss $
@@ -2760,14 +2777,40 @@ testLeaveSubConv = do
     -- alice commits the pending proposal
     void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
 
+    -- check that only 3 clients are left in the subconv
+    do
+      psc <-
+        liftTest $
+          responseJsonError
+            =<< getSubConv (qUnqualified alice) qcnv subId
+              <!! do
+                const 200 === statusCode
+      liftIO $ length (pscMembers psc) @?= 3
+
+    -- charlie1 leaves
+    [charlie1KP] <-
+      map snd . filter (\(cid, _) -> cid == charlie1)
+        <$> getClientsFromGroupState alice1 charlie
+    mlsBracket [alice1, bob2] $ \wss -> do
+      leaveCurrentConv charlie1 qsub
+
+      msgs <-
+        WS.assertMatchN (5 # WS.Second) wss $
+          wsAssertBackendRemoveProposal charlie qcnv charlie1KP
+      traverse_ (uncurry consumeMessage1) (zip [alice1, bob2] msgs)
+
+    -- alice commits the pending proposal
+    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
     -- check that only 2 clients are left in the subconv
-    psc <-
-      liftTest $
-        responseJsonError
-          =<< getSubConv (qUnqualified alice) qcnv subId
-            <!! do
-              const 200 === statusCode
-    liftIO $ length (pscMembers psc) @?= 2
+    do
+      psc <-
+        liftTest $
+          responseJsonError
+            =<< getSubConv (qUnqualified alice) qcnv subId
+              <!! do
+                const 200 === statusCode
+      liftIO $ length (pscMembers psc) @?= 2
 
 testLeaveSubConvNonMember :: TestM ()
 testLeaveSubConvNonMember = do
@@ -2838,8 +2881,3 @@ testLeaveRemoteSubConv = do
 
     -- check that leave-sub-conversation is called
     void $ assertOne (filter ((== "leave-sub-conversation") . frRPC) reqs)
-
--- TODO: implement this
-
-testRemoteUserLeavesLocalSubConv :: TestM ()
-testRemoteUserLeavesLocalSubConv = pure ()

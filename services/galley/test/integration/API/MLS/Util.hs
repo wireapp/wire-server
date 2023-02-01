@@ -1254,7 +1254,36 @@ leaveSubConv u c qcnv subId = do
       . zUser u
       . zClient c
 
+remoteLeaveCurrentConv ::
+  Remote ClientIdentity ->
+  Qualified ConvId ->
+  SubConvId ->
+  TestM ()
+remoteLeaveCurrentConv rcid qcnv subId = do
+  client <- view tsFedGalleyClient
+  let lscr =
+        LeaveSubConversationRequest
+          { lscrUser = ciUser $ tUnqualified rcid,
+            lscrClient = ciClient $ tUnqualified rcid,
+            lscrConv = qUnqualified qcnv,
+            lscrSubConv = subId
+          }
+  runFedClient
+    @"leave-sub-conversation"
+    client
+    (tDomain rcid)
+    lscr
+    >>= liftIO . \case
+      LeaveSubConversationResponseError e ->
+        assertFailure $
+          "error while leaving remote conversation: " <> show e
+      LeaveSubConversationResponseProtocolError e ->
+        assertFailure $
+          "protocol error while leaving remote conversation: " <> T.unpack e
+      LeaveSubConversationResponseOk -> pure ()
+
 leaveCurrentConv ::
+  HasCallStack =>
   ClientIdentity ->
   Qualified ConvOrSubConvId ->
   MLSTest ()
@@ -1262,9 +1291,17 @@ leaveCurrentConv cid qsub = case qUnqualified qsub of
   -- TODO: implement leaving main conversation as well
   Conv _ -> liftIO $ assertFailure "Leaving conversations is not supported"
   SubConv cnv subId -> do
-    liftTest $
-      leaveSubConv (ciUser cid) (ciClient cid) (qsub $> cnv) subId
-        !!! const 200 === statusCode
+    liftTest $ do
+      loc <- qualifyLocal ()
+      foldQualified
+        loc
+        ( \_ ->
+            leaveSubConv (ciUser cid) (ciClient cid) (qsub $> cnv) subId
+              !!! const 200 === statusCode
+        )
+        ( \rcid -> remoteLeaveCurrentConv rcid (qsub $> cnv) subId
+        )
+        (cidQualifiedUser cid $> cid)
     State.modify $ \mls ->
       mls
         { mlsMembers = Set.difference (mlsMembers mls) (Set.singleton cid)
