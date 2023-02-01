@@ -132,7 +132,6 @@ library
     Brig.Version
     Brig.Whitelist
     Brig.ZAuth
-    Main
 
   other-modules:      Paths_brig
   hs-source-dirs:     src
@@ -317,7 +316,7 @@ library
   default-language:   Haskell2010
 
 executable brig
-  main-is:            src/Main.hs
+  main-is:            exec/Main.hs
   other-modules:      Paths_brig
   default-extensions:
     NoImplicitPrelude
@@ -518,7 +517,8 @@ executable brig-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields -Wredundant-constraints
+    -funbox-strict-fields -threaded -with-rtsopts=-N
+    -Wredundant-constraints
 
   build-depends:
       aeson

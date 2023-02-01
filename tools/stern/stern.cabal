@@ -16,7 +16,6 @@ flag static
 
 library
   exposed-modules:
-    Main
     Stern.API
     Stern.API.Predicates
     Stern.API.Routes
@@ -92,6 +91,7 @@ library
     , lens                   >=4.4
     , metrics-wai            >=0.3
     , mtl                    >=2.1
+    , retry
     , schema-profunctor
     , servant
     , servant-server
@@ -120,7 +120,7 @@ library
   default-language:   Haskell2010
 
 executable stern
-  main-is:            src/Main.hs
+  main-is:            exec/Main.hs
   other-modules:      Paths_stern
   default-extensions:
     NoImplicitPrelude

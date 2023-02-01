@@ -33,7 +33,6 @@ library
     CargoHold.Run
     CargoHold.S3
     CargoHold.Util
-    Main
 
   other-modules:      Paths_cargohold
   hs-source-dirs:     src
@@ -141,7 +140,7 @@ library
   default-language:   Haskell2010
 
 executable cargohold
-  main-is:            src/Main.hs
+  main-is:            exec/Main.hs
   other-modules:      Paths_cargohold
   default-extensions:
     NoImplicitPrelude

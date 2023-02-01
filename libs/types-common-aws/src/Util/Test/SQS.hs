@@ -1,9 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+
+-- Disabling for HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -27,52 +31,82 @@ module Util.Test.SQS where
 import qualified Amazonka as AWS
 import qualified Amazonka.SQS as SQS
 import qualified Amazonka.SQS.Lens as SQS
-import Control.Exception (asyncExceptionFromException)
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch hiding (bracket)
 import qualified Data.ByteString.Base64 as B64
+import Data.List (delete)
 import Data.ProtoLens
 import qualified Data.Text.Encoding as Text
 import Imports
 import Safe (headDef)
-import Test.Tasty.HUnit
+import UnliftIO (Async, async)
 import UnliftIO.Resource (MonadResource, ResourceT)
+import UnliftIO.Timeout (timeout)
 
------------------------------------------------------------------------------
--- Assertions
-assertQueue :: Message a => Text -> String -> AWS.Env -> (String -> Maybe a -> IO ()) -> IO ()
-assertQueue url label env check = execute env $ fetchMessage url label check
+data SQSWatcher a = SQSWatcher
+  { watcherProcess :: Async (),
+    events :: IORef [a]
+  }
 
-assertNoMessages :: Text -> AWS.Env -> IO ()
-assertNoMessages url env = do
-  msgs <- execute env $ readAndDeleteAllUntilEmpty url
-  assertEqual "ensureNoMessages: length" 0 (length msgs)
-
------------------------------------------------------------------------------
--- Queue operations
-purgeQueue :: (MonadReader AWS.Env m, MonadResource m) => Text -> m ()
-purgeQueue = void . readAndDeleteAllUntilEmpty
-
--- Note that Amazon's purge queue is a bit incovenient for testing purposes because
--- it may be delayed in ~60 seconds which causes messages that are published later
--- to be (unintentionally) deleted which is why we have our own for testing purposes
-readAndDeleteAllUntilEmpty :: (MonadReader AWS.Env m, MonadResource m) => Text -> m [SQS.Message]
-readAndDeleteAllUntilEmpty url = do
-  firstBatch <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> sendEnv (receive 1 url)
-  readUntilEmpty firstBatch firstBatch
+-- | Starts an async loop which continuously retrieves messages from a given SQS
+-- queue, parses them and stores them in an `IORef [a]`.
+--
+-- This function drops everything in the queue before starting the async loop.
+-- This helps test run faster and makes sure that initial tests don't timeout if
+-- the queue has too many things in it before the tests start.
+watchSQSQueue :: Message a => AWS.Env -> Text -> IO (SQSWatcher a)
+watchSQSQueue env queueUrl = do
+  eventsRef <- newIORef []
+  ensureEmpty
+  process <- async $ recieveLoop eventsRef
+  pure $ SQSWatcher process eventsRef
   where
-    readUntilEmpty acc [] = pure acc
-    readUntilEmpty acc msgs = do
-      forM_ msgs $ deleteMessage url
-      newMsgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> sendEnv (receive 1 url)
-      forM_ newMsgs $ deleteMessage url
-      readUntilEmpty (acc ++ newMsgs) newMsgs
+    recieveLoop ref = do
+      let rcvReq =
+            SQS.newReceiveMessage queueUrl
+              & set SQS.receiveMessage_waitTimeSeconds (Just 100)
+                . set SQS.receiveMessage_maxNumberOfMessages (Just 1)
+                . set SQS.receiveMessage_visibilityTimeout (Just 1)
+      rcvRes <- execute env $ sendEnv rcvReq
+      let msgs = fromMaybe [] $ view SQS.receiveMessageResponse_messages rcvRes
+      parsedMsgs <- fmap catMaybes . execute env $ mapM (parseDeleteMessage queueUrl) msgs
+      case parsedMsgs of
+        [] -> pure ()
+        _ -> atomicModifyIORef ref $ \xs ->
+          (parsedMsgs <> xs, ())
+      recieveLoop ref
 
-deleteMessage :: (MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m ()
-deleteMessage url m = do
-  for_
-    (m ^. SQS.message_receiptHandle)
-    (void . sendEnv . SQS.newDeleteMessage url)
+    ensureEmpty :: IO ()
+    ensureEmpty = do
+      let rcvReq =
+            SQS.newReceiveMessage queueUrl
+              & set SQS.receiveMessage_waitTimeSeconds (Just 1)
+                . set SQS.receiveMessage_maxNumberOfMessages (Just 10) -- 10 is maximum allowed by AWS
+                . set SQS.receiveMessage_visibilityTimeout (Just 1)
+      rcvRes <- execute env $ sendEnv rcvReq
+      case fromMaybe [] $ view SQS.receiveMessageResponse_messages rcvRes of
+        [] -> pure ()
+        ms -> do
+          execute env $ mapM_ (deleteMessage queueUrl) ms
+          ensureEmpty
+
+-- | Waits for a message matching a predicate for a given number of seconds.
+waitForMessage :: (MonadUnliftIO m, Eq a) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
+waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
+  where
+    poll = do
+      matched <- atomicModifyIORef (events watcher) $ \events ->
+        case filter predicate events of
+          [] -> (events, Nothing)
+          (x : _) -> (delete x events, Just x)
+      maybe (threadDelay 10000 >> poll) pure matched
+
+-- | First waits for a message matching a given predicate for 3 seconds (this
+-- number could be chosen more scientifically) and then uses a callback to make
+-- an assertion on such a message.
+assertMessage :: (MonadUnliftIO m, Eq a, HasCallStack) => SQSWatcher a -> String -> (a -> Bool) -> (String -> Maybe a -> m ()) -> m ()
+assertMessage watcher label predicate callback = do
+  matched <- waitForMessage watcher 3 predicate
+  callback label matched
 
 -----------------------------------------------------------------------------
 -- Generic AWS execution helpers
@@ -98,6 +132,12 @@ fetchMessage url label callback = do
   events <- mapM (parseDeleteMessage url) msgs
   liftIO $ callback label (headDef Nothing events)
 
+deleteMessage :: (MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m ()
+deleteMessage url m = do
+  for_
+    (m ^. SQS.message_receiptHandle)
+    (void . sendEnv . SQS.newDeleteMessage url)
+
 parseDeleteMessage :: (Message a, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m (Maybe a)
 parseDeleteMessage url m = do
   let decodedMessage = decodeMessage <=< (B64.decode . Text.encodeUtf8)
@@ -108,45 +148,6 @@ parseDeleteMessage url m = do
       pure Nothing
   deleteMessage url m
   pure evt
-
-queueMessage :: (MonadReader AWS.Env m, Message a, MonadResource m) => Text -> a -> m ()
-queueMessage url e = do
-  void $ sendEnv req
-  where
-    event = Text.decodeLatin1 $ B64.encode $ encodeMessage e
-    req = SQS.newSendMessage url event
-
-newtype MatchFailure a = MatchFailure {mFailure :: (a, SomeException)}
-
--- Try to match some assertions (callback) during the given timeout; if there's no
--- match during the timeout, it asserts with the given label
--- Matched matches are consumed while unmatched ones are republished to the queue
-tryMatch ::
-  (Show a, Message a, MonadReader AWS.Env m, MonadResource m, MonadCatch m) =>
-  String ->
-  Int ->
-  Text ->
-  (String -> Maybe a -> IO ()) ->
-  m ()
-tryMatch label tries url callback = go tries
-  where
-    go 0 = liftIO (assertFailure $ label <> ": No matching event found")
-    go n = do
-      msgs <- readAndDeleteAllUntilEmpty url
-      (bad, ok) <- partitionEithers <$> mapM (check <=< parseDeleteMessage url) msgs
-      -- Requeue all failed checks
-      forM_ bad $ \x -> for_ (fst . mFailure $ x) (queueMessage url)
-      -- If no success, continue!
-      when (null ok) $ do
-        liftIO $ threadDelay (10 ^ (6 :: Int))
-        go (n - 1)
-    check e =
-      do
-        liftIO $ callback label e
-        pure (Right $ show e)
-        `catchAll` \ex -> case asyncExceptionFromException ex of
-          Just x -> throwM (x :: SomeAsyncException)
-          Nothing -> pure . Left $ MatchFailure (e, ex)
 
 sendEnv :: (MonadReader AWS.Env m, MonadResource m, AWS.AWSRequest a) => a -> m (AWS.AWSResponse a)
 sendEnv x = flip AWS.send x =<< ask

@@ -91,6 +91,7 @@ library
     , tasty-hunit
     , text               >=0.11
     , time
+    , unliftio
 
   if flag(protobuf)
     cpp-options:   -DWITH_PROTOBUF
