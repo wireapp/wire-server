@@ -24,7 +24,7 @@ module Brig.Options where
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
-import Brig.Whitelist (Whitelist (..))
+import Brig.Whitelist (WhitelistEmailDomains (..), WhitelistPhonePrefixes (..))
 import qualified Brig.ZAuth as ZAuth
 import Control.Applicative
 import qualified Control.Lens as Lens
@@ -492,7 +492,8 @@ data Settings = Settings
     -- | STOMP broker credentials
     setStomp :: !(Maybe FilePathSecrets),
     -- | Whitelist of allowed emails/phones
-    setWhitelist :: !(Maybe Whitelist),
+    setWhitelistEmailDomains :: !(Maybe WhitelistEmailDomains),
+    setWhitelistPhonePrefixes :: !(Maybe WhitelistPhonePrefixes),
     -- | Max. number of sent/accepted
     --   connections per user
     setUserMaxConnections :: !Int64,

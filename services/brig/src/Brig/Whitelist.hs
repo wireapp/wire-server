@@ -19,60 +19,32 @@
 --
 -- Email/phone whitelist.
 module Brig.Whitelist
-  ( Whitelist (..),
+  ( WhitelistEmailDomains (..),
+    WhitelistPhonePrefixes (..),
     verify,
   )
 where
 
-import Bilge.IO
-import Bilge.Request
-import Bilge.Response
-import Bilge.Retry
-import Control.Monad.Catch (MonadMask, throwM)
-import Control.Retry
 import Data.Aeson
-import Data.Text
-import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text as Text
 import Imports
-import Network.HTTP.Client (HttpExceptionContent (..))
 import Wire.API.User.Identity
 
 -- | A service providing a whitelist of allowed email addresses and phone numbers
-data Whitelist = Whitelist
-  { -- | Service URL
-    whitelistUrl :: !Text,
-    -- | Username
-    whitelistUser :: !Text,
-    -- | Password
-    whitelistPass :: !Text
-  }
+data WhitelistEmailDomains = WhitelistEmailDomains [Text]
   deriving (Show, Generic)
 
-instance FromJSON Whitelist
+instance FromJSON WhitelistEmailDomains
 
--- | Do a request to the whitelist service and verify that the provided email/phone address is
--- whitelisted.
-verify :: (MonadIO m, MonadMask m, MonadHttp m) => Whitelist -> Either Email Phone -> m Bool
-verify (Whitelist url user pass) key =
-  if isKnownDomain key
-    then pure True
-    else recovering x3 httpHandlers . const $ do
-      rq <- parseRequest $ unpack url
-      rsp <- get' rq $ req (encodeUtf8 user) (encodeUtf8 pass)
-      case statusCode rsp of
-        200 -> pure True
-        404 -> pure False
-        _ ->
-          throwM $
-            HttpExceptionRequest rq (StatusCodeException (rsp {responseBody = ()}) mempty)
-  where
-    isKnownDomain (Left e) = emailDomain e == "wire.com"
-    isKnownDomain _ = False
-    urlEmail = queryItem "email" . encodeUtf8 . fromEmail
-    urlPhone = queryItem "mobile" . encodeUtf8 . fromPhone
-    req u p =
-      port 443
-        . secure
-        . either urlEmail urlPhone key
-        . applyBasicAuth u p
-    x3 = limitRetries 3 <> exponentialBackoff 100000
+data WhitelistPhonePrefixes = WhitelistPhonePrefixes [Text]
+  deriving (Show, Generic)
+
+instance FromJSON WhitelistPhonePrefixes
+
+-- | Consult the whitelist settings in brig's config file and verify that the provided
+-- email/phone address is whitelisted.
+verify :: Maybe WhitelistEmailDomains -> Maybe WhitelistPhonePrefixes -> Either Email Phone -> Bool
+verify (Just (WhitelistEmailDomains allowed)) _ (Left email) = emailDomain email `elem` allowed
+verify _ (Just (WhitelistPhonePrefixes allowed)) (Right phone) = any (`Text.isPrefixOf` fromPhone phone) allowed
+verify Nothing _ (Left _) = True
+verify _ Nothing (Right _) = True

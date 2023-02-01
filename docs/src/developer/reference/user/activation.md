@@ -137,17 +137,20 @@ X-Zeta-Code: 123456
 ## Phone/email whitelist 
 (RefActivationWhitelist)=
 
-The backend can be configured to only allow specific phone numbers or email addresses to register. The following options have to be set in `brig.yaml`:
+The backend can be configured to only allow specific phone number prefixes and email address domains to register. The following options have to be set in `brig.yaml`:
 
 ```yaml
 optSettings:
-  setWhitelist:
-    whitelistUrl: ...     # Checker URL
-    whitelistUser: ...    # Basic auth username
-    whitelistPass: ...    # Basic auth password
+  setWhitelistEmailDomains:
+    - wire.com
+    - example.com
+    - notagoodexample.com
+  setWhitelistPhonePrefixes:
+    - +49
+    - +1555555
 ```
 
-When those options are present, the backend will do a GET request at `<whitelistUrl>?email=...` or `<whitelistUrl>?mobile=...` for every activation request it receives. It will expect either status code 200 ("everything good") or 404 ("provided email/phone is not on the whitelist").
+When those options are present, the backend will match every activation request against these lists.
 
 If an email address or phone number are rejected by the whitelist, `POST /activate/send` or `POST /register` will return `403 Forbidden`:
 
@@ -158,5 +161,3 @@ If an email address or phone number are rejected by the whitelist, `POST /activa
     "message": "Unauthorized e-mail address or phone number."
 }
 ```
-
-Currently emails at `@wire.com` are always considered whitelisted, regardless of the whitelist service's response.
