@@ -6,7 +6,7 @@ NAMESPACE=${NAMESPACE:-test-integration}
 # set to 1 to disable running helm tests in parallel
 HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 
-echo "Running integration tests on wire-server"
+echo "Running integration tests on wire-server with parallelism=${HELM_PARALLELISM} ..."
 
 CHART=wire-server
 tests=(cargohold gundeck federator spar brig galley)
