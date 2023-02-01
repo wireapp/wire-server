@@ -230,7 +230,8 @@ tests s =
               test s "join remote subconversation" testJoinRemoteSubConv,
               test s "backends are notified about subconvs when a user joins" testRemoteSubConvNotificationWhenUserJoins,
               test s "reset a subconversation - member" (testDeleteRemoteSubConv True),
-              test s "reset a subconversation - not member" (testDeleteRemoteSubConv False)
+              test s "reset a subconversation - not member" (testDeleteRemoteSubConv False),
+              test s "leave a remote subconversation" testLeaveRemoteSubConv
             ],
           testGroup
             "Remote Sender/Local SubConversation"
@@ -2795,3 +2796,29 @@ testLeaveSubConvNonMember = do
           =<< leaveSubConv (ciUser alice1) (ciClient alice1) qcnv (SubConvId "foo")
             <!! const 404 === statusCode
       liftIO $ Wai.label e @?= "no-conversation"
+
+testLeaveRemoteSubConv :: TestM ()
+testLeaveRemoteSubConv = do
+  -- setup fake remote conversation
+  [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    (_groupId, _qcnv) <- setupFakeMLSGroup alice1
+    -- mp <- createAddCommit alice1 [bob]
+    -- traverse_ consumeWelcome (mpWelcome mp)
+
+    -- setup fake subconversation
+    let subId = SubConvId "conference"
+    (_subGroupId, qcnv) <- setupFakeMLSGroup alice1
+    let qsub = fmap (flip SubConv subId) qcnv
+
+    (_, reqs) <-
+      withTempMockFederator' empty $
+        createExternalCommit bob1 Nothing qsub >>= sendAndConsumeCommitBundle
+    print reqs
+
+-- TODO: implement this
+
+testRemoteUserLeavesLocalSubConv :: TestM ()
+testRemoteUserLeavesLocalSubConv = pure ()
