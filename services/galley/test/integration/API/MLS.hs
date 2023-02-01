@@ -239,7 +239,8 @@ tests s =
               test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False),
               test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
               test s "delete subconversation as a remote member" (testRemoteMemberDeleteSubConv True),
-              test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False)
+              test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False),
+              test s "leave subconversation as a remote member" testRemoteUserLeavesLocalSubConv
             ]
         ]
     ]
@@ -2803,20 +2804,40 @@ testLeaveRemoteSubConv = do
   [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
-    void $ uploadNewKeyPackage bob1
-    (_groupId, _qcnv) <- setupFakeMLSGroup alice1
-    -- mp <- createAddCommit alice1 [bob]
-    -- traverse_ consumeWelcome (mpWelcome mp)
 
-    -- setup fake subconversation
+    -- setup fake group for the subconversation
     let subId = SubConvId "conference"
-    (_subGroupId, qcnv) <- setupFakeMLSGroup alice1
-    let qsub = fmap (flip SubConv subId) qcnv
+    (subGroupId, qcnv) <- setupFakeMLSGroup alice1
+    -- TODO: refactor setupFakeMLSGroup to make it consistent with createSubConv
+    let qcs = fmap (flip SubConv subId) qcnv
+    initialCommit <- createPendingProposalCommit alice1
 
-    (_, reqs) <-
-      withTempMockFederator' empty $
-        createExternalCommit bob1 Nothing qsub >>= sendAndConsumeCommitBundle
-    print reqs
+    -- create a fake group ID for the main (we don't need the actual group)
+    mainGroupId <- fakeGroupId
+
+    -- inform backend about the main conversation
+    receiveNewRemoteConv (fmap Conv qcnv) mainGroupId
+    receiveOnConvUpdated qcnv alice bob
+
+    -- inform backend about the subconversation
+    receiveNewRemoteConv qcs subGroupId
+
+    let pgs = mpPublicGroupState initialCommit
+    let mock =
+          queryGroupStateMock (fold pgs) bob
+            <|> sendMessageMock
+            <|> ("leave-sub-conversation" ~> LeaveSubConversationResponseOk)
+    (_, reqs) <- withTempMockFederator' mock $ do
+      -- bob joins subconversation
+      void $ createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
+
+      -- bob leaves
+      liftTest $
+        leaveSubConv (ciUser bob1) (ciClient bob1) qcnv subId
+          !!! const 200 === statusCode
+
+    -- check that leave-sub-conversation is called
+    void $ assertOne (filter ((== "leave-sub-conversation") . frRPC) reqs)
 
 -- TODO: implement this
 
