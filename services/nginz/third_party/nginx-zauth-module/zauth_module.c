@@ -12,8 +12,8 @@ typedef struct {
 } ZauthServerConf;
 
 typedef struct {
-        ngx_flag_t toggle;
-        ngx_flag_t oauth;
+        ngx_flag_t zauth; // 1=on, 0=off
+        ngx_flag_t oauth; // 1=on, 0=off
 } ZauthLocationConf;
 
 // Configuration setup
@@ -28,7 +28,7 @@ static void   delete_srv_conf (void *);
 // Module setup
 static ngx_int_t zauth_init           (ngx_conf_t *);
 static ngx_int_t zauth_parse_request  (ngx_http_request_t *);
-static ngx_int_t zauth_handle_request (ngx_http_request_t *);
+static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t *);
 
 // Request Inspection
 static ZauthResult token_from_header (ngx_str_t const *, ZauthToken **);
@@ -66,7 +66,7 @@ static ngx_command_t zauth_commands [] = {
         , NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1
         , ngx_conf_set_flag_slot
         , NGX_HTTP_LOC_CONF_OFFSET
-        , offsetof (ZauthLocationConf, toggle)
+        , offsetof (ZauthLocationConf, zauth)
         , NULL
         }
 
@@ -181,7 +181,7 @@ static void * create_loc_conf (ngx_conf_t * conf) {
                 return NGX_CONF_ERROR;
         }
 
-        lc->toggle = NGX_CONF_UNSET;
+        lc->zauth = NGX_CONF_UNSET;
         lc->oauth  = NGX_CONF_UNSET;
 
         return lc;
@@ -190,7 +190,7 @@ static void * create_loc_conf (ngx_conf_t * conf) {
 static char * merge_loc_conf (ngx_conf_t * _, void * pc, void * cc) {
         ZauthLocationConf * parent = pc;
         ZauthLocationConf * child  = cc;
-        ngx_conf_merge_off_value(child->toggle, parent->toggle, 1);
+        ngx_conf_merge_off_value(child->zauth, parent->zauth, 1);
         ngx_conf_merge_off_value(child->oauth, parent->oauth, 0);
         return NGX_CONF_OK;
 }
@@ -253,14 +253,14 @@ static ngx_int_t zauth_init (ngx_conf_t * conf) {
                 return NGX_ERROR;
         }
 
-        *h2 = zauth_handle_request;
+        *h2 = zauth_and_oauth_handle_request;
 
         return NGX_OK;
 }
 
 // Request Processing ///////////////////////////////////////////////////////
 
-static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
+static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
         ZauthServerConf const * sc =
                 ngx_http_get_module_srv_conf(r, zauth_module);
 
@@ -272,7 +272,7 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
                 ngx_http_get_module_loc_conf(r, zauth_module);
 
         // if zauth is off (used for unauthenticated endpoints) we do not need to handle oauth
-        if (lc == NULL || lc->toggle != 1) {
+        if (lc == NULL || lc->zauth != 1) {
                 return NGX_DECLINED;
         }
 
@@ -413,13 +413,17 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
         if (res != ZAUTH_OK) {
                 ZauthLocationConf const *lc = ngx_http_get_module_loc_conf(r, zauth_module);
 
-                // if parsing the request failed (res != ZAUTH_OK) and...
-                if (lc == NULL || // no location config
-                    lc->oauth == 0 || // or oauth disabled
-                    r->headers_in.authorization == NULL || // or no authorization header
-                    strncmp((char const *)r->headers_in.authorization->value.data, "Bearer ", 7) == 0) // or not a bearer token
+                bool is_zauth_parse_error () {
+                    return 
+                        lc == NULL ||
+                        lc->oauth == 0 ||
+                        r->headers_in.authorization == NULL ||
+                        strncmp((char const *)r->headers_in.authorization->value.data, "Bearer ", 7) == 0;
+                }
+
+                // only if parsing the request failed we produce a log entry (otherwise the request will be handled by wire-server as an oauth request)
+                if (is_zauth_parse_error())
                 {
-                        // ... then we produce a log entry (otherwise the request will be handled by wire-server as an oauth request)
                         ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0, "failed to parse token [%d]", res);
                 }
         }
@@ -576,6 +580,13 @@ static ngx_int_t zauth_token_var (ngx_http_request_t * r, ngx_http_variable_valu
         if (t == NULL) {
                 return NGX_ERROR;
         }
+
+        // in this function the user, client, provider, and bot ID is retrieved from the token
+        // and assigned to variables that are used in the nginx config to set the headers.
+        // therefore we want to make sure that the token is
+        // authorized (has a valid signature)
+        // and access is allowed (endpoint is either not denied or allowed according to the access control list configuration)
+        // before we set these variables.
         if (!zauth_is_authorized_and_allowed(r)) {
                 zauth_empty_val(v);
                 return NGX_OK;
