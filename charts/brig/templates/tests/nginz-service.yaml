@@ -6,7 +6,8 @@ kind: Service
 metadata:
   name: nginz-integration-http
   annotations:
-    "helm.sh/hook": test
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   type: ClusterIP
   ports:
