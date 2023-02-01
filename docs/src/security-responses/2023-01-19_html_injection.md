@@ -15,4 +15,4 @@ Wire/wire-server is not affected by this vulnerability as our website wire.com i
 Wire clients are not affected by this vulnerability.
 
 ## Credits
-We thank [Umar Ahmed](http://linkedin.com/in/theumar9) for reporting this vulnerability.
+We thank [Umar Ahmed](https://linkedin.com/in/theumar9) for reporting this vulnerability.
