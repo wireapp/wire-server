@@ -546,6 +546,8 @@ static ngx_int_t zauth_token_typeinfo (ngx_http_request_t * r, ngx_http_variable
         }
 }
 
+// check if the signature has been validated (authorized)
+// and endpoint is either not denied or allowed according to the access control list (acl) configuration
 static bool zauth_is_authorized_and_allowed(ngx_http_request_t * r) {
         ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
 
