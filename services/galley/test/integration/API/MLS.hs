@@ -2446,6 +2446,15 @@ testRemoteUserJoinSubConv = do
             <!! const 200 === statusCode
       liftIO $ Set.fromList (pscMembers psc') @?= Set.fromList [alice1, bob1]
 
+    -- check that on-new-remote-subconversation is not called on further commits
+    (_, reqs') <-
+      withTempMockFederator' mock $
+        createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    liftIO $
+      assertBool "Unexpected on-new-remote-subconversation" $
+        all ((/= "on-new-remote-subconversation") . frRPC) reqs'
+
 testSendMessageSubConv :: TestM ()
 testSendMessageSubConv = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
