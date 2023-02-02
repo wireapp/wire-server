@@ -636,11 +636,14 @@ testStaleCommit = do
     traverse_ uploadNewKeyPackage clients
     void $ setupMLSGroup alice1
 
+    gsBackup <- getClientGroupState alice1
+
     -- add the first batch of users to the conversation
     void $ createAddCommit alice1 users1 >>= sendAndConsumeCommit
 
     -- now roll back alice1 and try to add the second batch of users
-    void $ rollBackClient alice1
+    setClientGroupState alice1 gsBackup
+
     commit <- createAddCommit alice1 users2
     err <-
       responseJsonError
@@ -772,12 +775,14 @@ testCommitNotReferencingAllProposals = do
     void $ setupMLSGroup alice1
     traverse_ uploadNewKeyPackage [bob1, charlie1]
 
+    gsBackup <- getClientGroupState alice1
+
     -- create proposals for bob and charlie
     createAddProposals alice1 [bob, charlie]
       >>= traverse_ sendAndConsumeMessage
 
     -- now create a commit referencing only the first proposal
-    void $ rollBackClient alice1
+    setClientGroupState alice1 gsBackup
     commit <- createPendingProposalCommit alice1
 
     -- send commit and expect and error
@@ -1342,11 +1347,13 @@ propInvalidEpoch = do
 
     -- Add bob -> epoch 1
     void $ uploadNewKeyPackage bob1
+    gsBackup <- getClientGroupState alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    gsBackup2 <- getClientGroupState alice1
 
     -- try to send a proposal from an old epoch (0)
     do
-      groupState <- rollBackClient alice1
+      setClientGroupState alice1 gsBackup
       void $ uploadNewKeyPackage dee1
       [prop] <- createAddProposals alice1 [dee]
       err <-
@@ -1354,12 +1361,12 @@ propInvalidEpoch = do
           =<< postMessage alice1 (mpMessage prop)
             <!! const 409 === statusCode
       liftIO $ Wai.label err @?= "mls-stale-message"
-      setGroupState alice1 groupState
 
     -- try to send a proposal from a newer epoch (2)
     do
       void $ uploadNewKeyPackage dee1
       void $ uploadNewKeyPackage charlie1
+      setClientGroupState alice1 gsBackup
       void $ createAddCommit alice1 [charlie]
       [prop] <- createAddProposals alice1 [dee]
       err <-
@@ -1367,12 +1374,12 @@ propInvalidEpoch = do
           =<< postMessage alice1 (mpMessage prop)
             <!! const 404 === statusCode
       liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
-      replicateM_ 2 (rollBackClient alice1)
       -- remove charlie from users expected to get a welcome message
       State.modify $ \mls -> mls {mlsNewMembers = mempty}
 
     -- alice send a well-formed proposal and commits it
     void $ uploadNewKeyPackage dee1
+    setClientGroupState alice1 gsBackup2
     createAddProposals alice1 [dee] >>= traverse_ sendAndConsumeMessage
     void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommit
 
@@ -1559,7 +1566,8 @@ propUnsupported = do
     (gid, _) <- setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-    mems <- currentGroupFile alice1 >>= liftIO . readGroupState
+    mems <- readGroupState <$> getClientGroupState alice1
+
     (_, ref) <- assertJust $ find ((== alice1) . fst) mems
     (priv, pub) <- clientKeyPair alice1
     msg <-
@@ -2417,12 +2425,15 @@ testRemoteSubConvNotificationWhenUserJoins = do
     bob1 <- createFakeMLSClient bob
 
     (_, qcnv) <- setupMLSGroup alice1
+    gsBackup <- getClientGroupState alice1
     void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
     let subId = SubConvId "conference"
     s <- State.get
     void $ createSubConv qcnv alice1 subId
+
     -- revert first commit and subconv
-    void . replicateM 2 $ rollBackClient alice1
+    setClientGroupState alice1 gsBackup
+
     State.put s
 
     (_, reqs) <-

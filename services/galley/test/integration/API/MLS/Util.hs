@@ -47,11 +47,12 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUIDV4
 import Galley.Keys
 import Galley.Options
 import qualified Galley.Options as Opts
 import Imports hiding (getSymbolicLinkTarget)
-import System.Directory (getSymbolicLinkTarget)
 import System.FilePath
 import System.IO.Temp
 import System.Posix hiding (createDirectory)
@@ -249,6 +250,7 @@ data MLSState = MLSState
     mlsMembers :: Set ClientIdentity,
     -- | users expected to receive a welcome message after the next commit
     mlsNewMembers :: Set ClientIdentity,
+    mlsClientGroupState :: Map ClientIdentity ByteString,
     mlsGroupId :: Maybe GroupId,
     mlsConvId :: Maybe (Qualified ConvOrSubConvId),
     mlsEpoch :: Word64
@@ -295,6 +297,7 @@ runMLSTest (MLSTest m) =
           mlsUnusedPrekeys = someLastPrekeys,
           mlsMembers = mempty,
           mlsNewMembers = mempty,
+          mlsClientGroupState = mempty,
           mlsGroupId = Nothing,
           mlsConvId = Nothing,
           mlsEpoch = 0
@@ -316,12 +319,54 @@ takeLastPrekeyNG = do
       pure pk
     [] -> error "no prekeys left"
 
+toRandomFile :: ByteString -> MLSTest FilePath
+toRandomFile bs = do
+  p <- randomFileName
+  liftIO $ BS.writeFile p bs
+  pure p
+
+randomFileName :: MLSTest FilePath
+randomFileName = do
+  bd <- State.gets mlsBaseDir
+  (bd </>) . UUID.toString <$> liftIO UUIDV4.nextRandom
+
 mlscli :: HasCallStack => ClientIdentity -> [String] -> Maybe ByteString -> MLSTest ByteString
 mlscli qcid args mbstdin = do
   bd <- State.gets mlsBaseDir
   let cdir = bd </> cid2Str qcid
-  liftIO $ do
-    spawn (proc "mls-test-cli" (["--store", cdir </> "store"] <> args)) mbstdin
+
+  groupOut <- randomFileName
+  let substOut = argSubst "<group-out>" groupOut
+
+  hasState <- hasClientGroupState qcid
+  substIn <-
+    if hasState
+      then do
+        gs <- getClientGroupState qcid
+        fn <- toRandomFile gs
+        pure (argSubst "<group-in>" fn)
+      else pure mempty
+
+  out <-
+    liftIO $
+      spawn
+        ( proc
+            "mls-test-cli"
+            ( ["--store", cdir </> "store"]
+                <> map (appEndo (substIn <> substOut)) args
+            )
+        )
+        mbstdin
+
+  groupOutWritten <- liftIO $ doesFileExist groupOut
+  when groupOutWritten $ do
+    gs <- liftIO (BS.readFile groupOut)
+    setClientGroupState qcid gs
+  pure out
+
+argSubst :: String -> String -> Endo String
+argSubst from to_ = Endo $ \s ->
+  if s == from then to_ else s
 
 createWireClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
 createWireClient qusr = do
@@ -392,65 +437,21 @@ generateKeyPackage qcid = do
   liftIO $ BS.writeFile fp (rmRaw kp)
   pure (kp, ref)
 
-groupFileLink :: HasCallStack => ClientIdentity -> MLSTest FilePath
-groupFileLink qcid = State.gets $ \mls ->
-  mlsBaseDir mls </> cid2Str qcid </> "group.latest"
+setClientGroupState :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()
+setClientGroupState cid g =
+  State.modify $ \s ->
+    s {mlsClientGroupState = Map.insert cid g (mlsClientGroupState s)}
 
-currentGroupFile :: HasCallStack => ClientIdentity -> MLSTest FilePath
-currentGroupFile = liftIO . getSymbolicLinkTarget <=< groupFileLink
+getClientGroupState :: HasCallStack => ClientIdentity -> MLSTest ByteString
+getClientGroupState cid = do
+  mgs <- State.gets (Map.lookup cid . mlsClientGroupState)
+  case mgs of
+    Nothing -> liftIO $ assertFailure ("Attempted to get non-existing group state for client " <> show cid)
+    Just g -> pure g
 
-parseGroupFileName :: FilePath -> IO (FilePath, Int)
-parseGroupFileName fp = do
-  let base = takeFileName fp
-  (prefix, version) <- case break (== '.') base of
-    (p, '.' : v) -> pure (p, v)
-    _ -> assertFailure "invalid group file name"
-  n <- case reads version of
-    [(v, "")] -> pure (v :: Int)
-    _ -> assertFailure "could not parse group file version"
-  pure $ (prefix, n)
-
--- sets symlink and creates empty file
-nextGroupFile :: HasCallStack => ClientIdentity -> MLSTest FilePath
-nextGroupFile qcid = do
-  bd <- State.gets mlsBaseDir
-  link <- groupFileLink qcid
-  exists <- doesFileExist link
-  base' <-
-    liftIO $
-      if exists
-        then -- group file exists, bump version and update link
-        do
-          (prefix, n) <- parseGroupFileName =<< getSymbolicLinkTarget link
-          removeFile link
-          pure $ prefix <> "." <> show (n + 1)
-        else -- group file does not exist yet, point link to version 0
-          pure "group.0"
-
-  let groupFile = bd </> cid2Str qcid </> base'
-  createFileLink groupFile link
-  pure groupFile
-
-rollBackClient :: HasCallStack => ClientIdentity -> MLSTest ByteString
-rollBackClient cid = do
-  link <- groupFileLink cid
-  groupFile <- liftIO $ getSymbolicLinkTarget link
-  (prefix, n) <-
-    liftIO $ parseGroupFileName groupFile
-  when (n == 0) $ do
-    liftIO . assertFailure $ "Cannot roll back client " <> cid2Str cid
-  state <- liftIO $ BS.readFile groupFile
-  removeFile groupFile
-  removeFile link
-  bd <- State.gets mlsBaseDir
-  let newGroupFile = bd </> cid2Str cid </> (prefix <> "." <> show (n - 1))
-  createFileLink newGroupFile link
-  pure state
-
-setGroupState :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()
-setGroupState cid state = do
-  fp <- nextGroupFile cid
-  liftIO $ BS.writeFile fp state
+hasClientGroupState :: HasCallStack => ClientIdentity -> MLSTest Bool
+hasClientGroupState cid =
+  State.gets (isJust . Map.lookup cid . mlsClientGroupState)
 
 -- | Create a conversation from a provided action and then create a
 -- corresponding group.
@@ -504,8 +505,6 @@ createGroup cid qcs gid = do
 resetGroup :: ClientIdentity -> Qualified ConvOrSubConvId -> GroupId -> MLSTest ()
 resetGroup cid qcs gid = do
   groupJSON <- mlscli cid ["group", "create", T.unpack (toBase64Text (unGroupId gid))] Nothing
-  g <- nextGroupFile cid
-  liftIO $ BS.writeFile g groupJSON
   State.modify $ \s ->
     s
       { mlsGroupId = Just gid,
@@ -514,6 +513,7 @@ resetGroup cid qcs gid = do
         mlsEpoch = 0,
         mlsNewMembers = mempty
       }
+  setClientGroupState cid groupJSON
 
 getConvId :: MLSTest (Qualified ConvOrSubConvId)
 getConvId =
@@ -640,7 +640,6 @@ createExternalCommit ::
   MLSTest MessagePackage
 createExternalCommit qcid mpgs qcs = do
   bd <- State.gets mlsBaseDir
-  gNew <- nextGroupFile qcid
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
   pgs <- case mpgs of
     Nothing -> liftTest $ getGroupInfo (cidQualifiedUser qcid) qcs
@@ -654,7 +653,7 @@ createExternalCommit qcid mpgs qcs = do
         "--group-state-out",
         pgsFile,
         "--group-out",
-        gNew
+        "<group-out>"
       ]
       (Just pgs)
 
@@ -686,11 +685,10 @@ createApplicationMessage ::
   String ->
   MLSTest MessagePackage
 createApplicationMessage cid messageContent = do
-  groupFile <- currentGroupFile cid
   message <-
     mlscli
       cid
-      ["message", "--group", groupFile, messageContent]
+      ["message", "--group", "<group-in>", messageContent]
       Nothing
 
   pure $
@@ -707,8 +705,6 @@ createAddCommitWithKeyPackages ::
   MLSTest MessagePackage
 createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
   bd <- State.gets mlsBaseDir
-  g <- currentGroupFile qcid
-  gNew <- nextGroupFile qcid
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
   commit <-
@@ -717,13 +713,13 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
       ( [ "member",
           "add",
           "--group",
-          g,
+          "<group-in>",
           "--welcome-out",
           welcomeFile,
           "--group-state-out",
           pgsFile,
           "--group-out",
-          gNew
+          "<group-out>"
         ]
           <> map snd clientsAndKeyPackages
       )
@@ -749,12 +745,10 @@ createAddProposalWithKeyPackage ::
   (ClientIdentity, FilePath) ->
   MLSTest MessagePackage
 createAddProposalWithKeyPackage cid (_, kp) = do
-  g <- currentGroupFile cid
-  gNew <- nextGroupFile cid
   prop <-
     mlscli
       cid
-      ["proposal", "--group-in", g, "--group-out", gNew, "add", kp]
+      ["proposal", "--group-in", "<group-in>", "--group-out", "<group-out>", "add", kp]
       Nothing
   pure
     MessagePackage
@@ -769,16 +763,14 @@ createPendingProposalCommit qcid = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
-  g <- currentGroupFile qcid
-  gNew <- nextGroupFile qcid
   commit <-
     mlscli
       qcid
       [ "commit",
         "--group",
-        g,
+        "<group-in>",
         "--group-out",
-        gNew,
+        "<group-out>",
         "--welcome-out",
         welcomeFile,
         "--group-state-out",
@@ -808,10 +800,10 @@ createRemoveCommit cid targets = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   pgsFile <- liftIO $ emptyTempFile bd "pgs"
-  g <- currentGroupFile cid
-  gNew <- nextGroupFile cid
 
-  kprefByClient <- liftIO $ Map.fromList <$> readGroupState g
+  g <- getClientGroupState cid
+
+  let kprefByClient = Map.fromList (readGroupState g)
   let fetchKeyPackage c = keyPackageFile c (kprefByClient Map.! c)
   kps <- traverse fetchKeyPackage targets
 
@@ -821,9 +813,9 @@ createRemoveCommit cid targets = do
       ( [ "member",
           "remove",
           "--group",
-          g,
+          "<group-in>",
           "--group-out",
-          gNew,
+          "<group-out>",
           "--welcome-out",
           welcomeFile,
           "--group-state-out",
@@ -877,18 +869,15 @@ consumeWelcome :: HasCallStack => ByteString -> MLSTest ()
 consumeWelcome welcome = do
   qcids <- State.gets mlsNewMembers
   for_ qcids $ \qcid -> do
-    link <- groupFileLink qcid
-    liftIO $
-      doesFileExist link >>= \e ->
-        assertBool "Existing clients in a conversation should not consume commits" (not e)
-    groupFile <- nextGroupFile qcid
+    hasState <- hasClientGroupState qcid
+    liftIO $ assertBool "Existing clients in a conversation should not consume commits" (not hasState)
     void $
       mlscli
         qcid
         [ "group",
           "from-welcome",
           "--group-out",
-          groupFile,
+          "<group-out>",
           "-"
         ]
         (Just welcome)
@@ -903,16 +892,14 @@ consumeMessage msg = do
 consumeMessage1 :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()
 consumeMessage1 cid msg = do
   bd <- State.gets mlsBaseDir
-  g <- currentGroupFile cid
-  gNew <- nextGroupFile cid
   void $
     mlscli
       cid
       [ "consume",
         "--group",
-        g,
+        "<group-in>",
         "--group-out",
-        gNew,
+        "<group-out>",
         "--signer-key",
         bd </> "removal.key",
         "-"
@@ -1002,25 +989,22 @@ mlsBracket clients k = do
   c <- view tsCannon
   WS.bracketAsClientRN c (map (ciUser &&& ciClient) clients) k
 
-readGroupState :: FilePath -> IO [(ClientIdentity, KeyPackageRef)]
-readGroupState fp = do
-  j <- BS.readFile fp
-  pure $ do
-    node <- j ^.. key "group" . key "tree" . key "tree" . key "nodes" . _Array . traverse
-    leafNode <- node ^.. key "node" . key "LeafNode"
-    identity <-
-      either (const []) pure . decodeMLS' . BS.pack . map fromIntegral $
-        leafNode ^.. key "key_package" . key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec" . _Array . traverse . _Integer
-    kpr <- (unhexM . T.encodeUtf8 =<<) $ leafNode ^.. key "key_package_ref" . _String
-    pure (identity, KeyPackageRef kpr)
+readGroupState :: ByteString -> [(ClientIdentity, KeyPackageRef)]
+readGroupState j = do
+  node <- j ^.. key "group" . key "tree" . key "tree" . key "nodes" . _Array . traverse
+  leafNode <- node ^.. key "node" . key "LeafNode"
+  identity <-
+    either (const []) pure . decodeMLS' . BS.pack . map fromIntegral $
+      leafNode ^.. key "key_package" . key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec" . _Array . traverse . _Integer
+  kpr <- (unhexM . T.encodeUtf8 =<<) $ leafNode ^.. key "key_package_ref" . _String
+  pure (identity, KeyPackageRef kpr)
 
 getClientsFromGroupState ::
   ClientIdentity ->
   Qualified UserId ->
   MLSTest [(ClientIdentity, KeyPackageRef)]
 getClientsFromGroupState cid u = do
-  groupFile <- currentGroupFile cid
-  groupState <- liftIO $ readGroupState groupFile
+  groupState <- readGroupState <$> getClientGroupState cid
   pure $ filter (\(cid', _) -> cidQualifiedUser cid' == u) groupState
 
 clientKeyPair :: ClientIdentity -> MLSTest (ByteString, ByteString)
