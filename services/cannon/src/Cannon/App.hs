@@ -38,7 +38,9 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
 import System.Logger.Class hiding (Error, close)
+import qualified System.Logger as Log
 import qualified System.Logger.Class as Logger
+import System.Logger.Extended (structuredJSONRenderer)
 
 -- | Connection state, updated by {read, write}Loop.
 data State = State !Int !Timeout
@@ -122,21 +124,35 @@ writeLoop ws clock (TTL ttl) st = loop
       unless (time > ttl) loop
 
 readLoop :: Websocket -> IORef State -> IO ()
-readLoop ws s = loop
+readLoop ws s = do
+  l <- initLogger
+  loop l
   where
-    loop = do
+    initLogger =
+      Log.new
+        . Log.setOutput Log.StdOut
+        . Log.setBufSize 0
+        . Log.setRenderer structuredJSONRenderer
+        $ Log.defSettings
+
+    loop l = do
       m <- receive (connection ws)
       case m of
         ControlMessage (Ping p) -> do
           adjustPingFreq p
           reset counter s 0
+          Log.debug l $ Log.msg $ Log.val "control level ping received"
           send (connection ws) (pong p)
-          loop
+          loop l
         ControlMessage (Close _ _) -> pure ()
         perhapsPingMsg -> do
           reset counter s 0
-          when (isAppLevelPing perhapsPingMsg) sendAppLevelPong
-          loop
+          if isAppLevelPing perhapsPingMsg then do
+            Log.debug l $ Log.msg $ Log.val "application level ping received"
+            sendAppLevelPong
+          else
+            Log.debug l $ Log.msg $ Log.val "application level *something* received"
+          loop l
     adjustPingFreq p = case fromByteString (toStrict p) of
       Just i | i > 0 && i < maxPingInterval -> reset pingFreq s (i # Second)
       _ -> pure ()
@@ -148,6 +164,8 @@ readLoop ws s = loop
     isAppLevelPing = \case
       (DataMessage _ _ _ (Text "ping" _)) -> True
       (DataMessage _ _ _ (Binary "ping")) -> True
+      -- TODO respond to app-level pings that have a payload?
+      -- TODO: extend tests to see how control messages operate
       _ -> False
     sendAppLevelPong = sendMsgIO @ByteString "pong" ws
 
