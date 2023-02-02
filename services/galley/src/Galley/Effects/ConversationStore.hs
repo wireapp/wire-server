@@ -47,6 +47,7 @@ module Galley.Effects.ConversationStore
     setGroupIdForConversation,
     deleteGroupIdForConversation,
     setPublicGroupState,
+    deleteGroupIds,
 
     -- * Delete conversation
     deleteConversation,
@@ -106,6 +107,7 @@ data ConversationStore m a where
     ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
+  DeleteGroupIds :: [GroupId] -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

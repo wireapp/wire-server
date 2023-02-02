@@ -1125,7 +1125,8 @@ deleteTeamConversation ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation"
+    CallsFed 'Galley "on-new-remote-subconversation",
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Local UserId ->
   ConnId ->

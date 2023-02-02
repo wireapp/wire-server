@@ -415,6 +415,17 @@ lookupConvByGroupId gId =
         Nothing -> Qualified (Conv convId) domain
         Just subConvId -> Qualified (SubConv convId subConvId) domain
 
+deleteGroupIds ::
+  Members
+    '[ Embed IO,
+       Input ClientState
+     ]
+    r =>
+  [GroupId] ->
+  Sem r ()
+deleteGroupIds =
+  embedClient . UnliftIO.pooledMapConcurrentlyN_ 8 deleteGroupIdForConversation
+
 interpretConversationStoreToCassandra ::
   Members '[Embed IO, Input ClientState, TinyLog] r =>
   Sem (ConversationStore ': r) a ->
@@ -443,3 +454,4 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetPublicGroupState cid gib -> embedClient $ setPublicGroupState cid gib
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
+  DeleteGroupIds gIds -> deleteGroupIds gIds
