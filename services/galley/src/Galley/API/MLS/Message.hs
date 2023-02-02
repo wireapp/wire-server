@@ -951,13 +951,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
               unless (isClientMember (mkClientIdentity qusr creatorClient) (mcMembers parentConv)) $
                 throwS @'MLSSubConvClientNotInParent
               let creatorRef = fromMaybe senderRef updatePathRef
-              addKeyPackageRef creatorRef qusr creatorClient $
-                tUntagged (convOfConvOrSub . idForConvOrSub <$> lConvOrSub)
-              addMLSClients
-                (cnvmlsGroupId mlsMeta)
-                qusr
-                (Set.singleton (creatorClient, creatorRef))
-            -- uninitialised conversations should contain exactly one client
+              updateKeyPackageMapping lConvOrSub qusr creatorClient Nothing creatorRef
             (_, _, _, _) ->
               throw (InternalErrorWithDescription "Unexpected creator client set")
           pure $ pure () -- no key package ref update necessary
