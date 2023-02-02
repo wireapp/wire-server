@@ -278,8 +278,7 @@ instance
     ( IsZType ztype ctx,
       HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
       HasContextEntry ctx (Maybe JWK),
-      SBoolI (FoldLenient opts),
-      SBoolI (FoldRequired opts),
+      opts ~ InternalAuthDefOpts,
       HasServer api ctx,
       IsOAuthScope scopes
     ) =>
