@@ -225,6 +225,7 @@ instance
   where
   toSwagger _ = toSwagger (Proxy @api)
 
+-- TODO(fisx): move to a where block in the instance where it's called?
 checkAuth ::
   forall ztype scopes ctx a.
   ( IsZType ztype ctx,
