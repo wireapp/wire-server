@@ -1598,6 +1598,10 @@ testBackendRemoveProposalRecreateClient = do
     liftTest $
       deleteClient (qUnqualified alice) (ciClient alice1) (Just defPassword)
         !!! const 200 === statusCode
+    State.modify $ \mls ->
+      mls
+        { mlsMembers = Set.difference (mlsMembers mls) (Set.singleton alice1)
+        }
 
     alice2 <- createMLSClient alice
     proposal <- mlsBracket [alice2] $ \[wsA] -> do
@@ -1612,7 +1616,7 @@ testBackendRemoveProposalRecreateClient = do
     -- this fails with 404 mls-key-package-ref-not-found
     void $ createPendingProposalCommit alice2 >>= sendAndConsumeCommitBundle
 
-    void $ createApplicationMessage alice1 "hello" >>= sendAndConsumeMessage
+    void $ createApplicationMessage alice2 "hello" >>= sendAndConsumeMessage
 
 testBackendRemoveProposalLocalConvLocalUser :: TestM ()
 testBackendRemoveProposalLocalConvLocalUser = do
