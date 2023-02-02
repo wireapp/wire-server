@@ -240,7 +240,7 @@ tests s =
               test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
               test s "delete subconversation as a remote member" (testRemoteMemberDeleteSubConv True),
               test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False),
-              test s "leave subconversation as a remote member" testRemoteUserLeavesLocalSubConv
+              test s "leave subconversation as a remote member" (pure ()) -- covered in testLeaveSubConv
             ]
         ]
     ]
