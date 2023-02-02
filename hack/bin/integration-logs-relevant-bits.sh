@@ -47,6 +47,7 @@ cleanup() {
 grepper() {
     # print 10 lines before/after for context
     rg "$problem_markers" --color=always -A 10 -B 10
+    echo -e "\033[0m"
 }
 
 cleanup | excludeLogEntries | grepper
