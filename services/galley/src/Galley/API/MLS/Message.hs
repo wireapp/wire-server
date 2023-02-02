@@ -814,7 +814,6 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
   -- fetch backend remove proposals of the previous epoch
   kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
   -- requeue backend remove proposals for the current epoch
-  removeClientsWithClientMap lConvOrSub' kpRefs qusr
   createAndSendRemoveProposals lConvOrSub' kpRefs qusr
   where
     derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
