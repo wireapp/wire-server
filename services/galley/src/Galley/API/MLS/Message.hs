@@ -833,7 +833,7 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
   -- fetch backend remove proposals of the previous epoch
   kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
   -- requeue backend remove proposals for the current epoch
-  removeClientsWithClientMap lConvOrSub' kpRefs qusr
+  createAndSendRemoveProposals lConvOrSub' kpRefs qusr
   where
     derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
     derefUser cm user = case Map.assocs cm of
@@ -947,10 +947,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
             (True, SelfConv, [], Conv _) -> do
               creatorClient <- noteS @'MLSMissingSenderClient senderClient
               let creatorRef = fromMaybe senderRef updatePathRef
-              addMLSClients
-                (cnvmlsGroupId mlsMeta)
-                qusr
-                (Set.singleton (creatorClient, creatorRef))
+              updateKeyPackageMapping lConvOrSub qusr creatorClient Nothing creatorRef
             (True, SelfConv, _, _) ->
               -- this is a newly created (sub)conversation, and it should
               -- contain exactly one client (the creator)
@@ -973,13 +970,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
               unless (isClientMember (mkClientIdentity qusr creatorClient) (mcMembers parentConv)) $
                 throwS @'MLSSubConvClientNotInParent
               let creatorRef = fromMaybe senderRef updatePathRef
-              addKeyPackageRef creatorRef qusr creatorClient $
-                tUntagged (convOfConvOrSub . idForConvOrSub <$> lConvOrSub)
-              addMLSClients
-                (cnvmlsGroupId mlsMeta)
-                qusr
-                (Set.singleton (creatorClient, creatorRef))
-            -- uninitialised conversations should contain exactly one client
+              updateKeyPackageMapping lConvOrSub qusr creatorClient Nothing creatorRef
             (_, _, _, _) ->
               throw (InternalErrorWithDescription "Unexpected creator client set")
           pure $ pure () -- no key package ref update necessary

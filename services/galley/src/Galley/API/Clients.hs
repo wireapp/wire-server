@@ -85,6 +85,9 @@ addClientH (usr ::: clt) = do
   E.createClient usr clt
   pure empty
 
+-- | Remove a client from conversations it is part of according to the
+-- conversation protocol (Proteus or MLS). In addition, remove the client from
+-- the "clients" table in Galley.
 rmClientH ::
   forall p1 r.
   ( p1 ~ CassandraPaging,

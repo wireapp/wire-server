@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.MLS.Removal
-  ( removeClientsWithClientMap,
+  ( createAndSendRemoveProposals,
     removeClient,
     removeUser,
   )
@@ -51,7 +51,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
-removeClientsWithClientMap ::
+createAndSendRemoveProposals ::
   ( Members
       '[ Input UTCTime,
          TinyLog,
@@ -69,7 +69,7 @@ removeClientsWithClientMap ::
   t KeyPackageRef ->
   Qualified UserId ->
   Sem r ()
-removeClientsWithClientMap lConvOrSubConv cs qusr = do
+createAndSendRemoveProposals lConvOrSubConv cs qusr = do
   let meta = mlsMetaConvOrSub (tUnqualified lConvOrSubConv)
   mKeyPair <- getMLSRemovalKey
   case mKeyPair of
@@ -113,7 +113,7 @@ removeClient lc qusr cid = do
   for_ mMlsConv $ \mlsConv -> do
     -- FUTUREWORK: also remove the client from from subconversations of lc
     let cidAndKPs = maybeToList (cmLookupRef (mkClientIdentity qusr cid) (mcMembers mlsConv))
-    removeClientsWithClientMap (qualifyAs lc (Conv mlsConv)) cidAndKPs qusr
+    createAndSendRemoveProposals (qualifyAs lc (Conv mlsConv)) cidAndKPs qusr
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
@@ -139,4 +139,4 @@ removeUser lc qusr = do
   for_ mMlsConv $ \mlsConv -> do
     -- FUTUREWORK: also remove the client from from subconversations of lc
     let kprefs = toList (Map.findWithDefault mempty qusr (mcMembers mlsConv))
-    removeClientsWithClientMap (qualifyAs lc (Conv mlsConv)) kprefs qusr
+    createAndSendRemoveProposals (qualifyAs lc (Conv mlsConv)) kprefs qusr

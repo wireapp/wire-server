@@ -186,7 +186,7 @@ keyPackageRefSetConvId ref convId = do
     q = "UPDATE mls_key_package_refs SET conv_domain = ?, conv = ? WHERE ref = ? IF EXISTS"
 
 addKeyPackageRef :: MonadClient m => KeyPackageRef -> NewKeyPackageRef -> m ()
-addKeyPackageRef ref nkpr = do
+addKeyPackageRef ref nkpr =
   retry x5 $
     write
       q
@@ -207,7 +207,9 @@ updateKeyPackageRef :: MonadClient m => KeyPackageRef -> KeyPackageRef -> m ()
 updateKeyPackageRef prevRef newRef =
   void . runMaybeT $ do
     backup <- backupKeyPackageMeta prevRef
-    lift $ restoreKeyPackageMeta newRef backup >> deleteKeyPackage prevRef
+    lift $ do
+      restoreKeyPackageMeta newRef backup
+      deleteKeyPackage prevRef
 
 --------------------------------------------------------------------------------
 -- Utilities

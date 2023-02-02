@@ -162,6 +162,7 @@ tests s =
       testGroup
         "Backend-side External Remove Proposals"
         [ test s "local conversation, local user deleted" testBackendRemoveProposalLocalConvLocalUser,
+          test s "local conversation, recreate client" testBackendRemoveProposalRecreateClient,
           test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser,
           test s "local conversation, creator leaving" testBackendRemoveProposalLocalConvLocalLeaverCreator,
           test s "local conversation, local committer leaving" testBackendRemoveProposalLocalConvLocalLeaverCommitter,
@@ -1577,6 +1578,40 @@ propUnsupported = do
     -- support AppAck proposals
     postMessage alice1 msgData !!! const 201 === statusCode
 
+testBackendRemoveProposalRecreateClient :: TestM ()
+testBackendRemoveProposalRecreateClient = do
+  alice <- randomQualifiedUser
+  runMLSTest $ do
+    alice1 <- createMLSClient alice
+    (_, qcnv) <- setupMLSSelfGroup alice1
+
+    let cnv = Conv <$> qcnv
+
+    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+
+    (_, ref) <- assertOne =<< getClientsFromGroupState alice1 alice
+
+    liftTest $
+      deleteClient (qUnqualified alice) (ciClient alice1) (Just defPassword)
+        !!! const 200 === statusCode
+    State.modify $ \mls ->
+      mls
+        { mlsMembers = Set.difference (mlsMembers mls) (Set.singleton alice1)
+        }
+
+    alice2 <- createMLSClient alice
+    proposal <- mlsBracket [alice2] $ \[wsA] -> do
+      void $
+        createExternalCommit alice2 Nothing cnv
+          >>= sendAndConsumeCommitBundle
+      WS.assertMatch (5 # WS.Second) wsA $
+        wsAssertBackendRemoveProposal alice qcnv ref
+
+    consumeMessage1 alice2 proposal
+    void $ createPendingProposalCommit alice2 >>= sendAndConsumeCommitBundle
+
+    void $ createApplicationMessage alice2 "hello" >>= sendAndConsumeMessage
+
 testBackendRemoveProposalLocalConvLocalUser :: TestM ()
 testBackendRemoveProposalLocalConvLocalUser = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
@@ -2046,6 +2081,9 @@ testRemoteUserPostsCommitBundle = do
 
         pure ()
 
+-- FUTUREWORK: New clients should be adding themselves via external commits, and
+-- they shouldn't be added by another client. Change the test so external
+-- commits are used.
 testSelfConversation :: TestM ()
 testSelfConversation = do
   alice <- randomQualifiedUser
