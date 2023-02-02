@@ -928,12 +928,7 @@ processInternalCommit qusr senderClient con lConvOrSub epoch action senderRef co
             (True, SelfConv, [], Conv _) -> do
               creatorClient <- noteS @'MLSMissingSenderClient senderClient
               let creatorRef = fromMaybe senderRef updatePathRef
-              addKeyPackageRef creatorRef qusr creatorClient $
-                tUntagged (convOfConvOrSub . idForConvOrSub <$> lConvOrSub)
-              addMLSClients
-                (cnvmlsGroupId mlsMeta)
-                qusr
-                (Set.singleton (creatorClient, creatorRef))
+              updateKeyPackageMapping lConvOrSub qusr creatorClient Nothing creatorRef
             (True, SelfConv, _, _) ->
               -- this is a newly created (sub)conversation, and it should
               -- contain exactly one client (the creator)
