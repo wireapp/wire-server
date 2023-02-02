@@ -24,15 +24,14 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
-import qualified Data.X509 as X509
-import Data.X509.CertificateStore
-import Federator.Env (TLSSettings (..))
 import Federator.Options (RunSettings (..))
+import Federator.Remote (blessedCiphers)
 import GHC.Foreign (peekCStringLen, withCStringLen)
 import GHC.IO.Encoding (getFileSystemEncoding)
 import Imports
-import qualified Network.TLS as TLS
-import Polysemy (Embed, Member, Sem, embed)
+import OpenSSL.Session (SSLContext)
+import qualified OpenSSL.Session as SSL
+import Polysemy (Embed, Member, Members, Sem, embed)
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.Final (Final)
@@ -45,13 +44,12 @@ import System.Logger (Logger)
 import qualified System.Logger.Message as Log
 import System.Posix.ByteString (RawFilePath)
 import System.Posix.Files
-import System.X509
 import Wire.Arbitrary
 import qualified Wire.Sem.Logger.TinyLog as Log
 
 data Monitor = Monitor
   { monINotify :: INotify,
-    monTLS :: IORef TLSSettings,
+    monTLS :: IORef SSLContext,
     monWatches :: IORef Watches,
     monSettings :: RunSettings,
     monHandler :: WatchedPath -> Event -> IO (),
@@ -156,7 +154,7 @@ mkMonitor ::
     Member (Polysemy.Error FederationSetupError) r1
   ) =>
   (Sem r1 () -> IO ()) ->
-  IORef TLSSettings ->
+  IORef SSLContext ->
   RunSettings ->
   Sem r Monitor
 mkMonitor runSem tlsVar rs = do
@@ -202,6 +200,8 @@ handleEvent runSem monitor wpath e = do
   -- to detect when some action has taken place
   unless (null actions) $
     -- we take the lock here, so that handlers never execute concurrently
+
+    -- we take the lock here, so that handlers never execute concurrently
     withMVar (monLock monitor) $ \_ ->
       runSem $ traverse_ (applyAction monitor) actions
 
@@ -227,9 +227,9 @@ applyAction ::
   Action ->
   Sem r ()
 applyAction monitor ReloadSettings = do
-  tls' <- mkTLSSettings (monSettings monitor)
+  sslCtx' <- mkSSLContext (monSettings monitor)
   Log.info $ Log.msg ("updating TLS settings" :: Text)
-  embed @IO $ atomicWriteIORef (monTLS monitor) tls'
+  embed @IO $ atomicWriteIORef (monTLS monitor) sslCtx'
 applyAction monitor (ReplaceWatch path) = do
   watches <- readIORef (monWatches monitor)
   case Map.lookup path watches of
@@ -339,63 +339,51 @@ watchedDirs resolve path = do
   pure (dirs0 ++ dirs1)
 
 data FederationSetupError
-  = InvalidCAStore FilePath
+  = InvalidCAStore FilePath String
   | InvalidClientCertificate String
+  | InvalidClientPrivateKey String
   deriving (Show)
 
 instance Exception FederationSetupError
 
 showFederationSetupError :: FederationSetupError -> Text
-showFederationSetupError (InvalidCAStore path) = "invalid CA store: " <> Text.pack path
+showFederationSetupError (InvalidCAStore path msg) = "invalid CA store: " <> Text.pack path <> ", error: " <> Text.pack msg
 showFederationSetupError (InvalidClientCertificate msg) = Text.pack msg
+showFederationSetupError (InvalidClientPrivateKey msg) = Text.pack msg
 
-mkTLSSettings ::
+mkSSLContext ::
   ( Member (Embed IO) r,
     Member (Polysemy.Error FederationSetupError) r
   ) =>
   RunSettings ->
-  Sem r TLSSettings
-mkTLSSettings settings =
-  TLSSettings
-    <$> mkCAStore settings
-    <*> mkCreds settings
+  Sem r SSLContext
+mkSSLContext settings = do
+  ctx <- embed $ SSL.context
+  embed $ do
+    SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv2
+    SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv3
+    SSL.contextAddOption ctx SSL.SSL_OP_NO_TLSv1
+    SSL.contextSetCiphers ctx blessedCiphers
+    SSL.contextSetDefaultVerifyPaths ctx
+    SSL.contextSetALPNProtos ctx ["h2"]
+    SSL.contextSetVerificationMode ctx $
+      SSL.VerifyPeer
+        { -- vpFailIfNoPeerCert and vpClientOnce are only relevant for servers
+          SSL.vpFailIfNoPeerCert = False,
+          SSL.vpClientOnce = False,
+          SSL.vpCallback = Nothing
+        }
+  forM_ (remoteCAStore settings) $ \caStorePath ->
+    Polysemy.fromExceptionVia @SomeException (InvalidCAStore caStorePath . displayException) $
+      SSL.contextSetCAFile ctx caStorePath
 
-mkCAStore ::
-  ( Member (Embed IO) r,
-    Member (Polysemy.Error FederationSetupError) r
-  ) =>
-  RunSettings ->
-  Sem r CertificateStore
-mkCAStore settings = do
-  customCAStore <- fmap (fromRight mempty) . Polysemy.runError @() $ do
-    path <- maybe (Polysemy.throw ()) pure $ remoteCAStore settings
-    embed (readCertificateStore path)
-      >>= maybe (Polysemy.throw (InvalidCAStore path)) pure
-  systemCAStore <-
-    if useSystemCAStore settings
-      then embed getSystemCertificateStore
-      else pure mempty
-  pure (customCAStore <> systemCAStore)
+  when (useSystemCAStore settings) $
+    embed (SSL.contextSetDefaultVerifyPaths ctx)
 
-mkCreds ::
-  ( Member (Embed IO) r,
-    Member (Polysemy.Error FederationSetupError) r
-  ) =>
-  RunSettings ->
-  Sem r TLS.Credential
-mkCreds settings = do
-  creds <-
-    Polysemy.fromExceptionVia
-      @SomeException
-      (InvalidClientCertificate . displayException)
-      $ TLS.credentialLoadX509
-        (clientCertificate settings)
-        (clientPrivateKey settings)
-  case creds of
-    Left e -> Polysemy.throw (InvalidClientCertificate e)
-    Right (X509.CertificateChain [], _) ->
-      Polysemy.throw
-        ( InvalidClientCertificate
-            "could not read client certificate"
-        )
-    Right x -> pure x
+  Polysemy.fromExceptionVia @SomeException (InvalidClientCertificate . displayException) $
+    SSL.contextSetCertificateFile ctx (clientCertificate settings)
+
+  Polysemy.fromExceptionVia @SomeException (InvalidClientPrivateKey . displayException) $
+    SSL.contextSetPrivateKeyFile ctx (clientPrivateKey settings)
+
+  pure ctx

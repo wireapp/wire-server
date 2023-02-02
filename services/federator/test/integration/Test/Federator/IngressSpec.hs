@@ -26,12 +26,13 @@ import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
-import qualified Data.X509 as X509
 import Federator.Discovery
-import Federator.Env
+import Federator.Options
 import Federator.Remote
 import Imports
 import qualified Network.HTTP.Types as HTTP
+import OpenSSL.Session (SSLContext)
+import qualified OpenSSL.Session as SSL
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
@@ -87,18 +88,12 @@ spec env = do
       hdl <- randomHandle
       _ <- putHandle brig (userId user) hdl
 
-      -- Remove client certificate from settings
-      tlsSettings0 <- view teTLSSettings
-      let tlsSettings =
-            tlsSettings0
-              { _creds = case _creds tlsSettings0 of
-                  (_, privkey) -> (X509.CertificateChain [], privkey)
-              }
+      sslCtxWithoutCert <- mkSSLContextWithoutCert =<< view teSettings
       r <-
         runTestSem
           . runError @RemoteError
           $ inwardBrigCallViaIngressWithSettings
-            tlsSettings
+            sslCtxWithoutCert
             "get-user-by-handle"
             (Aeson.fromEncoding (Aeson.toEncoding hdl))
       liftIO $ case r of
@@ -110,6 +105,25 @@ spec env = do
 -- FUTUREWORK: ORMOLU_DISABLE
 -- @END
 -- ORMOLU_ENABLE
+
+mkSSLContextWithoutCert :: MonadIO m => RunSettings -> m SSLContext
+mkSSLContextWithoutCert settings = liftIO $ do
+  ctx <- SSL.context
+
+  SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv2
+  SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv3
+  SSL.contextAddOption ctx SSL.SSL_OP_NO_TLSv1
+  SSL.contextSetCiphers ctx blessedCiphers
+  SSL.contextSetDefaultVerifyPaths ctx
+  SSL.contextSetALPNProtos ctx ["h2"]
+
+  forM_ (remoteCAStore settings) $ \caStorePath ->
+    SSL.contextSetCAFile ctx caStorePath
+
+  when (useSystemCAStore settings) $
+    SSL.contextSetDefaultVerifyPaths ctx
+
+  pure ctx
 
 runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
 runTestSem action = do
@@ -127,22 +141,22 @@ inwardBrigCallViaIngress ::
   Builder ->
   Sem r StreamingResponse
 inwardBrigCallViaIngress path payload = do
-  tlsSettings <- inputs (view teTLSSettings)
-  inwardBrigCallViaIngressWithSettings tlsSettings path payload
+  sslCtx <- inputs (view teSSLContext)
+  inwardBrigCallViaIngressWithSettings sslCtx path payload
 
 inwardBrigCallViaIngressWithSettings ::
   Members [Input TestEnv, Embed IO, Error RemoteError] r =>
-  TLSSettings ->
+  SSLContext ->
   Text ->
   Builder ->
   Sem r StreamingResponse
-inwardBrigCallViaIngressWithSettings tlsSettings requestPath payload =
+inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
   do
     Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> input
     originDomain <- cfgOriginDomain . view teTstOpts <$> input
     let target = SrvTarget (cs ingressHost) ingressPort
         headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
-    runInputConst tlsSettings
+    runInputConst sslCtx
       . assertNoError @DiscoveryFailure
       . discoverConst target
       . runEmbedded @(Codensity IO) @IO lowerCodensity

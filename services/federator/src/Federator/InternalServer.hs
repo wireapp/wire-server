@@ -35,7 +35,7 @@ import qualified Data.Text.Encoding as Text
 import Data.X509.CertificateStore
 import Federator.App (runAppT)
 import Federator.Discovery (DiscoverFederator, DiscoveryFailure (DiscoveryFailureDNSError, DiscoveryFailureSrvNotAvailable), runFederatorDiscovery)
-import Federator.Env (Env, TLSSettings, applog, caStore, dnsResolver, runSettings, tls)
+import Federator.Env
 import Federator.Error.ServerError
 import Federator.Options (RunSettings)
 import Federator.Remote

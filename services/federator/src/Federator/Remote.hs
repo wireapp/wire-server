@@ -28,27 +28,19 @@ module Federator.Remote
 where
 
 import qualified Control.Exception as E
-import Control.Lens ((^.))
 import Control.Monad.Codensity
 import Data.Binary.Builder
-import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
-import Data.Default (def)
 import Data.Domain
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
-import qualified Data.X509 as X509
-import qualified Data.X509.Validation as X509
 import Federator.Discovery
-import Federator.Env (TLSSettings, caStore, creds)
 import Federator.Error
-import Federator.Validation
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
-import Network.TLS as TLS
-import qualified Network.TLS.Extra.Cipher as TLS
+import OpenSSL.Session (SSLContext)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -110,26 +102,25 @@ interpretRemote ::
     Member DiscoverFederator r,
     Member (Error DiscoveryFailure) r,
     Member (Error RemoteError) r,
-    Member (Input TLSSettings) r
+    Member (Input SSLContext) r
   ) =>
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
   DiscoverAndCall domain component rpc headers body -> do
     target@(SrvTarget hostname port) <- discoverFederatorWithError domain
-    settings <- input
     let path =
           LBS.toStrict . toLazyByteString $
             HTTP.encodePathSegments ["federation", componentName component, rpc]
         -- filter out Host header, because the HTTP2 client adds it back
         headers' = filter ((/= "Host") . fst) headers
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
-        tlsConfig = mkTLSConfig settings hostname port
 
+    sslCtx <- input
     resp <- mapError (RemoteError target) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
       Codensity $ \k ->
         E.catch
-          (withHTTP2Request (Just tlsConfig) req' hostname (fromIntegral port) (k . Right))
+          (withHTTP2Request (Just sslCtx) req' hostname (fromIntegral port) (k . Right))
           (k . Left)
 
     unless (HTTP.statusIsSuccessful (responseStatusCode resp)) $ do
@@ -141,30 +132,30 @@ interpretRemote = interpret $ \case
           (toLazyByteString bdy)
     pure resp
 
-mkTLSConfig :: TLSSettings -> ByteString -> Word16 -> TLS.ClientParams
-mkTLSConfig settings hostname port =
-  ( defaultParamsClient
-      (Text.unpack (Text.decodeUtf8With Text.lenientDecode hostname))
-      (toByteString' port)
-  )
-    { TLS.clientSupported =
-        def
-          { TLS.supportedCiphers = blessedCiphers,
-            -- FUTUREWORK: Figure out if we can drop TLS 1.2
-            TLS.supportedVersions = [TLS.TLS12, TLS.TLS13]
-          },
-      TLS.clientHooks =
-        def
-          { TLS.onServerCertificate =
-              X509.validate
-                X509.HashSHA256
-                X509.defaultHooks {X509.hookValidateName = validateDomainName}
-                X509.defaultChecks {X509.checkLeafKeyPurpose = [X509.KeyUsagePurpose_ServerAuth]},
-            TLS.onCertificateRequest = \_ -> pure (Just (settings ^. creds)),
-            TLS.onSuggestALPN = pure (Just ["h2"]) -- we only support HTTP2
-          },
-      TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
-    }
+-- mkTLSConfig :: SSLContext -> ByteString -> Word16 -> TLS.ClientParams
+-- mkTLSConfig settings hostname port =
+--   ( defaultParamsClient
+--       (Text.unpack (Text.decodeUtf8With Text.lenientDecode hostname))
+--       (toByteString' port)
+--   )
+--     { TLS.clientSupported =
+--         def
+--           { TLS.supportedCiphers = blessedCiphers,
+--             -- FUTUREWORK: Figure out if we can drop TLS 1.2
+--             TLS.supportedVersions = [TLS.TLS12, TLS.TLS13]
+--           },
+--       TLS.clientHooks =
+--         def
+--           { TLS.onServerCertificate =
+--               X509.validate
+--                 X509.HashSHA256
+--                 X509.defaultHooks {X509.hookValidateName = validateDomainName}
+--                 X509.defaultChecks {X509.checkLeafKeyPurpose = [X509.KeyUsagePurpose_ServerAuth]},
+--             TLS.onCertificateRequest = \_ -> pure (Just (settings ^. creds)),
+--             TLS.onSuggestALPN = pure (Just ["h2"]) -- we only support HTTP2
+--           },
+--       TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
+--     }
 
 -- Context and possible future work see
 -- https://wearezeta.atlassian.net/browse/FS-33
@@ -173,13 +164,15 @@ mkTLSConfig settings hostname port =
 --
 -- The current list is compliant to TR-02102-2
 -- https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
-blessedCiphers :: [Cipher]
+blessedCiphers :: String
 blessedCiphers =
-  [ TLS.cipher_TLS13_AES128CCM8_SHA256,
-    TLS.cipher_TLS13_AES128CCM_SHA256,
-    TLS.cipher_TLS13_AES128GCM_SHA256,
-    TLS.cipher_TLS13_AES256GCM_SHA384,
-    -- For TLS 1.2 (copied from default nginx ingress config):
-    TLS.cipher_ECDHE_ECDSA_AES256GCM_SHA384,
-    TLS.cipher_ECDHE_RSA_AES256GCM_SHA384
-  ]
+  intercalate
+    ","
+    [ "TLS_AES_128_CCM_8_SHA256",
+      "TLS_AES_128_CCM_SHA256",
+      "TLS_AES_128_GCM_SHA256",
+      "TLS_AES_128_GCM_SHA384",
+      -- For TLS 1.2 (copied from nginx ingress config):
+      "ECDHE-ECDSA-AES256-GCM-SHA384",
+      "ECDHE-RSA-AES256-GCM-SHA384"
+    ]

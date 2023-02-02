@@ -241,6 +241,14 @@ let
         sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
       };
     };
+    # PR: https://github.com/haskell-cryptography/HsOpenSSL/pull/76
+    HsOpenSSL = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/HsOpenSSL";
+        rev = "b36c063d44b8b8732f0e6334ad58d2235fedd92e";
+        sha256 = "sha256-NdWzTqWDQvCwyp3la3RGN9D1lGaLHHrxQuFxpk9R+lQ=";
+      };
+    };
   };
   hackagePins = {
     wai-route = {

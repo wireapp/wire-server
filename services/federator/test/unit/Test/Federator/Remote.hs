@@ -21,7 +21,6 @@ import Control.Exception (bracket)
 import Control.Monad.Codensity
 import Data.Domain
 import Federator.Discovery
-import Federator.Env (TLSSettings)
 import Federator.Options
 import Federator.Remote
 import Federator.Run (mkTLSSettingsOrThrow)
@@ -31,6 +30,7 @@ import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
 import Network.Wai.Utilities.MockServer (startMockServer)
+import OpenSSL.Session (SSLContext)
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
@@ -77,12 +77,12 @@ assertNoRemoteError action =
     Left err -> assertFailure $ "Unexpected remote error: " <> show err
     Right x -> pure x
 
-mkTestCall :: TLSSettings -> Int -> IO (Either RemoteError ())
-mkTestCall tlsSettings port =
+mkTestCall :: SSLContext -> Int -> IO (Either RemoteError ())
+mkTestCall sslCtx port =
   runM
     . runError @RemoteError
     . void
-    . runInputConst tlsSettings
+    . runInputConst sslCtx
     . discoverLocalhost port
     . assertNoError @DiscoveryFailure
     . runEmbedded @(Codensity IO) @IO lowerCodensity
@@ -110,7 +110,14 @@ testValidatesCertificateSuccess =
         withMockServer certForLocalhost $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
           assertNoRemoteError (mkTestCall tlsSettings port),
-      -- This is a limitation of the TLS library, this test just exists to document that.
+      -- It is not very clear how to handle this, this test just exists to
+      -- document what we do.
+      -- Some discussion from author of curl:
+      -- https://lists.w3.org/Archives/Public/ietf-http-wg/2016JanMar/0430.html
+      --
+      -- Perhaps it is also not possible to get a publically verifiable
+      -- certificate like this from any of the CAs:
+      -- https://github.com/certbot/certbot/issues/3718
       testCase "when hostname=localhost. and certificate-for=localhost." $
         withMockServer certForLocalhostDot $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings

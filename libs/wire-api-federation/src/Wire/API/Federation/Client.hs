@@ -47,6 +47,7 @@ import Data.Domain
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Streaming.Network
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy.Encoding as LText
@@ -58,8 +59,9 @@ import qualified Network.HTTP.Media as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
-import qualified Network.TLS as TLS
 import qualified Network.Wai.Utilities.Error as Wai
+import OpenSSL.Session (SSL, SSLContext)
+import qualified OpenSSL.Session as SSL
 import Servant.Client
 import Servant.Client.Core
 import Servant.Types.SourceT
@@ -122,7 +124,7 @@ connectSocket hostname port =
     $ getSocketFamilyTCP hostname port NS.AF_UNSPEC
 
 performHTTP2Request ::
-  Maybe TLS.ClientParams ->
+  Maybe SSLContext ->
   HTTP2.Request ->
   ByteString ->
   Int ->
@@ -138,29 +140,32 @@ performHTTP2Request mtlsConfig req hostname port = try $ do
     pure $ resp $> foldMap byteString b
 
 withHTTP2Request ::
-  Maybe TLS.ClientParams ->
+  Maybe SSLContext ->
   HTTP2.Request ->
   ByteString ->
   Int ->
   (StreamingResponse -> IO a) ->
   IO a
-withHTTP2Request mtlsConfig req hostname port k = do
+withHTTP2Request mSSLCtx req hostname port k = do
   let clientConfig =
         HTTP2.ClientConfig
-          "https"
-          hostname
-          {- cacheLimit: -} 20
+          { HTTP2.scheme = "https",
+            HTTP2.authority = hostname,
+            HTTP2.cacheLimit = 20
+          }
   E.handle (E.throw . FederatorClientHTTP2Exception) $
     bracket (connectSocket hostname port) NS.close $ \sock -> do
-      let withHTTP2Config k' = case mtlsConfig of
+      let withHTTP2Config k' = case mSSLCtx of
             Nothing -> bracket (HTTP2.allocSimpleConfig sock 4096) HTTP2.freeSimpleConfig k'
-            -- FUTUREWORK(federation): Use openssl
-            Just tlsConfig -> do
-              ctx <- E.handle (E.throw . FederatorClientTLSException) $ do
-                ctx <- TLS.contextNew sock tlsConfig
-                TLS.handshake ctx
-                pure ctx
-              bracket (allocTLSConfig ctx 4096) freeTLSConfig k'
+            Just sslCtx -> do
+              ssl <- E.handle (E.throw . FederatorClientTLSException) $ do
+                ssl <- SSL.connection sslCtx sock
+                let hostnameStr = Text.unpack (Text.decodeUtf8 hostname)
+                SSL.setTlsextHostName ssl hostnameStr
+                SSL.enableHostnameValidation ssl hostnameStr
+                SSL.connect ssl
+                pure ssl
+              bracket (allocTLSConfig ssl 4096) freeTLSConfig k'
       withHTTP2Config $ \conf -> do
         HTTP2.run clientConfig conf $ \sendRequest ->
           sendRequest req $ \resp -> do
@@ -351,8 +356,8 @@ versionNegotiation =
 freeTLSConfig :: HTTP2.Config -> IO ()
 freeTLSConfig cfg = free (HTTP2.confWriteBuffer cfg)
 
-allocTLSConfig :: TLS.Context -> HTTP2.BufferSize -> IO HTTP2.Config
-allocTLSConfig ctx bufsize = do
+allocTLSConfig :: SSL -> HTTP2.BufferSize -> IO HTTP2.Config
+allocTLSConfig ssl bufsize = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
   ref <- newIORef mempty
@@ -365,7 +370,9 @@ allocTLSConfig ctx bufsize = do
               writeIORef ref chunk'
               pure result
           else do
-            chunk' <- TLS.recvData ctx
+            -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
+            -- (some sites terminate SSL connection right after returning the data).
+            chunk' <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
             if BS.null chunk'
               then pure chunk
               else do
@@ -375,7 +382,7 @@ allocTLSConfig ctx bufsize = do
     HTTP2.Config
       { HTTP2.confWriteBuffer = buf,
         HTTP2.confBufferSize = bufsize,
-        HTTP2.confSendAll = TLS.sendData ctx . LBS.fromStrict,
+        HTTP2.confSendAll = SSL.write ssl,
         HTTP2.confReadN = readData,
         HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
         HTTP2.confTimeoutManager = timmgr

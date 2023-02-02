@@ -116,6 +116,7 @@ library
     , extended
     , filepath
     , hinotify
+    , HsOpenSSL
     , http-client
     , http-client-openssl
     , http-media
@@ -323,7 +324,7 @@ executable federator-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -Wredundant-constraints -threaded -with-rtsopts=-N1
 
   build-depends:
       aeson
@@ -347,6 +348,7 @@ executable federator-integration
     , federator
     , filepath
     , hinotify
+    , HsOpenSSL
     , hspec
     , http-client
     , http-client-openssl
@@ -478,6 +480,7 @@ test-suite federator-tests
     , federator
     , filepath
     , hinotify
+    , HsOpenSSL
     , http-client
     , http-client-openssl
     , http-media
