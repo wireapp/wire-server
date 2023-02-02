@@ -239,13 +239,21 @@ _routeOAuth ::
   Context ctx ->
   Delayed env (Server (ZAuthServant ztype opts ('Just scopes) :> api)) ->
   Router env
-_routeOAuth _ ctx subserver = route (Proxy @api) ctx (addAuthCheck subserver (withRequest checkAuth))
+_routeOAuth _ ctx subserver = route (Proxy @api) ctx (addAuthCheck subserver (withRequest (checkAuth @ztype @scopes @ctx @a ctx)))
+
+checkAuth ::
+  forall ztype scopes ctx a.
+  ( IsZType ztype ctx,
+    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasContextEntry ctx (Maybe JWK),
+    IsOAuthScope scopes,
+    ZQualifiedParam ztype ~ Id a
+  ) =>
+  Context ctx ->
+  Request ->
+  DelayedIO (ZQualifiedParam ztype)
+checkAuth ctx = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
   where
-    -- todo(leif): add sig and toplevel
-
-    checkAuth :: Request -> DelayedIO (ZQualifiedParam ztype)
-    checkAuth = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
-
     doOAuth :: Maybe JWK -> Request -> DelayedIO (Either ServerError (ZQualifiedParam ztype))
     doOAuth mJwk req = tryOAuth
       where
@@ -265,11 +273,12 @@ _routeOAuth _ ctx subserver = route (Proxy @api) ctx (addAuthCheck subserver (wi
                 then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (hcsSub claimSet)
                 else Left insufficientScope
 
+-- | Handle routes that support both ZAuth and OAuth, tried in that order (scopes is Just).
 instance
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasContextEntry ctx (Maybe JWK),
-    opts ~ InternalAuthDefOpts,
+    opts ~ InternalAuthDefOpts, -- oauth is never optional.
     HasServer api ctx,
     IsOAuthScope scopes,
     ZQualifiedParam ztype ~ Id a
