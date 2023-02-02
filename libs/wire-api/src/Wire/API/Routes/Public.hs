@@ -226,30 +226,31 @@ instance
   toSwagger _ = toSwagger (Proxy @api)
 
 -- TODO(fisx): move to a where block in the instance where it's called?
+-- TODO: consider passing just the key and not the whole context
 checkAuth ::
   forall ztype scopes ctx a.
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasContextEntry ctx (Maybe JWK),
     IsOAuthScope scopes,
-    ZQualifiedParam ztype ~ Id a
+    ZParam ztype ~ Id a
   ) =>
   Context ctx ->
   Request ->
-  DelayedIO (ZQualifiedParam ztype)
+  DelayedIO (ZParam ztype)
 checkAuth ctx = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
   where
-    doOAuth :: Maybe JWK -> Request -> DelayedIO (Either ServerError (ZQualifiedParam ztype))
+    doOAuth :: Maybe JWK -> Request -> DelayedIO (Either ServerError (ZParam ztype))
     doOAuth mJwk req = tryOAuth
       where
-        tryOAuth :: DelayedIO (Either ServerError (ZQualifiedParam ztype))
+        tryOAuth :: DelayedIO (Either ServerError (ZParam ztype))
         tryOAuth = do
           let headerOrError = maybeToRight oauthTokenMissing $ lookup "Z-OAuth" (requestHeaders req)
           let jwkOrError = maybeToRight jwtError mJwk
           let tokenOrError = headerOrError >>= mapLeft invalidOAuthToken . parseHeader
           either (pure . Left) verifyOAuthToken $ (,) <$> tokenOrError <*> jwkOrError
 
-        verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError (ZQualifiedParam ztype))
+        verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError (ZParam ztype))
         verifyOAuthToken (token, key) = do
           verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthToken . unBearer $ token))
           pure $
@@ -265,14 +266,16 @@ instance
     HasContextEntry ctx (Maybe JWK),
     opts ~ InternalAuthDefOpts, -- oauth is never optional.
     HasServer api ctx,
-    IsOAuthScope scopes,
-    ZQualifiedParam ztype ~ Id a
+    IsOAuthScope (scopes :: OAuthScope),
+    ZParam ztype ~ Id a
   ) =>
   HasServer (ZAuthServant ztype opts ('Just scopes) :> api) ctx
   where
   type
+    -- ServerT (ZAuthServant ztype opts ('Just scopes) :> api) m =
+    --   RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
     ServerT (ZAuthServant ztype opts ('Just scopes) :> api) m =
-      RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
+      ZParam ztype -> ServerT api m
 
   route ::
     ( IsZType ztype ctx,
@@ -288,10 +291,48 @@ instance
     Router env
   route _ ctx subserver =
     -- withRequest $ \req -> maybe routeOAuth (const routeZAuth) $ lookup "Z-Type" (requestHeaders req)
+    -- route (Proxy @api) ctx (addAuthCheck subserver (withRequest (checkAuth @ztype @scopes @ctx @a ctx)))
 
-    route (Proxy @api) ctx (addAuthCheck subserver (withRequest (checkAuth @ztype @scopes @ctx @a ctx)))
+    Servant.route
+      (Proxy @api)
+      ctx
+      (addAuthCheck subserver (withRequest (checkType' @ztype @scopes @ctx @a ctx (tokenType @ztype))))
+
+  -- ( fmap
+  --     (. fmap (qualifyZParam @ztype ctx))
+  -- )
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
+
+checkType' ::
+  forall ztype scopes ctx a.
+  ( IsZType ztype ctx,
+    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasContextEntry ctx (Maybe JWK),
+    IsOAuthScope scopes,
+    ZParam ztype ~ Id a
+  ) =>
+  Context ctx ->
+  Maybe ByteString ->
+  Wai.Request ->
+  DelayedIO (ZParam ztype)
+checkType' ctx tokenType req = case (lookup "Z-Type" (Wai.requestHeaders req), lookup "Z-User" (Wai.requestHeaders req)) of
+  -- TODO: replace "Z-User"
+  (Nothing, _) -> checkAuth @ztype @scopes @ctx @a ctx req
+  (ztype, mHeaderValue) -> case mHeaderValue of
+    Just headerValue | ztype == tokenType -> error "deserialise"
+    _ -> error "return an error"
+
+-- (Just t, value)
+--   | value /= Just t ->
+--       delayedFail
+--         ServerError
+--           { errHTTPCode = 403,
+--             errReasonPhrase = "Access denied",
+--             errBody = "",
+--             errHeaders = []
+--           }
+-- _ -> pure ()
 
 -- | Handle routes that support ZAuth, but not OAuth (scopes is Nothing).
 instance
@@ -324,23 +365,22 @@ instance
       ctx
       ( fmap
           (. mapRequestArgument @opts (qualifyZParam @ztype ctx))
-          (addAcceptCheck subserver (withRequest (checkType (tokenType @ztype))))
+          (addAuthCheck (fmap (\x _ -> x) subserver) (withRequest (checkType (tokenType @ztype))))
       )
-    where
-      checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
-      checkType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
-        (Just t, value)
-          | value /= Just t ->
-              delayedFail
-                ServerError
-                  { errHTTPCode = 403,
-                    errReasonPhrase = "Access denied",
-                    errBody = "",
-                    errHeaders = []
-                  }
-        _ -> pure ()
-
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
+
+checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
+checkType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
+  (Just t, value)
+    | value /= Just t ->
+        delayedFail
+          ServerError
+            { errHTTPCode = 403,
+              errReasonPhrase = "Access denied",
+              errBody = "",
+              errHeaders = []
+            }
+  _ -> pure ()
 
 instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts scopes :> api) where
   getRoutes = getRoutes @api
