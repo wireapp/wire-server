@@ -1,5 +1,7 @@
 {-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -30,7 +32,10 @@ module Wire.API.Routes.Public
     ZBot,
     ZConversation,
     ZProvider,
+
+    -- * OAuth combinators
     ZOauthUser,
+    ZOAuthLocalUser,
 
     -- * Swagger combinators
     OmitDocs,
@@ -40,6 +45,8 @@ where
 import Control.Lens ((<>~))
 import Control.Monad.Except
 import Crypto.JWT hiding (Context, params, uri, verify)
+import Data.ByteString.Conversion (fromByteString)
+import Data.Data (typeRep)
 import Data.Domain
 import Data.Either.Combinators
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
@@ -50,8 +57,9 @@ import Data.Qualified
 import Data.SOP
 import Data.String.Conversions (cs)
 import Data.Swagger
+import qualified Data.Text as T
 import GHC.Base (Symbol)
-import GHC.TypeLits (KnownSymbol)
+import GHC.TypeLits (KnownSymbol, symbolVal, symbolVal')
 import Imports hiding (All, exp, head)
 import Network.Wai
 import qualified Network.Wai as Wai
@@ -59,6 +67,7 @@ import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.API.Modifiers
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
+import Servant.Server.Internal.ErrorFormatter (mkContextWithErrorFormatter)
 import Servant.Server.Internal.Router
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
@@ -166,7 +175,7 @@ instance IsZType 'ZAuthProvider ctx where
 instance HasTokenType 'ZAuthProvider where
   tokenType = Just "provider"
 
-data ZAuthServant (ztype :: ZType) (opts :: [Type]) (scopes :: Maybe OAuthScope)
+data ZAuthServant (ztype :: ZType) (opts :: [Type]) (scope :: Maybe OAuthScope)
 
 type InternalAuthDefOpts = '[Servant.Required, Servant.Strict]
 
@@ -178,9 +187,11 @@ type InternalAuth ztype opts =
 
 type ZLocalUser = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts 'Nothing
 
+type ZOAuthLocalUser scope = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts ('Just scope)
+
 type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts 'Nothing
 
-type ZOauthUser scopes = ZAuthServant 'ZAuthUser InternalAuthDefOpts ('Just scopes)
+type ZOauthUser scope = ZAuthServant 'ZAuthUser InternalAuthDefOpts ('Just scope)
 
 type ZClient = ZAuthServant 'ZAuthClient InternalAuthDefOpts 'Nothing
 
@@ -198,8 +209,8 @@ type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict] 
 
 type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict] 'Nothing
 
--- TODO(leif): doc for scopes (also other instances)
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts scopes :> api) where
+-- TODO(leif): doc for scope (also other instances)
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts scope :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
       & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
@@ -211,71 +222,35 @@ instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts scopes :> a
             _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
           }
 
-instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts scopes :> api) where
-  toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts scopes :> api))
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZLocalAuthUser opts scope :> api) where
+  toSwagger _ = toSwagger (Proxy @(ZAuthServant 'ZAuthUser opts scope :> api))
 
-instance HasLink endpoint => HasLink (ZAuthServant usr opts scopes :> endpoint) where
+instance HasLink endpoint => HasLink (ZAuthServant usr opts scope :> endpoint) where
   type MkLink (ZAuthServant _ _ _ :> endpoint) a = MkLink endpoint a
   toLink toA _ = toLink toA (Proxy @endpoint)
 
 instance
   {-# OVERLAPPABLE #-}
   HasSwagger api =>
-  HasSwagger (ZAuthServant ztype _opts scopes :> api)
+  HasSwagger (ZAuthServant ztype _opts scope :> api)
   where
   toSwagger _ = toSwagger (Proxy @api)
 
--- TODO(fisx): move to a where block in the instance where it's called?
--- TODO: consider passing just the key and not the whole context
-checkAuth ::
-  forall ztype scopes ctx a.
-  ( IsZType ztype ctx,
-    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    HasContextEntry ctx (Maybe JWK),
-    IsOAuthScope scopes,
-    ZParam ztype ~ Id a
-  ) =>
-  Context ctx ->
-  Request ->
-  DelayedIO (ZParam ztype)
-checkAuth ctx = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
-  where
-    doOAuth :: Maybe JWK -> Request -> DelayedIO (Either ServerError (ZParam ztype))
-    doOAuth mJwk req = tryOAuth
-      where
-        tryOAuth :: DelayedIO (Either ServerError (ZParam ztype))
-        tryOAuth = do
-          let headerOrError = maybeToRight oauthTokenMissing $ lookup "Z-OAuth" (requestHeaders req)
-          let jwkOrError = maybeToRight jwtError mJwk
-          let tokenOrError = headerOrError >>= mapLeft invalidOAuthToken . parseHeader
-          either (pure . Left) verifyOAuthToken $ (,) <$> tokenOrError <*> jwkOrError
-
-        verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError (ZParam ztype))
-        verifyOAuthToken (token, key) = do
-          verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthToken . unBearer $ token))
-          pure $
-            verifiedOrError >>= \claimSet ->
-              if hasScope @scopes claimSet
-                then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (hcsSub claimSet)
-                else Left insufficientScope
-
--- | Handle routes that support both ZAuth and OAuth, tried in that order (scopes is Just).
+-- | Handle routes that support both ZAuth and OAuth, tried in that order (scope is Just).
 instance
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasContextEntry ctx (Maybe JWK),
     opts ~ InternalAuthDefOpts, -- oauth is never optional.
     HasServer api ctx,
-    IsOAuthScope (scopes :: OAuthScope),
+    IsOAuthScope (scope :: OAuthScope),
     ZParam ztype ~ Id a
   ) =>
-  HasServer (ZAuthServant ztype opts ('Just scopes) :> api) ctx
+  HasServer (ZAuthServant ztype opts ('Just scope) :> api) ctx
   where
   type
-    -- ServerT (ZAuthServant ztype opts ('Just scopes) :> api) m =
-    --   RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
-    ServerT (ZAuthServant ztype opts ('Just scopes) :> api) m =
-      ZParam ztype -> ServerT api m
+    ServerT (ZAuthServant ztype opts ('Just scope) :> api) m =
+      ZQualifiedParam ztype -> ServerT api m
 
   route ::
     ( IsZType ztype ctx,
@@ -283,52 +258,90 @@ instance
       HasContextEntry ctx (Maybe JWK),
       opts ~ InternalAuthDefOpts,
       HasServer api ctx,
-      IsOAuthScope scopes
+      IsOAuthScope scope
     ) =>
-    Proxy (ZAuthServant ztype opts ('Just scopes) :> api) ->
+    Proxy (ZAuthServant ztype opts ('Just scope) :> api) ->
     Context ctx ->
-    Delayed env (Server (ZAuthServant ztype opts ('Just scopes) :> api)) ->
+    Delayed env (Server (ZAuthServant ztype opts ('Just scope) :> api)) ->
     Router env
   route _ ctx subserver =
-    -- withRequest $ \req -> maybe routeOAuth (const routeZAuth) $ lookup "Z-Type" (requestHeaders req)
-    -- route (Proxy @api) ctx (addAuthCheck subserver (withRequest (checkAuth @ztype @scopes @ctx @a ctx)))
-
     Servant.route
       (Proxy @api)
       ctx
-      (addAuthCheck subserver (withRequest (checkType' @ztype @scopes @ctx @a ctx (tokenType @ztype))))
-
-  -- ( fmap
-  --     (. fmap (qualifyZParam @ztype ctx))
-  -- )
+      (addAuthCheck subserver (withRequest (checkType' @ztype @scope @ctx ctx (tokenType @ztype))))
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 checkType' ::
-  forall ztype scopes ctx a.
+  forall ztype scope ctx opts a.
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasContextEntry ctx (Maybe JWK),
-    IsOAuthScope scopes,
+    opts ~ InternalAuthDefOpts,
+    IsOAuthScope scope,
     ZParam ztype ~ Id a
   ) =>
   Context ctx ->
   Maybe ByteString ->
   Wai.Request ->
-  DelayedIO (ZParam ztype)
-checkType' ctx tokenType req = case (lookup "Z-Type" (Wai.requestHeaders req), lookup (ZHeader @ztype) (Wai.requestHeaders req)) of
-  -- TODO: replace "Z-User"
-  (Nothing, _) -> checkAuth @ztype @scopes @ctx @a ctx req
-  (ztype, mHeaderValue) ->
-    -- or maybe call this route instance in this line instead?: https://hoogle.zinfra.io/file/nix/store/v71izsswrazdr55yzscdzgnvxghkzrc0-servant-server-0.19.1-doc/share/doc/servant-server-0.19.1/html/src/Servant.Server.Internal.html#line-406
-    case mHeaderValue of
-      Just headerValue
-        | ztype == tokenType ->
-            let parseWhateverId = _ -- whatever the `Header` instance did before
-             in parseWhateverId headerValue >>= fromMaybe crash
-      _ -> error "return an error"
+  DelayedIO (ZQualifiedParam ztype)
+checkType' ctx mTokenType req = case mTokenType of
+  -- if the token type is given, the request must have the correct Z-Type header, otherwise access is denied.
+  Just t -> case lookup "Z-Type" (requestHeaders req) of
+    Just t'
+      | t == t' ->
+          case lookup headerName (requestHeaders req) of
+            -- a Z-<some_id> Header exists, try ZAuth or fail
+            Just a -> zauth a
+            Nothing -> delayedFail error403
+    -- the Z-Type header is not correct, so access is denied.
+    _ ->
+      delayedFail error403
+  -- if the token type is not given, we try to authenticate with ZAuth first, then fall back to OAuth.
+  Nothing -> case lookup headerName (requestHeaders req) of
+    -- a Z-<some_id> Header exists, try ZAuth or fail
+    Just a -> zauth a
+    -- no Z header exists, so try OAuth or fail
+    Nothing -> oauth ctx req
+  where
+    headerName :: IsString n => n
+    headerName = fromString $ symbolVal (Proxy @(ZHeader ztype))
 
--- | Handle routes that support ZAuth, but not OAuth (scopes is Nothing).
+    zauth :: ByteString -> DelayedIO (ZQualifiedParam ztype)
+    zauth bs = case fromByteString @(ZParam ztype) bs of
+      Just a -> pure $ qualifyZParam @ztype ctx a
+      Nothing -> delayedFail error403
+
+    oauth :: Context ctx -> Request -> DelayedIO (ZQualifiedParam ztype)
+    oauth c r = fmap (qualifyZParam @ztype ctx) (checkAuth c r)
+
+    -- TODO: consider passing just the key and not the whole context
+    checkAuth ::
+      Context ctx ->
+      Request ->
+      DelayedIO (ZParam ztype)
+    checkAuth c = doOAuth (getContextEntry c) >=> either delayedFailFatal pure
+      where
+        doOAuth :: Maybe JWK -> Request -> DelayedIO (Either ServerError (ZParam ztype))
+        doOAuth mJwk r = tryOAuth
+          where
+            tryOAuth :: DelayedIO (Either ServerError (ZParam ztype))
+            tryOAuth = do
+              let headerOrError = maybeToRight oauthTokenMissing $ lookup "Z-OAuth" (requestHeaders r)
+              let jwkOrError = maybeToRight jwtError mJwk
+              let tokenOrError = headerOrError >>= mapLeft invalidOAuthToken . parseHeader
+              either (pure . Left) verifyOAuthToken $ (,) <$> tokenOrError <*> jwkOrError
+
+            verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError (ZParam ztype))
+            verifyOAuthToken (token, key) = do
+              verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthToken . unBearer $ token))
+              pure $
+                verifiedOrError >>= \claimSet ->
+                  if hasScope @scope claimSet
+                    then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (hcsSub claimSet)
+                    else Left insufficientScope
+
+-- | Handle routes that support ZAuth, but not OAuth (scope is Nothing).
 instance
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
@@ -359,24 +372,25 @@ instance
       ctx
       ( fmap
           (. mapRequestArgument @opts (qualifyZParam @ztype ctx))
-          (addAuthCheck (fmap (\x _ -> x) subserver) (withRequest (checkType (tokenType @ztype))))
+          (addAuthCheck (fmap const subserver) (withRequest (checkType (tokenType @ztype))))
       )
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
 checkType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
-  (Just t, value)
-    | value /= Just t ->
-        delayedFail
-          ServerError
-            { errHTTPCode = 403,
-              errReasonPhrase = "Access denied",
-              errBody = "",
-              errHeaders = []
-            }
+  (Just t, value) | value /= Just t -> delayedFail error403
   _ -> pure ()
 
-instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts scopes :> api) where
+error403 :: ServerError
+error403 =
+  ServerError
+    { errHTTPCode = 403,
+      errReasonPhrase = "Access denied",
+      errBody = "",
+      errHeaders = []
+    }
+
+instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts scope :> api) where
   getRoutes = getRoutes @api
 
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
@@ -404,15 +418,6 @@ instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
 
 instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
   getRoutes = getRoutes @api
-
---------------------------------------------------------------------------------
--- Z-OAuth
-
--- FUTUREWORK: it would be nice to have unit tests for this and the instances (esp. `HasServer`, but we cover this with integration tests in brig et al. for now.)
-data ZUserOrOAuth (scope :: OAuthScope)
-
-instance HasSwagger api => HasSwagger (ZUserOrOAuth scope :> api) where
-  toSwagger _ = toSwagger (Proxy @api)
 
 --------------------------------------------------------------------------------
 -- Util
