@@ -26,7 +26,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz|stern"
+    pkill "federator|gundeck|brig|galley|cargohold|cannon|spar|nginz|stern"
     sleep 1
     kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
