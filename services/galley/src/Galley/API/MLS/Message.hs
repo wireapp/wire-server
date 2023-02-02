@@ -27,7 +27,6 @@ module Galley.API.MLS.Message
 where
 
 import Control.Arrow ((>>>))
-import Debug.Trace
 import Control.Comonad
 import Control.Error.Util (hush)
 import Control.Lens (forOf_, preview)
@@ -476,9 +475,7 @@ getSenderClient qusr SMLSPlainText msg = case msgSender msg of
   PreconfiguredSender _ -> pure Nothing
   NewMemberSender -> pure Nothing
   MemberSender ref -> do
-    traceM "getSenderClient before"
     cid <- derefKeyPackage ref
-    traceM "getSenderClient after"
     when (fmap fst (cidQualifiedClient cid) /= qusr) $
       throwS @'MLSClientSenderUserMismatch
     pure (Just (ciClient cid))
@@ -822,9 +819,7 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
         unless (user == u) $
           throwS @'MLSClientSenderUserMismatch
         ref <- ensureSingleton clients
-        traceM "derefUser before"
         ci <- derefKeyPackage ref
-        traceM "derefUser after"
         unless (cidQualifiedUser ci == user) $
           throwS @'MLSClientSenderUserMismatch
         pure (ci, ref)
@@ -1078,9 +1073,7 @@ applyProposal convOrSubConvId groupId (AddProposal kp) = do
       addMLSClients groupId qusr (Set.singleton (ciClient cid, ref))
       pure cid
 applyProposal _convOrSubConvId _groupId (RemoveProposal ref) = do
-  traceM "applyProposal before"
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  traceM "applyProposal after"
   pure (paRemoveClient ((,ref) <$$> qclient))
 applyProposal _convOrSubConvId _groupId (ExternalInitProposal _) =
   -- only record the fact there was an external init proposal, but do not
