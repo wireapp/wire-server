@@ -316,23 +316,17 @@ checkType' ::
   Maybe ByteString ->
   Wai.Request ->
   DelayedIO (ZParam ztype)
-checkType' ctx tokenType req = case (lookup "Z-Type" (Wai.requestHeaders req), lookup "Z-User" (Wai.requestHeaders req)) of
+checkType' ctx tokenType req = case (lookup "Z-Type" (Wai.requestHeaders req), lookup (ZHeader @ztype) (Wai.requestHeaders req)) of
   -- TODO: replace "Z-User"
   (Nothing, _) -> checkAuth @ztype @scopes @ctx @a ctx req
-  (ztype, mHeaderValue) -> case mHeaderValue of
-    Just headerValue | ztype == tokenType -> error "deserialise"
-    _ -> error "return an error"
-
--- (Just t, value)
---   | value /= Just t ->
---       delayedFail
---         ServerError
---           { errHTTPCode = 403,
---             errReasonPhrase = "Access denied",
---             errBody = "",
---             errHeaders = []
---           }
--- _ -> pure ()
+  (ztype, mHeaderValue) ->
+    -- or maybe call this route instance in this line instead?: https://hoogle.zinfra.io/file/nix/store/v71izsswrazdr55yzscdzgnvxghkzrc0-servant-server-0.19.1-doc/share/doc/servant-server-0.19.1/html/src/Servant.Server.Internal.html#line-406
+    case mHeaderValue of
+      Just headerValue
+        | ztype == tokenType ->
+            let parseWhateverId = _ -- whatever the `Header` instance did before
+             in parseWhateverId headerValue >>= fromMaybe crash
+      _ -> error "return an error"
 
 -- | Handle routes that support ZAuth, but not OAuth (scopes is Nothing).
 instance
