@@ -30,7 +30,8 @@ exit_usage() {
 # often this is just noise like connection to cassandra.
 excludeLogEntries() {
     grep -v '^{".*Info"' |
-        grep -v '^{".*Debug"'
+        grep -v '^{".*Debug"' |
+        grep -v '^20.*, D, .*socket: [0-9]\+>$'
 }
 
 cleanup() {
