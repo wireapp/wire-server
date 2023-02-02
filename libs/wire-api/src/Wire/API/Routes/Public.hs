@@ -225,22 +225,6 @@ instance
   where
   toSwagger _ = toSwagger (Proxy @api)
 
-_routeZAuth ::
-  forall ztype opts scopes api env ctx a.
-  ( IsZType ztype ctx,
-    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    HasContextEntry ctx (Maybe JWK),
-    opts ~ InternalAuthDefOpts,
-    HasServer api ctx,
-    IsOAuthScope scopes,
-    ZQualifiedParam ztype ~ Id a
-  ) =>
-  Proxy (ZAuthServant ztype opts ('Just scopes) :> api) ->
-  Context ctx ->
-  Delayed env (Server (ZAuthServant ztype opts ('Just scopes) :> api)) ->
-  Router env
-_routeZAuth _ ctx subserver = route (Proxy @(ZAuthServant ztype opts 'Nothing :> api)) ctx subserver
-
 _routeOAuth ::
   forall ztype opts scopes api env ctx a.
   ( IsZType ztype ctx,
@@ -315,8 +299,7 @@ instance
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
--- TODO(leif): remove Nothing instance
-
+-- | Handle routes that support ZAuth, but not OAuth (scopes is Nothing).
 instance
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
