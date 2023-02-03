@@ -4,12 +4,14 @@ from dataclasses import dataclass
 import os
 import select
 import signal
+import shutil
 import subprocess
 import yaml
 import urllib.request
 import urllib.error
 import sys
 from threading import Thread
+import logging
 
 class Colors:
     GREEN = "\x1b[38;5;10m"
@@ -55,42 +57,59 @@ class Service:
 
         return f"/proc/{os.getpid()}/fd/{r}"
 
+    def spawn(self, service_map, environment):
+        config_file = self.modified_config_file(service_map)
+        sub = subprocess.Popen([self.path(), "-c", config_file],
+                               encoding='utf-8',
+                               cwd=os.path.join(ROOT, "services", self.name),
+                               env=environment, stdout=subprocess.PIPE)
+
+        if self.check_status:
+            check_status(sub, service_map[self], self)
+        colour_output(sub, self)
+
+@dataclass(frozen=True)
+class Nginz:
+    color: str
+
+    @property
+    def name(self): return "nginz"
+
+    @property
+    def internal_name(self): return self.name
+
+    def spawn(self, service_map, environment):
+        cwd = os.path.join(ROOT, "services", "nginz", "integration-test")
+        sub = subprocess.Popen([shutil.which("nginx"), "-p", cwd, "-c",
+                                os.path.join(cwd, "conf", "nginz","nginx.conf"),
+                                "-g", "daemon off;"],
+                               encoding='utf-8', cwd=cwd, env=environment,
+                               stdout=subprocess.PIPE)
+        check_status(sub, service_map[self], self)
+        colour_output(sub, self)
+
 def check_prerequisites():
     pass
 
-def spawn(service, service_map, environment):
-    config_file = service.modified_config_file(service_map)
-    sub = subprocess.Popen([service.path(), "-c", config_file],
-                           encoding='utf-8',
-                           cwd=os.path.join(ROOT, "services", service.name),
-                           env=environment, stdout=subprocess.PIPE)
-
-    port = service_map[service]
-    if service.check_status:
-        while True:
-            sub.poll()
-            if sub.returncode is not None:
-                raise Exception(f"{service.name} has terminated")
-            try:
-                with urllib.request.urlopen(f"http://localhost:{port}/i/status") as resp:
-                    if resp.status in [200, 204]: break
-            except urllib.error.URLError:
-                pass
-
-    def colour_output():
+def check_status(sub, port, service):
+    while True:
+        sub.poll()
+        if sub.returncode is not None:
+            raise Exception(f"{service.name} has terminated")
         try:
-            for line in sub.stdout:
-                print(service.color, end='')
-                print(f"[{service.name}] ", end='')
-                print(line, end='')
-                print(Colors.RESET, end='')
-        finally:
-            sub.terminate()
-            sub.wait()
+            with urllib.request.urlopen(f"http://localhost:{port}/i/status") as resp:
+                if resp.status in [200, 204]: break
+        except urllib.error.URLError:
+            pass
 
-    t = Thread(target=colour_output)
-    t.start()
-    return t
+def colour_output(sub, service):
+    try:
+        for line in sub.stdout:
+            logging.info(f"{service.color}[{service.name}] {line.rstrip()}{Colors.RESET}")
+    finally:
+        sub.terminate()
+        sub.wait()
+
 
 def find_root(base):
     # find git repository
@@ -102,6 +121,8 @@ def find_root(base):
     return root
 
 if __name__ == '__main__':
+    logging.basicConfig(encoding='utf-8', level=logging.INFO,
+                        format='%(message)s')
     ROOT = find_root(os.getcwd())
     if ROOT is None:
         error("This script needs to be run within the wire-server direnv")
@@ -121,6 +142,7 @@ if __name__ == '__main__':
     federator = Service("federator", Colors.BLUE,
                         "federatorInternal", check_status=False)
     stern = Service("stern", Colors.YELLOW)
+    nginz = Nginz(Colors.PURPLEISH)
 
     service_map = {
         brig: 8082,
@@ -129,33 +151,18 @@ if __name__ == '__main__':
         cannon: 8083,
         cargohold: 8084,
         spar: 8088,
-        federator: 8097
+        federator: 8097,
+        nginz: 8080
     }
 
     try:
-        # TODO: start services in parallel
+        threads = []
         for service in service_map.keys():
-            spawn(service, service_map, environment)
+            t = Thread(target=lambda:
+                service.spawn(service_map, environment))
+            t.start()
+            threads.append(t)
 
-
-            # procs[proc.stdout] = {
-            #     'process': proc,
-            #     'service': service 
-            # }
-
-        # while True:
-            # (ready, _, _) = select.select([proc['process'].stdout
-            #                                for proc in procs.values()], [], [])
-            # for f in ready:
-            #     data = f.read().decode('utf-8')
-            #     col = procs[f]['service'].color
-            #     print(col, end='')
-            #     print(data, end='')
-            #     print(Colors.RESET, end='')
-            #     sys.stdout.flush()
+        for thread in threads: thread.join()
     except KeyboardInterrupt:
         pass
-    # finally:
-    #     for proc in procs.values():
-    #         proc['process'].terminate()
-    #         proc['process'].wait()
