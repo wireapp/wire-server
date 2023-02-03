@@ -105,7 +105,13 @@ class Nginz:
         if shutil.which("nginx") is None:
             raise Exception("nginx not found")
 
-def check_prerequisites(service_map):
+@dataclass(frozen=True)
+class Instance:
+    service: Service
+    thread: threading.Thread
+    process: subprocess.Popen
+
+def check_prerequisites(services):
     try:
         for port in (9042, 9200, 6379):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -115,7 +121,7 @@ def check_prerequisites(service_map):
         sys.exit(1)
 
     try:
-        for service in service_map:
+        for service in services:
             service.check_exists()
     except Exception as e:
         logging.error(Colors.RED + str(e) + Colors.RESET)
@@ -150,6 +156,17 @@ def find_root(base):
         root = p
     return root
 
+BRIG = Service("brig", Colors.GREEN)
+GALLEY = Service("galley", Colors.YELLOW)
+GUNDECK = Service("gundeck", Colors.BLUE)
+CANNON = Service("cannon", Colors.ORANGE)
+CARGOHOLD = Service("cargohold", Colors.PURPLEISH)
+SPAR = Service("spar", Colors.ORANGE)
+FEDERATOR = Service("federator", Colors.BLUE,
+                    "federatorInternal", check_status=False)
+STERN = Service("stern", Colors.YELLOW)
+NGINZ = Nginz(Colors.PURPLEISH)
+
 if __name__ == '__main__':
     logging.basicConfig(encoding='utf-8', level=logging.INFO,
                         format='%(message)s')
@@ -163,49 +180,38 @@ if __name__ == '__main__':
         'AWS_SECRET_ACCESS_KEY': "dummysecret"
     }
 
-    brig = Service("brig", Colors.GREEN)
-    galley = Service("galley", Colors.YELLOW)
-    gundeck = Service("gundeck", Colors.BLUE)
-    cannon = Service("cannon", Colors.ORANGE)
-    cargohold = Service("cargohold", Colors.PURPLEISH)
-    spar = Service("spar", Colors.ORANGE)
-    federator = Service("federator", Colors.BLUE,
-                        "federatorInternal", check_status=False)
-    stern = Service("stern", Colors.YELLOW)
-    nginz = Nginz(Colors.PURPLEISH)
-
-    service_map = {
-        brig: 8082,
-        galley: 8085,
-        gundeck: 8086,
-        cannon: 8083,
-        cargohold: 8084,
-        spar: 8088,
-        federator: 8097,
-        nginz: 8080
+    instances = {
+        CANNON: 2
     }
-
+    service_map = {
+        BRIG: 8082,
+        GALLEY: 8085,
+        GUNDECK: 8086,
+        CANNON: 8083,
+        CARGOHOLD: 8084,
+        SPAR: 8088,
+        FEDERATOR: 8097,
+        NGINZ: 8080
+    }
     check_prerequisites(service_map)
 
+    instances = set()
     try:
-        threads = {}
         for service in service_map.keys():
             sub = service.spawn(service_map, environment)
             t = threading.Thread(target=lambda: color_output(sub, service))
             t.start()
-            threads[service] = {
-                    'thread': t,
-                    'process': sub
-            }
+            instance = Instance(service, t, sub)
+            instances.add(instance)
 
         # check status
-        services = set(threads)
-        while services:
-            service = next(iter(services))
-            if check_status(threads[service]['process'],
-                            service_map[service],
-                            service):
-                services.remove(service)
+        to_be_checked = set(instances)
+        while to_be_checked:
+            instance = next(iter(to_be_checked))
+            if check_status(instance.process,
+                            service_map[instance.service],
+                            instance.service):
+                to_be_checked.remove(instance)
 
         # main script
         ret = subprocess.run(sys.argv[1:])
@@ -213,14 +219,13 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
     finally:
-        for service in threads:
-            threads[service]['process'].terminate()
+        for instance in instances:
+            instance.process.terminate()
 
-        for service in threads:
-            t = threads[service]['thread']
-            t.join(timeout=0.1)
+        for instance in instances:
+            instance.thread.join(timeout=0.1)
             # some services don't react promptly to SIGTERM, so we give them a
             # nudge if they don't terminate within a few milliseconds
-            if t.is_alive():
-                threads[service]['process'].terminate()
-                t.join()
+            if instance.thread.is_alive():
+                instance.process.terminate()
+                instance.thread.join()
