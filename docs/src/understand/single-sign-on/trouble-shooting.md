@@ -78,7 +78,7 @@ customer support.
 
 ### The long answer
 
-Some SAML IdP vendors do not allow to set up fresh entityIDs (issuers)
+Some SAML IdP vendors do not allow to set up fresh entity IDs (issuers)
 for fresh apps; instead, all apps controlled by the IdP are receiving
 SAML credentials from the same issuer.
 
