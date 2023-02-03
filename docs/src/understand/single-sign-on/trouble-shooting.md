@@ -72,7 +72,7 @@ Most SAML IdP products allow you to register arbitrary many apps for
 arbitrary many teams, by using a different entity Id for each app/team.  This is
 currently supported out of the box.
 
-If you don't have this option, ie. you need to serve two teams with an
+If you don't have this option, i.e. you need to serve two teams with an
 IdP that has only one entityId, please keep reading and/or contact
 customer support.
 
