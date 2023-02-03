@@ -1,10 +1,8 @@
 ## General
 
-**NOTE**: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints.
+### SSO Endpoints
 
-## SSO Endpoints
-
-### Overview
+#### Overview
 
 `/sso/metadata` will be requested by the IdPs to learn how to talk to wire.
 
@@ -13,11 +11,11 @@
 `/identity-providers` end-points are for use in the team settings page when IdPs are registered.  They talk json.
 
 
-### Configuring IdPs
+#### Configuring IdPs
 
 IdPs usually allow you to copy the metadata into your clipboard.  That should contain all the details you need to post the idp in your team under `/identity-providers`.  (Team id is derived from the authorization credentials of the request.)
 
-#### okta.com
+##### okta.com
 
 Okta will ask you to provide two URLs when you set it up for talking to wireapp:
 
@@ -25,7 +23,7 @@ Okta will ask you to provide two URLs when you set it up for talking to wireapp:
 
 2. The `Audience URI`.  You can find this in the metadata returned by the `/sso/metadata` end-point.  It is the contents of the `md:OrganizationURL` element.
 
-#### centrify.com
+##### centrify.com
 
 Centrify allows you to upload the metadata xml document that you get from the `/sso/metadata` end-point.  You can also enter the metadata url and have centrify retrieve the xml, but to guarantee integrity of the setup, the metadata should be copied from the team settings page and pasted into the centrify setup page without any URL indirections.
 

@@ -1,5 +1,9 @@
 (trouble-shooting-faq)=
 
+```{contents}
+:depth: 2
+```
+
 # Trouble shooting & FAQ
 
 ## Reporting a problem with user provisioning or SSO authentication
@@ -7,81 +11,163 @@
 In order for us to analyse and understand your problem, we need at least the following information up-front:
 
 - Have you followed the following instructions?
-  : - {ref}`FAQ <trouble-shooting-faq>` (This document)
+    - {ref}`FAQ <trouble-shooting-faq>` (This document)
     - [Howtos](https://docs.wire.com/how-to/single-sign-on/index.html) for supported vendors
     - [General documentation on the setup flow](https://support.wire.com/hc/en-us/articles/360001285718-Set-up-SSO-externally)
-- Vendor information (octa, azure, centrica, other (which one)?)
-- Team ID (looks like eg. `2e9a9c9c-6f83-11eb-a118-3342c6f16f4e`, can be found in team settings)
+- Which vendor (or product) are you using (octa, azure, centrica, other (which one)?)
+- Team ID (looks like eg. `2e9a9c9c-6f83-11eb-a118-3342c6f16f4e`, can be found in the team management app)
+- User ID of the account that has the problem (alternatively: handle, email address)
 - What do you expect to happen?
-  : - eg.: "I enter login code, authenticate successfully against IdP, get redirected, and see the wire landing page."
+    - e.g.: "I enter login code, authenticate successfully against IdP, get redirected, and see the wire landing page."
 - What does happen instead?
-  : - Screenshots
+    - Screenshots
     - Copy the text into your report where applicable in addition to screenshots (for automatic processing).
-    - eg.: "instead of being logged into wire, I see the following error page: ..."
+    - e.g.: "instead of being logged into wire, I see the following error page: ..."
 - Screenshots of the Configuration (both SAML and SCIM, as applicable), including, but not limited to:
-  : - If you are using SAML: SAML IdP metadata file
+    - If you are using SAML: SAML IdP metadata file
     - If you are using SCIM for provisioning: Which attributes in the User schema are mapped?  How?
+- If you have successfully authenticated on your IdP and are
+  redirected into wire, and then see a white page with an error
+  message that contains a lot of machine-readable info: copy the full
+  message to the clipboard and insert it into your report.  We do not
+  log this information for privacy reasons, but we can use it to
+  investigate your problem.  (Hint, if you want to investigate
+  yourself: it's base64 encoded!)
+
+### notes for wire support / development
+
+Not officially supported IdP vendors may work out of the box, as we
+are requiring a minimum amount of SAML features.
+
+If there are problems: collect the metadata xml and an authentication
+response xml (either from the browser http logs via a more technically
+savvy customer; or from the "white page with an error" mentioned
+above.
+
+https://github.com/wireapp/saml2-web-sso supports writing [unit vendor
+compatibility
+tests](https://github.com/wireapp/saml2-web-sso/blob/ff9b9f445475809d1fa31ef7f2932caa0ed31613/test/Test/SAML2/WebSSO/APISpec.hs#L266-L329)
+against that response value.  Once that test passes, it should all
+work fine.
+
+
+## Can I use SCIM without SAML?
+
+Yes.  Scim is a technology for onboarding alternative to the team management app, and can produce both user accounts authenticated via SAML or via email and password.  (Phone may or may not work, but is not officially supported.)
+
+How does it work?  Make sure your team has no SAML IdPs registered.  Set up your SCIM peer to provision users with valid email addresses as `externalIds`.  Newly provisioned users will be created in status `PendingInvitation`, and an invitation email will be sent.  From here on out, the flow is exactly the same as if you had added the user to your team in the team management app.
+
+Upcoming features:
+- support for the `emails` field in the scim user record (so you can choose non-email `externalId` values).
+- flexible mapping between any number of SAML IdPs and any number of SCIM tokens in team management.
+
+## Can I use SAML without SCIM?
+
+Yes, but this is not recommended.  User (de-)provisioning requires more manual work without SCIM, and some of the account information cannot be provisioned at all via SAML.
+
 
 ## Can I use the same SSO login code for multiple teams?
 
-No, but there is a good reason for it and a work-around.
+Most SAML IdP products allow you to register arbitrary many apps for
+arbitrary many teams, by using a different entity Id for each app/team.  This is
+currently supported out of the box.
 
-Reason: we *could* implement this, but that would require that we
-disable implicit user creation for those teams.  Implicit user
-creation means that a person who has never logged onto wire before can
-use her credentials for the IdP to get access to wire, and create a
-new user based on those credentials.  In order for this to work, the
-IdP must uniquely determine the team.
+If you don't have this option, i.e. you need to serve two teams with an
+IdP that has only one entity ID, please keep reading and/or contact
+customer support.
 
-Work-around: on your IdP dashboard, you can set up a separate app for
-every wire team you own.  Each IdP will get a different metadata file,
-and can be registered with its target team only.  This way, users from
-different teams have different SSO logins, but the IdP operators can
-still use the same user base for all teams.  This has the extra
-advantage that a user can be part of two teams with the same
-credentials, which would be impossible even with the hypothetical fix.
+### The long answer
+
+Some SAML IdP vendors do not allow to set up fresh entity IDs (issuers)
+for fresh apps; instead, all apps controlled by the IdP are receiving
+SAML credentials from the same issuer.
+
+In the past, wire has used a tuple of IdP issuer and 'NameID'
+(Haskell type 'UserRef') to uniquely identity users (tables
+`spar.user_v2` and `spar.issuer_idp`).
+
+In order to allow one IdP to serve more than one team, this has been
+changed: we now allow to identify an IdP by a combination of
+entityID/issuer and wire `TeamId`.  The necessary tweaks to the
+protocol are listed here.
+
+**This extension is currently (as of 2023-02-03) not supported by the
+team management app.  If you need this, please contact customer
+support.**
+
+#### what you need to know when operating a team or an instance
+
+No instance-level configuration is required.
+
+If your IdP supports different entityID / issuer for different apps,
+you don't need to change anything.
+
+If your IdP does not support different entityID / issuer for different
+apps, keep reading.  At the time of writing this section, there is no
+support for multi-team IdP issuers in the team management app, so you have two
+options: (1) use the rest API directly; or (2) contact our customer
+support and send them the link to this section.
+
+If you feel up to calling the rest API, try the following:
+
+- Use the above end-point `GET /sso/metadata/:tid` with your `TeamId`
+  for pulling the SP metadata.
+- When calling `POST /identity-provider`, make sure to add
+  `?api_version=v2`.  (`?api_version=v1` or no omission of the query
+  param both invoke the old behavior.)
+
+NB: Neither version of the API allows you to provision a user with the
+same Issuer and same NameID.  The pair of Issuer and NameID must
+always be globally unique.
+
+#### API changes in even more detail
+
+- New query param `api_version=<v1|v2>` for `POST
+  /identity-providers`.  The version is stored in `spar.idp` together
+  with the rest of the IdP setup, and is used by `GET
+  /sso/initiate-login` (see below).
+- `GET /sso/initiate-login` sends audience based on api_version stored
+  in `spar.idp`: for v1, the audience is `/sso/finalize-login`; for
+  v2, it's `/sso/finalize-login/:tid`.
+- New end-point `POST /sso/finalize-login/:tid` that behaves
+  indistinguishable from `POST /sso/finalize-login`, except when more
+  than one IdP with the same issuer, but different teams are
+  registered.  In that case, this end-point can process the
+  credentials by discriminating on the `TeamId`.
+- `POST /sso/finalize-login/` remains unchanged.
+- New end-point `GET /sso/metadata/:tid` returns the same SP metadata as
+  `GET /sso/metadata`, with the exception that it lists
+  `"/sso/finalize-login/:tid"` as the path of the
+  `AssertionConsumerService` (rather than `"/sso/finalize-login"` as
+  before).
+- `GET /sso/metadata` remains unchanged, and still returns the old SP
+  metadata, without the `TeamId` in the paths.
+
+#### database schema changes
+
+[V15](https://github.com/wireapp/wire-server/blob/b97439756cfe0721164934db1f80658b60de1e5e/services/spar/schema/src/V15.hs#L29-L43)
+
 
 ## Can an existing user without IdP (or with a different IdP) be bound to a new IdP?
 
-No.  This is a feature we never fully implemented.  Details / latest
-updates: <https://github.com/wireapp/wire-server/issues/1151>
+Yes, you can, by updating the user via SCIM.  (If you use SAML without
+SCIM, there is a way in theory, but there are no plans to implement
+it.)
+
 
 ## Can the SSO feature be disabled for a team?
 
-No, this is [not implemented](https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215).
+No, this is [not implemented](https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215).  But the team admin can remove all IdPs, which will effectively disable all SAML logins.
 
-## Can you remove a SAML connection?
 
-It is not possible to delete a SAML connection in the Team Settings app, however it can be overwritten with a new connection.
-It is possible do delete a SAML connection directly via the API endpoint `DELETE /identity-providers/{id}`. However deleting a SAML connection also requires deleting all users that can log in with this SAML connection. To prevent accidental deletion of users this functionality is not available directly from Team Settings.
-
-## If you get an error when returning from your IdP
-
-`Symptoms:`
-
-You have successfully authenticated on your IdP and are
-redirected into wire.  Wire shows a white page with an error message
-that contains a lot of machine-readable info.
-
-`What we need from you:`
-
-- Your SSO metadata file
-- The SSO login code (eg. `wire-3f61d2ce-525c-11ea-b8da-cf641a7b716a`;
-  you can find it in the team settings where you registered your IdP)
-- The full browser page with the error message (copy it into your
-  clipboard and insert it into an email to us, or save the page as an
-  html file and send that to us)
-
-With all this information, please get in touch with our customer
-support.
-
-## Do I need any firewall settings?
+## Do I need to change any firewall settings in order to use SAML?
 
 No.
 
 There is nothing to be done here.  There is no internet traffic
 between your SAML IdP and the wire service.  All communication happens
 via the browser or app.
+
 
 ## Why does the team owner have to keep using password?
 
@@ -92,7 +178,7 @@ that's the team owner with their password.
 
 (It is also unwise to bind that owner to SAML once it's installed.  If
 there is ever any issue with SAML authentication that can only be
-resolved by updating the IdP metadata in team settings, the owner must
+resolved by updating the IdP metadata in the team management app, the owner must
 still have a way to authenticate in order to do that.)
 
 There is a good workaround, though: you can create a team with user A
@@ -158,7 +244,7 @@ minimal example that still works, we'd be love to take a look.
 
 ## Why does the auth response not contain a reference to an auth request?  (Also: can i use IdP-initiated login?)
 
-tl;dr: Wire only supports SP-initiated login, where the user selects
+**tl;dr:** Wire only supports SP-initiated login, where the user selects
 the auth method from inside the app's login screen.  It does not
 support IdP-initiated login, where the user enters the app from a list
 of applications in the IdP UI.
@@ -225,7 +311,7 @@ in your wire team:
       `unspecified`.
    2. If email/password authentication is used, SCIM's `externalId` is
       mapped on wire's email address, and provisioning works like in
-      team settings with invitation emails.
+      the team management app with invitation emails.
 
 This means that if you use email/password authentication, you **must**
 map an email address to `externalId` on your side.  With `userName`
@@ -241,8 +327,8 @@ contact customer support if this causes any issues.
 
 Users may find it awkward to copy and paste the login code into the
 form.  If they are using the webapp, an alternative is to give them
-the following URL (fill in the login code that you can find in your
-team settings):
+the following URL (fill in the login code that you can find in the
+team management app):
 
 ```bash
 https://wire-webapp-dev.zinfra.io/auth#sso/3c4f050a-f073-11eb-b4c9-931bceeed13e
@@ -281,23 +367,3 @@ clash.
 
 Do not rely on case sensitivity of `IssuerID` or `NameID`, or on
 `NameID` qualifiers for distinguishing user identifiers.
-
-## How to report problems
-
-If you have a problem you cannot resolve by yourself, please get in touch.  Add as much of the following details to your report as possible:
-
-- Are you on cloud or on-prem?  (If on-prem: which instance?)
-- XML IdP metadata
-- SSL Login code or IdP Issuer EntityID
-- NameID of the account that has the problem
-- SP metadata
-
-Problem description, including, but not limited to:
-
-- what happened?
-- what did you want to happen?
-- what does your idp config in the wire team management app look like?
-- what does your wire config in your IdP management app look like?
-- Please include screenshots *and* copied text (for cut&paste when we investigate) *and* further description and comments where feasible.
-
-(If you can't produce some of this information of course please get in touch anyway!  It'll merely be harder for us to resolve your issue quickly, and we may need to make a few extra rounds of data gathering together with you.)
