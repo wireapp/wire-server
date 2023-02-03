@@ -47,7 +47,7 @@ above.
 https://github.com/wireapp/saml2-web-sso supports writing [unit vendor
 compatibility
 tests](https://github.com/wireapp/saml2-web-sso/blob/ff9b9f445475809d1fa31ef7f2932caa0ed31613/test/Test/SAML2/WebSSO/APISpec.hs#L266-L329)
-against that response value.  once that test passes, it should all
+against that response value.  Once that test passes, it should all
 work fine.
 
 
