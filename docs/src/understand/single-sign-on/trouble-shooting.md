@@ -32,7 +32,7 @@ In order for us to analyse and understand your problem, we need at least the fol
   message to the clipboard and insert it into your report.  We do not
   log this information for privacy reasons, but we can use it to
   investigate your problem.  (Hint, if you want to investigate
-  yourself: it's base64 encoded!
+  yourself: it's base64 encoded!)
 
 ### notes for wire support / development
 
