@@ -157,12 +157,6 @@ TODO: yes, but you need scim!  it's documented in spar-braindump, move that cont
 
 No, this is [not implemented](https://github.com/wireapp/wire-server/blob/7a97cb5a944ae593c729341b6f28dfa1dabc28e5/services/galley/src/Galley/API/Error.hs#L215).  But the team admin can remove all IdPs, which will effectively disable all SAML logins.
 
-## Can you remove a SAML connection?
-
-TODO: is this up to date?
-
-It is not possible to delete a SAML connection in the team management app, however it can be overwritten with a new connection.
-It is possible do delete a SAML connection directly via the API endpoint `DELETE /identity-providers/{id}`. However deleting a SAML connection also requires deleting all users that can log in with this SAML connection. To prevent accidental deletion of users this functionality is not available directly from team management.
 
 ## Do I need to change any firewall settings in order to use SAML?
 
