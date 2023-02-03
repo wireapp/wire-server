@@ -8,7 +8,7 @@
 :maxdepth: 1
 
 Single sign-on and user provisioning: the user manual <understand/main>
-FAQ <trouble-shooting.md>
+Trouble shooting and FAQ <trouble-shooting.md>
 Generic setup <generic-setup>
 SSO integration with ADFS <adfs/main>
 SSO integration with Azure <azure/main>
