@@ -49,13 +49,13 @@ The flags will influence the behavior of the search API endpoint; clients will o
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
 | Yes, `tA`                          | Yes, the same team `tA`         | Irrelevant                         | Irrelevant                               | Irrelevant                                | Found                            | Found                                |
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
-| **Out-Bound search unrestricted**                                                                                                                                                                                                                                           |
+| **Out-Bound search unrestricted**                                                                                                                                                                                                                                          |
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
 | Yes, `tA`                          | Yes, another team tB            | false                              | `SearchVisibilityStandard`               | `SearchableByAllTeams`                    | Found                            | Found                                |
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
 | Yes, `tA`                          | Yes, another team tB            | false                              | `SearchVisibilityStandard`               | `SearchableByOwnTeam`                     | Found                            | Not found                            |
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
-| **Out-Bound search restricted**                                                                                                                                                                                                                                             |
+| **Out-Bound search restricted**                                                                                                                                                                                                                                            |
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
 | Yes, `tA`                          | Yes, another team tB            | true                               | Irrelevant                               | Irrelevant                                | Not found                        | Not found                            |
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
@@ -179,7 +179,7 @@ Changing this setting in the instance configuration doesn't affect any users tha
 
 Individual teams can overwrite the default setting with API calls:
 
-To make API calls to set an explicit configuration for ` TeamSearchVisibilityInbound` per team, you first need to know the Team ID, which can be found in the team settings app.
+To make API calls to set an explicit configuration for `SearchVisibilityInbound` per team, you first need to know the Team ID, which can be found in the team settings app.
 
 It is an [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier) which has format like this  `dcbedf9a-af2a-4f43-9fd5-525953a919e1`.
 
@@ -222,13 +222,13 @@ curl -XGET http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/fe
 
 Where `disabled` corresponds to `SearchableByOwnTeam` and enabled corresponds to `SearchableByAllTeams`.
 
-To change the `TeamSearchVisibilityInbound` to `SearchableByAllTeams` for the team run:
+To change the `SearchVisibilityInbound` to `SearchableByAllTeams` for the team run:
 
 ```sh
 curl -XPUT -H 'Content-Type: application/json' -d "{\"status\": \"enabled\"}" http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/features/searchVisibilityInbound
 ```
 
-To change the TeamSearchVisibilityInbound to SearchableByOwnTeam for the team run:
+To change the `SearchVisibilityInbound` to `SearchableByOwnTeam` for the team run:
 
 ```sh
 curl -XPUT -H 'Content-Type: application/json' -d "{\"status\": \"disabled\"}" http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/features/searchVisibilityInbound
