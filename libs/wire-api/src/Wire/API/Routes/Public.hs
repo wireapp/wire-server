@@ -263,7 +263,7 @@ instance
     Servant.route
       (Proxy @api)
       ctx
-      (addAuthCheck subserver (withRequest (checkType' @ztype @scope @ctx ctx (tokenType @ztype))))
+      (addAuthCheck subserver (withRequest (fmap (qualifyZParam @ztype ctx) . checkType' @ztype @scope @ctx ctx (tokenType @ztype))))
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
@@ -279,7 +279,7 @@ checkType' ::
   Context ctx ->
   Maybe ByteString ->
   Request ->
-  DelayedIO (ZQualifiedParam ztype)
+  DelayedIO (ZParam ztype)
 checkType' ctx mTokenType req =
   case lookupHeaders of
     -- if the ztype requires a Z-Type header (instance of 'HasTokenType' returns a Just ...), we expect it to match the type we're looking for
@@ -299,18 +299,11 @@ checkType' ctx mTokenType req =
     headerName :: IsString n => n
     headerName = fromString $ symbolVal (Proxy @(ZHeader ztype))
 
-    zauth :: ByteString -> DelayedIO (ZQualifiedParam ztype)
-    zauth bs = case fromByteString @(ZParam ztype) bs of
-      Just a -> pure $ qualifyZParam @ztype ctx a
-      Nothing -> delayedFailFatal error403
+    zauth :: ByteString -> DelayedIO (ZParam ztype)
+    zauth = maybe (delayedFailFatal error403) pure . fromByteString @(ZParam ztype)
 
-    oauth :: ByteString -> DelayedIO (ZQualifiedParam ztype)
-    oauth h = fmap (qualifyZParam @ztype ctx) (doOAuthOrFail h)
-
-    doOAuthOrFail ::
-      ByteString ->
-      DelayedIO (ZParam ztype)
-    doOAuthOrFail = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
+    oauth :: ByteString -> DelayedIO (ZParam ztype)
+    oauth = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
 
     doOAuth :: Maybe JWK -> ByteString -> DelayedIO (Either ServerError (ZParam ztype))
     doOAuth mJwk h = tryOAuth
