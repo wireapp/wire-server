@@ -69,7 +69,7 @@ Yes, but this is not recommended.  User (de-)provisioning requires more manual w
 ## Can I use the same SSO login code for multiple teams?
 
 Most SAML IdP products allow you to register arbitrary many apps for
-arbitrary many teams, by using as many different entity Ids.  This is
+arbitrary many teams, by using a different entity Id for each app/team.  This is
 currently supported out of the box.
 
 If you don't have this option, ie. you need to serve two teams with an
