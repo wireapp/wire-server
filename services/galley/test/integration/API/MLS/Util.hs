@@ -353,7 +353,7 @@ mlscli qcid args mbstdin = do
         ( proc
             "mls-test-cli"
             ( ["--store", cdir </> "store"]
-                <> map (appEndo (substIn <> substOut)) args
+                <> map (substIn . substOut) args
             )
         )
         mbstdin
@@ -364,8 +364,8 @@ mlscli qcid args mbstdin = do
     setClientGroupState qcid gs
   pure out
 
-argSubst :: String -> String -> Endo String
-argSubst from to_ = Endo $ \s ->
+argSubst :: String -> String -> String -> String
+argSubst from to_ s =
   if s == from then to_ else s
 
 createWireClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
