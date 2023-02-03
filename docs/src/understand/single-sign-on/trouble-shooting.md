@@ -82,7 +82,7 @@ Some SAML IdP vendors do not allow to set up fresh entityIDs (issuers)
 for fresh apps; instead, all apps controlled by the IdP are receiving
 SAML credentials from the same issuer.
 
-In the past, wire has used the a tuple of IdP issuer and 'NameID'
+In the past, wire has used a tuple of IdP issuer and 'NameID'
 (Haskell type 'UserRef') to uniquely identity users (tables
 `spar.user_v2` and `spar.issuer_idp`).
 
