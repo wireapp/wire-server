@@ -141,7 +141,6 @@ def color_output(sub, service):
         sub.terminate()
         sub.wait()
 
-
 def find_root(base):
     # find git repository
     root = os.path.realpath(base)
@@ -209,9 +208,19 @@ if __name__ == '__main__':
                 services.remove(service)
 
         # main script
-        subprocess.run(sys.argv[1:], check=True)
-
-        for service in threads: threads[service]['process'].terminate()
-        for service in threads: threads[service]['thread'].join()
+        ret = subprocess.run(sys.argv[1:])
+        sys.exit(ret.returncode)
     except KeyboardInterrupt:
         pass
+    finally:
+        for service in threads:
+            threads[service]['process'].terminate()
+
+        for service in threads:
+            t = threads[service]['thread']
+            t.join(timeout=0.1)
+            # some services don't react promptly to SIGTERM, so we give them a
+            # nudge if they don't terminate within a few milliseconds
+            if t.is_alive():
+                threads[service]['process'].terminate()
+                t.join()
