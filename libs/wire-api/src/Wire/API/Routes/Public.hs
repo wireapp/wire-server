@@ -54,6 +54,7 @@ import Data.Qualified
 import Data.SOP
 import Data.String.Conversions (cs)
 import Data.Swagger
+import Data.Typeable (typeRep)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import Imports hiding (All, exp, head)
@@ -205,7 +206,7 @@ type ZOAuthLocalUser (scopes :: [OAuthScope]) = ZAuthServant 'ZLocalAuthUser Int
 type ZOauthUser (scopes :: [OAuthScope]) = ZAuthServant 'ZAuthUser InternalAuthDefOpts ('Just scopes)
 
 instance
-  (HasSwagger api, IsOAuthScopes scopes, scopes ~ (s ': ss)) =>
+  (HasSwagger api, IsOAuthScopes scopes, scopes ~ (s ': ss), Typeable ztype) =>
   HasSwagger (ZAuthServant (ztype :: ZType) _opts ('Just scopes) :> api)
   where
   toSwagger _ =
@@ -225,7 +226,7 @@ instance
                   <> "\nfurther reading: https://docs.wire.com/how-to/install/oauth.html"
           }
 
-instance HasSwagger api => HasSwagger (ZAuthServant (ztype :: ZType) _opts 'Nothing :> api) where
+instance (HasSwagger api, Typeable ztype) => HasSwagger (ZAuthServant (ztype :: ZType) _opts 'Nothing :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
       & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
@@ -235,9 +236,12 @@ instance HasSwagger api => HasSwagger (ZAuthServant (ztype :: ZType) _opts 'Noth
         SecurityScheme
           { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
             _securitySchemeDescription =
-              Just
+              Just $
                 "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be \
-                \presented in this format: 'Bearer \\<token\\>'."
+                \presented in this format: 'Bearer \\<token\\>'.\
+                \\
+                \Expected token type: "
+                  <> (cs . show . typeRep $ (Proxy @ztype))
           }
 
 instance HasLink endpoint => HasLink (ZAuthServant usr opts scopes :> endpoint) where
