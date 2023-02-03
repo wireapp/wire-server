@@ -11,29 +11,9 @@ import yaml
 import urllib.request
 import urllib.error
 import sys
+import time
 import threading
 import logging
-
-class WaitGroup:
-    def __init__(self):
-        self.count = 0
-        self.cv = threading.Condition()
-
-    def add(self):
-        with self.cv:
-            self.count += 1
-
-    def remove(self):
-        with self.cv:
-            self.count -= 1
-            if self.count == 0:
-                self.cv.notify_all()
-
-    def wait(self):
-        self.cv.acquire()
-        while self.count > 0:
-            self.cv.wait()
-        self.cv.release()
 
 class Colors:
     GREEN = "\x1b[38;5;10m"
@@ -66,6 +46,12 @@ class Service:
                             self.name + ".integration.yaml")
 
     def modified_config_file(self, service_map):
+        """Overwrite port configuration on this service using the provided
+        service_map.
+
+        This works by creating an unnamed pipe, writing the modified config
+        file to it, and returning a path to the read end of the pipe (in
+        /proc)."""
         (r, w) = os.pipe()
 
         with open(self.config_file()) as f:
@@ -80,18 +66,14 @@ class Service:
 
         return f"/proc/{os.getpid()}/fd/{r}"
 
-    def spawn(self, service_map, environment, group):
+    def spawn(self, service_map, environment):
         config_file = self.modified_config_file(service_map)
-        sub = subprocess.Popen([self.path(), "-c", config_file],
+        return subprocess.Popen([self.path(), "-c", config_file],
                                encoding='utf-8',
                                cwd=os.path.join(ROOT, "services", self.name),
                                env=environment,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT)
-        if self.check_status:
-            check_status(sub, service_map[self], self)
-        group.remove()
-        colour_output(sub, self)
 
     def check_exists(self):
         if not os.path.exists(self.path()):
@@ -107,17 +89,17 @@ class Nginz:
     @property
     def internal_name(self): return self.name
 
-    def spawn(self, service_map, environment, group):
+    @property
+    def check_status(self): return True
+
+    def spawn(self, service_map, environment):
         cwd = os.path.join(ROOT, "services", "nginz", "integration-test")
-        sub = subprocess.Popen([shutil.which("nginx"), "-p", cwd, "-c",
+        return subprocess.Popen([shutil.which("nginx"), "-p", cwd, "-c",
                                 os.path.join(cwd, "conf", "nginz","nginx.conf"),
                                 "-g", "daemon off;"],
-                               encoding='utf-8', cwd=cwd, env=environment,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT)
-        check_status(sub, service_map[self], self)
-        group.remove()
-        colour_output(sub, self)
+                                encoding='utf-8', cwd=cwd, env=environment,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
 
     def check_exists(self):
         if shutil.which("nginx") is None:
@@ -140,17 +122,18 @@ def check_prerequisites(service_map):
         sys.exit(1)
 
 def check_status(sub, port, service):
-    while True:
-        sub.poll()
-        if sub.returncode is not None:
-            raise Exception(f"{service.name} has terminated")
-        try:
-            with urllib.request.urlopen(f"http://localhost:{port}/i/status") as resp:
-                if resp.status in [200, 204]: break
-        except urllib.error.URLError:
-            pass
+    sub.poll()
+    if sub.returncode is not None:
+        raise Exception(f"{service.name} has terminated")
+    if not service.check_status:
+        return True
+    try:
+        with urllib.request.urlopen(f"http://localhost:{port}/i/status") as resp:
+            return resp.status in [200, 204]
+    except urllib.error.URLError:
+        return False
 
-def colour_output(sub, service):
+def color_output(sub, service):
     try:
         for line in sub.stdout:
             logging.info(f"{service.color}[{service.name}] {line.rstrip()}{Colors.RESET}")
@@ -205,19 +188,30 @@ if __name__ == '__main__':
 
     check_prerequisites(service_map)
 
-    group = WaitGroup()
     try:
-        threads = []
+        threads = {}
         for service in service_map.keys():
-            group.add()
-            t = threading.Thread(target=lambda:
-                service.spawn(service_map, environment, group))
+            sub = service.spawn(service_map, environment)
+            t = threading.Thread(target=lambda: color_output(sub, service))
             t.start()
-            threads.append(t)
+            threads[service] = {
+                    'thread': t,
+                    'process': sub
+            }
 
-        group.wait()
-        print("XXXXX")
+        # check status
+        services = set(threads)
+        while services:
+            service = next(iter(services))
+            if check_status(threads[service]['process'],
+                            service_map[service],
+                            service):
+                services.remove(service)
 
-        for thread in threads: thread.join()
+        # main script
+        subprocess.run(sys.argv[1:], check=True)
+
+        for service in threads: threads[service]['process'].terminate()
+        for service in threads: threads[service]['thread'].join()
     except KeyboardInterrupt:
         pass
