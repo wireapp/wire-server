@@ -181,20 +181,20 @@ instance IsOAuthScope 'ConversationCodeCreate where
 instance IsOAuthScope 'SelfRead where
   toOAuthScope = SelfRead
 
--- | Given a type-level collection of scopes X, this class gives you a function that tests if
+-- | Given a type-level list of scopes X, this class gives you a function that tests if
 -- a list of scopes from a token intersects with X, ie., if a token grants access to the route
--- with scopes X.  Instances for single scopes and (nested) lists are available.
+-- with scopes X.
 class IsOAuthScopes scopes where
+  showOAuthScopeList :: Text
   allowOAuthScopeList :: Set.Set OAuthScope -> Bool
 
-instance IsOAuthScope (scope :: OAuthScope) => IsOAuthScopes scope where
-  allowOAuthScopeList = ((toOAuthScope @scope) `Set.member`)
+instance IsOAuthScopes '[] where
+  showOAuthScopeList = mempty
+  allowOAuthScopeList _ = False
 
-instance IsOAuthScopes scope => IsOAuthScopes '[scope] where
-  allowOAuthScopeList = allowOAuthScopeList @scope
-
-instance (IsOAuthScopes scope, IsOAuthScopes scopes) => IsOAuthScopes (scope ': scopes) where
-  allowOAuthScopeList scopes = (allowOAuthScopeList @scope scopes) || (allowOAuthScopeList @scopes scopes)
+instance (IsOAuthScope scope, IsOAuthScopes scopes) => IsOAuthScopes (scope ': scopes) where
+  showOAuthScopeList = T.unwords [cs $ show (toOAuthScope @scope), showOAuthScopeList @scopes]
+  allowOAuthScopeList scopes = ((toOAuthScope @scope) `Set.member` scopes) || (allowOAuthScopeList @scopes scopes)
 
 instance ToByteString OAuthScope where
   builder = \case
