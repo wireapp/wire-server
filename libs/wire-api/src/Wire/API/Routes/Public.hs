@@ -263,7 +263,7 @@ instance
     Servant.route
       (Proxy @api)
       ctx
-      (addAuthCheck subserver (withRequest (checkType' @ztype @scope @ctx ctx (tokenType @ztype))))
+      (addAuthCheck subserver (withRequest (fmap (qualifyZParam @ztype ctx) . checkType' @ztype @scope @ctx ctx (tokenType @ztype))))
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
@@ -279,46 +279,39 @@ checkType' ::
   Context ctx ->
   Maybe ByteString ->
   Request ->
-  DelayedIO (ZQualifiedParam ztype)
-checkType' ctx mTokenType req = case mTokenType of
-  Just t -> case lookup "Z-Type" (requestHeaders req) of
-    -- if the token type is given, the request must have the correct Z-Type header, otherwise access is denied.
-    Just t' | t == t' -> case lookup headerName (requestHeaders req) of
-      -- a Z header (e.g. 'Z-Provider') header exists, so we try ZAuth or fail
-      Just a -> zauth a
-      -- the 'Z-Type' header is correct, but no Z header exists, so access is denied.
-      Nothing -> delayedFail error403
-    -- the 'Z-Type' header is either not set or not correct, access is denied.
-    _ -> delayedFail error403
-  -- if the token type is not given, we check the Z header (e.g. 'Z-User')
-  -- and if it exists we do ZAuth or fail,
-  -- or if it doesn't exist we fall back to OAuth
-  Nothing -> maybe oauth zauth $ lookup headerName (requestHeaders req)
+  DelayedIO (ZParam ztype)
+checkType' ctx mTokenType req =
+  case lookupHeaders of
+    -- if the ztype requires a Z-Type header (instance of 'HasTokenType' returns a Just ...), we expect it to match the type we're looking for
+    (Just expType, Just actType, Just t, Nothing) | expType == actType -> zauth t
+    -- auth fails if the ztype doesn't match
+    (Just _, _, _, _) -> delayedFailFatal error403
+    -- if the ztype does not require a Z-Type header, we just care for the ZParam ('Z-User' etc.) header
+    (Nothing, _, Just t, Nothing) -> zauth t
+    -- if the 'Z-Oauth' header is present, we try to authenticate with OAuth
+    (Nothing, Nothing, Nothing, Just t) -> oauth t
+    -- any other case should fail
+    (Nothing, _, _, _) -> delayedFailFatal error403
   where
+    lookupHeaders :: (Maybe ByteString, Maybe ByteString, Maybe ByteString, Maybe ByteString)
+    lookupHeaders = (mTokenType, lookup "Z-Type" (requestHeaders req), lookup headerName (requestHeaders req), lookup "Z-OAuth" (requestHeaders req))
+
     headerName :: IsString n => n
     headerName = fromString $ symbolVal (Proxy @(ZHeader ztype))
 
-    zauth :: ByteString -> DelayedIO (ZQualifiedParam ztype)
-    zauth bs = case fromByteString @(ZParam ztype) bs of
-      Just a -> pure $ qualifyZParam @ztype ctx a
-      Nothing -> delayedFail error403
+    zauth :: ByteString -> DelayedIO (ZParam ztype)
+    zauth = maybe (delayedFailFatal error403) pure . fromByteString @(ZParam ztype)
 
-    oauth :: DelayedIO (ZQualifiedParam ztype)
-    oauth = fmap (qualifyZParam @ztype ctx) (doOAuthOrFail req)
+    oauth :: ByteString -> DelayedIO (ZParam ztype)
+    oauth = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
 
-    doOAuthOrFail ::
-      Request ->
-      DelayedIO (ZParam ztype)
-    doOAuthOrFail = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
-
-    doOAuth :: Maybe JWK -> Request -> DelayedIO (Either ServerError (ZParam ztype))
-    doOAuth mJwk r = tryOAuth
+    doOAuth :: Maybe JWK -> ByteString -> DelayedIO (Either ServerError (ZParam ztype))
+    doOAuth mJwk h = tryOAuth
       where
         tryOAuth :: DelayedIO (Either ServerError (ZParam ztype))
         tryOAuth = do
-          let headerOrError = maybeToRight oauthTokenMissing $ lookup "Z-OAuth" (requestHeaders r)
           let jwkOrError = maybeToRight jwtError mJwk
-          let tokenOrError = headerOrError >>= mapLeft invalidOAuthToken . parseHeader
+          let tokenOrError = mapLeft invalidOAuthToken $ parseHeader h
           either (pure . Left) verifyOAuthToken $ (,) <$> tokenOrError <*> jwkOrError
 
         verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError (ZParam ztype))
@@ -419,6 +412,3 @@ jwtError = err500 {errReasonPhrase = "jwt-error", errBody = "Internal error whil
 
 invalidOAuthToken :: Text -> ServerError
 invalidOAuthToken t = err403 {errReasonPhrase = "Access denied", errBody = "Invalid token: " <> cs t}
-
-oauthTokenMissing :: ServerError
-oauthTokenMissing = err403 {errReasonPhrase = "Access denied"}
