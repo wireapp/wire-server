@@ -46,6 +46,7 @@ run_integration_tests() {
   service_dir="$TOP_LEVEL/services/$package"
 
   cd "$service_dir"
+  # "$TOP_LEVEL/services/integration.sh" \
   "/usr/bin/python3" "$TOP_LEVEL/services/run-services" \
     "$TOP_LEVEL/dist/$package-integration" \
     -s "$service_dir/$package.integration.yaml" \
