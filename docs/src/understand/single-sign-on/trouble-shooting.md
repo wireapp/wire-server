@@ -68,30 +68,90 @@ Yes, but this is not recommended.  User (de-)provisioning requires more manual w
 
 ## Can I use the same SSO login code for multiple teams?
 
-TODO: this works, but we need to change the docs everywhere to not use
-the old api!
+Most SAML IdP products allow you to register arbitrary many apps for
+arbitrary many teams, by using as many different entity Ids.  This is
+currently supported out of the box.
 
-No, but there is a good reason for it and a work-around.
+If you don't have this option, ie. you need to serve two teams with an
+IdP that has only one entityId, please keep reading and/or contact
+customer support.
 
-Reason: we *could* implement this, but that would require that we
-disable implicit user creation for those teams.  Implicit user
-creation means that a person who has never logged onto wire before can
-use her credentials for the IdP to get access to wire, and create a
-new user based on those credentials.  In order for this to work, the
-IdP must uniquely determine the team.
+### The long answer
 
-Work-around: on your IdP dashboard, you can set up a separate app for
-every wire team you own.  Each IdP will get a different metadata file,
-and can be registered with its target team only.  This way, users from
-different teams have different SSO logins, but the IdP operators can
-still use the same user base for all teams.  This has the extra
-advantage that a user can be part of two teams with the same
-credentials, which would be impossible even with the hypothetical fix.
+Some SAML IdP vendors do not allow to set up fresh entityIDs (issuers)
+for fresh apps; instead, all apps controlled by the IdP are receiving
+SAML credentials from the same issuer.
+
+In the past, wire has used the a tuple of IdP issuer and 'NameID'
+(Haskell type 'UserRef') to uniquely identity users (tables
+`spar.user_v2` and `spar.issuer_idp`).
+
+In order to allow one IdP to serve more than one team, this has been
+changed: we now allow to identify an IdP by a combination of
+entityID/issuer and wire `TeamId`.  The necessary tweaks to the
+protocol are listed here.
+
+**This extension is currently (as of 2023-02-03) not supported by the
+team management app.  If you need this, please contact customer
+support.**
+
+#### what you need to know when operating a team or an instance
+
+No instance-level configuration is required.
+
+If your IdP supports different entityID / issuer for different apps,
+you don't need to change anything.
+
+If your IdP does not support different entityID / issuer for different
+apps, keep reading.  At the time of writing this section, there is no
+support for multi-team IdP issuers in the team management app, so you have two
+options: (1) use the rest API directly; or (2) contact our customer
+support and send them the link to this section.
+
+If you feel up to calling the rest API, try the following:
+
+- Use the above end-point `GET /sso/metadata/:tid` with your `TeamId`
+  for pulling the SP metadata.
+- When calling `POST /identity-provider`, make sure to add
+  `?api_version=v2`.  (`?api_version=v1` or no omission of the query
+  param both invoke the old behavior.)
+
+NB: Neither version of the API allows you to provision a user with the
+same Issuer and same NameID.  The pair of Issuer and NameID must
+always be globally unique.
+
+#### API changes in even more detail
+
+- New query param `api_version=<v1|v2>` for `POST
+  /identity-providers`.  The version is stored in `spar.idp` together
+  with the rest of the IdP setup, and is used by `GET
+  /sso/initiate-login` (see below).
+- `GET /sso/initiate-login` sends audience based on api_version stored
+  in `spar.idp`: for v1, the audience is `/sso/finalize-login`; for
+  v2, it's `/sso/finalize-login/:tid`.
+- New end-point `POST /sso/finalize-login/:tid` that behaves
+  indistinguishable from `POST /sso/finalize-login`, except when more
+  than one IdP with the same issuer, but different teams are
+  registered.  In that case, this end-point can process the
+  credentials by discriminating on the `TeamId`.
+- `POST /sso/finalize-login/` remains unchanged.
+- New end-point `GET /sso/metadata/:tid` returns the same SP metadata as
+  `GET /sso/metadata`, with the exception that it lists
+  `"/sso/finalize-login/:tid"` as the path of the
+  `AssertionConsumerService` (rather than `"/sso/finalize-login"` as
+  before).
+- `GET /sso/metadata` remains unchanged, and still returns the old SP
+  metadata, without the `TeamId` in the paths.
+
+#### database schema changes
+
+[V15](https://github.com/wireapp/wire-server/blob/b97439756cfe0721164934db1f80658b60de1e5e/services/spar/schema/src/V15.hs#L29-L43)
 
 
 ## Can an existing user without IdP (or with a different IdP) be bound to a new IdP?
 
 TODO: yes, but you need scim!  it's documented in spar-braindump, move that content here.
+
 
 ## Can the SSO feature be disabled for a team?
 
@@ -111,86 +171,6 @@ No.
 There is nothing to be done here.  There is no internet traffic
 between your SAML IdP and the wire service.  All communication happens
 via the browser or app.
-
-
-## using the same IdP (same entityID, or Issuer) with different teams
-
-TODO: go over this section again!
-
-Some SAML IdP vendors do not allow to set up fresh entityIDs (issuers)
-for fresh apps; instead, all apps controlled by the IdP are receiving
-SAML credentials from the same issuer.
-
-In the past, wire has used the a tuple of IdP issuer and 'NameID'
-(Haskell type 'UserRef') to uniquely identity users (tables
-`spar.user_v2` and `spar.issuer_idp`).
-
-In order to allow one IdP to serve more than one team, this has been
-changed: we now allow to identity an IdP by a combination of
-entityID/issuer and wire `TeamId`.  The necessary tweaks to the
-protocol are listed here.
-
-For everybody using IdPs that do not have this limitation, we have
-taken great care to not change the behavior.
-
-
-### what you need to know when operating a team or an instance
-
-No instance-level configuration is required.
-
-If your IdP supports different entityID / issuer for different apps,
-you don't need to change anything.  We hope to deprecate the old
-flavor of the SAML protocol eventually, but we will keep you posted in
-the release notes, and give you time to react.
-
-If your IdP does not support different entityID / issuer for different
-apps, keep reading.  At the time of writing this section, there is no
-support for multi-team IdP issuers in the team management app, so you have two
-options: (1) use the rest API directly; or (2) contact our customer
-support and send them the link to this section.
-
-If you feel up to calling the rest API, try the following:
-
-- Use the above end-point `GET /sso/metadata/:tid` with your `TeamId`
-  for pulling the SP metadata.
-- When calling `POST /identity-provider`, make sure to add
-  `?api_version=v2`.  (`?api_version=v1` or no omission of the query
-  param both invoke the old behavior.)
-
-NB: Neither version of the API allows you to provision a user with the
-same Issuer and same NamdID.  RATIONALE: this allows us to implement
-'getSAMLUser' without adding 'TeamId' to 'UserRef', which in turn
-would break the (admittedly leaky) abstarctions of saml2-web-sso.
-
-
-### API changes in more detail
-
-- New query param `api_version=<v1|v2>` for `POST
-  /identity-providers`.  The version is stored in `spar.idp` together
-  with the rest of the IdP setup, and is used by `GET
-  /sso/initiate-login` (see below).
-- `GET /sso/initiate-login` sends audience based on api_version stored
-  in `spar.idp`: for v1, the audience is `/sso/finalize-login`; for
-  v2, it's `/sso/finalize-login/:tid`.
-- New end-point `POST /sso/finalize-login/:tid` that behaves
-  indistinguishable from `POST /sso/finalize-login`, except when more
-  than one IdP with the same issuer, but different teams are
-  registered.  In that case, this end-point can process the
-  credentials by discriminating on the `TeamId`.
-- `POST /sso/finalize-login/:tid` remains unchanged.
-- New end-point `GET /sso/metadata/:tid` returns the same SP metadata as
-  `GET /sso/metadata`, with the exception that it lists
-  `"/sso/finalize-login/:tid"` as the path of the
-  `AssertionConsumerService` (rather than `"/sso/finalize-login"` as
-  before).
-- `GET /sso/metadata` remains unchanged, and still returns the old SP
-  metadata, without the `TeamId` in the paths.
-
-
-### database schema changes
-
-[V15](https://github.com/wireapp/wire-server/blob/b97439756cfe0721164934db1f80658b60de1e5e/services/spar/schema/src/V15.hs#L29-L43)
-
 
 
 ## Why does the team owner have to keep using password?
