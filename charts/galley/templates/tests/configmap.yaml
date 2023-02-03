@@ -3,7 +3,8 @@ kind: ConfigMap
 metadata:
   name: "galley-integration"
   annotations:
-    "helm.sh/hook": test
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation
 data:
   integration.yaml: |
     galley:
