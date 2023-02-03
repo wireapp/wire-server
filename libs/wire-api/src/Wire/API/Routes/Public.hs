@@ -1,7 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -46,7 +44,6 @@ import Control.Lens ((<>~))
 import Control.Monad.Except
 import Crypto.JWT hiding (Context, params, uri, verify)
 import Data.ByteString.Conversion (fromByteString)
-import Data.Data (typeRep)
 import Data.Domain
 import Data.Either.Combinators
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
@@ -57,9 +54,8 @@ import Data.Qualified
 import Data.SOP
 import Data.String.Conversions (cs)
 import Data.Swagger
-import qualified Data.Text as T
 import GHC.Base (Symbol)
-import GHC.TypeLits (KnownSymbol, symbolVal, symbolVal')
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import Imports hiding (All, exp, head)
 import Network.Wai
 import qualified Network.Wai as Wai
@@ -67,7 +63,6 @@ import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.API.Modifiers
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
-import Servant.Server.Internal.ErrorFormatter (mkContextWithErrorFormatter)
 import Servant.Server.Internal.Router
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
@@ -187,11 +182,7 @@ type InternalAuth ztype opts =
 
 type ZLocalUser = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts 'Nothing
 
-type ZOAuthLocalUser scope = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts ('Just scope)
-
 type ZUser = ZAuthServant 'ZAuthUser InternalAuthDefOpts 'Nothing
-
-type ZOauthUser scope = ZAuthServant 'ZAuthUser InternalAuthDefOpts ('Just scope)
 
 type ZClient = ZAuthServant 'ZAuthClient InternalAuthDefOpts 'Nothing
 
@@ -208,6 +199,10 @@ type ZOptUser = ZAuthServant 'ZAuthUser '[Servant.Optional, Servant.Strict] 'Not
 type ZOptClient = ZAuthServant 'ZAuthClient '[Servant.Optional, Servant.Strict] 'Nothing
 
 type ZOptConn = ZAuthServant 'ZAuthConn '[Servant.Optional, Servant.Strict] 'Nothing
+
+type ZOAuthLocalUser scope = ZAuthServant 'ZLocalAuthUser InternalAuthDefOpts ('Just scope)
+
+type ZOauthUser scope = ZAuthServant 'ZAuthUser InternalAuthDefOpts ('Just scope)
 
 -- TODO(leif): doc for scope (also other instances)
 instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser _opts scope :> api) where
@@ -283,26 +278,19 @@ checkType' ::
   ) =>
   Context ctx ->
   Maybe ByteString ->
-  Wai.Request ->
+  Request ->
   DelayedIO (ZQualifiedParam ztype)
 checkType' ctx mTokenType req = case mTokenType of
   -- if the token type is given, the request must have the correct Z-Type header, otherwise access is denied.
   Just t -> case lookup "Z-Type" (requestHeaders req) of
-    Just t'
-      | t == t' ->
-          case lookup headerName (requestHeaders req) of
-            -- a Z-<some_id> Header exists, try ZAuth or fail
-            Just a -> zauth a
-            Nothing -> delayedFail error403
+    Just t' | t == t' -> case lookup headerName (requestHeaders req) of
+      -- a Z-<some_id_type> Header exists, try ZAuth or fail
+      Just a -> zauth a
+      Nothing -> delayedFail error403
     -- the Z-Type header is not correct, so access is denied.
-    _ ->
-      delayedFail error403
+    _ -> delayedFail error403
   -- if the token type is not given, we try to authenticate with ZAuth first, then fall back to OAuth.
-  Nothing -> case lookup headerName (requestHeaders req) of
-    -- a Z-<some_id> Header exists, try ZAuth or fail
-    Just a -> zauth a
-    -- no Z header exists, so try OAuth or fail
-    Nothing -> oauth ctx req
+  Nothing -> maybe oauth zauth $ lookup headerName (requestHeaders req)
   where
     headerName :: IsString n => n
     headerName = fromString $ symbolVal (Proxy @(ZHeader ztype))
@@ -312,34 +300,32 @@ checkType' ctx mTokenType req = case mTokenType of
       Just a -> pure $ qualifyZParam @ztype ctx a
       Nothing -> delayedFail error403
 
-    oauth :: Context ctx -> Request -> DelayedIO (ZQualifiedParam ztype)
-    oauth c r = fmap (qualifyZParam @ztype ctx) (checkAuth c r)
+    oauth :: DelayedIO (ZQualifiedParam ztype)
+    oauth = fmap (qualifyZParam @ztype ctx) (doOAuthOrFail req)
 
-    -- TODO: consider passing just the key and not the whole context
-    checkAuth ::
-      Context ctx ->
+    doOAuthOrFail ::
       Request ->
       DelayedIO (ZParam ztype)
-    checkAuth c = doOAuth (getContextEntry c) >=> either delayedFailFatal pure
-      where
-        doOAuth :: Maybe JWK -> Request -> DelayedIO (Either ServerError (ZParam ztype))
-        doOAuth mJwk r = tryOAuth
-          where
-            tryOAuth :: DelayedIO (Either ServerError (ZParam ztype))
-            tryOAuth = do
-              let headerOrError = maybeToRight oauthTokenMissing $ lookup "Z-OAuth" (requestHeaders r)
-              let jwkOrError = maybeToRight jwtError mJwk
-              let tokenOrError = headerOrError >>= mapLeft invalidOAuthToken . parseHeader
-              either (pure . Left) verifyOAuthToken $ (,) <$> tokenOrError <*> jwkOrError
+    doOAuthOrFail = doOAuth (getContextEntry ctx) >=> either delayedFailFatal pure
 
-            verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError (ZParam ztype))
-            verifyOAuthToken (token, key) = do
-              verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthToken . unBearer $ token))
-              pure $
-                verifiedOrError >>= \claimSet ->
-                  if hasScope @scope claimSet
-                    then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (hcsSub claimSet)
-                    else Left insufficientScope
+    doOAuth :: Maybe JWK -> Request -> DelayedIO (Either ServerError (ZParam ztype))
+    doOAuth mJwk r = tryOAuth
+      where
+        tryOAuth :: DelayedIO (Either ServerError (ZParam ztype))
+        tryOAuth = do
+          let headerOrError = maybeToRight oauthTokenMissing $ lookup "Z-OAuth" (requestHeaders r)
+          let jwkOrError = maybeToRight jwtError mJwk
+          let tokenOrError = headerOrError >>= mapLeft invalidOAuthToken . parseHeader
+          either (pure . Left) verifyOAuthToken $ (,) <$> tokenOrError <*> jwkOrError
+
+        verifyOAuthToken :: (Bearer OAuthAccessToken, JWK) -> DelayedIO (Either ServerError (ZParam ztype))
+        verifyOAuthToken (token, key) = do
+          verifiedOrError <- mapLeft (invalidOAuthToken . cs . show) <$> liftIO (verify key (unOAuthToken . unBearer $ token))
+          pure $
+            verifiedOrError >>= \claimSet ->
+              if hasScope @scope claimSet
+                then maybeToRight (invalidOAuthToken "Invalid token: Missing or invalid sub claim") (hcsSub claimSet)
+                else Left insufficientScope
 
 -- | Handle routes that support ZAuth, but not OAuth (scope is Nothing).
 instance
