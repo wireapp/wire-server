@@ -525,17 +525,17 @@ createSubConv ::
   Qualified ConvId ->
   ClientIdentity ->
   SubConvId ->
-  MLSTest PublicSubConversation
+  MLSTest (Qualified ConvOrSubConvId)
 createSubConv qcnv creator subId = do
-  let getSC =
-        liftTest $
-          responseJsonError
-            =<< getSubConv (ciUser creator) qcnv subId
-              <!! const 200 === statusCode
-  sub <- getSC
-  resetGroup creator (fmap (flip SubConv subId) qcnv) (pscGroupId sub)
+  sub <-
+    liftTest $
+      responseJsonError
+        =<< getSubConv (ciUser creator) qcnv subId
+          <!! const 200 === statusCode
+  let qcs = fmap (flip SubConv subId) qcnv
+  resetGroup creator qcs (pscGroupId sub)
   void $ createPendingProposalCommit creator >>= sendAndConsumeCommitBundle
-  getSC
+  pure qcs
 
 -- | Create a local group only without a conversation. This simulates creating
 -- an MLS conversation on a remote backend.
@@ -1217,6 +1217,76 @@ deleteSubConv u qcnv sconv dsc = do
       . contentJson
       . json dsc
 
-convsub :: Qualified ConvId -> Maybe SubConvId -> Qualified ConvOrSubConvId
-convsub qcnv Nothing = Conv <$> qcnv
-convsub qcnv (Just sconv) = flip SubConv sconv <$> qcnv
+leaveSubConv ::
+  UserId ->
+  ClientId ->
+  Qualified ConvId ->
+  SubConvId ->
+  TestM ResponseLBS
+leaveSubConv u c qcnv subId = do
+  g <- viewGalley
+  delete $
+    g
+      . paths
+        [ "conversations",
+          toByteString' (qDomain qcnv),
+          toByteString' (qUnqualified qcnv),
+          "subconversations",
+          toHeader subId,
+          "self"
+        ]
+      . zUser u
+      . zClient c
+
+remoteLeaveCurrentConv ::
+  Remote ClientIdentity ->
+  Qualified ConvId ->
+  SubConvId ->
+  TestM ()
+remoteLeaveCurrentConv rcid qcnv subId = do
+  client <- view tsFedGalleyClient
+  let lscr =
+        LeaveSubConversationRequest
+          { lscrUser = ciUser $ tUnqualified rcid,
+            lscrClient = ciClient $ tUnqualified rcid,
+            lscrConv = qUnqualified qcnv,
+            lscrSubConv = subId
+          }
+  runFedClient
+    @"leave-sub-conversation"
+    client
+    (tDomain rcid)
+    lscr
+    >>= liftIO . \case
+      LeaveSubConversationResponseError e ->
+        assertFailure $
+          "error while leaving remote conversation: " <> show e
+      LeaveSubConversationResponseProtocolError e ->
+        assertFailure $
+          "protocol error while leaving remote conversation: " <> T.unpack e
+      LeaveSubConversationResponseOk -> pure ()
+
+leaveCurrentConv ::
+  HasCallStack =>
+  ClientIdentity ->
+  Qualified ConvOrSubConvId ->
+  MLSTest ()
+leaveCurrentConv cid qsub = case qUnqualified qsub of
+  -- TODO: implement leaving main conversation as well
+  Conv _ -> liftIO $ assertFailure "Leaving conversations is not supported"
+  SubConv cnv subId -> do
+    liftTest $ do
+      loc <- qualifyLocal ()
+      foldQualified
+        loc
+        ( \_ ->
+            leaveSubConv (ciUser cid) (ciClient cid) (qsub $> cnv) subId
+              !!! const 200 === statusCode
+        )
+        ( \rcid -> remoteLeaveCurrentConv rcid (qsub $> cnv) subId
+        )
+        (cidQualifiedUser cid $> cid)
+    State.modify $ \mls ->
+      mls
+        { mlsMembers = Set.difference (mlsMembers mls) (Set.singleton cid)
+        }

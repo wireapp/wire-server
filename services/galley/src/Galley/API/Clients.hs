@@ -40,7 +40,6 @@ import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
 import Galley.Effects.ConversationStore (getConversation)
 import Galley.Effects.FederatorAccess
-import Galley.Effects.ProposalStore (ProposalStore)
 import Galley.Env
 import Galley.Types.Clients (clientIds, fromUserClients)
 import Imports

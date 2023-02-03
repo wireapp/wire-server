@@ -57,7 +57,6 @@ import Galley.Effects
 import Galley.Effects.BrigAccess (getAccountConferenceCallingConfigClient, updateSearchVisibilityInbound)
 import Galley.Effects.ConversationStore as ConversationStore
 import Galley.Effects.GundeckAccess
-import Galley.Effects.ProposalStore
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures

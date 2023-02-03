@@ -98,7 +98,6 @@ import qualified Galley.Effects.ExternalAccess as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
-import Galley.Effects.ProposalStore
 import qualified Galley.Effects.ServiceStore as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import Galley.Effects.WaiRoutes
@@ -406,6 +405,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseError err' -> rethrowErrors @(HasConversationActionGalleyErrors tag) err'
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
 
+  -- FUTUREWORK: Should we really be calling a federation handler here?
   onConversationUpdated (tDomain rcnv) convUpdate
   notifyRemoteConversationAction lusr (qualifyAs rcnv convUpdate) (Just conn)
 
