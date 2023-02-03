@@ -14,7 +14,7 @@ In order for us to analyse and understand your problem, we need at least the fol
     - {ref}`FAQ <trouble-shooting-faq>` (This document)
     - [Howtos](https://docs.wire.com/how-to/single-sign-on/index.html) for supported vendors
     - [General documentation on the setup flow](https://support.wire.com/hc/en-us/articles/360001285718-Set-up-SSO-externally)
-- Which vendor (and product if /a) are you using (octa, azure, centrica, other (which one)?)
+- Which vendor (or product) are you using (octa, azure, centrica, other (which one)?)
 - Team ID (looks like eg. `2e9a9c9c-6f83-11eb-a118-3342c6f16f4e`, can be found in the team management app)
 - User ID of the account that has the problem (alternatively: handle, email address)
 - What do you expect to happen?
