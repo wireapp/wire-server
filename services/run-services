@@ -5,6 +5,7 @@ import os
 import select
 import signal
 import shutil
+import socket
 import subprocess
 import yaml
 import urllib.request
@@ -19,6 +20,7 @@ class Colors:
     BLUE = "\x1b[38;5;6m"
     PURPLEISH = "\x1b[38;5;13m"
     ORANGE = "\x1b[38;5;3m"
+    RED = "\x1b[38;5;1m"
     RESET = "\x1b[0m"
 
 @dataclass(frozen=True)
@@ -62,11 +64,17 @@ class Service:
         sub = subprocess.Popen([self.path(), "-c", config_file],
                                encoding='utf-8',
                                cwd=os.path.join(ROOT, "services", self.name),
-                               env=environment, stdout=subprocess.PIPE)
+                               env=environment,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
 
         if self.check_status:
             check_status(sub, service_map[self], self)
         colour_output(sub, self)
+
+    def check_exists(self):
+        if not os.path.exists(self.path()):
+            raise Exception(f"{self.name} not found")
 
 @dataclass(frozen=True)
 class Nginz:
@@ -84,12 +92,30 @@ class Nginz:
                                 os.path.join(cwd, "conf", "nginz","nginx.conf"),
                                 "-g", "daemon off;"],
                                encoding='utf-8', cwd=cwd, env=environment,
-                               stdout=subprocess.PIPE)
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
         check_status(sub, service_map[self], self)
         colour_output(sub, self)
 
-def check_prerequisites():
-    pass
+    def check_exists(self):
+        if shutil.which("nginx") is None:
+            raise Exception("nginx not found")
+
+def check_prerequisites(service_map):
+    try:
+        for port in (9042, 9200, 6379):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect(("127.0.0.1", port))
+    except Exception as e:
+        logging.error(f"{Colors.RED}Databases not up. Try running 'deploy/dockerephemeral/run.sh'. {Colors.RESET}")
+        sys.exit(1)
+
+    try:
+        for service in service_map:
+            service.check_exists()
+    except Exception as e:
+        logging.error(Colors.RED + str(e) + Colors.RESET)
+        sys.exit(1)
 
 def check_status(sub, port, service):
     while True:
@@ -154,6 +180,8 @@ if __name__ == '__main__':
         federator: 8097,
         nginz: 8080
     }
+
+    check_prerequisites(service_map)
 
     try:
         threads = []
