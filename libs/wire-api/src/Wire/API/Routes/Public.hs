@@ -238,7 +238,7 @@ instance
     HasContextEntry ctx (Maybe JWK),
     opts ~ InternalAuthDefOpts, -- oauth is never optional.
     HasServer api ctx,
-    IsOAuthScope (scope :: OAuthScope),
+    IsOAuthScopes (scope :: OAuthScope),
     ZParam ztype ~ Id a
   ) =>
   HasServer (ZAuthServant ztype opts ('Just scope) :> api) ctx
@@ -253,7 +253,7 @@ instance
       HasContextEntry ctx (Maybe JWK),
       opts ~ InternalAuthDefOpts,
       HasServer api ctx,
-      IsOAuthScope scope
+      IsOAuthScopes scope
     ) =>
     Proxy (ZAuthServant ztype opts ('Just scope) :> api) ->
     Context ctx ->
@@ -273,7 +273,7 @@ checkType' ::
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasContextEntry ctx (Maybe JWK),
     opts ~ InternalAuthDefOpts,
-    IsOAuthScope scope,
+    IsOAuthScopes scope,
     ZParam ztype ~ Id a
   ) =>
   Context ctx ->
