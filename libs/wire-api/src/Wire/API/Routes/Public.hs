@@ -281,15 +281,18 @@ checkType' ::
   Request ->
   DelayedIO (ZQualifiedParam ztype)
 checkType' ctx mTokenType req = case mTokenType of
-  -- if the token type is given, the request must have the correct Z-Type header, otherwise access is denied.
   Just t -> case lookup "Z-Type" (requestHeaders req) of
+    -- if the token type is given, the request must have the correct Z-Type header, otherwise access is denied.
     Just t' | t == t' -> case lookup headerName (requestHeaders req) of
-      -- a Z-<some_id_type> Header exists, try ZAuth or fail
+      -- a Z header (e.g. 'Z-Provider') header exists, so we try ZAuth or fail
       Just a -> zauth a
+      -- the 'Z-Type' header is correct, but no Z header exists, so access is denied.
       Nothing -> delayedFail error403
-    -- the Z-Type header is not correct, so access is denied.
+    -- the 'Z-Type' header is either not set or not correct, access is denied.
     _ -> delayedFail error403
-  -- if the token type is not given, we try to authenticate with ZAuth first, then fall back to OAuth.
+  -- if the token type is not given, we check the Z header (e.g. 'Z-User')
+  -- and if it exists we do ZAuth or fail,
+  -- or if it doesn't exist we fall back to OAuth
   Nothing -> maybe oauth zauth $ lookup headerName (requestHeaders req)
   where
     headerName :: IsString n => n
