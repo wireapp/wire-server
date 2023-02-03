@@ -129,6 +129,8 @@ releases:
         value: {{ .Values.federationDomain }}
       - name: brig.config.optSettings.setFederationDomainConfigs[0].domain
         value: {{ .Values.federationDomainFed2 }}
+    needs:
+      - '{{ .Values.namespace }}-databases-ephemeral'
 
   - name: '{{ .Values.namespace }}-wire-server-2'
     namespace: '{{ .Values.namespaceFed2 }}'
@@ -145,3 +147,5 @@ releases:
         value: {{ .Values.federationDomainFed2 }}
       - name: brig.config.optSettings.setFederationDomainConfigs[0].domain
         value: {{ .Values.federationDomain }}
+    needs:
+      - '{{ .Values.namespace }}-databases-ephemeral-2'

@@ -736,9 +736,7 @@ testCreateUserNoIdP = do
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: BrigReq -> TestSpar ()
 refreshIndex brig = do
-  call $ void $ post (brig . path "/i/index/reindex" . expect2xx)
-  -- wait for async reindexing to complete (hopefully)
-  lift $ threadDelay 3_000_000
+  call $ void $ post (brig . path "/i/index/refresh" . expect2xx)
 
 testCreateUserNoIdPNoEmail :: TestSpar ()
 testCreateUserNoIdPNoEmail = do
