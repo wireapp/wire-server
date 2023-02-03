@@ -150,7 +150,9 @@ always be globally unique.
 
 ## Can an existing user without IdP (or with a different IdP) be bound to a new IdP?
 
-TODO: yes, but you need scim!  it's documented in spar-braindump, move that content here.
+Yes, you can, by updating the user via SCIM.  (If you use SAML without
+SCIM, there is a way in theory, but there are no plans to implement
+it.)
 
 
 ## Can the SSO feature be disabled for a team?
