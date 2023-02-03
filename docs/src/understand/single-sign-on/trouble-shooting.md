@@ -73,7 +73,7 @@ arbitrary many teams, by using a different entity Id for each app/team.  This is
 currently supported out of the box.
 
 If you don't have this option, i.e. you need to serve two teams with an
-IdP that has only one entityId, please keep reading and/or contact
+IdP that has only one entity ID, please keep reading and/or contact
 customer support.
 
 ### The long answer
