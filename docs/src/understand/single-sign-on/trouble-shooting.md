@@ -18,7 +18,7 @@ In order for us to analyse and understand your problem, we need at least the fol
 - Team ID (looks like eg. `2e9a9c9c-6f83-11eb-a118-3342c6f16f4e`, can be found in the team management app)
 - User ID of the account that has the problem (alternatively: handle, email address)
 - What do you expect to happen?
-    - eg.: "I enter login code, authenticate successfully against IdP, get redirected, and see the wire landing page."
+    - e.g.: "I enter login code, authenticate successfully against IdP, get redirected, and see the wire landing page."
 - What does happen instead?
     - Screenshots
     - Copy the text into your report where applicable in addition to screenshots (for automatic processing).
