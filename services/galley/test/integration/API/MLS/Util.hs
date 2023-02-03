@@ -345,7 +345,7 @@ mlscli qcid args mbstdin = do
         gs <- getClientGroupState qcid
         fn <- toRandomFile gs
         pure (argSubst "<group-in>" fn)
-      else pure mempty
+      else pure id
 
   out <-
     liftIO $
