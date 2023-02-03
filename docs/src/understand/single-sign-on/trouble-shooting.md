@@ -22,7 +22,7 @@ In order for us to analyse and understand your problem, we need at least the fol
 - What does happen instead?
     - Screenshots
     - Copy the text into your report where applicable in addition to screenshots (for automatic processing).
-    - eg.: "instead of being logged into wire, I see the following error page: ..."
+    - e.g.: "instead of being logged into wire, I see the following error page: ..."
 - Screenshots of the Configuration (both SAML and SCIM, as applicable), including, but not limited to:
     - If you are using SAML: SAML IdP metadata file
     - If you are using SCIM for provisioning: Which attributes in the User schema are mapped?  How?
