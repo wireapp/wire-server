@@ -11,8 +11,29 @@ import yaml
 import urllib.request
 import urllib.error
 import sys
-from threading import Thread
+import threading
 import logging
+
+class WaitGroup:
+    def __init__(self):
+        self.count = 0
+        self.cv = threading.Condition()
+
+    def add(self):
+        with self.cv:
+            self.count += 1
+
+    def remove(self):
+        with self.cv:
+            self.count -= 1
+            if self.count == 0:
+                self.cv.notify_all()
+
+    def wait(self):
+        self.cv.acquire()
+        while self.count > 0:
+            self.cv.wait()
+        self.cv.release()
 
 class Colors:
     GREEN = "\x1b[38;5;10m"
@@ -59,7 +80,7 @@ class Service:
 
         return f"/proc/{os.getpid()}/fd/{r}"
 
-    def spawn(self, service_map, environment):
+    def spawn(self, service_map, environment, group):
         config_file = self.modified_config_file(service_map)
         sub = subprocess.Popen([self.path(), "-c", config_file],
                                encoding='utf-8',
@@ -67,9 +88,9 @@ class Service:
                                env=environment,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT)
-
         if self.check_status:
             check_status(sub, service_map[self], self)
+        group.remove()
         colour_output(sub, self)
 
     def check_exists(self):
@@ -86,7 +107,7 @@ class Nginz:
     @property
     def internal_name(self): return self.name
 
-    def spawn(self, service_map, environment):
+    def spawn(self, service_map, environment, group):
         cwd = os.path.join(ROOT, "services", "nginz", "integration-test")
         sub = subprocess.Popen([shutil.which("nginx"), "-p", cwd, "-c",
                                 os.path.join(cwd, "conf", "nginz","nginx.conf"),
@@ -95,6 +116,7 @@ class Nginz:
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT)
         check_status(sub, service_map[self], self)
+        group.remove()
         colour_output(sub, self)
 
     def check_exists(self):
@@ -183,13 +205,18 @@ if __name__ == '__main__':
 
     check_prerequisites(service_map)
 
+    group = WaitGroup()
     try:
         threads = []
         for service in service_map.keys():
-            t = Thread(target=lambda:
-                service.spawn(service_map, environment))
+            group.add()
+            t = threading.Thread(target=lambda:
+                service.spawn(service_map, environment, group))
             t.start()
             threads.append(t)
+
+        group.wait()
+        print("XXXXX")
 
         for thread in threads: thread.join()
     except KeyboardInterrupt:
