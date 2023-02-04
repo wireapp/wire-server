@@ -35,7 +35,9 @@
 # 1. Determine the new commit ID/SHA of the git repository that you want to pin
 # and update the 'rev' field of the pin under 'gitPins'.
 #
-# 2. Update 'sha256' field under `fetchgit` to be an empty string.
+# 2. Update 'sha256' field under `fetchgit` to be an empty string.  (This step is optional:
+# since the hash has changed, the error will be the same if you remove it or if you leave the
+# old value in place.)
 #
 # 3. Run step 3. from how to add a git pin.
 #
@@ -174,9 +176,9 @@ let
     };
     swagger2 = {
       src = fetchgit {
-        url = "https://github.com/wireapp/swagger2";
-        rev = "ba916df2775bb38ec603b726bbebfb65a908317a";
-        sha256 = "sha256-IcsrJ5ur8Zm7Xp1PQBOb+2N7T8WMI8jJ6YuDv8ypsPQ=";
+        url = "https://github.com/GetShopTV/swagger2";
+        rev = "d79deca03b714cdd4531217831a8305068b2e8f9";
+        sha256 = "sha256-R3p0L0TgM0Bspe5z6vauwdPq9TmEWpMC53DBkMtCEoE=";
       };
     };
     cql-io = {
