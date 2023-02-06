@@ -145,6 +145,9 @@ import Wire.Sem.Now (Now)
 docsAPI :: Servant.Server DocsAPI
 docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas :<|> internalEndpointsSwaggerDocsAPI
 
+-- | Serves Swagger docs for public endpoints
+--
+-- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
 versionedSwaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
@@ -165,8 +168,14 @@ versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 
+-- | Serves Swagger docs for internal endpoints
+--
+-- Dual to `versionedSwaggerDocsAPI`. Swagger docs for old versions are (almost)
+-- empty. It would have been too tedious to created them. Please add
+-- pre-generated docs on version increase as it's done in
+-- `versionedSwaggerDocsAPI`.
 internalEndpointsSwaggerDocsAPI :: Servant.Server InternalEndpointsSwaggerDocsAPI
-internalEndpointsSwaggerDocsAPI =
+internalEndpointsSwaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
     ( BrigInternalAPI.swaggerDoc
         <> CannonInternalAPI.swaggerDoc
@@ -174,6 +183,18 @@ internalEndpointsSwaggerDocsAPI =
       & S.info . S.title .~ "Wire-Server internal API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger-internal-endpoints.md")
       & cleanupSwagger
+internalEndpointsSwaggerDocsAPI (Just V0) = emptySwagger
+internalEndpointsSwaggerDocsAPI (Just V1) = emptySwagger
+internalEndpointsSwaggerDocsAPI (Just V2) = emptySwagger
+internalEndpointsSwaggerDocsAPI Nothing = internalEndpointsSwaggerDocsAPI (Just maxBound)
+
+emptySwagger :: Servant.Server VersionedSwaggerDocsAPIBase
+emptySwagger =
+  swaggerSchemaUIServer $
+    mempty @S.Swagger
+      & S.info . S.title .~ "Wire-Server internal API"
+      & S.info . S.description
+        ?~ "There is no Swagger documentation for this version. Please refer to later versions."
 
 servantSitemap ::
   forall r p.
