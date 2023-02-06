@@ -168,30 +168,26 @@ class NginzInstance(Instance):
     def __init__(self, local_port, http2_port, ssl_port):
         self.http2_port = http2_port
         self.ssl_port = ssl_port
-        self.temp_files = []
         super().__init__(NGINZ, local_port)
 
     def modified_config_file(self, service_map):
-        override = f"""
-            listen {self.port};
-            listen {self.http2_port} http2;
-            listen {self.ssl_port} ssl http2;
-            listen [::]:{self.ssl_port} ssl http2;"""
-        override_file = tempfile.NamedTemporaryFile()
-        self.temp_files.append(override_file)
-        override_file.write(override.encode('utf-8'))
-        override_file.flush()
+        # Create a whole temporary directory and copy all nginx's config files.
+        # This is necessary because nginx assumes local imports are relative to
+        # the location of the main configuration file.
+        self.tmpdir = tempfile.TemporaryDirectory()
+        shutil.copytree(os.path.dirname(self.service.config_file()),
+                        self.tmpdir.name,
+                        dirs_exist_ok=True)
 
-        config = open(self.service.config_file()).read()
-        config = re.sub(r'^include integration.default.conf;$',
-                        f"include {override_file}", 
-                        config, re.MULTILINE)
-        config_file = tempfile.NamedTemporaryFile()
-        self.temp_files.append(config_file)
-        config_file.write(config.encode('utf-8'))
-        config_file.flush()
+        with open(os.path.join(self.tmpdir.name, "integration.conf"), 'w') as f:
+            override = f"""
+                listen {self.port};
+                listen {self.http2_port} http2;
+                listen {self.ssl_port} ssl http2;
+                listen [::]:{self.ssl_port} ssl http2;"""
+            print(override, file=f)
 
-        return config_file.name
+        return os.path.join(self.tmpdir.name, "nginx.conf")
 
 def check_prerequisites(services):
     try:
@@ -351,6 +347,6 @@ if __name__ == '__main__':
     except SpawnFailException as e:
         print(f"{Colors.RED}The following services failed to start:{Colors.RESET}")
         for instance in e.failed_instances:
-            print(f"{instance.service.name} at port {instance.port}")
+            print(f"{instance.service.name} at port {instance.port} ({instance.exception})")
     finally:
         cleanup_instances(instances)
