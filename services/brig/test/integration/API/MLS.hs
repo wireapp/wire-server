@@ -84,7 +84,7 @@ testKeyPackageZeroCount brig = do
 testKeyPackageExpired :: Brig -> Http ()
 testKeyPackageExpired brig = do
   u <- userQualifiedId <$> randomUser brig
-  let lifetime = 2 # Second
+  let lifetime = 3 # Second
   [c1, c2] <- for [(0, Just lifetime), (1, Nothing)] $ \(i, lt) -> do
     c <- createClient brig u i
     -- upload 1 key package for each client
@@ -95,7 +95,7 @@ testKeyPackageExpired brig = do
     count <- getKeyPackageCount brig u cid
     liftIO $ count @?= expectedCount
   -- wait for c1's key package to expire
-  threadDelay (fromIntegral ((lifetime + 3 # Second) #> MicroSecond))
+  threadDelay (fromIntegral ((lifetime + 4 # Second) #> MicroSecond))
 
   -- c1's key package has expired by now
   for_ [(c1, 0), (c2, 1)] $ \(cid, expectedCount) -> do

@@ -87,18 +87,7 @@ self: super: {
     inherit (super) stdenv fetchurl;
   };
 
-  helm = staticBinaryInTarball {
-    pname = "helm";
-    version = "3.6.3";
-
-    darwinAmd64Url = "https://get.helm.sh/helm-v3.6.3-darwin-amd64.tar.gz";
-    darwinAmd64Sha256 = "0djjvgla8cw27h8s4y6jby19f74j58byb2vfv590cd03vlbzz8c4";
-
-    linuxAmd64Url = "https://get.helm.sh/helm-v3.6.3-linux-amd64.tar.gz";
-    linuxAmd64Sha256 = "0qp28fq137b07haz4vsdbc5biagh60dcs29jj70ksqi5k6201h87";
-
-    inherit (super) stdenv fetchurl;
-  };
+  helm = super.callPackage ./pkgs/helm {};
 
   helmfile = staticBinary {
     pname = "helmfile";

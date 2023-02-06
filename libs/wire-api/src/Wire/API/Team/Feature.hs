@@ -136,7 +136,8 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 --
 -- 5. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
 -- Galley.API.Teams.Features which defines the main business logic for getting
--- and setting (with side-effects).
+-- and setting (with side-effects). Note that we don't have to check the lockstatus inside 'setConfigForTeam'
+-- because the lockstatus is checked in 'setFeatureStatus' before which is the public API for setting the feature status.
 --
 -- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature: 'FeatureStatusGet',
 -- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
