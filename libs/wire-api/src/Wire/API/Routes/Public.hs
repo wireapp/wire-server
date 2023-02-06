@@ -225,7 +225,7 @@ instance
                 \Further reading: https://docs.wire.com/how-to/install/oauth.html"
           }
 
-      addScopeDescription :: forall scopes. (IsOAuthScopes scopes) => Swagger -> Swagger
+      addScopeDescription :: Swagger -> Swagger
       addScopeDescription = allOperations . description %~ Just . (<> "oauth scope: " <> showOAuthScopeList @scopes) . fold
 
 instance (HasSwagger api, Typeable ztype) => HasSwagger (ZAuthServant (ztype :: ZType) _opts 'Nothing :> api) where
