@@ -40,7 +40,7 @@ module Wire.API.Routes.Public
   )
 where
 
-import Control.Lens ((<>~))
+import Control.Lens hiding (Context)
 import Control.Monad.Except
 import Crypto.JWT hiding (Context, params, uri, verify)
 import Data.ByteString.Conversion (fromByteString)
@@ -213,6 +213,7 @@ instance
     toSwagger (Proxy @(ZAuthServant ztype _opts ('Nothing :: Maybe [OAuthScope]) :> api))
       & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "OAuth" secScheme)
       & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "OAuth" []]
+      & addScopeDescription @scopes
     where
       secScheme =
         SecurityScheme
@@ -221,10 +222,11 @@ instance
               Just $
                 "Must be a token retrieved with an oauth handshake. It must be presented in this \
                 \format: 'Bearer \\<token\\>'.\
-                \\nAllowed oauth scopes: "
-                  <> (showOAuthScopeList @scopes)
-                  <> "\nFurther reading: https://docs.wire.com/how-to/install/oauth.html"
+                \Further reading: https://docs.wire.com/how-to/install/oauth.html"
           }
+
+      addScopeDescription :: forall scopes. (IsOAuthScopes scopes) => Swagger -> Swagger
+      addScopeDescription = allOperations . description %~ Just . (<> "oauth scope: " <> showOAuthScopeList @scopes) . fold
 
 instance (HasSwagger api, Typeable ztype) => HasSwagger (ZAuthServant (ztype :: ZType) _opts 'Nothing :> api) where
   toSwagger _ =

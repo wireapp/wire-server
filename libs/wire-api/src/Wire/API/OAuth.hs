@@ -193,8 +193,8 @@ instance IsOAuthScopes '[] where
   allowOAuthScopeList _ = False
 
 instance (IsOAuthScope scope, IsOAuthScopes scopes) => IsOAuthScopes (scope ': scopes) where
-  showOAuthScopeList = T.unwords [cs $ show (toOAuthScope @scope), showOAuthScopeList @scopes]
-  allowOAuthScopeList scopes = ((toOAuthScope @scope) `Set.member` scopes) || (allowOAuthScopeList @scopes scopes)
+  showOAuthScopeList = T.unwords [cs $ toByteString (toOAuthScope @scope), showOAuthScopeList @scopes]
+  allowOAuthScopeList scopes = ((toOAuthScope @scope) `Set.member` scopes) || allowOAuthScopeList @scopes scopes
 
 instance ToByteString OAuthScope where
   builder = \case
