@@ -226,7 +226,7 @@ instance
           }
 
       addScopeDescription :: Swagger -> Swagger
-      addScopeDescription = allOperations . description %~ Just . (<> "oauth scope: " <> showOAuthScopeList @scopes) . fold
+      addScopeDescription = allOperations . description %~ Just . (<> "OAuth scope(s): " <> showOAuthScopeList @scopes) . fold
 
 instance (HasSwagger api, Typeable ztype) => HasSwagger (ZAuthServant (ztype :: ZType) _opts 'Nothing :> api) where
   toSwagger _ =
