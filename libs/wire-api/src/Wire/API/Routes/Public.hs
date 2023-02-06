@@ -213,7 +213,7 @@ instance
     toSwagger (Proxy @(ZAuthServant ztype _opts ('Nothing :: Maybe [OAuthScope]) :> api))
       & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "OAuth" secScheme)
       & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "OAuth" []]
-      & addScopeDescription @scopes
+      & addScopeDescription
     where
       secScheme =
         SecurityScheme
