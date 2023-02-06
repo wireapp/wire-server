@@ -112,3 +112,6 @@ result-*
 
 /integration-ca-key.pem
 /integration-ca.pem
+
+services/nginz/third_party/headers-more-nginx-module
+services/nginz/third_party/nginx-module-vts

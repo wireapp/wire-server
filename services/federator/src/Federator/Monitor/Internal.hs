@@ -139,7 +139,7 @@ delMonitor monitor = Polysemy.resourceToIOFinal
     stop (wd, _) = do
       -- ignore exceptions when removing watches
       embed . void . try @IOException $ removeWatch wd
-      Log.debug $
+      Log.trace $
         Log.msg ("stopped watching file" :: Text)
           . Log.field "descriptor" (show wd)
 
@@ -153,7 +153,7 @@ mkMonitor ::
   Sem r Monitor
 mkMonitor runSem tlsVar rs = do
   inotify <- embed initINotify
-  Log.debug $
+  Log.trace $
     Log.msg ("inotify initialized" :: Text)
       . Log.field "inotify" (show inotify)
 
@@ -244,7 +244,7 @@ addWatchedFile monitor wpath = do
   let pathText = Text.decodeUtf8With Text.lenientDecode (watchedPath wpath)
   case r of
     Right w ->
-      Log.debug $
+      Log.trace $
         Log.msg ("watching file" :: Text)
           . Log.field "descriptor" (show w)
           . Log.field "path" pathText

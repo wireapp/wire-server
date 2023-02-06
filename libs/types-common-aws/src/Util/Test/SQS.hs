@@ -53,6 +53,8 @@ data SQSWatcher a = SQSWatcher
 -- This function drops everything in the queue before starting the async loop.
 -- This helps test run faster and makes sure that initial tests don't timeout if
 -- the queue has too many things in it before the tests start.
+-- Note that the purgeQueue command is not guaranteed to be instant (can take up to 60 seconds)
+-- Hopefully, the fake-aws implementation used during tests is fast enough.
 watchSQSQueue :: Message a => AWS.Env -> Text -> IO (SQSWatcher a)
 watchSQSQueue env queueUrl = do
   eventsRef <- newIORef []
@@ -76,18 +78,7 @@ watchSQSQueue env queueUrl = do
       recieveLoop ref
 
     ensureEmpty :: IO ()
-    ensureEmpty = do
-      let rcvReq =
-            SQS.newReceiveMessage queueUrl
-              & set SQS.receiveMessage_waitTimeSeconds (Just 1)
-                . set SQS.receiveMessage_maxNumberOfMessages (Just 10) -- 10 is maximum allowed by AWS
-                . set SQS.receiveMessage_visibilityTimeout (Just 1)
-      rcvRes <- execute env $ sendEnv rcvReq
-      case fromMaybe [] $ view SQS.receiveMessageResponse_messages rcvRes of
-        [] -> pure ()
-        ms -> do
-          execute env $ mapM_ (deleteMessage queueUrl) ms
-          ensureEmpty
+    ensureEmpty = void $ execute env $ sendEnv (SQS.newPurgeQueue queueUrl)
 
 -- | Waits for a message matching a predicate for a given number of seconds.
 waitForMessage :: (MonadUnliftIO m, Eq a) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
