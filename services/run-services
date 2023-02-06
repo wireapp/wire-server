@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import os
 import re
 import select
@@ -16,6 +16,10 @@ import tempfile
 import time
 import threading
 import logging
+
+@dataclass
+class SpawnFailException(Exception):
+    failed_instances: object
 
 class Colors:
     GREEN = "\x1b[38;5;10m"
@@ -49,7 +53,6 @@ class Service:
 
 
     def spawn(self, config_file, environment):
-        print('spawn', self.name, config_file)
         return subprocess.Popen([self.path(), "-c", config_file],
                                encoding='utf-8',
                                cwd=os.path.join(ROOT, "services", self.name),
@@ -80,7 +83,6 @@ class Nginz:
 
     def spawn(self, config_file, environment):
         cwd = os.path.join(ROOT, "services", "nginz", "integration-test")
-        print(cwd)
         return subprocess.Popen([shutil.which("nginx"), "-p", cwd, "-c",
                                 config_file,
                                 "-g", "daemon off;"],
@@ -98,6 +100,7 @@ class Instance:
     port: int
     thread: threading.Thread = None
     process: subprocess.Popen = None
+    exception: Exception = None
 
     def check_status(self):
         self.process.poll()
@@ -112,11 +115,14 @@ class Instance:
             return False
 
     def spawn(self, service_map, environment):
-        config_file = self.modified_config_file(service_map)
-        sub = self.service.spawn(config_file, environment)
-        t = threading.Thread(target=lambda: color_output(sub, self.service))
-        t.start()
-        return Instance(self.service, self.port, t, sub)
+        try:
+            config_file = self.modified_config_file(service_map)
+            sub = self.service.spawn(config_file, environment)
+            t = threading.Thread(target=lambda: color_output(sub, self.service))
+            t.start()
+            return Instance(self.service, self.port, t, sub)
+        except Exception as e:
+            return Instance(self.service, self.port, exception=e)
 
     def modified_config_file(self, service_map):
         """Overwrite port configuration on this service using the provided
@@ -226,6 +232,59 @@ def make_pipe(data):
     os.close(w)
     return f"/proc/{os.getpid()}/fd/{r}"
 
+def cleanup_instances(instances):
+    for instance in instances:
+        if instance.process is None: continue
+        instance.process.terminate()
+
+    for instance in instances:
+        if instance.thread is None: continue
+        instance.thread.join(timeout=0.1)
+        # some services don't react promptly to SIGTERM, so we give them a
+        # nudge if they don't terminate within a few milliseconds
+        if instance.thread.is_alive():
+            instance.process.terminate()
+            instance.thread.join(timeout=0.1)
+        if instance.thread.is_alive():
+            print("force-killing", instance.service.name)
+            instance.process.send_signal(signal.SIGKILl)
+            instance.thread.join()
+
+def start_backend(services):
+    # build a service map by choosing an arbitrary instance of each service
+    service_map = dict((s.service, s.port) for s in services)
+
+    instances = set()
+    for blueprint in services:
+        instances.add(blueprint.spawn(service_map, environment))
+
+    failed_instances = [instance for instance in instances
+                        if instance.exception is not None]
+    to_be_checked = set(instance for instance in instances
+                        if instance.exception is None)
+
+    # check status
+    # TODO: global timeout
+    while to_be_checked:
+        instance = next(iter(to_be_checked))
+        try:
+            done = instance.check_status()
+        except Exception as e:
+            failed_instances.append(replace(instance, exception=e))
+            done = True
+
+        if done:
+            to_be_checked.remove(instance)
+        else:
+            time.sleep(0.1)
+
+    if failed_instances:
+
+        cleanup_instances(instances)
+        raise SpawnFailException(failed_instances)
+
+    return instances
+
 BRIG = Service("brig", Colors.GREEN)
 GALLEY = Service("galley", Colors.YELLOW)
 GUNDECK = Service("gundeck", Colors.BLUE)
@@ -236,28 +295,6 @@ FEDERATOR = Service("federator", Colors.BLUE,
                     "federatorInternal", check_status=False)
 STERN = Service("stern", Colors.YELLOW)
 NGINZ = Nginz(Colors.PURPLEISH)
-
-def start_backend(services):
-    # build a service map by choosing an arbitrary instance of each service
-    service_map = dict((s.service, s.port) for s in services)
-
-    instances = set()
-    for blueprint in services:
-        instances.add(blueprint.spawn(service_map, environment))
-
-    # check status
-    # TODO: global timeout
-    to_be_checked = set(instances)
-    while to_be_checked:
-        instance = next(iter(to_be_checked))
-        print("checking status", instance.service.name)
-        if instance.check_status():
-            to_be_checked.remove(instance)
-        else:
-            time.sleep(0.1)
-
-    print("---- backend started ----")
-    return instances
 
 if __name__ == '__main__':
     logging.basicConfig(encoding='utf-8', level=logging.INFO,
@@ -311,18 +348,9 @@ if __name__ == '__main__':
         sys.exit(ret.returncode)
     except KeyboardInterrupt:
         pass
+    except SpawnFailException as e:
+        print(f"{Colors.RED}The following services failed to start:{Colors.RESET}")
+        for instance in e.failed_instances:
+            print(f"{instance.service.name} at port {instance.port}")
     finally:
-        for instance in instances:
-            instance.process.terminate()
-
-        for instance in instances:
-            instance.thread.join(timeout=0.1)
-            # some services don't react promptly to SIGTERM, so we give them a
-            # nudge if they don't terminate within a few milliseconds
-            if instance.thread.is_alive():
-                instance.process.terminate()
-                instance.thread.join(timeout=0.1)
-            if instance.thread.is_alive():
-                print("force-killing", instance.service.name)
-                instance.process.send_signal(signal.SIGKILl)
-                instance.thread.join()
+        cleanup_instances(instances)
