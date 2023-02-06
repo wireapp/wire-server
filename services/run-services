@@ -114,11 +114,11 @@ class Instance:
         except urllib.error.URLError:
             return False
 
-    def spawn(self, service_map, environment, keyspace, domain):
+    def spawn(self, service_map, environment, keyspace, domain, backend_name):
         try:
             config_file = self.modified_config_file(service_map, keyspace, domain)
             sub = self.service.spawn(config_file, environment)
-            t = threading.Thread(target=lambda: color_output(sub, self.service))
+            t = threading.Thread(target=lambda: color_output(sub, self.service, backend_name))
             t.start()
             return Instance(self.service, self.port, t, sub)
         except Exception as e:
@@ -166,6 +166,16 @@ class Instance:
         if 'saml' in data:
             data['saml']['spPort'] = self.port
 
+class DummyInstance(Instance):
+    def spawn(self, service_map, environment, keyspace, domain, backend_name):
+        return self
+
+    def modified_config_file(self, service_map, keyspace, domain):
+        return ""
+
+    def check_status(self):
+        return True
+
 class FederatorInstance(Instance):
     def __init__(self, internal_port, external_port):
         self.external_port = external_port
@@ -177,9 +187,10 @@ class FederatorInstance(Instance):
         data['federatorExternal']['port'] = self.external_port
 
 class NginzInstance(Instance):
-    def __init__(self, local_port, http2_port, ssl_port):
+    def __init__(self, local_port, http2_port, ssl_port, fed_port):
         self.http2_port = http2_port
         self.ssl_port = ssl_port
+        self.fed_port = fed_port
         super().__init__(NGINZ, local_port)
 
     def modified_config_file(self, service_map, keyspace, domain):
@@ -199,6 +210,18 @@ class NginzInstance(Instance):
                 listen {self.ssl_port} ssl http2;
                 listen [::]:{self.ssl_port} ssl http2;"""
             print(override, file=f)
+
+        # override upstreams
+        with open(os.path.join(self.tmpdir.name, "upstreams"), 'w') as f:
+            for service, port in service_map.items():
+                print(f"upstream {service.internal_name} {{", file=f)
+                print(f"  least_conn;", file=f)
+                print(f"  keepalive 32;", file=f)
+                print(f"  server 127.0.0.1:{port} max_fails=3 weight=1;", file=f)
+                print("}", file=f)
+            print("upstream federator_external {", file=f)
+            print(f"  server 127.0.0.1:{self.fed_port} max_fails=3 weight=1;", file=f)
+            print("}", file=f)
 
         # override pid configuration
         with open(os.path.join(self.tmpdir.name, "pid.conf"), 'w') as f:
@@ -223,11 +246,13 @@ def check_prerequisites(services):
         logging.error(Colors.RED + str(e) + Colors.RESET)
         sys.exit(1)
 
-def color_output(sub, service):
+def color_output(sub, service, backend_name):
+    if backend_name is not None:
+        backend_name = "@" + backend_name
     # TODO: add backend name to the output
     try:
         for line in sub.stdout:
-            logging.info(f"{service.color}[{service.name}] {line.rstrip()}{Colors.RESET}")
+            logging.info(f"{service.color}[{service.name}{backend_name}] {line.rstrip()}{Colors.RESET}")
     finally:
         sub.terminate()
         sub.wait()
@@ -265,13 +290,13 @@ def cleanup_instances(instances):
             instance.process.send_signal(signal.SIGKILl)
             instance.thread.join()
 
-def start_backend(services, keyspace, domain):
+def start_backend(services, keyspace, domain, backend_name):
     # build a service map by choosing an arbitrary instance of each service
     service_map = dict((s.service, s.port) for s in services)
 
     instances = set()
     for blueprint in services:
-        instances.add(blueprint.spawn(service_map, environment, keyspace, domain))
+        instances.add(blueprint.spawn(service_map, environment, keyspace, domain, backend_name))
 
     failed_instances = [instance for instance in instances
                         if instance.exception is not None]
@@ -309,6 +334,7 @@ SPAR = Service("spar", Colors.ORANGE)
 FEDERATOR = Service("federator", Colors.BLUE,
                     "federatorInternal", check_status=False)
 STERN = Service("stern", Colors.YELLOW)
+PROXY = Service("proxy", Colors.RED)
 NGINZ = Nginz(Colors.PURPLEISH)
 
 if __name__ == '__main__':
@@ -332,11 +358,13 @@ if __name__ == '__main__':
         Instance(CANNON, 8183),
         Instance(CARGOHOLD, 8084),
         Instance(SPAR, 8088),
+        DummyInstance(PROXY, 8087),
         FederatorInstance(8097, 8098),
         NginzInstance(
             local_port=8080,
             http2_port=8090,
-            ssl_port=8443)
+            ssl_port=8443,
+            fed_port=8098)
     ]
 
     backend_b = [
@@ -347,19 +375,21 @@ if __name__ == '__main__':
         Instance(CANNON, 9183),
         Instance(CARGOHOLD, 9084),
         Instance(SPAR, 9088),
+        DummyInstance(PROXY, 9087),
         FederatorInstance(9097, 9098),
         NginzInstance(
             local_port=9080,
             http2_port=9090,
-            ssl_port=9443)
+            ssl_port=9443,
+            fed_port=9098)
     ]
 
     check_prerequisites(set(s.service for s in backend_a))
 
     try:
         instances = set()
-        instances |= start_backend(backend_a, "test", "example.com")
-        instances |= start_backend(backend_b, "test2", "b.example.com")
+        instances |= start_backend(backend_a, "test", "example.com", "A")
+        instances |= start_backend(backend_b, "test2", "b.example.com", "B")
 
         # main script
         ret = subprocess.run(sys.argv[1:])
