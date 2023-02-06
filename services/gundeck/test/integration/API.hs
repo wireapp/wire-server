@@ -116,9 +116,10 @@ tests s =
         ],
       testGroup
         "Websocket pingpong"
-        [ test s "pings produce pongs" testPingPong,
-          test s "pings with payload produce pongs with the same payload" testPingPongWithData,
-          test s "non-pings are ignored" testNoPingNoPong
+        [ test s "data-level pings produce pongs" testPingPong,
+          test s "control pings with payload produce pongs with the same payload" testControlPingPongWithData,
+          test s "data pings with payload produce pongs with the same payload" testPingPongWithData,
+          test s "data non-pings are ignored" testNoPingNoPong
         ],
       testGroup
         "Redis migration"
@@ -853,6 +854,37 @@ testPingPong = do
     msg <- waitForMessage chread
     assertBool "no pong" $ msg == Just "pong"
 
+testControlPingPongWithData :: TestM ()
+testControlPingPongWithData = do
+  ca <- view tsCannon
+  logger <- view tsLogger
+  uid :: UserId <- randomId
+  connid :: ConnId <- randomConnId
+  [(_, [(chread, chPingWrite)] :: [(TChan WS.Message, TChan ByteString)])] <-
+    connectUsersAndDevicesWithSendingClientsRaw ca [(uid, [connid])]
+  liftIO $ do
+    let pingPayload = "pi 3e4ac0590d55a24af7298b po"
+    atomically $ writeTChan chPingWrite pingPayload
+    msg <- waitForMessageRaw chread
+    putStrLn "A-----------"
+    Log.err logger $ Log.msg (show msg)
+    print msg
+    putStrLn "B-----------"
+    msg2 <- waitForMessageRaw chread
+    putStrLn "C-----------"
+    Log.err logger $ Log.msg (show msg2)
+    print msg2
+    putStrLn "D-----------"
+    msg3 <- waitForMessageRaw chread
+    putStrLn "E-----------"
+    Log.err logger $ Log.msg (show msg3)
+    print msg3
+    putStrLn "F-----------"
+    let expected = Just (WS.ControlMessage $ WS.Pong $ fromStrict pingPayload)
+    putStrLn $ "Expected-----------" <> show expected
+    putStrLn $ "actual  -----------" <> show msg2
+    assertBool "no pong with the same payload" $ msg2 == expected
+
 testPingPongWithData :: TestM ()
 testPingPongWithData = do
   ca <- view tsCannon
@@ -1021,6 +1053,22 @@ connectUsersAndDevicesWithSendingClients ca uidsAndConnIds = do
   (\(uid, conns) -> wsAssertPresences uid (length conns)) `mapM_` uidsAndConnIds
   pure chs
 
+connectUsersAndDevicesWithSendingClientsRaw ::
+  HasCallStack =>
+  CannonR ->
+  [(UserId, [ConnId])] ->
+  TestM [(UserId, [(TChan WS.Message, TChan ByteString)])]
+connectUsersAndDevicesWithSendingClientsRaw ca uidsAndConnIds = do
+  chs <- forM uidsAndConnIds $ \(uid, conns) ->
+    (uid,) <$> do
+      forM conns $ \conn -> do
+        chread <- liftIO $ atomically newTChan
+        chwrite <- liftIO $ atomically newTChan
+        _ <- wsRun ca uid conn (wsReaderWriterPing chread chwrite)
+        pure (chread, chwrite)
+  (\(uid, conns) -> wsAssertPresences uid (length conns)) `mapM_` uidsAndConnIds
+  pure chs
+
 -- | Sort 'PushToken's based on the actual 'token' values.
 sortPushTokens :: [PushToken] -> [PushToken]
 sortPushTokens = sortBy (compare `on` view token)
@@ -1051,6 +1099,12 @@ wsReaderWriter chread chwrite conn =
     (forever $ WS.receiveData conn >>= atomically . writeTChan chread)
     (forever $ WS.sendTextData conn =<< atomically (readTChan chwrite))
 
+wsReaderWriterPing :: TChan WS.Message -> TChan ByteString -> WS.ClientApp ()
+wsReaderWriterPing chread chwrite conn =
+  concurrently_
+    (forever $ WS.receive conn >>= atomically . writeTChan chread)
+    (forever $ WS.sendPing conn =<< atomically (readTChan chwrite))
+
 retryWhile :: (MonadIO m) => (a -> Bool) -> m a -> m a
 retryWhile = retryWhileN 10
 
@@ -1061,10 +1115,13 @@ retryWhileN n f m =
     (const (pure . f))
     (const m)
 
-waitForMessage :: TChan ByteString -> IO (Maybe ByteString)
+waitForMessageRaw :: TChan WS.Message -> IO (Maybe WS.Message)
+waitForMessageRaw = System.Timeout.timeout 1000000 . liftIO . atomically . readTChan
+
+waitForMessage :: ToByteString a => TChan a -> IO (Maybe a)
 waitForMessage = waitForMessage' 1000000
 
-waitForMessage' :: Int -> TChan ByteString -> IO (Maybe ByteString)
+waitForMessage' :: ToByteString a => Int -> TChan a -> IO (Maybe a)
 waitForMessage' musecs = System.Timeout.timeout musecs . liftIO . atomically . readTChan
 
 unregisterClient :: GundeckR -> UserId -> ClientId -> TestM (Response (Maybe BL.ByteString))

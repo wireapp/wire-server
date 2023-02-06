@@ -141,7 +141,7 @@ readLoop ws s = do
         ControlMessage (Ping p) -> do
           adjustPingFreq p
           reset counter s 0
-          Log.debug l $ Log.msg $ Log.val "control level ping received"
+          Log.debug l $ Log.msg (Log.val "control level ping received") . Log.field "incoming ping" p . Log.field "outgoing answer" (show $ pong p)
           send (connection ws) (pong p)
           loop l
         ControlMessage (Close _ _) -> pure ()
