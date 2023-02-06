@@ -220,10 +220,9 @@ instance
               Just $
                 "Must be a token retrieved with an oauth handshake. It must be presented in this \
                 \format: 'Bearer \\<token\\>'.\
-                \\
-                \Allowed oauth scopes: "
+                \\nAllowed oauth scopes: "
                   <> (showOAuthScopeList @scopes)
-                  <> "\nfurther reading: https://docs.wire.com/how-to/install/oauth.html"
+                  <> "\nFurther reading: https://docs.wire.com/how-to/install/oauth.html"
           }
 
 instance (HasSwagger api, Typeable ztype) => HasSwagger (ZAuthServant (ztype :: ZType) _opts 'Nothing :> api) where
@@ -239,9 +238,9 @@ instance (HasSwagger api, Typeable ztype) => HasSwagger (ZAuthServant (ztype :: 
               Just $
                 "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be \
                 \presented in this format: 'Bearer \\<token\\>'.\
-                \\
-                \Expected token type: "
+                \\nExpected token type: "
                   <> (cs . show . typeRep $ (Proxy @ztype))
+                  <> "\nFurther reading: https://github.com/wireapp/wire-server/blob/develop/libs/wire-api/src/Wire/API/Routes/Public.hs (search for HasSwagger instances)"
           }
 
 instance HasLink endpoint => HasLink (ZAuthServant usr opts scopes :> endpoint) where
