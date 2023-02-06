@@ -29,6 +29,7 @@ import Control.Monad.Catch
 import Data.Aeson hiding (Error, Key, (.=))
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
+import qualified Data.ByteString.Lazy as BL
 import Data.Id (ClientId)
 import qualified Data.Text.Lazy as Text
 import Data.Timeout
@@ -37,8 +38,8 @@ import Lens.Family hiding (reset, set)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
-import System.Logger.Class hiding (Error, close)
 import qualified System.Logger as Log
+import System.Logger.Class hiding (Error, close)
 import qualified System.Logger.Class as Logger
 import System.Logger.Extended (structuredJSONRenderer)
 
@@ -147,11 +148,12 @@ readLoop ws s = do
         ControlMessage (Close _ _) -> pure ()
         perhapsPingMsg -> do
           reset counter s 0
-          if isAppLevelPing perhapsPingMsg then do
-            Log.debug l $ Log.msg $ Log.val "application level ping received"
-            sendAppLevelPong
-          else
-            Log.debug l $ Log.msg $ Log.val "application level *something* received"
+          case isAppLevelPing perhapsPingMsg of
+            Just payload -> do
+              Log.debug l $ Log.msg $ Log.val "application level ping received"
+              sendAppLevelPong payload
+            Nothing ->
+              Log.debug l $ Log.msg $ Log.val "application level *something* received"
           loop l
     adjustPingFreq p = case fromByteString (toStrict p) of
       Just i | i > 0 && i < maxPingInterval -> reset pingFreq s (i # Second)
@@ -161,13 +163,12 @@ readLoop ws s = do
     -- since the browser may silently lose a websocket connection, wire clients are allowed send
     -- 'DataMessage' pings as well, and we respond with a 'DataMessage' pong to allow them to
     -- reliably decide whether the connection is still alive.
+    -- in https://github.com/wireapp/wire-server/pull/561 in 2019, data-level ping-pongs were introduced.
     isAppLevelPing = \case
-      (DataMessage _ _ _ (Text "ping" _)) -> True
-      (DataMessage _ _ _ (Binary "ping")) -> True
-      -- TODO respond to app-level pings that have a payload?
-      -- TODO: extend tests to see how control messages operate
-      _ -> False
-    sendAppLevelPong = sendMsgIO @ByteString "pong" ws
+      (DataMessage _ _ _ (Text payload _)) -> BL.stripPrefix "ping" payload
+      (DataMessage _ _ _ (Binary payload)) -> BL.stripPrefix "ping" payload
+      _ -> Nothing
+    sendAppLevelPong p = sendMsgIO @ByteString ("pong" <> toStrict p) ws
 
 rejectOnError :: PendingConnection -> HandshakeException -> IO a
 rejectOnError p x = do

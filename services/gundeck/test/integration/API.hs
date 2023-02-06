@@ -116,7 +116,7 @@ tests s =
         ],
       testGroup
         "Websocket pingpong"
-        [ test s "data-level pings produce pongs" testPingPong,
+        [ test s "data-level pings produce pongs" testDataPingPong,
           test s "control pings with payload produce pongs with the same payload" testControlPingPongWithData,
           test s "data pings with payload produce pongs with the same payload" testPingPongWithData,
           test s "data non-pings are ignored" testNoPingNoPong
@@ -842,8 +842,8 @@ testUnregisterPushToken = do
   void $ retryWhileN 12 (not . null) (listPushTokens uid)
   unregisterPushToken uid (tkn ^. token) !!! const 404 === statusCode
 
-testPingPong :: TestM ()
-testPingPong = do
+testDataPingPong :: TestM ()
+testDataPingPong = do
   ca <- view tsCannon
   uid :: UserId <- randomId
   connid :: ConnId <- randomConnId
@@ -894,9 +894,10 @@ testPingPongWithData = do
     connectUsersAndDevicesWithSendingClients ca [(uid, [connid])]
   liftIO $ do
     let pingPayload = "ping 3e4ac0590d55a24af7298b ping"
+    let pongPayload = "pong 3e4ac0590d55a24af7298b ping"
     atomically $ writeTChan chwrite pingPayload
     msg <- waitForMessage chread
-    assertBool "no pong with the same payload" $ msg == Just pingPayload
+    assertBool "no pong with the same payload" $ msg == Just pongPayload
 
 testNoPingNoPong :: TestM ()
 testNoPingNoPong = do
