@@ -114,9 +114,9 @@ class Instance:
         except urllib.error.URLError:
             return False
 
-    def spawn(self, service_map, environment):
+    def spawn(self, service_map, environment, keyspace, domain):
         try:
-            config_file = self.modified_config_file(service_map)
+            config_file = self.modified_config_file(service_map, keyspace, domain)
             sub = self.service.spawn(config_file, environment)
             t = threading.Thread(target=lambda: color_output(sub, self.service))
             t.start()
@@ -124,7 +124,7 @@ class Instance:
         except Exception as e:
             return Instance(self.service, self.port, exception=e)
 
-    def modified_config_file(self, service_map):
+    def modified_config_file(self, service_map, keyspace, domain):
         """Overwrite port configuration on this service using the provided
         service_map.
 
@@ -141,9 +141,21 @@ class Instance:
         with open(self.service.config_file()) as f:
             data = yaml.safe_load(f)
 
+        # set ports of other services
         for service in service_map:
             if service.internal_name in data:
                 data[service.internal_name]['port'] = get_port(service)
+
+        # set cassandra keyspace
+        if 'cassandra' in data:
+            data['cassandra']['keyspace'] = f"{self.service.name}_{keyspace}"
+
+        # set federation domain
+        if 'optSettings' in data:
+            data['optSettings']['setFederationDomain'] = domain
+        elif 'settings' in data:
+            data['settings']['federationDomain'] = domain
+
         self.set_own_port(data)
 
         # write modified config file to pipe
@@ -170,7 +182,7 @@ class NginzInstance(Instance):
         self.ssl_port = ssl_port
         super().__init__(NGINZ, local_port)
 
-    def modified_config_file(self, service_map):
+    def modified_config_file(self, service_map, keyspace, domain):
         # Create a whole temporary directory and copy all nginx's config files.
         # This is necessary because nginx assumes local imports are relative to
         # the location of the main configuration file.
@@ -179,6 +191,7 @@ class NginzInstance(Instance):
                         self.tmpdir.name,
                         dirs_exist_ok=True)
 
+        # override port configuration
         with open(os.path.join(self.tmpdir.name, "integration.conf"), 'w') as f:
             override = f"""
                 listen {self.port};
@@ -186,6 +199,11 @@ class NginzInstance(Instance):
                 listen {self.ssl_port} ssl http2;
                 listen [::]:{self.ssl_port} ssl http2;"""
             print(override, file=f)
+
+        # override pid configuration
+        with open(os.path.join(self.tmpdir.name, "pid.conf"), 'w') as f:
+            pid = os.path.join(self.tmpdir.name, "nginz.pid")
+            print(f"pid {pid};", file=f)
 
         return os.path.join(self.tmpdir.name, "nginx.conf")
 
@@ -206,6 +224,7 @@ def check_prerequisites(services):
         sys.exit(1)
 
 def color_output(sub, service):
+    # TODO: add backend name to the output
     try:
         for line in sub.stdout:
             logging.info(f"{service.color}[{service.name}] {line.rstrip()}{Colors.RESET}")
@@ -246,13 +265,13 @@ def cleanup_instances(instances):
             instance.process.send_signal(signal.SIGKILl)
             instance.thread.join()
 
-def start_backend(services):
+def start_backend(services, keyspace, domain):
     # build a service map by choosing an arbitrary instance of each service
     service_map = dict((s.service, s.port) for s in services)
 
     instances = set()
     for blueprint in services:
-        instances.add(blueprint.spawn(service_map, environment))
+        instances.add(blueprint.spawn(service_map, environment, keyspace, domain))
 
     failed_instances = [instance for instance in instances
                         if instance.exception is not None]
@@ -305,18 +324,6 @@ if __name__ == '__main__':
         'AWS_SECRET_ACCESS_KEY': "dummysecret"
     }
 
-    # backend_a = [
-    #     Instance(BRIG, 8282),
-    #     Instance(GALLEY, 8285),
-    #     Instance(GUNDECK, 8286),
-    #     Instance(CANNON, 8283),
-    #     Instance(CANNON, 8383),
-    #     Instance(CARGOHOLD, 8284),
-    #     Instance(SPAR, 8288),
-    #     FederatorInstance(8297, 8298),
-    #     NginzInstance(8080)
-    # ]
-
     backend_a = [
         Instance(BRIG, 8082),
         Instance(GALLEY, 8085),
@@ -332,12 +339,27 @@ if __name__ == '__main__':
             ssl_port=8443)
     ]
 
+    backend_b = [
+        Instance(BRIG, 9082),
+        Instance(GALLEY, 9085),
+        Instance(GUNDECK, 9086),
+        Instance(CANNON, 9083),
+        Instance(CANNON, 9183),
+        Instance(CARGOHOLD, 9084),
+        Instance(SPAR, 9088),
+        FederatorInstance(9097, 9098),
+        NginzInstance(
+            local_port=9080,
+            http2_port=9090,
+            ssl_port=9443)
+    ]
+
     check_prerequisites(set(s.service for s in backend_a))
 
     try:
         instances = set()
-        instances |= start_backend(backend_a)
-        # instances |= start_backend(backend_b)
+        instances |= start_backend(backend_a, "test", "example.com")
+        instances |= start_backend(backend_b, "test2", "b.example.com")
 
         # main script
         ret = subprocess.run(sys.argv[1:])

@@ -183,14 +183,14 @@ testGetUsersById brig1 brig2 = do
 
 testClaimPrekeySuccess :: Brig -> Brig -> Http ()
 testClaimPrekeySuccess brig1 brig2 = do
-  self <- randomUser brig1
-  user <- randomUser brig2
+  self <- randomUser brig2
+  user <- randomUser brig1
   let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
-  c <- responseJsonError =<< addClient brig2 (userId user) new
+  c <- responseJsonError =<< addClient brig1 (userId user) new
   let cpk = ClientPrekey (clientId c) (Imports.head somePrekeys)
   let quser = userQualifiedId user
   get
-    ( brig1
+    ( brig2
         . zUser (userId self)
         . paths
           [ "users",
