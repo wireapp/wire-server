@@ -181,6 +181,21 @@ instance IsOAuthScope 'ConversationCodeCreate where
 instance IsOAuthScope 'SelfRead where
   toOAuthScope = SelfRead
 
+-- | Given a type-level list of scopes X, this class gives you a function that tests if
+-- a list of scopes from a token intersects with X, ie., if a token grants access to the route
+-- with scopes X.
+class IsOAuthScopes scopes where
+  showOAuthScopeList :: Text
+  allowOAuthScopeList :: Set.Set OAuthScope -> Bool
+
+instance IsOAuthScopes '[] where
+  showOAuthScopeList = mempty
+  allowOAuthScopeList _ = False
+
+instance (IsOAuthScope scope, IsOAuthScopes scopes) => IsOAuthScopes (scope ': scopes) where
+  showOAuthScopeList = T.unwords [cs $ show (toOAuthScope @scope), showOAuthScopeList @scopes]
+  allowOAuthScopeList scopes = ((toOAuthScope @scope) `Set.member` scopes) || (allowOAuthScopeList @scopes scopes)
+
 instance ToByteString OAuthScope where
   builder = \case
     ConversationCreate -> "conversation:create"
@@ -426,8 +441,8 @@ hcsSub =
     >=> preview string
     >=> either (const Nothing) pure . parseIdFromText
 
-hasScope :: forall scope. IsOAuthScope scope => OAuthClaimsSet -> Bool
-hasScope claims = (toOAuthScope @scope) `Set.member` unOAuthScopes (scope claims)
+hasScope :: forall scopes. IsOAuthScopes scopes => OAuthClaimsSet -> Bool
+hasScope = allowOAuthScopeList @scopes . unOAuthScopes . scope
 
 -- | Verify a JWT and return the claims set. Use this function if you have a custom claims set.
 verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimsSet)

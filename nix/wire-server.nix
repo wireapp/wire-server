@@ -298,6 +298,8 @@ let
     pkgs.cabal2nix
     pkgs.gnumake
     pkgs.gnused
+    pkgs.parallel
+    pkgs.ripgrep
     pkgs.helm
     pkgs.helmfile
     pkgs.hlint
@@ -308,6 +310,8 @@ let
     pkgs.ormolu
     pkgs.shellcheck
     pkgs.treefmt
+    pkgs.gawk
+    pkgs.cfssl
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
@@ -365,7 +369,6 @@ in
     paths = commonTools ++ [
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
       pkgs.ghcid
-      pkgs.cfssl
       pkgs.kind
       pkgs.netcat
       pkgs.niv
