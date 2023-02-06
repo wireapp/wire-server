@@ -281,17 +281,14 @@ instance
     Servant.route
       (Proxy @api)
       ctx
-      (addAuthCheck subserver (withRequest (fmap (qualifyZParam @ztype ctx) . checkType' @ztype @scopes @ctx @opts ctx (tokenType @ztype))))
+      (addAuthCheck subserver (withRequest (fmap (qualifyZParam @ztype ctx) . checkType' @ztype @scopes @ctx ctx (tokenType @ztype))))
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 checkType' ::
-  forall ztype scopes ctx opts a.
+  forall ztype scopes ctx a.
   ( IsZType ztype ctx,
-    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasContextEntry ctx (Maybe JWK),
-    SBoolI (FoldLenient opts),
-    SBoolI (FoldRequired opts),
     IsOAuthScopes scopes,
     ZParam ztype ~ Id a
   ) =>
