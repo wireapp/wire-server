@@ -252,7 +252,8 @@ instance
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasContextEntry ctx (Maybe JWK),
-    opts ~ InternalAuthDefOpts, -- oauth is never optional.
+    SBoolI (FoldLenient opts),
+    SBoolI (FoldRequired opts),
     HasServer api ctx,
     IsOAuthScopes (scopes :: [OAuthScope]),
     ZParam ztype ~ Id a
@@ -267,7 +268,8 @@ instance
     ( IsZType ztype ctx,
       HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
       HasContextEntry ctx (Maybe JWK),
-      opts ~ InternalAuthDefOpts,
+      SBoolI (FoldLenient opts),
+      SBoolI (FoldRequired opts),
       HasServer api ctx,
       IsOAuthScopes scopes
     ) =>
@@ -279,7 +281,7 @@ instance
     Servant.route
       (Proxy @api)
       ctx
-      (addAuthCheck subserver (withRequest (fmap (qualifyZParam @ztype ctx) . checkType' @ztype @scopes @ctx ctx (tokenType @ztype))))
+      (addAuthCheck subserver (withRequest (fmap (qualifyZParam @ztype ctx) . checkType' @ztype @scopes @ctx @opts ctx (tokenType @ztype))))
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
@@ -288,7 +290,8 @@ checkType' ::
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasContextEntry ctx (Maybe JWK),
-    opts ~ InternalAuthDefOpts,
+    SBoolI (FoldLenient opts),
+    SBoolI (FoldRequired opts),
     IsOAuthScopes scopes,
     ZParam ztype ~ Id a
   ) =>
