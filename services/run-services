@@ -37,6 +37,7 @@ class Service:
     _internal_name: str = None
     check_status: bool = True
     level: str = None
+    config: str = None
 
     def with_level(self, level=None):
         if level is None:
@@ -54,8 +55,12 @@ class Service:
         return os.path.join(ROOT, "dist", self.name)
 
     def config_file(self):
+        if self.config is None:
+            base = self.name
+        else:
+            base = self.config
         return os.path.join(ROOT, "services", self.name,
-                            self.name + ".integration.yaml")
+                            base + ".integration.yaml")
 
 
     def spawn(self, config_file, environment):
@@ -313,26 +318,40 @@ def start_backend(services, keyspace, domain, backend_name):
 
     failed_instances = [instance for instance in instances
                         if instance.exception is not None]
-    to_be_checked = set(instance for instance in instances
-                        if instance.exception is None)
 
-    # check status
-    # TODO: global timeout
+    # set up a timeout for checking instances
+    timeout = threading.Condition()
+    checking = True
+    def check_timeout():
+        nonlocal checking
+        time.sleep(5)
+        with timeout:
+            checking = False
+            timeout.notify()
+    threading.Thread(target=check_timeout).start()
+
+    # check instances
+    to_be_checked = [instance for instance in instances
+                     if instance.exception is None]
     while to_be_checked:
-        instance = next(iter(to_be_checked))
-        try:
-            done = instance.check_status()
-        except Exception as e:
-            failed_instances.append(replace(instance, exception=e))
-            done = True
+        with timeout:
+            if not checking:
+                print(f"{Colors.RED}Timeout while spawing services{Colors.RESET}")
+                failed_instances.extend(to_be_checked)
+                break
 
-        if done:
-            to_be_checked.remove(instance)
-        else:
-            time.sleep(0.1)
+        to_be_checked_again = set()
+        for instance in to_be_checked:
+            try:
+                if not instance.check_status():
+                    to_be_checked_again.add(instance)
+            except Exception as e:
+                failed_instances.append(replace(instance, exception=e))
+
+        to_be_checked = to_be_checked_again
+        time.sleep(0.5)
 
     if failed_instances:
-
         cleanup_instances(instances)
         raise SpawnFailException(failed_instances)
 
@@ -370,7 +389,7 @@ if __name__ == '__main__':
         Instance(GALLEY, 8085),
         Instance(GUNDECK, 8086),
         Instance(CANNON, 8083),
-        Instance(CANNON, 8183), # use the other configuration file for this
+        # TODO: add a second cannon instance using the other configuration file
         Instance(CARGOHOLD, 8084),
         Instance(SPAR, 8088),
         DummyInstance(PROXY, 8087),
@@ -387,7 +406,6 @@ if __name__ == '__main__':
         Instance(GALLEY, 9085),
         Instance(GUNDECK, 9086),
         Instance(CANNON, 9083),
-        Instance(CANNON, 9183),
         Instance(CARGOHOLD, 9084),
         Instance(SPAR, 9088),
         DummyInstance(PROXY, 9087),
@@ -416,6 +434,7 @@ if __name__ == '__main__':
     except SpawnFailException as e:
         print(f"{Colors.RED}The following services failed to start:{Colors.RESET}")
         for instance in e.failed_instances:
-            print(f"{instance.service.name} at port {instance.port} ({instance.exception})")
+            print(f"{instance.service.name} at port {instance.port}" +
+                 (f" ({instance.exception})" if instance.exception else ""))
     finally:
         cleanup_instances(instances)
