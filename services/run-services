@@ -36,6 +36,12 @@ class Service:
     color: str
     _internal_name: str = None
     check_status: bool = True
+    level: str = None
+
+    def with_level(self, level=None):
+        if level is None:
+            level = os.environ.get("INTEGRATION_{self.name.capitalize()}_LEVEL")
+        return replace(self, level=level)
 
     @property
     def internal_name(self):
@@ -67,6 +73,7 @@ class Service:
 @dataclass(frozen=True)
 class Nginz:
     color: str
+    level: str = None
 
     @property
     def name(self): return "nginz"
@@ -155,6 +162,13 @@ class Instance:
             data['optSettings']['setFederationDomain'] = domain
         elif 'settings' in data:
             data['settings']['federationDomain'] = domain
+
+        # set log level
+        if self.service.level is not None:
+            if 'logLevel' in data:
+                data['logLevel'] = self.service.level
+            elif 'saml' in data:
+                data['saml']['logLevel'] = self.service.level
 
         self.set_own_port(data)
 
@@ -324,16 +338,18 @@ def start_backend(services, keyspace, domain, backend_name):
 
     return instances
 
-BRIG = Service("brig", Colors.GREEN)
-GALLEY = Service("galley", Colors.YELLOW)
-GUNDECK = Service("gundeck", Colors.BLUE)
-CANNON = Service("cannon", Colors.ORANGE)
-CARGOHOLD = Service("cargohold", Colors.PURPLEISH)
-SPAR = Service("spar", Colors.ORANGE)
+level = os.environ.get("INTEGRATION_LEVEL")
+BRIG = Service("brig", Colors.GREEN).with_level(level)
+GALLEY = Service("galley", Colors.YELLOW).with_level(level)
+GUNDECK = Service("gundeck", Colors.BLUE).with_level(level)
+CANNON = Service("cannon", Colors.ORANGE).with_level(level)
+CARGOHOLD = Service("cargohold", Colors.PURPLEISH).with_level(level)
+SPAR = Service("spar", Colors.ORANGE).with_level(level)
 FEDERATOR = Service("federator", Colors.BLUE,
-                    "federatorInternal", check_status=False)
-STERN = Service("stern", Colors.YELLOW)
-PROXY = Service("proxy", Colors.RED)
+                    "federatorInternal",
+                    check_status=False).with_level(level)
+STERN = Service("stern", Colors.YELLOW).with_level(level)
+PROXY = Service("proxy", Colors.RED).with_level(level)
 NGINZ = Nginz(Colors.PURPLEISH)
 
 if __name__ == '__main__':
