@@ -57,6 +57,19 @@ out which versions are supported by your backend, query
 The [API versioning](../../developer/developer/api-versioning.md) article
 discusses the versioning topic in detail.
 
+#### Example
+
+To get the versions a backend (`staging-nginz-https.zinfra.io` in this case)
+supports, execute:
+
+```sh
+curl https://staging-nginz-https.zinfra.io/api-version 
+{"development":[3],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
+```
+
+The URL to open in your browser for the development version `3` is
+`https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/`.
+
 ### Internal endpoints
 - Version `v3`:
     - [new staging swagger page - **internal** (private)
@@ -73,18 +86,6 @@ means version `v0`.)
 Due to technical reasons (we started to export Swagger docs for internal
 endpoints in version `v3`), there are no meaningful Swagger docs for internal
 endpoints for versions `v0` to `v2`.
-
-### Example
-
-To get the versions a backend (`staging-nginz-https.zinfra.io` in this case) supports, execute:
-```sh
-curl https://staging-nginz-https.zinfra.io/api-version 
-{"development":[3],"domain":"staging.zinfra.io","federation":false,"supported":[0,1,2]}
-```
-
-The URL to open in your browser for the development version `3` is
-`https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/`.
-
 
 ## Old docs (swagger 1.2)
 
