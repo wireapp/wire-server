@@ -164,22 +164,22 @@ instance ToSchema OAuthResponseType where
         ]
 
 data OAuthScope
-  = ConversationCreate
-  | ConversationCodeCreate
-  | SelfRead
+  = WriteConversation
+  | WriteConversationCode
+  | ReadSelf
   deriving (Eq, Show, Generic, Ord)
 
 class IsOAuthScope scope where
   toOAuthScope :: OAuthScope
 
-instance IsOAuthScope 'ConversationCreate where
-  toOAuthScope = ConversationCreate
+instance IsOAuthScope 'WriteConversation where
+  toOAuthScope = WriteConversation
 
-instance IsOAuthScope 'ConversationCodeCreate where
-  toOAuthScope = ConversationCodeCreate
+instance IsOAuthScope 'WriteConversationCode where
+  toOAuthScope = WriteConversationCode
 
-instance IsOAuthScope 'SelfRead where
-  toOAuthScope = SelfRead
+instance IsOAuthScope 'ReadSelf where
+  toOAuthScope = ReadSelf
 
 -- | Given a type-level list of scopes X, this class gives you a function that tests if
 -- a list of scopes from a token intersects with X, ie., if a token grants access to the route
@@ -198,17 +198,17 @@ instance (IsOAuthScope scope, IsOAuthScopes scopes) => IsOAuthScopes (scope ': s
 
 instance ToByteString OAuthScope where
   builder = \case
-    ConversationCreate -> "conversation:create"
-    ConversationCodeCreate -> "conversation-code:create"
-    SelfRead -> "self:read"
+    WriteConversation -> "write:conversation"
+    WriteConversationCode -> "conversation_code:create"
+    ReadSelf -> "read:self"
 
 instance FromByteString OAuthScope where
   parser = do
     s <- parser
     case s & T.toLower of
-      "conversation:create" -> pure ConversationCreate
-      "conversation-code:create" -> pure ConversationCodeCreate
-      "self:read" -> pure SelfRead
+      "write:conversation" -> pure WriteConversation
+      "write:conversation_code" -> pure WriteConversationCode
+      "read:self" -> pure ReadSelf
       _ -> fail "invalid scope"
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}

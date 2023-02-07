@@ -36,7 +36,7 @@ if [ -z "$USER" ]; then
   exit 1
 fi
 
-SCOPE="self:read"
+SCOPE="read:self"
 
 CLIENT=$(
   curl -s -X POST localhost:8082/i/oauth/clients \
