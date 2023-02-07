@@ -249,7 +249,6 @@ def check_prerequisites(services):
 def color_output(sub, service, backend_name):
     if backend_name is not None:
         backend_name = "@" + backend_name
-    # TODO: add backend name to the output
     try:
         for line in sub.stdout:
             logging.info(f"{service.color}[{service.name}{backend_name}] {line.rstrip()}{Colors.RESET}")
@@ -355,7 +354,7 @@ if __name__ == '__main__':
         Instance(GALLEY, 8085),
         Instance(GUNDECK, 8086),
         Instance(CANNON, 8083),
-        Instance(CANNON, 8183),
+        Instance(CANNON, 8183), # use the other configuration file for this
         Instance(CARGOHOLD, 8084),
         Instance(SPAR, 8088),
         DummyInstance(PROXY, 8087),
