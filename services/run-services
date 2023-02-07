@@ -354,20 +354,21 @@ def start_backend(services, keyspace, domain, backend_name):
 
     return instances
 
-level = os.environ.get("INTEGRATION_LEVEL")
-BRIG = Service("brig", Colors.GREEN).with_level(level)
-GALLEY = Service("galley", Colors.YELLOW).with_level(level)
-GUNDECK = Service("gundeck", Colors.BLUE).with_level(level)
-CANNON = Service("cannon", Colors.ORANGE).with_level(level)
+ENABLE_FEDERATION = os.environ.get("INTEGRATION_FEDERATION_TESTS") == "1"
+LEVEL = os.environ.get("INTEGRATION_LEVEL")
+BRIG = Service("brig", Colors.GREEN).with_level(LEVEL)
+GALLEY = Service("galley", Colors.YELLOW).with_level(LEVEL)
+GUNDECK = Service("gundeck", Colors.BLUE).with_level(LEVEL)
+CANNON = Service("cannon", Colors.ORANGE).with_level(LEVEL)
 CANNON2 = Service("cannon", Colors.ORANGE,
-                  "cannon2", config="cannon2").with_level(level)
-CARGOHOLD = Service("cargohold", Colors.PURPLEISH).with_level(level)
-SPAR = Service("spar", Colors.ORANGE).with_level(level)
+                  "cannon2", config="cannon2").with_level(LEVEL)
+CARGOHOLD = Service("cargohold", Colors.PURPLEISH).with_level(LEVEL)
+SPAR = Service("spar", Colors.ORANGE).with_level(LEVEL)
 FEDERATOR = Service("federator", Colors.BLUE,
                     "federatorInternal",
-                    check_status=False).with_level(level)
-STERN = Service("stern", Colors.YELLOW).with_level(level)
-PROXY = Service("proxy", Colors.RED).with_level(level)
+                    check_status=False).with_level(LEVEL)
+STERN = Service("stern", Colors.YELLOW).with_level(LEVEL)
+PROXY = Service("proxy", Colors.RED).with_level(LEVEL)
 NGINZ = Nginz(Colors.PURPLEISH)
 
 if __name__ == '__main__':
@@ -422,7 +423,8 @@ if __name__ == '__main__':
     try:
         instances = set()
         instances |= start_backend(backend_a, "test", "example.com", "A")
-        instances |= start_backend(backend_b, "test2", "b.example.com", "B")
+        if ENABLE_FEDERATION:
+            instances |= start_backend(backend_b, "test2", "b.example.com", "B")
 
         # main script
         ret = subprocess.run(sys.argv[1:],
