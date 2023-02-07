@@ -171,7 +171,7 @@ versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 -- | Serves Swagger docs for internal endpoints
 --
 -- Dual to `versionedSwaggerDocsAPI`. Swagger docs for old versions are (almost)
--- empty. It would have been too tedious to created them. Please add
+-- empty. It would have been too tedious to create them. Please add
 -- pre-generated docs on version increase as it's done in
 -- `versionedSwaggerDocsAPI`.
 internalEndpointsSwaggerDocsAPI :: Servant.Server InternalEndpointsSwaggerDocsAPI
