@@ -46,7 +46,7 @@ settings:
   mlsPrivateKeyPaths:
     removal:
       ed25519: test/resources/ed25519.pem
-  OAuthPublicJwk: test/resources/oauth/ed25519_public_jwk.json
+  oAuthPublicJwk: test/resources/oauth/ed25519_public_jwk.json
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default

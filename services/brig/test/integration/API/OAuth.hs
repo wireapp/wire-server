@@ -18,6 +18,7 @@
 
 module API.OAuth where
 
+import qualified API.Team.Util as Team
 import Bilge
 import Bilge.Assert
 import Brig.API.OAuth hiding (verifyRefreshToken)
@@ -34,7 +35,7 @@ import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Domain (domainText)
 import Data.Id
-import Data.Range (unsafeRange)
+import Data.Range
 import Data.Set as Set hiding (delete, null, (\\))
 import Data.String.Conversions (cs)
 import Data.Text.Ascii (encodeBase16)
@@ -52,13 +53,16 @@ import Text.RawString.QQ
 import URI.ByteString
 import Util
 import Web.FormUrlEncoded
+import qualified Wire.API.Conversation as Conv
+import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
+import qualified Wire.API.Conversation.Role as Role
 import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer, unBearer))
 import Wire.API.User (SelfProfile, User (userId), userEmail)
 import Wire.API.User.Auth (CookieType (PersistentCookie))
 
-tests :: Manager -> C.ClientState -> Brig -> Nginz -> Opts -> TestTree
-tests m db b n o = do
+tests :: Manager -> C.ClientState -> Brig -> Galley -> Nginz -> Opts -> TestTree
+tests m db b g n o = do
   testGroup
     "oauth"
     [ test m "register new oauth client" $ testRegisterNewOAuthClient b,
@@ -94,7 +98,9 @@ tests m db b n o = do
           test m "expired token" $ testAccessResourceExpiredToken o b,
           test m "nonsense token" $ testAccessResourceNonsenseToken b,
           test m "no token" $ testAccessResourceNoToken b,
-          test m "invalid signature" $ testAccessResourceInvalidSignature o b
+          test m "invalid signature" $ testAccessResourceInvalidSignature o b,
+          test m "create conversation (internal)" $ testCreateConversationSuccessInternal b g,
+          test m "create conversation (nginz)" $ testCreateConversationSuccessNginz b n
         ],
       testGroup "refresh tokens" $
         [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b,
@@ -643,8 +649,47 @@ testRevokeApplicationAccountAccess brig = do
         liftIO $ assertEqual "apps" 0 (length apps)
     _ -> liftIO $ assertFailure "unexpected number of apps"
 
+testCreateConversationSuccessInternal :: Brig -> Galley -> Http ()
+testCreateConversationSuccessInternal brig galley = do
+  (uid, tid) <- Team.createUserWithTeam brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  createTeamConv galley zOAuthHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
+    const 201 === statusCode
+
+testCreateConversationSuccessNginz :: Brig -> Nginz -> Http ()
+testCreateConversationSuccessNginz brig nginz = do
+  (uid, tid) <- Team.createUserWithTeam brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ConversationCreate]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
+    const 201 === statusCode
+
 -------------------------------------------------------------------------------
 -- Util
+
+createTeamConv ::
+  (Request -> Request) ->
+  (OAuthAccessToken -> Request -> Request) ->
+  OAuthAccessToken ->
+  TeamId ->
+  Text ->
+  Http ResponseLBS
+createTeamConv svc mkHeader token tid name = do
+  let tinfo = Conv.ConvTeamInfo tid
+  let conv = Conv.NewConv [] [] (checked name) mempty Nothing (Just tinfo) Nothing Nothing Role.roleNameWireAdmin ProtocolProteusTag Nothing
+  post
+    ( svc
+        . path "conversations"
+        . mkHeader token
+        . json conv
+    )
 
 createOAuthApplicationWithAccountAccess :: Brig -> UserId -> Http OAuthAccessTokenResponse
 createOAuthApplicationWithAccountAccess brig uid = do
