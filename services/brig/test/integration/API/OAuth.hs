@@ -22,7 +22,6 @@ import qualified API.Team.Util as Team
 import Bilge
 import Bilge.Assert
 import Brig.API.OAuth hiding (verifyRefreshToken)
-import Brig.Effects.Jwk (readJwk)
 import Brig.Options
 import qualified Brig.Options as Opt
 import qualified Cassandra as C
@@ -60,6 +59,7 @@ import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer, unBearer))
 import Wire.API.User (SelfProfile, User (userId), userEmail)
 import Wire.API.User.Auth (CookieType (PersistentCookie))
+import Wire.Sem.Jwk (readJwk)
 
 tests :: Manager -> C.ClientState -> Brig -> Galley -> Nginz -> Opts -> TestTree
 tests m db b g n o = do
