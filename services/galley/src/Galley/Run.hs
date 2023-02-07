@@ -92,7 +92,7 @@ mkApp opts =
     metrics <- lift $ M.metrics
     env <- lift $ App.createEnv metrics opts
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
-    mJwk <- lift $ join <$> forM (opts ^. optSettings . setOAuthPublicJwk) readJwk
+    mJwk <- lift $ join <$> forM (opts ^. optSettings . setOauthPublicJwk) readJwk
     let logger = env ^. App.applog
 
     let middlewares =

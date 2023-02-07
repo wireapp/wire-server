@@ -36,7 +36,7 @@ module Galley.Options
     defConcurrentDeletionEvents,
     defDeleteConvThrottleMillis,
     defFanoutLimit,
-    setOAuthPublicJwk,
+    setOauthPublicJwk,
     JournalOpts (JournalOpts),
     awsQueueName,
     awsEndpoint,
@@ -118,7 +118,7 @@ data Settings = Settings
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _setFeatureFlags :: !FeatureFlags,
     _setDisabledAPIVersions :: Maybe (Set Version),
-    _setOAuthPublicJwk :: !(Maybe FilePath)
+    _setOauthPublicJwk :: !(Maybe FilePath)
   }
   deriving (Show, Generic)
 
