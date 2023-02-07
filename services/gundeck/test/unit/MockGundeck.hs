@@ -3,7 +3,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 

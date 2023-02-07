@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 

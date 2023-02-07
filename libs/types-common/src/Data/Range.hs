@@ -3,7 +3,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-
 -- Disabling due to the use of LTE and other type level checks
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 

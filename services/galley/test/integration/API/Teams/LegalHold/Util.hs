@@ -1,7 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-
 -- Disabling for HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 

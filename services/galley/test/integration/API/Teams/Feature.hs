@@ -1333,7 +1333,8 @@ wsAssertFeatureConfigUpdate ::
   forall cfg.
   ( KnownSymbol (Public.FeatureSymbol cfg),
     ToJSON (Public.WithStatus cfg)
-  ) =>Public.WithStatusNoLock cfg ->
+  ) =>
+  Public.WithStatusNoLock cfg ->
   Public.LockStatus ->
   Notification ->
   IO ()

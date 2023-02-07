@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-
 -- Disabling due to HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 

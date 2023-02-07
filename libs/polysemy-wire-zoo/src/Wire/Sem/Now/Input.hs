@@ -27,7 +27,7 @@ import Data.Time (UTCTime)
 import Imports
 import Polysemy
 import Polysemy.Input
-import Wire.Sem.FromUTC ( FromUTC(..) )
+import Wire.Sem.FromUTC (FromUTC (..))
 import Wire.Sem.Now
 
 nowToInput ::

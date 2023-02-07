@@ -309,7 +309,8 @@ mkFeaturePutRoute ::
   forall cfg.
   ( KnownSymbol (FeatureSymbol cfg),
     ToJSON (WithStatusNoLock cfg)
-  ) =>TeamId ->
+  ) =>
+  TeamId ->
   WithStatusNoLock cfg ->
   Handler NoContent
 mkFeaturePutRoute tid payload = NoContent <$ Intra.setTeamFeatureFlag @cfg tid payload

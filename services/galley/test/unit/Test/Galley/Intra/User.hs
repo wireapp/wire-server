@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 

@@ -1,9 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumericUnderscores #-}
-
 -- Disabling to stop warnings on HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -75,6 +73,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Federator.MockServer as Mock
+import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Imports
 import qualified Network.HTTP.Client as HTTP
@@ -122,7 +121,6 @@ import Wire.API.User.Auth.Sso
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.VersionInfo
-import GHC.TypeLits
 
 type Brig = Request -> Request
 
@@ -440,11 +438,11 @@ postUserRegister payload brig = do
   rs <- postUserRegister' payload brig <!! const 201 === statusCode
   maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) pure (responseJsonMaybe rs)
 
-postUserRegister' :: MonadHttp m =>Object -> Brig -> m ResponseLBS
+postUserRegister' :: MonadHttp m => Object -> Brig -> m ResponseLBS
 postUserRegister' payload brig = do
   post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload))
 
-deleteUser :: (MonadHttp m, HasCallStack) =>UserId -> Maybe PlainTextPassword -> Brig -> m ResponseLBS
+deleteUser :: (MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword -> Brig -> m ResponseLBS
 deleteUser u p brig =
   delete $
     brig

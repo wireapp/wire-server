@@ -5,7 +5,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-
 -- Disabling for HasCallStack
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
