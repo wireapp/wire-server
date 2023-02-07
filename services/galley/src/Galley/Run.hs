@@ -50,7 +50,6 @@ import Galley.App
 import qualified Galley.App as App
 import Galley.Aws (awsEnv)
 import Galley.Cassandra
-import Galley.Effects.Jwk (readJwk)
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
@@ -67,6 +66,7 @@ import Util.Options
 import Wire.API.Routes.API
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
+import Wire.Sem.Jwk (readJwk)
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do

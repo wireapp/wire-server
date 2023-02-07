@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Galley.Effects.Jwk where
+module Wire.Sem.Jwk where
 
 import Control.Exception
 import Crypto.JOSE.JWK
@@ -10,7 +10,6 @@ import Data.String.Conversions (cs)
 import Imports
 import Polysemy
 
--- todo(leif): extract to a shared place and reuse in Brig
 data Jwk m a where
   Get :: FilePath -> Jwk m (Maybe JWK)
 

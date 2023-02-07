@@ -36,7 +36,6 @@ import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
 import Brig.CanonicalInterpreter
-import Brig.Effects.Jwk (readJwk)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
 import qualified Brig.Effects.UserPendingActivationStore as UsersPendingActivationStore
 import qualified Brig.InternalEvent.Process as Internal
@@ -81,6 +80,7 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import Wire.Sem.Jwk (readJwk)
 import qualified Wire.Sem.Paging as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it

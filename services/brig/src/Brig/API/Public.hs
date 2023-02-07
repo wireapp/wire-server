@@ -52,7 +52,6 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import qualified Brig.Effects.GalleyProvider as GalleyProvider
-import Brig.Effects.Jwk (Jwk)
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
@@ -145,6 +144,7 @@ import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
 import Wire.Sem.Concurrency
+import Wire.Sem.Jwk (Jwk)
 import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------

@@ -99,7 +99,6 @@ library
     Galley.Effects.FederatorAccess
     Galley.Effects.FireAndForget
     Galley.Effects.GundeckAccess
-    Galley.Effects.Jwk
     Galley.Effects.LegalHoldStore
     Galley.Effects.ListItems
     Galley.Effects.MemberStore

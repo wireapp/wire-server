@@ -20,8 +20,6 @@ module Brig.API.OAuth where
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App
-import Brig.Effects.Jwk
-import qualified Brig.Effects.Jwk as Jwk
 import qualified Brig.Options as Opt
 import Brig.Password (Password, mkSafePassword, verifyPassword)
 import Cassandra hiding (Set)
@@ -47,6 +45,8 @@ import Wire.API.OAuth as OAuth
 import qualified Wire.API.Routes.Internal.Brig.OAuth as I
 import Wire.API.Routes.Named (Named (..))
 import Wire.API.Routes.Public.Brig.OAuth
+import Wire.Sem.Jwk
+import qualified Wire.Sem.Jwk as Jwk
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 

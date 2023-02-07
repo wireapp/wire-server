@@ -67,7 +67,6 @@ library
     Brig.Effects.Delay
     Brig.Effects.GalleyProvider
     Brig.Effects.GalleyProvider.RPC
-    Brig.Effects.Jwk
     Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
