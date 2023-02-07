@@ -18,17 +18,21 @@
 module Wire.API.Routes.API
   ( API,
     hoistAPIHandler,
+    hoistAPIHandlerWithContext,
     hoistAPI,
     mkAPI,
     mkNamedAPI,
+    mkNamedAPIWithContext,
     (<@>),
     ServerEffect (..),
     ServerEffects (..),
     hoistServerWithDomain,
+    hoistServerWithContext',
   )
 where
 
 import Data.Domain
+import Data.Kind (Type)
 import Data.Proxy
 import Imports
 import Polysemy
@@ -47,7 +51,14 @@ mkAPI ::
   (HasServer api '[Domain], ServerEffects (DeclaredErrorEffects api) r0) =>
   ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
   API api r0
-mkAPI h = API $ hoistServerWithDomain @api (interpretServerEffects @(DeclaredErrorEffects api) @r0) h
+mkAPI = mkAPIWithContext @'[Domain]
+
+mkAPIWithContext ::
+  forall (context :: [Type]) r0 api.
+  (HasServer api context, ServerEffects (DeclaredErrorEffects api) r0) =>
+  ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
+  API api r0
+mkAPIWithContext h = API $ hoistServerWithContext' @context @api (interpretServerEffects @(DeclaredErrorEffects api) @r0) h
 
 -- | Convert a polysemy handler to a named 'API' value.
 mkNamedAPI ::
@@ -55,7 +66,14 @@ mkNamedAPI ::
   (HasServer api '[Domain], ServerEffects (DeclaredErrorEffects api) r0) =>
   ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
   API (Named name api) r0
-mkNamedAPI = API . Named . unAPI . mkAPI @r0 @api
+mkNamedAPI = mkNamedAPIWithContext @'[Domain]
+
+mkNamedAPIWithContext ::
+  forall (context :: [Type]) name r0 api.
+  (HasServer api context, ServerEffects (DeclaredErrorEffects api) r0) =>
+  ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
+  API (Named name api) r0
+mkNamedAPIWithContext = API . Named . unAPI . mkAPIWithContext @context @r0 @api
 
 -- | Combine APIs.
 (<@>) :: API api1 r -> API api2 r -> API (api1 :<|> api2) r
@@ -69,6 +87,15 @@ infixr 3 <@>
 -- but unfortunately the 'hoistServerWithContext' function is also part of the
 -- 'HasServer' typeclass, even though it cannot possibly make use of its @context@
 -- type argument.
+hoistServerWithContext' ::
+  forall (context :: [Type]) api m n.
+  HasServer api context =>
+  (forall x. m x -> n x) ->
+  ServerT api m ->
+  ServerT api n
+hoistServerWithContext' = hoistServerWithContext (Proxy @api) (Proxy @context)
+
+-- | Like `hoistServerWithContext'`, but with a 'Domain' context.
 hoistServerWithDomain ::
   forall api m n.
   HasServer api '[Domain] =>
@@ -83,7 +110,15 @@ hoistAPIHandler ::
   (forall x. Sem r x -> n x) ->
   API api r ->
   ServerT api n
-hoistAPIHandler f = hoistServerWithDomain @api f . unAPI
+hoistAPIHandler f = hoistServerWithContext' @'[Domain] @api f . unAPI
+
+hoistAPIHandlerWithContext ::
+  forall (context :: [Type]) api r n.
+  HasServer api context =>
+  (forall x. Sem r x -> n x) ->
+  API api r ->
+  ServerT api n
+hoistAPIHandlerWithContext f = hoistServerWithContext' @context @api f . unAPI
 
 hoistAPI ::
   forall api1 api2 r1 r2.

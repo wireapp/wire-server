@@ -52,7 +52,7 @@ import Control.Monad.Random (randomRIO)
 import Crypto.JWT
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
-import Data.Domain (Domain (..))
+import Data.Domain
 import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Servant as Metrics
@@ -71,7 +71,7 @@ import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
 import Polysemy (Members)
-import Servant (Context ((:.)), HasServer (hoistServerWithContext), ServerT, (:<|>) (..))
+import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
@@ -147,20 +147,12 @@ mkApp o = do
             (Proxy @ServantCombinedAPI)
             (mJwk :. customFormatters :. localDomain :. Servant.EmptyContext)
             ( docsAPI
-                :<|> hoistServerWithContext' @BrigAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithContext' @'[Domain, Maybe JWK] @BrigAPI (toServantHandler e) servantSitemap
                 :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
                 :<|> Servant.Tagged (app e)
             )
-
-hoistServerWithContext' ::
-  forall api m n.
-  HasServer api '[Domain, Maybe JWK] =>
-  (forall x. m x -> n x) ->
-  ServerT api m ->
-  ServerT api n
-hoistServerWithContext' = hoistServerWithContext (Proxy @api) (Proxy @'[Domain, Maybe JWK])
 
 type ServantCombinedAPI =
   ( DocsAPI

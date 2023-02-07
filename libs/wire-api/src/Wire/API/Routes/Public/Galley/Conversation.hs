@@ -33,6 +33,7 @@ import Wire.API.Event.Conversation
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
+import Wire.API.OAuth
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -338,7 +339,7 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-               :> ZLocalUser
+               :> ZOAuthLocalUser '[ 'ConversationCreate]
                :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
@@ -357,7 +358,7 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-               :> ZLocalUser
+               :> ZOAuthLocalUser '[ 'ConversationCreate]
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv

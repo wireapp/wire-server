@@ -99,6 +99,7 @@ library
     Galley.Effects.FederatorAccess
     Galley.Effects.FireAndForget
     Galley.Effects.GundeckAccess
+    Galley.Effects.Jwk
     Galley.Effects.LegalHoldStore
     Galley.Effects.ListItems
     Galley.Effects.MemberStore
@@ -227,6 +228,7 @@ library
     , http-types                 >=0.8
     , imports
     , insert-ordered-containers
+    , jose
     , kan-extensions
     , lens                       >=4.4
     , memory
