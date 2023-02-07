@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from dataclasses import dataclass, replace
+import logging
 import os
 import re
 import select
@@ -14,8 +15,8 @@ import urllib.error
 import sys
 import tempfile
 import time
+import traceback
 import threading
-import logging
 
 @dataclass
 class SpawnFailException(Exception):
@@ -144,19 +145,13 @@ class Instance:
         file to it, and returning a path to the read end of the pipe (in
         /proc)."""
 
-        def get_port(service):
-            if service is self.service:
-                return self.port
-            else:
-                return service_map[service]
-
         with open(self.service.config_file()) as f:
             data = yaml.safe_load(f)
 
         # set ports of other services
         for service in service_map:
             if service.internal_name in data:
-                data[service.internal_name]['port'] = get_port(service)
+                data[service.internal_name]['port'] = service_map[service]
 
         # set cassandra keyspace
         if 'cassandra' in data:
@@ -182,8 +177,10 @@ class Instance:
 
     def set_own_port(self, data):
         # spar's own port is in a different place
-        if 'saml' in data:
+        if self.service.name == 'spar':
             data['saml']['spPort'] = self.port
+        elif self.service.name in data:
+            data[self.service.name]['port'] = self.port
 
 class DummyInstance(Instance):
     def spawn(self, service_map, environment, keyspace, domain, backend_name):
@@ -349,7 +346,7 @@ def start_backend(services, keyspace, domain, backend_name):
                 failed_instances.append(replace(instance, exception=e))
 
         to_be_checked = to_be_checked_again
-        time.sleep(0.5)
+        time.sleep(0.05)
 
     if failed_instances:
         cleanup_instances(instances)
@@ -362,6 +359,8 @@ BRIG = Service("brig", Colors.GREEN).with_level(level)
 GALLEY = Service("galley", Colors.YELLOW).with_level(level)
 GUNDECK = Service("gundeck", Colors.BLUE).with_level(level)
 CANNON = Service("cannon", Colors.ORANGE).with_level(level)
+CANNON2 = Service("cannon", Colors.ORANGE,
+                  "cannon2", config="cannon2").with_level(level)
 CARGOHOLD = Service("cargohold", Colors.PURPLEISH).with_level(level)
 SPAR = Service("spar", Colors.ORANGE).with_level(level)
 FEDERATOR = Service("federator", Colors.BLUE,
@@ -389,7 +388,7 @@ if __name__ == '__main__':
         Instance(GALLEY, 8085),
         Instance(GUNDECK, 8086),
         Instance(CANNON, 8083),
-        # TODO: add a second cannon instance using the other configuration file
+        Instance(CANNON2, 8183),
         Instance(CARGOHOLD, 8084),
         Instance(SPAR, 8088),
         DummyInstance(PROXY, 8087),
@@ -406,6 +405,7 @@ if __name__ == '__main__':
         Instance(GALLEY, 9085),
         Instance(GUNDECK, 9086),
         Instance(CANNON, 9083),
+        Instance(CANNON2, 9183),
         Instance(CARGOHOLD, 9084),
         Instance(SPAR, 9088),
         DummyInstance(PROXY, 9087),
