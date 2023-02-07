@@ -23,13 +23,12 @@ looking for, double-check the old.
 
 ## Swagger docs (Swagger 2.0)
 
-The Swagger documentation for public endpoints depends on the API version.
-Though, the version prefix in URL paths works for internal (private) endpoints,
-too, they are not versioned.
+The Swagger documentation for endpoints depends on the API version.
 
-These pages show [Swagger / OpenAPI 2.0](https://swagger.io/specification/v2/)
-docs:
+The pages below show [Swagger / OpenAPI 2.0](https://swagger.io/specification/v2/)
+docs.
 
+### Public endpoints
 - Version `v0`:
     - [new staging swagger page - **public**
     endpoints](https://staging-nginz-https.zinfra.io/api/swagger-ui/)
@@ -39,9 +38,12 @@ docs:
 - Version `v2`:
     - [new staging swagger page - **public**
     endpoints](https://staging-nginz-https.zinfra.io/v2/api/swagger-ui/)
+- Version `v3`:
+    - [new staging swagger page - **public**
+    endpoints](https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/)
 - Unversioned
-    - [new staging swagger page - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/)
+    - [new staging swagger page - **public**
+    endpoints](https://staging-nginz-https.zinfra.io/api/swagger-ui/)
 
 The first part of the URL's path is the version. No specified version means
 version `v0`. New versions are added from time to time. If you would like to
@@ -54,6 +56,23 @@ out which versions are supported by your backend, query
 
 The [API versioning](../../developer/developer/api-versioning.md) article
 discusses the versioning topic in detail.
+
+### Internal endpoints
+- Version `v3`:
+    - [new staging swagger page - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/)
+- Unversioned
+    - [new staging swagger page - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/)
+
+The URL pattern is similar to that of public endpoints:
+`https://<nginz-host>/v<version>/api-internal/swagger-ui/`. No specified version
+means the *latest* version (in contrast to public endpoints where no version
+means version `v0`.)
+
+Due to technical reasons (we started to export Swagger docs for internal
+endpoints in version `v3`), there are no meaningful Swagger docs for internal
+endpoints for versions `v0` to `v2`.
 
 ### Example
 
