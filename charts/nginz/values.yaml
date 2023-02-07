@@ -429,6 +429,7 @@ nginx_conf:
       envs:
       - all
       doc: true
+      enable_oauth: true
     - path: /legalhold/conversations/(.*)
       envs:
       - all
