@@ -407,7 +407,9 @@ if __name__ == '__main__':
         instances |= start_backend(backend_b, "test2", "b.example.com", "B")
 
         # main script
-        ret = subprocess.run(sys.argv[1:])
+        ret = subprocess.run(sys.argv[1:],
+                             env=dict(list(os.environ.items()) +
+                                      list(environment.items())))
         sys.exit(ret.returncode)
     except KeyboardInterrupt:
         pass
