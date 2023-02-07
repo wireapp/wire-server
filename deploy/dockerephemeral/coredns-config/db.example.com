@@ -12,5 +12,6 @@ $ORIGIN example.com.
 
 www     IN A     127.0.0.1
         IN AAAA  ::1
-_wire-server-federator._tcp  IN SRV 0 0 9443 localhost.
+_wire-server-federator._tcp    IN SRV 0 0 8443 localhost.
+_wire-server-federator._tcp.b  IN SRV 0 0 9443 localhost.
 
