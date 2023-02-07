@@ -339,7 +339,7 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-               :> ZOAuthLocalUser '[ 'ConversationCreate]
+               :> ZOAuthLocalUser '[ 'WriteConversation]
                :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
@@ -358,7 +358,7 @@ type ConversationAPI =
                :> CanThrow OperationDenied
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-               :> ZOAuthLocalUser '[ 'ConversationCreate]
+               :> ZOAuthLocalUser '[ 'WriteConversation]
                :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
