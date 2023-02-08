@@ -35,6 +35,7 @@ import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Galley.Team
 import Wire.API.Routes.Public.Galley.TeamConversation
 import Wire.API.Routes.Public.Galley.TeamMember
+import Wire.API.Routes.Public.Galley.TeamNotification (TeamNotificationAPI)
 
 type ServantAPI =
   ConversationAPI
@@ -47,6 +48,7 @@ type ServantAPI =
     :<|> CustomBackendAPI
     :<|> LegalHoldAPI
     :<|> TeamMemberAPI
+    :<|> TeamNotificationAPI
 
 swaggerDoc :: Swagger.Swagger
 swaggerDoc = toSwagger (Proxy @ServantAPI)

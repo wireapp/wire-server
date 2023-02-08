@@ -104,6 +104,7 @@ library
     Wire.API.Routes.Public.Galley.Team
     Wire.API.Routes.Public.Galley.TeamConversation
     Wire.API.Routes.Public.Galley.TeamMember
+    Wire.API.Routes.Public.Galley.TeamNotification
     Wire.API.Routes.Public.Gundeck
     Wire.API.Routes.Public.Proxy
     Wire.API.Routes.Public.Spar
