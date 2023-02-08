@@ -19,8 +19,6 @@ type TeamNotificationAPI =
         :> ZUser
         :> CanThrow 'TeamNotFound
         :> CanThrow 'InvalidTeamNotificationId
-        -- :> CanThrow InvalidInput
-        -- TODO: Ensure/check this is a V1 UUID
         :> QueryParam'
              [ Optional,
                Strict,

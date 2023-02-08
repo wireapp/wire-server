@@ -75,7 +75,9 @@ modelEvent = Doc.defineModel "NotificationEvent" $ do
   Doc.property "type" Doc.string' $
     Doc.description "Event type"
 
--- | A schema for an arbitrary JSON object.
+-- | Schema for an `Event` object.
+--
+-- This is basically a schema for a JSON object with some pre-defined structure.
 eventSchema :: ValueSchema NamedSwaggerDoc Event
 eventSchema = mkSchema sdoc Aeson.parseJSON (Just . Aeson.toJSON)
   where
