@@ -42,9 +42,11 @@ module Wire.API.Notification
   )
 where
 
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, (.~))
+import Control.Lens.Operators ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty)
@@ -73,6 +75,22 @@ modelEvent = Doc.defineModel "NotificationEvent" $ do
   Doc.property "type" Doc.string' $
     Doc.description "Event type"
 
+-- | A schema for an arbitrary JSON object.
+eventSchema :: ValueSchema NamedSwaggerDoc Event
+eventSchema = mkSchema sdoc Aeson.parseJSON (Just . Aeson.toJSON)
+  where
+    sdoc :: NamedSwaggerDoc
+    sdoc =
+      swaggerDoc @Aeson.Object
+        & S.schema . S.title ?~ "Event"
+        & S.schema . S.description ?~ "A single notification event"
+        & S.schema . S.properties
+          .~ InsOrdHashMap.fromList
+            [ ( "type",
+                S.Inline (S.toSchema (Proxy @Text) & S.description ?~ "Event type")
+              )
+            ]
+
 --------------------------------------------------------------------------------
 -- QueuedNotification
 
@@ -89,12 +107,15 @@ queuedNotification = QueuedNotification
 
 instance ToSchema QueuedNotification where
   schema =
-    object "QueuedNotification" $
+    objectWithDocModifier "QueuedNotification" queuedNotificationDoc $
       QueuedNotification
         <$> _queuedNotificationId
           .= field "id" schema
         <*> _queuedNotificationPayload
-          .= field "payload" (nonEmptyArray jsonObject)
+          .= fieldWithDocModifier "payload" payloadDoc (nonEmptyArray eventSchema)
+    where
+      queuedNotificationDoc = description ?~ "A single notification"
+      payloadDoc d = d & description ?~ "List of events"
 
 makeLenses ''QueuedNotification
 
@@ -128,14 +149,18 @@ modelNotificationList = Doc.defineModel "NotificationList" $ do
 
 instance ToSchema QueuedNotificationList where
   schema =
-    object "QueuedNotificationList" $
+    objectWithDocModifier "QueuedNotificationList" queuedNotificationListDoc $
       QueuedNotificationList
         <$> _queuedNotifications
-          .= field "notifications" (array schema)
+          .= fieldWithDocModifier "notifications" notificationsDoc (array schema)
         <*> _queuedHasMore
-          .= fmap (fromMaybe False) (optField "has_more" schema)
+          .= fmap (fromMaybe False) (optFieldWithDocModifier "has_more" hasMoreDoc schema)
         <*> _queuedTime
           .= maybe_ (optField "time" utcTimeSchema)
+    where
+      queuedNotificationListDoc = description ?~ "Zero or more notifications"
+      notificationsDoc = description ?~ "Notifications"
+      hasMoreDoc = description ?~ "Whether there are still more notifications."
 
 makeLenses ''QueuedNotificationList
 
