@@ -24,10 +24,13 @@ type SizeRange = Range 1 10000 Int32
 -- less warped.  This is a work-around because we cannot send events to all of a large team.
 -- See haddocks of module "Galley.API.TeamNotifications" for details.
 getTeamNotifications ::
-  Members '[BrigAccess,
-            ErrorS 'TeamNotFound,
-            ErrorS 'InvalidTeamNotificationId,
-            TeamNotificationStore] r =>
+  Members
+    '[ BrigAccess,
+       ErrorS 'TeamNotFound,
+       ErrorS 'InvalidTeamNotificationId,
+       TeamNotificationStore
+     ]
+    r =>
   UserId ->
   Maybe NotificationId ->
   Maybe SizeRange ->
@@ -44,8 +47,9 @@ getTeamNotifications uid since size = do
       Maybe NotificationId ->
       Sem r (Maybe NotificationId)
     checkSince Nothing = pure Nothing
-    checkSince (Just nid) | (UUID.version . toUUID) nid == 1 =
-                            (pure . Just) nid
+    checkSince (Just nid)
+      | (UUID.version . toUUID) nid == 1 =
+          (pure . Just) nid
     checkSince (Just _) = throwS @'InvalidTeamNotificationId
 
     defaultSize :: SizeRange
