@@ -394,6 +394,7 @@ executable galley-integration
     API.Util.TeamFeature
     CreateConversations
     Main
+    PostMessage
     TestHelpers
     TestSetup
     TypingIndicators
