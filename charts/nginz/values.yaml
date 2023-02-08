@@ -501,6 +501,7 @@ nginx_conf:
     - path: /feature-configs(.*)
       envs:
       - all
+      enable_oauth: true
     - path: /galley-api/swagger-ui
       disable_zauth: true
       envs:

@@ -98,9 +98,20 @@ tests m db b g n o = do
           test m "expired token" $ testAccessResourceExpiredToken o b,
           test m "nonsense token" $ testAccessResourceNonsenseToken b,
           test m "no token" $ testAccessResourceNoToken b,
-          test m "invalid signature" $ testAccessResourceInvalidSignature o b,
-          test m "create conversation (internal)" $ testCreateConversationSuccessInternal b g,
-          test m "create conversation (nginz)" $ testCreateConversationSuccessNginz b n
+          test m "invalid signature" $ testAccessResourceInvalidSignature o b
+        ],
+      testGroup
+        "accessing resources"
+        [ testGroup
+            "internal"
+            [ test m "write:conversation" $ testWriteConversationSuccessInternal b g,
+              test m "read:feature_configs" $ testReadFeatureConfigsSuccessInternal b g
+            ],
+          testGroup
+            "nginz"
+            [ test m "write:conversation" $ testWriteConversationSuccessNginz b n,
+              test m "read:feature_configs" $ testReadFeatureConfigsSuccessNginz b n
+            ]
         ],
       testGroup "refresh tokens" $
         [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b,
@@ -649,30 +660,44 @@ testRevokeApplicationAccountAccess brig = do
         liftIO $ assertEqual "apps" 0 (length apps)
     _ -> liftIO $ assertFailure "unexpected number of apps"
 
-testCreateConversationSuccessInternal :: Brig -> Galley -> Http ()
-testCreateConversationSuccessInternal brig galley = do
+testWriteConversationSuccessInternal :: Brig -> Galley -> Http ()
+testWriteConversationSuccessInternal brig galley = do
   (uid, tid) <- Team.createUserWithTeam brig
-  let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversation]
-  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
-  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  accessToken <- getAccessTokenForScope brig uid WriteConversation
   createTeamConv galley zOAuthHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
     const 201 === statusCode
 
-testCreateConversationSuccessNginz :: Brig -> Nginz -> Http ()
-testCreateConversationSuccessNginz brig nginz = do
+testWriteConversationSuccessNginz :: Brig -> Nginz -> Http ()
+testWriteConversationSuccessNginz brig nginz = do
   (uid, tid) <- Team.createUserWithTeam brig
-  let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [WriteConversation]
-  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
-  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  accessToken <- getAccessTokenForScope brig uid WriteConversation
   createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
     const 201 === statusCode
 
+testReadFeatureConfigsSuccessInternal :: Brig -> Galley -> Http ()
+testReadFeatureConfigsSuccessInternal brig galley = do
+  (uid, _) <- Team.createUserWithTeam brig
+  accessToken <- getAccessTokenForScope brig uid ReadFeatureConfigs
+  getFeatureConfigs galley zOAuthHeader (oatAccessToken accessToken) !!! do
+    const 200 === statusCode
+
+testReadFeatureConfigsSuccessNginz :: Brig -> Nginz -> Http ()
+testReadFeatureConfigsSuccessNginz brig nginz = do
+  (uid, _) <- Team.createUserWithTeam brig
+  accessToken <- getAccessTokenForScope brig uid ReadFeatureConfigs
+  getFeatureConfigs nginz authHeader (oatAccessToken accessToken) !!! do
+    const 200 === statusCode
+
 -------------------------------------------------------------------------------
 -- Util
+
+getAccessTokenForScope :: Brig -> UserId -> OAuthScope -> Http OAuthAccessTokenResponse
+getAccessTokenForScope brig uid scope = do
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [scope]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  createOAuthAccessToken brig accessTokenRequest
 
 createTeamConv ::
   (Request -> Request) ->
@@ -689,6 +714,18 @@ createTeamConv svc mkHeader token tid name = do
         . path "conversations"
         . mkHeader token
         . json conv
+    )
+
+getFeatureConfigs ::
+  (Request -> Request) ->
+  (OAuthAccessToken -> Request -> Request) ->
+  OAuthAccessToken ->
+  Http ResponseLBS
+getFeatureConfigs svc mkHeader token = do
+  get
+    ( svc
+        . path "feature-configs"
+        . mkHeader token
     )
 
 createOAuthApplicationWithAccountAccess :: Brig -> UserId -> Http OAuthAccessTokenResponse

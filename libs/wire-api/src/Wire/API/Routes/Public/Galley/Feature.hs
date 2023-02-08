@@ -26,6 +26,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MakesFederatedCall
+import Wire.API.OAuth
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -214,7 +215,7 @@ type AllFeatureConfigsUserGet =
         :> Description
              "Gets feature configs for a user. If the user is a member of a team and has the required permissions, this will return the team's feature configs.\
              \If the user is not a member of a team, this will return the personal feature configs (the server defaults)."
-        :> ZUser
+        :> ZOauthUser '[ 'ReadFeatureConfigs]
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied
         :> CanThrow 'TeamNotFound

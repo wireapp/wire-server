@@ -42,9 +42,11 @@ import Data.Time
 import Imports hiding (exp, head)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
+import Test.QuickCheck (Arbitrary)
 import URI.ByteString
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
+import Wire.Arbitrary (GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Types
@@ -163,11 +165,24 @@ instance ToSchema OAuthResponseType where
         [ element "code" OAuthResponseTypeCode
         ]
 
+-- | add oauth scope checklist:
+-- - add to the list below
+-- - update ToByteString and FromByteString instance of OAuthScope (run unit tests)
+-- - implement IsOAuthScope instance for the new scope
+-- - for the endpoints that require the new scope, replace:
+--   - `ZUser` with `ZOauthUser '[ 'NewScope]`
+--   - or `ZLocalUser` with `ZOauthLocalUser '[ 'NewScope]`
+-- - update `services/nginz/integration-test/conf/nginz/nginx.conf`:
+--   - in location settings for the endpoint in question, replace
+--     `include common_response_with_zauth.conf` with `common_response_with_zauth_oauth.conf`
+-- - update `charts/nginz/values.yaml` and add `enable_oauth: true` to the endpoint in question
 data OAuthScope
   = WriteConversation
   | WriteConversationCode
   | ReadSelf
+  | ReadFeatureConfigs
   deriving (Eq, Show, Generic, Ord)
+  deriving (Arbitrary) via (GenericUniform OAuthScope)
 
 class IsOAuthScope scope where
   toOAuthScope :: OAuthScope
@@ -180,6 +195,9 @@ instance IsOAuthScope 'WriteConversationCode where
 
 instance IsOAuthScope 'ReadSelf where
   toOAuthScope = ReadSelf
+
+instance IsOAuthScope 'ReadFeatureConfigs where
+  toOAuthScope = ReadFeatureConfigs
 
 -- | Given a type-level list of scopes X, this class gives you a function that tests if
 -- a list of scopes from a token intersects with X, ie., if a token grants access to the route
@@ -199,8 +217,9 @@ instance (IsOAuthScope scope, IsOAuthScopes scopes) => IsOAuthScopes (scope ': s
 instance ToByteString OAuthScope where
   builder = \case
     WriteConversation -> "write:conversation"
-    WriteConversationCode -> "conversation_code:create"
+    WriteConversationCode -> "write:conversation_code"
     ReadSelf -> "read:self"
+    ReadFeatureConfigs -> "read:feature_configs"
 
 instance FromByteString OAuthScope where
   parser = do
@@ -209,6 +228,7 @@ instance FromByteString OAuthScope where
       "write:conversation" -> pure WriteConversation
       "write:conversation_code" -> pure WriteConversationCode
       "read:self" -> pure ReadSelf
+      "read:feature_configs" -> pure ReadFeatureConfigs
       _ -> fail "invalid scope"
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}

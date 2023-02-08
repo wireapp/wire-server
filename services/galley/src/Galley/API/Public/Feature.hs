@@ -17,6 +17,9 @@
 
 module Galley.API.Public.Feature where
 
+import Crypto.JOSE.JWK
+import Data.Domain (Domain)
+import Data.Maybe
 import Galley.API.Teams
 import Galley.API.Teams.Features
 import Galley.App
@@ -62,7 +65,7 @@ featureAPI =
     <@> mkNamedAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", OutlookCalIntegrationConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("put", OutlookCalIntegrationConfig) (setFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
+    <@> mkNamedAPIWithContext @'[Domain, Maybe JWK] @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
     <@> mkNamedAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam @Cassandra)
     <@> mkNamedAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser @Cassandra)
     <@> mkNamedAPI @'("get-config", SSOConfig) (getFeatureStatusForUser @Cassandra)
