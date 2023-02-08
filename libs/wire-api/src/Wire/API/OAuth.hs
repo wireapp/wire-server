@@ -165,17 +165,19 @@ instance ToSchema OAuthResponseType where
         [ element "code" OAuthResponseTypeCode
         ]
 
--- | add oauth scope checklist:
--- - add to the list below
--- - update ToByteString and FromByteString instance of OAuthScope (run unit tests)
--- - implement IsOAuthScope instance for the new scope
--- - for the endpoints that require the new scope, replace:
---   - `ZUser` with `ZOauthUser '[ 'NewScope]`
---   - or `ZLocalUser` with `ZOauthLocalUser '[ 'NewScope]`
--- - update `services/nginz/integration-test/conf/nginz/nginx.conf`:
---   - in location settings for the endpoint in question, replace
---     `include common_response_with_zauth.conf` with `common_response_with_zauth_oauth.conf`
--- - update `charts/nginz/values.yaml` and add `enable_oauth: true` to the endpoint in question
+-- | This types represents all valid OAuth scopes
+-- If you want to add an OAuth scope, you may want to go through this checklist:
+-- - Add the new scope to the list below
+-- - Update `ToByteString` and `FromByteString` instance of `OAuthScope` (run unit tests)
+-- - Implement an `IsOAuthScope` instance for the new scope
+-- - For the endpoint(s) that require the new scope, replace:
+--   - `ZUser` with `ZOauthUser '[ '<NewScope>]`
+--   - or `ZLocalUser` with `ZOauthLocalUser '[ '<NewScope>]`
+-- - Update `services/nginz/integration-test/conf/nginz/nginx.conf` and replace
+--   `include common_response_with_zauth.conf` with `include common_response_with_zauth_oauth.conf`
+--   in location settings for the endpoint(s) in question
+-- - Update `charts/nginz/values.yaml` and add `enable_oauth: true` to the endpoint in question
+-- - Consider writing an integration test
 data OAuthScope
   = WriteConversation
   | WriteConversationCode
