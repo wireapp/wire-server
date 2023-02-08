@@ -223,12 +223,6 @@ http {
       {{- if hasKey $location "envs" -}}
         {{- range $env := $location.envs -}}
           {{- if or (eq $env $.Values.nginx_conf.env) (eq $env "all") -}}
-
-            {{- if and (not (eq $.Values.nginx_conf.env "prod")) ($location.doc) -}}
-
-    rewrite ^/api-docs{{ $location.path }}  {{ $location.path }}/api-docs?base_url=https://{{ $.Values.nginx_conf.env }}-nginz-https.{{ $.Values.nginx_conf.external_env_domain }}/ break;
-            {{- end }}
-
             {{- if $location.strip_version }}
 
     rewrite ^/v[0-9]+({{ $location.path }}) $1;
@@ -325,39 +319,6 @@ http {
       {{- end -}}
     {{- end -}}
   {{- end }}
-
-    {{ if not (eq $.Values.nginx_conf.env "prod")  }}
-    #
-    # Swagger Resource Listing
-    #
-    location /api-docs {
-        zauth off;
-        default_type application/json;
-        root {{ $.Values.nginx_conf.swagger_root }};
-        index resources.json;
-        if ($request_method = 'OPTIONS') {
-              add_header 'Access-Control-Allow-Methods' "GET, POST, PUT, DELETE, OPTIONS";
-              add_header 'Access-Control-Allow-Headers' "$http_access_control_request_headers, DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type";
-              add_header 'Content-Type' 'text/plain; charset=UTF-8';
-              add_header 'Content-Length' 0;
-              return 204;
-        }
-        more_set_headers 'Access-Control-Allow-Origin: $http_origin';
-    }
-
-    # Swagger UI
-    location /swagger-ui {
-        zauth  off;
-        gzip   off;
-        alias /opt/zwagger-ui;
-        types {
-            application/javascript  js;
-            text/css                css;
-            text/html               html;
-            image/png               png;
-        }
-    }
-    {{ end }}
 
     {{- if hasKey .Values.nginx_conf "deeplink" }}
     location ~* ^/deeplink.(json|html)$ {
