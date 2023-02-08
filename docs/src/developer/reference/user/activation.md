@@ -141,11 +141,11 @@ The backend can be configured to only allow specific phone number prefixes and e
 
 ```yaml
 optSettings:
-  setWhitelistEmailDomains:
+  setAllowlistEmailDomains:
     - wire.com
     - example.com
     - notagoodexample.com
-  setWhitelistPhonePrefixes:
+  setAllowlistPhonePrefixes:
     - +49
     - +1555555
 ```

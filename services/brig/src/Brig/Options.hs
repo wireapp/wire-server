@@ -492,8 +492,8 @@ data Settings = Settings
     -- | STOMP broker credentials
     setStomp :: !(Maybe FilePathSecrets),
     -- | Whitelist of allowed emails/phones
-    setWhitelistEmailDomains :: !(Maybe WhitelistEmailDomains),
-    setWhitelistPhonePrefixes :: !(Maybe WhitelistPhonePrefixes),
+    setAllowlistEmailDomains :: !(Maybe WhitelistEmailDomains),
+    setAllowlistPhonePrefixes :: !(Maybe WhitelistPhonePrefixes),
     -- | Max. number of sent/accepted
     --   connections per user
     setUserMaxConnections :: !Int64,

@@ -37,7 +37,7 @@ import qualified Brig.AWS as AWS
 import Brig.App
 import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
 import Brig.Email (Email)
-import Brig.Options (setWhitelistEmailDomains, setWhitelistPhonePrefixes)
+import Brig.Options (setAllowlistEmailDomains, setAllowlistPhonePrefixes)
 import Brig.Phone (Phone, PhoneException (..))
 import qualified Brig.Whitelist as Whitelist
 import Control.Error
@@ -179,4 +179,4 @@ checkWhitelistWithError e key = do
 isWhiteListed :: (MonadReader Env m) => Either Email Phone -> m Bool
 isWhiteListed key = do
   env <- view settings
-  pure $ Whitelist.verify (setWhitelistEmailDomains env) (setWhitelistPhonePrefixes env) key
+  pure $ Whitelist.verify (setAllowlistEmailDomains env) (setAllowlistPhonePrefixes env) key

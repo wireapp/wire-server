@@ -193,9 +193,9 @@ optSettings:
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
   setEnableMLS: true
-  setWhitelistEmailDomains:
+  setAllowlistEmailDomains:
     - wire.com
-  setWhitelistPhonePrefixes:
+  setAllowlistPhonePrefixes:
     - +1555555
 
 logLevel: Warn
