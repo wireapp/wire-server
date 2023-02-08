@@ -418,11 +418,16 @@ if __name__ == '__main__':
         if ENABLE_FEDERATION:
             instances |= start_backend(backend_b, "test2", "b.example.com", "B")
 
-        # main script
-        ret = subprocess.run(sys.argv[1:],
-                             env=dict(list(os.environ.items()) +
-                                      list(environment.items())))
-        sys.exit(ret.returncode)
+        # run main script or just wait forever
+        if len(sys.argv) == 1:
+            print("(This will hang, Control+C to close.)")
+            print("Now you can manually curl them or start an integration test executable manually with e.g. \n(first cd to a service dir for correct working directory)\n  cd services/brig && ../../dist/brig-integration -s brig.integration.yaml -i ../integration.yaml")
+            signal.pause()
+        else:
+            ret = subprocess.run(sys.argv[1:],
+                                 env=dict(list(os.environ.items()) +
+                                          list(environment.items())))
+            sys.exit(ret.returncode)
     except KeyboardInterrupt:
         pass
     except SpawnFailException as e:
