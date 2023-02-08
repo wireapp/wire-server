@@ -395,6 +395,7 @@ executable galley-integration
     Main
     TestHelpers
     TestSetup
+    TypingIndicators
 
   hs-source-dirs:     test/integration
   default-extensions:
