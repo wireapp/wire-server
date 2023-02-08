@@ -17,19 +17,15 @@
 
 module Wire.API.Routes.API
   ( API,
-    hoistAPIHandler,
-    hoistAPIHandlerWithDomainAndJwk,
     hoistAPI,
+    hoistAPIHandler,
     mkAPI,
     mkNamedAPI,
-    mkNamedAPIWithContext,
+    hoistServerWithDomain,
+    hoistServerWithDomainAndJwk,
     (<@>),
     ServerEffect (..),
     ServerEffects (..),
-    hoistServerWithDomain,
-    hoistServerWithContext',
-    mkNamedAPIWithDomainAndJwk,
-    hoistServerWithDomainAndJwk,
   )
 where
 
@@ -61,15 +57,15 @@ mkAPIWithContext ::
   (HasServer api context, ServerEffects (DeclaredErrorEffects api) r0) =>
   ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
   API api r0
-mkAPIWithContext h = API $ hoistServerWithContext' @context @api (interpretServerEffects @(DeclaredErrorEffects api) @r0) h
+mkAPIWithContext h = API $ hoistServerWithContext (Proxy @api) (Proxy @context) (interpretServerEffects @(DeclaredErrorEffects api) @r0) h
 
 -- | Convert a polysemy handler to a named 'API' value.
 mkNamedAPI ::
   forall name r0 api.
-  (HasServer api '[Domain], ServerEffects (DeclaredErrorEffects api) r0) =>
+  (HasServer api '[Domain, Maybe JWK], ServerEffects (DeclaredErrorEffects api) r0) =>
   ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
   API (Named name api) r0
-mkNamedAPI = mkNamedAPIWithContext @'[Domain]
+mkNamedAPI = mkNamedAPIWithContext @'[Domain, Maybe JWK]
 
 mkNamedAPIWithContext ::
   forall (context :: [Type]) name r0 api.
@@ -77,13 +73,6 @@ mkNamedAPIWithContext ::
   ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
   API (Named name api) r0
 mkNamedAPIWithContext = API . Named . unAPI . mkAPIWithContext @context @r0 @api
-
-mkNamedAPIWithDomainAndJwk ::
-  forall name r0 api.
-  (HasServer api '[Domain, Maybe JWK], ServerEffects (DeclaredErrorEffects api) r0) =>
-  ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
-  API (Named name api) r0
-mkNamedAPIWithDomainAndJwk = mkNamedAPIWithContext @'[Domain, Maybe JWK]
 
 -- | Combine APIs.
 (<@>) :: API api1 r -> API api2 r -> API (api1 :<|> api2) r
@@ -97,15 +86,6 @@ infixr 3 <@>
 -- but unfortunately the 'hoistServerWithContext' function is also part of the
 -- 'HasServer' typeclass, even though it cannot possibly make use of its @context@
 -- type argument.
-hoistServerWithContext' ::
-  forall (context :: [Type]) api m n.
-  HasServer api context =>
-  (forall x. m x -> n x) ->
-  ServerT api m ->
-  ServerT api n
-hoistServerWithContext' = hoistServerWithContext (Proxy @api) (Proxy @context)
-
--- | Like `hoistServerWithContext'`, but with a 'Domain' context.
 hoistServerWithDomain ::
   forall api m n.
   HasServer api '[Domain] =>
@@ -114,7 +94,7 @@ hoistServerWithDomain ::
   ServerT api n
 hoistServerWithDomain = hoistServerWithContext (Proxy @api) (Proxy @'[Domain])
 
--- | Like `hoistServerWithContext'`, but with a 'Domain' context.
+-- | Like `hoistServerWithDomain`, but with a additional 'Maybe JWK' context.
 hoistServerWithDomainAndJwk ::
   forall api m n.
   HasServer api '[Domain, Maybe JWK] =>
@@ -125,19 +105,11 @@ hoistServerWithDomainAndJwk = hoistServerWithContext (Proxy @api) (Proxy @'[Doma
 
 hoistAPIHandler ::
   forall api r n.
-  HasServer api '[Domain] =>
-  (forall x. Sem r x -> n x) ->
-  API api r ->
-  ServerT api n
-hoistAPIHandler f = hoistServerWithContext' @'[Domain] @api f . unAPI
-
-hoistAPIHandlerWithDomainAndJwk ::
-  forall api r n.
   HasServer api '[Domain, Maybe JWK] =>
   (forall x. Sem r x -> n x) ->
   API api r ->
   ServerT api n
-hoistAPIHandlerWithDomainAndJwk f = hoistServerWithContext' @'[Domain, Maybe JWK] @api f . unAPI
+hoistAPIHandler f = hoistServerWithContext (Proxy @api) (Proxy @'[Domain, Maybe JWK]) f . unAPI
 
 hoistAPI ::
   forall api1 api2 r1 r2.

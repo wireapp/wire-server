@@ -17,9 +17,6 @@
 
 module Galley.API.Public.Conversation where
 
-import Crypto.JOSE.JWK
-import Data.Domain (Domain)
-import Data.Maybe
 import Galley.API.Create
 import Galley.API.MLS.GroupInfo
 import Galley.API.MLS.Types
@@ -47,8 +44,8 @@ conversationAPI =
     <@> mkNamedAPI @"list-conversations@v2" (callsFed listConversations)
     <@> mkNamedAPI @"list-conversations" (callsFed listConversations)
     <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
-    <@> mkNamedAPIWithContext @'[Domain, Maybe JWK] @"create-group-conversation@v2" (callsFed createGroupConversation)
-    <@> mkNamedAPIWithContext @'[Domain, Maybe JWK] @"create-group-conversation" (callsFed createGroupConversation)
+    <@> mkNamedAPI @"create-group-conversation@v2" (callsFed createGroupConversation)
+    <@> mkNamedAPI @"create-group-conversation" (callsFed createGroupConversation)
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError

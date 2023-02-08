@@ -117,7 +117,7 @@ mkApp opts =
                 :. customFormatters
                 :. Servant.EmptyContext
             )
-            ( hoistAPIHandlerWithDomainAndJwk @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
+            ( hoistAPIHandler @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
                 :<|> hoistAPIHandler (toServantHandler e) internalAPI
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> Servant.Tagged (runGalley e)
