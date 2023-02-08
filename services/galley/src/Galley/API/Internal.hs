@@ -86,7 +86,7 @@ import qualified Servant hiding (WithStatus)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
 import Wire.API.ApplyMods
-import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
@@ -111,6 +111,9 @@ import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
+import qualified Galley.Effects.MemberStore as E
+import qualified Data.Map as Map
+import Wire.API.MLS.Group
 
 type LegalHoldFeatureStatusChangeErrors =
   '( 'ActionDenied 'RemoveConversationMember,
@@ -270,6 +273,19 @@ type InternalAPIBase =
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
                :> ConversationVerb
+           )
+    -- This endpoint is meant for testing membership of a conversation
+    :<|> Named
+           "get-conversation-clients"
+           ( Summary "Get mls conversation client list"
+               :> ZLocalUser
+               :> CanThrow 'ConvNotFound
+               :> "conversation"
+               :> Capture "cnv" ConvId
+               :> MultiVerb1
+                    'GET
+                    '[Servant.JSON]
+                    (Respond 200 "Clients" ClientList)
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"
@@ -479,6 +495,7 @@ internalAPI =
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" (callsFed rmUser)
       <@> mkNamedAPI @"connect" (callsFed Create.createConnectConversation)
+      <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
@@ -843,3 +860,18 @@ guardLegalholdPolicyConflictsH ::
 guardLegalholdPolicyConflictsH glh = do
   mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+
+-- | Get an MLS conversation client list
+iGetMLSClientListForConv ::
+  forall r.
+  Members
+    '[ MemberStore,
+       ErrorS 'ConvNotFound
+     ]
+    r =>
+  Local UserId ->
+  ConvId ->
+  Sem r ClientList
+iGetMLSClientListForConv lusr cnv = do
+  cm <- E.lookupMLSClients (convToGroupId (qualifyAs lusr cnv))
+  pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs cm))

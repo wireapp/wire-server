@@ -37,7 +37,6 @@ module Galley.API.Query
     ensureConvAdmin,
     getMLSSelfConversation,
     getMLSSelfConversationWithError,
-    getMLSClientListForConv,
   )
 where
 
@@ -93,7 +92,6 @@ import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
-import Wire.API.MLS.Group
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
@@ -718,21 +716,6 @@ getMLSSelfConversation lusr = do
   mconv <- E.getConversation selfConvId
   cnv <- maybe (E.createMLSSelfConversation lusr) pure mconv
   conversationView lusr cnv
-
--- | Get an MLS conversation client list
-getMLSClientListForConv ::
-  forall r.
-  Members
-    '[ MemberStore,
-       ErrorS 'ConvNotFound
-     ]
-    r =>
-  Local UserId ->
-  ConvId ->
-  Sem r ClientList
-getMLSClientListForConv lusr cnv = do
-  cm <- E.lookupMLSClients (convToGroupId (qualifyAs lusr cnv))
-  pure $ ClientList (concat $ Map.keys . snd <$> Map.assocs cm)
 
 -------------------------------------------------------------------------------
 -- Helpers

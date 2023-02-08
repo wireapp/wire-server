@@ -1003,7 +1003,7 @@ getConvClients usr cnv = do
   responseJsonError
     =<< get
       ( g
-          . paths ["conversation", toByteString' cnv]
+          . paths ["i", "conversation", toByteString' cnv]
           . zUser usr
           . zConn "conn"
       )

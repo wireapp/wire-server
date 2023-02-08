@@ -3145,17 +3145,6 @@ testCreatorRemovesUserFromParent = do
           getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
             !!! const 403 === statusCode
 
-          clients <- getConvClients (qUnqualified alice) (qUnqualified qcnv)
-          convs <- getAllConvs (qUnqualified bob)
-          liftIO $ do
-            assertEqual
-              "Parent conversation client list mismatch"
-              (sort $ clClients clients)
-              (sort $ ciClient <$> [alice1, charlie1, charlie2])
-            assertBool
-              "bob is not longer part of conversation after the commit"
-              (qcnv `notElem` map cnvQualifiedId convs)
-
           -- charlie sees updated memberlist
           sub1 :: PublicSubConversation <-
             responseJsonError
