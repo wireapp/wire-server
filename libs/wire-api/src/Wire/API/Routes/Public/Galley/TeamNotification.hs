@@ -40,7 +40,7 @@ type GetTeamNotificationsDescription =
   "This is a work-around for scalability issues with gundeck user event fan-out. \
   \It does not track all team-wide events, but only `member-join`.\
   \\n\
-  \Note that `/teams/notifications` behaves different from `/notifications`:\
+  \Note that `/teams/notifications` behaves differently from `/notifications`:\
   \\n\
   \- If there is a gap between the notification id requested with `since` and the \
   \available data, team queues respond with 200 and the data that could be found. \
