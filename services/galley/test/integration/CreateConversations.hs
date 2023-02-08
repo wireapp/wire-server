@@ -17,24 +17,24 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Timeout
 import Federator.MockServer
+import Galley.Options
 import Imports
+import Network.Wai.Utilities (label)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import qualified UnliftIO.Async as Async
+import Wire.API.Connection
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Internal.Notification
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
-import Wire.API.Conversation.Role
-import Network.Wai.Utilities (label)
-import Wire.API.Connection
-import Galley.Options
-import Wire.API.Conversation.Protocol
 
 tests :: IO TestSetup -> TestTree
 tests s =
