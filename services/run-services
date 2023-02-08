@@ -316,26 +316,15 @@ def start_backend(services, keyspace, domain, backend_name):
     failed_instances = [instance for instance in instances
                         if instance.exception is not None]
 
-    # set up a timeout for checking instances
-    timeout = threading.Condition()
-    checking = True
-    def check_timeout():
-        nonlocal checking
-        time.sleep(5)
-        with timeout:
-            checking = False
-            timeout.notify()
-    threading.Thread(target=check_timeout).start()
-
     # check instances
     to_be_checked = [instance for instance in instances
                      if instance.exception is None]
+    start_time = time.time()
     while to_be_checked:
-        with timeout:
-            if not checking:
-                print(f"{Colors.RED}Timeout while spawing services{Colors.RESET}")
-                failed_instances.extend(to_be_checked)
-                break
+        if time.time() - start_time >= 5:
+            print(f"{Colors.RED}Timeout while spawing services{Colors.RESET}")
+            failed_instances.extend(to_be_checked)
+            break
 
         to_be_checked_again = set()
         for instance in to_be_checked:
