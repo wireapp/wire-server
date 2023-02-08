@@ -18,7 +18,7 @@ See `docs/legacy/developer/changelog.md` for more information.
 
 ## Schema migrations
 
-Don't delete columns that are still used by versions that are deployed. If you delete columns then the old version will fail in the deployment process. Rather than deleting keep the unused columns around and comment them as being discontinued in the schema migration code. 
+Don't delete columns that are still used by versions that are deployed. If you delete columns then the old version will fail in the deployment process. Rather than deleting keep the unused columns around and comment them as being discontinued in the schema migration code.
 
 If a cassandra schema migration has been added then add this to the checklist:
 
