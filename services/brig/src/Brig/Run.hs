@@ -51,7 +51,6 @@ import Control.Monad.Random (randomRIO)
 import Crypto.JWT
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
-import Data.Domain
 import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Servant as Metrics
@@ -147,7 +146,7 @@ mkApp o = do
             (Proxy @ServantCombinedAPI)
             (mJwk :. customFormatters :. localDomain :. Servant.EmptyContext)
             ( docsAPI
-                :<|> hoistServerWithContext' @'[Domain, Maybe JWK] @BrigAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomainAndJwk @BrigAPI (toServantHandler e) servantSitemap
                 :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI

@@ -31,10 +31,8 @@ import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
-import Crypto.JOSE.JWK
 import qualified Data.Aeson as Aeson
 import Data.Default
-import Data.Domain (Domain)
 import Data.Id
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
@@ -119,7 +117,7 @@ mkApp opts =
                 :. customFormatters
                 :. Servant.EmptyContext
             )
-            ( hoistAPIHandlerWithContext @'[Domain, Maybe JWK] @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
+            ( hoistAPIHandlerWithDomainAndJwk @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
                 :<|> hoistAPIHandler (toServantHandler e) internalAPI
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> Servant.Tagged (runGalley e)

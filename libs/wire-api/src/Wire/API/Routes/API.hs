@@ -18,7 +18,7 @@
 module Wire.API.Routes.API
   ( API,
     hoistAPIHandler,
-    hoistAPIHandlerWithContext,
+    hoistAPIHandlerWithDomainAndJwk,
     hoistAPI,
     mkAPI,
     mkNamedAPI,
@@ -28,9 +28,12 @@ module Wire.API.Routes.API
     ServerEffects (..),
     hoistServerWithDomain,
     hoistServerWithContext',
+    mkNamedAPIWithDomainAndJwk,
+    hoistServerWithDomainAndJwk,
   )
 where
 
+import Crypto.JOSE (JWK)
 import Data.Domain
 import Data.Kind (Type)
 import Data.Proxy
@@ -75,6 +78,13 @@ mkNamedAPIWithContext ::
   API (Named name api) r0
 mkNamedAPIWithContext = API . Named . unAPI . mkAPIWithContext @context @r0 @api
 
+mkNamedAPIWithDomainAndJwk ::
+  forall name r0 api.
+  (HasServer api '[Domain, Maybe JWK], ServerEffects (DeclaredErrorEffects api) r0) =>
+  ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
+  API (Named name api) r0
+mkNamedAPIWithDomainAndJwk = mkNamedAPIWithContext @'[Domain, Maybe JWK]
+
 -- | Combine APIs.
 (<@>) :: API api1 r -> API api2 r -> API (api1 :<|> api2) r
 (<@>) (API h1) (API h2) = API (h1 :<|> h2)
@@ -104,6 +114,15 @@ hoistServerWithDomain ::
   ServerT api n
 hoistServerWithDomain = hoistServerWithContext (Proxy @api) (Proxy @'[Domain])
 
+-- | Like `hoistServerWithContext'`, but with a 'Domain' context.
+hoistServerWithDomainAndJwk ::
+  forall api m n.
+  HasServer api '[Domain, Maybe JWK] =>
+  (forall x. m x -> n x) ->
+  ServerT api m ->
+  ServerT api n
+hoistServerWithDomainAndJwk = hoistServerWithContext (Proxy @api) (Proxy @'[Domain, Maybe JWK])
+
 hoistAPIHandler ::
   forall api r n.
   HasServer api '[Domain] =>
@@ -112,13 +131,13 @@ hoistAPIHandler ::
   ServerT api n
 hoistAPIHandler f = hoistServerWithContext' @'[Domain] @api f . unAPI
 
-hoistAPIHandlerWithContext ::
-  forall (context :: [Type]) api r n.
-  HasServer api context =>
+hoistAPIHandlerWithDomainAndJwk ::
+  forall api r n.
+  HasServer api '[Domain, Maybe JWK] =>
   (forall x. Sem r x -> n x) ->
   API api r ->
   ServerT api n
-hoistAPIHandlerWithContext f = hoistServerWithContext' @context @api f . unAPI
+hoistAPIHandlerWithDomainAndJwk f = hoistServerWithContext' @'[Domain, Maybe JWK] @api f . unAPI
 
 hoistAPI ::
   forall api1 api2 r1 r2.
