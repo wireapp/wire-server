@@ -22,7 +22,6 @@ module Federator.Error
 where
 
 import qualified Data.Aeson as A
-import Debug.Trace
 import Imports
 import Network.HTTP.Types.Header
 import qualified Network.Wai as Wai
@@ -33,4 +32,4 @@ class AsWai e where
   waiErrorDescription :: e -> Text
 
 errorResponse :: [Header] -> Wai.Error -> Wai.Response
-errorResponse hdrs e = Wai.responseLBS (Wai.code e) hdrs (traceShowId (A.encode e))
+errorResponse hdrs e = Wai.responseLBS (Wai.code e) hdrs (A.encode e)
