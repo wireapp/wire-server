@@ -176,7 +176,7 @@ removeUser lc qusr = do
     let getKPs = Map.findWithDefault mempty qusr . membersConvOrSub
     removeClientsWithClientMapRecursively (qualifyAs lc mlsConv) getKPs qusr
 
--- TODO: move this or similar function into store
+-- | Convert cassandra subconv maps into SubConversations
 listSubConversations' ::
   Member SubConversationStore r =>
   ConvId ->

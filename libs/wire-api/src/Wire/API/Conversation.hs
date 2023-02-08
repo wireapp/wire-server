@@ -235,7 +235,7 @@ instance ToSchema (Versioned 'V2 ConversationMetadata) where
           "ConversationMetadata"
           (conversationMetadataObjectSchema accessRolesSchemaV2)
 
--- | Public-facing client list
+-- | Client list for internal API.
 data ClientList = ClientList {clClients :: [ClientId]}
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientList)

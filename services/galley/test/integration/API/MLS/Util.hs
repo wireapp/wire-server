@@ -892,7 +892,7 @@ consumeWelcome welcome = do
 consumeMessage :: HasCallStack => MessagePackage -> MLSTest ()
 consumeMessage msg = do
   mems <- State.gets mlsMembers
-  for_ (Set.delete (mpSender msg) mems) $ \cid -> do
+  for_ (Set.delete (mpSender msg) mems) $ \cid ->
     consumeMessage1 cid (mpMessage msg)
 
 consumeMessage1 :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()

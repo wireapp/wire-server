@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-matches -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -107,7 +107,7 @@ import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
 import Wire.API.Connection
-import Wire.API.Conversation as C
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role

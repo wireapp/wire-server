@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-matches -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -46,7 +46,6 @@ import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
-import Galley.Cassandra.Conversation.MLS (lookupMLSClients)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
@@ -62,11 +61,8 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
-import Wire.API.Internal.Notification (ntfPayload)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Epoch
-import Wire.API.MLS.Group
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
