@@ -44,7 +44,7 @@ type GetTeamNotificationsDescription =
   \\n\
   \- If there is a gap between the notification id requested with `since` and the \
   \available data, team queues respond with 200 and the data that could be found. \
-  \The do NOT respond with status 404, but valid data in the body.\
+  \They do NOT respond with status 404, but valid data in the body.\
   \\n\
   \- The notification with the id given via `since` is included in the \
   \response if it exists.  You should remove this and only use it to decide whether \
