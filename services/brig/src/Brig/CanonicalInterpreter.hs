@@ -9,7 +9,6 @@ import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.GalleyProvider.RPC (interpretGalleyProviderToRPC)
-import Brig.Effects.Jwk
 import Brig.Effects.JwtTools
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
@@ -30,6 +29,7 @@ import Polysemy.Error (Error, mapError, runError)
 import Polysemy.TinyLog (TinyLog)
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
+import Wire.Sem.Jwk
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)

@@ -429,6 +429,7 @@ nginx_conf:
       envs:
       - all
       doc: true
+      enable_oauth: true
     - path: /legalhold/conversations/(.*)
       envs:
       - all
@@ -500,6 +501,7 @@ nginx_conf:
     - path: /feature-configs(.*)
       envs:
       - all
+      enable_oauth: true
     - path: /galley-api/swagger-ui
       disable_zauth: true
       envs:

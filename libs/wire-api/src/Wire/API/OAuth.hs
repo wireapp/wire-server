@@ -42,9 +42,11 @@ import Data.Time
 import Imports hiding (exp, head)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
+import Test.QuickCheck (Arbitrary)
 import URI.ByteString
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
+import Wire.Arbitrary (GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Types
@@ -163,37 +165,72 @@ instance ToSchema OAuthResponseType where
         [ element "code" OAuthResponseTypeCode
         ]
 
+-- | This types represents all valid OAuth scopes
+-- If you want to add an OAuth scope, you may want to go through this checklist:
+-- - Add the new scope to the list below
+-- - Update `ToByteString` and `FromByteString` instance of `OAuthScope` (run unit tests)
+-- - Implement an `IsOAuthScope` instance for the new scope
+-- - For the endpoint(s) that require the new scope, replace:
+--   - `ZUser` with `ZOauthUser '[ '<NewScope>]`
+--   - or `ZLocalUser` with `ZOauthLocalUser '[ '<NewScope>]`
+-- - Update `services/nginz/integration-test/conf/nginz/nginx.conf` and replace
+--   `include common_response_with_zauth.conf` with `include common_response_with_zauth_oauth.conf`
+--   in location settings for the endpoint(s) in question
+-- - Update `charts/nginz/values.yaml` and add `enable_oauth: true` to the endpoint in question
+-- - Consider writing an integration test
 data OAuthScope
-  = ConversationCreate
-  | ConversationCodeCreate
-  | SelfRead
+  = WriteConversation
+  | WriteConversationCode
+  | ReadSelf
+  | ReadFeatureConfigs
   deriving (Eq, Show, Generic, Ord)
+  deriving (Arbitrary) via (GenericUniform OAuthScope)
 
 class IsOAuthScope scope where
   toOAuthScope :: OAuthScope
 
-instance IsOAuthScope 'ConversationCreate where
-  toOAuthScope = ConversationCreate
+instance IsOAuthScope 'WriteConversation where
+  toOAuthScope = WriteConversation
 
-instance IsOAuthScope 'ConversationCodeCreate where
-  toOAuthScope = ConversationCodeCreate
+instance IsOAuthScope 'WriteConversationCode where
+  toOAuthScope = WriteConversationCode
 
-instance IsOAuthScope 'SelfRead where
-  toOAuthScope = SelfRead
+instance IsOAuthScope 'ReadSelf where
+  toOAuthScope = ReadSelf
+
+instance IsOAuthScope 'ReadFeatureConfigs where
+  toOAuthScope = ReadFeatureConfigs
+
+-- | Given a type-level list of scopes X, this class gives you a function that tests if
+-- a list of scopes from a token intersects with X, ie., if a token grants access to the route
+-- with scopes X.
+class IsOAuthScopes scopes where
+  showOAuthScopeList :: Text
+  allowOAuthScopeList :: Set.Set OAuthScope -> Bool
+
+instance IsOAuthScopes '[] where
+  showOAuthScopeList = mempty
+  allowOAuthScopeList _ = False
+
+instance (IsOAuthScope scope, IsOAuthScopes scopes) => IsOAuthScopes (scope ': scopes) where
+  showOAuthScopeList = T.unwords [cs $ toByteString (toOAuthScope @scope), showOAuthScopeList @scopes]
+  allowOAuthScopeList scopes = ((toOAuthScope @scope) `Set.member` scopes) || allowOAuthScopeList @scopes scopes
 
 instance ToByteString OAuthScope where
   builder = \case
-    ConversationCreate -> "conversation:create"
-    ConversationCodeCreate -> "conversation-code:create"
-    SelfRead -> "self:read"
+    WriteConversation -> "write:conversation"
+    WriteConversationCode -> "write:conversation_code"
+    ReadSelf -> "read:self"
+    ReadFeatureConfigs -> "read:feature_configs"
 
 instance FromByteString OAuthScope where
   parser = do
     s <- parser
     case s & T.toLower of
-      "conversation:create" -> pure ConversationCreate
-      "conversation-code:create" -> pure ConversationCodeCreate
-      "self:read" -> pure SelfRead
+      "write:conversation" -> pure WriteConversation
+      "write:conversation_code" -> pure WriteConversationCode
+      "read:self" -> pure ReadSelf
+      "read:feature_configs" -> pure ReadFeatureConfigs
       _ -> fail "invalid scope"
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
@@ -426,8 +463,8 @@ hcsSub =
     >=> preview string
     >=> either (const Nothing) pure . parseIdFromText
 
-hasScope :: OAuthScope -> OAuthClaimsSet -> Bool
-hasScope s claims = s `Set.member` unOAuthScopes (scope claims)
+hasScope :: forall scopes. IsOAuthScopes scopes => OAuthClaimsSet -> Bool
+hasScope = allowOAuthScopeList @scopes . unOAuthScopes . scope
 
 -- | Verify a JWT and return the claims set. Use this function if you have a custom claims set.
 verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimsSet)

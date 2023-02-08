@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Effects.Jwk where
+module Wire.Sem.Jwk where
 
 import Control.Exception
 import Crypto.JOSE.JWK

@@ -36,7 +36,6 @@ import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
 import Brig.CanonicalInterpreter
-import Brig.Effects.Jwk (readJwk)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
 import qualified Brig.Effects.UserPendingActivationStore as UsersPendingActivationStore
 import qualified Brig.InternalEvent.Process as Internal
@@ -52,7 +51,6 @@ import Control.Monad.Random (randomRIO)
 import Crypto.JWT
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
-import Data.Domain (Domain (..))
 import Data.Id (RequestId (..))
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Servant as Metrics
@@ -71,7 +69,7 @@ import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
 import Polysemy (Members)
-import Servant (Context ((:.)), HasServer (hoistServerWithContext), ServerT, (:<|>) (..))
+import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
@@ -81,6 +79,7 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import Wire.Sem.Jwk (readJwk)
 import qualified Wire.Sem.Paging as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -147,20 +146,12 @@ mkApp o = do
             (Proxy @ServantCombinedAPI)
             (mJwk :. customFormatters :. localDomain :. Servant.EmptyContext)
             ( docsAPI
-                :<|> hoistServerWithContext' @BrigAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomainAndJwk @BrigAPI (toServantHandler e) servantSitemap
                 :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
                 :<|> Servant.Tagged (app e)
             )
-
-hoistServerWithContext' ::
-  forall api m n.
-  HasServer api '[Domain, Maybe JWK] =>
-  (forall x. m x -> n x) ->
-  ServerT api m ->
-  ServerT api n
-hoistServerWithContext' = hoistServerWithContext (Proxy @api) (Proxy @'[Domain, Maybe JWK])
 
 type ServantCombinedAPI =
   ( DocsAPI

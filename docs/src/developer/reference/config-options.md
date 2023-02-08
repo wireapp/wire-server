@@ -54,6 +54,16 @@ certificate, is to run the following command:
 openssl req -nodes -newkey ed25519 -keyout ed25519.pem -out /dev/null -subj /
 ```
 
+### Public JWK for OAuth
+
+Set the path to the public JWK key for OAuth like this:
+
+```yml
+# [galley.yaml]
+settings:
+  oauthPublicJwk: test/resources/oauth/ed25519_public_jwk.json
+```
+
 ## Feature flags
 
 > Also see [Wire docs](https://docs.wire.com/how-to/install/team-feature-settings.html) where some of the feature flags are documented from an operations point of view.

@@ -72,6 +72,9 @@ data:
       {{- if .settings.disabledAPIVersions }}
       disabledAPIVersions: {{ .settings.disabledAPIVersions }}
       {{- end }}
+      {{- if $.Values.secrets.oauthPublicJwk }}
+      oauthPublicJwk: /etc/wire/galley/secrets/public_jwk_oauth.json
+      {{- end }}      
       {{- if .settings.featureFlags }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
