@@ -87,7 +87,7 @@ self: super: {
     inherit (super) stdenv fetchurl;
   };
 
-  helm = super.callPackage ./pkgs/helm {};
+  helm = super.callPackage ./pkgs/helm { };
 
   helmfile = staticBinary {
     pname = "helmfile";

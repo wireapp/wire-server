@@ -348,6 +348,9 @@ def start_backend(services, keyspace, domain, backend_name):
         to_be_checked = to_be_checked_again
         time.sleep(0.05)
 
+    # TODO: elapse timeout so that the timeout thread doesn't hold up the
+    # process
+
     if failed_instances:
         cleanup_instances(instances)
         raise SpawnFailException(failed_instances)
