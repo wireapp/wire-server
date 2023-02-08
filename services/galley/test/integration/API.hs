@@ -132,11 +132,6 @@ tests s =
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
           test s "add remote members when federator is unavailable" testAddRemoteMemberFederationUnavailable,
-          test s "rename conversation (deprecated endpoint)" putConvDeprecatedRenameOk,
-          test s "rename conversation" putConvRenameOk,
-          test s "rename qualified conversation" putQualifiedConvRenameOk,
-          test s "rename qualified conversation with remote members" putQualifiedConvRenameWithRemotesOk,
-          test s "rename qualified conversation failure" putQualifiedConvRenameFailure,
           test s "other member update role" putOtherMemberOk,
           test s "qualified other member update role" putQualifiedOtherMemberOk,
           test s "member update (otr mute)" putMemberOtrMuteOk,
@@ -1392,123 +1387,6 @@ postTooManyMembersFail = do
   postMembers chuck (x :| xs) qconv !!! do
     const 403 === statusCode
     const (Just "too-many-members") === fmap label . responseJsonUnsafe
-
-putQualifiedConvRenameFailure :: TestM ()
-putQualifiedConvRenameFailure = do
-  conv <- randomId
-  qbob <- randomQualifiedUser
-  let qconv = Qualified conv (qDomain qbob)
-  putQualifiedConversationName (qUnqualified qbob) qconv "gossip"
-    !!! do
-      const 404 === statusCode
-      const (Just "no-conversation") === fmap label . responseJsonUnsafe
-
-putQualifiedConvRenameOk :: TestM ()
-putQualifiedConvRenameOk = do
-  c <- view tsCannon
-  alice <- randomUser
-  qbob <- randomQualifiedUser
-  let bob = qUnqualified qbob
-  connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
-  let qconv = Qualified conv (qDomain qbob)
-  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
-    void $ putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
-    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= ConvRename
-      evtFrom e @?= qbob
-      evtData e @?= EdConvRename (ConversationRename "gossip++")
-
-putQualifiedConvRenameWithRemotesOk :: TestM ()
-putQualifiedConvRenameWithRemotesOk = do
-  c <- view tsCannon
-  let remoteDomain = Domain "alice.example.com"
-  qalice <- Qualified <$> randomId <*> pure remoteDomain
-  qbob <- randomQualifiedUser
-  let bob = qUnqualified qbob
-
-  connectWithRemoteUser bob qalice
-
-  resp <-
-    postConvWithRemoteUsers
-      bob
-      defNewProteusConv {newConvQualifiedUsers = [qalice]}
-      <!! const 201 === statusCode
-  let qconv = decodeQualifiedConvId resp
-
-  WS.bracketR c bob $ \wsB -> do
-    (_, requests) <-
-      withTempMockFederator' (mockReply ()) $
-        putQualifiedConversationName bob qconv "gossip++" !!! const 200 === statusCode
-
-    req <- assertOne requests
-    liftIO $ do
-      frTargetDomain req @?= remoteDomain
-      frComponent req @?= Galley
-      frRPC req @?= "on-conversation-updated"
-      Right cu <- pure . eitherDecode . frBody $ req
-      F.cuConvId cu @?= qUnqualified qconv
-      F.cuAction cu @?= SomeConversationAction (sing @'ConversationRenameTag) (ConversationRename "gossip++")
-
-    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= ConvRename
-      evtFrom e @?= qbob
-      evtData e @?= EdConvRename (ConversationRename "gossip++")
-
-putConvDeprecatedRenameOk :: TestM ()
-putConvDeprecatedRenameOk = do
-  c <- view tsCannon
-  g <- viewGalley
-  alice <- randomUser
-  qbob <- randomQualifiedUser
-  let bob = qUnqualified qbob
-  connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
-  let qconv = Qualified conv (qDomain qbob)
-  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
-    -- This endpoint is deprecated but clients still use it
-    put
-      ( g
-          . paths ["conversations", toByteString' conv]
-          . zUser bob
-          . zConn "conn"
-          . zType "access"
-          . json (ConversationRename "gossip++")
-      )
-      !!! const 200
-        === statusCode
-    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= ConvRename
-      evtFrom e @?= qbob
-      evtData e @?= EdConvRename (ConversationRename "gossip++")
-
-putConvRenameOk :: TestM ()
-putConvRenameOk = do
-  c <- view tsCannon
-  alice <- randomUser
-  qbob <- randomQualifiedUser
-  let bob = qUnqualified qbob
-  connectUsers alice (singleton bob)
-  conv <- decodeConvId <$> postO2OConv alice bob (Just "gossip")
-  let qconv = Qualified conv (qDomain qbob)
-  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
-    void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
-    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
-      let e = List1.head (WS.unpackPayload n)
-      ntfTransient n @?= False
-      evtConv e @?= qconv
-      evtType e @?= ConvRename
-      evtFrom e @?= qbob
-      evtData e @?= EdConvRename (ConversationRename "gossip++")
 
 putQualifiedOtherMemberOk :: TestM ()
 putQualifiedOtherMemberOk = do

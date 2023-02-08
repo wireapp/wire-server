@@ -397,6 +397,7 @@ executable galley-integration
     GetConversation
     Main
     PostMessage
+    RenameConversation
     TestHelpers
     TestSetup
     TypingIndicators
