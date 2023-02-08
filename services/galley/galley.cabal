@@ -393,6 +393,7 @@ executable galley-integration
     API.Util
     API.Util.TeamFeature
     CreateConversations
+    DeleteConversation
     Main
     PostMessage
     TestHelpers
