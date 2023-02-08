@@ -1206,7 +1206,7 @@ removeMemberQualified ::
   Qualified ConvId ->
   Qualified UserId ->
   Sem r (Maybe Event)
-removeMemberQualified lusr con qcnv victim = 
+removeMemberQualified lusr con qcnv victim =
   mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember) $
     foldQualified
       lusr
