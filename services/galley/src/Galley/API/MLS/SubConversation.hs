@@ -412,7 +412,7 @@ leaveLocalSubConversation cid lcnv sub = do
   kp <-
     note (mlsProtocolError "Client is not a member of the subconversation") $
       cmLookupRef cid (scMembers subConv)
-  removeClientsWithClientMap
+  createAndSendRemoveProposals
     (qualifyAs lcnv (SubConv mlsConv subConv))
     (Identity kp)
     (cidQualifiedUser cid)
