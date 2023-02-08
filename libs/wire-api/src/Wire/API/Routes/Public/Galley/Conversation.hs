@@ -586,7 +586,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
-               :> ZUser
+               :> ZOauthUser '[ 'WriteConversationCode]
                :> ZOptConn
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId

@@ -34,6 +34,7 @@ import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion (fromByteString, toByteString')
 import Data.Domain (domainText)
 import Data.Id
+import Data.Qualified (Qualified (qUnqualified))
 import Data.Range
 import Data.Set as Set hiding (delete, null, (\\))
 import Data.String.Conversions (cs)
@@ -52,6 +53,7 @@ import Text.RawString.QQ
 import URI.ByteString
 import Util
 import Web.FormUrlEncoded
+import Wire.API.Conversation (Access (..), Conversation (cnvQualifiedId))
 import qualified Wire.API.Conversation as Conv
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import qualified Wire.API.Conversation.Role as Role
@@ -105,12 +107,14 @@ tests m db b g n o = do
         [ testGroup
             "internal"
             [ test m "write:conversation" $ testWriteConversationSuccessInternal b g,
-              test m "read:feature_configs" $ testReadFeatureConfigsSuccessInternal b g
+              test m "read:feature_configs" $ testReadFeatureConfigsSuccessInternal b g,
+              test m "write:conversation_code" $ testWriteConversationCodeSuccessInternal b g
             ],
           testGroup
             "nginz"
             [ test m "write:conversation" $ testWriteConversationSuccessNginz b n,
-              test m "read:feature_configs" $ testReadFeatureConfigsSuccessNginz b n
+              test m "read:feature_configs" $ testReadFeatureConfigsSuccessNginz b n,
+              test m "write:conversation_code" $ testWriteConversationCodeSuccessNginz b n
             ]
         ],
       testGroup "refresh tokens" $
@@ -663,39 +667,67 @@ testRevokeApplicationAccountAccess brig = do
 testWriteConversationSuccessInternal :: Brig -> Galley -> Http ()
 testWriteConversationSuccessInternal brig galley = do
   (uid, tid) <- Team.createUserWithTeam brig
-  accessToken <- getAccessTokenForScope brig uid WriteConversation
+  accessToken <- getAccessTokenForScope brig uid [WriteConversation]
   createTeamConv galley zOAuthHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
     const 201 === statusCode
 
 testWriteConversationSuccessNginz :: Brig -> Nginz -> Http ()
 testWriteConversationSuccessNginz brig nginz = do
   (uid, tid) <- Team.createUserWithTeam brig
-  accessToken <- getAccessTokenForScope brig uid WriteConversation
+  accessToken <- getAccessTokenForScope brig uid [WriteConversation]
   createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
     const 201 === statusCode
 
 testReadFeatureConfigsSuccessInternal :: Brig -> Galley -> Http ()
 testReadFeatureConfigsSuccessInternal brig galley = do
   (uid, _) <- Team.createUserWithTeam brig
-  accessToken <- getAccessTokenForScope brig uid ReadFeatureConfigs
+  accessToken <- getAccessTokenForScope brig uid [ReadFeatureConfigs]
   getFeatureConfigs galley zOAuthHeader (oatAccessToken accessToken) !!! do
     const 200 === statusCode
 
 testReadFeatureConfigsSuccessNginz :: Brig -> Nginz -> Http ()
 testReadFeatureConfigsSuccessNginz brig nginz = do
   (uid, _) <- Team.createUserWithTeam brig
-  accessToken <- getAccessTokenForScope brig uid ReadFeatureConfigs
+  accessToken <- getAccessTokenForScope brig uid [ReadFeatureConfigs]
   getFeatureConfigs nginz authHeader (oatAccessToken accessToken) !!! do
     const 200 === statusCode
+
+testWriteConversationCodeSuccessInternal :: Brig -> Galley -> Http ()
+testWriteConversationCodeSuccessInternal brig galley = do
+  (uid, tid) <- Team.createUserWithTeam brig
+  accessToken <- getAccessTokenForScope brig uid [WriteConversation, WriteConversationCode]
+  conv <-
+    responseJsonError
+      =<< createTeamConv galley zOAuthHeader (oatAccessToken accessToken) tid "oauth test group" <!! do
+        const 201 === statusCode
+  postConvCode galley zOAuthHeader (oatAccessToken accessToken) (qUnqualified . cnvQualifiedId $ conv) !!! do
+    const 201 === statusCode
+
+testWriteConversationCodeSuccessNginz :: Brig -> Nginz -> Http ()
+testWriteConversationCodeSuccessNginz brig nginz = do
+  (uid, tid) <- Team.createUserWithTeam brig
+  accessToken <- getAccessTokenForScope brig uid [WriteConversation, WriteConversationCode]
+  conv <-
+    responseJsonError
+      =<< createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" <!! do
+        const 201 === statusCode
+  postConvCode nginz authHeader (oatAccessToken accessToken) (qUnqualified . cnvQualifiedId $ conv) !!! do
+    const 201 === statusCode
 
 -------------------------------------------------------------------------------
 -- Util
 
-getAccessTokenForScope :: Brig -> UserId -> OAuthScope -> Http OAuthAccessTokenResponse
-getAccessTokenForScope brig uid scope = do
+postConvCode :: (Request -> Request) -> (OAuthAccessToken -> Request -> Request) -> OAuthAccessToken -> ConvId -> Http ResponseLBS
+postConvCode svc mkHeader token c = do
+  post $
+    svc
+      . paths ["conversations", toByteString' c, "code"]
+      . mkHeader token
+
+getAccessTokenForScope :: Brig -> UserId -> [OAuthScope] -> Http OAuthAccessTokenResponse
+getAccessTokenForScope brig uid scopes = do
   let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [scope]
-  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid (OAuthScopes $ Set.fromList scopes) redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   createOAuthAccessToken brig accessTokenRequest
 
@@ -708,13 +740,12 @@ createTeamConv ::
   Http ResponseLBS
 createTeamConv svc mkHeader token tid name = do
   let tinfo = Conv.ConvTeamInfo tid
-  let conv = Conv.NewConv [] [] (checked name) mempty Nothing (Just tinfo) Nothing Nothing Role.roleNameWireAdmin ProtocolProteusTag Nothing
-  post
-    ( svc
-        . path "conversations"
-        . mkHeader token
-        . json conv
-    )
+  let conv = Conv.NewConv [] [] (checked name) (Set.fromList [CodeAccess]) Nothing (Just tinfo) Nothing Nothing Role.roleNameWireAdmin ProtocolProteusTag Nothing
+  post $
+    svc
+      . path "conversations"
+      . mkHeader token
+      . json conv
 
 getFeatureConfigs ::
   (Request -> Request) ->
@@ -722,11 +753,10 @@ getFeatureConfigs ::
   OAuthAccessToken ->
   Http ResponseLBS
 getFeatureConfigs svc mkHeader token = do
-  get
-    ( svc
-        . path "feature-configs"
-        . mkHeader token
-    )
+  get $
+    svc
+      . path "feature-configs"
+      . mkHeader token
 
 createOAuthApplicationWithAccountAccess :: Brig -> UserId -> Http OAuthAccessTokenResponse
 createOAuthApplicationWithAccountAccess brig uid = do
