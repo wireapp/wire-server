@@ -84,7 +84,7 @@ If a PR adds new configuration options for say brig, the following files need to
 * [ ] The integration test config: `services/brig/brig.integration.yaml`
 * [ ] The charts: `charts/brig/templates/configmap.yaml`
 * [ ] The default values: `charts/brig/values.yaml`
-* [ ] The values files for CI: `hack/helm_vars/wire-server/values.yaml`
+* [ ] The values files for CI: `hack/helm_vars/wire-server/values.yaml.gotmpl`
 * [ ] The configuration docs: `docs/src/developer/reference/config-options.md`
 
 If any new configuration value is required and has no default, then:
@@ -100,8 +100,9 @@ Remove them with the PR from wire-server `./charts` folder, as charts are linked
 
 ### Renaming configuration flags
 
-Avoid doing this. If you must, see Removing/adding sections above. But please note that all people who have an installation of wire also may have overridden any of the configuration option you may wish to change the name of. As this is not type checked, it's very error prone and people may find themselves with default configuration values being used instead of their intended configuration settings. Guideline: only rename for good reasons, not for aesthetics; or be prepared to spend a significant
-amount on documenting and communication about this change.
+Avoid doing this, it's usually viable to introduce an at-least-equally-good name and remove the old one, that admins can first add the new options, then uprade the software, then remove the old ones.
+
+If you must, see Removing/adding sections above. But please note that all people who have an installation of wire also may have overridden any of the configuration option you may wish to change the name of. As this is not type checked, it's very error prone and people may find themselves with default configuration values being used instead of their intended configuration settings. Guideline: only rename for good reasons, not for aesthetics; or be prepared to spend a significant amount on documenting and communication about this change.
 
 ## Changes to developer workflow
 
