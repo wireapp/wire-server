@@ -1,3 +1,4 @@
+(checks)=
 # Verifying your installation
 
 After a successful installation of wire-server and its components, there are some useful checks to be run to ensure the proper functioning of the system. Here's a non-exhaustive list of checks to run on the hosts:

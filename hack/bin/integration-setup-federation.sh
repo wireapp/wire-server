@@ -7,6 +7,7 @@ TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
 HELMFILE_ENV=${HELMFILE_ENV:-default}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
+HELM_PARALLELISM=${HELM_PARALLELISM:-1}
 
 . "$DIR/helm_overrides.sh"
 ${DIR}/integration-cleanup.sh
@@ -20,9 +21,8 @@ ${DIR}/integration-cleanup.sh
 # (e.g. cassandra from underneath databases-ephemeral)
 echo "updating recursive dependencies ..."
 charts=(fake-aws databases-ephemeral redis-cluster wire-server nginx-ingress-controller nginx-ingress-services)
-for chart in "${charts[@]}"; do
-    "$DIR/update.sh" "$CHARTS_DIR/$chart"
-done
+mkdir -p ~/.parallel && touch ~/.parallel/will-cite
+printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
 # FUTUREWORK: use helm functions instead, see https://wearezeta.atlassian.net/browse/SQPIT-723
 echo "Generating self-signed certificates..."

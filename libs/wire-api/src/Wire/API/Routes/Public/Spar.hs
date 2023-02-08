@@ -51,8 +51,13 @@ type API =
     :<|> "scim" :> APIScim
     :<|> OmitDocs :> "i" :> APIINTERNAL
 
+type DeprecateSSOAPIV1 =
+  Description
+    "DEPRECATED!  use /sso/metadata/:tid instead!  \
+    \Details: https://docs.wire.com/understand/single-sign-on/trouble-shooting.html#can-i-use-the-same-sso-login-code-for-multiple-teams"
+
 type APISSO =
-  "metadata" :> SAML.APIMeta
+  DeprecateSSOAPIV1 :> "metadata" :> SAML.APIMeta
     :<|> "metadata" :> Capture "team" TeamId :> SAML.APIMeta
     :<|> "initiate-login" :> APIAuthReqPrecheck
     :<|> "initiate-login" :> APIAuthReq
@@ -76,7 +81,8 @@ type APIAuthReq =
     :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
 
 type APIAuthRespLegacy =
-  "finalize-login"
+  DeprecateSSOAPIV1
+    :> "finalize-login"
     -- (SAML.APIAuthResp from here on, except for response)
     :> MultipartForm Mem SAML.AuthnResponseBody
     :> Post '[PlainText] Void
@@ -106,7 +112,7 @@ type IdpGetAll = Get '[JSON] IdPList
 type IdpCreate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> QueryParam' '[Optional, Strict] "replaces" SAML.IdPId
-    :> QueryParam' '[Optional, Strict] "api_version" WireIdPAPIVersion
+    :> QueryParam' '[Optional, Strict] "api_version" WireIdPAPIVersion -- see also: 'DeprecateSSOAPIV1'
     -- FUTUREWORK: The handle is restricted to 32 characters. Can we find a more reasonable upper bound and create a type for it? Also see `IdpUpdate`.
     :> QueryParam' '[Optional, Strict] "handle" (Range 1 32 Text)
     :> PostCreated '[JSON] IdP
