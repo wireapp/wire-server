@@ -392,6 +392,7 @@ executable galley-integration
     API.Teams.LegalHold.Util
     API.Util
     API.Util.TeamFeature
+    CreateConversations
     Main
     TestHelpers
     TestSetup
