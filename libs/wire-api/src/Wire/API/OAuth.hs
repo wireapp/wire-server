@@ -173,16 +173,17 @@ instance ToSchema OAuthResponseType where
 -- - For the endpoint(s) that require the new scope, replace:
 --   - `ZUser` with `ZOauthUser '[ '<NewScope>]`
 --   - or `ZLocalUser` with `ZOauthLocalUser '[ '<NewScope>]`
+-- - If the endpoint has other ZAuth combinators like `ZConn` e.g., these have to be made optional (e.g. replace with `ZOptConn`)
 -- - Update `services/nginz/integration-test/conf/nginz/nginx.conf` and replace
 --   `include common_response_with_zauth.conf` with `include common_response_with_zauth_oauth.conf`
 --   in location settings for the endpoint(s) in question
 -- - Update `charts/nginz/values.yaml` and add `enable_oauth: true` to the endpoint in question
 -- - Consider writing an integration test
 data OAuthScope
-  = WriteConversation
-  | WriteConversationCode
+  = ReadFeatureConfigs
   | ReadSelf
-  | ReadFeatureConfigs
+  | WriteConversation
+  | WriteConversationCode
   deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
