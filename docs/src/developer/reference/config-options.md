@@ -61,7 +61,7 @@ Set the path to the public JWK key for OAuth like this:
 ```yml
 # [galley.yaml]
 settings:
-  oauthPublicJwk: test/resources/oauth/ed25519_public_jwk.json
+  oauthPublicJwk: test/resources/oauth/ed25519_public.jwk
 ```
 
 ## Feature flags
