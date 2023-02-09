@@ -276,6 +276,7 @@ library
     , tagged
     , text                       >=0.11
     , time                       >=1.4
+    , transitive-anns
     , types-common               >=0.16
     , unordered-containers       >=0.2
     , uri-bytestring             >=0.2

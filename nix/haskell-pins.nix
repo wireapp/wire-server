@@ -57,6 +57,13 @@
 { lib, fetchgit }: hself: hsuper:
 let
   gitPins = {
+    transitive-anns = {
+      src = fetchgit {
+        url = "https://github.com/isovector/transitive-anns";
+        rev = "58a83df93b398206cf203f50d216533e37d40230";
+        sha256 = "sha256-W56Jma/pxBZ2XQAcwGAdEAXkcWCVM3E12XpFwDUZcug=";
+      };
+    };
     HaskellNet-SSL = {
       src = fetchgit {
         url = "https://github.com/dpwright/HaskellNet-SSL";

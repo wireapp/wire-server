@@ -25,6 +25,7 @@ module Wire.API.MakesFederatedCall
   )
 where
 
+import TransitiveAnns.Types
 import Data.Aeson (Value (..))
 import Data.Constraint
 import Data.Kind
