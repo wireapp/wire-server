@@ -373,7 +373,12 @@ in
       pkgs.netcat
       pkgs.niv
       (pkgs.python3.withPackages
-        (ps: with ps; [ pyyaml ]))
+        (ps: with ps; [ 
+          pyyaml
+          requests
+          ipdb
+          pytest
+          ]))
       pkgs.rsync
       pkgs.wget
       pkgs.yq
