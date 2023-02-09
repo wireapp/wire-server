@@ -21,10 +21,6 @@
 module Wire.API.User.Handle
   ( UserHandleInfo (..),
     CheckHandles (..),
-
-    -- * Swagger
-    modelUserHandleInfo,
-    modelCheckHandles,
   )
 where
 
@@ -36,7 +32,6 @@ import Data.Qualified (Qualified (..), deprecatedSchema)
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -47,12 +42,6 @@ newtype UserHandleInfo = UserHandleInfo {userHandleId :: Qualified UserId}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema UserHandleInfo
-
-modelUserHandleInfo :: Doc.Model
-modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
-  Doc.description "User handle info"
-  Doc.property "user" Doc.string' $
-    Doc.description "ID of the user owning the handle"
 
 instance ToSchema UserHandleInfo where
   schema =
@@ -75,15 +64,6 @@ data CheckHandles = CheckHandles
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CheckHandles)
   deriving (S.ToSchema) via Schema CheckHandles
-
-modelCheckHandles :: Doc.Model
-modelCheckHandles = Doc.defineModel "CheckHandles" $ do
-  Doc.description "Check availability of user handles."
-  Doc.property "handles" (Doc.array Doc.string') $
-    Doc.description "The prioritised list of handles to check (up to 50)"
-  Doc.property "return" Doc.int32' $ do
-    Doc.description "Desired number of free handles to return (1 - 10). Default 1."
-    Doc.optional
 
 instance ToJSON CheckHandles where
   toJSON (CheckHandles l n) =

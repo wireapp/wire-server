@@ -20,7 +20,6 @@
 
 module Brig.API.Public
   ( sitemap,
-    apiDocs,
     servantSitemap,
     docsAPI,
     DocsAPI,
@@ -91,16 +90,13 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
-import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
-import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.Swagger (mkSwaggerApi)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
@@ -124,7 +120,6 @@ import qualified Wire.API.Routes.Public.Proxy as ProxyAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
-import qualified Wire.API.Swagger as Public.Swagger (models)
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import qualified Wire.API.Team as Public
@@ -348,28 +343,6 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Provider.routesPublic
-
-apiDocs ::
-  forall r.
-  Members
-    '[ BlacklistPhonePrefixStore,
-       BlacklistStore,
-       CodeStore,
-       Concurrency 'Unsafe,
-       GalleyProvider,
-       PasswordResetStore
-     ]
-    r =>
-  Routes Doc.ApiBuilder (Handler r) ()
-apiDocs =
-  get
-    "/users/api-docs"
-    ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models (sitemap @r)
-         in k $ json doc
-    )
-    $ accept "application" "json"
-      .&. query "base_url"
 
 ---------------------------------------------------------------------------
 -- Handlers

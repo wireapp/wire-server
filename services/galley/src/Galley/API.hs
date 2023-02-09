@@ -32,5 +32,4 @@ import Polysemy
 sitemap :: Routes Doc.ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   Public.sitemap
-  Public.apiDocs
   internalSitemap

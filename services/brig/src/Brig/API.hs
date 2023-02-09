@@ -50,5 +50,4 @@ sitemap ::
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Public.sitemap
-  Public.apiDocs
   Internal.sitemap
