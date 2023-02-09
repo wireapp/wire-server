@@ -30,7 +30,6 @@ module Galley.API.Teams
     deleteTeam,
     uncheckedDeleteTeam,
     addTeamMember,
-    getTeamNotificationsH,
     getTeamConversationRoles,
     getTeamMembers,
     getTeamMembersCSV,
@@ -83,8 +82,6 @@ import Data.Qualified
 import Data.Range as Range
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import qualified Galley.API.Teams.Notifications as APITeamQueue
@@ -116,7 +113,6 @@ import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.Wai
-import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
@@ -135,7 +131,6 @@ import Wire.API.Event.Team
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
-import qualified Wire.API.Notification as Public
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
@@ -1329,40 +1324,6 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
       list1
         (userRecipient (n ^. userId))
         (membersToRecipients Nothing (memList ^. teamMembers))
-
--- | See also: 'Gundeck.API.Public.paginateH', but the semantics of this end-point is slightly
--- less warped.  This is a work-around because we cannot send events to all of a large team.
--- See haddocks of module "Galley.API.TeamNotifications" for details.
-getTeamNotificationsH ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'TeamNotFound,
-       Error InvalidInput,
-       TeamNotificationStore
-     ]
-    r =>
-  UserId
-    ::: Maybe ByteString {- NotificationId -}
-    ::: Range 1 10000 Int32
-    ::: JSON ->
-  Sem r Response
-getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
-  since <- parseSince
-  json @Public.QueuedNotificationList
-    <$> APITeamQueue.getTeamNotifications zusr since size
-  where
-    parseSince :: Member (Error InvalidInput) r => Sem r (Maybe Public.NotificationId)
-    parseSince = maybe (pure Nothing) (fmap Just . parseUUID) sinceRaw
-
-    parseUUID :: Member (Error InvalidInput) r => ByteString -> Sem r Public.NotificationId
-    parseUUID raw =
-      maybe
-        (throw InvalidTeamNotificationId)
-        (pure . Id)
-        ((UUID.fromASCIIBytes >=> isV1UUID) raw)
-
-    isV1UUID :: UUID.UUID -> Maybe UUID.UUID
-    isV1UUID u = if UUID.version u == 1 then Just u else Nothing
 
 finishCreateTeam ::
   Members '[GundeckAccess, Input UTCTime, TeamStore] r =>

@@ -54,6 +54,7 @@ library
     Galley.API.Public.Team
     Galley.API.Public.TeamConversation
     Galley.API.Public.TeamMember
+    Galley.API.Public.TeamNotification
     Galley.API.Push
     Galley.API.Query
     Galley.API.Teams
