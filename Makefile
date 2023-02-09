@@ -245,12 +245,12 @@ db-migrate-package:
 db-reset: c
 	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
 ifeq ($(package), all)
-	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset > /dev/null
-	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset > /dev/null
-	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset > /dev/null
-	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset > /dev/null
+	./dist/brig-schema --keyspace brig_test --replication-factor 1 --reset
+	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
+	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
+	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
 else
-	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset > /dev/null
+	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
 endif
 	./dist/brig-index reset --elasticsearch-server http://localhost:9200 > /dev/null
 
