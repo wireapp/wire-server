@@ -648,7 +648,7 @@ The path to the JWK can be configured in `brig.integration.yaml` as follows:
 # [brig.yaml]
 optSettings:
   # ...
-  setOAuthJwkKeyPair: test/resources/oauth/ed25519_jwk.json
+  setOAuthJwkKeyPair: test/resources/oauth/ed25519.jwk
 ```
 
 A JWK can be generated with `didkit` e.g. Run `cargo install didkit-cli` to install and `didkit generate-ed25519-key` to generate a JWK.
