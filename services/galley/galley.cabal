@@ -392,9 +392,15 @@ executable galley-integration
     API.Teams.LegalHold.Util
     API.Util
     API.Util.TeamFeature
+    CreateConversations
+    DeleteConversation
+    GetConversation
     Main
+    PostMessage
+    RenameConversation
     TestHelpers
     TestSetup
+    TypingIndicators
 
   hs-source-dirs:     test/integration
   default-extensions:
