@@ -73,7 +73,7 @@ data:
       disabledAPIVersions: {{ .settings.disabledAPIVersions }}
       {{- end }}
       {{- if $.Values.secrets.oauthPublicJwk }}
-      oauthPublicJwk: /etc/wire/galley/secrets/public_jwk_oauth.json
+      oauthPublicJwk: /etc/wire/galley/secrets/oauth_ed25519_pub.jwk
       {{- end }}      
       {{- if .settings.featureFlags }}
       featureFlags:
