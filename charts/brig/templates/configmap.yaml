@@ -300,7 +300,7 @@ data:
       setEnableMLS: {{ .setEnableMLS }}
       {{- end }}
       {{- if $.Values.secrets.oauthJwkKeyPair }}
-      setOAuthJwkKeyPair: /etc/wire/brig/secrets/jwk_oauth.json
+      setOAuthJwkKeyPair: /etc/wire/brig/secrets/oauth_ed25519.jwk
       {{- end }}
       {{- if .setOAuthAuthCodeExpirationTimeSecs }}
       setOAuthAuthCodeExpirationTimeSecs: {{ .setOAuthAuthCodeExpirationTimeSecs }}
