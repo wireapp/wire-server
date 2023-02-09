@@ -33,7 +33,6 @@ nginx_conf:
   worker_processes: auto
   worker_rlimit_nofile: 131072
   worker_connections: 65536
-  swagger_root: /var/www/swagger
   # deeplink:
   #   endpoints:
   #     backendURL: "https://prod-nginz-https.wire.com"
