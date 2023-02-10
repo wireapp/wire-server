@@ -251,6 +251,19 @@ instance HasLink endpoint => HasLink (ZAuthServant usr opts scopes :> endpoint) 
   toLink toA _ = toLink toA (Proxy @endpoint)
 
 -- | Handle routes that support both ZAuth and OAuth, tried in that order (scopes is Just).
+--
+-- The difference between the two `HasServer` instances for (1) `ZAuthServant ztype opts
+-- ('Just scopes)` and (2) `ZAuthServant ztype opts Nothing`, resp.:
+--
+-- (1) zauth-or-oauth: enforce required, strict parsing; lookup headers directly, don't
+--     implement in terms of another servant combinator type.
+--
+-- (2) zauth-only: allow for optional, lenient parsing of `Z-*` headers; implemented in terms
+--     of `InternalAuth ztype opts`.
+--
+-- Due to these differences, the two instances, or the two functions `finalizeZAuthOrOAuth`
+-- and `checkZType`, are a bit awkward to consolidate.  We just leave the two implementations
+-- independent for now.
 instance
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
@@ -275,11 +288,12 @@ instance
     Servant.route
       (Proxy @api)
       ctx
-      (addAuthCheck subserver (withRequest (fmap (qualifyZParam @ztype ctx) . checkType' @ztype @scopes @ctx ctx (tokenType @ztype))))
+      (addAuthCheck subserver (withRequest (fmap (qualifyZParam @ztype ctx) . finalizeZAuthOrOAuth @ztype @scopes @ctx ctx (tokenType @ztype))))
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
-checkType' ::
+-- | This function has been derived from `checkZType` below.
+finalizeZAuthOrOAuth ::
   forall ztype scopes ctx a.
   ( IsZType ztype ctx,
     HasContextEntry ctx (Maybe JWK),
@@ -290,7 +304,7 @@ checkType' ::
   Maybe ByteString {- FUTUREWORK: use type-level `ztype` instead?  does `tokenType @ztype` inside this function have to be incoherent? -} ->
   Request ->
   DelayedIO (ZParam ztype)
-checkType' ctx mTokenType req =
+finalizeZAuthOrOAuth ctx mTokenType req =
   case lookupHeaders of
     -- if the ztype requires a Z-Type header (instance of 'HasTokenType' returns a Just ...), we expect it to match the type we're looking for
     (Just expType, Just actType, Just t, Nothing) | expType == actType -> zauth t
@@ -336,6 +350,9 @@ checkType' ctx mTokenType req =
                 else Left insufficientScope
 
 -- | Handle routes that support ZAuth, but not OAuth (scopes is Nothing).
+--
+-- See `HasServer` instance for `ZAuthServant ztype opts ('Just scopes)` for comparison
+-- (especially if you plan to change the code here).
 instance
   ( IsZType ztype ctx,
     HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
@@ -360,12 +377,12 @@ instance
       ctx
       ( fmap
           (. mapRequestArgument @opts (qualifyZParam @ztype ctx))
-          (addAuthCheck (fmap const subserver) (withRequest (checkType (tokenType @ztype))))
+          (addAuthCheck (fmap const subserver) (withRequest (checkZType (tokenType @ztype))))
       )
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
-checkType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
-checkType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
+checkZType :: Maybe ByteString -> Wai.Request -> DelayedIO ()
+checkZType token req = case (token, lookup "Z-Type" (Wai.requestHeaders req)) of
   (Just t, value) | value /= Just t -> delayedFail error403
   _ -> pure ()
 
