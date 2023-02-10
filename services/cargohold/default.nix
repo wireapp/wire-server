@@ -51,7 +51,6 @@
 , servant-client
 , servant-client-core
 , servant-server
-, swagger
 , tagged
 , tasty
 , tasty-hunit
@@ -116,7 +115,6 @@ mkDerivation {
     safe
     servant
     servant-server
-    swagger
     text
     time
     tinylog
