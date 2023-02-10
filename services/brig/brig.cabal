@@ -280,7 +280,6 @@ library
     , statistics                 >=0.13
     , stomp-queue                >=0.3
     , string-conversions
-    , swagger                    >=0.1
     , swagger2
     , tagged
     , template                   >=0.2

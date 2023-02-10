@@ -22,7 +22,6 @@
 , servant-server
 , streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , text
 , tinylog
@@ -56,7 +55,6 @@ mkDerivation {
     servant-server
     streaming-commons
     string-conversions
-    swagger
     swagger2
     text
     tinylog
