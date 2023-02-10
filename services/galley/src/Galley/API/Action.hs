@@ -129,16 +129,16 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       r
   HasConversationActionEffects 'ConversationLeaveTag r =
     ( Members
-        '[ MemberStore,
-           ProposalStore,
-           SubConversationStore,
-           Error InternalError,
+        '[ Error InternalError,
            Error NoChanges,
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
-           Input UTCTime,
            Input Env,
+           Input UTCTime,
+           MemberStore,
+           ProposalStore,
+           SubConversationStore,
            TinyLog
          ]
         r
@@ -445,8 +445,8 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
         '[ ConversationStore,
            Error InternalError,
            ErrorS ('ActionDenied 'LeaveConversation),
-           ErrorS 'InvalidOperation,
            ErrorS 'ConvNotFound,
+           ErrorS 'InvalidOperation,
            ErrorS 'MissingLegalholdConsent,
            ExternalAccess,
            FederatorAccess,
@@ -456,7 +456,6 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
            Input UTCTime,
            LegalHoldStore,
            MemberStore,
-           SubConversationStore,
            ProposalStore,
            SubConversationStore,
            TeamStore,
