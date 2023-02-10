@@ -74,6 +74,9 @@ module Wire.API.User.Client
     modelDeleteClient,
     modelSigkeys,
     modelLocation, -- re-export from types-common
+
+    -- * List of MLS client ids
+    ClientList (..),
   )
 where
 
@@ -511,6 +514,22 @@ instance ToSchema Client where
 
 mlsPublicKeysFieldSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysFieldSchema = fromMaybe mempty <$> optField "mls_public_keys" mlsPublicKeysSchema
+
+--------------------------------------------------------------------------------
+-- ClientList
+
+-- | Client list for internal API.
+data ClientList = ClientList {clClients :: [ClientId]}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientList)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema ClientList
+
+instance ToSchema ClientList where
+  schema =
+    object "ClientList" $
+      ClientList
+        <$> clClients
+          .= field "client_ids" (array schema)
 
 --------------------------------------------------------------------------------
 -- PubClient

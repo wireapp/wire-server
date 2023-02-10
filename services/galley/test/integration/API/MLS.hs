@@ -70,6 +70,7 @@ import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
+import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
 tests s =

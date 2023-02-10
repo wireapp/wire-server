@@ -112,6 +112,7 @@ import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
+import Wire.API.User.Client
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
