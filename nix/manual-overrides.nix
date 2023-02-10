@@ -9,7 +9,6 @@ hself: hsuper: {
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
   invertible = hlib.markUnbroken hsuper.invertible;
   polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
-  swagger = hlib.doJailbreak hsuper.swagger;
   multihash = hlib.markUnbroken (hlib.doJailbreak hsuper.multihash);
   hashable = hsuper.hashable_1_4_1_0;
   hashable-time = hsuper.hashable-time_0_3;
