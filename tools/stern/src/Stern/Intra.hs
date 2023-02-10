@@ -133,10 +133,10 @@ assertBackendApiVersion = recoverAll (constantDelay 1000000 <> limitRetries 5) $
     throwIO . ErrorCall $ "newest supported backend api version must be " <> show backendApiVersion
 
 path :: ByteString -> Request -> Request
-path = Bilge.path . (("v" <> toByteString' backendApiVersion <> "/") <>)
+path = Bilge.path . ((toPathComponent backendApiVersion <> "/") <>)
 
 paths :: [ByteString] -> Request -> Request
-paths = Bilge.paths . ("v" <> toByteString' backendApiVersion :)
+paths = Bilge.paths . (toPathComponent backendApiVersion :)
 
 -------------------------------------------------------------------------------
 
