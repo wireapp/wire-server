@@ -2805,22 +2805,23 @@ testLeaveSubConv = do
     [bob1KP] <-
       map snd . filter (\(cid, _) -> cid == bob1)
         <$> getClientsFromGroupState alice1 bob
-    mlsBracket [alice1, bob2] $ \wss -> do
-      (_, reqs) <- withTempMockFederator' messageSentMock $ leaveCurrentConv bob1 qsub
-      req <-
-        assertOne
-          ( toList . Aeson.decode . frBody
-              =<< filter ((== "on-mls-message-sent") . frRPC) reqs
-          )
-      let msg = fromBase64ByteString $ rmmMessage req
-      liftIO $
-        rmmRecipients req @?= [(ciUser charlie1, ciClient charlie1)]
-      consumeMessage1 charlie1 msg
+    let allLocals = [alice1, bob1, bob2]
+     in mlsBracket allLocals $ \wss -> do
+          (_, reqs) <- withTempMockFederator' messageSentMock $ leaveCurrentConv bob1 qsub
+          req <-
+            assertOne
+              ( toList . Aeson.decode . frBody
+                  =<< filter ((== "on-mls-message-sent") . frRPC) reqs
+              )
+          let msg = fromBase64ByteString $ rmmMessage req
+          liftIO $
+            rmmRecipients req @?= [(ciUser charlie1, ciClient charlie1)]
+          consumeMessage1 charlie1 msg
 
-      msgs <-
-        WS.assertMatchN (5 # WS.Second) wss $
-          wsAssertBackendRemoveProposal bob qcnv bob1KP
-      traverse_ (uncurry consumeMessage1) (zip [alice1, bob2] msgs)
+          msgs <-
+            WS.assertMatchN (5 # WS.Second) wss $
+              wsAssertBackendRemoveProposal bob qcnv bob1KP
+          traverse_ (uncurry consumeMessage1) (zip allLocals msgs)
 
     -- alice commits the pending proposal
     void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
