@@ -135,7 +135,7 @@ X-Zeta-Code: 123456
 ```
 
 ## Phone/email whitelist
-(RefActivationWhitelist)=
+(RefActivationAllowlist)=
 
 The backend can be configured to only allow specific phone number prefixes and email address domains to register. The following options have to be set in `brig.yaml`:
 

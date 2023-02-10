@@ -21,10 +21,10 @@
 
 module Brig.Options where
 
+import Brig.Allowlists (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.User.Auth.Cookie.Limit
-import Brig.Whitelist (AllowlistEmailDomains (..), AllowlistPhonePrefixes (..))
 import qualified Brig.ZAuth as ZAuth
 import Control.Applicative
 import qualified Control.Lens as Lens

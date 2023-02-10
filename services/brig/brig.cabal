@@ -17,6 +17,7 @@ extra-source-files:
 library
   -- cabal-fmt: expand src
   exposed-modules:
+    Brig.Allowlists
     Brig.API
     Brig.API.Auth
     Brig.API.Client
@@ -130,7 +131,6 @@ library
     Brig.User.Search.TeamUserSearch
     Brig.User.Template
     Brig.Version
-    Brig.Whitelist
     Brig.ZAuth
 
   other-modules:      Paths_brig

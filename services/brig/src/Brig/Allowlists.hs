@@ -15,10 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | > docs/reference/user/activation.md {#RefActivationWhitelist}
+-- | > docs/reference/user/activation.md {#RefActivationAllowlist}
 --
 -- Email/phone whitelist.
-module Brig.Whitelist
+module Brig.Allowlists
   ( AllowlistEmailDomains (..),
     AllowlistPhonePrefixes (..),
     verify,

@@ -74,7 +74,7 @@ access mcid t mt =
 
 sendLoginCode :: SendLoginCode -> Handler r LoginCodeTimeout
 sendLoginCode (SendLoginCode phone call force) = do
-  checkWhitelist (Right phone)
+  checkAllowlist (Right phone)
   c <- wrapClientE (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
   pure $ LoginCodeTimeout (pendingLoginTimeout c)
 
