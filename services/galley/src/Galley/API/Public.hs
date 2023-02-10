@@ -27,7 +27,6 @@ import Data.Id
 import qualified Data.Predicate as P
 import Data.Qualified
 import qualified Data.Set as Set
-import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams.Features as Features
 import Galley.App
@@ -97,7 +96,7 @@ continueE ::
   Sem r ResponseReceived
 continueE h = continue (interpretServerEffects @ErrorEffects . h)
 
-sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
+sitemap :: Routes () (Sem GalleyEffects) ()
 sitemap = do
   -- Bot API ------------------------------------------------------------
 
