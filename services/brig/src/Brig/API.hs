@@ -29,7 +29,6 @@ import Brig.Effects.CodeStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
 import Wire.Sem.Concurrency
@@ -47,7 +46,7 @@ sitemap ::
        ]
       r
   ) =>
-  Routes Doc.ApiBuilder (Handler r) ()
+  Routes () (Handler r) ()
 sitemap = do
   Public.sitemap
   Internal.sitemap

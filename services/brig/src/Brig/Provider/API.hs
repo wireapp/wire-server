@@ -74,7 +74,6 @@ import Data.Predicate
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
 import qualified Data.ZAuth.Token as ZAuth
@@ -128,7 +127,7 @@ import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 
 routesPublic ::
   Members '[GalleyProvider, Concurrency 'Unsafe] r =>
-  Routes Doc.ApiBuilder (Handler r) ()
+  Routes () (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
 

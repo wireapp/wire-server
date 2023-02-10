@@ -87,7 +87,6 @@ import Data.Nonce (Nonce, randomNonce)
 import Data.Qualified
 import Data.Range
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (pack)
@@ -340,7 +339,7 @@ sitemap ::
        PasswordResetStore
      ]
     r =>
-  Routes Doc.ApiBuilder (Handler r) ()
+  Routes () (Handler r) ()
 sitemap = do
   Provider.routesPublic
 
