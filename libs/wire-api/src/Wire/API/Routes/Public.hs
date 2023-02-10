@@ -268,14 +268,6 @@ instance
       ZQualifiedParam ztype -> ServerT api m
 
   route ::
-    ( IsZType ztype ctx,
-      HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-      HasContextEntry ctx (Maybe JWK),
-      SBoolI (FoldLenient opts),
-      SBoolI (FoldRequired opts),
-      HasServer api ctx,
-      IsOAuthScopes scopes
-    ) =>
     Proxy (ZAuthServant ztype opts ('Just scopes) :> api) ->
     Context ctx ->
     Delayed env (Server (ZAuthServant ztype opts ('Just scopes) :> api)) ->
@@ -296,7 +288,7 @@ checkType' ::
     ZParam ztype ~ Id a
   ) =>
   Context ctx ->
-  Maybe ByteString ->
+  Maybe ByteString {- FUTUREWORK: use type-level `ztype` instead?  does `tokenType @ztype` inside this function have to be incoherent? -} ->
   Request ->
   DelayedIO (ZParam ztype)
 checkType' ctx mTokenType req =
@@ -307,16 +299,18 @@ checkType' ctx mTokenType req =
     (Just _, _, _, _) -> delayedFailFatal error403
     -- if the ztype does not require a Z-Type header, we just care for the ZParam ('Z-User' etc.) header
     (Nothing, _, Just t, Nothing) -> zauth t
-    -- if the 'Z-Oauth' header is present, we try to authenticate with OAuth
+    -- if *only* the 'Z-Oauth' header is present, we try to authenticate with OAuth
     (Nothing, Nothing, Nothing, Just t) -> oauth t
     -- any other case should fail
     (Nothing, _, _, _) -> delayedFailFatal error403
   where
     lookupHeaders :: (Maybe ByteString, Maybe ByteString, Maybe ByteString, Maybe ByteString)
-    lookupHeaders = (mTokenType, lookup "Z-Type" (requestHeaders req), lookup headerName (requestHeaders req), lookup "Z-OAuth" (requestHeaders req))
+    lookupHeaders = (mTokenType, lookup "Z-Type" hs, lookup headerName hs, lookup "Z-OAuth" hs)
+      where
+        hs = requestHeaders req
 
-    headerName :: IsString n => n
-    headerName = fromString $ symbolVal (Proxy @(ZHeader ztype))
+        headerName :: IsString n => n
+        headerName = fromString $ symbolVal (Proxy @(ZHeader ztype))
 
     zauth :: ByteString -> DelayedIO (ZParam ztype)
     zauth = maybe (delayedFailFatal error403) pure . fromByteString @(ZParam ztype)
@@ -357,12 +351,6 @@ instance
       RequestArgument opts (ZQualifiedParam ztype) -> ServerT api m
 
   route ::
-    ( IsZType ztype ctx,
-      HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-      SBoolI (FoldLenient opts),
-      SBoolI (FoldRequired opts),
-      HasServer api ctx
-    ) =>
     Proxy (ZAuthServant ztype opts 'Nothing :> api) ->
     Context ctx ->
     Delayed env (Server (ZAuthServant ztype opts 'Nothing :> api)) ->
