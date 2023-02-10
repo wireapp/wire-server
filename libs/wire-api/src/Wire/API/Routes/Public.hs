@@ -220,31 +220,33 @@ instance
           { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
             _securitySchemeDescription =
               Just $
-                "Must be a token retrieved with an oauth handshake. It must be presented in this \
-                \format: 'Bearer \\<token\\>'.\
-                \Further reading: https://docs.wire.com/how-to/install/oauth.html"
+                "Must be a token retrieved with an oauth handshake. It must be presented in the form 'Bearer <token>'. \
+                \See also info on swagger top-level."
           }
 
       addScopeDescription :: Swagger -> Swagger
-      addScopeDescription = allOperations . description %~ Just . (<> "OAuth scope(s): " <> showOAuthScopeList @scopes) . fold
+      addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope(s): " <> showOAuthScopeList @scopes) . fold
 
 instance (HasSwagger api, Typeable ztype) => HasSwagger (ZAuthServant (ztype :: ZType) _opts 'Nothing :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
       & securityDefinitions <>~ SecurityDefinitions (InsOrdHashMap.singleton "ZAuth" secScheme)
       & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
+      & addZTypeInfo
     where
       secScheme =
         SecurityScheme
           { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
             _securitySchemeDescription =
               Just $
-                "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be \
-                \presented in this format: 'Bearer \\<token\\>'.\
-                \\nExpected token type: "
-                  <> (cs . show . typeRep $ (Proxy @ztype))
-                  <> "\nFurther reading: https://github.com/wireapp/wire-server/blob/develop/libs/wire-api/src/Wire/API/Routes/Public.hs (search for HasSwagger instances)"
+                "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in the form 'Bearer <token>'. \
+                \See also info on swagger top-level."
           }
+
+      addZTypeInfo :: Swagger -> Swagger
+      addZTypeInfo =
+        -- Don't use `tokenType @ztype` here, it's `Nothing` for everything but bot, provider!
+        allOperations . description %~ Just . (<> "\nZAuth token type: " <> (cs . show . typeRep $ (Proxy @ztype))) . fold
 
 instance HasLink endpoint => HasLink (ZAuthServant usr opts scopes :> endpoint) where
   type MkLink (ZAuthServant _ _ _ :> endpoint) a = MkLink endpoint a
