@@ -22,6 +22,11 @@ module Wire.API.MakesFederatedCall
     Component (..),
     callsFed,
     unsafeCallsFed,
+    AddAnnotation,
+    Location(..),
+    ShowComponent,
+    Annotation,
+    withAnnotations
   )
 where
 

@@ -61,8 +61,8 @@ type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi com
 
 -- | Return a client for a named endpoint.
 fedClient ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  (CallsFed comp name, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  forall (comp :: Component) (name :: Symbol) m api x.
+  (AddAnnotation 'Remote (ShowComponent comp) name x, CallsFed comp name, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 

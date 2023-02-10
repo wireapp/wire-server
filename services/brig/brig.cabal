@@ -179,6 +179,7 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -fplugin=Polysemy.Plugin
+    -fplugin=TransitiveAnns.Plugin
 
   build-depends:
       aeson                      >=2.0.1.0
@@ -292,6 +293,7 @@ library
     , time-units
     , tinylog                    >=0.10
     , transformers               >=0.3
+    , transitive-anns
     , types-common               >=0.16
     , types-common-aws
     , types-common-journal       >=0.1

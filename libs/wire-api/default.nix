@@ -92,6 +92,7 @@
 , tasty-quickcheck
 , text
 , time
+, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -188,6 +189,7 @@ mkDerivation {
     tagged
     text
     time
+    transitive-anns
     types-common
     unordered-containers
     uri-bytestring
