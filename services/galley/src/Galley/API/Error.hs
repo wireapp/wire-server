@@ -62,14 +62,12 @@ data InvalidInput
   | InvalidRange LText
   | InvalidUUID4
   | InvalidPayload LText
-  | InvalidTeamNotificationId
 
 instance APIError InvalidInput where
   toWai CustomRolesNotSupported = badRequest "Custom roles not supported"
   toWai (InvalidRange t) = invalidRange t
   toWai InvalidUUID4 = invalidUUID4
   toWai (InvalidPayload t) = invalidPayload t
-  toWai InvalidTeamNotificationId = invalidTeamNotificationId
 
 ----------------------------------------------------------------------------
 -- Other errors
