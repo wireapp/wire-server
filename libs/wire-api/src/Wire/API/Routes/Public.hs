@@ -83,7 +83,7 @@ mapRequestArgument f x =
     (SFalse, STrue) -> (fmap . fmap) f x
     (SFalse, SFalse) -> fmap f x
 
--- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
+-- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
 -- "Z-Auth" header in the server. This helps keep the swagger docs usable
 -- through nginz.
