@@ -187,6 +187,10 @@ impl<'r> Token<'r> {
     }
 
     fn is_expired(&self) -> bool {
+        // negative timestamps are always considered as expired
+        if self.timestamp < 0 {
+            return false;
+        }
         let expiration = UNIX_EPOCH + Duration::from_secs(self.timestamp as u64);
         expiration < SystemTime::now()
     }
