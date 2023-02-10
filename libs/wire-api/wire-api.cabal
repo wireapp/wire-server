@@ -653,6 +653,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.HttpApiData
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
+    Test.Wire.API.Routes.Version
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
     Test.Wire.API.Team.Member
