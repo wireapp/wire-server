@@ -3045,13 +3045,13 @@ testRemoveCreatorParent = do
         void $ createPendingProposalCommit bob1 >>= sendAndConsumeCommitBundle
 
         liftTest $ do
-          getSubConv (qUnqualified alice) qcnv (SubConvId "conference")
+          getSubConv (qUnqualified alice) qcnv subname
             !!! const 403 === statusCode
 
           -- charlie sees updated memberlist
           sub :: PublicSubConversation <-
             responseJsonError
-              =<< getSubConv (qUnqualified charlie) qcnv (SubConvId "conference")
+              =<< getSubConv (qUnqualified charlie) qcnv subname
                 <!! const 200 === statusCode
           liftIO $
             assertEqual
@@ -3062,7 +3062,7 @@ testRemoveCreatorParent = do
           -- bob also sees updated memberlist
           sub1 :: PublicSubConversation <-
             responseJsonError
-              =<< getSubConv (qUnqualified bob) qcnv (SubConvId "conference")
+              =<< getSubConv (qUnqualified bob) qcnv subname
                 <!! const 200 === statusCode
           liftIO $
             assertEqual
