@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 -- This file is part of the Wire Server implementation.
@@ -28,11 +29,9 @@ module Wire.API.Routes.Version
 
     -- * Version
     Version (..),
+    VersionNumber (..),
     supportedVersions,
     developmentVersions,
-    readVersionNumber,
-    mkVersion,
-    toPathComponent,
 
     -- * Servant combinators
     Until,
@@ -40,6 +39,7 @@ module Wire.API.Routes.Version
   )
 where
 
+import Control.Error (note)
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
@@ -57,43 +57,62 @@ import Servant
 import Servant.Swagger
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
+import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
 -- | Version of the public API.
 data Version = V0 | V1 | V2 | V3
-  deriving stock (Eq, Ord, Bounded, Enum, Show)
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
+  deriving (Arbitrary) via (GenericUniform Version)
+
+versionString :: IsString a => Version -> a
+versionString V0 = "v0"
+versionString V1 = "v1"
+versionString V2 = "v2"
+versionString V3 = "v3"
+
+versionInt :: Integral i => Version -> i
+versionInt V0 = 0
+versionInt V1 = 1
+versionInt V2 = 2
+versionInt V3 = 3
 
 instance ToSchema Version where
-  schema =
-    enum @Integer "Version" . mconcat $
-      [ element 0 V0,
-        element 1 V1,
-        element 2 V2,
-        element 3 V3
-      ]
-
-mkVersion :: Integer -> Maybe Version
-mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
-  Aeson.Error _ -> Nothing
-  Aeson.Success v -> pure v
+  schema = enum @Text "Version" . mconcat $ (\v -> element (versionString v) v) <$> [minBound ..]
 
 instance FromHttpApiData Version where
+  parseQueryParam v = note ("Unknown version: " <> v) $
+    getAlt $
+      flip foldMap [minBound ..] $ \s ->
+        guard (versionString s == v) $> s
+
+instance ToHttpApiData Version where
+  toHeader = versionString
+  toUrlPiece = versionString
+
+instance ToByteString Version where
+  builder = versionString
+
+newtype VersionNumber = VersionNumber {fromVersionNumber :: Version}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Bounded, Enum)
+  deriving (FromJSON, ToJSON) via (Schema VersionNumber)
+  deriving (Arbitrary) via (GenericUniform Version)
+
+instance ToSchema VersionNumber where
+  schema =
+    enum @Integer "Version" . mconcat $ (\v -> element (versionInt v) (VersionNumber v)) <$> [minBound ..]
+
+instance FromHttpApiData VersionNumber where
   parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
   parseUrlPiece = parseHeader . Text.encodeUtf8
 
-instance ToHttpApiData Version where
+instance ToHttpApiData VersionNumber where
   toHeader = LBS.toStrict . Aeson.encode
   toUrlPiece = Text.decodeUtf8 . toHeader
 
-instance ToByteString Version where
+instance ToByteString VersionNumber where
   builder = toEncodedUrlPiece
-
--- | `Version` as it appears in an URL path
---
--- >>> toPathComponent V1
--- "v1"
-toPathComponent :: Version -> ByteString
-toPathComponent v = "v" <> toHeader v
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
@@ -108,8 +127,8 @@ developmentVersions = [V3]
 -- backend, in order to decide how to form request paths, and how to deal with
 -- federated backends and qualified user IDs.
 data VersionInfo = VersionInfo
-  { vinfoSupported :: [Version],
-    vinfoDevelopment :: [Version],
+  { vinfoSupported :: [VersionNumber],
+    vinfoDevelopment :: [VersionNumber],
     vinfoFederation :: Bool,
     vinfoDomain :: Domain
   }
@@ -127,7 +146,7 @@ instance ToSchema VersionInfo where
       example :: VersionInfo
       example =
         VersionInfo
-          { vinfoSupported = supportedVersions,
+          { vinfoSupported = VersionNumber <$> supportedVersions,
             vinfoDevelopment = [maxBound],
             vinfoFederation = False,
             vinfoDomain = Domain "example.com"

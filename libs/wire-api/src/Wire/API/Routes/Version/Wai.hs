@@ -17,34 +17,45 @@
 
 module Wire.API.Routes.Version.Wai where
 
+import Control.Monad.Except (throwError)
 import Data.ByteString.Conversion
-import qualified Data.Text.Lazy as LText
+import Data.EitherR (fmapL)
+import Data.String.Conversions (cs)
+import qualified Data.Text as T
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai
 import Network.Wai.Middleware.Rewrite
 import Network.Wai.Utilities.Error
 import Network.Wai.Utilities.Response
+import Web.HttpApiData (parseUrlPiece, toUrlPiece)
 import Wire.API.Routes.Version
 
 -- | Strip off version prefix. Return 404 if the version is not supported.
 versionMiddleware :: Set Version -> Middleware
 versionMiddleware disabledAPIVersions app req k = case parseVersion (removeVersionHeader req) of
-  Nothing -> app req k
-  Just (req', n) -> case mkVersion n of
-    Just v | v `notElem` disabledAPIVersions -> app (addVersionHeader v req') k
-    _ ->
-      k $
-        errorRs' $
-          mkError HTTP.status404 "unsupported-version" $
-            "Version " <> LText.pack (show n) <> " is not supported"
+  Right (req', v) ->
+    if v `elem` disabledAPIVersions
+      then err (toUrlPiece v)
+      else app (addVersionHeader v req') k
+  Left (BadVersion v) -> err v
+  Left NoVersion -> app req k
+  where
+    err :: Text -> IO ResponseReceived
+    err v =
+      k . errorRs' . mkError HTTP.status404 "unsupported-version" $
+        "Version " <> cs v <> " is not supported"
 
-parseVersion :: Request -> Maybe (Request, Integer)
+data ParseVersionError = NoVersion | BadVersion Text
+
+parseVersion :: Request -> Either ParseVersionError (Request, Version)
 parseVersion req = do
   (version, pinfo) <- case pathInfo req of
-    [] -> Nothing
+    [] -> throwError NoVersion
     (x : xs) -> pure (x, xs)
-  n <- readVersionNumber version
+  when ("v" `T.isPrefixOf` version) $
+    throwError (BadVersion version)
+  n <- fmapL (const NoVersion) $ parseUrlPiece version
   pure (rewriteRequestPure (\(_, q) _ -> (pinfo, q)) req, n)
 
 removeVersionHeader :: Request -> Request

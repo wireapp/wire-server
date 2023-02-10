@@ -20,7 +20,6 @@ module Wire.API.VersionInfo
     vinfoObjectSchema,
 
     -- * Version utilities
-    readVersionNumber,
     versionHeader,
     VersionHeader,
 
@@ -50,13 +49,6 @@ import Wire.API.Routes.ClientAlgebra
 
 vinfoObjectSchema :: ValueSchema NamedSwaggerDoc v -> ObjectSchema SwaggerDoc [v]
 vinfoObjectSchema sch = field "supported" (array sch)
-
-readVersionNumber :: Text -> Maybe Integer
-readVersionNumber v = do
-  ('v', rest) <- Text.uncons v
-  case Text.decimal rest of
-    Right (n, "") -> pure n
-    _ -> Nothing
 
 type VersionHeader = "X-Wire-API-Version"
 

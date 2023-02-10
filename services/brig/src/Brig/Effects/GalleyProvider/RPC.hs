@@ -87,7 +87,7 @@ createSelfConv u = do
   void $ ServiceRPC.request @'Galley POST req
   where
     req =
-      paths ["v" <> toHeader (maxBound :: Version), "conversations", "self"]
+      paths [toHeader (maxBound :: Version), "conversations", "self"]
         . zUser u
         . expect2xx
 
@@ -115,7 +115,7 @@ getConv usr lcnv = do
   where
     req =
       paths
-        [ "v" <> toHeader (maxBound :: Version),
+        [ toHeader (maxBound :: Version),
           "conversations",
           toByteString' (tDomain lcnv),
           toByteString' (tUnqualified lcnv)
@@ -147,7 +147,7 @@ getTeamConv usr tid cnv = do
   where
     req =
       paths
-        [ "v" <> toHeader (maxBound :: Version),
+        [ toHeader (maxBound :: Version),
           "teams",
           toByteString' tid,
           "conversations",
