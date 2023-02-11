@@ -35,8 +35,6 @@ import qualified Data.CaseInsensitive as CI
 import Data.Metrics.Servant
 import Data.Schema
 import Data.Singletons
-import qualified Data.Text as Text
-import qualified Data.Text.Read as Text
 import GHC.TypeLits
 import Imports
 import qualified Network.Wai as Wai
