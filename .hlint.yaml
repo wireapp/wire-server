@@ -25,3 +25,27 @@
     Federator.Response,            # this is just a naming conincidence
     Cannon.Run                     # we do something similar, but not identical here by hand
   ] }
+
+# I got these false positives from hlint.  Following the chances leads
+# to (obviously valid) compiler errors:
+#
+# ```
+# libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs:23:38-111: Warning: Functor law
+# Found:
+#   fmap toLower . show <$> allVersions @=? cs . toByteString'
+#     <$> allVersions
+# Perhaps:
+#   ((fmap toLower . show) . allVersions @=? cs . toByteString'
+#      <$> allVersions)
+#
+# libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs:31:38-135: Warning: Functor law
+# Found:
+#   tail . show . fromVersionNumber
+#     <$> allVersionNumbers @=? cs . toByteString'
+#     <$> allVersionNumbers
+# Perhaps:
+#   ((tail . show . fromVersionNumber)
+#      . allVersionNumbers @=? cs . toByteString'
+#      <$> allVersionNumbers)
+# ```
+- ignore: { name: Functor law }
