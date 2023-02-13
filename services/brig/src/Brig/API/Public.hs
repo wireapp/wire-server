@@ -194,7 +194,7 @@ emptySwagger =
     mempty @S.Swagger
       & S.info . S.title .~ "Wire-Server internal API"
       & S.info . S.description
-        ?~ "There is no Swagger documentation for this version. Please refer to later versions."
+        ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
 
 servantSitemap ::
   forall r p.
