@@ -682,7 +682,7 @@ getUserUnqualifiedH ::
   UserId ->
   UserId ->
   (Handler r) (Maybe Public.UserProfile)
-getUserUnqualifiedH self uid = do
+getUserUnqualifiedH self uid = exposeAnnotations $ do
   domain <- viewFederationDomain
   getUser self (Qualified uid domain)
 
@@ -696,7 +696,7 @@ getUser ::
   UserId ->
   Qualified UserId ->
   (Handler r) (Maybe Public.UserProfile)
-getUser self qualifiedUserId = do
+getUser self qualifiedUserId = exposeAnnotations $ do
   lself <- qualifyLocal self
   API.lookupProfile lself qualifiedUserId !>> fedError
 
@@ -706,8 +706,7 @@ listUsersByUnqualifiedIdsOrHandles ::
       '[ GalleyProvider,
          Concurrency 'Unsafe
        ]
-      r,
-    CallsFed 'Brig "get-users-by-ids"
+      r
   ) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->

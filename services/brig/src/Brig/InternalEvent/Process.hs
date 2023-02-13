@@ -53,8 +53,7 @@ onEvent ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadClient m
   ) =>
   InternalNotification ->
   m ()

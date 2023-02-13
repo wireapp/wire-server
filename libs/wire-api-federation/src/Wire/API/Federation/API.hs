@@ -52,7 +52,7 @@ type instance FedApi 'Brig = BrigApi
 
 type instance FedApi 'Cargohold = CargoholdApi
 
-type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name, CallsFed comp name)
+type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 
 -- | Like 'HasFedEndpoint', but doesn't propagate a 'CallsFed' constraint.
 -- Useful for tests, but unsafe in the sense that incorrect usage will allow
@@ -62,7 +62,7 @@ type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi com
 -- | Return a client for a named endpoint.
 fedClient ::
   forall (comp :: Component) (name :: Symbol) m api x.
-  (AddAnnotation 'Remote (ShowComponent comp) name x, CallsFed comp name, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  (AddAnnotation 'Remote (ShowComponent comp) name x, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 

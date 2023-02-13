@@ -60,7 +60,6 @@ import Wire.API.Connection hiding (relationWithHistory)
 import Wire.API.Conversation
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
-import Wire.API.Federation.API
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 ensureIsActivated :: Local UserId -> MaybeT (AppT r) ()
@@ -76,7 +75,7 @@ ensureNotSameTeam self target = do
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "send-connection-action") =>
+  (Members '[GalleyProvider] r) =>
   Local UserId ->
   ConnId ->
   Qualified UserId ->
@@ -211,7 +210,6 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
-  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   Qualified UserId ->
   Relation ->

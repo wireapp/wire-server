@@ -1,18 +1,18 @@
--- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
 --
--- This program is distributed in the hope that it will be useful, but WITHOUT
+--
 -- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 -- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- This file is part of the Wire Server implementation.
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- This program is free software: you can redistribute it and/or modify it under
 -- You should have received a copy of the GNU Affero General Public License along
+-- details.
+-- later version.
+-- the terms of the GNU Affero General Public License as published by the Free
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedLists #-}
 
@@ -26,6 +26,7 @@ module Wire.API.MakesFederatedCall
     Location(..),
     ShowComponent,
     Annotation,
+    exposeAnnotations,
     withAnnotations
   )
 where
@@ -48,6 +49,9 @@ import Test.QuickCheck (Arbitrary)
 import Unsafe.Coerce (unsafeCoerce)
 import Wire.Arbitrary (GenericUniform (..))
 
+exposeAnnotations :: ToHasAnnotations x => a -> a
+exposeAnnotations = id
+
 data Component
   = Brig
   | Galley
@@ -62,7 +66,7 @@ data Component
 -- The only way to discharge this constraint is via 'callsFed', which should be
 -- invoked for each federated call when connecting handlers to the server
 -- definition.
-class CallsFed (comp :: Component) (name :: Symbol)
+type CallsFed (comp :: Component) = HasAnnotation 'Remote (ShowComponent comp)
 
 -- | A typeclass with the same layout as 'CallsFed', which exists only so we
 -- can discharge 'CallsFeds' constraints by unsafely coercing this one.
