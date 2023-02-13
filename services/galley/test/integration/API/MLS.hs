@@ -3037,8 +3037,9 @@ testRemoveCreatorParent = do
             { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [alice1])
             }
 
-        -- TODO: is this the proposal from the parent or the sub? Assert both here
         msg <- WS.assertMatchN (5 # Second) wss $ \n ->
+          -- Checks proposal for subconv, parent doesn't get one
+          -- since alice is not notified of her own removal
           wsAssertBackendRemoveProposal alice (Conv <$> qcnv) kpref1 n
 
         traverse_ (uncurry consumeMessage1) (zip [bob1, bob2, charlie1, charlie2] msg)
