@@ -23,7 +23,6 @@ module Federator.Remote
     RemoteError (..),
     interpretRemote,
     discoverAndCall,
-    blessedCiphers,
   )
 where
 
@@ -156,23 +155,3 @@ interpretRemote = interpret $ \case
 --           },
 --       TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
 --     }
-
--- Context and possible future work see
--- https://wearezeta.atlassian.net/browse/FS-33
--- https://wearezeta.atlassian.net/browse/FS-444
--- https://wearezeta.atlassian.net/browse/FS-443
---
--- The current list is compliant to TR-02102-2
--- https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
-blessedCiphers :: String
-blessedCiphers =
-  intercalate
-    ","
-    [ "TLS_AES_128_CCM_8_SHA256",
-      "TLS_AES_128_CCM_SHA256",
-      "TLS_AES_128_GCM_SHA256",
-      "TLS_AES_128_GCM_SHA384",
-      -- For TLS 1.2 (copied from nginx ingress config):
-      "ECDHE-ECDSA-AES256-GCM-SHA384",
-      "ECDHE-RSA-AES256-GCM-SHA384"
-    ]

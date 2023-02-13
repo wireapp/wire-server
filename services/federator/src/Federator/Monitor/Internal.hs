@@ -25,7 +25,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import Federator.Options (RunSettings (..))
-import Federator.Remote (blessedCiphers)
 import GHC.Foreign (peekCStringLen, withCStringLen)
 import GHC.IO.Encoding (getFileSystemEncoding)
 import Imports
@@ -363,8 +362,11 @@ mkSSLContext settings = do
     SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv2
     SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv3
     SSL.contextAddOption ctx SSL.SSL_OP_NO_TLSv1
-    SSL.contextSetCiphers ctx blessedCiphers
     SSL.contextSetDefaultVerifyPaths ctx
+
+    -- Settings TLS13 ciphers requires another call to openssl, this has not
+    -- been implemented in HsOpenSSL yet.
+    SSL.contextSetCiphers ctx blessedTLS12Ciphers
     SSL.contextSetALPNProtos ctx ["h2"]
     SSL.contextSetVerificationMode ctx $
       SSL.VerifyPeer
@@ -387,3 +389,19 @@ mkSSLContext settings = do
     SSL.contextSetPrivateKeyFile ctx (clientPrivateKey settings)
 
   pure ctx
+
+-- Context and possible future work see
+-- https://wearezeta.atlassian.net/browse/FS-33
+-- https://wearezeta.atlassian.net/browse/FS-444
+-- https://wearezeta.atlassian.net/browse/FS-443
+--
+-- The current list is compliant to TR-02102-2
+-- https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
+blessedTLS12Ciphers :: String
+blessedTLS12Ciphers =
+  intercalate
+    ":"
+    [ -- For TLS 1.2 (copied from nginx ingress config):
+      "ECDHE-ECDSA-AES256-GCM-SHA384",
+      "ECDHE-RSA-AES256-GCM-SHA384"
+    ]

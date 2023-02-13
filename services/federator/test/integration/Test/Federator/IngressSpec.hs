@@ -27,6 +27,7 @@ import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
 import Federator.Discovery
+import Federator.Monitor.Internal (blessedTLS12Ciphers)
 import Federator.Options
 import Federator.Remote
 import Imports
@@ -113,7 +114,7 @@ mkSSLContextWithoutCert settings = liftIO $ do
   SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv2
   SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv3
   SSL.contextAddOption ctx SSL.SSL_OP_NO_TLSv1
-  SSL.contextSetCiphers ctx blessedCiphers
+  SSL.contextSetCiphers ctx blessedTLS12Ciphers
   SSL.contextSetDefaultVerifyPaths ctx
   SSL.contextSetALPNProtos ctx ["h2"]
 
