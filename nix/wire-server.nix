@@ -375,7 +375,18 @@ in
       pkgs.netcat
       pkgs.niv
       (pkgs.python3.withPackages
-        (ps: with ps; [ pyyaml ipdb requests ]))
+        (ps: with ps; [
+          black
+          bokeh
+          flake8
+          ipdb
+          ipython
+          protobuf
+          pylint
+          pyyaml
+          requests
+          websockets
+        ]))
       pkgs.rsync
       pkgs.wget
       pkgs.yq
