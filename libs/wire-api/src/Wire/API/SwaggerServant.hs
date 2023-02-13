@@ -6,10 +6,10 @@ module Wire.API.SwaggerServant
 where
 
 import Control.Lens
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import qualified Data.HashSet.InsOrd as InsOrdSet
 import Data.Metrics.Servant
 import Data.Proxy
+import Data.Swagger (allOperations)
 import qualified Data.Swagger as S
 import Data.Text as T
 import GHC.TypeLits
@@ -43,18 +43,7 @@ instance (HasSwagger b, KnownSymbol tag) => HasSwagger (SwaggerTag tag :> b) whe
   toSwagger _ = prependTitle (T.pack (symbolVal (Proxy @tag))) $ toSwagger (Proxy :: Proxy b)
     where
       prependTitle :: Text -> S.Swagger -> S.Swagger
-      prependTitle tagName s = s & (S.paths . InsOrdHashMap.unorderedTraversal) %~ prependTitle' tagName
-
-      prependTitle' :: Text -> S.PathItem -> S.PathItem
-      prependTitle' tagName it =
-        it
-          & (S.get . traverse . S.tags) <>~ tag tagName
-          & (S.put . traverse . S.tags) <>~ tag tagName
-          & (S.post . traverse . S.tags) <>~ tag tagName
-          & (S.delete . traverse . S.tags) <>~ tag tagName
-          & (S.options . traverse . S.tags) <>~ tag tagName
-          & (S.patch . traverse . S.tags) <>~ tag tagName
-          & (S.head_ . traverse . S.tags) <>~ tag tagName
+      prependTitle tagName s = s & allOperations . S.tags <>~ tag tagName
 
       tag :: Text -> InsOrdSet.InsOrdHashSet S.TagName
       tag tagName = InsOrdSet.singleton @S.TagName tagName
