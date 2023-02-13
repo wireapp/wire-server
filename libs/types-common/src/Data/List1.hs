@@ -26,7 +26,6 @@ import Data.Aeson
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
 import Data.Schema as S
-import Data.Swagger (ToParamSchema)
 import qualified Data.Swagger as Swagger
 import Imports
 import Test.QuickCheck (Arbitrary)
@@ -70,7 +69,7 @@ instance ToSchema a => ToSchema (List1 a) where
     named "List1" $
       toNonEmpty S..= fmap List1 (nonEmptyArray S.schema)
 
-instance ToParamSchema a => Swagger.ToParamSchema (List1 a) where
+instance Swagger.ToParamSchema (List1 a) where
   toParamSchema _ =
     mempty
       { Swagger._paramSchemaType = Just Swagger.SwaggerArray,
