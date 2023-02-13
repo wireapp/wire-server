@@ -160,7 +160,12 @@ withHTTP2Request mSSLCtx req hostname port k = do
             Just sslCtx -> do
               ssl <- E.handle (E.throw . FederatorClientTLSException) $ do
                 ssl <- SSL.connection sslCtx sock
-                let hostnameStr = Text.unpack (Text.decodeUtf8 hostname)
+                -- We need to strip trailing dot because openssl doesn't ignore
+                -- it. https://github.com/openssl/openssl/issues/11560
+                let hostnameStr =
+                      Text.unpack $ case Text.decodeUtf8 hostname of
+                        (Text.stripSuffix "." -> Just withoutTrailingDot) -> withoutTrailingDot
+                        noTrailingDot -> noTrailingDot
                 SSL.setTlsextHostName ssl hostnameStr
                 SSL.enableHostnameValidation ssl hostnameStr
                 SSL.connect ssl
