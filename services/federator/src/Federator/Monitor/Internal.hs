@@ -339,7 +339,7 @@ data FederationSetupError
   = InvalidCAStore FilePath String
   | InvalidClientCertificate String
   | InvalidClientPrivateKey String
-  | CertificateAndPrivateKeyDoNotMatch String String
+  | CertificateAndPrivateKeyDoNotMatch FilePath FilePath
   | SSLException SSL.SomeSSLException
   deriving (Show)
 
