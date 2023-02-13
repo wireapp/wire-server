@@ -53,7 +53,7 @@ parseVersion req = do
   (version, pinfo) <- case pathInfo req of
     [] -> throwError NoVersion
     (x : xs) -> pure (x, xs)
-  when ("v" `T.isPrefixOf` version) $
+  unless ("v" `T.isPrefixOf` version) $
     throwError (BadVersion version)
   n <- fmapL (const NoVersion) $ parseUrlPiece version
   pure (rewriteRequestPure (\(_, q) _ -> (pinfo, q)) req, n)
