@@ -316,6 +316,35 @@ instance FeatureStatusCassandra MLSConfig where
         "insert into team_features (team_id, mls_status, mls_default_protocol, \
         \mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite) values (?, ?, ?, ?, ?, ?)"
 
+instance FeatureStatusCassandra MlsE2EIdConfig where
+  getFeatureConfig _ tid = do
+    let q = query1 select (params LocalQuorum (Identity tid))
+    retry x1 q <&> \case
+      Nothing -> Nothing
+      Just (Nothing, _) -> Nothing
+      Just (mStatus, mTimeout) ->
+        WithStatusNoLock
+          <$> mStatus
+          <*> maybe (pure $ wsConfig defFeatureStatus) pure (MlsE2EIdConfig . fromIntegral <$> mTimeout)
+          <*> Just FeatureTTLUnlimited
+    where
+      select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32)
+      select =
+        fromString $
+          "select mls_e2e_id_status, mls_e2e_id_timeout_secs from team_features where team_id = ?"
+
+  setFeatureConfig _ tid status = do
+    let statusValue = wssStatus status
+        timeout = verificationCertificateTimeoutSecs . wssConfig $ status
+    retry x5 $ write insert (params LocalQuorum (tid, statusValue, fromIntegral timeout))
+    where
+      insert :: PrepQuery W (TeamId, FeatureStatus, Int32) ()
+      insert =
+        "insert into team_features (team_id, mls_e2e_id_status, mls_e2e_id_timeout_secs) values (?, ?, ?)"
+
+  getFeatureLockStatus _ = getLockStatusC "mls_e2e_id_lock_status"
+  setFeatureLockStatus _ = setLockStatusC "mls_e2e_id_lock_status"
+
 instance FeatureStatusCassandra ExposeInvitationURLsToTeamAdminConfig where
   getFeatureConfig _ = getTrivialConfigC "expose_invitation_urls_to_team_admin"
   setFeatureConfig _ tid statusNoLock = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid (wssStatus statusNoLock)

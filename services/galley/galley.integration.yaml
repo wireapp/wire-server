@@ -72,6 +72,12 @@ settings:
       defaults:
         status: disabled
         lockStatus: locked
+    mlsE2EId:
+      defaults:
+        status: disabled
+        config:
+          verificationTimeout: 3600 # 1 hour
+        lockStatus: unlocked
 
 logLevel: Warn
 logNetStrings: false

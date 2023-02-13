@@ -87,6 +87,8 @@ type FeatureAPI =
     :<|> FeatureStatusPut '[] '() SearchVisibilityInboundConfig
     :<|> FeatureStatusGet OutlookCalIntegrationConfig
     :<|> FeatureStatusPut '[] '() OutlookCalIntegrationConfig
+    :<|> FeatureStatusGet MlsE2EIdConfig
+    :<|> FeatureStatusPut '[] '() MlsE2EIdConfig
     :<|> AllFeatureConfigsUserGet
     :<|> AllFeatureConfigsTeamGet
     :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" LegalholdConfig

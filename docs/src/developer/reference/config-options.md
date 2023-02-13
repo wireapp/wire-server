@@ -335,6 +335,21 @@ mls:
 
 This default configuration can be overriden on a per-team basis through the [feature config API](../developer/features.md)
 
+### MLS End-to-End Identity
+
+The MLS end-to-end identity team feature adds an extra level of security and practicability. If turned on, automatic device authentication ensures that team members know they are communicating with people using authenticated devices. Team members get a certificate on all their devices.
+
+A timer must be set to configure until when team members need to get the verification certificate. When the timer goes off, they will be logged out and get the certificate automatically on their devices. The timer is set in seconds, so set it to 3600 for one hour, e.g.
+
+```yaml
+# galley.yaml
+mlsE2EId:
+  defaults:
+    status: disabled
+    config:
+      verificationTimeout: 3600 # 1 hour
+    lockStatus: unlocked
+```
 
 ### Federation Domain
 

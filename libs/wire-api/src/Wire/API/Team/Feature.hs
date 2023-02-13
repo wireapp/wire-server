@@ -35,6 +35,8 @@ module Wire.API.Team.Feature
     setStatus,
     setLockStatus,
     setConfig,
+    setConfig',
+    setTTL,
     setWsTTL,
     WithStatusPatch,
     wsPatch,
@@ -76,6 +78,7 @@ module Wire.API.Team.Feature
     FileSharingConfig (..),
     MLSConfig (..),
     OutlookCalIntegrationConfig (..),
+    MlsE2EIdConfig (..),
     AllFeatureConfigs (..),
     unImplicitLockStatus,
     ImplicitLockStatus (..),
@@ -106,7 +109,7 @@ import GHC.TypeLits
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
-import Test.QuickCheck.Gen (suchThat)
+import Test.QuickCheck.Gen (elements, suchThat)
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -138,8 +141,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- because the lockstatus is checked in 'setFeatureStatus' before which is the public API for setting the feature status.
 --
 -- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature: 'FeatureStatusGet',
--- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
--- implement them in Galley.API.Public.Feature.
+-- 'FeatureStatusPut' (optional). Then implement them in Galley.API.Public.Feature.
 --
 -- 7. Add internal routes in Wire.API.Routes.Internal.Galley
 --
@@ -219,10 +221,16 @@ setLockStatus :: LockStatus -> WithStatus cfg -> WithStatus cfg
 setLockStatus ls (WithStatusBase s _ c ttl) = WithStatusBase s (Identity ls) c ttl
 
 setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
-setConfig c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (Identity c) ttl
+setConfig = setConfig'
+
+setConfig' :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => cfg -> WithStatusBase m cfg -> WithStatusBase m cfg
+setConfig' c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (pure c) ttl
+
+setTTL :: forall (m :: Type -> Type) (cfg :: Type). Applicative m => FeatureTTL -> WithStatusBase m cfg -> WithStatusBase m cfg
+setTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (pure ttl)
 
 setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
-setWsTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (Identity ttl)
+setWsTTL = setTTL
 
 type WithStatus (cfg :: Type) = WithStatusBase Identity cfg
 
@@ -880,6 +888,35 @@ instance FeatureTrivialConfig OutlookCalIntegrationConfig where
   trivialConfig = OutlookCalIntegrationConfig
 
 ----------------------------------------------------------------------
+-- MlsE2EId
+
+data MlsE2EIdConfig = MlsE2EIdConfig {verificationCertificateTimeoutSecs :: Word64}
+  deriving stock (Eq, Show, Generic)
+
+instance Arbitrary MlsE2EIdConfig where
+  arbitrary =
+    elements
+      [ 60 * 60,
+        60 * 60 * 2,
+        60 * 60 * 6,
+        60 * 60 * 12,
+        60 * 60 * 24,
+        60 * 60 * 24 * 7
+      ]
+      <&> MlsE2EIdConfig
+
+instance ToSchema MlsE2EIdConfig where
+  schema =
+    object "MlsE2EIdConfig" $
+      MlsE2EIdConfig
+        <$> verificationCertificateTimeoutSecs .= field "verificationTimeout" schema
+
+instance IsFeatureConfig MlsE2EIdConfig where
+  type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig (60 * 60)) FeatureTTLUnlimited
+  objectSchema = field "config" schema
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -954,7 +991,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
     afcMLS :: WithStatus MLSConfig,
     afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
-    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig
+    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig,
+    afcMlsE2EId :: WithStatus MlsE2EIdConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -979,6 +1017,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcMLS .= featureField
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
         <*> afcOutlookCalIntegration .= featureField
+        <*> afcMlsE2EId .= featureField
     where
       featureField ::
         forall cfg.
@@ -990,6 +1029,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
