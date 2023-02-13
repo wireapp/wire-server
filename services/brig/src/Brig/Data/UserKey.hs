@@ -33,7 +33,6 @@ module Brig.Data.UserKey
   )
 where
 
-import Brig.App (Env)
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
 import Brig.Email
@@ -83,7 +82,7 @@ keyTextOriginal (UserPhoneKey k) = fromPhone (phoneKeyOrig k)
 
 -- | Claim a 'UserKey' for a user.
 claimKey ::
-  (MonadClient m, MonadReader Env m) =>
+  MonadClient m =>
   -- | The key to claim.
   UserKey ->
   -- | The user claiming the key.
@@ -116,11 +115,11 @@ lookupKey k =
   fmap runIdentity
     <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText k)))
 
-insertKey :: (MonadClient m, MonadReader Env m) => UserId -> UserKey -> m ()
+insertKey :: MonadClient m => UserId -> UserKey -> m ()
 insertKey u k = do
   retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
 
-deleteKey :: (MonadClient m, MonadReader Env m) => UserKey -> m ()
+deleteKey :: MonadClient m => UserKey -> m ()
 deleteKey k = do
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
 
@@ -132,7 +131,7 @@ deleteKey k = do
 -- executed several times due to cassandra not supporting transactions)
 -- `deleteKeyForUser` does not fail for missing keys or keys that belong to
 -- another user: It always returns `()` as result.
-deleteKeyForUser :: (MonadClient m, MonadReader Env m) => UserId -> UserKey -> m ()
+deleteKeyForUser :: MonadClient m => UserId -> UserKey -> m ()
 deleteKeyForUser uid k = do
   mbKeyUid <- lookupKey k
   case mbKeyUid of

@@ -523,7 +523,6 @@ getTeamFeatureFlag ::
   forall cfg.
   ( Typeable (Public.WithStatus cfg),
     FromJSON (Public.WithStatus cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
@@ -543,7 +542,6 @@ getTeamFeatureFlag tid = do
 setTeamFeatureFlag ::
   forall cfg.
   ( ToJSON (Public.WithStatusNoLock cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->

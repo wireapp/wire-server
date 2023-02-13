@@ -265,7 +265,7 @@ instance APIError Wai.Error where
 instance APIError DynError where
   toWai (DynError c l m) = Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
 
-instance KnownError e => APIError (SStaticError e) where
+instance APIError (SStaticError e) where
   toWai = toWai . dynError'
 
 --------------------------------------------------------------------------------

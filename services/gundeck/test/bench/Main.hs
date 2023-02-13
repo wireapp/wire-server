@@ -63,7 +63,7 @@ notice = do
   let msg = NativePush i HighPriority Nothing
       uid = a ^. addrUser
       transp = a ^. addrTransport
-  Right txt <- serialise msg uid transp
+  Right txt <- pure $ serialise msg uid transp
   pure $! LT.toStrict txt
 
 bench_BudgetSpent' :: IORef BudgetMap -> IO ()

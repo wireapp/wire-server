@@ -175,5 +175,5 @@ signToken h a = Create $ do
   f <- (! (h ^. key - 1)) <$> asks zSign
   liftIO . f . toStrict . toLazyByteString $ writeData h a
 
-expiry :: (Functor m, MonadIO m) => Integer -> m POSIXTime
+expiry :: MonadIO m => Integer -> m POSIXTime
 expiry d = (fromInteger d +) <$> liftIO getPOSIXTime
