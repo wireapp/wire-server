@@ -59,7 +59,9 @@ import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
--- | Version of the public API.
+-- | Version of the public API.  Serializes to `"v<n>"`.  See 'VersionNumber' below for one
+-- that serializes to `<n>`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs`
+-- for serialization rules.
 data Version = V0 | V1 | V2 | V3
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
@@ -93,6 +95,9 @@ instance ToHttpApiData Version where
 instance ToByteString Version where
   builder = versionString
 
+-- | Wrapper around 'Version' that serializes to integers `<n>`, as needed in
+-- eg. `VersionInfo`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs` for
+-- serialization rules.
 newtype VersionNumber = VersionNumber {fromVersionNumber :: Version}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Bounded, Enum)
