@@ -76,11 +76,9 @@ instance HasClient m api => HasClient m (SwaggerTag tag :> api) where
 
 -- | A type-level tag that lets us omit any branch from Swagger docs.
 --
--- Those are likely to be:
---
---   * Endpoints for which we can't generate Swagger docs.
---   * The endpoint that serves Swagger docs.
---   * Internal endpoints.
+-- FUTUREWORK(fisx): this is currently only used for the spar internal api
+-- and spar scim, and we should probably eliminate those uses and this combinator.
+-- it's only justification is laziness.
 data OmitDocs
 
 instance HasSwagger (OmitDocs :> a) where
