@@ -18,6 +18,7 @@
 module Test.Federator.IngressSpec where
 
 import Control.Lens (view)
+import Control.Monad.Catch (throwM)
 import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
 import Data.Binary.Builder
@@ -27,13 +28,12 @@ import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
 import Federator.Discovery
-import Federator.Monitor.Internal (blessedTLS12Ciphers)
-import Federator.Options
+import Federator.Monitor (FederationSetupError)
+import Federator.Monitor.Internal (mkSSLContextWithoutCert)
 import Federator.Remote
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import OpenSSL.Session (SSLContext)
-import qualified OpenSSL.Session as SSL
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
@@ -89,7 +89,13 @@ spec env = do
       hdl <- randomHandle
       _ <- putHandle brig (userId user) hdl
 
-      sslCtxWithoutCert <- mkSSLContextWithoutCert =<< view teSettings
+      settings <- view teSettings
+      sslCtxWithoutCert <-
+        either (throwM @_ @FederationSetupError) pure
+          <=< runM
+            . runEmbedded (liftIO @(TestFederator IO))
+            . runError
+          $ mkSSLContextWithoutCert settings
       r <-
         runTestSem
           . runError @RemoteError
@@ -106,25 +112,6 @@ spec env = do
 -- FUTUREWORK: ORMOLU_DISABLE
 -- @END
 -- ORMOLU_ENABLE
-
-mkSSLContextWithoutCert :: MonadIO m => RunSettings -> m SSLContext
-mkSSLContextWithoutCert settings = liftIO $ do
-  ctx <- SSL.context
-
-  SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv3
-  SSL.contextAddOption ctx SSL.SSL_OP_NO_TLSv1
-  SSL.contextSetCiphers ctx blessedTLS12Ciphers
-  SSL.contextSetDefaultVerifyPaths ctx
-  SSL.contextSetALPNProtos ctx ["h2"]
-
-  forM_ (remoteCAStore settings) $ \caStorePath ->
-    SSL.contextSetCAFile ctx caStorePath
-
-  when (useSystemCAStore settings) $
-    SSL.contextSetDefaultVerifyPaths ctx
-
-  pure ctx
 
 runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
 runTestSem action = do

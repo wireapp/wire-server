@@ -359,6 +359,22 @@ mkSSLContext ::
   RunSettings ->
   Sem r SSLContext
 mkSSLContext settings = do
+  ctx <- mkSSLContextWithoutCert settings
+
+  Polysemy.fromExceptionVia @SomeException (InvalidClientCertificate . displayException) $
+    SSL.contextSetCertificateFile ctx (clientCertificate settings)
+
+  Polysemy.fromExceptionVia @SomeException (InvalidClientPrivateKey . displayException) $
+    SSL.contextSetPrivateKeyFile ctx (clientPrivateKey settings)
+
+  privateKeyCheck <- Polysemy.fromExceptionVia @SSL.SomeSSLException SSLException $ SSL.contextCheckPrivateKey ctx
+  unless privateKeyCheck $ do
+    Polysemy.throw $ CertificateAndPrivateKeyDoNotMatch (clientCertificate settings) (clientPrivateKey settings)
+
+  pure ctx
+
+mkSSLContextWithoutCert :: Members '[Embed IO, Polysemy.Error FederationSetupError] r => RunSettings -> Sem r SSLContext
+mkSSLContextWithoutCert settings = do
   ctx <- embed $ SSL.context
   embed $ do
     SSL.contextAddOption ctx SSL.SSL_OP_ALL
@@ -385,16 +401,6 @@ mkSSLContext settings = do
 
   when (useSystemCAStore settings) $
     embed (SSL.contextSetDefaultVerifyPaths ctx)
-
-  Polysemy.fromExceptionVia @SomeException (InvalidClientCertificate . displayException) $
-    SSL.contextSetCertificateFile ctx (clientCertificate settings)
-
-  Polysemy.fromExceptionVia @SomeException (InvalidClientPrivateKey . displayException) $
-    SSL.contextSetPrivateKeyFile ctx (clientPrivateKey settings)
-
-  privateKeyCheck <- Polysemy.fromExceptionVia @SSL.SomeSSLException SSLException $ SSL.contextCheckPrivateKey ctx
-  unless privateKeyCheck $ do
-    Polysemy.throw $ CertificateAndPrivateKeyDoNotMatch (clientCertificate settings) (clientPrivateKey settings)
 
   pure ctx
 
