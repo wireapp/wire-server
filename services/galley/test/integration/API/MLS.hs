@@ -2791,6 +2791,7 @@ testLeaveSubConv = do
     (qsub, _) <- withTempMockFederator'
       ( receiveCommitMock [charlie1]
           <|> welcomeMock
+          <|> ("on-mls-message-sent" ~> RemoteMLSMessageOk)
       )
       $ do
         void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
