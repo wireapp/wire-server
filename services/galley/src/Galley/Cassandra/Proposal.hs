@@ -54,6 +54,8 @@ interpretProposalStoreToCassandra =
         runIdentity <$$> retry x1 (query getAllPendingRef (params LocalQuorum (groupId, epoch)))
       GetAllPendingProposals groupId epoch ->
         retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
+      DeleteAllProposals groupId ->
+        retry x5 (write deleteAllProposalsForGroup (params LocalQuorum (Identity groupId)))
 
 storeQuery :: Timeout -> PrepQuery W (GroupId, Epoch, ProposalRef, ProposalOrigin, RawMLS Proposal) ()
 storeQuery ttl =
@@ -70,3 +72,6 @@ getAllPendingRef = "select ref from mls_proposal_refs where group_id = ? and epo
 
 getAllPending :: PrepQuery R (GroupId, Epoch) (Maybe ProposalOrigin, RawMLS Proposal)
 getAllPending = "select origin, proposal from mls_proposal_refs where group_id = ? and epoch = ?"
+
+deleteAllProposalsForGroup :: PrepQuery W (Identity GroupId) ()
+deleteAllProposalsForGroup = "delete from mls_proposal_refs where group_id = ?"

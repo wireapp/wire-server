@@ -244,12 +244,13 @@ deleteSubConversation ::
        ]
       r,
     CallsFed 'Galley "delete-sub-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation"
+    CallsFed 'Galley "on-new-remote-subconversation",
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Local UserId ->
   Qualified ConvId ->
   SubConvId ->
-  DeleteSubConversation ->
+  DeleteSubConversationRequest ->
   Sem r ()
 deleteSubConversation lusr qconv sconv dsc =
   foldQualified
@@ -270,22 +271,24 @@ deleteLocalSubConversation ::
          MemberStore,
          Resource,
          SubConversationStore,
+         SubConversationSupply,
          SubConversationSupply
        ]
       r,
-    CallsFed 'Galley "on-new-remote-subconversation"
+    CallsFed 'Galley "on-new-remote-subconversation",
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Qualified UserId ->
   Local ConvId ->
   SubConvId ->
-  DeleteSubConversation ->
+  DeleteSubConversationRequest ->
   Sem r ()
 deleteLocalSubConversation qusr lcnvId scnvId dsc = do
   assertMLSEnabled
   let cnvId = tUnqualified lcnvId
   cnv <- getConversationAndCheckMembership qusr lcnvId
   cs <- cnvmlsCipherSuite <$> noteS @'ConvNotFound (mlsMetadata cnv)
-  mlsData <- withCommitLock (dscGroupId dsc) (dscEpoch dsc) $ do
+  (mlsData, oldGid) <- withCommitLock (dscGroupId dsc) (dscEpoch dsc) $ do
     sconv <-
       Eff.getSubConversation cnvId scnvId
         >>= noteS @'ConvNotFound
@@ -301,17 +304,21 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
 
     -- the following overwrites any prior information about the subconversation
     Eff.createSubConversation cnvId scnvId cs (Epoch 0) newGid Nothing
-    pure (scMLSData sconv)
+
+    pure (scMLSData sconv, gid)
 
   -- notify all backends that the subconversation has a new ID
   let remotes = bucketRemote (map rmId (convRemoteMembers cnv))
   Eff.runFederatedConcurrently_ remotes $ \_ -> do
-    fedClient @'Galley @"on-new-remote-subconversation"
-      NewRemoteSubConversation
-        { nrscConvId = cnvId,
-          nrscSubConvId = scnvId,
-          nrscMlsData = mlsData
-        }
+    void $
+      fedClient @'Galley @"on-new-remote-subconversation"
+        NewRemoteSubConversation
+          { nrscConvId = cnvId,
+            nrscSubConvId = scnvId,
+            nrscMlsData = mlsData
+          }
+    fedClient @'Galley @"on-delete-mls-conversation"
+      (OnDeleteMLSConversationRequest [oldGid])
 
 deleteRemoteSubConversation ::
   ( Members
@@ -329,12 +336,12 @@ deleteRemoteSubConversation ::
   Local UserId ->
   Remote ConvId ->
   SubConvId ->
-  DeleteSubConversation ->
+  DeleteSubConversationRequest ->
   Sem r ()
 deleteRemoteSubConversation lusr rcnvId scnvId dsc = do
   assertMLSEnabled
   let deleteRequest =
-        DeleteSubConversationRequest
+        DeleteSubConversationFedRequest
           { dscreqUser = tUnqualified lusr,
             dscreqConv = tUnqualified rcnvId,
             dscreqSubConv = scnvId,

@@ -53,10 +53,12 @@ import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.MLS.Removal
+import Galley.API.MLS.Types (cmAssocs)
 import Galley.API.Util
 import Galley.App
 import Galley.Data.Conversation
 import qualified Galley.Data.Conversation as Data
+import Galley.Data.Conversation.Types (mlsMetadata)
 import Galley.Data.Services
 import Galley.Data.Types
 import Galley.Effects
@@ -67,6 +69,7 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
+import qualified Galley.Effects.ProposalStore as E
 import qualified Galley.Effects.SubConversationStore as E
 import qualified Galley.Effects.TeamStore as E
 import Galley.Options
@@ -147,7 +150,19 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
     (Members '[MemberStore, ErrorS 'ConvMemberNotFound] r)
   HasConversationActionEffects 'ConversationDeleteTag r =
-    Members '[Error FederationError, ErrorS 'NotATeamMember, CodeStore, TeamStore, ConversationStore] r
+    Members
+      '[ Error FederationError,
+         ErrorS 'NotATeamMember,
+         BrigAccess,
+         CodeStore,
+         ConversationStore,
+         FederatorAccess,
+         MemberStore,
+         TeamStore,
+         ProposalStore,
+         SubConversationStore
+       ]
+      r
   HasConversationActionEffects 'ConversationRenameTag r =
     Members '[Error InvalidInput, ConversationStore] r
   HasConversationActionEffects 'ConversationAccessDataTag r =
@@ -279,6 +294,7 @@ type PerformActionCalls :: ConversationActionTag -> Constraint
 type family PerformActionCalls tag where
   PerformActionCalls 'ConversationAccessDataTag =
     ( CallsFed 'Galley "on-conversation-updated",
+      CallsFed 'Galley "on-delete-mls-conversation",
       CallsFed 'Galley "on-mls-message-sent",
       CallsFed 'Galley "on-new-remote-conversation",
       CallsFed 'Galley "on-new-remote-subconversation"
@@ -287,10 +303,14 @@ type family PerformActionCalls tag where
     ( CallsFed 'Galley "on-conversation-updated",
       CallsFed 'Galley "on-mls-message-sent",
       CallsFed 'Galley "on-new-remote-conversation",
-      CallsFed 'Galley "on-new-remote-subconversation"
+      CallsFed 'Galley "on-new-remote-subconversation",
+      CallsFed 'Galley "on-delete-mls-conversation"
     )
   PerformActionCalls 'ConversationLeaveTag =
     ( CallsFed 'Galley "on-mls-message-sent"
+    )
+  PerformActionCalls 'ConversationDeleteTag =
+    ( CallsFed 'Galley "on-delete-mls-conversation"
     )
   PerformActionCalls tag = ()
 
@@ -345,11 +365,36 @@ performAction tag origUser lconv action = do
       E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
       pure (mempty, action)
     SConversationDeleteTag -> do
+      let deleteGroup groupId = do
+            cm <- E.lookupMLSClients groupId
+            let refs = cm & cmAssocs & map (snd . snd)
+            E.deleteKeyPackageRefs refs
+            E.removeAllMLSClients groupId
+            E.deleteAllProposals groupId
+
+      let cid = convId conv
+      for_ (conv & mlsMetadata <&> cnvmlsGroupId) $ \gidParent -> do
+        sconvs <- E.listSubConversations cid
+        gidSubs <- for (Map.assocs sconvs) $ \(subid, mlsData) -> do
+          let gidSub = cnvmlsGroupId mlsData
+          E.deleteSubConversation cid subid
+          E.deleteGroupIdForSubConversation gidSub
+          deleteGroup gidSub
+          pure gidSub
+        E.deleteGroupIdForConversation gidParent
+        deleteGroup gidParent
+
+        let odr = OnDeleteMLSConversationRequest ([gidParent] <> gidSubs)
+        let remotes = bucketRemote (map rmId (Data.convRemoteMembers conv))
+        E.runFederatedConcurrently_ remotes $ \_ -> do
+          void $ fedClient @'Galley @"on-delete-mls-conversation" odr
+
       key <- E.makeKey (tUnqualified lcnv)
       E.deleteCode key ReusableCode
       case convTeam conv of
         Nothing -> E.deleteConversation (tUnqualified lcnv)
         Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
+
       pure (mempty, action)
     SConversationRenameTag -> do
       cn <- rangeChecked (cupName action)
@@ -371,8 +416,9 @@ performConversationJoin ::
   ( HasConversationActionEffects 'ConversationJoinTag r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation"
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -503,8 +549,9 @@ performConversationAccessData ::
   ( HasConversationActionEffects 'ConversationAccessDataTag r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation"
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Qualified UserId ->
   Local Conversation ->

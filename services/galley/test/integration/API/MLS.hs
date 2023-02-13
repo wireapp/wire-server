@@ -222,7 +222,8 @@ tests s =
               test s "reset a subconversation as a non-member" (testDeleteSubConv False),
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
               test s "leave a subconversation" testLeaveSubConv,
-              test s "leave a subconversation as a non-member" testLeaveSubConvNonMember
+              test s "leave a subconversation as a non-member" testLeaveSubConvNonMember,
+              test s "delete parent conversation of a subconversation" testDeleteParentOfSubConv
             ],
           testGroup
             "Local Sender/Remote Subconversation"
@@ -240,7 +241,8 @@ tests s =
               test s "get subconversation as a remote non-member" (testRemoteMemberGetSubConv False),
               test s "client of a remote user joins subconversation" testRemoteUserJoinSubConv,
               test s "delete subconversation as a remote member" (testRemoteMemberDeleteSubConv True),
-              test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False)
+              test s "delete subconversation as a remote non-member" (testRemoteMemberDeleteSubConv False),
+              test s "delete parent conversation of a remote subconveration" testDeleteRemoteParentOfSubConv
             ]
         ]
     ]
@@ -2238,7 +2240,7 @@ deleteSubConversationDisabled = do
   cnvId <- Qualified <$> randomId <*> pure (Domain "www.example.com")
   let scnvId = SubConvId "conference"
       dsc =
-        DeleteSubConversation
+        DeleteSubConversationRequest
           (GroupId "MLS")
           (Epoch 0)
   withMLSDisabled $
@@ -2616,7 +2618,7 @@ testRemoteMemberGetSubConv isAMember = do
     expectSubConvError _errExpected (GetSubConversationsResponseSuccess _) = liftIO $ assertFailure "Unexpected GetSubConversationsResponseSuccess"
     expectSubConvError errExpected (GetSubConversationsResponseError err) = liftIO $ err @?= errExpected
 
-testRemoteMemberDeleteSubConv :: Bool -> TestM ()
+testRemoteMemberDeleteSubConv :: HasCallStack => Bool -> TestM ()
 testRemoteMemberDeleteSubConv isAMember = do
   -- alice is local, bob is remote
   -- alice creates a local conversation and invites bob
@@ -2644,7 +2646,7 @@ testRemoteMemberDeleteSubConv isAMember = do
 
   randUser <- randomId
   let delReq =
-        DeleteSubConversationRequest
+        DeleteSubConversationFedRequest
           { dscreqUser = if isAMember then qUnqualified bob else randUser,
             dscreqConv = cnv,
             dscreqSubConv = scnv,
@@ -2655,15 +2657,25 @@ testRemoteMemberDeleteSubConv isAMember = do
   -- Bob is a member of the parent conversation so he's allowed to delete the
   -- subconversation.
   (res, reqs) <-
-    withTempMockFederator' ("on-new-remote-subconversation" ~> EmptyResponse) $ do
+    withTempMockFederator' deleteMLSConvMock $ do
       fedGalleyClient <- view tsFedGalleyClient
       runFedClient @"delete-sub-conversation" fedGalleyClient bobDomain delReq
+
   when isAMember $ do
-    req <- assertOne (filter ((== "on-new-remote-subconversation") . frRPC) reqs)
-    nrsc <- assertOne (toList (Aeson.decode (frBody req)))
     liftIO $ do
+      req <- assertOne (filter ((== "on-new-remote-subconversation") . frRPC) reqs)
+      nrsc <- assertOne (toList (Aeson.decode (frBody req)))
       nrscConvId nrsc @?= cnv
       nrscSubConvId nrsc @?= scnv
+
+    liftIO $ do
+      fr <- assertOne (filter ((== "on-delete-mls-conversation") . frRPC) reqs)
+      frTargetDomain fr @?= bobDomain
+      frRPC fr @?= "on-delete-mls-conversation"
+      bdy <- case Aeson.eitherDecode (frBody fr) of
+        Right b -> pure b
+        Left e -> assertFailure $ "Could not parse delete-sub-conversation request body: " <> e
+      odmcGroupIds bdy @?= [groupId]
 
   if isAMember then expectSuccess res else expectFailure ConvNotFound res
   where
@@ -2699,7 +2711,7 @@ testDeleteSubConv isAMember = do
     responseJsonError
       =<< getSubConv (qUnqualified alice) qcnv sconv
         <!! const 200 === statusCode
-  let dsc = DeleteSubConversation (pscGroupId sub) (pscEpoch sub)
+  let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
   deleteSubConv deleter qcnv sconv dsc !!! const expectedCode === statusCode
 
   newSub <-
@@ -2738,9 +2750,120 @@ testDeleteSubConvStale = do
     pure (qcnv, sub)
 
   -- the commit was made, yet the epoch for the request body is old
-  let dsc = DeleteSubConversation (pscGroupId sub) (pscEpoch sub)
+  let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
   deleteSubConv (qUnqualified alice) qcnv sconv dsc
     !!! do const 409 === statusCode
+
+testDeleteParentOfSubConv :: TestM ()
+testDeleteParentOfSubConv = do
+  (tid, aliceUnqualified, [arthurUnqualified]) <- API.Util.createBindingTeamWithMembers 2
+  bob <- randomQualifiedId (Domain "bobl.example.com")
+
+  localDomain <- viewFederationDomain
+  let alice = Qualified aliceUnqualified localDomain
+      arthur = Qualified arthurUnqualified localDomain
+
+  connectWithRemoteUser aliceUnqualified bob
+
+  let sconv = SubConvId "conference"
+  (qcnv, parentGroupId, subGroupId) <- runMLSTest $ do
+    [alice1, arthur1, bob1] <- traverse createMLSClient [alice, arthur, bob]
+    traverse_ uploadNewKeyPackage [arthur1]
+    (parentGroupId, qcnv) <- setupMLSGroup alice1
+
+    (qcs, _) <- withTempMockFederator' (receiveCommitMock [bob1]) $ do
+      void $ createAddCommit alice1 [arthur, bob] >>= sendAndConsumeCommit
+      createSubConv qcnv alice1 sconv
+
+    subGid <- getCurrentGroupId
+
+    resetGroup arthur1 qcs subGid
+    void $ createExternalCommit arthur1 Nothing qcs >>= sendAndConsumeCommitBundle
+
+    resetGroup bob1 qcs subGid
+    void $ createExternalCommit bob1 Nothing qcs >>= sendAndConsumeCommitBundle
+
+    sub' <-
+      responseJsonError
+        =<< liftTest
+          ( getSubConv (qUnqualified alice) qcnv sconv
+              <!! do const 200 === statusCode
+          )
+
+    void $ assertOne (filter (== arthur1) (pscMembers sub'))
+    void $ assertOne (filter (== bob1) (pscMembers sub'))
+
+    pure (qcnv, parentGroupId, pscGroupId sub')
+
+  (_, freqs) <- withTempMockFederator' deleteMLSConvMock $ do
+    deleteTeamConv tid (qUnqualified qcnv) (qUnqualified alice)
+      !!! const 200
+        === statusCode
+
+  req <- assertOne (filter ((== "on-delete-mls-conversation") . frRPC) freqs)
+  let Just odmc = Aeson.decode (frBody req)
+  liftIO $
+    sort (odmcGroupIds odmc) @?= sort [parentGroupId, subGroupId]
+
+  getSubConv (qUnqualified alice) qcnv sconv
+    !!! do const 404 === statusCode
+
+testDeleteRemoteParentOfSubConv :: TestM ()
+testDeleteRemoteParentOfSubConv = do
+  [alice, bob] <- createAndConnectUsers [Just "alice.example.com", Nothing]
+
+  runMLSTest $ do
+    alice1 <- createFakeMLSClient alice
+    bob1 <- createMLSClient bob
+    void $ uploadNewKeyPackage bob1
+
+    -- setup fake group for the subconversation
+    let subId = SubConvId "conference"
+    (subGroupId, qcnv) <- setupFakeMLSGroup alice1
+    let qcs = fmap (flip SubConv subId) qcnv
+    initialCommit <- createPendingProposalCommit alice1
+
+    -- create a fake group ID for the main (we don't need the actual group)
+    mainGroupId <- fakeGroupId
+
+    -- inform backend about the main conversation
+    receiveNewRemoteConv (fmap Conv qcnv) mainGroupId
+    receiveOnConvUpdated qcnv alice bob
+
+    -- inform backend about the subconversation
+    receiveNewRemoteConv qcs subGroupId
+
+    let pgs = mpPublicGroupState initialCommit
+    let mock = queryGroupStateMock (fold pgs) bob <|> sendMessageMock
+    void $ withTempMockFederator' mock $ do
+      -- bob joins subconversation
+      commit <- createExternalCommit bob1 Nothing qcs
+      void $ sendAndConsumeCommitBundle commit
+
+      -- bob can send to remote conversation
+      void $
+        withTempMockFederator' sendMessageMock $ do
+          message <- createApplicationMessage bob1 "hi"
+          postMessage (mpSender message) (mpMessage message)
+            !!! const 201 === statusCode
+
+      -- remote notifies about deletion of group
+      liftTest $ do
+        client <- view tsFedGalleyClient
+        let odm = OnDeleteMLSConversationRequest [mainGroupId, subGroupId]
+        void $
+          runFedClient
+            @"on-delete-mls-conversation"
+            client
+            (qDomain alice)
+            odm
+
+      -- bob's backend has no longer a mapping of the group id
+      void $
+        withTempMockFederator' sendMessageMock $ do
+          message <- createApplicationMessage bob1 "hi"
+          postMessage (mpSender message) (mpMessage message)
+            !!! const 404 === statusCode
 
 testDeleteRemoteSubConv :: Bool -> TestM ()
 testDeleteRemoteSubConv isAMember = do
@@ -2752,7 +2875,7 @@ testDeleteRemoteSubConv isAMember = do
       groupId = GroupId "deadbeef"
       epoch = Epoch 0
       expectedReq =
-        DeleteSubConversationRequest
+        DeleteSubConversationFedRequest
           { dscreqUser = qUnqualified alice,
             dscreqConv = conv,
             dscreqSubConv = sconv,
@@ -2766,7 +2889,7 @@ testDeleteRemoteSubConv isAMember = do
           if isAMember
             then DeleteSubConversationResponseSuccess
             else DeleteSubConversationResponseError ConvNotFound
-      dsc = DeleteSubConversation groupId epoch
+      dsc = DeleteSubConversationRequest groupId epoch
 
   (_, reqs) <-
     withTempMockFederator' mock $
@@ -2774,7 +2897,7 @@ testDeleteRemoteSubConv isAMember = do
         <!! const (if isAMember then 200 else 404) === statusCode
   do
     actualReq <- assertOne (filter ((== "delete-sub-conversation") . frRPC) reqs)
-    let req :: Maybe DeleteSubConversationRequest =
+    let req :: Maybe DeleteSubConversationFedRequest =
           Aeson.decode (frBody actualReq)
     liftIO $ req @?= Just expectedReq
 

@@ -50,12 +50,13 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-message-v1"
            ( Summary "Post an MLS message"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> MakesFederatedCall 'Galley "send-mls-message"
+               :> MakesFederatedCall 'Brig "get-mls-clients"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
+               :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
-               :> MakesFederatedCall 'Brig "get-mls-clients"
+               :> MakesFederatedCall 'Galley "send-mls-message"
                :> Until 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
@@ -93,6 +94,7 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> From 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound
@@ -131,6 +133,7 @@ type MLSMessagingAPI =
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> MakesFederatedCall 'Brig "get-mls-clients"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> From 'V3
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvMemberNotFound

@@ -1200,7 +1200,7 @@ deleteSubConv ::
   UserId ->
   Qualified ConvId ->
   SubConvId ->
-  DeleteSubConversation ->
+  DeleteSubConversationRequest ->
   TestM ResponseLBS
 deleteSubConv u qcnv sconv dsc = do
   g <- viewGalley
@@ -1290,3 +1290,9 @@ leaveCurrentConv cid qsub = case qUnqualified qsub of
       mls
         { mlsMembers = Set.difference (mlsMembers mls) (Set.singleton cid)
         }
+
+getCurrentGroupId :: MLSTest GroupId
+getCurrentGroupId = do
+  State.gets mlsGroupId >>= \case
+    Nothing -> liftIO $ assertFailure "Creating add proposal for non-existing group"
+    Just g -> pure g

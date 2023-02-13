@@ -88,6 +88,9 @@ interpretBrigAccess = interpret $ \case
   UpdateKeyPackageRef update ->
     embedApp $
       updateKeyPackageRef update
+  DeleteKeyPackageRefs refs ->
+    embedApp $
+      deleteKeyPackageRefs refs
   UpdateSearchVisibilityInbound status ->
     embedApp $ updateSearchVisibilityInbound status
 

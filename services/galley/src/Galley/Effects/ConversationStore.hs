@@ -45,7 +45,9 @@ module Galley.Effects.ConversationStore
     setConversationEpoch,
     acceptConnectConversation,
     setGroupIdForConversation,
+    deleteGroupIdForConversation,
     setPublicGroupState,
+    deleteGroupIds,
 
     -- * Delete conversation
     deleteConversation,
@@ -98,12 +100,14 @@ data ConversationStore m a where
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetGroupIdForConversation :: GroupId -> Qualified ConvId -> ConversationStore m ()
+  DeleteGroupIdForConversation :: GroupId -> ConversationStore m ()
   SetPublicGroupState ::
     ConvId ->
     OpaquePublicGroupState ->
     ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
+  DeleteGroupIds :: [GroupId] -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

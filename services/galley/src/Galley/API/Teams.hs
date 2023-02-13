@@ -1103,7 +1103,8 @@ getTeamConversation zusr tid cid = do
 
 deleteTeamConversation ::
   ( Members
-      '[ CodeStore,
+      '[ BrigAccess,
+         CodeStore,
          ConversationStore,
          Error FederationError,
          Error InvalidInput,
@@ -1111,6 +1112,8 @@ deleteTeamConversation ::
          ErrorS 'InvalidOperation,
          ErrorS 'NotATeamMember,
          ErrorS ('ActionDenied 'DeleteConversation),
+         MemberStore,
+         ProposalStore,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
@@ -1122,7 +1125,8 @@ deleteTeamConversation ::
       r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation"
+    CallsFed 'Galley "on-new-remote-subconversation",
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Local UserId ->
   ConnId ->
