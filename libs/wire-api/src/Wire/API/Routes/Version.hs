@@ -116,7 +116,7 @@ newtype VersionNumber = VersionNumber {fromVersionNumber :: Version}
 
 instance ToSchema VersionNumber where
   schema =
-    enum @Integer "Version" . mconcat $ (\v -> element (versionInt v) (VersionNumber v)) <$> [minBound ..]
+    enum @Integer "VersionNumber" . mconcat $ (\v -> element (versionInt v) (VersionNumber v)) <$> [minBound ..]
 
 instance FromHttpApiData VersionNumber where
   parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
