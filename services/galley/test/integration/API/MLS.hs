@@ -2805,7 +2805,7 @@ testLeaveSubConv = do
     [bob1KP] <-
       map snd . filter (\(cid, _) -> cid == bob1)
         <$> getClientsFromGroupState alice1 bob
-    mlsBracket [alice1, bob2] $ \wss -> do
+    mlsBracket [bob1, alice1, bob2] $ \(wsBob1 : wss) -> do
       (_, reqs) <- withTempMockFederator' messageSentMock $ leaveCurrentConv bob1 qsub
       req <-
         assertOne
@@ -2821,6 +2821,8 @@ testLeaveSubConv = do
         WS.assertMatchN (5 # WS.Second) wss $
           wsAssertBackendRemoveProposal bob qcnv bob1KP
       traverse_ (uncurry consumeMessage1) (zip [alice1, bob2] msgs)
+      -- assert the leaver gets no proposal or event
+      void . liftIO $ WS.assertNoEvent (5 # WS.Second) [wsBob1]
 
     -- alice commits the pending proposal
     void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
