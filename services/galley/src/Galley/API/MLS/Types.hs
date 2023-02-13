@@ -44,6 +44,13 @@ cmLookupRef cid cm = do
   clients <- Map.lookup (cidQualifiedUser cid) cm
   Map.lookup (ciClient cid) clients
 
+cmRemoveClient :: ClientIdentity -> ClientMap -> ClientMap
+cmRemoveClient cid cm = case Map.lookup (cidQualifiedUser cid) cm of
+  Nothing -> cm
+  Just clients ->
+    let clients' = Map.delete (ciClient cid) clients
+     in Map.insert (cidQualifiedUser cid) clients' cm
+
 isClientMember :: ClientIdentity -> ClientMap -> Bool
 isClientMember ci = isJust . cmLookupRef ci
 
