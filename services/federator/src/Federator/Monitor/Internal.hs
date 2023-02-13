@@ -363,6 +363,7 @@ mkSSLContext ::
 mkSSLContext settings = do
   ctx <- embed $ SSL.context
   embed $ do
+    SSL.contextAddOption ctx SSL.SSL_OP_ALL
     SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv2
     SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv3
     SSL.contextAddOption ctx SSL.SSL_OP_NO_TLSv1
@@ -371,7 +372,9 @@ mkSSLContext settings = do
     -- Settings TLS13 ciphers requires another call to openssl, this has not
     -- been implemented in HsOpenSSL yet.
     SSL.contextSetCiphers ctx blessedTLS12Ciphers
+
     SSL.contextSetALPNProtos ctx ["h2"]
+
     SSL.contextSetVerificationMode ctx $
       SSL.VerifyPeer
         { -- vpFailIfNoPeerCert and vpClientOnce are only relevant for servers
