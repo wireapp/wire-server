@@ -6,10 +6,11 @@ MKFILE_DIR = $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 # You can set these variables (with a ?=) from the command line, and also
 # from the environment.
-SPHINXOPTS    ?= -q
-SPHINXBUILD   ?= sphinx-build
-SOURCEDIR     = $(MKFILE_DIR)/src
-BUILDDIR      = $(MKFILE_DIR)/build
+SPHINXOPTS       ?= -q
+SPHINXBUILD      ?= sphinx-build
+SOURCEDIR         = $(MKFILE_DIR)/src
+BUILDDIR          = $(MKFILE_DIR)/build
+SOURCE_DATE_EPOCH = $(shell git log -1 --format=%ct)
 
 .PHONY: Makefile
 

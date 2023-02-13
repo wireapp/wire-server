@@ -20,16 +20,13 @@ import requests
 
 project = 'Wire'
 author = 'Wire Swiss GmbH'
-# Since nix has an old timestamp it operates under for reproducability, get
-# current date from the internet.
-try:
-    r = requests.get("https://worldtimeapi.org/api/timezone/Europe/Berlin").json()
-    today_year = r['datetime'][:4]
-    # the first commit of wire-docs was in 2019.
-    copyright = f'2019 - {today_year}, ' + author
-except:
-    print("Error in getting online date, fallback to potentially out-of-date year")
-    copyright = f'2019 - 2022, Wire Swiss GmbH'
+today_date = datetime.date.today()
+# sphinx operates on environment variable SOURCE_DATE_EPOCH to provide
+# reproducible builds, we set the variable in the Makefile based on the latest
+# git revision
+# additionally sphinx will only do this correctly, when there are no spaces
+# between the numbers and dash
+copyright = f'2019-{today_date.year}, Wire Swiss GmbH'
 version = '0.0.4'
 # the 'release' variable is used in latex-based PDF generation
 release = version
