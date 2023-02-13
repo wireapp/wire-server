@@ -341,6 +341,8 @@ data FederationSetupError
   = InvalidCAStore FilePath String
   | InvalidClientCertificate String
   | InvalidClientPrivateKey String
+  | CertificateAndPrivateKeyDoNotMatch String String
+  | SSLException SSL.SomeSSLException
   deriving (Show)
 
 instance Exception FederationSetupError
@@ -349,6 +351,8 @@ showFederationSetupError :: FederationSetupError -> Text
 showFederationSetupError (InvalidCAStore path msg) = "invalid CA store: " <> Text.pack path <> ", error: " <> Text.pack msg
 showFederationSetupError (InvalidClientCertificate msg) = Text.pack msg
 showFederationSetupError (InvalidClientPrivateKey msg) = Text.pack msg
+showFederationSetupError (CertificateAndPrivateKeyDoNotMatch cert key) = Text.pack $ "Certificate and private key do not match, certificate: " <> cert <> ", private key: " <> key
+showFederationSetupError (SSLException exc) = Text.pack $ "Unexpected SSL Exception: " <> displayException exc
 
 mkSSLContext ::
   ( Member (Embed IO) r,
@@ -387,6 +391,10 @@ mkSSLContext settings = do
 
   Polysemy.fromExceptionVia @SomeException (InvalidClientPrivateKey . displayException) $
     SSL.contextSetPrivateKeyFile ctx (clientPrivateKey settings)
+
+  privateKeyCheck <- Polysemy.fromExceptionVia @SSL.SomeSSLException SSLException $ SSL.contextCheckPrivateKey ctx
+  unless privateKeyCheck $ do
+    Polysemy.throw $ CertificateAndPrivateKeyDoNotMatch (clientCertificate settings) (clientPrivateKey settings)
 
   pure ctx
 
