@@ -199,8 +199,6 @@ handleEvent runSem monitor wpath e = do
   -- to detect when some action has taken place
   unless (null actions) $
     -- we take the lock here, so that handlers never execute concurrently
-
-    -- we take the lock here, so that handlers never execute concurrently
     withMVar (monLock monitor) $ \_ ->
       runSem $ traverse_ (applyAction monitor) actions
 
