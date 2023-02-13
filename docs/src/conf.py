@@ -10,23 +10,17 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
-import datetime
+import os
 import requests
+
+# unset SOURCE_DATE_EPOCH to aviod side effects caused by sphinx
+del os.environ['SOURCE_DATE_EPOCH']
 
 # -- Project information -----------------------------------------------------
 
 project = 'Wire'
 author = 'Wire Swiss GmbH'
-today_date = datetime.date.today()
-# sphinx operates on environment variable SOURCE_DATE_EPOCH to provide
-# reproducible builds, we set the variable in the Makefile based on the latest
-# git revision
-# additionally sphinx will only do this correctly, when there are no spaces
-# between the numbers and dash
-copyright = f'2019-{today_date.year}, Wire Swiss GmbH'
+copyright = f'2019 - 2023, Wire Swiss GmbH'
 version = '0.0.4'
 # the 'release' variable is used in latex-based PDF generation
 release = version

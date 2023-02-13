@@ -26,7 +26,6 @@ let
 
   # packages necessary to build wire-server docs
   docsPkgs = [
-    pkgs.git
     pkgs.texlive.combined.scheme-full
     (pkgs.python3.withPackages
       (ps: with ps; [
