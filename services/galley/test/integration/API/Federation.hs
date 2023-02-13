@@ -42,6 +42,8 @@ import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
 import Imports
+import Network.HTTP.Client
+import Network.HTTP.Client.TLS
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
@@ -59,7 +61,7 @@ import Wire.API.Federation.Component
 import Wire.API.Internal.Notification
 import Wire.API.Message
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
-import Wire.API.User.Client (PubClient (..))
+import Wire.API.User.Client (PubClient (..), QualifiedUserClients (..))
 import Wire.API.User.Profile
 
 tests :: IO TestSetup -> TestTree
@@ -85,6 +87,7 @@ tests s =
       test s "POST /federation/leave-conversation : Invalid type" leaveConversationInvalidType,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
+      test s "POST /federation/send-message : Ensure that messages are send when some backends are unavailable" sendMessageUnavailableFederation,
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
       test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin
     ]
@@ -917,6 +920,101 @@ sendMessage = do
     FedGalley.rmSender rm @?= bob
     Map.keysSet (userClientMap (FedGalley.rmRecipients rm))
       @?= Set.singleton chadId
+
+-- alice local, bob and chad remote in a local conversation
+-- alice sends a message, we test that alice receieves a list of clients
+-- that the message wasn't sent to and that a call is made to the
+-- onMessageSent RPC to inform chad
+-- Reporting ticket: FS-51
+sendMessageUnavailableFederation :: TestM ()
+sendMessageUnavailableFederation = do
+  cannon <- view tsCannon
+  let remoteDomain = Domain "far-away.example.com"
+  localDomain <- viewFederationDomain
+
+  -- users and clients
+  (alice, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
+  let aliceId = qUnqualified alice
+  bobId <- randomId
+  bobClient <- liftIO $ generate arbitrary
+  let bob = Qualified bobId remoteDomain
+      bobProfile = mkProfile bob (Name "Bob")
+  connectWithRemoteUser aliceId bob
+  -- conversation
+  let responses1 = guardComponent Brig *> mockReply [bobProfile]
+
+  (convId, requests1) <-
+    withTempMockFederator' (responses1 <|> mockReply ()) $
+      fmap decodeConvId $
+        postConvQualified
+          aliceId
+          defNewProteusConv
+            { newConvQualifiedUsers = [bob]
+            }
+          <!! const 201 === statusCode
+  liftIO $ do
+    [galleyReq] <- case requests1 of
+      xs@[_] -> pure xs
+      _ -> assertFailure "unexpected number of requests"
+    frComponent galleyReq @?= Galley
+    frRPC galleyReq @?= "on-conversation-created"
+
+  -- we use bilge instead of the federation client to make a federated request
+  -- here, because we need to make use of the mock federator, which at the moment
+  -- supports only bilge requests
+  let rcpts =
+        [ (bob, bobClient, "hi bob")
+        ]
+      msg = mkQualifiedOtrPayload aliceClient rcpts "" MismatchReportAll
+      msr =
+        FedGalley.ProteusMessageSendRequest
+          { FedGalley.pmsrConvId = convId,
+            FedGalley.pmsrSender = aliceId,
+            FedGalley.pmsrRawMessage = Base64ByteString (Protolens.encodeMessage msg)
+          }
+  let mock = do
+        guardComponent Brig
+        mockReply (mempty :: Map (Id a) (Set PubClient))
+  -- Use a documentation reserved IP address for the endpoint so we can be sure it isn't going
+  -- to successfully return anything
+  (_, requests2) <- withTempMockFederatorWithEndpointIP "192.0.2.0" (mock <|> mockReply ()) $ do
+    WS.bracketR cannon bobId $ \ws -> do
+      -- Override the timeout settings for http requests.
+      -- We are expecting this to fail, so failing quickly
+      -- would be nice. Setting the value to 5 seconds
+      tlsManager <- liftIO $ newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 5000000}
+      msresp <- local (set tsManager tlsManager) $ do
+        g <- viewGalley
+        post
+          ( g
+              . paths ["federation", "send-message"]
+              . content "application/json"
+              . header "Wire-Origin-Domain" (toByteString' localDomain)
+              . json msr
+          )
+          <!! do
+            const 200 === statusCode
+      (FedGalley.MessageSendResponse eithStatus) <- responseJsonError msresp
+      liftIO $ case eithStatus of
+        Left err -> assertFailure $ "Expected Right, got Left: " <> show err
+        Right mss -> do
+          assertEqual "missing clients should be empty" mempty (mssMissingClients mss)
+          assertEqual "redundant clients should be empty" mempty (mssRedundantClients mss)
+          assertEqual "deleted clients should be empty" mempty (mssDeletedClients mss)
+          -- Alice should receive the list of clients that messages couldn't be sent to in this case, bob.
+          assertEqual
+            "failed to send should contain bob"
+            (QualifiedUserClients $ Map.singleton remoteDomain $ Map.singleton bobId mempty)
+            (mssFailedToSend mss)
+
+      -- check that bob did not received the message
+      WS.assertNoEvent (5 # Second) $ pure ws
+
+  -- check that a request to propagate message to bob has not been made
+  liftIO $
+    case requests2 of
+      [] -> pure ()
+      _ -> assertFailure "unexpected number of requests"
 
 -- | There are 3 backends in action here:
 --

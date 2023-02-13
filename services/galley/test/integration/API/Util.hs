@@ -2577,7 +2577,18 @@ withTempMockFederator' ::
   Mock LByteString ->
   m b ->
   m (b, [FederatedRequest])
-withTempMockFederator' resp action = do
+withTempMockFederator' = withTempMockFederatorWithEndpointIP "127.0.0.1"
+
+-- Allow a test to specify an endpoint IP
+-- This is useful for mocking servers that
+-- are unreachable
+withTempMockFederatorWithEndpointIP ::
+  (MonadIO m, MonadMask m, HasSettingsOverrides m) =>
+  Text ->
+  Mock LByteString ->
+  m b ->
+  m (b, [FederatedRequest])
+withTempMockFederatorWithEndpointIP endpoint resp action = do
   let mock = runMock (assertFailure . Text.unpack) $ do
         r <- resp
         pure ("application" // "json", r)
@@ -2585,7 +2596,7 @@ withTempMockFederator' resp action = do
     [("Content-Type", "application/json")]
     mock
     $ \mockPort -> do
-      withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
+      withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint endpoint (fromIntegral mockPort)) action
 
 -- Starts a servant Application in Network.Wai.Test session and runs the
 -- FederatedRequest against it.
