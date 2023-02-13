@@ -67,12 +67,22 @@ data Version = V0 | V1 | V2 | V3
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
 
+-- | Manual enumeration of version strings.
+--
+-- If you want to implement this using `{to,from}Enum`, continue reading the haddocs for
+-- 'versionInt' below.  :-)
 versionString :: IsString a => Version -> a
 versionString V0 = "v0"
 versionString V1 = "v1"
 versionString V2 = "v2"
 versionString V3 = "v3"
 
+-- | Manual enumeration of version integrals.
+--
+-- We don't do anything fancy with `{to,from}Enum`
+-- because we'll eventually break the invariant that there is a `V<n>` for every `<n>` once we
+-- start to deprecate old versions (we may even find a reason to discontinue `V13` but keep
+-- supporting `V12`).
 versionInt :: Integral i => Version -> i
 versionInt V0 = 0
 versionInt V1 = 1
