@@ -367,7 +367,6 @@ mkSSLContext settings = do
     SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv2
     SSL.contextAddOption ctx SSL.SSL_OP_NO_SSLv3
     SSL.contextAddOption ctx SSL.SSL_OP_NO_TLSv1
-    SSL.contextSetDefaultVerifyPaths ctx
 
     -- Settings TLS13 ciphers requires another call to openssl, this has not
     -- been implemented in HsOpenSSL yet.
