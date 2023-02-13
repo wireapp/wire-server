@@ -31,21 +31,18 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
 -- | Wrap json content as plain 'LByteString'
--- This type is intented to be used to receive json content as 'LByteString'.
+-- This type is intented to be used to receive json content as 'LText'.
 -- Warning: There is no validation of the json content. It may be any string.
-newtype RawJson = RawJson {rawJsonBytes :: LByteString}
+newtype RawJson = RawJson {rawJsonBytes :: LText}
   deriving (Eq, Show)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema RawJson
   deriving newtype (Arbitrary)
 
 instance {-# OVERLAPPING #-} MimeUnrender JSON RawJson where
-  mimeUnrender _ = pure . RawJson
+  -- The conversion to `Text` narrows the domain to UTF-8 strings. As this is
+  -- about JSON (de-) serialization, that's probably fine.
+  mimeUnrender _ = pure . RawJson . TLE.decodeUtf8
 
 instance ToSchema RawJson where
   schema :: ValueSchema NamedSwaggerDoc RawJson
-  -- The conversion to `Text` narrows the domain to UTF-8 strings. As this is
-  -- about JSON (de-) serialization, that's probably fine.
-  schema = textFromRawJson .= fmap rawJsonFromText ((text . T.pack) "RawJson")
-    where
-      textFromRawJson = TL.toStrict . decodeUtf8 . rawJsonBytes
-      rawJsonFromText = RawJson . TLE.encodeUtf8 . TL.fromStrict
+  schema = (TL.toStrict . rawJsonBytes) .= fmap (RawJson . TL.fromStrict) (schema @T.Text)

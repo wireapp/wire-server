@@ -25,7 +25,7 @@ testMimeUnrenderAndFromJSON =
     (arbitrary :: (Gen TL.Text))
     ( \t ->
         let muRes = mimeUnrender (Proxy :: Proxy JSON) (encodeUtf8 t)
-            jsonRes = (fromJSON @RawJson . toJSON . RawJson . encodeUtf8) t
+            jsonRes = (fromJSON @RawJson . toJSON . RawJson) t
          in muRes == toEither jsonRes
     )
   where
@@ -39,6 +39,6 @@ testJsonRoundTrip =
   forAll
     (arbitrary :: (Gen TL.Text))
     ( \t ->
-        let val = (RawJson . encodeUtf8) t
+        let val = RawJson t
          in (fromJSON . toJSON) val == A.Success val
     )
