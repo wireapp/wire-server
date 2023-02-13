@@ -130,28 +130,3 @@ interpretRemote = interpret $ \case
           (responseStatusCode resp)
           (toLazyByteString bdy)
     pure resp
-
--- mkTLSConfig :: SSLContext -> ByteString -> Word16 -> TLS.ClientParams
--- mkTLSConfig settings hostname port =
---   ( defaultParamsClient
---       (Text.unpack (Text.decodeUtf8With Text.lenientDecode hostname))
---       (toByteString' port)
---   )
---     { TLS.clientSupported =
---         def
---           { TLS.supportedCiphers = blessedCiphers,
---             -- FUTUREWORK: Figure out if we can drop TLS 1.2
---             TLS.supportedVersions = [TLS.TLS12, TLS.TLS13]
---           },
---       TLS.clientHooks =
---         def
---           { TLS.onServerCertificate =
---               X509.validate
---                 X509.HashSHA256
---                 X509.defaultHooks {X509.hookValidateName = validateDomainName}
---                 X509.defaultChecks {X509.checkLeafKeyPurpose = [X509.KeyUsagePurpose_ServerAuth]},
---             TLS.onCertificateRequest = \_ -> pure (Just (settings ^. creds)),
---             TLS.onSuggestALPN = pure (Just ["h2"]) -- we only support HTTP2
---           },
---       TLS.clientShared = def {TLS.sharedCAStore = settings ^. caStore}
---     }
