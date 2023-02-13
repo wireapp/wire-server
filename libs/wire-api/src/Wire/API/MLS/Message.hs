@@ -37,6 +37,7 @@ module Wire.API.MLS.Message
     MLSCipherTextSym0,
     MLSMessageSendingStatus (..),
     KnownFormatTag (..),
+    UnreachableUsers (..),
     verifyMessageSignature,
     mkSignedMessage,
   )
@@ -49,6 +50,8 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteArray as BA
+import Data.Domain
+import Data.Id
 import Data.Json.Util
 import Data.Kind
 import Data.Schema
@@ -315,9 +318,21 @@ instance SerialiseMLS (MessagePayload 'MLSPlainText) where
   -- so the next case is left as a stub
   serialiseMLS _ = pure ()
 
+newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: Map Domain [UserId]}
+  deriving stock (Eq, Show)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachableUsers
+
+instance ToSchema UnreachableUsers where
+  schema =
+    object "UnreachableUsers" $
+      UnreachableUsers
+        <$> unreachableUsers
+          .= field "failed_to_send" (map_ schema)
+
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
-    mmssTime :: UTCTimeMillis
+    mmssTime :: UTCTimeMillis,
+    mmssUnreachableUsers :: UnreachableUsers
   }
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
 
@@ -334,6 +349,11 @@ instance ToSchema MLSMessageSendingStatus where
           .= fieldWithDocModifier
             "time"
             (description ?~ "The time of sending the message.")
+            schema
+        <*> mmssUnreachableUsers
+          .= fieldWithDocModifier
+            "unreachable_users"
+            (description ?~ "List of federated users who could not be reached and did not receive the message")
             schema
 
 verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString -> Bool

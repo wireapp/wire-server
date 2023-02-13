@@ -37,6 +37,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Time
+import Data.Tuple.Extra
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Enabled
@@ -144,13 +145,13 @@ postMLSMessageFromLocalUserV1 ::
   Maybe ClientId ->
   ConnId ->
   RawMLS SomeMessage ->
-  Sem r [Event]
+  Sem r ([Event], UnreachableUsers)
 postMLSMessageFromLocalUserV1 lusr mc conn smsg = do
   assertMLSEnabled
   case rmValue smsg of
     SomeMessage _ msg -> do
       qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-      map lcuEvent
+      first (map lcuEvent)
         <$> postMLSMessage lusr (tUntagged lusr) mc qcnv (Just conn) smsg
 
 postMLSMessageFromLocalUser ::
@@ -185,9 +186,9 @@ postMLSMessageFromLocalUser lusr mc conn msg = do
   -- FUTUREWORK: Inline the body of 'postMLSMessageFromLocalUserV1' once version
   -- V1 is dropped
   assertMLSEnabled
-  events <- postMLSMessageFromLocalUserV1 lusr mc conn msg
+  (events, unreachables) <- postMLSMessageFromLocalUserV1 lusr mc conn msg
   t <- toUTCTimeMillis <$> input
-  pure $ MLSMessageSendingStatus events t
+  pure $ MLSMessageSendingStatus events t unreachables
 
 postMLSCommitBundle ::
   ( HasProposalEffects r,
@@ -211,7 +212,7 @@ postMLSCommitBundle ::
   Qualified ConvId ->
   Maybe ConnId ->
   CommitBundle ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UnreachableUsers)
 postMLSCommitBundle loc qusr mc qcnv conn rawBundle =
   foldQualified
     loc
@@ -244,11 +245,11 @@ postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
   assertMLSEnabled
   let msg = rmValue (cbCommitMsg bundle)
   qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-  events <-
-    map lcuEvent
+  (events, unreachables) <-
+    first (map lcuEvent)
       <$> postMLSCommitBundle lusr (tUntagged lusr) mc qcnv (Just conn) bundle
   t <- toUTCTimeMillis <$> input
-  pure $ MLSMessageSendingStatus events t
+  pure $ MLSMessageSendingStatus events t unreachables
 
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
@@ -269,7 +270,7 @@ postMLSCommitBundleToLocalConv ::
   Maybe ConnId ->
   CommitBundle ->
   Local ConvId ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UnreachableUsers)
 postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
@@ -313,7 +314,8 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
 
-  pure events
+  -- TODO(elland): handle unreachables
+  pure (events, UnreachableUsers Map.empty)
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
@@ -332,7 +334,7 @@ postMLSCommitBundleToRemoteConv ::
   Maybe ConnId ->
   CommitBundle ->
   Remote ConvId ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UnreachableUsers)
 postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -347,15 +349,16 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
             mmsrSender = tUnqualified lusr,
             mmsrRawMessage = Base64ByteString (serializeCommitBundle bundle)
           }
-  updates <- case resp of
+  case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
-    MLSMessageResponseUpdates updates -> pure updates
-
-  for updates $ \update -> do
-    e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
-    pure (LocalConversationUpdate e update)
+    MLSMessageResponseUpdates updates unreachables -> do
+      ups <- for updates $ \update -> do
+        e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
+        pure (LocalConversationUpdate e update)
+      -- TODO(elland): handle unreachables
+      pure (ups, unreachables)
 
 postMLSMessage ::
   ( HasProposalEffects r,
@@ -386,7 +389,7 @@ postMLSMessage ::
   Qualified ConvId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UnreachableUsers)
 postMLSMessage loc qusr mc qcnv con smsg = case rmValue smsg of
   SomeMessage tag msg -> do
     mSender <- fmap ciClient <$> getSenderIdentity qusr mc tag msg
@@ -463,7 +466,7 @@ postMLSMessageToLocalConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Local ConvId ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UnreachableUsers)
 postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
   SomeMessage tag msg -> do
     conv <- getLocalConvForUser qusr lcnv
@@ -490,7 +493,8 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
     -- forward message
     propagateMessage qusr lconv cm con (rmRaw smsg)
 
-    pure events
+    -- TODO(elland): deal with this correctly
+    pure (events, UnreachableUsers Map.empty)
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -505,7 +509,7 @@ postMLSMessageToRemoteConv ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Remote ConvId ->
-  Sem r [LocalConversationUpdate]
+  Sem r ([LocalConversationUpdate], UnreachableUsers)
 postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
@@ -520,15 +524,17 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
             mmsrSender = tUnqualified lusr,
             mmsrRawMessage = Base64ByteString (rmRaw smsg)
           }
-  updates <- case resp of
+  case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
-    MLSMessageResponseUpdates updates -> pure updates
+    MLSMessageResponseUpdates updates unreachables -> do
+      lcus <- for updates $ \update -> do
+        e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
+        pure (LocalConversationUpdate e update)
 
-  for updates $ \update -> do
-    e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
-    pure (LocalConversationUpdate e update)
+      -- TODO(elland): deal with this correctly
+      pure (lcus, unreachables)
 
 type HasProposalEffects r =
   ( Member BrigAccess r,

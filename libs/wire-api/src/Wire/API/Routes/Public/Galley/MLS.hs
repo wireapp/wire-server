@@ -81,7 +81,7 @@ type MLSMessagingAPI =
                :> ZOptClient
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
-               :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" [Event])
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" ([Event], UnreachableUsers))
            )
     :<|> Named
            "mls-message"

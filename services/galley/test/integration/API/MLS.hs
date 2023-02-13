@@ -69,6 +69,7 @@ import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
+import Wire.API.MLS.Message
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -1199,7 +1200,7 @@ testRemoteToLocal = do
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
       resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
       liftIO $ do
-        resp @?= MLSMessageResponseUpdates []
+        resp @?= MLSMessageResponseUpdates [] (UnreachableUsers Map.empty)
         WS.assertMatch_ (5 # Second) ws $
           wsAssertMLSMessage qcnv bob (mpMessage message)
 
@@ -1969,7 +1970,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates []
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers Map.empty)
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 
