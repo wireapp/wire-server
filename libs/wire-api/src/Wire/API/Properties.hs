@@ -22,10 +22,6 @@ module Wire.API.Properties
     PropertyKey (..),
     RawPropertyValue (..),
     PropertyValue (..),
-
-    -- * Swagger
-    modelPropertyValue,
-    modelPropertyDictionary,
   )
 where
 
@@ -35,7 +31,6 @@ import qualified Data.Aeson as A
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
 import Servant
@@ -49,11 +44,6 @@ instance S.ToSchema PropertyKeysAndValues where
     pure $
       S.NamedSchema (Just "PropertyKeysAndValues") $
         mempty & S.type_ ?~ S.SwaggerObject
-
-modelPropertyDictionary :: Doc.Model
-modelPropertyDictionary =
-  Doc.defineModel "PropertyDictionary" $
-    Doc.description "A JSON object with properties as attribute/value pairs."
 
 newtype PropertyKey = PropertyKey
   {propertyKeyName :: AsciiPrintable}
@@ -102,8 +92,3 @@ instance ToJSON PropertyValue where
 
 instance Show PropertyValue where
   show = show . propertyValue
-
-modelPropertyValue :: Doc.Model
-modelPropertyValue =
-  Doc.defineModel "PropertyValue" $
-    Doc.description "A property value is any valid JSON value."

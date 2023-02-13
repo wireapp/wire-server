@@ -37,7 +37,6 @@ library
     Util.Options.Common
     Util.Test
     Wire.Arbitrary
-    Wire.Swagger
 
   other-modules:      Paths_types_common
   hs-source-dirs:     src
@@ -124,7 +123,6 @@ library
     , scientific             >=0.3.4
     , servant-server
     , string-conversions
-    , swagger                >=0.3
     , swagger2
     , tagged                 >=0.8
     , tasty                  >=0.11

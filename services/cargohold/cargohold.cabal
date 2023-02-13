@@ -120,7 +120,6 @@ library
     , safe                   >=0.3
     , servant
     , servant-server
-    , swagger                >=0.2
     , text                   >=1.1
     , time                   >=1.4
     , tinylog                >=0.10

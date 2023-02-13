@@ -138,7 +138,6 @@ library
     , servant-server
     , servant-swagger
     , servant-swagger-ui
-    , swagger
     , swagger2
     , text                   >=1.1
     , time                   >=1.4

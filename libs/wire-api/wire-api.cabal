@@ -115,7 +115,6 @@ library
     Wire.API.Routes.Versioned
     Wire.API.Routes.WebSocket
     Wire.API.ServantProto
-    Wire.API.Swagger
     Wire.API.SwaggerHelper
     Wire.API.SystemSettings
     Wire.API.Team
@@ -272,7 +271,6 @@ library
     , singletons-th
     , sop-core
     , string-conversions
-    , swagger                    >=0.1
     , swagger2
     , tagged
     , text                       >=0.11
@@ -654,6 +652,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.HttpApiData
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
+    Test.Wire.API.Routes.Version
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
     Test.Wire.API.Team.Member

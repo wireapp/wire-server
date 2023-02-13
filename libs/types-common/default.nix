@@ -42,7 +42,6 @@
 , scientific
 , servant-server
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -100,7 +99,6 @@ mkDerivation {
     scientific
     servant-server
     string-conversions
-    swagger
     swagger2
     tagged
     tasty

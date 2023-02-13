@@ -20,7 +20,6 @@ library
     Network.Wai.Utilities.Request
     Network.Wai.Utilities.Response
     Network.Wai.Utilities.Server
-    Network.Wai.Utilities.Swagger
     Network.Wai.Utilities.ZAuth
 
   other-modules:      Paths_wai_utilities
@@ -88,7 +87,6 @@ library
     , servant-server
     , streaming-commons      >=0.1
     , string-conversions
-    , swagger
     , swagger2
     , text                   >=0.11
     , tinylog                >=0.8
