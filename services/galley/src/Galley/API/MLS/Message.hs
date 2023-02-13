@@ -1345,7 +1345,7 @@ executeProposalAction qusr con lconvOrSub action = do
           -- FUTUREWORK: turn this error into a proper response
           throwS @'MLSClientMismatch
 
-  membersToRemove <- catMaybes <$> for removedUsers (uncurry (checkRemoval cm))
+  membersToRemove <- catMaybes <$> for removedUsers (uncurry (checkRemoval (is _SubConv convOrSub) cm))
 
   -- add users to the conversation and send events
   addEvents <-
@@ -1391,14 +1391,15 @@ executeProposalAction qusr con lconvOrSub action = do
   pure (addEvents <> removeEvents)
   where
     checkRemoval ::
+      Bool ->
       ClientMap ->
       Qualified UserId ->
       Set ClientId ->
       Sem r (Maybe (Qualified UserId))
-    checkRemoval cm qtarget clients = do
+    checkRemoval isSubConv cm qtarget clients = do
       let clientsInConv = Map.keysSet (Map.findWithDefault mempty qtarget cm)
-      -- TODO: skip the next check for subconversations
-      when (clients /= clientsInConv) $ do
+      -- FUTUREWORK: add tests against this situation for conv v subconv
+      when (not isSubConv && clients /= clientsInConv) $ do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch
       when (qusr == qtarget) $
