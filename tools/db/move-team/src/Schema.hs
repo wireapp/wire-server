@@ -496,52 +496,6 @@ importBrigUserKeys Env {..} path = do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
 
--- brig.user_keys_hash
-
-type RowBrigUserKeysHash = (Maybe Blob, Maybe Int32, Maybe UUID)
-
-selectBrigUserKeysHash :: PrepQuery R (Identity [Int32]) RowBrigUserKeysHash
-selectBrigUserKeysHash = "SELECT key, key_type, user FROM user_keys_hash WHERE key in ?"
-
-readBrigUserKeysHash :: Env -> [Int32] -> ConduitM () [RowBrigUserKeysHash] IO ()
-readBrigUserKeysHash Env {..} keys =
-  transPipe (runClient envBrig) $
-    paginateC selectBrigUserKeysHash (paramsP LocalQuorum (pure keys) envPageSize) x5
-
-selectBrigUserKeysHashAll :: PrepQuery R () RowBrigUserKeysHash
-selectBrigUserKeysHashAll = "SELECT key, key_type, user FROM user_keys_hash"
-
-readBrigUserKeysHashAll :: Env -> ConduitM () [RowBrigUserKeysHash] IO ()
-readBrigUserKeysHashAll Env {..} =
-  transPipe (runClient envBrig) $
-    paginateC selectBrigUserKeysHashAll (paramsP LocalQuorum () envPageSize) x5
-
-exportBrigUserKeysHashFull :: Env -> FilePath -> IO ()
-exportBrigUserKeysHashFull env path = do
-  putStrLn $ "Exporting " <> "brig.user_keys_hash" <> " to " <> path
-  withBinaryFile path WriteMode $ \handle ->
-    runConduit $
-      readBrigUserKeysHashAll env
-        .| sinkJsonLines handle
-
-insertBrigUserKeysHash :: PrepQuery W RowBrigUserKeysHash ()
-insertBrigUserKeysHash =
-  "INSERT INTO user_keys_hash (key, key_type, user) VALUES (?, ?, ?)"
-
-importBrigUserKeysHash :: Env -> FilePath -> IO ()
-importBrigUserKeysHash Env {..} path = do
-  exists <- doesFileExist path
-  if exists
-    then do
-      putStrLn $ "Importing " <> path <> " to " <> "brig.user_keys_hash"
-      withBinaryFile path ReadMode $ \handle ->
-        runConduit $
-          sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkTableRows insertBrigUserKeysHash)
-    else do
-      putStrLn $ "Skipping because not found: " <> path
-      pure ()
-
 -- galley.billing_team_member
 
 type RowGalleyBillingTeamMember = (Maybe UUID, Maybe UUID)
@@ -1244,7 +1198,6 @@ importAllTables env@Env {..} = do
   importBrigUser env (envTargetPath </> "brig.user")
   importBrigUserHandle env (envTargetPath </> "brig.user_handle")
   importBrigUserKeys env (envTargetPath </> "brig.user_keys")
-  importBrigUserKeysHash env (envTargetPath </> "brig.user_keys_hash")
   importGalleyBillingTeamMember env (envTargetPath </> "galley.billing_team_member")
   importGalleyClients env (envTargetPath </> "galley.clients")
   importGalleyConversation env (envTargetPath </> "galley.conversation")
@@ -1273,7 +1226,6 @@ exportAllTablesFull env@Env {..} = do
   exportBrigUserFull env (envTargetPath </> "brig.user")
   exportBrigUserHandleFull env (envTargetPath </> "brig.user_handle")
   exportBrigUserKeysFull env (envTargetPath </> "brig.user_keys")
-  exportBrigUserKeysHashFull env (envTargetPath </> "brig.user_keys_hash")
   exportGalleyBillingTeamMemberFull env (envTargetPath </> "galley.billing_team_member")
   exportGalleyClientsFull env (envTargetPath </> "galley.clients")
   exportGalleyConversationFull env (envTargetPath </> "galley.conversation")

@@ -17,12 +17,14 @@
 
 module API.Federation.Util (mkHandler) where
 
+import Data.Kind
 import Data.SOP
 import Data.String.Conversions (cs)
 import GHC.TypeLits
 import Imports
 import Servant
 import Wire.API.Federation.Domain
+import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
@@ -36,6 +38,9 @@ instance HasTrivialHandler api => HasTrivialHandler ((path :: Symbol) :> api) wh
   trivialHandler = trivialHandler @api
 
 instance HasTrivialHandler api => HasTrivialHandler (OriginDomainHeader :> api) where
+  trivialHandler name _ = trivialHandler @api name
+
+instance HasTrivialHandler api => HasTrivialHandler (MakesFederatedCall comp name :> api) where
   trivialHandler name _ = trivialHandler @api name
 
 instance HasTrivialHandler api => HasTrivialHandler (ReqBody cs a :> api) where
@@ -55,7 +60,7 @@ trivialNamedHandler = Named (trivialHandler @api (symbolVal (Proxy @name)))
 
 -- | Generate a servant handler from an incomplete list of handlers of named
 -- endpoints.
-class PartialAPI (api :: *) (hs :: *) where
+class PartialAPI (api :: Type) (hs :: Type) where
   mkHandler :: hs -> Server api
 
 instance

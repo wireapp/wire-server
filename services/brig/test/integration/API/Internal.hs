@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -28,10 +31,11 @@ import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import qualified Brig.Options as Opt
 import Brig.Types.Intra
+import qualified Cassandra as C
 import qualified Cassandra as Cass
+import Cassandra.Util
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
-import Control.Monad.Catch
 import Data.Aeson (decode)
 import qualified Data.Aeson.Lens as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -77,7 +81,8 @@ tests opts mgr db brig brigep gundeck galley = do
               test mgr "get,get" $ testKpcGetGet brig,
               test mgr "put,put" $ testKpcPutPut brig,
               test mgr "add key package ref" $ testAddKeyPackageRef brig
-            ]
+            ],
+        test mgr "writetimeToInt64" $ testWritetimeRepresentation opts mgr db brig brigep galley
       ]
 
 testSuspendUser :: forall m. TestConstraints m => Cass.ClientState -> Brig -> m ()
@@ -99,7 +104,7 @@ testSuspendNonExistingUser db brig = do
   isUserCreated <- Cass.runClient db (userExists nonExistingUserId)
   liftIO $ isUserCreated @?= False
 
-setAccountStatus :: (MonadIO m, MonadHttp m, HasCallStack, MonadCatch m) => Brig -> UserId -> AccountStatus -> m ResponseLBS
+setAccountStatus :: (MonadHttp m, HasCallStack) => Brig -> UserId -> AccountStatus -> m ResponseLBS
 setAccountStatus brig u s =
   put
     ( brig
@@ -363,10 +368,27 @@ testAddKeyPackageRef brig = do
         <!! const 200 === statusCode
   liftIO $ mqcnv @?= Just qcnv
 
-getFeatureConfig :: forall cfg m. (MonadIO m, MonadHttp m, HasCallStack, ApiFt.IsFeatureConfig cfg, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
+getFeatureConfig :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig galley uid = do
   get $ apiVersion "v1" . galley . paths ["feature-configs", featureNameBS @cfg] . zUser uid
 
-getAllFeatureConfigs :: (MonadIO m, MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
+getAllFeatureConfigs :: (MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
 getAllFeatureConfigs galley uid = do
   get $ galley . paths ["feature-configs"] . zUser uid
+
+testWritetimeRepresentation :: forall m. TestConstraints m => Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Galley -> m ()
+testWritetimeRepresentation _ _mgr db brig _brigep _galley = do
+  quid <- userQualifiedId <$> randomUser brig
+  let uid = qUnqualified quid
+
+  ref <- fromJust <$> (runIdentity <$$> Cass.runClient db (C.query1 q1 (C.params C.LocalQuorum (Identity uid))))
+
+  wt <- fromJust <$> (runIdentity <$$> Cass.runClient db (C.query1 q2 (C.params C.LocalQuorum (Identity uid))))
+
+  liftIO $ assertEqual "writetimeToInt64(<fromCql WRITETIME(status)>) does not match WRITETIME(status)" ref (writetimeToInt64 wt)
+  where
+    q1 :: C.PrepQuery C.R (Identity UserId) (Identity Int64)
+    q1 = "SELECT WRITETIME(status) from user where id = ?"
+
+    q2 :: C.PrepQuery C.R (Identity UserId) (Identity (Writetime ()))
+    q2 = "SELECT WRITETIME(status) from user where id = ?"

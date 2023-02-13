@@ -59,7 +59,6 @@ module Wire.API.Event.Conversation
     ConversationAccessData (..),
     ConversationMessageTimerUpdate (..),
     ConversationCode (..),
-    TypingData (..),
     QualifiedUserIdList (..),
   )
 where
@@ -82,8 +81,10 @@ import URI.ByteString ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (ConversationCode (..))
 import Wire.API.Conversation.Role
-import Wire.API.Conversation.Typing (TypingData (..))
+import Wire.API.Conversation.Typing
+import Wire.API.MLS.SubConversation
 import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Version
 import Wire.API.User (QualifiedUserIdList (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -92,6 +93,7 @@ import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 data Event = Event
   { evtConv :: Qualified ConvId,
+    evtSubConv :: Maybe SubConvId,
     evtFrom :: Qualified UserId,
     evtTime :: UTCTime,
     evtData :: EventData
@@ -106,6 +108,7 @@ instance Arbitrary Event where
     typ <- arbitrary
     Event
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> (milli <$> arbitrary)
       <*> genEventData typ
@@ -129,7 +132,7 @@ data EventType
   | MLSMessageAdd
   | MLSWelcome
   | Typing
-  deriving stock (Eq, Show, Generic, Enum, Bounded)
+  deriving stock (Eq, Show, Generic, Enum, Bounded, Ord)
   deriving (Arbitrary) via (GenericUniform EventType)
   deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema EventType
 
@@ -168,7 +171,7 @@ data EventData
   | EdConvCodeDelete
   | EdMemberUpdate MemberUpdateData
   | EdConversation Conversation
-  | EdTyping TypingData
+  | EdTyping TypingStatus
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
   | EdMLSWelcome ByteString
@@ -372,10 +375,16 @@ taggedEventDataSchema =
       MemberLeave -> tag _EdMembersLeave (unnamed schema)
       MemberStateUpdate -> tag _EdMemberUpdate (unnamed schema)
       ConvRename -> tag _EdConvRename (unnamed schema)
-      ConvAccessUpdate -> tag _EdConvAccessUpdate (unnamed schema)
+      -- FUTUREWORK: when V2 is dropped, it is fine to change this schema to
+      -- V3, since V3 clients are guaranteed to know how to parse V2 and V3
+      -- conversation access update events.
+      ConvAccessUpdate ->
+        tag
+          _EdConvAccessUpdate
+          (unnamed (conversationAccessDataSchema V2))
       ConvCodeUpdate -> tag _EdConvCodeUpdate (unnamed schema)
       ConvConnect -> tag _EdConnect (unnamed schema)
-      ConvCreate -> tag _EdConversation (unnamed schema)
+      ConvCreate -> tag _EdConversation (unnamed (conversationSchema V2))
       ConvMessageTimerUpdate -> tag _EdConvMessageTimerUpdate (unnamed schema)
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)
@@ -415,11 +424,12 @@ eventObjectSchema =
     <$> (evtType &&& evtData) .= taggedEventDataSchema
     <* (qUnqualified . evtConv) .= optional (field "conversation" schema)
     <*> evtConv .= field "qualified_conversation" schema
+    <*> evtSubConv .= maybe_ (optField "subconv" schema)
     <* (qUnqualified . evtFrom) .= optional (field "from" schema)
     <*> evtFrom .= field "qualified_from" schema
     <*> (toUTCTimeMillis . evtTime) .= field "time" (fromUTCTimeMillis <$> schema)
   where
-    mk (_, d) cid uid tm = Event cid uid tm d
+    mk (_, d) cid sconvid uid tm = Event cid sconvid uid tm d
 
 instance ToJSONObject Event where
   toJSONObject =

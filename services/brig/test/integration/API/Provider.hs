@@ -53,6 +53,7 @@ import Data.PEM
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Streaming.Network (bindRandomPortTCP)
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
@@ -63,6 +64,8 @@ import qualified Data.UUID as UUID
 import qualified Data.ZAuth.Token as ZAuth
 import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status (status200, status201, status400)
+import Network.Socket
+import qualified Network.Socket as Socket
 import Network.Wai (Application, responseLBS, strictRequestBody)
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
@@ -148,6 +151,7 @@ tests dom conf p db b c g = do
         testGroup
           "bot-teams"
           [ test p "add-remove" $ testAddRemoveBotTeam conf db b g c,
+            test p "add-remove-access-denied-for-non-conv-admin" $ testNonConvAdminCannotAddRemoveBot conf db b g,
             test p "team-only" $ testBotTeamOnlyConv conf db b g c,
             test p "message" $ testMessageBotTeam conf db b g c,
             test p "delete conv" $ testDeleteConvBotTeam conf db b g c,
@@ -167,8 +171,7 @@ data Config = Config
   { privateKey :: FilePath,
     publicKey :: FilePath,
     cert :: FilePath,
-    botHost :: Text,
-    botPort :: Int
+    botHost :: Text
   }
   deriving (Show, Generic)
 
@@ -525,8 +528,8 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
     _ <- waitFor (5 # Second) not (isMember galley lbuid2 cid)
     getBotConv galley bid1 cid !!! const 404 === statusCode
     getBotConv galley bid2 cid !!! const 404 === statusCode
-    wsAssertMemberLeave ws qcid (qUntagged lbuid1) [qUntagged lbuid1]
-    wsAssertMemberLeave ws qcid (qUntagged lbuid2) [qUntagged lbuid2]
+    wsAssertMemberLeave ws qcid (tUntagged lbuid1) [tUntagged lbuid1]
+    wsAssertMemberLeave ws qcid (tUntagged lbuid2) [tUntagged lbuid2]
   -- The service should not be available
   getService brig pid sid
     !!! const 404 === statusCode
@@ -565,6 +568,30 @@ testAddBotBlocked config db brig galley = withTestService config db brig defServ
   addBot brig u1 pid sid cid !!! do
     const 403 === statusCode
     const (Just "access-denied") === fmap Error.label . responseJsonMaybe
+
+testNonConvAdminCannotAddRemoveBot :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testNonConvAdminCannotAddRemoveBot config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
+  let pid = sref ^. serviceRefProvider
+  let sid = sref ^. serviceRefId
+  (ownerId, tid) <- Team.createUserWithTeam brig
+  member <- Team.createTeamMember brig galley ownerId tid fullPermissions
+  let memberId = userId member
+  whitelistService brig ownerId tid pid sid
+  cid <- Team.createTeamConvWithRole roleNameWireMember galley tid ownerId [memberId] Nothing
+  addBot brig memberId pid sid cid !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === fmap Error.label . responseJsonMaybe
+  rs <- responseJsonError =<< addBot brig ownerId pid sid cid <!! const 201 === statusCode
+  let bid = rsAddBotId rs
+      buid = botUserId bid
+  getUser brig ownerId buid !!! const 200 === statusCode
+  removeBot brig memberId cid bid !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === fmap Error.label . responseJsonMaybe
+  -- also check the internal galley API
+  removeBotInternal galley memberId cid bid !!! do
+    const 403 === statusCode
+    const (Just "action-denied") === fmap Error.label . responseJsonMaybe
 
 testGetBotConvBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testGetBotConvBlocked config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -609,14 +636,14 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon
 
 testBadFingerprint :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
-testBadFingerprint config db brig galley _cannon = do
+testBadFingerprint config db brig galley _cannon = withFreePortAnyAddr $ \(sPort, sock) -> do
   -- Generate a random key and register a service using that key
   sref <- withSystemTempFile "wire-provider.key" $ \fp h -> do
     ServiceKeyPEM key <- randServiceKey
     liftIO $ BS.hPut h (pemWriteBS key) >> hClose h
-    registerService config {publicKey = fp} db brig
+    registerService config {publicKey = fp} sPort db brig
   -- Run the service with a different key (i.e. the key from the config)
-  runService config defServiceApp $ \_ -> do
+  runService config sPort sock defServiceApp $ \_ -> do
     let pid = sref ^. serviceRefProvider
     let sid = sref ^. serviceRefId
     -- Prepare user with client
@@ -647,30 +674,65 @@ testBotTeamOnlyConv config db brig galley cannon = withTestService config db bri
       qcid = Qualified cid localDomain
   -- Make the conversation team-only and check that the bot can't be added
   -- to the conversation
-  setAccessRole uid1 cid (Set.fromList [TeamMemberAccessRole])
+  setAccessRole uid1 qcid (Set.fromList [TeamMemberAccessRole])
   addBot brig uid1 pid sid cid !!! do
     const 403 === statusCode
     const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
   -- Make the conversation allowed for guests and add the bot successfully
-  setAccessRole uid1 cid (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
+  setAccessRole uid1 qcid (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   bid <- addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf
   let lbuid = qualifyAs luid1 . botUserId $ bid
   -- Make the conversation team-only again and check that the bot has been removed
   WS.bracketR cannon uid1 $ \ws -> do
-    setAccessRole uid1 cid (Set.fromList [TeamMemberAccessRole])
+    setAccessRole uid1 qcid (Set.fromList [TeamMemberAccessRole])
     _ <- waitFor (5 # Second) not (isMember galley lbuid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
-    svcAssertConvAccessUpdate
-      buf
-      (qUntagged luid1)
-      (ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole]))
-      qcid
-    svcAssertMemberLeave buf (qUntagged lbuid) [qUntagged lbuid] qcid
-    wsAssertMemberLeave ws qcid (qUntagged lbuid) [qUntagged lbuid]
+    -- Two events are sent concurrently:
+    -- - ConvAccessUpdate
+    -- - MemberLeave (for the bot)
+    --
+    -- We cannot guarantee the order, so we have to check for both
+    let expectedConvAccessData = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole])
+        expectedMemberLeave = [tUntagged lbuid]
+        assertAndRetrieveEvent = do
+          event <-
+            timeout (5 # Second) (readChan buf)
+              >>= assertJust
+              >>= assertBotMessage
+          assertAccessUpdateOrMemberLeave (tUntagged luid1) expectedConvAccessData (tUntagged lbuid) expectedMemberLeave qcid event
+          pure event
+    event1 <- assertAndRetrieveEvent
+    event2 <- assertAndRetrieveEvent
+    -- Ensure there is exactly one of each types of event
+    liftIO $
+      assertEqual
+        "there should be 1 ConvAccessUpdate and 1 MemberLeave event"
+        (Set.fromList [ConvAccessUpdate, MemberLeave])
+        (Set.fromList (map evtType [event1, event2]))
+    wsAssertMemberLeave ws qcid (tUntagged lbuid) [tUntagged lbuid]
   where
-    setAccessRole uid cid role =
-      updateConversationAccess galley uid cid [InviteAccess] role
+    assertBotMessage :: (HasCallStack, MonadIO m) => TestBotEvent -> m Event
+    assertBotMessage =
+      liftIO . \case
+        TestBotMessage e -> pure e
+        evt -> assertFailure $ "expected TestBotMessage, got: " <> show evt
+    assertAccessUpdateOrMemberLeave :: (HasCallStack, MonadIO m) => Qualified UserId -> ConversationAccessData -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> Event -> m ()
+    assertAccessUpdateOrMemberLeave updFrom upd leaveFrom gone cnv e = liftIO $
+      case evtType e of
+        ConvAccessUpdate -> do
+          assertEqual "conv" cnv (evtConv e)
+          assertEqual "user" updFrom (evtFrom e)
+          assertEqual "event data" (EdConvAccessUpdate upd) (evtData e)
+        MemberLeave -> do
+          let msg = QualifiedUserIdList gone
+          assertEqual "conv" cnv (evtConv e)
+          assertEqual "user" leaveFrom (evtFrom e)
+          assertEqual "event data" (EdMembersLeave msg) (evtData e)
+        _ ->
+          assertFailure $ "expected event of type: ConvAccessUpdate or MemberLeave, got: " <> show e
+    setAccessRole uid qcid role =
+      updateConversationAccess galley uid qcid [InviteAccess] role
         !!! const 200 === statusCode
 
 testMessageBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -709,7 +771,7 @@ testDeleteConvBotTeam config db brig galley cannon = withTestService config db b
     svcAssertConvDelete buf quid2 qcid
   -- Check that the conversation no longer exists
   forM_ [uid1, uid2] $ \uid ->
-    getConversation galley uid cid !!! const 404 === statusCode
+    getConversationQualified galley uid qcid !!! const 404 === statusCode
   getBotConv galley bid cid !!! const 404 === statusCode
 
 testDeleteTeamBotTeam :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -733,7 +795,7 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   forM_ [uid1, uid2] $ \uid -> do
     void $ retryWhileN 20 (/= Intra.Deleted) (getStatus brig uid)
     chkStatus brig uid Intra.Deleted
-    aFewTimes 11 (getConversation galley uid cid) ((== 404) . statusCode)
+    aFewTimes 11 (getConversationQualified galley uid qcid) ((== 404) . statusCode)
   -- Check the bot cannot see the conversation either
   getBotConv galley bid cid !!! const 404 === statusCode
 
@@ -933,15 +995,15 @@ testWhitelistKickout localDomain config db brig galley cannon = do
     let bid = rsAddBotId bot
         lbuid = qualifyAs lowner . botUserId $ bid
     _ <- svcAssertBotCreated buf bid cid
-    svcAssertMemberJoin buf qowner [qUntagged lbuid] qcid
+    svcAssertMemberJoin buf qowner [tUntagged lbuid] qcid
     -- De-whitelist the service; both bots should be kicked out
     WS.bracketR cannon owner $ \ws -> do
       dewhitelistService brig owner tid pid sid
       _ <- waitFor (2 # Second) not (isMember galley lbuid cid)
       getBotConv galley bid cid
         !!! const 404 === statusCode
-      wsAssertMemberLeave ws qcid qowner [qUntagged lbuid]
-      svcAssertMemberLeave buf qowner [qUntagged lbuid] qcid
+      wsAssertMemberLeave ws qcid qowner [tUntagged lbuid]
+      svcAssertMemberLeave buf qowner [tUntagged lbuid] qcid
     -- The bot should not get any further events
     liftIO $
       timeout (2 # Second) (readChan buf) >>= \case
@@ -1305,6 +1367,31 @@ removeBot brig uid cid bid =
       . header "Z-User" (toByteString' uid)
       . header "Z-Connection" "conn"
 
+data RemoveBot = RemoveBot
+  { _rmBotConv :: !ConvId,
+    _rmBotId :: !BotId
+  }
+
+instance ToJSON RemoveBot where
+  toJSON a =
+    object
+      [ "conversation" .= _rmBotConv a,
+        "bot" .= _rmBotId a
+      ]
+
+removeBotInternal ::
+  Galley ->
+  UserId ->
+  ConvId ->
+  BotId ->
+  Http ResponseLBS
+removeBotInternal galley uid cid bid =
+  delete $
+    galley
+      . paths ["i", "bots"]
+      . header "Z-User" (toByteString' uid)
+      . Bilge.json (RemoveBot cid bid)
+
 createConv ::
   Galley ->
   UserId ->
@@ -1313,7 +1400,7 @@ createConv ::
 createConv = createConvWithAccessRoles Nothing
 
 createConvWithAccessRoles ::
-  Maybe (Set AccessRoleV2) ->
+  Maybe (Set AccessRole) ->
   Galley ->
   UserId ->
   [UserId] ->
@@ -1328,19 +1415,7 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv =
-      NewConv
-        us
-        []
-        Nothing
-        Set.empty
-        ars
-        Nothing
-        Nothing
-        Nothing
-        roleNameWireAdmin
-        ProtocolProteusTag
-        Nothing
+    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
 
 postMessage ::
   Galley ->
@@ -1393,14 +1468,19 @@ getBotConv galley bid cid =
 updateConversationAccess ::
   Galley ->
   UserId ->
-  ConvId ->
+  Qualified ConvId ->
   [Access] ->
-  Set AccessRoleV2 ->
+  Set AccessRole ->
   Http ResponseLBS
-updateConversationAccess galley uid cid access role =
+updateConversationAccess galley uid qcid access role =
   put $
     galley
-      . paths ["conversations", toByteString' cid, "access"]
+      . paths
+        [ "conversations",
+          toByteString' (qDomain qcid),
+          toByteString' (qUnqualified qcid),
+          "access"
+        ]
       . header "Z-Type" "access"
       . header "Z-User" (toByteString' uid)
       . header "Z-Connection" "conn"
@@ -1653,6 +1733,12 @@ waitFor t f ma = do
           liftIO $ threadDelay (1 # Second)
           waitFor (t - 1 # Second) f ma
 
+withFreePortAnyAddr :: (MonadMask m, MonadIO m) => ((Warp.Port, Socket) -> m a) -> m a
+withFreePortAnyAddr = bracket openFreePortAnyAddr (liftIO . Socket.close . snd)
+
+openFreePortAnyAddr :: MonadIO m => m (Warp.Port, Socket)
+openFreePortAnyAddr = liftIO $ bindRandomPortTCP "*"
+
 -- | Run a test case with an external service application.
 withTestService ::
   Config ->
@@ -1661,19 +1747,19 @@ withTestService ::
   (Chan e -> Application) ->
   (ServiceRef -> Chan e -> Http a) ->
   Http a
-withTestService config db brig mkApp go = do
-  sref <- registerService config db brig
-  runService config mkApp (go sref)
+withTestService config db brig mkApp go = withFreePortAnyAddr $ \(sPort, sock) -> do
+  sref <- registerService config sPort db brig
+  runService config sPort sock mkApp (go sref)
 
-registerService :: Config -> DB.ClientState -> Brig -> Http ServiceRef
-registerService config db brig = do
+registerService :: Config -> Warp.Port -> DB.ClientState -> Brig -> Http ServiceRef
+registerService config sPort db brig = do
   prv <- randomProvider db brig
   new <- defNewService config
   let Just url =
         fromByteString $
           encodeUtf8 (botHost config)
             <> ":"
-            <> C8.pack (show (botPort config))
+            <> C8.pack (show sPort)
   svc <- addGetService brig (providerId prv) (new {newServiceUrl = url})
   let pid = providerId prv
   let sid = serviceId svc
@@ -1682,16 +1768,18 @@ registerService config db brig = do
 
 runService ::
   Config ->
+  Warp.Port ->
+  Socket ->
   (Chan e -> Application) ->
   (Chan e -> Http a) ->
   Http a
-runService config mkApp go = do
+runService config sPort sock mkApp go = do
   let tlss = Warp.tlsSettings (cert config) (privateKey config)
-  let defs = Warp.defaultSettings {Warp.settingsPort = botPort config}
+  let defs = Warp.defaultSettings {Warp.settingsPort = sPort}
   buf <- liftIO newChan
   srv <-
     liftIO . Async.async $
-      Warp.runTLS tlss defs $
+      Warp.runTLSSocket tlss defs sock $
         mkApp buf
   go buf `finally` liftIO (Async.cancel srv)
 
@@ -1710,6 +1798,7 @@ data TestBot = TestBot
 data TestBotEvent
   = TestBotCreated TestBot
   | TestBotMessage Event
+  deriving (Show, Eq)
 
 -- TODO: Test that the authorization header is properly set
 defServiceApp :: Chan TestBotEvent -> Application
@@ -1756,7 +1845,7 @@ defServiceApp buf =
           writeChan buf (TestBotMessage ev)
           k $ responseLBS status200 [] "success"
 
-wsAssertMemberJoin :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
+wsAssertMemberJoin :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
 wsAssertMemberJoin ws conv usr new = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1768,7 +1857,7 @@ wsAssertMemberJoin ws conv usr new = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new))
 
-wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
+wsAssertMemberLeave :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> m ()
 wsAssertMemberLeave ws conv usr old = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1780,7 +1869,7 @@ wsAssertMemberLeave ws conv usr old = void $
         evtFrom e @?= usr
         evtData e @?= EdMembersLeave (QualifiedUserIdList old)
 
-wsAssertConvDelete :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
+wsAssertConvDelete :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> m ()
 wsAssertConvDelete ws conv from = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1792,7 +1881,7 @@ wsAssertConvDelete ws conv from = void $
         evtFrom e @?= from
         evtData e @?= EdConvDelete
 
-wsAssertMessage :: MonadIO m => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> m ()
+wsAssertMessage :: (HasCallStack, MonadIO m) => WS.WebSocket -> Qualified ConvId -> Qualified UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $
   liftIO $
     WS.assertMatch (5 # Second) ws $
@@ -1804,7 +1893,7 @@ wsAssertMessage ws conv fromu fromc to txt = void $
         evtFrom e @?= fromu
         evtData e @?= EdOtrMessage (OtrMessage fromc to txt (Just "data"))
 
-svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
+svcAssertMemberJoin :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
 svcAssertMemberJoin buf usr new cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1816,7 +1905,7 @@ svcAssertMemberJoin buf usr new cnv = liftIO $ do
       assertEqual "event data" (EdMembersJoin msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-join)"
 
-svcAssertMemberLeave :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
+svcAssertMemberLeave :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> [Qualified UserId] -> Qualified ConvId -> m ()
 svcAssertMemberLeave buf usr gone cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1828,20 +1917,7 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
       assertEqual "event data" (EdMembersLeave msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
-svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> ConversationAccessData -> Qualified ConvId -> m ()
-svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
-  evt <- timeout (5 # Second) $ readChan buf
-  case evt of
-    Just (TestBotMessage e) -> do
-      -- FUTUREWORK: Sometimes the assertion on the event type fails, but not
-      -- always. See https://wearezeta.atlassian.net/browse/BE-522.
-      assertEqual "event type" ConvAccessUpdate (evtType e)
-      assertEqual "conv" cnv (evtConv e)
-      assertEqual "user" usr (evtFrom e)
-      assertEqual "event data" (EdConvAccessUpdate upd) (evtData e)
-    _ -> assertFailure "Event timeout (TestBotMessage: conv-access-update)"
-
-svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
+svcAssertConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
 svcAssertConvDelete buf usr cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1852,7 +1928,7 @@ svcAssertConvDelete buf usr cnv = liftIO $ do
       assertEqual "event data" EdConvDelete (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: conv-delete)"
 
-svcAssertBotCreated :: MonadIO m => Chan TestBotEvent -> BotId -> ConvId -> m TestBot
+svcAssertBotCreated :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> BotId -> ConvId -> m TestBot
 svcAssertBotCreated buf bid cid = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1864,7 +1940,7 @@ svcAssertBotCreated buf bid cid = liftIO $ do
       pure b
     _ -> assertFailure "Event timeout (TestBotCreated)"
 
-svcAssertMessage :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified ConvId -> m ()
+svcAssertMessage :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified ConvId -> m ()
 svcAssertMessage buf from msg cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1875,7 +1951,7 @@ svcAssertMessage buf from msg cnv = liftIO $ do
       assertEqual "event data" (EdOtrMessage msg) (evtData e)
     _ -> assertFailure "Event timeout (TestBotMessage: otr-message-add)"
 
-svcAssertEventuallyConvDelete :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
+svcAssertEventuallyConvDelete :: (HasCallStack, MonadIO m) => Chan TestBotEvent -> Qualified UserId -> Qualified ConvId -> m ()
 svcAssertEventuallyConvDelete buf usr cnv = liftIO $ do
   evt <- timeout (5 # Second) $ readChan buf
   case evt of
@@ -1901,7 +1977,7 @@ mkMessage fromc rcps =
     ]
   where
     mk (u, c, m) = (text u, HashMap.singleton (text c) m)
-    text :: (FromByteString a, ToByteString a) => a -> Text
+    text :: ToByteString a => a -> Text
     text = fromJust . fromByteString . toByteString'
 
 -- | A list of 20 services, all having names that begin with the given prefix.
@@ -2037,7 +2113,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
       lbuid = qualifyAs luid buid
   let bc = rsAddBotClient ars
   _ <- svcAssertBotCreated buf bid cid
-  svcAssertMemberJoin buf quid [qUntagged lbuid] qcid
+  svcAssertMemberJoin buf quid [tUntagged lbuid] qcid
   -- The bot can now fetch the conversation
   _rs <- getBotConv galley bid cid <!! const 200 === statusCode
   let Just bcnv = responseJsonMaybe _rs
@@ -2045,7 +2121,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     assertEqual "id" cid (bcnv ^. Ext.botConvId)
     assertEqual "members" [OtherMember quid Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
   -- The user can identify the bot in the member list
-  mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
+  mems <- fmap cnvMembers . responseJsonError =<< getConversationQualified galley uid qcid
   let other = listToMaybe (cmOthers mems)
   liftIO $ do
     assertEqual "id" (Just buid) (qUnqualified . omQualifiedId <$> other)
@@ -2054,7 +2130,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
   WS.bracketR cannon uid $ \ws -> do
     postBotMessage galley bid bc cid [(uid, uc, toBase64Text "Hi User!")]
       !!! const 201 === statusCode
-    wsAssertMessage ws qcid (qUntagged lbuid) bc uc (toBase64Text "Hi User!")
+    wsAssertMessage ws qcid (tUntagged lbuid) bc uc (toBase64Text "Hi User!")
   -- The user replies
   postMessage galley uid uc cid [(buid, bc, toBase64Text "Hi Bot")]
     !!! const 201 === statusCode
@@ -2067,7 +2143,7 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     _ <- waitFor (5 # Second) not (isMember galley lbuid cid)
     getBotConv galley bid cid
       !!! const 404 === statusCode
-    wsAssertMemberLeave ws qcid (qUntagged lbuid) [qUntagged lbuid]
+    wsAssertMemberLeave ws qcid (tUntagged lbuid) [tUntagged lbuid]
 
 prepareBotUsersTeam ::
   HasCallStack =>

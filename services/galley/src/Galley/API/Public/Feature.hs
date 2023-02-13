@@ -22,6 +22,7 @@ import Galley.API.Teams.Features
 import Galley.App
 import Galley.Cassandra.TeamFeatures
 import Imports
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Feature
 import Wire.API.Team.Feature
@@ -30,7 +31,7 @@ featureAPI :: API FeatureAPI GalleyEffects
 featureAPI =
   mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", LegalholdConfig) (setFeatureStatus @Cassandra . DoAuth)
+    <@> mkNamedAPI @'("put", LegalholdConfig) (callsFed (setFeatureStatus @Cassandra . DoAuth))
     <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
@@ -59,6 +60,8 @@ featureAPI =
     <@> mkNamedAPI @'("put", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus @Cassandra . DoAuth)
+    <@> mkNamedAPI @'("get", OutlookCalIntegrationConfig) (getFeatureStatus @Cassandra . DoAuth)
+    <@> mkNamedAPI @'("put", OutlookCalIntegrationConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
     <@> mkNamedAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam @Cassandra)
     <@> mkNamedAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser @Cassandra)

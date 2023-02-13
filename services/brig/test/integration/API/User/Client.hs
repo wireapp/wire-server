@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -50,6 +51,7 @@ import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.Vector as Vec
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
+import qualified System.Logger as Log
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -96,13 +98,16 @@ tests _cl _at opts p db b c g =
         [ test p "success" $ testAddGetClientVerificationCode db b g,
           test p "missing code" $ testAddGetClientMissingCode b g,
           test p "wrong code" $ testAddGetClientWrongCode b g,
-          test p "expired code" $ testAddGetClientCodeExpired db b g
+          test p "expired code" $ testAddGetClientCodeExpired db opts b g
         ],
       test p "post /clients - 201 (with mls keys)" $ testAddGetClient def {addWithMLSKeys = True} b c,
       test p "post /clients - 403" $ testClientReauthentication b,
       test p "get /clients - 200" $ testListClients b,
       test p "get /clients/:client/prekeys - 200" $ testListPrekeyIds b,
       test p "post /clients - 400" $ testTooManyClients opts b,
+      test p "client/prekeys not empty" $ testPrekeysNotEmptyRandomPrekeys opts b,
+      test p "lastprekeys not bogus" $ testRegularPrekeysCannotBeSentAsLastPrekeys b,
+      test p "lastprekeys not bogus during update" $ testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate b,
       test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
       test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
       test p "delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
@@ -186,8 +191,8 @@ testAddGetClientWrongCode brig galley = do
 -- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that device cannot be added with expired second factor email verification code when this feature is enabled
-testAddGetClientCodeExpired :: DB.ClientState -> Brig -> Galley -> Http ()
-testAddGetClientCodeExpired db brig galley = do
+testAddGetClientCodeExpired :: DB.ClientState -> Opt.Opts -> Brig -> Galley -> Http ()
+testAddGetClientCodeExpired db opts brig galley = do
   (u, tid) <- Util.createUserWithTeam' brig
   let uid = userId u
   let Just email = userEmail u
@@ -202,8 +207,8 @@ testAddGetClientCodeExpired db brig galley = do
   checkLoginSucceeds $
     PasswordLogin $
       PasswordLoginData (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
-  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
-  threadDelay $ (5 * 1000000) + 600000
+  let verificationTimeout = round (Opt.setVerificationTimeout (Opt.optSettings opts))
+  threadDelay $ ((verificationTimeout + 1) * 1000_000)
   addClient' codeValue !!! do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
@@ -688,6 +693,61 @@ testTooManyClients opts brig = do
       const 403 === statusCode
       const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
       const (Just "application/json") === getHeader "Content-Type"
+
+-- Ensure that the list of prekeys for a user does not become empty, and the
+-- last resort prekey keeps being returned if it's the only key left.
+-- Test with featureFlag randomPrekeys=true
+testPrekeysNotEmptyRandomPrekeys :: Opt.Opts -> Brig -> Http ()
+testPrekeysNotEmptyRandomPrekeys opts brig = do
+  -- Run the test for randomPrekeys (not dynamoDB locking)
+  let newOpts = opts {Opt.randomPrekeys = Just True}
+  ensurePrekeysNotEmpty newOpts brig
+
+ensurePrekeysNotEmpty :: Opt.Opts -> Brig -> Http ()
+ensurePrekeysNotEmpty opts brig = withSettingsOverrides opts $ do
+  lgr <- Log.new Log.defSettings
+  uid <- userId <$> randomUser brig
+  -- Create a client with 1 regular prekey and 1 last resort prekey
+  c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 10] (someLastPrekeys !! 10))
+  -- Claim the first regular one
+  _rs1 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
+  -- Claim again; this should give the last resort one
+  rs2 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
+  let pId2 = prekeyId . prekeyData <$> responseJsonMaybe rs2
+  liftIO $ assertEqual "last prekey rs2" (Just lastPrekeyId) pId2
+  liftIO $ Log.warn lgr (Log.msg (Log.val "First claim of last resort successful, claim again..."))
+  -- Claim again; this should (again) give the last resort one
+  rs3 <- getPreKey brig uid uid (clientId c) <!! const 200 === statusCode
+  let pId3 = prekeyId . prekeyData <$> responseJsonMaybe rs3
+  liftIO $ assertEqual "last prekey rs3" (Just lastPrekeyId) pId3
+
+testRegularPrekeysCannotBeSentAsLastPrekeys :: Brig -> Http ()
+testRegularPrekeysCannotBeSentAsLastPrekeys brig = do
+  uid <- userId <$> randomUser brig
+  -- The parser should reject a normal prekey in the lastPrekey field
+  addClient brig uid (defNewClient PermanentClientType [head somePrekeys] fakeLastPrekey) !!! const 400 === statusCode
+
+testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate :: Brig -> Http ()
+testRegularPrekeysCannotBeSentAsLastPrekeysDuringUpdate brig = do
+  uid <- userId <$> randomUser brig
+  c <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [head somePrekeys] (someLastPrekeys !! 11)) <!! const 201 === statusCode
+  let newPrekey = somePrekeys !! 2
+  let update =
+        defUpdateClient
+          { updateClientPrekeys = [newPrekey],
+            updateClientLastKey = Just fakeLastPrekey,
+            updateClientLabel = Just "label"
+          }
+  -- The parser should reject a normal prekey in the lastPrekey field
+  put
+    ( brig
+        . paths ["clients", toByteString' (clientId c)]
+        . zUser uid
+        . contentJson
+        . body (RequestBodyLBS $ encode update)
+    )
+    !!! const 400
+      === statusCode
 
 -- @END
 

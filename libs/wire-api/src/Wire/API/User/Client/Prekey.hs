@@ -25,12 +25,10 @@ module Wire.API.User.Client.Prekey
     LastPrekey,
     lastPrekey,
     unpackLastPrekey,
+    fakeLastPrekey,
     lastPrekeyId,
     PrekeyBundle (..),
     ClientPrekey (..),
-
-    -- * Swagger
-    modelPrekey,
   )
 where
 
@@ -39,7 +37,6 @@ import Data.Hashable (hash)
 import Data.Id
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -57,15 +54,6 @@ data Prekey = Prekey
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Prekey)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Prekey
-
--- FUTUREWORK: Remove when 'NewClient' has ToSchema
-modelPrekey :: Doc.Model
-modelPrekey = Doc.defineModel "Prekey" $ do
-  Doc.description "Prekey"
-  Doc.property "id" Doc.int32' $
-    Doc.description "Prekey ID"
-  Doc.property "key" Doc.bytes' $
-    Doc.description "Prekey data"
 
 instance ToSchema Prekey where
   schema =
@@ -100,6 +88,11 @@ lastPrekeyId = PrekeyId maxBound
 
 lastPrekey :: Text -> LastPrekey
 lastPrekey = LastPrekey . Prekey lastPrekeyId
+
+-- for tests only
+-- This fake last prekey has the wrong prekeyId
+fakeLastPrekey :: LastPrekey
+fakeLastPrekey = LastPrekey $ Prekey (PrekeyId 7) "pQABAQcCoQBYIDXdN8VlKb5lbgPmoDPLPyqNIEyShG4oT/DlW0peRRZUA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY="
 
 --------------------------------------------------------------------------------
 -- PrekeyBundle

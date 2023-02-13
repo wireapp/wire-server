@@ -24,6 +24,7 @@
 , lib
 , metrics-wai
 , mtl
+, retry
 , schema-profunctor
 , servant
 , servant-server
@@ -31,7 +32,6 @@
 , servant-swagger-ui
 , split
 , string-conversions
-, swagger
 , swagger2
 , text
 , tinylog
@@ -75,6 +75,7 @@ mkDerivation {
     lens
     metrics-wai
     mtl
+    retry
     schema-profunctor
     servant
     servant-server
@@ -82,7 +83,6 @@ mkDerivation {
     servant-swagger-ui
     split
     string-conversions
-    swagger
     swagger2
     text
     tinylog

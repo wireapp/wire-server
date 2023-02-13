@@ -79,9 +79,10 @@
 , servant-swagger
 , servant-swagger-ui
 , singletons
+, singletons-base
+, singletons-th
 , sop-core
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -177,9 +178,10 @@ mkDerivation {
     servant-swagger
     servant-swagger-ui
     singletons
+    singletons-base
+    singletons-th
     sop-core
     string-conversions
-    swagger
     swagger2
     tagged
     text

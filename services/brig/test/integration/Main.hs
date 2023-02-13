@@ -28,6 +28,7 @@ import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
+import qualified API.SystemSettings as SystemSettings
 import qualified API.Team as Team
 import qualified API.TeamUserSearch as TeamUserSearch
 import qualified API.User as User
@@ -54,6 +55,7 @@ import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative hiding (action)
+import qualified SMTP
 import System.Environment (withArgs)
 import qualified System.Environment.Blank as Blank
 import qualified System.Logger as Logger
@@ -62,6 +64,7 @@ import Test.Tasty.HUnit
 import Util
 import Util.Options
 import Util.Test
+import qualified Util.Test.SQS as SQS
 import Web.HttpApiData
 import Wire.API.Federation.API
 import Wire.API.Routes.Version
@@ -136,12 +139,14 @@ runTests iConf brigOpts otherArgs = do
   let fedGalleyClient = FedClient @'Galley mg (galley iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
-  userApi <- User.tests brigOpts fedBrigClient fedGalleyClient mg b c ch g n awsEnv db
+  mUserJournalWatcher <- for (view AWS.userJournalQueue awsEnv) $ SQS.watchSQSQueue (view AWS.amazonkaEnv awsEnv)
+  userApi <- User.tests brigOpts fedBrigClient fedGalleyClient mg b c ch g n awsEnv db mUserJournalWatcher
   providerApi <- Provider.tests localDomain (provider iConf) mg db b c g
   searchApis <- Search.tests brigOpts mg g b
-  teamApis <- Team.tests brigOpts mg n b c g awsEnv
+  teamApis <- Team.tests brigOpts mg n b c g mUserJournalWatcher
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
-  metricsApi <- Metrics.tests mg b
+  metricsApi <- Metrics.tests mg brigOpts b
+  systemSettingsApi <- SystemSettings.tests brigOpts mg
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
@@ -151,9 +156,9 @@ runTests iConf brigOpts otherArgs = do
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
 
-  let versionApi = API.Version.tests mg brigOpts b
-
-  let mlsApi = MLS.tests mg b brigOpts
+  let smtp = SMTP.tests mg lg
+      versionApi = API.Version.tests mg brigOpts b
+      mlsApi = MLS.tests mg b brigOpts
 
   withArgs otherArgs . defaultMain
     $ testGroup
@@ -169,6 +174,7 @@ runTests iConf brigOpts otherArgs = do
         teamApis,
         turnApi,
         metricsApi,
+        systemSettingsApi,
         settingsApi,
         createIndex,
         userPendingActivation,
@@ -176,7 +182,8 @@ runTests iConf brigOpts otherArgs = do
         federationEndpoints,
         internalApi,
         versionApi,
-        mlsApi
+        mlsApi,
+        smtp
       ]
       <> [federationEnd2End | includeFederationTests]
   where

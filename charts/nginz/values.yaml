@@ -33,7 +33,6 @@ nginx_conf:
   worker_processes: auto
   worker_rlimit_nofile: 131072
   worker_connections: 65536
-  swagger_root: /var/www/swagger
   # deeplink:
   #   endpoints:
   #     backendURL: "https://prod-nginz-https.wire.com"
@@ -128,16 +127,18 @@ nginx_conf:
       allow_credentials: true
       max_body_size: "0"
       disable_request_buffering: true
+    cannon:
+    - path: /await
+      envs:
+      - all
+      use_websockets: true
+      doc: true
     brig:
     - path: /api-version
       envs:
       - all
       disable_zauth: true
       unlimited_requests_endpoint: true
-    - path: /users/api-docs$
-      envs:
-      - staging
-      disable_zauth: true
     - path: /users
       envs:
       - all
@@ -371,15 +372,15 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+    - path: /system/settings/unauthorized$
+      envs:
+      - all
+      disable_zauth: true
     galley:
     - path: /conversations/code-check
       disable_zauth: true
       envs:
       - all
-    - path: /conversations/api-docs$
-      envs:
-      - staging
-      disable_zauth: true
     - path: /conversations/([^/]*)/otr/messages
       envs:
       - all
@@ -453,10 +454,6 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
-    - path: /teams/api-docs
-      envs:
-      - all
-      disable_zauth: true
     - path: /teams/([^/]*)/features
       envs:
       - all
@@ -478,10 +475,6 @@ nginx_conf:
     - path: /feature-configs(.*)
       envs:
       - all
-    - path: /galley-api/swagger-ui
-      disable_zauth: true
-      envs:
-      - all
     - path: /mls/welcome
       envs:
       - all
@@ -495,10 +488,6 @@ nginx_conf:
       envs:
       - all
     gundeck:
-    - path: /push/api-docs$
-      envs:
-      - staging
-      disable_zauth: true
     - path: /push
       envs:
       - all
@@ -549,16 +538,22 @@ nginx_conf:
     - path: /scim
       envs:
       - all
+
+  # Possible 'extra_extra_upstreams' are:
+  #   - 'ibis'
+  #   - 'galeb'
+  #   - 'calling-test'
+  #   - 'proxy'
+  # For security reasons, these should only be enabled if they are deployed.
+  # (Otherwise, there are open routes into the cluster.)
+  enabled_extra_upstreams: []
+
+  # Services that are optionally deployed.
+  extra_upstreams:
     proxy:
     - path: /proxy
       envs:
       - all
-      doc: true
-    cannon:
-    - path: /await
-      envs:
-      - all
-      use_websockets: true
       doc: true
     ibis:
     - path: /billing
@@ -596,7 +591,6 @@ nginx_conf:
       basic_auth: true
       envs:
       - staging
-
     calling-test:
     - path: /calling-test
       envs:

@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,40 +16,15 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Conversation.Typing
-  ( -- * TypingData
-    TypingData (..),
-    TypingStatus (..),
-
-    -- * Swagger
-    modelTyping,
-    typeTypingStatus,
+  ( TypingStatus (..),
   )
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
-
-newtype TypingData = TypingData
-  { tdStatus :: TypingStatus
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema TypingData
-
-instance ToSchema TypingData where
-  schema =
-    object "TypingData" $
-      TypingData
-        <$> tdStatus .= field "status" schema
-
-modelTyping :: Doc.Model
-modelTyping = Doc.defineModel "Typing" $ do
-  Doc.description "Data to describe typing info"
-  Doc.property "status" typeTypingStatus $ Doc.description "typing status"
 
 data TypingStatus
   = StartedTyping
@@ -62,14 +35,11 @@ data TypingStatus
 
 instance ToSchema TypingStatus where
   schema =
-    enum @Text "TypingStatus" $
-      element "started" StartedTyping
-        <> element "stopped" StoppedTyping
+    object "TypingData" $
+      field "status" typingStatusSchema
 
-typeTypingStatus :: Doc.DataType
-typeTypingStatus =
-  Doc.string $
-    Doc.enum
-      [ "started",
-        "stopped"
-      ]
+typingStatusSchema :: ValueSchema NamedSwaggerDoc TypingStatus
+typingStatusSchema =
+  enum @Text "TypingStatus" $
+    element "started" StartedTyping
+      <> element "stopped" StoppedTyping

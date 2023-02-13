@@ -96,6 +96,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       aeson
@@ -140,6 +141,7 @@ library
     , time-manager
     , tinylog
     , tls
+    , transformers
     , types-common
     , unix
     , uri-bytestring
@@ -205,6 +207,7 @@ executable federator
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
+    -Wredundant-constraints
 
   build-depends:
       aeson
@@ -320,6 +323,7 @@ executable federator-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       aeson
@@ -452,7 +456,7 @@ test-suite federator-tests
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N
+    -threaded -with-rtsopts=-N -Wredundant-constraints
 
   build-depends:
       aeson

@@ -46,10 +46,12 @@
   auto-whitelist = hself.callPackage ../tools/db/auto-whitelist/default.nix { inherit gitignoreSource; };
   billing-team-member-backfill = hself.callPackage ../tools/db/billing-team-member-backfill/default.nix { inherit gitignoreSource; };
   find-undead = hself.callPackage ../tools/db/find-undead/default.nix { inherit gitignoreSource; };
+  inconsistencies = hself.callPackage ../tools/db/inconsistencies/default.nix { inherit gitignoreSource; };
   migrate-sso-feature-flag = hself.callPackage ../tools/db/migrate-sso-feature-flag/default.nix { inherit gitignoreSource; };
   move-team = hself.callPackage ../tools/db/move-team/default.nix { inherit gitignoreSource; };
   repair-handles = hself.callPackage ../tools/db/repair-handles/default.nix { inherit gitignoreSource; };
   service-backfill = hself.callPackage ../tools/db/service-backfill/default.nix { inherit gitignoreSource; };
+  fedcalls = hself.callPackage ../tools/fedcalls/default.nix { inherit gitignoreSource; };
   rex = hself.callPackage ../tools/rex/default.nix { inherit gitignoreSource; };
   stern = hself.callPackage ../tools/stern/default.nix { inherit gitignoreSource; };
 }

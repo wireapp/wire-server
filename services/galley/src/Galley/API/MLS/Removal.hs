@@ -23,7 +23,6 @@ module Galley.API.MLS.Removal
   )
 where
 
-import Control.Comonad
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
@@ -45,6 +44,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
+import Wire.API.Federation.API
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -62,7 +62,8 @@ removeClientsWithClientMap ::
          Input Env
        ]
       r,
-    Traversable t
+    Traversable t,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->
   t KeyPackageRef ->
@@ -103,16 +104,18 @@ removeClient ::
          ProposalStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->
   Qualified UserId ->
   ClientId ->
   Sem r ()
 removeClient lc qusr cid = do
-  cm <- lookupMLSClients (fmap Data.convId lc)
-  let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
-  removeClientsWithClientMap lc cidAndKP cm qusr
+  for_ (cnvmlsGroupId <$> Data.mlsMetadata (tUnqualified lc)) $ \groupId -> do
+    cm <- lookupMLSClients groupId
+    let cidAndKP = Set.toList . Set.map snd . Set.filter ((==) cid . fst) $ Map.findWithDefault mempty qusr cm
+    removeClientsWithClientMap lc cidAndKP cm qusr
 
 -- | Send remove proposals for all clients of the user to clients in the ClientMap.
 --
@@ -128,7 +131,8 @@ removeUserWithClientMap ::
          ProposalStore,
          Input Env
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->
   ClientMap ->
@@ -150,11 +154,13 @@ removeUser ::
          ProposalStore,
          TinyLog
        ]
-      r
+      r,
+    CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->
   Qualified UserId ->
   Sem r ()
 removeUser lc qusr = do
-  cm <- lookupMLSClients (fmap Data.convId lc)
-  removeUserWithClientMap lc cm qusr
+  for_ (Data.mlsMetadata (tUnqualified lc)) $ \meta -> do
+    cm <- lookupMLSClients (cnvmlsGroupId meta)
+    removeUserWithClientMap lc cm qusr

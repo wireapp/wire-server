@@ -138,9 +138,9 @@ turn:
   tokenTTL: 21600
 
 optSettings:
-  setActivationTimeout: 5
-  setVerificationTimeout: 5
-  setTeamInvitationTimeout: 5
+  setActivationTimeout: 10
+  setVerificationTimeout: 10
+  setTeamInvitationTimeout: 10
   setExpiredUserCleanupTimeout: 1
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml
@@ -192,6 +192,7 @@ optSettings:
   setDpopMaxSkewSecs: 1
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
+  setEnableMLS: true
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

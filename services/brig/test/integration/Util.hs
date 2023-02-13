@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumericUnderscores #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -17,13 +19,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 -- for SES notifications
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-orphans -Wno-deprecations #-}
 
 module Util where
 
 import Bilge
 import Bilge.Assert
-import qualified Brig.AWS as AWS
 import Brig.AWS.Types
 import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
@@ -102,7 +103,6 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Text.Printf (printf)
 import qualified UnliftIO.Async as Async
-import Util.AWS
 import Util.Options
 import Wire.API.Connection
 import Wire.API.Conversation
@@ -172,7 +172,7 @@ unversioned r =
 
 runFedClient ::
   forall (name :: Symbol) comp api.
-  ( HasFedEndpoint comp api name,
+  ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient Servant.ClientM api
   ) =>
   FedClient comp ->
@@ -227,9 +227,6 @@ instance ToJSON SESNotification where
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
-
-test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
-test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
 
 twoRandomUsers :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m (Qualified UserId, UserId, Qualified UserId, UserId)
 twoRandomUsers brig = do
@@ -334,7 +331,7 @@ requestActivationCode brig expectedStatus ep =
     bdy (Right p) = object ["phone" .= fromPhone p]
 
 getActivationCode ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadCatch m, MonadHttp m, HasCallStack) =>
   Brig ->
   Either Email Phone ->
   m (Maybe (ActivationKey, ActivationCode))
@@ -352,7 +349,7 @@ getPhoneLoginCode brig p = do
   let lbs = fromMaybe "" $ responseBody r
   pure (LoginCode <$> (lbs ^? key "code" . _String))
 
-assertUpdateNotification :: WS.WebSocket -> UserId -> UserUpdate -> IO ()
+assertUpdateNotification :: HasCallStack => WS.WebSocket -> UserId -> UserUpdate -> IO ()
 assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
   let j = Object $ List1.head (ntfPayload n)
   j ^? key "type" . _String @?= Just "user.update"
@@ -441,11 +438,11 @@ postUserRegister payload brig = do
   rs <- postUserRegister' payload brig <!! const 201 === statusCode
   maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) pure (responseJsonMaybe rs)
 
-postUserRegister' :: (MonadIO m, MonadCatch m, MonadHttp m) => Object -> Brig -> m ResponseLBS
+postUserRegister' :: MonadHttp m => Object -> Brig -> m ResponseLBS
 postUserRegister' payload brig = do
   post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload))
 
-deleteUser :: (Functor m, MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword -> Brig -> m ResponseLBS
+deleteUser :: (MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword -> Brig -> m ResponseLBS
 deleteUser u p brig =
   delete $
     brig
@@ -460,7 +457,7 @@ deleteUserInternal u brig =
     brig
       . paths ["/i/users", toByteString' u]
 
-activate :: Brig -> ActivationPair -> (MonadIO m, MonadHttp m) => m ResponseLBS
+activate :: Brig -> ActivationPair -> MonadHttp m => m ResponseLBS
 activate brig (k, c) =
   get $
     brig
@@ -483,7 +480,7 @@ getUser brig zusr usr =
 -- | NB: you can also use nginz as the first argument here.  The type aliases are compatible,
 -- and so are the end-points.  This is important in tests where the cookie must come from the
 -- nginz domain, so it can be passed back to it.
-login :: Brig -> Login -> CookieType -> (MonadIO m, MonadHttp m) => m ResponseLBS
+login :: Brig -> Login -> CookieType -> MonadHttp m => m ResponseLBS
 login b l t =
   let js = RequestBodyLBS (encode l)
    in post $
@@ -545,7 +542,7 @@ sendLoginCode b p typ force =
             "force" .= force
           ]
 
-postConnection :: Brig -> UserId -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+postConnection :: Brig -> UserId -> UserId -> MonadHttp m => m ResponseLBS
 postConnection brig from to =
   post $
     apiVersion "v1"
@@ -560,7 +557,7 @@ postConnection brig from to =
       RequestBodyLBS . encode $
         ConnectionRequest to (unsafeRange "some conv name")
 
-postConnectionQualified :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Qualified UserId -> m ResponseLBS
+postConnectionQualified :: MonadHttp m => Brig -> UserId -> Qualified UserId -> m ResponseLBS
 postConnectionQualified brig from (Qualified toUser toDomain) =
   post $
     brig
@@ -569,7 +566,7 @@ postConnectionQualified brig from (Qualified toUser toDomain) =
       . zUser from
       . zConn "conn"
 
-putConnection :: Brig -> UserId -> UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putConnection :: Brig -> UserId -> UserId -> Relation -> MonadHttp m => m ResponseLBS
 putConnection brig from to r =
   put $
     apiVersion "v1"
@@ -582,7 +579,7 @@ putConnection brig from to r =
   where
     payload = RequestBodyLBS . encode $ object ["status" .= r]
 
-putConnectionQualified :: Brig -> UserId -> Qualified UserId -> Relation -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putConnectionQualified :: Brig -> UserId -> Qualified UserId -> Relation -> MonadHttp m => m ResponseLBS
 putConnectionQualified brig from (Qualified to toDomain) r =
   put $
     brig
@@ -602,7 +599,7 @@ connectUsers b u = mapM_ connectTo
       void $ putConnection b v u Accepted
 
 putHandle ::
-  (MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   Brig ->
   UserId ->
   Text ->
@@ -633,7 +630,7 @@ createUserWithHandle brig = do
   pure (handle, userWithHandle)
 
 getUserInfoFromHandle ::
-  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
   Brig ->
   Domain ->
   Handle ->
@@ -650,7 +647,7 @@ getUserInfoFromHandle brig domain handle = do
       )
 
 addClient ::
-  (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   Brig ->
   UserId ->
   NewClient ->
@@ -687,7 +684,13 @@ defNewClientWithVerificationCode mbCode ty pks lpk =
       newClientVerificationCode = mbCode
     }
 
-getPreKey :: Brig -> UserId -> UserId -> ClientId -> Http ResponseLBS
+getPreKey ::
+  (MonadHttp m, HasCallStack) =>
+  Brig ->
+  UserId ->
+  UserId ->
+  ClientId ->
+  m ResponseLBS
 getPreKey brig zusr u c =
   get $
     apiVersion "v1"
@@ -696,7 +699,7 @@ getPreKey brig zusr u c =
       . zUser zusr
 
 getTeamMember ::
-  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
   UserId ->
   TeamId ->
   Galley ->
@@ -710,21 +713,14 @@ getTeamMember u tid galley =
           . expect2xx
       )
 
-getConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ConvId -> m ResponseLBS
-getConversation galley usr cnv =
-  get $
-    galley
-      . paths ["conversations", toByteString' cnv]
-      . zAuthAccess usr "conn"
-
-getConversationQualified :: (MonadIO m, MonadHttp m) => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
+getConversationQualified :: MonadHttp m => Galley -> UserId -> Qualified ConvId -> m ResponseLBS
 getConversationQualified galley usr cnv =
   get $
     galley
       . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
       . zAuthAccess usr "conn"
 
-createMLSConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ClientId -> m ResponseLBS
+createMLSConversation :: MonadHttp m => Galley -> UserId -> ClientId -> m ResponseLBS
 createMLSConversation galley zusr c = do
   let conv =
         NewConv
@@ -746,7 +742,7 @@ createMLSConversation galley zusr c = do
       . zConn "conn"
       . json conv
 
-createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
+createConversation :: MonadHttp m => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
   let conv =
         NewConv
@@ -768,7 +764,7 @@ createConversation galley zusr usersToAdd = do
       . zConn "conn"
       . json conv
 
-listConvIdsFirstPage :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
+listConvIdsFirstPage :: MonadHttp m => Galley -> UserId -> m ResponseLBS
 listConvIdsFirstPage galley zusr = do
   let req = GetMultiTablePageRequest (toRange (Proxy @1000)) Nothing :: GetPaginatedConversationIds
   post $
@@ -779,7 +775,7 @@ listConvIdsFirstPage galley zusr = do
       . json req
 
 listConvs ::
-  (MonadIO m, MonadHttp m) =>
+  MonadHttp m =>
   Galley ->
   UserId ->
   Range 1 1000 [Qualified ConvId] ->
@@ -802,7 +798,7 @@ isMember g usr cnv = do
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> pure False
-    Just m -> pure (qUntagged usr == memId m)
+    Just m -> pure (tUntagged usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =
@@ -1046,7 +1042,7 @@ recoverN n m =
 -- service which is not being mocked, this helper can be used to do that.
 --
 -- This is just an alias to 'runHttpT' to make the intent clear.
-circumventSettingsOverride :: MonadIO m => Manager -> HttpT m a -> m a
+circumventSettingsOverride :: Manager -> HttpT m a -> m a
 circumventSettingsOverride = runHttpT
 
 -- | This allows you to run requests against a brig instantiated using the given options.
@@ -1297,7 +1293,7 @@ toServantResponse res =
 
 createWaiTestFedClient ::
   forall (name :: Symbol) comp api.
-  ( HasFedEndpoint comp api name,
+  ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient WaiTestFedClient api
   ) =>
   Servant.Client WaiTestFedClient api
@@ -1316,13 +1312,18 @@ spawn cp minput = do
   (mout, ex) <- withCreateProcess
     cp
       { std_out = CreatePipe,
-        std_in = if isJust minput then CreatePipe else Inherit
+        std_in = CreatePipe
       }
     $ \minh mouth _ ph ->
-      let writeInput = for_ ((,) <$> minput <*> minh) $ \(input, inh) ->
-            BS.hPutStr inh input >> hClose inh
+      let writeInput = for_ minh $ \inh -> do
+            forM_ minput $ BS.hPutStr inh
+            hClose inh
           readOutput = (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
        in snd <$> concurrently writeInput readOutput
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
     _ -> assertFailure "Failed spawning process"
+
+assertJust :: (HasCallStack, MonadIO m) => Maybe a -> m a
+assertJust (Just a) = pure a
+assertJust Nothing = liftIO $ error "Expected Just, got Nothing"

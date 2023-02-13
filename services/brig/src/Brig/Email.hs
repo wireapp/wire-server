@@ -40,7 +40,7 @@ module Brig.Email
 where
 
 import qualified Brig.AWS as AWS
-import Brig.App (Env, awsEnv, smtpEnv)
+import Brig.App (Env, applog, awsEnv, smtpEnv)
 import qualified Brig.SMTP as SMTP
 import Control.Lens (view)
 import qualified Data.Text as Text
@@ -52,7 +52,7 @@ import Wire.API.User
 sendMail :: (MonadIO m, MonadReader Env m) => Mail -> m ()
 sendMail m =
   view smtpEnv >>= \case
-    Just smtp -> SMTP.sendMail smtp m
+    Just smtp -> view applog >>= \logger -> SMTP.sendMail logger smtp m
     Nothing -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
 
 -------------------------------------------------------------------------------

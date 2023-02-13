@@ -30,8 +30,7 @@ production.
 
 ### MLS private key paths
 
-Note: This developer documentation. Documentation for site operators can be found here:
-[Messaging Layer Security (MLS)](../../how-to/install/mls.md).
+Note: This developer documentation. Documentation for site operators can be found here: {ref}`mls-message-layer-security`
 
 The `mlsPrivateKeyPaths` field should contain a mapping from *purposes* and
 signature schemes to file paths of corresponding x509 private keys in PEM
@@ -464,6 +463,20 @@ federator:
     clientPrivateKey: client-key.pem
 ```
 
+## Outlook calalendar integration
+
+This feature setting only applies to the Outlook Calendar extension for Wire. As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
+
+Example default configuration:
+
+```yaml
+# galley.yaml
+outlookCalIntegration:
+  defaults:
+    status: disabled
+    lockStatus: locked
+```
+
 ## Settings in brig
 
 Some features (as of the time of writing this: only
@@ -562,6 +575,10 @@ optSettings:
 
 ### MLS settings
 
+#### `setEnableMLS`
+
+This option determines whether MLS is supported on this backend. When set to false (or absent), MLS endpoints will fail without performing any action.
+
 #### `setKeyPackageMaximumLifetime`
 
 This option specifies the maximum accepted lifetime of a key package from the moment it is uploaded, in seconds. For example, when brig is configured as follows:
@@ -600,3 +617,37 @@ If there is no configuration for a domain, it's defaulted to `no_search`.
 #### `setEnableDevelopmentVersions`
 
 This options determines whether development versions should be enabled. If set to `False`, all development versions are removed from the `supported` field of the `/api-version` endpoint. Note that they are still listed in the `development` field, and continue to work normally.
+
+#### Disabling API versions
+
+It is possible to disable one ore more API versions. When an API version is disabled it won't be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.
+
+Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar should to be configured with the same set of disable API versions in each service's values.yaml config files. 
+
+
+For example to disable API version v3, you need to configure:
+
+```
+# brig's values.yaml
+config.optSettings.setDisabledAPIVersions: [ 3 ]
+
+# cannon's values.yaml
+config.disabledAPIVersions: [ 3 ]
+
+# cargohold's values.yaml
+config.settings.disabledAPIVersions: [ 3 ]
+
+# galley's values.yaml
+config.settings.disabledAPIVersions: [ 3 ]
+
+# gundecks' values.yaml
+config.disabledAPIVersions: [ 3 ]
+
+# proxy's values.yaml
+config.disabledAPIVersions: [ 3 ]
+
+# spar's values.yaml
+config.disabledAPIVersions: [ 3 ]
+```
+
+The default setting is that no API version is disabled.

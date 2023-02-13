@@ -35,6 +35,7 @@ import qualified Network.TLS as TLS
 import Polysemy (Embed, Member, Members, Sem, embed)
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
+import Polysemy.Final (Final)
 import qualified Polysemy.Resource as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
@@ -103,8 +104,8 @@ watchPathEvents (WatchedDir _ _) = [MoveIn, Create]
 -- directory watches as they get deleted and recreated.
 type Watches = Map RawFilePath (WatchDescriptor, WatchedPath)
 
-runSemDefault :: Logger -> Sem '[TinyLog, Embed IO] a -> IO a
-runSemDefault logger = Polysemy.runM . Log.loggerToTinyLog logger
+runSemDefault :: Logger -> Sem '[TinyLog, Embed IO, Final IO] a -> IO a
+runSemDefault logger = Polysemy.runFinal . Polysemy.embedToFinal . Log.loggerToTinyLog logger
 
 logErrors ::
   Members '[TinyLog, Polysemy.Error FederationSetupError] r =>
@@ -123,10 +124,10 @@ logAndIgnoreErrors ::
 logAndIgnoreErrors = void . Polysemy.runError . logErrors
 
 delMonitor ::
-  (Members '[TinyLog, Embed IO] r) =>
+  (Members '[TinyLog, Embed IO, Final IO] r) =>
   Monitor ->
   Sem r ()
-delMonitor monitor = Polysemy.resourceToIO
+delMonitor monitor = Polysemy.resourceToIOFinal
   $ Polysemy.bracket
     (takeMVar (monLock monitor))
     (putMVar (monLock monitor))
@@ -138,7 +139,7 @@ delMonitor monitor = Polysemy.resourceToIO
     stop (wd, _) = do
       -- ignore exceptions when removing watches
       embed . void . try @IOException $ removeWatch wd
-      Log.debug $
+      Log.trace $
         Log.msg ("stopped watching file" :: Text)
           . Log.field "descriptor" (show wd)
 
@@ -152,7 +153,7 @@ mkMonitor ::
   Sem r Monitor
 mkMonitor runSem tlsVar rs = do
   inotify <- embed initINotify
-  Log.debug $
+  Log.trace $
     Log.msg ("inotify initialized" :: Text)
       . Log.field "inotify" (show inotify)
 
@@ -243,7 +244,7 @@ addWatchedFile monitor wpath = do
   let pathText = Text.decodeUtf8With Text.lenientDecode (watchedPath wpath)
   case r of
     Right w ->
-      Log.debug $
+      Log.trace $
         Log.msg ("watching file" :: Text)
           . Log.field "descriptor" (show w)
           . Log.field "path" pathText

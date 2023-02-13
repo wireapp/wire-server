@@ -6,3 +6,6 @@ build
 
 # direnv - nix derivation
 result
+
+# this is so that the nix build doesn't copy a dangling symlink
+src/changelog/changelog.md

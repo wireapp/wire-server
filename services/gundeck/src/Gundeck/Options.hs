@@ -28,6 +28,7 @@ import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
+import Wire.API.Routes.Version
 
 newtype NotificationTTL = NotificationTTL
   {notificationTTLSeconds :: Word32}
@@ -73,7 +74,8 @@ data Settings = Settings
     -- ensures that there is only one request every 20 seconds.
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)
-    _setSqsThrottleMillis :: !(Maybe Int)
+    _setSqsThrottleMillis :: !(Maybe Int),
+    _setDisabledAPIVersions :: !(Maybe (Set Version))
   }
   deriving (Show, Generic)
 
@@ -84,10 +86,6 @@ data MaxConcurrentNativePushes = MaxConcurrentNativePushes
     _limitSoft :: !(Maybe Int)
   }
   deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''Settings
-
-makeLenses ''Settings
 
 deriveFromJSON toOptionFieldName ''MaxConcurrentNativePushes
 
@@ -110,6 +108,10 @@ data RedisEndpoint = RedisEndpoint
 deriveFromJSON toOptionFieldName ''RedisEndpoint
 
 makeLenses ''RedisEndpoint
+
+makeLenses ''Settings
+
+deriveFromJSON toOptionFieldName ''Settings
 
 data Opts = Opts
   { -- | Hostname and port to bind to

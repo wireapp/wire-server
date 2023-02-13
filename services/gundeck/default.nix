@@ -6,6 +6,7 @@
 , aeson
 , aeson-pretty
 , amazonka
+, amazonka-core
 , amazonka-sns
 , amazonka-sqs
 , async
@@ -61,7 +62,6 @@
 , servant-swagger-ui
 , streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -99,6 +99,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
+    amazonka-core
     amazonka-sns
     amazonka-sqs
     async
@@ -138,7 +139,6 @@ mkDerivation {
     servant-server
     servant-swagger
     servant-swagger-ui
-    swagger
     swagger2
     text
     time

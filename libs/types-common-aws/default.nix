@@ -4,6 +4,7 @@
 # dependencies are added or removed.
 { mkDerivation
 , amazonka
+, amazonka-core
 , amazonka-sqs
 , base
 , base64-bytestring
@@ -20,6 +21,7 @@
 , tasty-hunit
 , text
 , time
+, unliftio
 }:
 mkDerivation {
   pname = "types-common-aws";
@@ -27,6 +29,7 @@ mkDerivation {
   src = gitignoreSource ./.;
   libraryHaskellDepends = [
     amazonka
+    amazonka-core
     amazonka-sqs
     base
     base64-bytestring
@@ -41,6 +44,7 @@ mkDerivation {
     tasty-hunit
     text
     time
+    unliftio
   ];
   description = "Shared AWS type definitions";
   license = lib.licenses.agpl3Only;

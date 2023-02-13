@@ -18,6 +18,7 @@
 , brig-types
 , bytestring
 , bytestring-conversion
+, call-stack
 , case-insensitive
 , cassandra-util
 , cassava
@@ -61,6 +62,7 @@
 , metrics-core
 , metrics-wai
 , mtl
+, network
 , optparse-applicative
 , pem
 , polysemy
@@ -86,12 +88,13 @@
 , servant-swagger
 , servant-swagger-ui
 , singletons
+, singletons-th
 , sop-core
 , split
 , ssl-util
 , stm
+, streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -206,12 +209,12 @@ mkDerivation {
     servant-swagger
     servant-swagger-ui
     singletons
+    singletons-th
     sop-core
     split
     ssl-util
     stm
     string-conversions
-    swagger
     swagger2
     tagged
     text
@@ -251,6 +254,7 @@ mkDerivation {
     brig-types
     bytestring
     bytestring-conversion
+    call-stack
     case-insensitive
     cassandra-util
     cassava
@@ -288,6 +292,7 @@ mkDerivation {
     memory
     metrics-wai
     mtl
+    network
     optparse-applicative
     pem
     process
@@ -307,8 +312,10 @@ mkDerivation {
     servant-server
     servant-swagger
     singletons
+    singletons-th
     sop-core
     ssl-util
+    streaming-commons
     string-conversions
     tagged
     tasty
@@ -321,6 +328,7 @@ mkDerivation {
     tls
     transformers
     types-common
+    types-common-aws
     types-common-journal
     unix
     unliftio
@@ -348,6 +356,8 @@ mkDerivation {
     http-types
     imports
     lens
+    polysemy
+    polysemy-wire-zoo
     QuickCheck
     raw-strings-qq
     safe

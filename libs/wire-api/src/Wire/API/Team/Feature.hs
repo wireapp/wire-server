@@ -75,12 +75,8 @@ module Wire.API.Team.Feature
     AppLockConfig (..),
     FileSharingConfig (..),
     MLSConfig (..),
+    OutlookCalIntegrationConfig (..),
     AllFeatureConfigs (..),
-    typeFeatureTTL,
-    withStatusModel,
-    withStatusNoLockModel,
-    allFeatureModels,
-    typeFeatureStatus,
     unImplicitLockStatus,
     ImplicitLockStatus (..),
   )
@@ -96,12 +92,12 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
 import Data.Id
+import Data.Kind
 import Data.Proxy
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
@@ -123,11 +119,11 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 1. Add a data type for your feature's "config" part, naming convention:
 -- **<NameOfFeature>Config**. If your feature doesn't have a config besides
 -- being enabled/disabled, locked/unlocked, then the config should be a unit
--- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type clases
+-- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type classes
 -- 'ToSchema', 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a
 -- config implement 'FeatureTrivialConfig'.
 --
--- 2. Add the config to to 'AllFeatureConfigs'. Add your feature to 'allFeatureModels'.
+-- 2. Add the config to to 'AllFeatureConfigs'.
 --
 -- 3. If your feature is configurable on a per-team basis, add a schema
 -- migration in galley and add 'FeatureStatusCassandra' instance in
@@ -138,16 +134,17 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 --
 -- 5. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
 -- Galley.API.Teams.Features which defines the main business logic for getting
--- and setting (with side-effects).
+-- and setting (with side-effects). Note that we don't have to check the lockstatus inside 'setConfigForTeam'
+-- because the lockstatus is checked in 'setFeatureStatus' before which is the public API for setting the feature status.
 --
--- 6. Add public routes to Routes.Public.Galley: 'FeatureStatusGet',
+-- 6. Add public routes to Wire.API.Routes.Public.Galley.Feature: 'FeatureStatusGet',
 -- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
--- implement them in Galley.API.Public.
+-- implement them in Galley.API.Public.Feature.
 --
 -- 7. Add internal routes in Galley.API.Internal
 --
 -- 8. If the feature should be configurable via Stern add routes to Stern.API.
--- Manually check that the swagger looks okay.
+-- Manually check that the swagger looks okay and works.
 --
 -- 9. If the feature is configured on a per-user level, see the
 -- 'ConferenceCallingConfig' as an example.
@@ -155,13 +152,17 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- https://github.com/wireapp/wire-server/pull/1818)
 --
 -- 10. Extend the integration tests with cases
+--
+-- 11. Edit/update the configurations:
+--     - optionally add the config for local integration tests to 'galley.integration.yaml'
+--     - add a config mapping to 'charts/galley/templates/configmap.yaml'
+--     - add the defaults to 'charts/galley/values.yaml'
+--     - optionally add config for CI to 'hack/helm_vars/wire-server/values.yaml'
+--
+-- 12. Add a section to the documentation at an appropriate place (e.g. 'docs/src/developer/reference/config-options.md' or 'docs/src/understand/team-feature-settings.md')
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
-
-  -- | Swagger 1.2 model for stern and wai routes
-  configModel :: Maybe Doc.Model
-  configModel = Nothing
 
   objectSchema ::
     -- | Should be "pure MyFeatureConfig" if the feature doesn't have config,
@@ -175,16 +176,16 @@ class FeatureTrivialConfig cfg where
 class HasDeprecatedFeatureName cfg where
   type DeprecatedFeatureName cfg :: Symbol
 
-featureName :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Text
+featureName :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Text
 featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
 
-featureNameBS :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => ByteString
+featureNameBS :: forall cfg. KnownSymbol (FeatureSymbol cfg) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 ----------------------------------------------------------------------
 -- WithStatusBase
 
-data WithStatusBase (m :: * -> *) (cfg :: *) = WithStatusBase
+data WithStatusBase (m :: Type -> Type) (cfg :: Type) = WithStatusBase
   { wsbStatus :: m FeatureStatus,
     wsbLockStatus :: m LockStatus,
     wsbConfig :: m cfg,
@@ -223,7 +224,7 @@ setConfig c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (Identity c) ttl
 setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
 setWsTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (Identity ttl)
 
-type WithStatus (cfg :: *) = WithStatusBase Identity cfg
+type WithStatus (cfg :: Type) = WithStatusBase Identity cfg
 
 deriving instance (Eq cfg) => Eq (WithStatus cfg)
 
@@ -250,24 +251,10 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus cfg) where
 instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus cfg) where
   arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
-withStatusModel :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Doc.Model
-withStatusModel =
-  let name = featureName @cfg
-      mbModelCfg = configModel @cfg
-   in Doc.defineModel ("WithStatus." <> name) $ do
-        case mbModelCfg of
-          Nothing -> Doc.description $ "Team feature " <> name <> " that has no configuration beyond the boolean on/off switch."
-          Just modelCfg -> do
-            Doc.description $ "Status and config of " <> name
-            Doc.property "config" (Doc.ref modelCfg) $ Doc.description "config"
-
-        Doc.property "status" typeFeatureStatus $ Doc.description "status"
-        Doc.property "lockStatus" typeLockStatusValue $ Doc.description ""
-
 ----------------------------------------------------------------------
 -- WithStatusPatch
 
-type WithStatusPatch (cfg :: *) = WithStatusBase Maybe cfg
+type WithStatusPatch (cfg :: Type) = WithStatusBase Maybe cfg
 
 deriving instance (Eq cfg) => Eq (WithStatusPatch cfg)
 
@@ -299,7 +286,7 @@ withStatus' = WithStatusBase
 
 -- | The ToJSON implementation of `WithStatusPatch` will encode the trivial config as `"config": {}`
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusPatch cfg) where
+instance ToSchema cfg => ToSchema (WithStatusPatch cfg) where
   schema =
     object name $
       WithStatusBase
@@ -325,7 +312,7 @@ instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusPatch cfg)
 -- if we switch to `unlocked`, we auto-enable the feature, and if we switch to locked, we
 -- auto-disable it.  But we need to change the API to force clients to use `lockStatus`
 -- instead of `status`, current behavior is just wrong.
-data WithStatusNoLock (cfg :: *) = WithStatusNoLock
+data WithStatusNoLock (cfg :: Type) = WithStatusNoLock
   { wssStatus :: FeatureStatus,
     wssConfig :: cfg,
     wssTTL :: FeatureTTL
@@ -358,19 +345,6 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusNoLock cfg) 
     where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatusNoLock"
-
-withStatusNoLockModel :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Doc.Model
-withStatusNoLockModel =
-  let name = featureName @cfg
-      mbModelCfg = configModel @cfg
-   in Doc.defineModel ("WithStatusNoLock." <> name) $ do
-        case mbModelCfg of
-          Nothing -> Doc.description $ "Team feature " <> name <> " that has no configuration beyond the boolean on/off switch."
-          Just modelCfg -> do
-            Doc.description $ "Status and config of " <> name
-            Doc.property "config" (Doc.ref modelCfg) $ Doc.description "config"
-
-        Doc.property "status" typeFeatureStatus $ Doc.description "status"
 
 ----------------------------------------------------------------------
 -- FeatureTTL
@@ -474,10 +448,6 @@ instance Cass.Cql FeatureTTL where
   toCql FeatureTTLUnlimited = Cass.CqlInt 0
   toCql (FeatureTTLSeconds d) = Cass.CqlInt . fromIntegral $ d
 
-typeFeatureTTL :: Doc.DataType
-typeFeatureTTL =
-  Doc.int64'
-
 invalidTTLErrorString :: Text
 invalidTTLErrorString = "Invalid FeatureTTLSeconds: must be a positive integer or 'unlimited.'"
 
@@ -490,14 +460,6 @@ data LockStatus = LockStatusLocked | LockStatusUnlocked
 
 instance FromHttpApiData LockStatus where
   parseUrlPiece = maybeToEither "Invalid lock status" . fromByteString . cs
-
-typeLockStatusValue :: Doc.DataType
-typeLockStatusValue =
-  Doc.string $
-    Doc.enum
-      [ "locked",
-        "unlocked"
-      ]
 
 instance ToSchema LockStatus where
   schema =
@@ -543,7 +505,7 @@ instance ToSchema LockStatusResponse where
       LockStatusResponse
         <$> _unlockStatus .= field "lockStatus" schema
 
-newtype ImplicitLockStatus (cfg :: *) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
+newtype ImplicitLockStatus (cfg :: Type) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
   deriving newtype (Eq, Show, Arbitrary)
 
 instance (IsFeatureConfig a, ToSchema a) => ToJSON (ImplicitLockStatus a) where
@@ -564,57 +526,6 @@ computeFeatureConfigForTeamUser mStatusDb mLockStatusDb defStatus =
         Just fs -> fs
   where
     lockStatus = fromMaybe (wsLockStatus defStatus) mLockStatusDb
-
-allFeatureModels :: [Doc.Model]
-allFeatureModels =
-  [ withStatusNoLockModel @LegalholdConfig,
-    withStatusNoLockModel @SSOConfig,
-    withStatusNoLockModel @SearchVisibilityAvailableConfig,
-    withStatusNoLockModel @ValidateSAMLEmailsConfig,
-    withStatusNoLockModel @DigitalSignaturesConfig,
-    withStatusNoLockModel @AppLockConfig,
-    withStatusNoLockModel @FileSharingConfig,
-    withStatusNoLockModel @ClassifiedDomainsConfig,
-    withStatusNoLockModel @ConferenceCallingConfig,
-    withStatusNoLockModel @SelfDeletingMessagesConfig,
-    withStatusNoLockModel @GuestLinksConfig,
-    withStatusNoLockModel @SndFactorPasswordChallengeConfig,
-    withStatusNoLockModel @SearchVisibilityInboundConfig,
-    withStatusNoLockModel @MLSConfig,
-    withStatusNoLockModel @ExposeInvitationURLsToTeamAdminConfig,
-    withStatusModel @LegalholdConfig,
-    withStatusModel @SSOConfig,
-    withStatusModel @SearchVisibilityAvailableConfig,
-    withStatusModel @ValidateSAMLEmailsConfig,
-    withStatusModel @DigitalSignaturesConfig,
-    withStatusModel @AppLockConfig,
-    withStatusModel @FileSharingConfig,
-    withStatusModel @ClassifiedDomainsConfig,
-    withStatusModel @ConferenceCallingConfig,
-    withStatusModel @SelfDeletingMessagesConfig,
-    withStatusModel @GuestLinksConfig,
-    withStatusModel @SndFactorPasswordChallengeConfig,
-    withStatusModel @SearchVisibilityInboundConfig,
-    withStatusModel @MLSConfig,
-    withStatusModel @ExposeInvitationURLsToTeamAdminConfig
-  ]
-    <> catMaybes
-      [ configModel @LegalholdConfig,
-        configModel @SSOConfig,
-        configModel @SearchVisibilityAvailableConfig,
-        configModel @ValidateSAMLEmailsConfig,
-        configModel @DigitalSignaturesConfig,
-        configModel @AppLockConfig,
-        configModel @FileSharingConfig,
-        configModel @ClassifiedDomainsConfig,
-        configModel @ConferenceCallingConfig,
-        configModel @SelfDeletingMessagesConfig,
-        configModel @GuestLinksConfig,
-        configModel @SndFactorPasswordChallengeConfig,
-        configModel @SearchVisibilityInboundConfig,
-        configModel @MLSConfig,
-        configModel @ExposeInvitationURLsToTeamAdminConfig
-      ]
 
 --------------------------------------------------------------------------------
 -- GuestLinks feature
@@ -816,9 +727,6 @@ instance IsFeatureConfig ClassifiedDomainsConfig where
       LockStatusUnlocked
       (ClassifiedDomainsConfig [])
       FeatureTTLUnlimited
-  configModel = Just $
-    Doc.defineModel "ClassifiedDomainsConfig" $ do
-      Doc.property "domains" (Doc.array Doc.string') $ Doc.description "domains"
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
@@ -848,10 +756,6 @@ instance IsFeatureConfig AppLockConfig where
       LockStatusUnlocked
       (AppLockConfig (EnforceAppLock False) 60)
       FeatureTTLUnlimited
-  configModel = Just $
-    Doc.defineModel "AppLockConfig" $ do
-      Doc.property "enforceAppLock" Doc.bool' $ Doc.description "enforceAppLock"
-      Doc.property "inactivityTimeoutSecs" Doc.int32' $ Doc.description ""
   objectSchema = field "config" schema
 
 newtype EnforceAppLock = EnforceAppLock Bool
@@ -904,9 +808,6 @@ instance IsFeatureConfig SelfDeletingMessagesConfig where
       LockStatusUnlocked
       (SelfDeletingMessagesConfig 0)
       FeatureTTLUnlimited
-  configModel = Just $
-    Doc.defineModel "SelfDeletingMessagesConfig" $ do
-      Doc.property "enforcedTimeoutSeconds" Doc.int32' $ Doc.description "optional; default: `0` (no enforcement)"
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
@@ -937,13 +838,6 @@ instance IsFeatureConfig MLSConfig where
      in withStatus FeatureStatusDisabled LockStatusUnlocked config FeatureTTLUnlimited
   objectSchema = field "config" schema
 
-  configModel = Just $
-    Doc.defineModel "MLSConfig" $ do
-      Doc.property "protocolToggleUsers" (Doc.array Doc.string') $ Doc.description "allowlist of users that may change protocols"
-      Doc.property "defaultProtocol" Doc.string' $ Doc.description "default protocol, either \"proteus\" or \"mls\""
-      Doc.property "allowedCipherSuites" (Doc.array Doc.int32') $ Doc.description "cipher suite numbers,  See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5"
-      Doc.property "defaultCipherSuite" Doc.int32' $ Doc.description "cipher suite number. See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5"
-
 ----------------------------------------------------------------------
 -- ExposeInvitationURLsToTeamAdminConfig
 
@@ -961,6 +855,26 @@ instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
 
 instance FeatureTrivialConfig ExposeInvitationURLsToTeamAdminConfig where
   trivialConfig = ExposeInvitationURLsToTeamAdminConfig
+
+----------------------------------------------------------------------
+-- OutlookCalIntegrationConfig
+
+-- | This feature setting only applies to the Outlook Calendar extension for Wire.
+-- As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
+data OutlookCalIntegrationConfig = OutlookCalIntegrationConfig
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OutlookCalIntegrationConfig)
+
+instance IsFeatureConfig OutlookCalIntegrationConfig where
+  type FeatureSymbol OutlookCalIntegrationConfig = "outlookCalIntegration"
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited
+  objectSchema = pure OutlookCalIntegrationConfig
+
+instance ToSchema OutlookCalIntegrationConfig where
+  schema = object "OutlookCalIntegrationConfig" objectSchema
+
+instance FeatureTrivialConfig OutlookCalIntegrationConfig where
+  trivialConfig = OutlookCalIntegrationConfig
 
 ----------------------------------------------------------------------
 -- FeatureStatus
@@ -984,14 +898,6 @@ instance FromHttpApiData FeatureStatus where
 
 instance ToHttpApiData FeatureStatus where
   toUrlPiece = cs . toByteString'
-
-typeFeatureStatus :: Doc.DataType
-typeFeatureStatus =
-  Doc.string $
-    Doc.enum
-      [ "enabled",
-        "disabled"
-      ]
 
 instance ToSchema FeatureStatus where
   schema =
@@ -1044,7 +950,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcGuestLink :: WithStatus GuestLinksConfig,
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
     afcMLS :: WithStatus MLSConfig,
-    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig
+    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
+    afcOutlookCalIntegration :: WithStatus OutlookCalIntegrationConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1068,6 +975,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcSndFactorPasswordChallenge .= featureField
         <*> afcMLS .= featureField
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
+        <*> afcOutlookCalIntegration .= featureField
     where
       featureField ::
         forall cfg.
@@ -1079,6 +987,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

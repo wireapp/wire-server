@@ -98,6 +98,7 @@ import qualified System.Logger.Extended as ExLog
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Event.Conversation (Connect (Connect))
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Properties
@@ -117,7 +118,8 @@ onUserEvent ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -187,7 +189,6 @@ onClientEvent orig conn e = do
 
 updateSearchIndex ::
   ( MonadClient m,
-    MonadCatch m,
     MonadLogger m,
     MonadIndexIO m
   ) =>
@@ -242,14 +243,14 @@ journalEvent orig e = case e of
 -- as well as his other clients about a change to his user account
 -- or profile.
 dispatchNotifications ::
-  ( MonadIO m,
-    Log.MonadLogger m,
+  ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m
+    MonadClient m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -278,8 +279,7 @@ dispatchNotifications orig conn e = case e of
     event = singleton $ UserEvent e
 
 notifyUserDeletionLocals ::
-  ( MonadIO m,
-    Log.MonadLogger m,
+  ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
     MonadHttp m,
@@ -299,7 +299,8 @@ notifyUserDeletionRemotes ::
   forall m.
   ( MonadReader Env m,
     MonadClient m,
-    MonadLogger m
+    MonadLogger m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   m ()
@@ -418,8 +419,7 @@ rawPush (toList -> events) usrs orig route conn = do
 
 -- | (Asynchronously) notifies other users of events.
 notify ::
-  ( MonadIO m,
-    Log.MonadLogger m,
+  ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
     MonadHttp m,
@@ -441,7 +441,7 @@ notify events orig route conn recipients = fork (Just orig) $ do
   push events rs orig route conn
 
 fork ::
-  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
+  (MonadUnliftIO m, MonadReader Env m) =>
   Maybe UserId ->
   m a ->
   m ()
@@ -458,8 +458,7 @@ fork u ma = do
     user = maybe id (field "user" . toByteString)
 
 notifySelf ::
-  ( MonadIO m,
-    Log.MonadLogger m,
+  ( Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
     MonadHttp m,
@@ -503,14 +502,14 @@ notifyContacts events orig route conn = do
     contacts = lookupContactList orig
 
     teamContacts :: m [UserId]
-    teamContacts = screenMemberList =<< getTeamContacts orig
+    teamContacts = screenMemberList <$> getTeamContacts orig
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
     --
-    screenMemberList :: Maybe Team.TeamMemberList -> m [UserId]
+    screenMemberList :: Maybe Team.TeamMemberList -> [UserId]
     screenMemberList (Just mems)
       | mems ^. Team.teamMemberListType == Team.ListComplete =
-          pure $ fmap (view Team.userId) (mems ^. Team.teamMembers)
-    screenMemberList _ = pure []
+          view Team.userId <$> mems ^. Team.teamMembers
+    screenMemberList _ = []
 
 -- Event Serialisation:
 
@@ -688,7 +687,7 @@ createLocalConnectConv ::
   m ConvId
 createLocalConnectConv from to cname conn = do
   debug $
-    logConnection (tUnqualified from) (qUntagged to)
+    logConnection (tUnqualified from) (tUntagged to)
       . remote "galley"
       . msg (val "Creating connect conversation")
   let req =
@@ -696,7 +695,7 @@ createLocalConnectConv from to cname conn = do
           . zUser (tUnqualified from)
           . maybe id (header "Z-Connection" . fromConnId) conn
           . contentJson
-          . lbytes (encode $ Connect (qUntagged to) Nothing cname Nothing)
+          . lbytes (encode $ Connect (tUntagged to) Nothing cname Nothing)
           . expect2xx
   r <- galleyRequest POST req
   maybe (error "invalid conv id") pure $
@@ -712,7 +711,7 @@ createConnectConv ::
 createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
-  qUntagged . qualifyAs lfrom
+  tUntagged . qualifyAs lfrom
     <$> wrapHttp (createLocalConnectConv lfrom lto cname conn)
 
 -- | Calls 'Galley.API.acceptConvH'.

@@ -64,12 +64,6 @@ module Wire.API.Team
     newTeamDeleteData,
     tdAuthPassword,
     tdVerificationCode,
-
-    -- * Swagger
-    modelTeam,
-    modelTeamList,
-    modelUpdateData,
-    modelTeamDelete,
   )
 where
 
@@ -85,7 +79,6 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)
@@ -111,26 +104,6 @@ data Team = Team
 
 newTeam :: TeamId -> UserId -> Text -> Icon -> TeamBinding -> Team
 newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb DefaultIcon
-
-modelTeam :: Doc.Model
-modelTeam = Doc.defineModel "Team" $ do
-  Doc.description "Team information"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "team ID"
-  Doc.property "creator" Doc.bytes' $
-    Doc.description "team creator's user ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "team name"
-  Doc.property "icon" Doc.string' $
-    Doc.description "team icon (asset ID)"
-  Doc.property "icon_key" Doc.string' $ do
-    Doc.description "team icon asset key"
-    Doc.optional
-  Doc.property "binding" Doc.bool' $
-    Doc.description "user binding team"
-  Doc.property "splash_screen" Doc.string' $ do
-    Doc.description "new splash screen asset key"
-    Doc.optional
 
 instance ToSchema Team where
   schema =
@@ -169,14 +142,6 @@ data TeamList = TeamList
 
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
-
-modelTeamList :: Doc.Model
-modelTeamList = Doc.defineModel "TeamList" $ do
-  Doc.description "list of teams"
-  Doc.property "teams" (Doc.unique $ Doc.array (Doc.ref modelTeam)) $
-    Doc.description "the Doc.array of teams"
-  Doc.property "has_more" Doc.bool' $
-    Doc.description "if more teams are available"
 
 instance ToSchema TeamList where
   schema =
@@ -285,22 +250,6 @@ instance Arbitrary TeamUpdateData where
       valid (TeamUpdateData Nothing Nothing Nothing Nothing) = False
       valid _ = True
 
-modelUpdateData :: Doc.Model
-modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
-  Doc.description "team update data"
-  Doc.property "name" Doc.string' $ do
-    Doc.description "new team name"
-    Doc.optional
-  Doc.property "icon" Doc.string' $ do
-    Doc.description "new icon asset id"
-    Doc.optional
-  Doc.property "icon_key" Doc.string' $ do
-    Doc.description "new icon asset key"
-    Doc.optional
-  Doc.property "splash_screen" Doc.string' $ do
-    Doc.description "new splash screen asset key"
-    Doc.optional
-
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing Nothing
 
@@ -339,15 +288,6 @@ newTeamDeleteData = flip TeamDeleteData Nothing
 
 newTeamDeleteDataWithCode :: Maybe PlainTextPassword -> Maybe Code.Value -> TeamDeleteData
 newTeamDeleteDataWithCode = TeamDeleteData
-
--- FUTUREWORK: fix name of model? (upper case)
-modelTeamDelete :: Doc.Model
-modelTeamDelete = Doc.defineModel "teamDeleteData" $ do
-  Doc.description "Data for a team deletion request in case of binding teams."
-  Doc.property "password" Doc.string' $
-    Doc.description "The account password to authorise the deletion."
-  Doc.property "verification_code" Doc.string' $
-    Doc.description "The verification code to authorise the deletion."
 
 instance ToSchema TeamDeleteData where
   schema =

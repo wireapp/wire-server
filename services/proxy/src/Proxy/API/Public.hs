@@ -47,6 +47,10 @@ import Proxy.Proxy
 import System.Logger.Class hiding (Error, info, render)
 import qualified System.Logger.Class as Logger
 
+-- | IF YOU MODIFY THIS, BE AWARE OF:
+--
+-- >>> /libs/wire-api/src/Wire/API/Routes/Public/Proxy.hs
+-- >>> https://wearezeta.atlassian.net/browse/SQSERVICES-1647
 sitemap :: Env -> Routes a Proxy ()
 sitemap e = do
   get
@@ -183,7 +187,7 @@ soundcloudStream url = do
 x2 :: RetryPolicy
 x2 = exponentialBackoff 5000 <> limitRetries 2
 
-handler :: (MonadIO m, MonadMask m) => RetryStatus -> Handler m Bool
+handler :: MonadIO m => RetryStatus -> Handler m Bool
 handler = const . Handler $ \case
   Client.HttpExceptionRequest _ Client.NoResponseDataReceived -> pure True
   Client.HttpExceptionRequest _ Client.IncompleteHeaders -> pure True

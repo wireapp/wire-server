@@ -210,6 +210,7 @@ clientDataError MalformedPrekeys = StdError (errorToWai @'E.MalformedPrekeys)
 clientDataError MLSPublicKeyDuplicate = StdError (errorToWai @'E.MLSDuplicatePublicKey)
 clientDataError KeyPackageDecodingError = StdError (errorToWai @'E.KeyPackageDecodingError)
 clientDataError InvalidKeyPackageRef = StdError (errorToWai @'E.InvalidKeyPackageRef)
+clientDataError MLSNotEnabled = StdError (errorToWai @'E.MLSNotEnabled)
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError (errorToWai @'E.InvalidUser)

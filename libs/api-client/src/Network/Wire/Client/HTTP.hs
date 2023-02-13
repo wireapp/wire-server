@@ -62,7 +62,7 @@ instance FromJSON Error where
 
 clientRequest ::
   forall m a.
-  (Log.MonadLogger m, MonadClient m, MonadUnliftIO m, MonadMask m) =>
+  (MonadClient m, MonadUnliftIO m, MonadMask m) =>
   -- | The request to send.
   Request ->
   -- | Expected response codes.

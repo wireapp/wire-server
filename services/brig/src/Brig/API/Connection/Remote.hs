@@ -39,6 +39,7 @@ import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), Ups
 import Imports
 import Network.Wai.Utilities.Error
 import Wire.API.Connection
+import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
@@ -161,7 +162,7 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
     wrapClient $
       Data.insertConnection
         self
-        (qUntagged other)
+        (tUntagged other)
         (relationWithHistory rel)
         qcnv
 
@@ -187,6 +188,7 @@ pushEvent self mzcon connection = do
   Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
+  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -201,7 +203,7 @@ performLocalAction self mzcon other mconnection action = do
       response <- sendConnectionAction self other ra !>> ConnectFederationError
       case (response :: NewConnectionResponse) of
         NewConnectionResponseOk reaction -> pure reaction
-        NewConnectionResponseUserNotActivated -> throwE (InvalidUser (qUntagged other))
+        NewConnectionResponseUserNotActivated -> throwE (InvalidUser (tUntagged other))
     pure $
       fromMaybe rel1 $ do
         reactionAction <- (mreaction :: Maybe RemoteConnectionAction)
@@ -251,22 +253,24 @@ performRemoteAction self other mconnection action = do
     reaction _ = Nothing
 
 createConnectionToRemoteUser ::
+  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   ConnId ->
   Remote UserId ->
   (ConnectionM r) (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
-  mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
+  mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
+  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   Remote UserId ->
   Relation ->
   Maybe ConnId ->
   (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
-  mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
+  mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
   action <-
     actionForTransition rel1
       ?? InvalidTransition (tUnqualified self)

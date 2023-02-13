@@ -15,17 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.Endpoint where
+module Wire.API.Federation.Endpoint
+  ( ApplyMods,
+    module Wire.API.Federation.Endpoint,
+  )
+where
 
+import Data.Kind
 import Servant.API
+import Wire.API.ApplyMods
 import Wire.API.Federation.Domain
 import Wire.API.Routes.Named
 
-type family ApplyMods (mods :: [*]) api where
-  ApplyMods '[] api = api
-  ApplyMods (x ': xs) api = x :> ApplyMods xs api
-
-type FedEndpointWithMods (mods :: [*]) name input output =
+type FedEndpointWithMods (mods :: [Type]) name input output =
   Named
     name
     ( ApplyMods

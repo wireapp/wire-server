@@ -61,7 +61,7 @@ executable billing-team-member-backfill
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T
-    -rtsopts
+    -rtsopts -Wredundant-constraints
 
   build-depends:
       base

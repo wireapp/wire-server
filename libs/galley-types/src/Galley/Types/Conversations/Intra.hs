@@ -68,8 +68,8 @@ instance ToSchema UpsertOne2OneConversationRequest where
   schema =
     object "UpsertOne2OneConversationRequest" $
       UpsertOne2OneConversationRequest
-        <$> (qUntagged . uooLocalUser) .= field "local_user" (qTagUnsafe <$> schema)
-        <*> (qUntagged . uooRemoteUser) .= field "remote_user" (qTagUnsafe <$> schema)
+        <$> (tUntagged . uooLocalUser) .= field "local_user" (qTagUnsafe <$> schema)
+        <*> (tUntagged . uooRemoteUser) .= field "remote_user" (qTagUnsafe <$> schema)
         <*> uooActor .= field "actor" schema
         <*> uooActorDesiredMembership .= field "actor_desired_membership" schema
         <*> uooConvId .= optField "conversation_id" (maybeWithDefault A.Null schema)

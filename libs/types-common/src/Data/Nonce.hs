@@ -74,7 +74,7 @@ instance ToHttpApiData Nonce where
 instance FromHttpApiData Nonce where
   parseQueryParam = maybe (Left "Invalid Nonce") Right . fromByteString' . cs
 
-randomNonce :: (Functor m, MonadIO m) => m Nonce
+randomNonce :: MonadIO m => m Nonce
 randomNonce = Nonce <$> liftIO nextRandom
 
 isValidBase64UrlEncodedUUID :: ByteString -> Bool

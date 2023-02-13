@@ -16,7 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.MLS
-  ( postMLSWelcomeFromLocalUser,
+  ( isMLSEnabled,
+    assertMLSEnabled,
+    postMLSWelcomeFromLocalUser,
     postMLSMessage,
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
@@ -25,6 +27,27 @@ module Galley.API.MLS
   )
 where
 
-import Galley.API.MLS.Keys
+import Control.Lens (view)
+import Data.Id
+import Data.Qualified
+import Galley.API.MLS.Enabled
 import Galley.API.MLS.Message
 import Galley.API.MLS.Welcome
+import Galley.Env
+import Imports
+import Polysemy
+import Polysemy.Input
+import Wire.API.Error
+import Wire.API.Error.Galley
+import Wire.API.MLS.Keys
+
+getMLSPublicKeys ::
+  ( Member (Input Env) r,
+    Member (ErrorS 'MLSNotEnabled) r
+  ) =>
+  Local UserId ->
+  Sem r MLSPublicKeys
+getMLSPublicKeys _ = do
+  assertMLSEnabled
+  keys <- inputs (view mlsKeys)
+  pure $ mlsKeysToPublic keys

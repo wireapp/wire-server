@@ -24,6 +24,7 @@ import Test.Wire.API.Golden.Manual.ClientCapabilityList
 import Test.Wire.API.Golden.Manual.Contact
 import Test.Wire.API.Golden.Manual.ConvIdsPage
 import Test.Wire.API.Golden.Manual.ConversationCoverView
+import Test.Wire.API.Golden.Manual.ConversationEvent
 import Test.Wire.API.Golden.Manual.ConversationPagingState
 import Test.Wire.API.Golden.Manual.ConversationsResponse
 import Test.Wire.API.Golden.Manual.CreateScimToken
@@ -38,6 +39,8 @@ import Test.Wire.API.Golden.Manual.Token
 import Test.Wire.API.Golden.Manual.UserClientPrekeyMap
 import Test.Wire.API.Golden.Manual.UserIdList
 import Test.Wire.API.Golden.Runner
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 
 tests :: TestTree
 tests =
@@ -64,6 +67,10 @@ tests =
           [ (testObject_ConversationCoverView_1, "testObject_ConversationCoverView_1.json"),
             (testObject_ConversationCoverView_2, "testObject_ConversationCoverView_2.json"),
             (testObject_ConversationCoverView_3, "testObject_ConversationCoverView_3.json")
+          ],
+      testGroup "ConversationEvent" $
+        testObjects
+          [ (testObject_Event_conversation_manual_1, "testObject_Event_conversation_manual_1.json")
           ],
       testGroup "GetPaginatedConversationIds" $
         testObjects
@@ -105,6 +112,8 @@ tests =
       testGroup "ListConversations" $
         testObjects
           [(testObject_ListConversations_1, "testObject_ListConversations_1.json")],
+      testGroup "ConversationsResponse V2" $
+        testObjects [(Versioned @'V2 testObject_ConversationsResponse_1, "testObject_ConversationsResponse_v2_1.json")],
       testGroup "ConversationsResponse" $
         testObjects [(testObject_ConversationsResponse_1, "testObject_ConversationsResponse_1.json")],
       testGroup "CreateScimToken" $
@@ -121,7 +130,9 @@ tests =
           ],
       testGroup "SearchResult Contact" $
         testObjects
-          [(testObject_SearchResultContact_1, "testObject_SearchResultContact_1.json")],
+          [ (testObject_SearchResultContact_1, "testObject_SearchResultContact_1.json"),
+            (testObject_SearchResultContact_2, "testObject_SearchResultContact_2.json")
+          ],
       testGroup "GroupId" $
         testObjects
           [(testObject_GroupId_1, "testObject_GroupId_1.json")],

@@ -23,7 +23,7 @@ module Work where
 
 import Brig.Types.Intra (AccountStatus (..))
 import Cassandra
-import Cassandra.Util (Writetime, writeTimeToUTC)
+import Cassandra.Util (Writetime, writetimeToUTC)
 import Conduit
 import Control.Lens (view, _1, _2)
 import Data.Aeson (FromJSON, (.:))
@@ -72,7 +72,7 @@ logUUID l f (uuid, _, time) =
   Log.info l $
     Log.msg f
       . Log.field "uuid" (show uuid)
-      . Log.field "write time" (show $ writeTimeToUTC <$> time)
+      . Log.field "write time" (show $ writetimeToUTC <$> time)
 
 getScrolled :: (ES.MonadBH m, MonadThrow m) => ES.IndexName -> ES.MappingName -> ConduitM () [UUID] m ()
 getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mapping esSearch)

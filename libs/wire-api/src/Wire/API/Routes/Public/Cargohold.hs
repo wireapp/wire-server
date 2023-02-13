@@ -18,6 +18,7 @@
 module Wire.API.Routes.Public.Cargohold where
 
 import Data.Id
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.SOP
@@ -30,6 +31,7 @@ import URI.ByteString
 import Wire.API.Asset
 import Wire.API.Error
 import Wire.API.Error.Cargohold
+import Wire.API.MakesFederatedCall
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
@@ -39,7 +41,7 @@ import Wire.API.Routes.Version
 data PrincipalTag = UserPrincipalTag | BotPrincipalTag | ProviderPrincipalTag
   deriving (Eq, Show)
 
-type family PrincipalId (tag :: PrincipalTag) = (id :: *) | id -> tag where
+type family PrincipalId (tag :: PrincipalTag) = (id :: Type) | id -> tag where
   PrincipalId 'UserPrincipalTag = Local UserId
   PrincipalId 'BotPrincipalTag = BotId
   PrincipalId 'ProviderPrincipalTag = ProviderId
@@ -169,6 +171,8 @@ type QualifiedAPI =
       :> Description
            "**Note**: local assets result in a redirect, \
            \while remote assets are streamed directly."
+      :> MakesFederatedCall 'Cargohold "get-asset"
+      :> MakesFederatedCall 'Cargohold "stream-asset"
       :> ZLocalUser
       :> "assets"
       :> "v4"
@@ -276,6 +280,8 @@ type MainAPI =
              :> Description
                   "**Note**: local assets result in a redirect, \
                   \while remote assets are streamed directly."
+             :> MakesFederatedCall 'Cargohold "get-asset"
+             :> MakesFederatedCall 'Cargohold "stream-asset"
              :> ZLocalUser
              :> "assets"
              :> QualifiedCapture "key" AssetKey

@@ -31,6 +31,7 @@ library
     Galley.API.Mapping
     Galley.API.Message
     Galley.API.MLS
+    Galley.API.MLS.Enabled
     Galley.API.MLS.GroupInfo
     Galley.API.MLS.KeyPackage
     Galley.API.MLS.Keys
@@ -53,6 +54,7 @@ library
     Galley.API.Public.Team
     Galley.API.Public.TeamConversation
     Galley.API.Public.TeamMember
+    Galley.API.Public.TeamNotification
     Galley.API.Push
     Galley.API.Query
     Galley.API.Teams
@@ -103,7 +105,6 @@ library
     Galley.Effects.MemberStore
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
-    Galley.Effects.RemoteConversationListStore
     Galley.Effects.SearchVisibilityStore
     Galley.Effects.ServiceStore
     Galley.Effects.SparAccess
@@ -137,7 +138,6 @@ library
     Galley.Types.ToUserRole
     Galley.Types.UserList
     Galley.Validation
-    Main
 
   other-modules:      Paths_galley
   hs-source-dirs:     src
@@ -184,6 +184,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       aeson                      >=2.0.1.0
@@ -257,12 +258,12 @@ library
     , servant-swagger
     , servant-swagger-ui
     , singletons
+    , singletons-th
     , sop-core
     , split                      >=0.2
     , ssl-util                   >=0.1
     , stm                        >=2.4
     , string-conversions
-    , swagger                    >=0.1
     , swagger2
     , tagged
     , text                       >=0.11
@@ -292,7 +293,7 @@ library
   default-language:   Haskell2010
 
 executable galley
-  main-is:            src/Main.hs
+  main-is:            exec/Main.hs
   other-modules:      Paths_galley
   default-extensions:
     NoImplicitPrelude
@@ -337,7 +338,7 @@ executable galley
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-T -rtsopts
+    -threaded -with-rtsopts=-T -rtsopts -Wredundant-constraints
 
   build-depends:
       base
@@ -375,6 +376,7 @@ executable galley-integration
     API.Federation.Util
     API.MessageTimer
     API.MLS
+    API.MLS.Mocks
     API.MLS.Util
     API.Roles
     API.SQS
@@ -382,6 +384,7 @@ executable galley-integration
     API.Teams.Feature
     API.Teams.LegalHold
     API.Teams.LegalHold.DisabledByDefault
+    API.Teams.LegalHold.Util
     API.Util
     API.Util.TeamFeature
     Main
@@ -432,7 +435,7 @@ executable galley-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded
+    -threaded -with-rtsopts=-N -Wredundant-constraints
 
   build-depends:
       aeson
@@ -447,6 +450,7 @@ executable galley-integration
     , brig-types
     , bytestring
     , bytestring-conversion
+    , call-stack
     , case-insensitive
     , cassandra-util
     , cassava
@@ -484,6 +488,7 @@ executable galley-integration
     , memory
     , metrics-wai
     , mtl
+    , network
     , optparse-applicative
     , pem
     , process
@@ -503,8 +508,10 @@ executable galley-integration
     , servant-server
     , servant-swagger
     , singletons
+    , singletons-th
     , sop-core
     , ssl-util
+    , streaming-commons
     , string-conversions
     , tagged
     , tasty                    >=0.8
@@ -517,6 +524,7 @@ executable galley-integration
     , tls                      >=1.3.8
     , transformers
     , types-common
+    , types-common-aws
     , types-common-journal
     , unix
     , unliftio
@@ -538,11 +546,15 @@ executable galley-integration
 
 executable galley-migrate-data
   main-is:            Main.hs
+
+  -- cabal-fmt: expand migrate-data/src
   other-modules:
     Galley.DataMigration
     Galley.DataMigration.Types
+    Main
     Paths_galley
     V1_BackfillBillingTeamMembers
+    V2_MigrateMLSMembers
 
   hs-source-dirs:     migrate-data/src
   default-extensions:
@@ -588,6 +600,7 @@ executable galley-migrate-data
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       base
@@ -598,6 +611,7 @@ executable galley-migrate-data
     , exceptions
     , extended
     , extra                 >=1.3
+    , galley
     , galley-types
     , imports
     , lens
@@ -685,6 +699,8 @@ executable galley-schema
     V74_ExposeInvitationsToTeamAdmin
     V75_MLSGroupInfo
     V76_ProposalOrigin
+    V77_MLSGroupMemberClient
+    V78_TeamFeatureOutlookCalIntegration
 
   hs-source-dirs:     schema/src
   default-extensions:
@@ -730,6 +746,7 @@ executable galley-schema
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       base
@@ -811,7 +828,7 @@ test-suite galley-tests
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N
+    -threaded -with-rtsopts=-N -Wredundant-constraints
 
   build-depends:
       base
@@ -824,6 +841,8 @@ test-suite galley-tests
     , http-types
     , imports
     , lens
+    , polysemy
+    , polysemy-wire-zoo
     , QuickCheck
     , raw-strings-qq       >=1.0
     , safe                 >=0.3

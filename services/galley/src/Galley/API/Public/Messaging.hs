@@ -19,12 +19,13 @@ module Galley.API.Public.Messaging where
 
 import Galley.API.Update
 import Galley.App
+import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Messaging
 
 messagingAPI :: API MessagingAPI GalleyEffects
 messagingAPI =
-  mkNamedAPI @"post-otr-message-unqualified" postOtrMessageUnqualified
+  mkNamedAPI @"post-otr-message-unqualified" (callsFed postOtrMessageUnqualified)
     <@> mkNamedAPI @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
-    <@> mkNamedAPI @"post-proteus-message" postProteusMessage
+    <@> mkNamedAPI @"post-proteus-message" (callsFed postProteusMessage)
     <@> mkNamedAPI @"post-proteus-broadcast" postProteusBroadcast

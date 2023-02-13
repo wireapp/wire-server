@@ -37,7 +37,7 @@ releases:
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/redis-cluster'
     values:
-      - './helm_vars/redis-cluster/values.yaml'
+      - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
   - name: '{{ .Values.namespace }}-nginx-ingress-controller'
     namespace: '{{ .Values.namespace }}'
@@ -72,4 +72,6 @@ releases:
       - name: brig.config.optSettings.setFederationDomain
         value: {{ .Values.federationDomain }}
       - name: galley.config.settings.federationDomain
+        value: {{ .Values.federationDomain }}
+      - name: cargohold.config.settings.federationDomain
         value: {{ .Values.federationDomain }}

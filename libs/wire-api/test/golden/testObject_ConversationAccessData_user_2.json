@@ -2,8 +2,7 @@
     "access": [
         "invite"
     ],
-    "access_role": "non_activated",
-    "access_role_v2": [
+    "access_role": [
         "team_member",
         "guest"
     ]

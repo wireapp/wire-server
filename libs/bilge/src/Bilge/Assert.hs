@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -26,7 +28,6 @@ module Bilge.Assert
     (===),
     (=/=),
     (=~=),
-    (=/~=),
     assertResponse,
     assertTrue,
     assertTrue_,
@@ -78,7 +79,7 @@ newtype Assertions a = Assertions
 -- assertion that failed). It will also return the response,
 -- so it can be used for further inspection.
 (<!!) ::
-  (HasCallStack, Functor m, MonadIO m, MonadCatch m) =>
+  (HasCallStack, MonadIO m, MonadCatch m) =>
   m (Response (Maybe Lazy.ByteString)) ->
   Assertions () ->
   m (Response (Maybe Lazy.ByteString))
@@ -96,12 +97,12 @@ io <!! aa = do
     msg :: (Int, Maybe String) -> String
     msg (i, Just m) = printf "%2d: " i ++ err m
     msg _ = ""
-    printErr :: MonadIO m => SomeException -> m a
+    printErr :: SomeException -> m a
     printErr e = error $ title "Error executing request: " ++ err (show e)
 
 -- | Like '<!!' but discards the 'Response'.
 (!!!) ::
-  (HasCallStack, Functor m, MonadIO m, MonadCatch m) =>
+  (HasCallStack, MonadIO m, MonadCatch m) =>
   m (Response (Maybe Lazy.ByteString)) ->
   Assertions () ->
   m ()
@@ -141,15 +142,6 @@ f =/= g = Assertions $ tell [\r -> test " === " (/=) (f r) (g r)]
   (Response (Maybe Lazy.ByteString) -> a) ->
   Assertions ()
 f =~= g = Assertions $ tell [\r -> test " not in " contains (f r) (g r)]
-
--- | Tests the assertion that the left-hand side is **not** contained in the right-hand side.
--- If it is, actual values will be printed.
-(=/~=) ::
-  (HasCallStack, Show a, Contains a) =>
-  (Response (Maybe Lazy.ByteString) -> a) ->
-  (Response (Maybe Lazy.ByteString) -> a) ->
-  Assertions ()
-f =/~= g = Assertions $ tell [\r -> test " in " ((not .) . contains) (f r) (g r)]
 
 -- | Most generic assertion on a request. If the test function evaluates to
 -- @(Just msg)@ then the assertion fails with the error message @msg@.

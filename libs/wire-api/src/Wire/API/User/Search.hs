@@ -1,4 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -28,11 +29,7 @@ module Wire.API.User.Search
     TeamUserSearchSortOrder (..),
     TeamUserSearchSortBy (..),
     FederatedUserSearchPolicy (..),
-
-    -- * Swagger
-    modelSearchResult,
-    modelSearchContact,
-    modelTeamContact,
+    PagingState (..),
   )
 where
 
@@ -43,21 +40,49 @@ import qualified Data.Aeson as Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
+import Data.Either.Combinators (mapLeft)
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.Proxy
 import Data.Qualified
 import Data.Schema
+import Data.String.Conversions (cs)
+import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
+import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Imports
-import Servant.API (FromHttpApiData)
+import Servant.API (FromHttpApiData, ToHttpApiData (..))
 import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
 import Wire.API.User.Identity (Email (..))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+
+-------------------------------------------------------------------------------
+-- PagingState
+
+newtype PagingState = PagingState {unPagingState :: AsciiBase64Url}
+  deriving newtype (Eq, Show, Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema PagingState
+
+instance ToSchema PagingState where
+  schema = (toText . unPagingState) .= parsedText "PagingState" (fmap PagingState . validateBase64Url)
+
+instance ToParamSchema PagingState where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance FromHttpApiData PagingState where
+  parseQueryParam s = mapLeft cs $ PagingState <$> validateBase64Url s
+
+instance ToHttpApiData PagingState where
+  toQueryParam = toText . unPagingState
+
+instance ToByteString PagingState where
+  builder = builder . unPagingState
+
+instance FromByteString PagingState where
+  parser = fmap PagingState parser
 
 --------------------------------------------------------------------------------
 -- SearchResult
@@ -67,7 +92,9 @@ data SearchResult a = SearchResult
     searchReturned :: Int,
     searchTook :: Int,
     searchResults :: [a],
-    searchPolicy :: FederatedUserSearchPolicy
+    searchPolicy :: FederatedUserSearchPolicy,
+    searchPagingState :: Maybe PagingState,
+    searchHasMore :: Maybe Bool
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (SearchResult a))
@@ -89,6 +116,8 @@ instance ToSchema a => ToSchema (SearchResult a) where
         <*> searchTook .= fieldWithDocModifier "took" (S.description ?~ "Search time in ms") schema
         <*> searchResults .= fieldWithDocModifier "documents" (S.description ?~ "List of contacts found") (array schema)
         <*> searchPolicy .= fieldWithDocModifier "search_policy" (S.description ?~ "Search policy that was applied when searching for users") schema
+        <*> searchPagingState .= maybe_ (optFieldWithDocModifier "paging_state" (S.description ?~ "Paging state that should be supplied to retrieve the next page of results") schema)
+        <*> searchHasMore .= maybe_ (optFieldWithDocModifier "has_more" (S.description ?~ "Indicates whether there are more results to be fetched") schema)
 
 deriving via (Schema (SearchResult Contact)) instance ToJSON (SearchResult Contact)
 
@@ -101,18 +130,6 @@ deriving via (Schema (SearchResult TeamContact)) instance FromJSON (SearchResult
 deriving via (Schema (SearchResult Contact)) instance S.ToSchema (SearchResult Contact)
 
 deriving via (Schema (SearchResult TeamContact)) instance S.ToSchema (SearchResult TeamContact)
-
-modelSearchResult :: Doc.Model -> Doc.Model
-modelSearchResult modelContact = Doc.defineModel "SearchResult" $ do
-  Doc.description "Search Result"
-  Doc.property "found" Doc.int32' $
-    Doc.description "Total number of hits"
-  Doc.property "returned" Doc.int32' $
-    Doc.description "Number of hits returned"
-  Doc.property "took" Doc.int32' $
-    Doc.description "Search time in ms"
-  Doc.property "documents" (Doc.array (Doc.ref modelContact)) $
-    Doc.description "List of contacts found"
 
 --------------------------------------------------------------------------------
 -- Contact
@@ -129,22 +146,6 @@ data Contact = Contact
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Contact)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema Contact
-
-modelSearchContact :: Doc.Model
-modelSearchContact = Doc.defineModel "Contact" $ do
-  Doc.description "Contact discovered through search"
-  Doc.property "id" Doc.string' $
-    Doc.description "User ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name"
-  Doc.property "handle" Doc.string' $
-    Doc.description "Handle"
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent color"
-    Doc.optional
-  Doc.property "team" Doc.string' $ do
-    Doc.description "Team ID"
-    Doc.optional
 
 instance ToSchema Contact where
   schema =
@@ -195,41 +196,6 @@ data TeamContact = TeamContact
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
   deriving (ToJSON, FromJSON) via (Schema TeamContact)
-
-modelSso :: Doc.Model
-modelSso = Doc.defineModel "Sso" $ do
-  Doc.description "Single Sign-On"
-  Doc.property "issuer" Doc.string' $
-    Doc.description "Issuer"
-  Doc.property "nameid" Doc.string' $
-    Doc.description "Name ID"
-
-modelTeamContact :: Doc.Model
-modelTeamContact = Doc.defineModel "TeamContact" $ do
-  Doc.description "Contact discovered through search"
-  Doc.property "id" Doc.string' $
-    Doc.description "User ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name"
-  Doc.property "handle" Doc.string' $
-    Doc.description "Handle"
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent color"
-    Doc.optional
-  Doc.property "team" Doc.string' $ do
-    Doc.description "Team ID"
-    Doc.optional
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email address"
-    Doc.optional
-  Doc.property "scim_external_id" Doc.string' $ do
-    Doc.description "SCIM external ID"
-    Doc.optional
-  Doc.property "sso" (Doc.ref modelSso) $ do
-    Doc.description "Single-Sign-On information"
-  Doc.property "email_unvalidated" Doc.string' $ do
-    Doc.description "Unvalidated email address"
-    Doc.optional
 
 instance ToSchema TeamContact where
   schema =

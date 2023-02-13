@@ -74,10 +74,10 @@ import Data.Predicate
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
 import qualified Data.ZAuth.Token as ZAuth
+import GHC.TypeNats
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -127,7 +127,7 @@ import Wire.Sem.Concurrency (Concurrency, ConcurrencySafety (Unsafe))
 
 routesPublic ::
   Members '[GalleyProvider, Concurrency 'Unsafe] r =>
-  Routes Doc.ApiBuilder (Handler r) ()
+  Routes () (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
 
@@ -897,7 +897,16 @@ addBot zuid zcon cid add = do
   let pid = addBotProvider add
   let sid = addBotService add
   -- Get the conversation and check preconditions
-  cnv <- lift (liftSem $ GalleyProvider.getConv zuid cid) >>= maybeConvNotFound
+  lcid <- qualifyLocal cid
+  cnv <- lift (liftSem $ GalleyProvider.getConv zuid lcid) >>= maybeConvNotFound
+  -- Check that the user is a conversation admin and therefore is allowed to add a bot to this conversation.
+  -- Note that this precondition is also checked in the internal galley API,
+  -- but by having this check here we prevent any (useless) data to be written to the database
+  -- as well as the unnecessary creation of the bot via the external service API call.
+  -- However, in case we refine the roles model in the future, this check might not be granular enough.
+  -- In that case we should rather do an internal call to galley to check for the correct permissions.
+  -- Also see `removeBot` for a similar check.
+  guardConvAdmin cnv
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
     throwStd invalidConv
@@ -973,7 +982,14 @@ removeBotH (zusr ::: zcon ::: cid ::: bid) = do
 removeBot :: Members '[GalleyProvider] r => UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
 removeBot zusr zcon cid bid = do
   -- Get the conversation and check preconditions
-  cnv <- lift (liftSem $ GalleyProvider.getConv zusr cid) >>= maybeConvNotFound
+  lcid <- qualifyLocal cid
+  cnv <- lift (liftSem $ GalleyProvider.getConv zusr lcid) >>= maybeConvNotFound
+  -- Check that the user is a conversation admin and therefore is allowed to remove a bot from the conversation.
+  -- Note that this precondition is also checked in the internal galley API.
+  -- However, in case we refine the roles model in the future, this check might not be granular enough.
+  -- In that case we should rather do an internal call to galley to check for the correct permissions.
+  -- Also see `addBot` for a similar check.
+  guardConvAdmin cnv
   let mems = cnvMembers cnv
   unless (cnvType cnv == RegularConv) $
     throwStd invalidConv
@@ -984,6 +1000,11 @@ removeBot zusr zcon cid bid = do
     Nothing -> pure Nothing
     Just _ -> do
       lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
+
+guardConvAdmin :: Conversation -> ExceptT Error (AppT r) ()
+guardConvAdmin conv = do
+  let selfMember = cmSelf . cnvMembers $ conv
+  unless (memConvRoleName selfMember == roleNameWireAdmin) $ throwStd accessDenied
 
 --------------------------------------------------------------------------------
 -- Bot API
@@ -1213,7 +1234,7 @@ maybeInvalidBot = maybe (throwStd invalidBot) pure
 maybeInvalidUser :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidUser = maybe (throwStd (errorToWai @'E.InvalidUser)) pure
 
-rangeChecked :: (Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
+rangeChecked :: (KnownNat n, KnownNat m, Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) pure . checkedEither
 
 invalidServiceKey :: Wai.Error

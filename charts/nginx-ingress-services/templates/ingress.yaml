@@ -1,4 +1,6 @@
-apiVersion: extensions/v1beta1
+{{- $apiIsStable := eq (include "ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "ingress.supportsPathType" .) "true" -}}
+apiVersion: {{ include "ingress.apiVersion" . }}
 kind: Ingress
 metadata:
   name: nginx-ingress
@@ -31,51 +33,111 @@ spec:
       http:
         paths:
           - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: nginz
+                port:
+                  name: http
+              {{- else }}
               serviceName: nginz
               servicePort: http
+              {{- end }}
 {{- if .Values.websockets.enabled }}
     - host: {{ .Values.config.dns.ssl }}
       http:
         paths:
           - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: nginz
+                port:
+                  name: ws
+              {{- else }}
               serviceName: nginz
               servicePort: ws
+              {{- end }}
 {{- end }}
 {{- if .Values.webapp.enabled }}
     - host: {{ .Values.config.dns.webapp }}
       http:
         paths:
           - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: webapp-http
+                port:
+                  number: {{ .Values.service.webapp.externalPort }}
+              {{- else }}
               serviceName: webapp-http
               servicePort: {{ .Values.service.webapp.externalPort }}
+              {{- end }}
 {{- end }}
 {{- if .Values.fakeS3.enabled }}
     - host: {{ .Values.config.dns.fakeS3 }}
       http:
         paths:
           - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: {{ .Values.service.s3.serviceName }}
+                port:
+                  number: {{ .Values.service.s3.externalPort }}
+              {{- else }}
               serviceName: {{ .Values.service.s3.serviceName }}
               servicePort: {{ .Values.service.s3.externalPort }}
+              {{- end }}
 {{- end }}
 {{- if .Values.teamSettings.enabled }}
     - host: {{ .Values.config.dns.teamSettings }}
       http:
         paths:
           - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: team-settings-http
+                port:
+                  number: {{ .Values.service.teamSettings.externalPort }}
+              {{- else }}
               serviceName: team-settings-http
               servicePort: {{ .Values.service.teamSettings.externalPort }}
+              {{- end }}
 {{- end }}
 {{- if .Values.accountPages.enabled }}
     - host: {{ .Values.config.dns.accountPages }}
       http:
         paths:
           - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
             backend:
+              {{- if $apiIsStable }}
+              service:
+                name: account-pages-http
+                port:
+                  number: {{ .Values.service.accountPages.externalPort }}
+              {{- else }}
               serviceName: account-pages-http
               servicePort: {{ .Values.service.accountPages.externalPort }}
+              {{- end }}
 {{- end }}

@@ -22,3 +22,14 @@ cassandra-ephemeral:
     seed_size: 1
     max_heap_size: 2048M
     heap_new_size: 1024M
+
+  livenessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    failureThreshold: 15
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    failureThreshold: 15

@@ -32,7 +32,7 @@ import qualified Data.List1 as List1
 import Data.Misc
 import Data.Qualified
 import Data.Singletons
-import Federator.MockServer (FederatedRequest (..))
+import Federator.MockServer
 import Imports hiding (head)
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -72,75 +72,71 @@ messageTimerInit ::
   TestM ()
 messageTimerInit mtimer = do
   -- Create a conversation with a timer
-  [alice, bob, jane] <- randomUsers 3
-  qAlice <- Qualified alice <$> viewFederationDomain
+  [(alice, qalice), (bob, qbob), (jane, qjane)] <- replicateM 3 randomUserTuple
   connectUsers alice (list1 bob [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing mtimer
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice qAlice [bob, jane] Nothing mtimer
+  cid <- assertConv rsp RegularConv alice qalice [qbob, qjane] Nothing mtimer
   -- Check that the timer is indeed what it should be
-  getConv jane cid
+  getConvQualified jane cid
     !!! const mtimer === (cnvMessageTimer <=< responseJsonUnsafe)
 
 messageTimerChange :: TestM ()
 messageTimerChange = do
   -- Create a conversation without a timer
-  [alice, bob, jane] <- randomUsers 3
-  qAlice <- Qualified alice <$> viewFederationDomain
+  [(alice, qalice), (bob, qbob), (jane, qjane)] <- replicateM 3 randomUserTuple
   connectUsers alice (list1 bob [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice qAlice [bob, jane] Nothing Nothing
+  qcid <- assertConv rsp RegularConv alice qalice [qbob, qjane] Nothing Nothing
+  let cid = qUnqualified qcid
   -- Set timer to null and observe 204
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate Nothing)
     !!! const 204 === statusCode
   -- Set timer to 1 second
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec)
     !!! const 200 === statusCode
-  getConv jane cid
+  getConvQualified jane qcid
     !!! const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
   -- Set timer to null
   putMessageTimerUpdate bob cid (ConversationMessageTimerUpdate Nothing)
     !!! const 200 === statusCode
-  getConv jane cid
+  getConvQualified jane qcid
     !!! const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
   -- Set timer to 1 year
   putMessageTimerUpdate bob cid (ConversationMessageTimerUpdate timer1year)
     !!! const 200 === statusCode
-  getConv jane cid
+  getConvQualified jane qcid
     !!! const timer1year === (cnvMessageTimer <=< responseJsonUnsafe)
 
 messageTimerChangeQualified :: TestM ()
 messageTimerChangeQualified = do
-  localDomain <- viewFederationDomain
   -- Create a conversation without a timer
-  [alice, bob, jane] <- randomUsers 3
-  qAlice <- Qualified alice <$> viewFederationDomain
+  [(alice, qalice), (bob, qbob), (jane, qjane)] <- replicateM 3 randomUserTuple
   connectUsers alice (list1 bob [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice qAlice [bob, jane] Nothing Nothing
-  let qcid = Qualified cid localDomain
+  qcid <- assertConv rsp RegularConv alice qalice [qbob, qjane] Nothing Nothing
   -- Set timer to null and observe 204
   putMessageTimerUpdateQualified alice qcid (ConversationMessageTimerUpdate Nothing)
     !!! const 204 === statusCode
   -- Set timer to 1 second
   putMessageTimerUpdateQualified alice qcid (ConversationMessageTimerUpdate timer1sec)
     !!! const 200 === statusCode
-  getConv jane cid
+  getConvQualified jane qcid
     !!! const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
   -- Set timer to null
   putMessageTimerUpdateQualified bob qcid (ConversationMessageTimerUpdate Nothing)
     !!! const 200 === statusCode
-  getConv jane cid
+  getConvQualified jane qcid
     !!! const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
   -- Set timer to 1 year
   putMessageTimerUpdateQualified bob qcid (ConversationMessageTimerUpdate timer1year)
     !!! const 200 === statusCode
-  getConv jane cid
+  getConvQualified jane qcid
     !!! const timer1year === (cnvMessageTimer <=< responseJsonUnsafe)
 
 messageTimerChangeWithRemotes :: TestM ()
@@ -160,7 +156,7 @@ messageTimerChangeWithRemotes = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
           !!! const 200 === statusCode
 
@@ -186,15 +182,16 @@ messageTimerChangeWithoutAllowedAction :: TestM ()
 messageTimerChangeWithoutAllowedAction = do
   -- Create a team and a guest user
   (tid, owner, member : _) <- createBindingTeamWithMembers 2
-  guest <- randomUser
+  (guest, qguest) <- randomUserTuple
   connectUsers owner (list1 guest [])
   -- Create a conversation
   cid <- createTeamConvWithRole owner tid [member, guest] Nothing Nothing Nothing roleNameWireMember
+  let qcid = qguest $> cid
   -- Try to change the timer (as a non admin, guest user) and observe failure
   putMessageTimerUpdate guest cid (ConversationMessageTimerUpdate timer1sec) !!! do
     const 403 === statusCode
     const "action-denied" === (label . responseJsonUnsafeWithMsg "error label")
-  getConv guest cid
+  getConvQualified guest qcid
     !!! const Nothing === (cnvMessageTimer <=< responseJsonUnsafe)
   -- Try to change the timer (as a non admin, team member) and observe failure too
   putMessageTimerUpdate member cid (ConversationMessageTimerUpdate timer1sec) !!! do
@@ -203,43 +200,40 @@ messageTimerChangeWithoutAllowedAction = do
   -- Finally try to change the timer (as an admin) and observe success
   putMessageTimerUpdate owner cid (ConversationMessageTimerUpdate timer1sec) !!! do
     const 200 === statusCode
-  getConv guest cid
+  getConvQualified guest qcid
     !!! const timer1sec === (cnvMessageTimer <=< responseJsonUnsafe)
 
 messageTimerChangeO2O :: TestM ()
 messageTimerChangeO2O = do
   -- Create a 1:1 conversation
-  [alice, bob] <- randomUsers 2
-  qAlice <- Qualified alice <$> viewFederationDomain
+  [(alice, qalice), (bob, qbob)] <- replicateM 2 randomUserTuple
   connectUsers alice (singleton bob)
   rsp <-
     postO2OConv alice bob Nothing
       <!! const 200 === statusCode
-  cid <- assertConv rsp One2OneConv alice qAlice [bob] Nothing Nothing
+  qcid <- assertConv rsp One2OneConv alice qalice [qbob] Nothing Nothing
+  let cid = qUnqualified qcid
   -- Try to change the timer and observe failure
   putMessageTimerUpdate alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
     const 403 === statusCode
     const "invalid-op" === (label . responseJsonUnsafeWithMsg "error label")
-  getConv alice cid
+  getConvQualified alice qcid
     !!! const Nothing === (cnvMessageTimer <=< responseJsonMaybe)
 
 messageTimerEvent :: TestM ()
 messageTimerEvent = do
-  localDomain <- viewFederationDomain
   ca <- view tsCannon
   -- Create a conversation
-  [alice, bob] <- randomUsers 2
-  qAlice <- Qualified alice <$> viewFederationDomain
+  [(alice, qalice), (bob, qbob)] <- replicateM 2 randomUserTuple
   connectUsers alice (singleton bob)
   rsp <-
     postConv alice [bob] Nothing [] Nothing Nothing
       <!! const 201 === statusCode
-  cid <- assertConv rsp RegularConv alice qAlice [bob] Nothing Nothing
+  qcid <- assertConv rsp RegularConv alice qalice [qbob] Nothing Nothing
+  let cid = qUnqualified qcid
   -- Set timer to 1 second and check that all participants got the event
   WS.bracketR2 ca alice bob $ \(wsA, wsB) -> do
     let update = ConversationMessageTimerUpdate timer1sec
-        qcid = Qualified cid localDomain
-        qalice = Qualified alice localDomain
     putMessageTimerUpdate alice cid update
       !!! const 200 === statusCode
     void . liftIO $

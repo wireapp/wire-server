@@ -82,6 +82,7 @@ let
     stern = [ "stern" ];
 
     billing-team-member-backfill = [ "billing-team-member-backfill" ];
+    inconsistencies = [ "inconsistencies" ];
     api-simulations = [ "api-smoketest" "api-loadtest" ];
     zauth = [ "zauth" ];
   };
@@ -144,7 +145,7 @@ let
       )
       executablesMap;
 
-  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc8107.override {
+  hPkgs = localMods@{ enableOptimization, enableDocs, enableTests }: pkgs.haskell.packages.ghc92.override {
     overrides = lib.composeManyExtensions [
       pinnedPackages
       (localPackages localMods)
@@ -297,16 +298,20 @@ let
     pkgs.cabal2nix
     pkgs.gnumake
     pkgs.gnused
+    pkgs.parallel
+    pkgs.ripgrep
     pkgs.helm
     pkgs.helmfile
     pkgs.hlint
-    ( hlib.justStaticExecutables pkgs.haskellPackages.apply-refact )
+    (hlib.justStaticExecutables pkgs.haskellPackages.apply-refact)
     pkgs.jq
     pkgs.kubectl
     pkgs.nixpkgs-fmt
     pkgs.ormolu
     pkgs.shellcheck
     pkgs.treefmt
+    pkgs.gawk
+    pkgs.cfssl
     (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
   ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
     pkgs.skopeo
@@ -362,9 +367,8 @@ in
   devEnv = pkgs.buildEnv {
     name = "wire-server-dev-env";
     paths = commonTools ++ [
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "92" ]; })
       pkgs.ghcid
-      pkgs.cfssl
       pkgs.kind
       pkgs.netcat
       pkgs.niv

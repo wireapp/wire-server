@@ -17,25 +17,17 @@
 
 module Galley.API.Public
   ( sitemap,
-    apiDocs,
     filterMissing, -- for tests
     continueE,
   )
 where
 
-import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id
 import qualified Data.Predicate as P
 import Data.Qualified
-import Data.Range
 import qualified Data.Set as Set
-import Data.Swagger.Build.Api hiding (Response, def, min)
-import qualified Data.Swagger.Build.Api as Swagger
-import Data.Text.Encoding (decodeLatin1)
-import qualified Galley.API.Error as Error
 import qualified Galley.API.Query as Query
-import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Teams.Features as Features
 import Galley.App
 import Galley.Cassandra.TeamFeatures
@@ -50,8 +42,6 @@ import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import qualified Network.Wai.Predicate as P
 import Network.Wai.Predicate.Request (HasQuery)
 import Network.Wai.Routing hiding (route)
-import Network.Wai.Utilities hiding (Error)
-import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
 import Polysemy.Error
@@ -62,9 +52,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
-import qualified Wire.API.Notification as Public
 import Wire.API.Routes.API
-import qualified Wire.API.Swagger as Public.Swagger (models)
 import Wire.API.Team.Feature
 
 -- These are all the errors that can be thrown by wai-routing handlers.
@@ -108,51 +96,8 @@ continueE ::
   Sem r ResponseReceived
 continueE h = continue (interpretServerEffects @ErrorEffects . h)
 
-errorSResponse :: forall e. KnownError (MapError e) => OperationBuilder
-errorSResponse = errorResponse (toWai (dynError @(MapError e)))
-
-sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
+sitemap :: Routes () (Sem GalleyEffects) ()
 sitemap = do
-  get "/teams/notifications" (continueE Teams.getTeamNotificationsH) $
-    zauthUserId
-      .&. opt (query "since")
-      .&. def (unsafeRange 1000) (query "size")
-      .&. accept "application" "json"
-  document "GET" "getTeamNotifications" $ do
-    summary "Read recently added team members from team queue"
-    notes
-      "This is a work-around for scalability issues with gundeck user event fan-out. \
-      \It does not track all team-wide events, but only `member-join`.\
-      \\n\
-      \Note that `/teams/notifications` behaves different from `/notifications`:\
-      \\n\
-      \- If there is a gap between the notification id requested with `since` and the \
-      \available data, team queues respond with 200 and the data that could be found. \
-      \The do NOT respond with status 404, but valid data in the body.\
-      \\n\
-      \- The notification with the id given via `since` is included in the \
-      \response if it exists.  You should remove this and only use it to decide whether \
-      \there was a gap between your last request and this one.\
-      \\n\
-      \- If the notification id does *not* exist, you get the more recent events from the queue \
-      \(instead of all of them).  This can be done because a notification id is a UUIDv1, which \
-      \is essentially a time stamp.\
-      \\n\
-      \- There is no corresponding `/last` end-point to get only the most recent event. \
-      \That end-point was only useful to avoid having to pull the entire queue.  In team \
-      \queues, if you have never requested the queue before and \
-      \have no prior notification id, just pull with timestamp 'now'."
-    parameter Query "since" bytes' $ do
-      optional
-      description "Notification id to start with in the response (UUIDv1)"
-    parameter Query "size" (int32 (Swagger.def 1000)) $ do
-      optional
-      description "Maximum number of events to return (1..10000; default: 1000)"
-    returns (ref Public.modelNotificationList)
-    response 200 "List of team notifications" end
-    errorSResponse @'TeamNotFound
-    errorResponse Error.invalidTeamNotificationId
-
   -- Bot API ------------------------------------------------------------
 
   get "/bot/conversation" (continueE (getBotConversationH @Cassandra)) $
@@ -180,19 +125,7 @@ getBotConversationH ::
 getBotConversationH arg@(bid ::: cid ::: _) =
   Features.guardSecondFactorDisabled @db (botUserId bid) cid (Query.getBotConversationH arg)
 
-apiDocs :: Routes ApiBuilder (Sem r) ()
-apiDocs =
-  get "/conversations/api-docs" (continue docs) $
-    accept "application" "json"
-      .&. query "base_url"
-
 type JSON = Media "application" "json"
-
-docs :: JSON ::: ByteString -> Sem r Response
-docs (_ ::: url) = do
-  let models = Public.Swagger.models
-  let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
-  pure $ responseLBS status200 [jsonContent] apidoc
 
 -- FUTUREWORK: Maybe would be better to move it to wire-api?
 filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing

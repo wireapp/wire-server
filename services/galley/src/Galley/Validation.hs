@@ -28,18 +28,19 @@ where
 
 import Control.Lens
 import Data.Range
+import GHC.TypeNats
 import Galley.API.Error
 import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Error
 
-rangeChecked :: (Member (Error InvalidInput) r, Within a n m) => a -> Sem r (Range n m a)
+rangeChecked :: (KnownNat n, KnownNat m, Member (Error InvalidInput) r, Within a n m) => a -> Sem r (Range n m a)
 rangeChecked = either throwErr pure . checkedEither
 {-# INLINE rangeChecked #-}
 
 rangeCheckedMaybe ::
-  (Member (Error InvalidInput) r, Within a n m) =>
+  (Member (Error InvalidInput) r, KnownNat n, KnownNat m, Within a n m) =>
   Maybe a ->
   Sem r (Maybe (Range n m a))
 rangeCheckedMaybe Nothing = pure Nothing

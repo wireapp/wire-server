@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -156,9 +156,6 @@ runFullScans env@Env {..} users = do
     readBrigUserKeysAll env
       .| mapC (filter (haveId . view _2))
 
-  -- FUTUREWORK: no need to read this table, it can be populated from `brig.user`
-  appendJsonLines (envTargetPath </> "brig.user_keys_hash") $
-    readBrigUserKeysHashAll env
   appendJsonLines (envTargetPath </> "spar.user") $
     readSparUserAll env
       .| mapC (filter (haveId . view _3))

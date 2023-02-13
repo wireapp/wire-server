@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,6 +22,7 @@
 
 module Test.Galley.Intra.User where
 
+-- import Debug.Trace (traceShow)
 import Galley.Intra.User (chunkify)
 import Imports
 import Test.QuickCheck

@@ -28,6 +28,8 @@ coturnTurnTlsListenPort: 5349
 
 tls:
   enabled: false
+  # compliant with BSI TR-02102-2
+  ciphers: 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384'
   secretRef:
   reloaderImage:
     # container image containing https://github.com/Pluies/config-reloader-sidecar

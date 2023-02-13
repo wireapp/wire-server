@@ -1,5 +1,7 @@
 {-# LANGUAGE StrictData #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,9 +31,13 @@ where
 
 import Brig.Data.Instances ()
 import Brig.User.Search.Index
+import Control.Error (lastMay)
 import Control.Monad.Catch (MonadThrow (throwM))
+import Data.Aeson (decode', encode)
 import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
+import Data.String.Conversions (cs)
+import Data.Text.Ascii (decodeBase64Url, encodeBase64Url)
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Wire.API.User.Search
@@ -44,28 +50,42 @@ teamUserSearch ::
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
   Range 1 500 Int32 ->
+  Maybe PagingState ->
   m (SearchResult TeamContact)
-teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) = liftIndexIO $ do
+teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> size) mPagingState = liftIndexIO $ do
   let (IndexQuery q f sortSpecs) = teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder
   idx <- asks idxName
   let search =
         (ES.mkSearch (Just q) (Just f))
-          { ES.size = ES.Size (fromIntegral s),
-            ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs)
+          { -- we are requesting one more result than the page size to determine if there is a next page
+            ES.size = ES.Size (fromIntegral size + 1),
+            ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs),
+            ES.searchAfterKey = toSearchAfterKey =<< mPagingState
           }
   r <-
     ES.searchByType idx mappingName search
       >>= ES.parseEsResponse
   either (throwM . IndexLookupError) (pure . mkResult) r
   where
+    toSearchAfterKey :: PagingState -> Maybe ES.SearchAfterKey
+    toSearchAfterKey ps = decode' . cs =<< (decodeBase64Url . unPagingState $ ps)
+
+    fromSearchAfterKey :: ES.SearchAfterKey -> PagingState
+    fromSearchAfterKey = PagingState . encodeBase64Url . cs . encode
+
     mkResult es =
-      let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
+      let hitsPlusOne = ES.hits . ES.searchHits $ es
+          hits = take (fromIntegral size) hitsPlusOne
+          mps = fromSearchAfterKey <$> lastMay (mapMaybe ES.hitSort hits)
+          results = mapMaybe ES.hitSource hits
        in SearchResult
             { searchFound = ES.hitsTotal . ES.searchHits $ es,
               searchReturned = length results,
               searchTook = ES.took es,
               searchResults = results,
-              searchPolicy = FullSearch
+              searchPolicy = FullSearch,
+              searchPagingState = mps,
+              searchHasMore = Just $ length hitsPlusOne > length hits
             }
 
 -- FUTURWORK: Implement role filter (needs galley data)
@@ -84,12 +104,24 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
         mbQStr
     )
     teamFilter
-    ( maybe
+    -- in combination with pagination a non-unique search specification can lead to missing results
+    -- therefore we use the unique `_doc` value as a tie breaker
+    -- - see https://www.elastic.co/guide/en/elasticsearch/reference/6.8/search-request-sort.html for details on `_doc`
+    -- - see https://www.elastic.co/guide/en/elasticsearch/reference/6.8/search-request-search-after.html for details on pagination and tie breaker
+    -- in the latter article it "is advised to duplicate (client side or [...]) the content of the _id field
+    -- in another field that has doc value enabled and to use this new field as the tiebreaker for the sort"
+    -- so alternatively we could use the user ID as a tie breaker, but this would require a change in the index mapping
+    (sorting ++ sortingTieBreaker)
+  where
+    sorting :: [ES.DefaultSort]
+    sorting =
+      maybe
         [defaultSort SortByCreatedAt SortOrderDesc | isNothing mbQStr]
         (\tuSortBy -> [defaultSort tuSortBy (fromMaybe SortOrderAsc mSortOrder)])
         mSortBy
-    )
-  where
+    sortingTieBreaker :: [ES.DefaultSort]
+    sortingTieBreaker = [ES.DefaultSort (ES.FieldName "_doc") ES.Ascending Nothing Nothing Nothing Nothing]
+
     mbQStr :: Maybe Text
     mbQStr =
       case mbSearchText of

@@ -32,6 +32,7 @@ module Wire.API.Routes.Version
     developmentVersions,
     readVersionNumber,
     mkVersion,
+    toPathComponent,
 
     -- * Servant combinators
     Until,
@@ -43,6 +44,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
+import Data.ByteString.Conversion (ToByteString (builder))
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Schema
@@ -82,6 +84,16 @@ instance FromHttpApiData Version where
 instance ToHttpApiData Version where
   toHeader = LBS.toStrict . Aeson.encode
   toUrlPiece = Text.decodeUtf8 . toHeader
+
+instance ToByteString Version where
+  builder = toEncodedUrlPiece
+
+-- | `Version` as it appears in an URL path
+--
+-- >>> toPathComponent V1
+-- "v1"
+toPathComponent :: Version -> ByteString
+toPathComponent v = "v" <> toHeader v
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]

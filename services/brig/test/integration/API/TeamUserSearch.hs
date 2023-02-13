@@ -17,7 +17,7 @@
 
 module API.TeamUserSearch (tests) where
 
-import API.Search.Util (executeTeamUserSearch, refreshIndex)
+import API.Search.Util (executeTeamUserSearch, executeTeamUserSearchWithMaybeState, refreshIndex)
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (activateEmail, initiateEmailUpdateNoSend)
 import Bilge (Manager, MonadHttp)
@@ -27,11 +27,12 @@ import Control.Retry ()
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId)
+import Data.Range (unsafeRange)
 import Data.String.Conversions (cs)
 import Imports
 import System.Random.Shuffle (shuffleM)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertBool, assertEqual)
+import Test.Tasty.HUnit (assertBool, assertEqual, (@?=))
 import Util (Brig, Galley, randomEmail, test, withSettingsOverrides)
 import Wire.API.User (User (..), userEmail)
 import Wire.API.User.Identity
@@ -46,7 +47,8 @@ tests opts mgr _galley brig = do
       [ testWithNewIndex "can find user by email" (testSearchByEmailSameTeam brig),
         testWithNewIndex "empty query returns the whole team sorted" (testEmptyQuerySorted brig),
         testWithNewIndex "sorting by some properties works" (testSort brig),
-        testWithNewIndex "call to search with remaining properties succeeds" (testSortCallSucceeds brig)
+        testWithNewIndex "call to search with remaining properties succeeds" (testSortCallSucceeds brig),
+        testWithNewIndex "query with paging state" (testEmptyQuerySortedWithPagination brig)
       ]
   where
     testWithNewIndex name f = test mgr name $ withSettingsOverrides opts f
@@ -109,7 +111,7 @@ testSort brig = do
   let sortByProperty' :: (TestConstraints m, Ord a) => TeamUserSearchSortBy -> (User -> a) -> TeamUserSearchSortOrder -> m ()
       sortByProperty' = sortByProperty tid users ownerId
   for_ [SortOrderAsc, SortOrderDesc] $ \sortOrder -> do
-    -- FUTUREWORK: Test SortByRole when role is avaible in index
+    -- FUTUREWORK: Test SortByRole when role is available in index
     sortByProperty' SortByEmail userEmail sortOrder
     sortByProperty' SortByName userDisplayName sortOrder
     sortByProperty' SortByHandle (fmap fromHandle . userHandle) sortOrder
@@ -137,3 +139,22 @@ testSortCallSucceeds brig = do
   for_ [SortByManagedBy, SortBySAMLIdp] $ \tuSortBy -> do
     r <- searchResults <$> executeTeamUserSearch brig tid ownerId Nothing Nothing (Just tuSortBy) (Just SortOrderAsc)
     liftIO $ assertEqual ("length of users sorted by " <> cs (toByteString tuSortBy)) n (length r)
+
+testEmptyQuerySortedWithPagination :: TestConstraints m => Brig -> m ()
+testEmptyQuerySortedWithPagination brig = do
+  (tid, userId -> ownerId, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 20
+  refreshIndex brig
+  let teamUserSearch mPs = executeTeamUserSearchWithMaybeState brig tid ownerId (Just "") Nothing Nothing Nothing (Just $ unsafeRange 10) mPs
+  searchResultFirst10 <- teamUserSearch Nothing
+  searchResultNext10 <- teamUserSearch (searchPagingState searchResultFirst10)
+  searchResultLast1 <- teamUserSearch (searchPagingState searchResultNext10)
+  liftIO $ do
+    searchReturned searchResultFirst10 @?= 10
+    searchFound searchResultFirst10 @?= 21
+    searchHasMore searchResultFirst10 @?= Just True
+    searchReturned searchResultNext10 @?= 10
+    searchFound searchResultNext10 @?= 21
+    searchHasMore searchResultNext10 @?= Just True
+    searchReturned searchResultLast1 @?= 1
+    searchFound searchResultLast1 @?= 21
+    searchHasMore searchResultLast1 @?= Just False

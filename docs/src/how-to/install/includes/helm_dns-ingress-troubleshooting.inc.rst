@@ -143,8 +143,6 @@ Next, we want to redirect port 443 to the port the nginx https ingress nodeport 
 
 * Option 2: Use ansible to do that, run the `iptables playbook <https://github.com/wireapp/wire-server-deploy/blob/master/ansible/iptables.yml>`__
 
-.. include:: ./includes/dns-federation.rst
-
 Trying things out
 -----------------
 

@@ -1,8 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# HLINT ignore "Use $>" #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-
-{-# HLINT ignore "Use $>" #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -69,6 +70,7 @@ import Spar.App
 import Spar.CanonicalInterpreter
 import Spar.Error
 import qualified Spar.Intra.BrigApp as Brig
+import Spar.Options
 import Spar.Orphans ()
 import Spar.Scim
 import Spar.Sem.AReqIDStore (AReqIDStore)

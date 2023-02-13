@@ -1,6 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -103,7 +104,6 @@ spec = do
           ("photos", toJSON @[Photo] mempty),
           ("addresses", toJSON @[Address] mempty),
           ("entitlements", toJSON @[Text] mempty),
-          ("roles", toJSON @[Text] mempty),
           ("x509Certificates", toJSON @[Certificate] mempty)
         ]
         $ \(key, upd) -> do

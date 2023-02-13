@@ -25,6 +25,7 @@ import Brig.API.Error
 import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import Brig.API.MLS.KeyPackages
+import Brig.API.MLS.Util
 import qualified Brig.API.User as API
 import Brig.API.Util (lookupSearchPolicy)
 import Brig.App
@@ -96,7 +97,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     then do
       self <- qualifyLocal ncrTo
       let other = toRemoteUnsafe originDomain ncrFrom
-      mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
+      mconnection <- lift . wrapClient $ Data.lookupConnection self (tUntagged other)
       maction <- lift $ performRemoteAction self other mconnection ncrAction
       pure $ NewConnectionResponseOk maction
     else pure NewConnectionResponseUserNotActivated
@@ -154,11 +155,14 @@ claimMultiPrekeyBundle ::
 claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
 
 fedClaimKeyPackages :: Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyPackageBundle)
-fedClaimKeyPackages domain ckpr = do
-  ltarget <- qualifyLocal (ckprTarget ckpr)
-  let rusr = toRemoteUnsafe domain (ckprClaimant ckpr)
-  lift . fmap hush . runExceptT $
-    claimLocalKeyPackages (qUntagged rusr) Nothing ltarget
+fedClaimKeyPackages domain ckpr =
+  isMLSEnabled >>= \case
+    True -> do
+      ltarget <- qualifyLocal (ckprTarget ckpr)
+      let rusr = toRemoteUnsafe domain (ckprClaimant ckpr)
+      lift . fmap hush . runExceptT $
+        claimLocalKeyPackages (tUntagged rusr) Nothing ltarget
+    False -> pure Nothing
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
@@ -214,7 +218,7 @@ onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) Emp
 onUserDeleted origDomain udcn = lift $ do
   let deletedUser = toRemoteUnsafe origDomain (udcnUser udcn)
       connections = udcnConnections udcn
-      event = pure . UserEvent $ UserDeleted (qUntagged deletedUser)
+      event = pure . UserEvent $ UserDeleted (tUntagged deletedUser)
   acceptedLocals <-
     map csv2From
       . filter (\x -> csv2Status x == Accepted)

@@ -22,6 +22,7 @@ module Wire.API.Routes.QualifiedCapture
 where
 
 import Data.Domain
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.Swagger
@@ -35,7 +36,7 @@ import Servant.Server.Internal.ErrorFormatter
 import Servant.Swagger
 
 -- | Capture a value qualified by a domain, with modifiers.
-data QualifiedCapture' (mods :: [*]) (capture :: Symbol) (a :: *)
+data QualifiedCapture' (mods :: [Type]) (capture :: Symbol) (a :: Type)
 
 -- | Capture a value qualified by a domain.
 --

@@ -2,6 +2,13 @@
 
 The following assume you have a working developer environment with all the dependencies listed in [./dependencies.md](./dependencies.md) available to you.
 
+If you want to deploy to the CI kubernetes cluster (how-tos below), you need to set the `KUBECONFIG` env var, where `$cailleach_repo` is replaced by your local checkout of the `cailleach` repository.
+```
+export KUBECONFIG=$cailleach_repo/environments/kube-ci/kubeconfig.dec
+```
+Check that this file exists by running `ls $KUBECONFIG`.
+
+
 ## How to look at the swagger docs / UI locally
 
 Terminal 1:
@@ -9,15 +16,17 @@ Terminal 1:
 
 Terminal 2:
 * Compile all services: `make c`
-  * Note that you have to [import the public signing keys for nginx](https://github.com/wireapp/wire-server/blob/develop/services/nginz/README.md#common-problems-while-compiling) to be able to build nginz
-* Run services including nginz: `./services/start-services-only.sh`. If you don't want to run nginz set `INTEGRATION_USE_NGINZ=0`.
+* Run services including nginz: `./services/start-services-only.sh`.
 
 Open your browser at:
+[http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for
+the Swagger 2.0 endpoints of the latest version. This endpoint is versioned;
+i.e. the Swagger docs refer to the API version. Refer to the [Swagger API
+documentation](../../understand/api-client-perspective/swagger.md) regarding
+Swagger and API versioning.
 
-- http://localhost:8080/api/swagger-ui for the swagger 2.0 endpoints (in development as of Feb 2021 - more endpoints will be added here as time goes on)
-- http://localhost:8080/swagger-ui/ for the old swagger 1.2 API (old swagger, endpoints will disappear from here (and become available in the previous link) as time progresses). Run `make -C services/nginz integration-test/conf/nginz/zwagger-ui` once to get JS libraries needed (they are not included in the repo).
+Swagger json is available under [http://localhost:8080/api/swagger.json](http://localhost:8080/api/swagger.json)
 
-Swagger json (for swagger 2.0 endpoints) is available under http://localhost:8080/api/swagger.json
 
 ## How to run federation tests across two backends
 
@@ -106,21 +115,19 @@ This can be useful to get quicker feedback while working on multi-backend code o
 
 FUTUREWORK: this process is in development (update this section after it's confirmed to work):
 
-##### (i) Build images
-
-(FUTUREWORK: implement a convenient shortcut to build images without actually uploading them also)
-```
-make upload-images-dev
-```
-
-##### (ii) Run tests in kind
+##### Run tests in kind
 
 0. Create a local kind cluster with `make kind-cluster`
-1. Install wire-server using `make kind-integration-setup`.
-2. Run tests using `make kind-integration-test`.
-3. Run end2end integration tests: `make kind-integration-e2e`.
+1. Upload images in docker-daemon running inside kind with `make kind-upload-images`
 
-* Implement re-tagging development tags as your user tag?
+   *Note:* First time all the images need to be uploaded. When working on one
+   service it can be selectively uploaded using `make kind-upload-image-<name>`
+   (e.g. `make kind-upload-image-brig`).
+2. Install wire-server using `make kind-integration-setup`.
+3. Run tests using `make kind-integration-test`.
+4. Run end2end integration tests: `make kind-integration-e2e`.
+
+
 
 #### 2.4 Deploy your local code to a kubernetes cluster
 

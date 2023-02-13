@@ -30,13 +30,6 @@ module Wire.API.Conversation.Member
     MemberUpdate (..),
     memberUpdate,
     OtherMemberUpdate (..),
-
-    -- * Swagger
-    modelConversationMembers,
-    modelOtherMember,
-    modelMember,
-    modelMemberUpdate,
-    modelOtherMemberUpdate,
   )
 where
 
@@ -48,11 +41,10 @@ import Data.Id
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Conversation.Role
-import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
+import Wire.API.Provider.Service (ServiceRef)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 data ConvMembers = ConvMembers
@@ -77,14 +69,6 @@ instance ToSchema ConvMembers where
             "others"
             (description ?~ "All other current users of this conversation")
             (array schema)
-
-modelConversationMembers :: Doc.Model
-modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
-  Doc.description "Object representing users of a conversation."
-  Doc.property "self" (Doc.ref modelMember) $
-    Doc.description "The user ID of the requestor"
-  Doc.property "others" (Doc.unique (Doc.array (Doc.ref modelOtherMember))) $
-    Doc.description "All other current users of this conversation"
 
 --------------------------------------------------------------------------------
 -- Members
@@ -133,29 +117,6 @@ instance ToSchema Member where
       c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
 
-modelMember :: Doc.Model
-modelMember = Doc.defineModel "Member" $ do
-  Doc.property "id" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "otr_muted_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)muting"
-    Doc.optional
-  Doc.property "otr_archived" Doc.bool' $ do
-    Doc.description "Whether the conversation is archived"
-    Doc.optional
-  Doc.property "otr_archived_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)archiving"
-    Doc.optional
-  Doc.property "hidden" Doc.bool' $ do
-    Doc.description "Whether the conversation is hidden"
-    Doc.optional
-  Doc.property "hidden_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)hiding"
-    Doc.optional
-  Doc.property "service" (Doc.ref modelServiceRef) $ do
-    Doc.description "The reference to the owning service, if the member is a 'bot'."
-    Doc.optional
-
 -- | The semantics of the possible different values is entirely up to clients,
 -- the server will not interpret this value in any way.
 newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
@@ -187,14 +148,6 @@ instance ToSchema OtherMember where
 instance Ord OtherMember where
   compare a b = compare (omQualifiedId a) (omQualifiedId b)
 
-modelOtherMember :: Doc.Model
-modelOtherMember = Doc.defineModel "OtherMember" $ do
-  Doc.property "id" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "service" (Doc.ref modelServiceRef) $ do
-    Doc.description "The reference to the owning service, if the member is a 'bot'."
-    Doc.optional
-
 --------------------------------------------------------------------------------
 -- Member Updates
 
@@ -213,25 +166,6 @@ data MemberUpdate = MemberUpdate
 
 memberUpdate :: MemberUpdate
 memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing
-
-modelMemberUpdate :: Doc.Model
-modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
-  Doc.description "Update user properties relative to a conversation"
-  Doc.property "otr_muted_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)muting"
-    Doc.optional
-  Doc.property "otr_archived" Doc.bool' $ do
-    Doc.description "Whether to notify on conversation updates"
-    Doc.optional
-  Doc.property "otr_archived_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)archiving"
-    Doc.optional
-  Doc.property "hidden" Doc.bool' $ do
-    Doc.description "Whether the conversation is hidden"
-    Doc.optional
-  Doc.property "hidden_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)hiding"
-    Doc.optional
 
 instance ToSchema MemberUpdate where
   schema =
@@ -271,13 +205,6 @@ data OtherMemberUpdate = OtherMemberUpdate
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema OtherMemberUpdate)
-
-modelOtherMemberUpdate :: Doc.Model
-modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do
-  Doc.description "Update user properties of other members relative to a conversation"
-  Doc.property "conversation_role" Doc.string' $ do
-    Doc.description "Name of the conversation role updated to"
-    Doc.optional
 
 instance Arbitrary OtherMemberUpdate where
   arbitrary = OtherMemberUpdate . Just <$> arbitrary

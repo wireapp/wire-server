@@ -36,6 +36,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as A
 import Data.Id
+import Data.Kind
 import qualified Data.List.NonEmpty as NonEmptyList
 import Data.Qualified (Qualified)
 import Data.Schema hiding (tag)
@@ -47,13 +48,13 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action.Tag
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.API.MLS.SubConversation
 import Wire.Arbitrary (Arbitrary (..))
 
 -- | We use this type family instead of a sum type to be able to define
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
-type family ConversationAction (tag :: ConversationActionTag) :: * where
+type family ConversationAction (tag :: ConversationActionTag) :: Type where
   ConversationAction 'ConversationJoinTag = ConversationJoin
-  ConversationAction 'ConversationSelfInviteTag = ConvId
   ConversationAction 'ConversationLeaveTag = ()
   ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
   ConversationAction 'ConversationDeleteTag = ()
@@ -104,7 +105,6 @@ conversationActionSchema SConversationRenameTag = schema
 conversationActionSchema SConversationMessageTimerUpdateTag = schema
 conversationActionSchema SConversationReceiptModeUpdateTag = schema
 conversationActionSchema SConversationAccessDataTag = schema
-conversationActionSchema SConversationSelfInviteTag = schema
 
 instance FromJSON SomeConversationAction where
   parseJSON = A.withObject "SomeConversationAction" $ \ob -> do
@@ -145,16 +145,14 @@ conversationActionToEvent ::
   UTCTime ->
   Qualified UserId ->
   Qualified ConvId ->
+  Maybe SubConvId ->
   ConversationAction tag ->
   Event
-conversationActionToEvent tag now quid qcnv action =
+conversationActionToEvent tag now quid qcnv subconv action =
   let edata = case tag of
         SConversationJoinTag ->
           let ConversationJoin newMembers role = action
            in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
-        SConversationSelfInviteTag ->
-          -- this event will not be sent anyway so this is a dummy event
-          EdMembersJoin $ SimpleMembers []
         SConversationLeaveTag ->
           EdMembersLeave (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->
@@ -168,4 +166,4 @@ conversationActionToEvent tag now quid qcnv action =
         SConversationMessageTimerUpdateTag -> EdConvMessageTimerUpdate action
         SConversationReceiptModeUpdateTag -> EdConvReceiptModeUpdate action
         SConversationAccessDataTag -> EdConvAccessUpdate action
-   in Event qcnv quid now edata
+   in Event qcnv subconv quid now edata

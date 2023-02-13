@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
@@ -64,6 +66,7 @@ import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.Error hiding (sparToServerErrorWithLogging)
 import qualified Spar.Intra.BrigApp as Intra
+import Spar.Options
 import Spar.Orphans ()
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.BrigAccess (BrigAccess)

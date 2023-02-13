@@ -40,6 +40,7 @@ import Data.Timeout
 import qualified Data.UUID.V4 as UUIDv4
 import Federation.Util (generateClientPrekeys)
 import Imports
+import qualified Network.Wai.Test as WaiTest
 import Test.QuickCheck hiding ((===))
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
@@ -86,7 +87,8 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
         test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
         test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient),
-        test m "POST /federation/claim-key-packages : 200" (testClaimKeyPackages brig fedBrigClient)
+        test m "POST /federation/claim-key-packages : 200" (testClaimKeyPackages brig fedBrigClient),
+        test m "POST /federation/claim-key-packages (MLS disabled) : 200" (testClaimKeyPackagesMLSDisabled opts brig)
       ]
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
@@ -195,7 +197,8 @@ testSearchRestrictions opts brig = do
                  Opt.FederationDomainConfig domainFullSearch FullSearch
                ]
 
-  let expectSearch domain squery expectedUsers expectedSearchPolicy = do
+  let expectSearch :: HasCallStack => Domain -> Text -> [Qualified UserId] -> FederatedUserSearchPolicy -> WaiTest.Session ()
+      expectSearch domain squery expectedUsers expectedSearchPolicy = do
         searchResponse <-
           runWaiTestFedClient domain $
             createWaiTestFedClient @"search-users" @'Brig (SearchRequest squery)
@@ -441,3 +444,16 @@ testClaimKeyPackages brig fedBrigClient = do
       ciDomain cid @?= qDomain bob
       ciUser cid @?= qUnqualified bob
       ciClient cid @?= kpbeClient e
+
+testClaimKeyPackagesMLSDisabled :: HasCallStack => Opt.Opts -> Brig -> Http ()
+testClaimKeyPackagesMLSDisabled opts brig = do
+  alice <- fakeRemoteUser
+  bob <- userQualifiedId <$> randomUser brig
+
+  mbundle <-
+    withSettingsOverrides (opts & Opt.optionSettings . Opt.enableMLS ?~ False) $
+      runWaiTestFedClient (qDomain alice) $
+        createWaiTestFedClient @"claim-key-packages" @'Brig $
+          ClaimKeyPackageRequest (qUnqualified alice) (qUnqualified bob)
+
+  liftIO $ mbundle @?= Nothing

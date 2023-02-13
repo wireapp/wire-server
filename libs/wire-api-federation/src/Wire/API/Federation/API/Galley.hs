@@ -31,9 +31,12 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName)
+import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
+import Wire.API.MLS.SubConversation
+import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Util.Aeson (CustomEncoded (..))
@@ -57,21 +60,81 @@ type GalleyApi =
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
     :<|> FedEndpoint "on-conversation-updated" ConversationUpdate ()
-    :<|> FedEndpoint "leave-conversation" LeaveConversationRequest LeaveConversationResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Galley "on-new-remote-conversation"
+            ]
+           "leave-conversation"
+           LeaveConversationRequest
+           LeaveConversationResponse
     -- used to notify this backend that a new message has been posted to a
     -- remote conversation
     :<|> FedEndpoint "on-message-sent" (RemoteMessage ConvId) ()
     -- used by a remote backend to send a message to a conversation owned by
     -- this backend
-    :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
-    :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
-    :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
-    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest EmptyResponse
-    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
-    :<|> FedEndpoint "send-mls-message" MessageSendRequest MLSMessageResponse
-    :<|> FedEndpoint "send-mls-commit-bundle" MessageSendRequest MLSMessageResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-message-sent",
+              MakesFederatedCall 'Brig "get-user-clients"
+            ]
+           "send-message"
+           ProteusMessageSendRequest
+           MessageSendResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Galley "on-new-remote-conversation"
+            ]
+           "on-user-deleted-conversations"
+           UserDeletedConversationsNotification
+           EmptyResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Galley "on-new-remote-conversation"
+            ]
+           "update-conversation"
+           ConversationUpdateRequest
+           ConversationUpdateResponse
+    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
+    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage RemoteMLSMessageResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Galley "on-new-remote-conversation",
+              MakesFederatedCall 'Galley "send-mls-message",
+              MakesFederatedCall 'Brig "get-mls-clients"
+            ]
+           "send-mls-message"
+           MLSMessageSendRequest
+           MLSMessageResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "mls-welcome",
+              MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Galley "on-new-remote-conversation",
+              MakesFederatedCall 'Galley "send-mls-commit-bundle",
+              MakesFederatedCall 'Brig "get-mls-clients"
+            ]
+           "send-mls-commit-bundle"
+           MLSMessageSendRequest
+           MLSMessageResponse
     :<|> FedEndpoint "query-group-info" GetGroupInfoRequest GetGroupInfoResponse
-    :<|> FedEndpoint "on-client-removed" ClientRemovedRequest EmptyResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-mls-message-sent"
+            ]
+           "on-client-removed"
+           ClientRemovedRequest
+           EmptyResponse
+    :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
+
+data TypingDataUpdateRequest = TypingDataUpdateRequest
+  { tdurTypingStatus :: TypingStatus,
+    tdurUserId :: UserId,
+    tdurConvId :: ConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via (CustomEncoded TypingDataUpdateRequest)
 
 data ClientRemovedRequest = ClientRemovedRequest
   { crrUser :: UserId,
@@ -137,7 +200,7 @@ data ConversationCreated conv = ConversationCreated
     -- | The conversation type
     ccCnvType :: ConvType,
     ccCnvAccess :: [Access],
-    ccCnvAccessRoles :: Set AccessRoleV2,
+    ccCnvAccessRoles :: Set AccessRole,
     -- | The conversation name,
     ccCnvName :: Maybe Text,
     -- | Members of the conversation apart from the creator
@@ -234,18 +297,37 @@ data RemoteMLSMessage = RemoteMLSMessage
   deriving (Arbitrary) via (GenericUniform RemoteMLSMessage)
   deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessage)
 
-data MessageSendRequest = MessageSendRequest
+data RemoteMLSMessageResponse
+  = RemoteMLSMessageOk
+  | RemoteMLSMessageMLSNotEnabled
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessageResponse)
+
+data ProteusMessageSendRequest = ProteusMessageSendRequest
   { -- | Conversation is assumed to be owned by the target domain, this allows
     -- us to protect against relay attacks
-    msrConvId :: ConvId,
+    pmsrConvId :: ConvId,
     -- | Sender is assumed to be owned by the origin domain, this allows us to
     -- protect against spoofing attacks
-    msrSender :: UserId,
-    msrRawMessage :: Base64ByteString
+    pmsrSender :: UserId,
+    pmsrRawMessage :: Base64ByteString
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform MessageSendRequest)
-  deriving (ToJSON, FromJSON) via (CustomEncoded MessageSendRequest)
+  deriving (Arbitrary) via (GenericUniform ProteusMessageSendRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ProteusMessageSendRequest)
+
+data MLSMessageSendRequest = MLSMessageSendRequest
+  { -- | Conversation (or sub conversation) is assumed to be owned by the target
+    -- domain, this allows us to protect against relay attacks
+    mmsrConvOrSubId :: ConvOrSubConvId,
+    -- | Sender is assumed to be owned by the origin domain, this allows us to
+    -- protect against spoofing attacks
+    mmsrSender :: UserId,
+    mmsrRawMessage :: Base64ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MLSMessageSendRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageSendRequest)
 
 newtype MessageSendResponse = MessageSendResponse
   {msResponse :: PostOtrResponse MessageSendingStatus}
@@ -305,6 +387,12 @@ newtype MLSWelcomeRequest = MLSWelcomeRequest
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
+
+data MLSWelcomeResponse
+  = MLSWelcomeSent
+  | MLSWelcomeMLSNotEnabled
+  deriving stock (Eq, Generic, Show)
+  deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeResponse)
 
 data MLSMessageResponse
   = MLSMessageResponseError GalleyError

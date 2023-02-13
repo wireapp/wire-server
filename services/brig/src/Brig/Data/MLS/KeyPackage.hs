@@ -79,7 +79,7 @@ claimKeyPackage u c = do
     for mk $ \(ref, kpd) -> do
       retry x5 $ write deleteByRef (params LocalQuorum (tUnqualified u, c, ref))
       pure (ref, kpd)
-  lift $ mapKeyPackageRef ref (qUntagged u) c
+  lift $ mapKeyPackageRef ref (tUntagged u) c
   pure (ref, kpd)
   where
     deleteByRef :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()

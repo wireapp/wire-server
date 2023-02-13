@@ -30,7 +30,6 @@ module Galley.API.Teams
     deleteTeam,
     uncheckedDeleteTeam,
     addTeamMember,
-    getTeamNotificationsH,
     getTeamConversationRoles,
     getTeamMembers,
     getTeamMembersCSV,
@@ -83,8 +82,6 @@ import Data.Qualified
 import Data.Range as Range
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import qualified Galley.API.Teams.Notifications as APITeamQueue
@@ -116,7 +113,6 @@ import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.Wai
-import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
@@ -132,9 +128,9 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
+import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
-import qualified Wire.API.Notification as Public
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
@@ -220,25 +216,20 @@ lookupTeam zusr tid = do
     else pure Nothing
 
 createNonBindingTeamH ::
-  Members
-    '[ ConversationStore,
-       ErrorS 'NotConnected,
-       ErrorS 'UserBindingExists,
-       GundeckAccess,
-       Input UTCTime,
-       MemberStore,
-       P.TinyLog,
-       TeamStore,
-       WaiRoutes,
-       BrigAccess
-     ]
-    r =>
-  Local UserId ->
+  forall r.
+  ( Member BrigAccess r,
+    Member (ErrorS 'UserBindingExists) r,
+    Member (ErrorS 'NotConnected) r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r,
+    Member TeamStore r
+  ) =>
+  UserId ->
   ConnId ->
   Public.NonBindingNewTeam ->
   Sem r TeamId
-createNonBindingTeamH lusr zcon (Public.NonBindingNewTeam body) = do
-  let zusr = tUnqualified lusr
+createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
         filter ((zusr /=) . view userId)
@@ -259,23 +250,15 @@ createNonBindingTeamH lusr zcon (Public.NonBindingNewTeam body) = do
       (body ^. newTeamIconKey)
       NonBinding
   finishCreateTeam team owner others (Just zcon)
-  pure $ team ^. teamId
+  pure (team ^. teamId)
 
 createBindingTeam ::
-  Members
-    '[ GundeckAccess,
-       Input UTCTime,
-       MemberStore,
-       TeamStore,
-       ConversationStore
-     ]
-    r =>
+  Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
   TeamId ->
-  Local UserId ->
+  UserId ->
   BindingNewTeam ->
   Sem r TeamId
-createBindingTeam tid lusr (BindingNewTeam body) = do
-  let zusr = tUnqualified lusr
+createBindingTeam tid zusr (BindingNewTeam body) = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
@@ -357,7 +340,6 @@ deleteTeam ::
   forall r.
   ( Member BrigAccess r,
     Member (Error AuthenticationError) r,
-    Member (Error InvalidInput) r,
     Member (ErrorS 'DeleteQueueFull) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
@@ -477,13 +459,13 @@ uncheckedDeleteTeam lusr zcon tid = do
       ([Push], [(BotMember, Conv.Event)]) ->
       Sem r ([Push], [(BotMember, Conv.Event)])
     createConvDeleteEvents now teamMembs c (pp, ee) = do
-      let qconvId = qUntagged $ qualifyAs lusr (c ^. conversationId)
+      let qconvId = tUntagged $ qualifyAs lusr (c ^. conversationId)
       (bots, convMembs) <- localBotsAndUsers <$> E.getLocalMembers (c ^. conversationId)
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event qconvId (qUntagged lusr) now Conv.EdConvDelete
+      let e = Conv.Event qconvId Nothing (tUntagged lusr) now Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p = newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
@@ -1054,7 +1036,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       -- remove the user from conversations but never send out any events. We assume that clients
       -- handle nicely these missing events, regardless of whether they are in the same team or not
       let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
-      let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [qUntagged (qualifyAs lusr remove)])
+      let edata = Conv.EdMembersLeave (Conv.QualifiedUserIdList [tUntagged (qualifyAs lusr remove)])
       cc <- E.getTeamConversations tid
       for_ cc $ \c ->
         E.getConversation (c ^. conversationId) >>= \conv ->
@@ -1065,10 +1047,10 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
               pushEvent tmids edata now dc
     pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Sem r ()
     pushEvent exceptTo edata now dc = do
-      let qconvId = qUntagged $ qualifyAs lusr (Data.convId dc)
+      let qconvId = tUntagged $ qualifyAs lusr (Data.convId dc)
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers dc)
       let x = filter (\m -> not (Conv.lmId m `Set.member` exceptTo)) users
-      let y = Conv.Event qconvId (qUntagged lusr) now edata
+      let y = Conv.Event qconvId Nothing (tUntagged lusr) now edata
       for_ (newPushLocal (mems ^. teamMemberListType) (tUnqualified lusr) (ConvEvent y) (recipient <$> x)) $ \p ->
         E.push1 $ p & pushConn .~ zcon
       E.deliverAsync (bots `zip` repeat y)
@@ -1113,23 +1095,26 @@ getTeamConversation zusr tid cid = do
     >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
-  Members
-    '[ CodeStore,
-       ConversationStore,
-       Error FederationError,
-       Error InvalidInput,
-       ErrorS 'ConvNotFound,
-       ErrorS 'InvalidOperation,
-       ErrorS 'NotATeamMember,
-       ErrorS ('ActionDenied 'DeleteConversation),
-       ExternalAccess,
-       FederatorAccess,
-       GundeckAccess,
-       Input Env,
-       Input UTCTime,
-       TeamStore
-     ]
-    r =>
+  ( Members
+      '[ CodeStore,
+         ConversationStore,
+         Error FederationError,
+         Error InvalidInput,
+         ErrorS 'ConvNotFound,
+         ErrorS 'InvalidOperation,
+         ErrorS 'NotATeamMember,
+         ErrorS ('ActionDenied 'DeleteConversation),
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Input Env,
+         Input UTCTime,
+         TeamStore
+       ]
+      r,
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
   Local UserId ->
   ConnId ->
   TeamId ->
@@ -1157,19 +1142,17 @@ getSearchVisibility luid tid = do
 
 setSearchVisibility ::
   forall db r.
-  ( Members
-      '[ ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
-         ErrorS 'TeamSearchVisibilityNotEnabled,
-         Input Opts,
-         SearchVisibilityStore,
-         TeamStore,
-         TeamFeatureStore db,
-         WaiRoutes
-       ]
-      r,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig
-  ) =>
+  Members
+    '[ ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamSearchVisibilityNotEnabled,
+       Input Opts,
+       SearchVisibilityStore,
+       TeamStore,
+       TeamFeatureStore db,
+       WaiRoutes
+     ]
+    r =>
   (TeamId -> Sem r Bool) ->
   Local UserId ->
   TeamId ->
@@ -1342,40 +1325,6 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
         (userRecipient (n ^. userId))
         (membersToRecipients Nothing (memList ^. teamMembers))
 
--- | See also: 'Gundeck.API.Public.paginateH', but the semantics of this end-point is slightly
--- less warped.  This is a work-around because we cannot send events to all of a large team.
--- See haddocks of module "Galley.API.TeamNotifications" for details.
-getTeamNotificationsH ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'TeamNotFound,
-       Error InvalidInput,
-       TeamNotificationStore
-     ]
-    r =>
-  UserId
-    ::: Maybe ByteString {- NotificationId -}
-    ::: Range 1 10000 Int32
-    ::: JSON ->
-  Sem r Response
-getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
-  since <- parseSince
-  json @Public.QueuedNotificationList
-    <$> APITeamQueue.getTeamNotifications zusr since size
-  where
-    parseSince :: Member (Error InvalidInput) r => Sem r (Maybe Public.NotificationId)
-    parseSince = maybe (pure Nothing) (fmap Just . parseUUID) sinceRaw
-
-    parseUUID :: Member (Error InvalidInput) r => ByteString -> Sem r Public.NotificationId
-    parseUUID raw =
-      maybe
-        (throw InvalidTeamNotificationId)
-        (pure . Id)
-        ((UUID.fromASCIIBytes >=> isV1UUID) raw)
-
-    isV1UUID :: UUID.UUID -> Maybe UUID.UUID
-    isV1UUID u = if UUID.version u == 1 then Just u else Nothing
-
 finishCreateTeam ::
   Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
   Team ->
@@ -1461,15 +1410,13 @@ getSearchVisibilityInternal =
 
 setSearchVisibilityInternal ::
   forall db r.
-  ( Members
-      '[ ErrorS 'TeamSearchVisibilityNotEnabled,
-         Input Opts,
-         SearchVisibilityStore,
-         TeamFeatureStore db
-       ]
-      r,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig
-  ) =>
+  Members
+    '[ ErrorS 'TeamSearchVisibilityNotEnabled,
+       Input Opts,
+       SearchVisibilityStore,
+       TeamFeatureStore db
+     ]
+    r =>
   (TeamId -> Sem r Bool) ->
   TeamId ->
   TeamSearchVisibilityView ->

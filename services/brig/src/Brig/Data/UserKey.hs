@@ -30,24 +30,16 @@ module Brig.Data.UserKey
     lookupKey,
     deleteKey,
     deleteKeyForUser,
-    lookupPhoneHashes,
   )
 where
 
-import Brig.App (Env, digestSHA256)
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
 import Brig.Email
 import Brig.Phone
 import Cassandra
-import Control.Lens (view)
-import qualified Data.ByteString as B
-import Data.ByteString.Lazy (toStrict)
 import Data.Id
-import qualified Data.Multihash.Digest as MH
-import qualified Data.Text.Encoding as T
 import Imports
-import OpenSSL.EVP.Digest (digestBS)
 import Wire.API.User (fromEmail)
 
 -- | A natural identifier (i.e. unique key) of a user.
@@ -59,35 +51,6 @@ instance Eq UserKey where
   (UserEmailKey k) == (UserEmailKey k') = k == k'
   (UserPhoneKey k) == (UserPhoneKey k') = k == k'
   _ == _ = False
-
-data UKHashType
-  = UKHashPhone
-  | UKHashEmail
-  deriving (Eq)
-
-instance Cql UKHashType where
-  ctype = Tagged IntColumn
-
-  fromCql (CqlInt i) = case i of
-    0 -> pure UKHashPhone
-    1 -> pure UKHashEmail
-    n -> Left $ "unexpected hashtype: " ++ show n
-  fromCql _ = Left "userkeyhashtype: int expected"
-
-  toCql UKHashPhone = CqlInt 0
-  toCql UKHashEmail = CqlInt 1
-
-newtype UserKeyHash = UserKeyHash MH.MultihashDigest
-
-instance Cql UserKeyHash where
-  ctype = Tagged BlobColumn
-
-  fromCql (CqlBlob lbs) = case MH.decode (toStrict lbs) of
-    Left e -> Left ("userkeyhash: " ++ e)
-    Right h -> pure $ UserKeyHash h
-  fromCql _ = Left "userkeyhash: expected blob"
-
-  toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
 
 userEmailKey :: Email -> UserKey
 userEmailKey = UserEmailKey . mkEmailKey
@@ -119,7 +82,7 @@ keyTextOriginal (UserPhoneKey k) = fromPhone (phoneKeyOrig k)
 
 -- | Claim a 'UserKey' for a user.
 claimKey ::
-  (MonadClient m, MonadReader Env m) =>
+  MonadClient m =>
   -- | The key to claim.
   UserKey ->
   -- | The user claiming the key.
@@ -152,17 +115,12 @@ lookupKey k =
   fmap runIdentity
     <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText k)))
 
-insertKey :: (MonadClient m, MonadReader Env m) => UserId -> UserKey -> m ()
+insertKey :: MonadClient m => UserId -> UserKey -> m ()
 insertKey u k = do
-  hk <- hashKey k
-  let kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
-  retry x5 $ write insertHashed (params LocalQuorum (hk, kt, u))
   retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
 
-deleteKey :: (MonadClient m, MonadReader Env m) => UserKey -> m ()
+deleteKey :: MonadClient m => UserKey -> m ()
 deleteKey k = do
-  hk <- hashKey k
-  retry x5 $ write deleteHashed (params LocalQuorum (Identity hk))
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
 
 -- | Delete `UserKey` for `UserId`
@@ -173,27 +131,12 @@ deleteKey k = do
 -- executed several times due to cassandra not supporting transactions)
 -- `deleteKeyForUser` does not fail for missing keys or keys that belong to
 -- another user: It always returns `()` as result.
-deleteKeyForUser :: (MonadClient m, MonadReader Env m) => UserId -> UserKey -> m ()
+deleteKeyForUser :: MonadClient m => UserId -> UserKey -> m ()
 deleteKeyForUser uid k = do
   mbKeyUid <- lookupKey k
   case mbKeyUid of
     Just keyUid | keyUid == uid -> deleteKey k
     _ -> pure ()
-
-hashKey :: MonadReader Env m => UserKey -> m UserKeyHash
-hashKey uk = do
-  d <- view digestSHA256
-  let d' = digestBS d $ T.encodeUtf8 (keyText uk)
-  pure . UserKeyHash $
-    MH.MultihashDigest MH.SHA256 (B.length d') d'
-
-lookupPhoneHashes :: MonadClient m => [ByteString] -> m [(ByteString, UserId)]
-lookupPhoneHashes hp =
-  mapMaybe mk <$> retry x1 (query selectHashed (params One (Identity hashed)))
-  where
-    hashed = fmap (\h -> UserKeyHash $ MH.MultihashDigest MH.SHA256 (B.length h) h) hp
-    mk (UserKeyHash d, UKHashPhone, u) = Just (MH.digest d, u)
-    mk (_, _, _) = Nothing
 
 --------------------------------------------------------------------------------
 -- Queries
@@ -206,12 +149,3 @@ keySelect = "SELECT user FROM user_keys WHERE key = ?"
 
 keyDelete :: PrepQuery W (Identity Text) ()
 keyDelete = "DELETE FROM user_keys WHERE key = ?"
-
-insertHashed :: PrepQuery W (UserKeyHash, UKHashType, UserId) ()
-insertHashed = "INSERT INTO user_keys_hash(key, key_type, user) VALUES (?, ?, ?)"
-
-deleteHashed :: PrepQuery W (Identity UserKeyHash) ()
-deleteHashed = "DELETE FROM user_keys_hash WHERE key = ?"
-
-selectHashed :: PrepQuery R (Identity [UserKeyHash]) (UserKeyHash, UKHashType, UserId)
-selectHashed = "SELECT key, key_type, user FROM user_keys_hash WHERE key IN ?"

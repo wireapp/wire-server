@@ -40,7 +40,7 @@ import Control.Lens
 import Data.Bifunctor (second)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Data.Kind (Constraint)
+import Data.Kind
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Local, tUnqualified)
 import Data.Schema
@@ -76,6 +76,7 @@ import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.FeatureConfig as Event
+import Wire.API.Federation.API
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -85,7 +86,7 @@ import Wire.Sem.Paging.Cassandra
 data DoAuth = DoAuth UserId | DontDoAuth
 
 -- | Don't export methods of this typeclass
-class GetFeatureConfig (db :: *) cfg where
+class GetFeatureConfig (db :: Type) cfg where
   type GetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
   type GetConfigForTeamConstraints db cfg (r :: EffectRow) = (FeaturePersistentConstraint db cfg, Members '[Input Opts, TeamFeatureStore db] r)
 
@@ -107,13 +108,17 @@ class GetFeatureConfig (db :: *) cfg where
   getConfigForServer ::
     Members '[Input Opts] r =>
     Sem r (WithStatus cfg)
+  -- only override if there is additional business logic for getting the feature config
+  -- and/or if the feature flag is configured for the backend in 'FeatureFlags' for galley in 'Galley.Types.Teams'
+  -- otherwise this will return the default config from wire-api
+  default getConfigForServer :: (IsFeatureConfig cfg) => Sem r (WithStatus cfg)
+  getConfigForServer = pure defFeatureStatus
 
   getConfigForTeam ::
     GetConfigForTeamConstraints db cfg r =>
     TeamId ->
     Sem r (WithStatus cfg)
   default getConfigForTeam ::
-    GetConfigForTeamConstraints db cfg r =>
     (FeaturePersistentConstraint db cfg, Members '[Input Opts, TeamFeatureStore db] r) =>
     TeamId ->
     Sem r (WithStatus cfg)
@@ -124,8 +129,6 @@ class GetFeatureConfig (db :: *) cfg where
     UserId ->
     Sem r (WithStatus cfg)
   default getConfigForUser ::
-    GetConfigForUserConstraints db cfg r =>
-    GetConfigForTeamConstraints db cfg r =>
     ( FeaturePersistentConstraint db cfg,
       Members
         '[ Input Opts,
@@ -142,7 +145,7 @@ class GetFeatureConfig (db :: *) cfg where
   getConfigForUser = genericGetConfigForUser @db
 
 -- | Don't export methods of this typeclass
-class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
+class GetFeatureConfig (db :: Type) cfg => SetFeatureConfig (db :: Type) cfg where
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) = ()
 
@@ -180,7 +183,8 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db SndFactorPasswordChallengeConfig,
     FeaturePersistentConstraint db MLSConfig,
     FeaturePersistentConstraint db SearchVisibilityInboundConfig,
-    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig
+    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig,
+    FeaturePersistentConstraint db OutlookCalIntegrationConfig
   )
 
 getFeatureStatus ::
@@ -209,7 +213,6 @@ getFeatureStatus doauth tid = do
 getFeatureStatusMulti ::
   forall db cfg r.
   ( GetFeatureConfig db cfg,
-    GetConfigForTeamConstraints db cfg r,
     FeaturePersistentConstraint db cfg,
     Members
       '[ Input Opts,
@@ -337,7 +340,7 @@ updateLockStatus tid lockStatus = do
 -- Here we explicitly return the team setting if the user is a team member.
 -- In `getConfigForUser` this is mostly also the case. But there are exceptions, e.g. `ConferenceCallingConfig`
 getFeatureStatusForUser ::
-  forall (db :: *) cfg r.
+  forall (db :: Type) cfg r.
   ( Members
       '[ ErrorS 'NotATeamMember,
          ErrorS OperationDenied,
@@ -423,7 +426,6 @@ getAllFeatureConfigsForServer ::
        TeamStore
      ]
     r =>
-  FeaturePersistentAllFeatures db =>
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForServer =
   AllFeatureConfigs
@@ -442,6 +444,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
     <*> getConfigForServer @db @MLSConfig
     <*> getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
+    <*> getConfigForServer @db @OutlookCalIntegrationConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -476,6 +479,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @SndFactorPasswordChallengeConfig uid
     <*> getConfigForUser @db @MLSConfig uid
     <*> getConfigForUser @db @ExposeInvitationURLsToTeamAdminConfig uid
+    <*> getConfigForUser @db @OutlookCalIntegrationConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -509,6 +513,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @SndFactorPasswordChallengeConfig tid
     <*> getConfigForTeam @db @MLSConfig tid
     <*> getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid
+    <*> getConfigForTeam @db @OutlookCalIntegrationConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -516,7 +521,6 @@ genericGetConfigForTeam ::
   GetFeatureConfig db cfg =>
   FeaturePersistentConstraint db cfg =>
   Members '[TeamFeatureStore db] r =>
-  GetConfigForTeamConstraints db cfg r =>
   Members '[Input Opts] r =>
   TeamId ->
   Sem r (WithStatus cfg)
@@ -532,7 +536,6 @@ genericGetConfigForMultiTeam ::
   GetFeatureConfig db cfg =>
   FeaturePersistentConstraint db cfg =>
   Members '[TeamFeatureStore db] r =>
-  GetConfigForTeamConstraints db cfg r =>
   Members '[Input Opts] r =>
   [TeamId] ->
   Sem r [(TeamId, WithStatus cfg)]
@@ -545,7 +548,6 @@ genericGetConfigForMultiTeam tids = do
 genericGetConfigForUser ::
   forall db cfg r.
   FeaturePersistentConstraint db cfg =>
-  GetConfigForTeamConstraints db cfg r =>
   ( Members
       '[ Input Opts,
          TeamFeatureStore db,
@@ -571,14 +573,13 @@ genericGetConfigForUser uid = do
       genericGetConfigForTeam @db tid
 
 persistAndPushEvent ::
-  forall (db :: *) cfg r.
+  forall (db :: Type) cfg r.
   ( IsFeatureConfig cfg,
     KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
     GetFeatureConfig db cfg,
     FeaturePersistentConstraint db cfg,
     GetConfigForTeamConstraints db cfg r,
-    Show cfg,
     Members
       '[ TeamFeatureStore db,
          P.Logger (Log.Msg -> Log.Msg),
@@ -669,10 +670,7 @@ instance GetFeatureConfig db ValidateSAMLEmailsConfig where
 instance SetFeatureConfig db ValidateSAMLEmailsConfig where
   setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
-instance GetFeatureConfig db DigitalSignaturesConfig where
-  -- FUTUREWORK: we may also want to get a default from the server config file here, like for
-  -- sso, and team search visibility.
-  getConfigForServer = pure defFeatureStatus
+instance GetFeatureConfig db DigitalSignaturesConfig
 
 instance SetFeatureConfig db DigitalSignaturesConfig where
   setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
@@ -698,8 +696,6 @@ instance GetFeatureConfig db LegalholdConfig where
           r
       )
 
-  getConfigForServer = pure defFeatureStatus
-
   getConfigForTeam tid = do
     status <-
       isLegalHoldEnabledForTeam @db tid <&> \case
@@ -707,7 +703,13 @@ instance GetFeatureConfig db LegalholdConfig where
         False -> FeatureStatusDisabled
     pure $ setStatus status defFeatureStatus
 
-instance SetFeatureConfig db LegalholdConfig where
+instance
+  ( CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-new-remote-conversation"
+  ) =>
+  SetFeatureConfig db LegalholdConfig
+  where
   type
     SetConfigForTeamConstraints db LegalholdConfig (r :: EffectRow) =
       ( Bounded (PagingBounds InternalPaging TeamMember),
@@ -855,15 +857,6 @@ instance SetFeatureConfig db MLSConfig where
     persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
-  getConfigForServer =
-    -- we could look at the galley settings, but we don't have a team here, so there is not much else we can say.
-    pure $
-      withStatus
-        FeatureStatusDisabled
-        LockStatusLocked
-        ExposeInvitationURLsToTeamAdminConfig
-        FeatureTTLUnlimited
-
   getConfigForTeam tid = do
     allowList <- input <&> view (optSettings . setExposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     mbOldStatus <- TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus
@@ -886,11 +879,14 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
 
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
-  setConfigForTeam tid wsnl = do
-    lockStatus <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsLockStatus
-    case lockStatus of
-      LockStatusLocked -> throwS @OperationDenied
-      LockStatusUnlocked -> persistAndPushEvent @db tid wsnl
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+
+instance SetFeatureConfig db OutlookCalIntegrationConfig where
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+
+instance GetFeatureConfig db OutlookCalIntegrationConfig where
+  getConfigForServer =
+    input <&> view (optSettings . setFeatureFlags . flagOutlookCalIntegration . unDefaults)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

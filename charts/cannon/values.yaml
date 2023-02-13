@@ -22,9 +22,13 @@ config:
     millisecondsBetweenBatches: 50
     minBatchSize: 20
 
+  # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
+  # brig, cannon, cargohold, galley, gundeck, proxy, spar.
+  # disabledAPIVersions: [ 3 ]
+
 metrics:
   serviceMonitor:
-    enable: false
+    enabled: false
 
 nginx_conf:
   user: nginx

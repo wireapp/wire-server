@@ -19,6 +19,7 @@ module Galley.API.MLS.Types
   ( ClientMap,
     mkClientMap,
     cmAssocs,
+    ListGlobalSelfConvs (..),
   )
 where
 
@@ -41,3 +42,9 @@ mkClientMap = foldr addEntry mempty
 
 cmAssocs :: ClientMap -> [(Qualified UserId, (ClientId, KeyPackageRef))]
 cmAssocs cm = Map.assocs cm >>= traverse toList
+
+-- | Inform a handler for 'POST /conversations/list-ids' if the MLS global team
+-- conversation and the MLS self-conversation should be included in the
+-- response.
+data ListGlobalSelfConvs = ListGlobalSelf | DoNotListGlobalSelf
+  deriving (Eq)

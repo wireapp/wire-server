@@ -13,8 +13,14 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws 
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE        := wire-server redis-ephemeral redis-cluster databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn inbucket
+CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster databases-ephemeral	\
+fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
+calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
+elasticsearch-ephemeral minio-external cassandra-external						\
+nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn		\
+inbucket k8ssandra-test-cluster
 KIND_CLUSTER_NAME     := wire-server
+HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 
 package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
@@ -47,18 +53,13 @@ install: init
 .PHONY: full-clean
 full-clean: clean
 	rm -rf ~/.cache/hie-bios
-ifdef CABAL_DIR
-	rm -rf $(CABAL_DIR)/store
-else
-	rm -rf ~/.cabal/store
-endif
-	rm -rf ./dist-newbuild ./.env
+	rm -rf ./dist-newstyle ./.env
 	direnv reload
+	@echo -e "\n\n*** NOTE: you may want to also 'rm -rf ~/.cabal/store \$$CABAL_DIR/store', not sure.\n"
 
 .PHONY: clean
 clean:
 	cabal clean
-	$(MAKE) -C services/nginz clean
 	-rm -rf dist
 
 .PHONY: clean-hint
@@ -211,7 +212,10 @@ git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:
 	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
-	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./cassandra-schema.cql
+	( echo '-- automatically generated with `make git-add-cassandra-schema`'; \
+      docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) \
+    | sed "s/CREATE TABLE galley_test.member_client/-- NOTE: this table is unused. It was replaced by mls_group_member_client\nCREATE TABLE galley_test.member_client/g" \
+      > ./cassandra-schema.cql
 	git add ./cassandra-schema.cql
 
 .PHONY: cqlsh
@@ -232,7 +236,7 @@ db-migrate-package:
 
 # Usage:
 #
-# Reset all keyspaces
+# Reset all keyspaces and reset the ES index
 # make db-reset
 #
 # Reset keyspace for only one service, say galley:
@@ -248,25 +252,22 @@ ifeq ($(package), all)
 else
 	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
 endif
+	./dist/brig-index reset --elasticsearch-server http://localhost:9200 > /dev/null
 
 # Usage:
 #
-# Migrate all keyspaces
+# Migrate all keyspaces and reset the ES index
 # make db-migrate
 #
 # Migrate keyspace for only one service, say galley:
 # make db-migrate package=galley
 .PHONY: db-migrate
 db-migrate: c
-ifeq ($(package), all)
-	./dist/brig-schema --keyspace brig_test --replication-factor 1
-	./dist/galley-schema --keyspace galley_test --replication-factor 1
-	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1
-	./dist/spar-schema --keyspace spar_test --replication-factor 1
-else
-	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1
-endif
-
+	./dist/brig-schema --keyspace brig_test --replication-factor 1 > /dev/null
+	./dist/galley-schema --keyspace galley_test --replication-factor 1 > /dev/null
+	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 > /dev/null
+	./dist/spar-schema --keyspace spar_test --replication-factor 1 > /dev/null
+	./dist/brig-index reset --elasticsearch-server http://localhost:9200 > /dev/null
 
 #################################
 ## dependencies
@@ -309,15 +310,15 @@ kube-integration:  kube-integration-setup kube-integration-test
 
 .PHONY: kube-integration-setup
 kube-integration-setup: charts-integration
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
+	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-test
 kube-integration-test:
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-test.sh
+	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown-federation.sh
+	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-teardown-federation.sh
 
 .PHONY: kube-integration-e2e-telepresence
 kube-integration-e2e-telepresence:
@@ -432,6 +433,14 @@ kind-delete:
 .PHONY: kind-reset
 kind-reset: kind-delete kind-cluster
 
+.PHONY: kind-upload-images
+kind-upload-images:
+	DOCKER_TAG=$(DOCKER_TAG) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) ./hack/bin/kind-upload-images.sh
+
+.PHONY: kind-upload-image
+kind-upload-image-%:
+	DOCKER_TAG=$(DOCKER_TAG) KIND_CLUSTER_NAME=$(KIND_CLUSTER_NAME) ./hack/bin/kind-upload-image.sh wireServer.imagesUnoptimizedNoDocs.$(*)
+
 .local/kind-kubeconfig:
 	mkdir -p $(CURDIR)/.local
 	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig
@@ -474,7 +483,7 @@ kind-integration-e2e: .local/kind-kubeconfig
 kind-restart-all: .local/kind-kubeconfig
 	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
 	kubectl delete pod -n $(NAMESPACE) -l release=$(NAMESPACE)-wire-server && \
-	kubectl delete pod -n $(NAMESPACE)-fed2 -l release=$(NAMESPACE)-fed2-wire-server
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l release=$(NAMESPACE)-wire-server-2
 
 kind-restart-nginx-ingress: .local/kind-kubeconfig
 	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \

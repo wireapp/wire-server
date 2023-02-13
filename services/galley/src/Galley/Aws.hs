@@ -109,12 +109,12 @@ mkEnv lgr mgr opts = do
     mkAwsEnv g = do
       baseEnv <-
         AWS.newEnv AWS.discover
-          <&> AWS.configure (sqs (opts ^. awsEndpoint))
+          <&> AWS.configureService (sqs (opts ^. awsEndpoint))
       pure $
         baseEnv
-          { AWS.envLogger = awsLogger g,
-            AWS.envRetryCheck = retryCheck,
-            AWS.envManager = mgr
+          { AWS.logger = awsLogger g,
+            AWS.retryCheck = retryCheck,
+            AWS.manager = mgr
           }
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
     mapLevel AWS.Info = Logger.Info
@@ -183,5 +183,5 @@ canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False
 canRetry (Left e) = case e of
   AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
-  AWS.ServiceError se | se ^. AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
+  AWS.ServiceError se | se ^. AWS.serviceError_code == AWS.ErrorCode "RequestThrottled" -> pure True
   _ -> pure False

@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,7 +25,7 @@ import API.User.Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import Control.Lens ((^?))
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -128,7 +130,7 @@ createTeam u galley = do
 -- | Create user and binding team.
 --
 -- NB: the created user is the team owner.
-createUserWithTeam :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) => Brig -> m (UserId, TeamId)
+createUserWithTeam :: (MonadIO m, MonadHttp m, MonadCatch m) => Brig -> m (UserId, TeamId)
 createUserWithTeam brig = do
   (user, tid) <- createUserWithTeam' brig
   pure (userId user, tid)
@@ -136,7 +138,7 @@ createUserWithTeam brig = do
 -- | Create user and binding team.
 --
 -- NB: the created user is the team owner.
-createUserWithTeam' :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m, HasCallStack) => Brig -> m (User, TeamId)
+createUserWithTeam' :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> m (User, TeamId)
 createUserWithTeam' brig = do
   e <- randomEmail
   n <- randomName
@@ -214,7 +216,10 @@ updatePermissions from tid (to, perm) galley =
     changeMember = Member.mkNewTeamMember to perm Nothing
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
-createTeamConv g tid u us mtimer = do
+createTeamConv = createTeamConvWithRole roleNameWireAdmin
+
+createTeamConvWithRole :: HasCallStack => RoleName -> Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
+createTeamConvWithRole role g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid
   let conv =
         NewConv
@@ -226,7 +231,7 @@ createTeamConv g tid u us mtimer = do
           tinfo
           mtimer
           Nothing
-          roleNameWireAdmin
+          role
           ProtocolProteusTag
           Nothing
   r <-
@@ -379,7 +384,7 @@ deleteInvitation brig tid iid uid =
   delete (brig . paths ["teams", toByteString' tid, "invitations", toByteString' iid] . zUser uid) !!! const 200 === statusCode
 
 postInvitation ::
-  (MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   Brig ->
   TeamId ->
   UserId ->

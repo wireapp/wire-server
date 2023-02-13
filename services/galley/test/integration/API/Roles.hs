@@ -21,7 +21,7 @@ import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
-import Data.Aeson (eitherDecode)
+import Data.Aeson hiding (json)
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain
 import Data.Id
@@ -30,7 +30,7 @@ import qualified Data.List1 as List1
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
-import Federator.MockServer (FederatedRequest (..))
+import Federator.MockServer
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -56,7 +56,9 @@ tests s =
       test s "conversation role update with remote users present" roleUpdateWithRemotes,
       test s "conversation access update with remote users present" accessUpdateWithRemotes,
       test s "conversation role update of remote member" roleUpdateRemoteMember,
-      test s "get all conversation roles" testAllConversationRoles
+      test s "get all conversation roles" testAllConversationRoles,
+      test s "access role update with v2" testAccessRoleUpdateV2,
+      test s "test access roles of new conversations" testConversationAccessRole
     ]
 
 testAllConversationRoles :: TestM ()
@@ -82,8 +84,8 @@ handleConversationRoleAdmin = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, qalice) <- randomUserTuple
-  bob <- randomUser
-  chuck <- randomUser
+  (bob, qbob) <- randomUserTuple
+  (chuck, qchuck) <- randomUserTuple
   (eve, qeve) <- randomUserTuple
   (jack, qjack) <- randomUserTuple
   connectUsers alice (list1 bob [chuck, eve, jack])
@@ -92,7 +94,7 @@ handleConversationRoleAdmin = do
   let role = roleNameWireAdmin
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv alice qalice [qbob, qchuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
@@ -121,10 +123,9 @@ handleConversationRoleMember :: TestM ()
 handleConversationRoleMember = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
-  alice <- randomUser
-  let qalice = Qualified alice localDomain
-  bob <- randomUser
-  chuck <- randomUser
+  (alice, qalice) <- randomUserTuple
+  (bob, qbob) <- randomUserTuple
+  (chuck, qchuck) <- randomUserTuple
   eve <- randomUser
   let qeve = Qualified eve localDomain
   jack <- randomUser
@@ -134,7 +135,7 @@ handleConversationRoleMember = do
   let role = roleNameWireMember
   cid <- WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     rsp <- postConvWithRole alice [bob, chuck] (Just "gossip") [] Nothing Nothing role
-    void $ assertConvWithRole rsp RegularConv alice qalice [bob, chuck] (Just "gossip") Nothing role
+    void $ assertConvWithRole rsp RegularConv alice qalice [qbob, qchuck] (Just "gossip") Nothing role
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
@@ -174,7 +175,7 @@ roleUpdateRemoteMember = do
 
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -243,7 +244,7 @@ roleUpdateWithRemotes = do
 
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putOtherMemberQualified
           bob
           qcharlie
@@ -302,7 +303,7 @@ accessUpdateWithRemotes = do
   let access = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
-      withTempMockFederator (const ()) $
+      withTempMockFederator' (mockReply ()) $
         putQualifiedAccessUpdate bob qconv access
           !!! const 200 === statusCode
 
@@ -363,9 +364,9 @@ wireAdminChecks cid admin otherAdmin mem = do
   putReceiptMode admin cid (ReceiptMode 0) !!! assertActionSucceeded
   putReceiptMode admin cid (ReceiptMode 1) !!! assertActionSucceeded
   let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-  putAccessUpdate admin cid nonActivatedAccess !!! assertActionSucceeded
+  putQualifiedAccessUpdate admin qcid nonActivatedAccess !!! assertActionSucceeded
   let activatedAccess = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-  putAccessUpdate admin cid activatedAccess !!! assertActionSucceeded
+  putQualifiedAccessUpdate admin qcid activatedAccess !!! assertActionSucceeded
   -- Update your own member state
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
   putMember admin memUpdate qcid !!! assertActionSucceeded
@@ -411,7 +412,7 @@ wireMemberChecks cid mem admin otherMem = do
   putMessageTimerUpdate mem cid (ConversationMessageTimerUpdate Nothing) !!! assertActionDenied
   putReceiptMode mem cid (ReceiptMode 0) !!! assertActionDenied
   let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])
-  putAccessUpdate mem cid nonActivatedAccess !!! assertActionDenied
+  putQualifiedAccessUpdate mem qcid nonActivatedAccess !!! assertActionDenied
   -- Finally, you can still do the following actions:
 
   -- Update your own member state
@@ -421,6 +422,78 @@ wireMemberChecks cid mem admin otherMem = do
   deleteMemberQualified mem qmem qcid !!! assertActionSucceeded
   -- Let's readd the user to make tests easier
   postMembersWithRole admin (pure qmem) qcid role !!! const 200 === statusCode
+
+-- create a conversation and check that the access roles match
+testConversationAccessRole :: TestM ()
+testConversationAccessRole = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  let nc =
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob],
+            newConvAccessRoles = Just (Set.singleton TeamMemberAccessRole)
+          }
+  conv <-
+    responseJsonError
+      =<< postConvQualified (qUnqualified alice) nc
+        <!! const 201 === statusCode
+  liftIO $
+    cnvAccessRoles conv @?= Set.singleton TeamMemberAccessRole
+
+testAccessRoleUpdateV2 :: TestM ()
+testAccessRoleUpdateV2 = do
+  g <- view tsUnversionedGalley
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  conv <-
+    responseJsonError
+      =<< postConvQualified
+        (qUnqualified alice)
+        defNewProteusConv
+          { newConvQualifiedUsers = [bob]
+          }
+        <!! const 201 === statusCode
+  let qcnv = cnvQualifiedId conv
+  -- Using v2 qualified endpoint
+  put
+    ( g
+        . paths
+          [ "v2",
+            "conversations",
+            toByteString' (qDomain qcnv),
+            toByteString' (qUnqualified qcnv),
+            "access"
+          ]
+        . zUser (qUnqualified alice)
+        . zConn "conn"
+        . json
+          ( object
+              [ "access" .= ["invite" :: Text],
+                "access_role_v2" .= ["guest" :: Text]
+              ]
+          )
+    )
+    !!! const 200 === statusCode
+  -- Using v2 unqualified endpoint
+  put
+    ( g
+        . paths
+          [ "v2",
+            "conversations",
+            toByteString' (qUnqualified qcnv),
+            "access"
+          ]
+        . zUser (qUnqualified alice)
+        . zConn "conn"
+        . json
+          ( object
+              [ "access" .= ["invite" :: Text],
+                "access_role_v2" .= ["guest" :: Text]
+              ]
+          )
+    )
+    !!! const 204 === statusCode
+
+--------------------------------------------------------------------------------
+-- Utilities
 
 assertActionSucceeded :: HasCallStack => Assertions ()
 assertActionSucceeded = const 200 === statusCode

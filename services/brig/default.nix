@@ -5,6 +5,7 @@
 { mkDerivation
 , aeson
 , amazonka
+, amazonka-core
 , amazonka-dynamodb
 , amazonka-ses
 , amazonka-sqs
@@ -85,9 +86,11 @@
 , network-conduit-tls
 , optparse-applicative
 , pem
+, pipes
 , polysemy
 , polysemy-plugin
 , polysemy-wire-zoo
+, postie
 , process
 , proto-lens
 , QuickCheck
@@ -116,8 +119,8 @@
 , ssl-util
 , statistics
 , stomp-queue
+, streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -130,6 +133,8 @@
 , text
 , text-icu-translit
 , time
+, time-out
+, time-units
 , tinylog
 , transformers
 , types-common
@@ -163,6 +168,7 @@ mkDerivation {
   libraryHaskellDepends = [
     aeson
     amazonka
+    amazonka-core
     amazonka-dynamodb
     amazonka-ses
     amazonka-sqs
@@ -259,7 +265,6 @@ mkDerivation {
     statistics
     stomp-queue
     string-conversions
-    swagger
     swagger2
     tagged
     template
@@ -267,6 +272,8 @@ mkDerivation {
     text
     text-icu-translit
     time
+    time-out
+    time-units
     tinylog
     transformers
     types-common
@@ -329,13 +336,16 @@ mkDerivation {
     lens-aeson
     metrics-wai
     mime
+    mime-mail
     MonadRandom
     mtl
     network
     optparse-applicative
     pem
+    pipes
     polysemy
     polysemy-wire-zoo
+    postie
     process
     proto-lens
     QuickCheck
@@ -349,6 +359,7 @@ mkDerivation {
     servant-client
     servant-client-core
     spar
+    streaming-commons
     string-conversions
     tasty
     tasty-cannon
@@ -356,6 +367,7 @@ mkDerivation {
     temporary
     text
     time
+    time-units
     tinylog
     transformers
     types-common

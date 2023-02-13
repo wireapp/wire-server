@@ -125,7 +125,7 @@ withSilentMonitor reloads settings = do
       (runSem . delMonitor)
   pure tlsVar
   where
-    runSem = Polysemy.runM . Log.discardTinyLogs
+    runSem = Polysemy.runFinal . Polysemy.embedToFinal @IO . Log.discardTinyLogs
     runSemE action = do
       r <- runSem (Polysemy.runError @FederationSetupError action)
       writeChan reloads (either Just (const Nothing) r)

@@ -78,6 +78,7 @@ import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
+import Wire.API.Federation.API
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
@@ -134,7 +135,7 @@ lookupLoginCode phone =
 
 login ::
   forall r.
-  Members '[GalleyProvider] r =>
+  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
@@ -211,7 +212,7 @@ checkRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT Login
 checkRetryLimit = withRetryLimit checkBudget
 
 withRetryLimit ::
-  (MonadClient m, MonadReader Env m) =>
+  MonadReader Env m =>
   (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
   UserId ->
   ExceptT LoginError m ()
@@ -251,7 +252,8 @@ renewAccess ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m
+    MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
@@ -289,7 +291,8 @@ catchSuspendInactiveUser ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    Log.MonadLogger m
+    Log.MonadLogger m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   e ->
@@ -321,7 +324,8 @@ newAccess ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m
+    MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe ClientId ->
@@ -414,7 +418,6 @@ validateTokens uts at = do
 
 validateToken ::
   ( ZAuth.TokenPair u a,
-    Monad m,
     ZAuth.MonadZAuth m,
     MonadClient m
   ) =>
@@ -442,7 +445,8 @@ ssoLogin ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m
+    MonadUnliftIO m,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   SsoLogin ->
   CookieType ->
@@ -463,7 +467,7 @@ ssoLogin (SsoLogin uid label) typ = do
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
-  Members '[GalleyProvider] r =>
+  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
   LegalHoldLogin ->
   CookieType ->
   ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)
