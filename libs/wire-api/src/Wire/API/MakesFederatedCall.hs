@@ -1,18 +1,18 @@
---
---
---
---
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- Software Foundation, either version 3 of the License, or (at your option) any
 -- This file is part of the Wire Server implementation.
--- This program is distributed in the hope that it will be useful, but WITHOUT
+--
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+--
 -- This program is free software: you can redistribute it and/or modify it under
--- You should have received a copy of the GNU Affero General Public License along
--- details.
--- later version.
 -- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE OverloadedLists #-}
 
@@ -26,8 +26,7 @@ module Wire.API.MakesFederatedCall
     Location(..),
     ShowComponent,
     Annotation,
-    exposeAnnotations,
-    withAnnotations
+    exposeAnnotations
   )
 where
 
@@ -49,6 +48,26 @@ import Test.QuickCheck (Arbitrary)
 import Unsafe.Coerce (unsafeCoerce)
 import Wire.Arbitrary (GenericUniform (..))
 
+-- | This function exists only to provide a convenient place for the
+-- @transitive-anns@ plugin to solve the 'ToHasAnnotations' constraint. This is
+-- highly magical and warrants a note.
+--
+-- The call @'exposeAnnotations' (some expr here)@ will expand to @some expr
+-- here@, additionally generating wanted 'HasAnnotation' constraints for every
+-- 'AddAnnotation' constraint in the _transitive call closure_ of @some expr
+-- here@.
+--
+-- The use case is always going to be @'callsFed' ('exposeAnnotations' expr)@,
+-- where 'exposeAnnotations' re-introduces all of the constraints we've been
+-- squirreling away, and 'callsFed' is responsible for discharging them. It
+-- would be very desirable to combine these into one call, but the semantics of
+-- solving 'ToHasAnnotations' attaches the wanted calls to the same place as
+-- the call itself, which means the wanteds appear just after our opportunity
+-- to solve them via 'callsFed'. This is likely not a hard limitation.
+--
+-- The @x@ parameter here is intentionally ambiguous, existing as a unique
+-- skolem to prevent GHC from caching the results of solving
+-- 'ToHasAnnotations'. Callers needn't worry about it.
 exposeAnnotations :: ToHasAnnotations x => a -> a
 exposeAnnotations = id
 
@@ -137,6 +156,10 @@ instance HasClient m api => HasClient m (MakesFederatedCall comp name :> api :: 
 class SolveCallsFed c r a where
   -- | Safely discharge a 'CallsFed' constraint. Intended to be used when
   -- connecting your handler to the server router.
+  --
+  -- This function should always be called with an argument of
+  -- 'exposeAnnotations'. See the documentation there for more information on
+  -- why.
   callsFed :: (c => r) -> a
 
 instance (c ~ ((k, d) :: Constraint), SolveCallsFed d r a) => SolveCallsFed c r (Dict k -> a) where

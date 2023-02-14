@@ -60,6 +60,12 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
 -- | Return a client for a named endpoint.
+--
+-- This function introduces an 'AddAnnotation' constraint, which is
+-- automatically solved by the @transitive-anns@ plugin, and pushes the
+-- resulting information around in a side-channel. See the documentation at
+-- 'Wire.API.MakesFederatedCall.exposeAnnotations' for a better understanding
+-- of the information flow here.
 fedClient ::
   forall (comp :: Component) (name :: Symbol) m api x.
   (AddAnnotation 'Remote (ShowComponent comp) name x, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
@@ -72,7 +78,7 @@ fedClientIn ::
   Client m api
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
 
--- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Inteded
+-- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Intended
 -- to be used in test situations only.
 unsafeFedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.
