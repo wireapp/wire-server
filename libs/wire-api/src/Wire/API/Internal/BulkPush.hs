@@ -20,6 +20,7 @@ module Wire.API.Internal.BulkPush where
 import Control.Lens
 import Data.Aeson
 import Data.Id
+import Data.Schema (ValueSchema)
 import qualified Data.Schema as S
 import qualified Data.Swagger as Swagger
 import Imports
@@ -58,14 +59,14 @@ instance S.ToSchema BulkPushRequest where
   schema =
     S.object "BulkPushRequest" $
       BulkPushRequest
-        <$> fromBulkPushRequest S..= S.field "bulkpush_req" (S.array S.schema)
+        <$> fromBulkPushRequest S..= S.field "bulkpush_req" (S.array bulkpushReqItemSchema)
 
-instance S.ToSchema (Notification, [PushTarget]) where
-  schema =
-    S.object "(Notification, [PushTarget])" $
-      (,)
-        <$> fst S..= S.field "notification" S.schema
-        <*> snd S..= S.field "targets" (S.array S.schema)
+bulkpushReqItemSchema :: ValueSchema S.NamedSwaggerDoc (Notification, [PushTarget])
+bulkpushReqItemSchema =
+  S.object "(Notification, [PushTarget])" $
+    (,)
+      <$> fst S..= S.field "notification" S.schema
+      <*> snd S..= S.field "targets" (S.array S.schema)
 
 data PushStatus = PushStatusOk | PushStatusGone
   deriving (Eq, Show, Bounded, Enum, Generic)
