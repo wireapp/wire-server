@@ -146,7 +146,18 @@ elasticServerParser =
 restrictedElasticSettingsParser :: Parser ElasticSettings
 restrictedElasticSettingsParser = do
   server <- elasticServerParser
-  pure $ localElasticSettings & esServer .~ server
+  prefix <-
+    strOption
+      ( long "elasticsearch-index-prefix"
+          <> metavar "PREFIX"
+          <> help "Elasticsearch Index Prefix. The actual index name will be PREFIX_test."
+          <> value "directory"
+          <> showDefault
+      )
+  pure $
+    localElasticSettings
+      & esServer .~ server
+      & esIndex .~ ES.IndexName (prefix <> "_test")
 
 indexNameParser :: Parser ES.IndexName
 indexNameParser =
