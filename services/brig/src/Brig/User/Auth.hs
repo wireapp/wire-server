@@ -212,7 +212,7 @@ checkRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT Login
 checkRetryLimit = withRetryLimit checkBudget
 
 withRetryLimit ::
-  (MonadClient m, MonadReader Env m) =>
+  MonadReader Env m =>
   (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
   UserId ->
   ExceptT LoginError m ()
@@ -418,7 +418,6 @@ validateTokens uts at = do
 
 validateToken ::
   ( ZAuth.TokenPair u a,
-    Monad m,
     ZAuth.MonadZAuth m,
     MonadClient m
   ) =>

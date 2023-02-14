@@ -384,7 +384,6 @@ leaveConversation ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-delete-mls-conversation",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-new-remote-subconversation"

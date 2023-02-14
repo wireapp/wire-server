@@ -417,8 +417,7 @@ performConversationJoin ::
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-subconversation",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-delete-mls-conversation"
+    CallsFed 'Galley "on-new-remote-conversation"
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -550,8 +549,7 @@ performConversationAccessData ::
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-subconversation",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-delete-mls-conversation"
+    CallsFed 'Galley "on-new-remote-conversation"
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -594,7 +592,7 @@ performConversationAccessData qusr lconv action = do
     lcnv = fmap convId lconv
     conv = tUnqualified lconv
 
-    maybeRemoveBots :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveBots :: BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveBots bm =
       if Set.member ServiceAccessRole (cupAccessRoles action)
         then pure bm

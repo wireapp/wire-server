@@ -81,7 +81,7 @@ import Wire.API.User.Client
 -- with this are failing then assumption that
 -- 'whitelist-teams-and-implicit-consent' is set in all test environments is no
 -- longer correct.
-onlyIfLhWhitelisted :: (MonadIO m, Monad m) => m () -> m ()
+onlyIfLhWhitelisted :: MonadIO m => m () -> m ()
 onlyIfLhWhitelisted action = do
   let isGalleyLegalholdFeatureWhitelist = True
   if isGalleyLegalholdFeatureWhitelist

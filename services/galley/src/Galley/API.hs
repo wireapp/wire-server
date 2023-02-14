@@ -21,7 +21,6 @@ module Galley.API
   )
 where
 
-import qualified Data.Swagger.Build.Api as Doc
 import Galley.API.Internal
 import qualified Galley.API.Public as Public
 import Galley.API.Public.Servant
@@ -29,8 +28,7 @@ import Galley.App (GalleyEffects)
 import Network.Wai.Routing (Routes)
 import Polysemy
 
-sitemap :: Routes Doc.ApiBuilder (Sem GalleyEffects) ()
+sitemap :: Routes () (Sem GalleyEffects) ()
 sitemap = do
   Public.sitemap
-  Public.apiDocs
   internalSitemap

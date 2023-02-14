@@ -14,6 +14,8 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+-- Disabling for HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- | TODO: most of this module is deprecated; use "Util.Test.SQS" from the types-common-aws package
 -- instead.

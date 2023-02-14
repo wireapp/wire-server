@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -107,8 +109,6 @@ mapRemoteKeyPackageRef brig bundle =
 postMessage ::
   ( HasCallStack,
     MonadIO m,
-    MonadCatch m,
-    MonadThrow m,
     MonadHttp m,
     HasGalley m
   ) =>
@@ -130,8 +130,6 @@ postMessage sender msg = do
 localPostCommitBundle ::
   ( HasCallStack,
     MonadIO m,
-    MonadCatch m,
-    MonadThrow m,
     MonadHttp m,
     HasGalley m
   ) =>
@@ -1106,8 +1104,6 @@ getGroupInfo qusr qcs = do
 localGetGroupInfo ::
   ( HasCallStack,
     MonadIO m,
-    MonadCatch m,
-    MonadThrow m,
     MonadHttp m,
     HasGalley m
   ) =>

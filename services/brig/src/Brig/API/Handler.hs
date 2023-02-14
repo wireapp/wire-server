@@ -171,12 +171,12 @@ parseJsonBody req = parseBody req !>> StdError . badRequest
 checkWhitelist :: Either Email Phone -> (Handler r) ()
 checkWhitelist = wrapHttpClientE . checkWhitelistWithError (StdError whitelistError)
 
-checkWhitelistWithError :: (Monad m, MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()
+checkWhitelistWithError :: (MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()
 checkWhitelistWithError e key = do
   ok <- isWhiteListed key
   unless ok (throwError e)
 
-isWhiteListed :: (Monad m, MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m) => Either Email Phone -> m Bool
+isWhiteListed :: (MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m) => Either Email Phone -> m Bool
 isWhiteListed key = do
   eb <- setWhitelist <$> view settings
   case eb of

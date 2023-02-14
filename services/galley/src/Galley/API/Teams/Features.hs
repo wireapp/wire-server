@@ -118,7 +118,6 @@ class GetFeatureConfig (db :: Type) cfg where
     TeamId ->
     Sem r (WithStatus cfg)
   default getConfigForTeam ::
-    GetConfigForTeamConstraints db cfg r =>
     (FeaturePersistentConstraint db cfg, Members '[Input Opts, TeamFeatureStore db] r) =>
     TeamId ->
     Sem r (WithStatus cfg)
@@ -129,8 +128,6 @@ class GetFeatureConfig (db :: Type) cfg where
     UserId ->
     Sem r (WithStatus cfg)
   default getConfigForUser ::
-    GetConfigForUserConstraints db cfg r =>
-    GetConfigForTeamConstraints db cfg r =>
     ( FeaturePersistentConstraint db cfg,
       Members
         '[ Input Opts,
@@ -215,7 +212,6 @@ getFeatureStatus doauth tid = do
 getFeatureStatusMulti ::
   forall db cfg r.
   ( GetFeatureConfig db cfg,
-    GetConfigForTeamConstraints db cfg r,
     FeaturePersistentConstraint db cfg,
     Members
       '[ Input Opts,
@@ -429,7 +425,6 @@ getAllFeatureConfigsForServer ::
        TeamStore
      ]
     r =>
-  FeaturePersistentAllFeatures db =>
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForServer =
   AllFeatureConfigs
@@ -525,7 +520,6 @@ genericGetConfigForTeam ::
   GetFeatureConfig db cfg =>
   FeaturePersistentConstraint db cfg =>
   Members '[TeamFeatureStore db] r =>
-  GetConfigForTeamConstraints db cfg r =>
   Members '[Input Opts] r =>
   TeamId ->
   Sem r (WithStatus cfg)
@@ -541,7 +535,6 @@ genericGetConfigForMultiTeam ::
   GetFeatureConfig db cfg =>
   FeaturePersistentConstraint db cfg =>
   Members '[TeamFeatureStore db] r =>
-  GetConfigForTeamConstraints db cfg r =>
   Members '[Input Opts] r =>
   [TeamId] ->
   Sem r [(TeamId, WithStatus cfg)]
@@ -554,7 +547,6 @@ genericGetConfigForMultiTeam tids = do
 genericGetConfigForUser ::
   forall db cfg r.
   FeaturePersistentConstraint db cfg =>
-  GetConfigForTeamConstraints db cfg r =>
   ( Members
       '[ Input Opts,
          TeamFeatureStore db,
@@ -587,7 +579,6 @@ persistAndPushEvent ::
     GetFeatureConfig db cfg,
     FeaturePersistentConstraint db cfg,
     GetConfigForTeamConstraints db cfg r,
-    Show cfg,
     Members
       '[ TeamFeatureStore db,
          P.Logger (Log.Msg -> Log.Msg),

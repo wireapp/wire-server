@@ -73,7 +73,7 @@ add p = do
   where
     maxIdleTime = 7 * 24 * 60 * 60 -- 7 days in seconds
 
-deleteAll :: (MonadRedis m, MonadMask m, MonadThrow m, MonadIO m, RedisCtx m (Either Reply), MonadLogger m) => [Presence] -> m ()
+deleteAll :: (MonadMask m, MonadIO m, RedisCtx m (Either Reply), MonadLogger m) => [Presence] -> m ()
 deleteAll [] = pure ()
 deleteAll pp = for_ pp $ \p -> do
   let k = toKey (userId p)

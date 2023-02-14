@@ -218,7 +218,7 @@ instance A.ToJSONKey (Id a) where
 instance A.FromJSONKey (Id a) where
   fromJSONKey = A.FromJSONKeyTextParser idFromText
 
-randomId :: (Functor m, MonadIO m) => m (Id a)
+randomId :: MonadIO m => m (Id a)
 randomId = Id <$> liftIO nextRandom
 
 idFromText :: Text -> A.Parser (Id a)

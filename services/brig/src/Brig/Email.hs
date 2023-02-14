@@ -43,14 +43,13 @@ import qualified Brig.AWS as AWS
 import Brig.App (Env, applog, awsEnv, smtpEnv)
 import qualified Brig.SMTP as SMTP
 import Control.Lens (view)
-import Control.Monad.Catch
 import qualified Data.Text as Text
 import Imports
 import Network.Mail.Mime
 import Wire.API.User
 
 -------------------------------------------------------------------------------
-sendMail :: (MonadIO m, MonadCatch m, MonadReader Env m) => Mail -> m ()
+sendMail :: (MonadIO m, MonadReader Env m) => Mail -> m ()
 sendMail m =
   view smtpEnv >>= \case
     Just smtp -> view applog >>= \logger -> SMTP.sendMail logger smtp m

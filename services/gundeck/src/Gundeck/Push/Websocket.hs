@@ -28,7 +28,7 @@ import Bilge.Retry (rpcHandlers)
 import Control.Arrow ((&&&))
 import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (view, (%~), (^.), _2)
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, catch, throwM, try)
+import Control.Monad.Catch (MonadMask, MonadThrow, catch, throwM, try)
 import Control.Retry
 import Data.Aeson (eitherDecode, encode)
 import Data.ByteString.Conversion
@@ -145,10 +145,7 @@ fanOut =
 
 bulkSend ::
   forall m.
-  ( MonadIO m,
-    MonadThrow m,
-    MonadCatch m,
-    MonadMask m,
+  ( MonadMask m,
     HasRequestId m,
     MonadHttp m,
     MonadUnliftIO m,
@@ -162,12 +159,9 @@ bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Lef
 bulkSend' ::
   forall m.
   ( MonadIO m,
-    MonadThrow m,
-    MonadCatch m,
     MonadMask m,
     HasRequestId m,
     MonadHttp m,
-    MonadUnliftIO m,
     Log.MonadLogger m
   ) =>
   URI ->
@@ -201,7 +195,7 @@ bulkSend' uri bulkPushRequest = do
               let ex = StatusCodeException (rs {responseBody = ()}) mempty
                in throwM $ HttpExceptionRequest rq ex
         }
-    decodeBulkResp :: MonadThrow m => Maybe L.ByteString -> m BulkPushResponse
+    decodeBulkResp :: Maybe L.ByteString -> m BulkPushResponse
     decodeBulkResp Nothing = throwM $ ErrorCall "missing response body from cannon"
     decodeBulkResp (Just lbs) = either err pure $ eitherDecode lbs
       where
@@ -282,7 +276,7 @@ bulkresource = URI . (\x -> x {URI.uriPath = "/i/bulkpush"}) . fromURI . resourc
 -- TODO: a Map-based implementation would be faster for sufficiently large inputs.  do we want to
 -- take the time and benchmark the difference?  move it to types-common?
 {-# INLINE groupAssoc #-}
-groupAssoc :: (Eq a, Ord a) => [(a, b)] -> [(a, [b])]
+groupAssoc :: Ord a => [(a, b)] -> [(a, [b])]
 groupAssoc = groupAssoc' compare
 
 -- TODO: Also should we give 'Notification' an 'Ord' instance?

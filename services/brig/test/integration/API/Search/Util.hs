@@ -47,7 +47,7 @@ executeSearch' brig self q maybeDomain maybeSize = do
       <!! const 200 === statusCode
   responseJsonError r
 
-searchRequest :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Text -> Maybe Domain -> Maybe Int -> m ResponseLBS
+searchRequest :: MonadHttp m => Brig -> UserId -> Text -> Maybe Domain -> Maybe Int -> m ResponseLBS
 searchRequest brig self q maybeDomain maybeSize = do
   get
     ( brig
@@ -59,11 +59,11 @@ searchRequest brig self q maybeDomain maybeSize = do
     )
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
-refreshIndex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
+refreshIndex :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
 refreshIndex brig =
   post (brig . path "/i/index/refresh") !!! const 200 === statusCode
 
-reindex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
+reindex :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
 reindex brig =
   post (brig . path "/i/index/reindex") !!! const 200 === statusCode
 

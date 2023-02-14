@@ -156,7 +156,6 @@ getRemoteSubConversation ::
          FederatorAccess
        ]
       r,
-    Members MLSGetSubConvStaticErrors r,
     RethrowErrors MLSGetSubConvStaticErrors r,
     CallsFed 'Galley "get-sub-conversation"
   ) =>

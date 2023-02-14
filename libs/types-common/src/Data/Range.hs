@@ -3,6 +3,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+-- Disabling due to the use of LTE and other type level checks
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -404,7 +406,7 @@ instance Bounds (AsciiText r) where
 instance (KnownNat n, KnownNat m, Within a n m, Read a) => Read (Range n m a) where
   readsPrec p s = fromMaybe [] $ foldr f (Just []) (readsPrec p s)
     where
-      f :: (Within a n m, Read a) => (a, String) -> Maybe [(Range n m a, String)] -> Maybe [(Range n m a, String)]
+      f :: (a, String) -> Maybe [(Range n m a, String)] -> Maybe [(Range n m a, String)]
       f _ Nothing = Nothing
       f (a, t) (Just acc) = (\a' -> (a', t) : acc) <$> checked a
 

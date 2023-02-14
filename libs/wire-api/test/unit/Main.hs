@@ -32,6 +32,7 @@ import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
 import qualified Test.Wire.API.Roundtrip.HttpApiData as Roundtrip.HttpApiData
 import qualified Test.Wire.API.Roundtrip.MLS as Roundtrip.MLS
 import qualified Test.Wire.API.Routes as Routes
+import qualified Test.Wire.API.Routes.Version as Routes.Version
 import qualified Test.Wire.API.Swagger as Swagger
 import qualified Test.Wire.API.Team.Export as Team.Export
 import qualified Test.Wire.API.Team.Member as Team.Member
@@ -61,5 +62,6 @@ main =
         Routes.tests,
         Conversation.tests,
         MLS.tests,
-        SubConversation.tests
+        SubConversation.tests,
+        Routes.Version.tests
       ]

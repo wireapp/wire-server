@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on FromUTC
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -24,7 +27,7 @@ import Data.Time (UTCTime)
 import Imports
 import Polysemy
 import Polysemy.Input
-import Wire.Sem.FromUTC
+import Wire.Sem.FromUTC (FromUTC (..))
 import Wire.Sem.Now
 
 nowToInput ::

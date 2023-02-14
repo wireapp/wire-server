@@ -60,6 +60,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       api-bot
@@ -127,7 +128,7 @@ executable api-loadtest
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N -with-rtsopts=-T
+    -threaded -with-rtsopts=-N -with-rtsopts=-T -Wredundant-constraints
 
   build-depends:
       api-bot
@@ -203,7 +204,7 @@ executable api-smoketest
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N -with-rtsopts=-T
+    -threaded -with-rtsopts=-N -with-rtsopts=-T -Wredundant-constraints
 
   build-depends:
       api-bot
