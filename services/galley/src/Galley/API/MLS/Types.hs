@@ -49,7 +49,9 @@ cmRemoveClient cid cm = case Map.lookup (cidQualifiedUser cid) cm of
   Nothing -> cm
   Just clients ->
     let clients' = Map.delete (ciClient cid) clients
-     in Map.insert (cidQualifiedUser cid) clients' cm
+     in if Map.null clients'
+          then Map.delete (cidQualifiedUser cid) cm
+          else Map.insert (cidQualifiedUser cid) clients' cm
 
 isClientMember :: ClientIdentity -> ClientMap -> Bool
 isClientMember ci = isJust . cmLookupRef ci
