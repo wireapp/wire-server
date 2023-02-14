@@ -60,13 +60,13 @@ instance S.ToSchema BulkPushRequest where
     S.object "BulkPushRequest" $
       BulkPushRequest
         <$> fromBulkPushRequest S..= S.field "bulkpush_req" (S.array bulkpushReqItemSchema)
-
-bulkpushReqItemSchema :: ValueSchema S.NamedSwaggerDoc (Notification, [PushTarget])
-bulkpushReqItemSchema =
-  S.object "(Notification, [PushTarget])" $
-    (,)
-      <$> fst S..= S.field "notification" S.schema
-      <*> snd S..= S.field "targets" (S.array S.schema)
+    where
+      bulkpushReqItemSchema :: ValueSchema S.NamedSwaggerDoc (Notification, [PushTarget])
+      bulkpushReqItemSchema =
+        S.object "(Notification, [PushTarget])" $
+          (,)
+            <$> fst S..= S.field "notification" S.schema
+            <*> snd S..= S.field "targets" (S.array S.schema)
 
 data PushStatus = PushStatusOk | PushStatusGone
   deriving (Eq, Show, Bounded, Enum, Generic)
@@ -94,12 +94,12 @@ instance S.ToSchema BulkPushResponse where
   schema =
     S.object "BulkPushResponse" $
       BulkPushResponse
-        <$> fromBulkPushResponse S..= S.field "bulkpush_resp" (S.array S.schema)
-
-instance S.ToSchema (NotificationId, PushTarget, PushStatus) where
-  schema =
-    S.object "(NotificationId, PushTarget, PushStatus)" $
-      (,,)
-        <$> view _1 S..= S.field "notif_id" S.schema
-        <*> view _2 S..= S.field "target" S.schema
-        <*> view _3 S..= S.field "status" S.schema
+        <$> fromBulkPushResponse S..= S.field "bulkpush_resp" (S.array bulkPushResponseSchema)
+    where
+      bulkPushResponseSchema :: ValueSchema S.NamedSwaggerDoc (NotificationId, PushTarget, PushStatus)
+      bulkPushResponseSchema =
+        S.object "(NotificationId, PushTarget, PushStatus)" $
+          (,,)
+            <$> view _1 S..= S.field "notif_id" S.schema
+            <*> view _2 S..= S.field "target" S.schema
+            <*> view _3 S..= S.field "status" S.schema
