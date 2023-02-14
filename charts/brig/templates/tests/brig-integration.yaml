@@ -55,15 +55,21 @@ spec:
     # The other test, "user.auth.cookies.limit", is skipped as it is flaky.
     # This is tracked in https://github.com/zinfra/backend-issues/issues/1150.
     command: [ "brig-integration", "--pattern", "!/turn/ && !/user.auth.cookies.limit/" ]
+    securityContext:
+      readOnlyRootFilesystem: true
     volumeMounts:
     - name: "brig-integration"
       mountPath: "/etc/wire/integration"
+      readOnly: true
     - name: "brig-config"
       mountPath: "/etc/wire/brig/conf"
+      readOnly: true
     - name: "brig-secrets"
       mountPath: "/etc/wire/brig/secrets"
+      readOnly: true
     - name: "turn-servers"
       mountPath: "/etc/wire/brig/turn"
+      readOnly: true
     - name: "brig-integration-secrets"
       # TODO: Maybe we should put integration yaml also under
       #       `/integration/conf` by default? Note that currently
@@ -71,6 +77,7 @@ spec:
       #       non-default locations
       #       (see corresp. TODO in galley.)
       mountPath: "/etc/wire/integration-secrets"
+      readOnly: true
 
     env:
     # these dummy values are necessary for Amazonka's "Discover"

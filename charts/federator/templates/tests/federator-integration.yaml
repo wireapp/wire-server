@@ -25,13 +25,19 @@ spec:
   - name: integration
     command: ["federator-integration"]
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    securityContext:
+      readOnlyRootFilesystem: true
     volumeMounts:
     - name: "federator-integration"
       mountPath: "/etc/wire/integration"
+      readOnly: true
     - name: "federator-config"
       mountPath: "/etc/wire/federator/conf"
+      readOnly: true
     - name: "federator-secrets"
       mountPath: "/etc/wire/federator/secrets"
+      readOnly: true
     - name: "federator-ca"
       mountPath: "/etc/wire/federator/ca"
+      readOnly: true
   restartPolicy: Never

@@ -19,10 +19,14 @@ spec:
   containers:
   - name: integration
     image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    securityContext:
+      readOnlyRootFilesystem: true
     volumeMounts:
     - name: "spar-integration"
       mountPath: "/etc/wire/integration"
+      readOnly: true
     - name: "spar-config"
       mountPath: "/etc/wire/spar/conf"
+      readOnly: true
 
   restartPolicy: Never

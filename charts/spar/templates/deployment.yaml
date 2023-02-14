@@ -34,9 +34,12 @@ spec:
         - name: spar
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          securityContext:
+            readOnlyRootFilesystem: true
           volumeMounts:
           - name: "spar-config"
             mountPath: "/etc/wire/spar/conf"
+            readOnly: true
           env:
           {{- with .Values.config.proxy }}
           {{- if .httpProxy }}
