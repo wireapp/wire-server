@@ -76,7 +76,7 @@ settings:
       defaults:
         status: disabled
         config:
-          verificationTimeout: 3600 # 1 hour
+          verificationExpiration: null
         lockStatus: unlocked
 
 logLevel: Warn

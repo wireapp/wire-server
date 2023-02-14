@@ -104,7 +104,7 @@ tests s =
           ( withStatus
               FeatureStatusDisabled
               LockStatusUnlocked
-              (MlsE2EIdConfig (60 * 60))
+              (MlsE2EIdConfig Nothing)
               FeatureTTLUnlimited
           ),
       testGroup
@@ -146,7 +146,7 @@ tests s =
             testPatch AssertLockStatusChange FeatureStatusEnabled (SelfDeletingMessagesConfig 0),
           test s (unpack $ featureNameBS @OutlookCalIntegrationConfig) $
             testPatch AssertLockStatusChange FeatureStatusDisabled OutlookCalIntegrationConfig,
-          test s (unpack $ featureNameBS @MlsE2EIdConfig) $ testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (MlsE2EIdConfig (60 * 60))
+          test s (unpack $ featureNameBS @MlsE2EIdConfig) $ testPatchWithArbitrary AssertLockStatusChange FeatureStatusDisabled (MlsE2EIdConfig Nothing)
         ],
       testGroup
         "ExposeInvitationURLsToTeamAdmin"
@@ -1047,7 +1047,7 @@ testAllFeatures = do
           afcSearchVisibilityInboundConfig = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig FeatureTTLUnlimited,
           afcExposeInvitationURLsToTeamAdmin = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited,
           afcOutlookCalIntegration = withStatus FeatureStatusDisabled LockStatusLocked OutlookCalIntegrationConfig FeatureTTLUnlimited,
-          afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig (60 * 60)) FeatureTTLUnlimited
+          afcMlsE2EId = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig Nothing) FeatureTTLUnlimited
         }
 
 testFeatureConfigConsistency :: TestM ()

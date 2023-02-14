@@ -28,8 +28,8 @@ migration :: Migration
 migration = Migration 79 "Add feature config for team feature MLS MlsE2EId" $ do
   schema'
     [r| ALTER TABLE team_features ADD (
-          mls_e2e_id_status int,
-          mls_e2e_id_lock_status int,
-          mls_e2e_id_timeout_secs int
+          mls_e2eid_status int,
+          mls_e2eid_lock_status int,
+          mls_e2eid_ver_exp timestamp
         )
      |]

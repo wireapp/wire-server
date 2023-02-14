@@ -104,12 +104,15 @@ import qualified Data.Swagger as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
+import Data.Time (UTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Deriving.Aeson
 import GHC.TypeLits
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
+import Test.QuickCheck (oneof)
 import Test.QuickCheck.Arbitrary (arbitrary)
-import Test.QuickCheck.Gen (elements, suchThat)
+import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -890,30 +893,34 @@ instance FeatureTrivialConfig OutlookCalIntegrationConfig where
 ----------------------------------------------------------------------
 -- MlsE2EId
 
-data MlsE2EIdConfig = MlsE2EIdConfig {verificationCertificateTimeoutSecs :: Word64}
+data MlsE2EIdConfig = MlsE2EIdConfig {verificationExpiration :: Maybe UTCTime}
   deriving stock (Eq, Show, Generic)
 
 instance Arbitrary MlsE2EIdConfig where
-  arbitrary =
-    elements
-      [ 60 * 60,
-        60 * 60 * 2,
-        60 * 60 * 6,
-        60 * 60 * 12,
-        60 * 60 * 24,
-        60 * 60 * 24 * 7
-      ]
-      <&> MlsE2EIdConfig
+  arbitrary = oneof [pure $ MlsE2EIdConfig Nothing, MlsE2EIdConfig . Just . posixSecondsToUTCTime . fromIntegral <$> (arbitrary @Word32)]
 
 instance ToSchema MlsE2EIdConfig where
+  schema :: ValueSchema NamedSwaggerDoc MlsE2EIdConfig
   schema =
     object "MlsE2EIdConfig" $
       MlsE2EIdConfig
-        <$> verificationCertificateTimeoutSecs .= field "verificationTimeout" schema
+        <$> (fmap toSeconds . verificationExpiration) .= maybe_ (optFieldWithDocModifier "verificationExpiration" desc (fromSeconds <$> schema))
+    where
+      fromSeconds :: Int -> UTCTime
+      fromSeconds = posixSecondsToUTCTime . fromIntegral
+
+      toSeconds :: UTCTime -> Int
+      toSeconds = truncate . utcTimeToPOSIXSeconds
+
+      desc :: NamedSwaggerDoc -> NamedSwaggerDoc
+      desc =
+        description
+          ?~ "Unix timestamp (number of seconds that have passed since 00:00:00 UTC on Thursday, 1 January 1970) after which the period for clients to verify their identity expires. \
+             \When the timer goes off, they will be logged out and get the certificate automatically on their devices."
 
 instance IsFeatureConfig MlsE2EIdConfig where
   type FeatureSymbol MlsE2EIdConfig = "mlsE2EId"
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig (60 * 60)) FeatureTTLUnlimited
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked (MlsE2EIdConfig Nothing) FeatureTTLUnlimited
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
