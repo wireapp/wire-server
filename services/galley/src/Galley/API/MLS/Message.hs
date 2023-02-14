@@ -362,7 +362,8 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lConvOrSubId = do
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
-  propagateMessage qusr lConvOrSub conn (rmRaw (cbCommitMsg bundle))
+  let cm = membersConvOrSub (tUnqualified lConvOrSub)
+  propagateMessage qusr lConvOrSub conn (rmRaw (cbCommitMsg bundle)) cm
 
   for_ (cbWelcome bundle) $
     postMLSWelcome lConvOrSub conn
@@ -582,7 +583,8 @@ postMLSMessageToLocalConv qusr senderClient con smsg convOrSubId = case rmValue 
         Right ApplicationMessageTag -> pure mempty
         Left _ -> throwS @'MLSUnsupportedMessage
 
-    propagateMessage qusr lConvOrSub con (rmRaw smsg)
+    let cm = membersConvOrSub (tUnqualified lConvOrSub)
+    propagateMessage qusr lConvOrSub con (rmRaw smsg) cm
 
     pure events
 
@@ -842,7 +844,8 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath = wi
   -- fetch backend remove proposals of the previous epoch
   kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
   -- requeue backend remove proposals for the current epoch
-  createAndSendRemoveProposals lConvOrSub' kpRefs qusr
+  let cm = membersConvOrSub (tUnqualified lConvOrSub')
+  createAndSendRemoveProposals lConvOrSub' kpRefs qusr cm
   where
     derefUser :: ClientMap -> Qualified UserId -> Sem r (ClientIdentity, KeyPackageRef)
     derefUser cm user = case Map.assocs cm of
