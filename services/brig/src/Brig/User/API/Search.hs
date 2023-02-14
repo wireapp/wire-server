@@ -50,7 +50,6 @@ import Polysemy
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
-import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
 import qualified Wire.API.Team.Permission as Public
@@ -86,7 +85,7 @@ routesInternal = do
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
 search ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "get-users-by-ids", CallsFed 'Brig "search-users") =>
+  (Members '[GalleyProvider] r) =>
   UserId ->
   Text ->
   Maybe Domain ->
@@ -99,7 +98,7 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
     then searchLocally searcherId searchTerm maybeMaxResults
     else searchRemotely queryDomain searchTerm
 
-searchRemotely :: CallsFed 'Brig "search-users" => Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
+searchRemotely :: Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
 searchRemotely domain searchTerm = do
   lift . Log.info $
     msg (val "searchRemotely")
@@ -121,7 +120,7 @@ searchRemotely domain searchTerm = do
 
 searchLocally ::
   forall r.
-  (Members '[GalleyProvider] r, CallsFed 'Brig "get-users-by-ids") =>
+  (Members '[GalleyProvider] r) =>
   UserId ->
   Text ->
   Maybe (Range 1 500 Int32) ->
