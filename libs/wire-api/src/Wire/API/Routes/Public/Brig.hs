@@ -1492,5 +1492,13 @@ type SystemSettingsAPI =
         :> "system"
         :> "settings"
         :> "unauthorized"
-        :> Get '[JSON] SystemSettings
+        :> Get '[JSON] SystemSettingsPublic
     )
+    :<|> Named
+           "get-system-settings-authorized"
+           ( Summary "Returns a curated set of system configuration settings for authorized users."
+               :> ZUser
+               :> "system"
+               :> "settings"
+               :> Get '[JSON] SystemSettings
+           )
