@@ -22,7 +22,6 @@ module Wire.API.RawJson where
 import Data.Aeson as A hiding ((.=))
 import Data.Schema
 import qualified Data.Swagger as S
-import Data.Text as T
 import Data.Text.Lazy as TL
 import Data.Text.Lazy.Encoding as TLE
 import Imports
@@ -45,4 +44,4 @@ instance {-# OVERLAPPING #-} MimeUnrender JSON RawJson where
 
 instance ToSchema RawJson where
   schema :: ValueSchema NamedSwaggerDoc RawJson
-  schema = (TL.toStrict . rawJsonBytes) .= fmap (RawJson . TL.fromStrict) (schema @T.Text)
+  schema = rawJsonBytes .= fmap RawJson (schema @TL.Text)
