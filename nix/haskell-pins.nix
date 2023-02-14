@@ -60,8 +60,8 @@ let
     transitive-anns = {
       src = fetchgit {
         url = "https://github.com/isovector/transitive-anns";
-        rev = "e687328f3b04ac0fac1780871aa64e2f25dc6785";
-        sha256 = "sha256-pMf8glOfXYdXVOWMglvzGs65PiPDHU9hwsiDgAuYWSs=";
+        rev = "22f1b2b48b1d4422f32fd204a8b3454b03852ce3";
+        sha256 = "sha256-V5kfYsmaExeJVoQ7BChsXmW8gaDmt6gh2Wu7CH0IcZo=";
       };
     };
     HaskellNet-SSL = {
