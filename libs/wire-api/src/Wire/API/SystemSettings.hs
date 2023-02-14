@@ -22,14 +22,6 @@ import qualified Data.Aeson as A
 import Data.Schema as Schema
 import qualified Data.Swagger as S
 import Imports
-  ( Applicative ((<*>)),
-    Bool,
-    Eq,
-    Generic,
-    Show,
-    ($),
-    (<$>),
-  )
 import Servant.Swagger.Internal.Orphans ()
 import Test.QuickCheck
 import Wire.Arbitrary
