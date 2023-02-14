@@ -1,0 +1,14 @@
+architecture: replication
+global:
+  storageClass: local-storage
+auth:
+  replicationPassword: externalPostgresql
+  postgresPassword: externalPostgresql
+  username: externalPostgresql
+  password: externalPostgresql
+  database: externalPostgresql
+readReplicas:
+  name: read
+  replicaCount: 2
+replication:
+  numSynchronousReplicas: 2
