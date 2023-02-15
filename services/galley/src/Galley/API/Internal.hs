@@ -28,6 +28,7 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens hiding (Getter, Setter, (.=))
 import Data.Id as Id
 import Data.List1 (maybeList1)
+import qualified Data.Map as Map
 import Data.Qualified
 import Data.Range
 import Data.Singletons
@@ -60,6 +61,7 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
+import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.TeamStore
 import qualified Galley.Intra.Push as Intra
 import Galley.Monad
@@ -86,7 +88,7 @@ import qualified Servant hiding (WithStatus)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
 import Wire.API.ApplyMods
-import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
@@ -96,6 +98,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.Group
 import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
@@ -109,6 +112,7 @@ import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
+import Wire.API.User.Client
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
@@ -270,6 +274,19 @@ type InternalAPIBase =
                :> "connect"
                :> ReqBody '[Servant.JSON] Connect
                :> ConversationVerb
+           )
+    -- This endpoint is meant for testing membership of a conversation
+    :<|> Named
+           "get-conversation-clients"
+           ( Summary "Get mls conversation client list"
+               :> ZLocalUser
+               :> CanThrow 'ConvNotFound
+               :> "conversation"
+               :> Capture "cnv" ConvId
+               :> MultiVerb1
+                    'GET
+                    '[Servant.JSON]
+                    (Respond 200 "Clients" ClientList)
            )
     :<|> Named
            "guard-legalhold-policy-conflicts"
@@ -479,6 +496,7 @@ internalAPI =
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" (callsFed rmUser)
       <@> mkNamedAPI @"connect" (callsFed Create.createConnectConversation)
+      <@> mkNamedAPI @"get-conversation-clients" iGetMLSClientListForConv
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
@@ -688,6 +706,7 @@ rmUser ::
          MemberStore,
          ProposalStore,
          P.TinyLog,
+         SubConversationStore,
          TeamStore
        ]
       r,
@@ -842,3 +861,18 @@ guardLegalholdPolicyConflictsH ::
 guardLegalholdPolicyConflictsH glh = do
   mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
+
+-- | Get an MLS conversation client list
+iGetMLSClientListForConv ::
+  forall r.
+  Members
+    '[ MemberStore,
+       ErrorS 'ConvNotFound
+     ]
+    r =>
+  Local UserId ->
+  ConvId ->
+  Sem r ClientList
+iGetMLSClientListForConv lusr cnv = do
+  cm <- E.lookupMLSClients (convToGroupId (qualifyAs lusr cnv))
+  pure $ ClientList (concatMap (Map.keys . snd) (Map.assocs cm))

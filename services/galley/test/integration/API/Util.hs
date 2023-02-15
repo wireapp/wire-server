@@ -188,7 +188,7 @@ createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
   owner <- randomTeamCreator'
   teams <- getTeams (userId owner) []
-  let [team] = view teamListTeams teams
+  team <- assertOne $ view teamListTeams teams
   let tid = view teamId team
   SQS.assertTeamActivate "create team" tid
   refreshIndex
@@ -997,6 +997,17 @@ getConvs u cids = do
       . zUser u
       . zConn "conn"
       . json (ListConversations (unsafeRange cids))
+
+getConvClients :: HasCallStack => UserId -> ConvId -> TestM ClientList
+getConvClients usr cnv = do
+  g <- viewGalley
+  responseJsonError
+    =<< get
+      ( g
+          . paths ["i", "conversation", toByteString' cnv]
+          . zUser usr
+          . zConn "conn"
+      )
 
 getAllConvs :: HasCallStack => UserId -> TestM [Conversation]
 getAllConvs u = do
@@ -1811,7 +1822,7 @@ assertRemoveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified
 assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   frRPC req @?= "on-conversation-updated"
   frOriginDomain req @?= qDomain qconvId
-  let Just cu = decode (frBody req)
+  cu <- assertJust $ decode (frBody req)
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
@@ -1821,7 +1832,7 @@ assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified 
 assertLeaveUpdate req qconvId remover alreadyPresentUsers = liftIO $ do
   frRPC req @?= "on-conversation-updated"
   frOriginDomain req @?= qDomain qconvId
-  let Just cu = decode (frBody req)
+  cu <- assertJust $ decode (frBody req)
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
@@ -2153,7 +2164,7 @@ getInternalClientsFull userSet = do
 ensureClientCaps :: HasCallStack => UserId -> ClientId -> Client.ClientCapabilityList -> TestM ()
 ensureClientCaps uid cid caps = do
   UserClientsFull (Map.lookup uid -> (Just clnts)) <- getInternalClientsFull (UserSet $ Set.singleton uid)
-  let [clnt] = filter ((== cid) . clientId) $ Set.toList clnts
+  clnt <- assertOne . filter ((== cid) . clientId) $ Set.toList clnts
   liftIO $ assertEqual ("ensureClientCaps: " <> show (uid, cid, caps)) (clientCapabilities clnt) caps
 
 -- TODO: Refactor, as used also in brig
@@ -2857,17 +2868,17 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
 
 wsAssertBackendRemoveProposalWithEpoch :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Epoch -> Notification -> IO ByteString
 wsAssertBackendRemoveProposalWithEpoch fromUser convId kpref epoch n = do
-  bs <- wsAssertBackendRemoveProposal fromUser convId kpref n
+  bs <- wsAssertBackendRemoveProposal fromUser (Conv <$> convId) kpref n
   let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' @(Message 'MLSPlainText) bs
   let tbs = rmValue . msgTBS $ msg
   tbsMsgEpoch tbs @?= epoch
   pure bs
 
-wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
-wsAssertBackendRemoveProposal fromUser convId kpref n = do
+wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvOrSubConvId -> KeyPackageRef -> Notification -> IO ByteString
+wsAssertBackendRemoveProposal fromUser cnvOrSubCnv kpref n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= convId
+  evtConv e @?= convOfConvOrSub <$> cnvOrSubCnv
   evtType e @?= MLSMessageAdd
   evtFrom e @?= fromUser
   let bs = getMLSMessageData (evtData e)

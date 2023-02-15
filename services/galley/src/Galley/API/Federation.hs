@@ -145,6 +145,7 @@ onClientRemoved ::
          Input UTCTime,
          MemberStore,
          ProposalStore,
+         SubConversationStore,
          TinyLog
        ]
       r,
