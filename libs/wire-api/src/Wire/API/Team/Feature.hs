@@ -469,7 +469,6 @@ instance ToSchema LockStatus where
           element "unlocked" LockStatusUnlocked
         ]
 
--- TODO: Check if this generic instantiation is/looks good
 instance S.ToParamSchema LockStatus
 
 instance ToByteString LockStatus where
