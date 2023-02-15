@@ -102,6 +102,24 @@ pub extern "C" fn zauth_acl_open(f: *const u8, n: size_t, a: *mut *mut ZauthAcl)
 }
 
 #[no_mangle]
+pub extern "C" fn zauth_oauth_key_open(f: *const u8, n: size_t, k: *mut *mut libc::c_char) -> ZauthResult {
+    if f.is_null() {
+        return ZauthResult::NullArg;
+    }
+    catch_unwind(|| {
+        let bytes = unsafe { slice::from_raw_parts(f, n) };
+        let path = try_unwrap!(str::from_utf8(bytes));
+        let mut rdr = BufReader::new(try_unwrap!(File::open(&Path::new(path))));
+        let mut txt = String::new();
+        try_unwrap!(rdr.read_to_string(&mut txt));
+        unsafe {
+            *k = CString::new(&txt).unwrap().into_raw();
+        }
+        ZauthResult::Ok
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn zauth_acl_delete(a: *mut ZauthAcl) {
     catch_unwind(|| {
         unsafe {
