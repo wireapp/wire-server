@@ -856,7 +856,6 @@ testDataPingPong = do
 testControlPingPongWithData :: TestM ()
 testControlPingPongWithData = do
   ca <- view tsCannon
-  logger <- view tsLogger
   uid :: UserId <- randomId
   connid :: ConnId <- randomConnId
   [(_, [(chread, chPingWrite)] :: [(TChan WS.Message, TChan ByteString)])] <-
@@ -864,10 +863,10 @@ testControlPingPongWithData = do
   liftIO $ do
     let pingPayload = "pi 3e4ac0590d55a24af7298b po"
     atomically $ writeTChan chPingWrite pingPayload
-    msg <- waitForMessageRaw chread -- this is a server-sent ping; we'll ignore this
-    msg2 <- waitForMessageRaw chread
+    _msg <- waitForMessageRaw chread -- this is a server-sent ping; we'll ignore this
+    msg <- waitForMessageRaw chread
     let expected = Just (WS.ControlMessage $ WS.Pong $ fromStrict pingPayload)
-    assertBool "no pong with the same payload" $ msg2 == expected
+    assertBool "no pong with the same payload" $ msg == expected
 
 testNoPingNoPong :: TestM ()
 testNoPingNoPong = do
