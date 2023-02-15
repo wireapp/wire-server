@@ -19,11 +19,8 @@
 
 module Wire.API.RawJson where
 
-import Data.Aeson as A hiding ((.=))
-import Data.Schema
-import qualified Data.Swagger as S
-import Data.Text.Lazy as TL
-import Data.Text.Lazy.Encoding as TLE
+import Control.Lens
+import qualified Data.Swagger as Swagger
 import Imports
 import Servant
 import Test.QuickCheck
@@ -32,16 +29,17 @@ import Test.QuickCheck.Instances ()
 -- | Wrap json content as plain 'LByteString'
 -- This type is intented to be used to receive json content as 'LText'.
 -- Warning: There is no validation of the json content. It may be any string.
-newtype RawJson = RawJson {rawJsonBytes :: LText}
+newtype RawJson = RawJson {rawJsonBytes :: LByteString}
   deriving (Eq, Show)
-  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via Schema RawJson
   deriving newtype (Arbitrary)
 
 instance {-# OVERLAPPING #-} MimeUnrender JSON RawJson where
-  -- The conversion to `Text` narrows the domain to UTF-8 strings. As this is
-  -- about JSON (de-) serialization, that's probably fine.
-  mimeUnrender _ = pure . RawJson . TLE.decodeUtf8
+  mimeUnrender _ = pure . RawJson
 
-instance ToSchema RawJson where
-  schema :: ValueSchema NamedSwaggerDoc RawJson
-  schema = rawJsonBytes .= fmap RawJson (schema @TL.Text)
+instance Swagger.ToSchema RawJson where
+  declareNamedSchema _ =
+    pure . Swagger.NamedSchema (Just "RawJson") $
+      mempty
+        & Swagger.type_ ?~ Swagger.SwaggerObject
+        & Swagger.description
+          ?~ "Any JSON as plain string. The object structure is not specified in this schema."

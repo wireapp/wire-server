@@ -1,11 +1,6 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Test.Wire.API.RawJson (tests) where
 
-import Data.Aeson as A
 import Data.Proxy
-import Data.Text.Lazy as TL
-import Data.Text.Lazy.Encoding
 import Imports
 import Servant.API
 import Test.Tasty
@@ -15,30 +10,13 @@ import Wire.API.RawJson
 tests :: TestTree
 tests =
   testGroup "RawJson" $
-    [ testProperty "MimeUnrender and FromJSON produce same result" testMimeUnrenderAndFromJSON,
-      testProperty "ToJSON FromJSON roundtrip" testJsonRoundTrip
+    [ testProperty "MimeUnrender lifts any string to RawJson" testMimeUnrender
     ]
 
-testMimeUnrenderAndFromJSON :: Property
-testMimeUnrenderAndFromJSON =
+testMimeUnrender :: Property
+testMimeUnrender =
   forAll
-    (arbitrary :: (Gen TL.Text))
+    (arbitrary :: (Gen LByteString))
     ( \t ->
-        let muRes = mimeUnrender (Proxy :: Proxy JSON) (encodeUtf8 t)
-            jsonRes = (fromJSON @RawJson . toJSON . RawJson) t
-         in muRes == toEither jsonRes
-    )
-  where
-    toEither :: Result a -> Either String a
-    toEither = \case
-      A.Success a -> Right a
-      A.Error b -> Left b
-
-testJsonRoundTrip :: Property
-testJsonRoundTrip =
-  forAll
-    (arbitrary :: (Gen TL.Text))
-    ( \t ->
-        let val = RawJson t
-         in (fromJSON . toJSON) val == A.Success val
+        mimeUnrender (Proxy @JSON) t == (Right . RawJson) t
     )
