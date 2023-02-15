@@ -222,7 +222,8 @@ tests s =
               test s "reset a subconversation as a member" (testDeleteSubConv True),
               test s "reset a subconversation as a non-member" (testDeleteSubConv False),
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
-              test s "leave a subconversation" testLeaveSubConv,
+              test s "leave a subconversation as a creator" (testLeaveSubConv True),
+              test s "leave a subconversation as a non-creator" (testLeaveSubConv False),
               test s "leave a subconversation as a non-member" testLeaveSubConvNonMember,
               test s "remove user from parent conversation" testRemoveUserParent,
               test s "remove creator from parent conversation" testRemoveCreatorParent,
@@ -2910,12 +2911,13 @@ testDeleteRemoteSubConv isAMember = do
           Aeson.decode (frBody actualReq)
     liftIO $ req @?= Just expectedReq
 
-testLeaveSubConv :: TestM ()
-testLeaveSubConv = do
+testLeaveSubConv :: Bool -> TestM ()
+testLeaveSubConv isSubConvCreator = do
   [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Just "charlie.example.com"]
 
   runMLSTest $ do
-    [alice1, bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
+    charlie1 : allLocals@[alice1, bob1, bob2] <-
+      traverse createMLSClient [charlie, alice, bob, bob]
     traverse_ uploadNewKeyPackage [bob1, bob2]
     (_, qcnv) <- setupMLSGroup alice1
 
@@ -2934,12 +2936,18 @@ testLeaveSubConv = do
         void $ createExternalCommit charlie1 Nothing qsub >>= sendAndConsumeCommitBundle
         pure qsub
 
-    -- bob1 (the creator of the subconv) leaves
-    [bob1KP] <-
-      map snd . filter (\(cid, _) -> cid == bob1)
-        <$> getClientsFromGroupState alice1 bob
-    mlsBracket [bob1, alice1, bob2] $ \(wsBob1 : wss) -> do
-      (_, reqs) <- withTempMockFederator' messageSentMock $ leaveCurrentConv bob1 qsub
+    let firstLeaver = if isSubConvCreator then bob1 else alice1
+    -- a member leaves the subconversation
+    [firstLeaverKP] <-
+      map snd . filter (\(cid, _) -> cid == firstLeaver)
+        <$> getClientsFromGroupState
+          alice1
+          (cidQualifiedUser firstLeaver)
+    let others = leaverAndOthers firstLeaver allLocals
+    mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
+      (_, reqs) <-
+        withTempMockFederator' messageSentMock $
+          leaveCurrentConv firstLeaver qsub
       req <-
         assertOne
           ( toList . Aeson.decode . frBody
@@ -2952,20 +2960,23 @@ testLeaveSubConv = do
 
       msgs <-
         WS.assertMatchN (5 # WS.Second) wss $
-          wsAssertBackendRemoveProposal bob (Conv <$> qcnv) bob1KP
-      traverse_ (uncurry consumeMessage1) (zip [alice1, bob2] msgs)
+          wsAssertBackendRemoveProposal
+            (cidQualifiedUser firstLeaver)
+            (Conv <$> qcnv)
+            firstLeaverKP
+      traverse_ (uncurry consumeMessage1) (zip others msgs)
       -- assert the leaver gets no proposal or event
-      void . liftIO $ WS.assertNoEvent (5 # WS.Second) [wsBob1]
+      void . liftIO $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
 
-    -- alice commits the pending proposal
-    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+    -- a member commits the pending proposal
+    void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
 
     -- check that only 3 clients are left in the subconv
     do
       psc <-
         liftTest $
           responseJsonError
-            =<< getSubConv (qUnqualified alice) qcnv subId
+            =<< getSubConv (ciUser (head others)) qcnv subId
               <!! do
                 const 200 === statusCode
       liftIO $ length (pscMembers psc) @?= 3
@@ -2973,27 +2984,42 @@ testLeaveSubConv = do
     -- charlie1 leaves
     [charlie1KP] <-
       map snd . filter (\(cid, _) -> cid == charlie1)
-        <$> getClientsFromGroupState alice1 charlie
-    mlsBracket [alice1, bob2] $ \wss -> do
+        <$> getClientsFromGroupState (head others) charlie
+    mlsBracket others $ \wss -> do
       leaveCurrentConv charlie1 qsub
 
       msgs <-
         WS.assertMatchN (5 # WS.Second) wss $
           wsAssertBackendRemoveProposal charlie (Conv <$> qcnv) charlie1KP
-      traverse_ (uncurry consumeMessage1) (zip [alice1, bob2] msgs)
+      traverse_ (uncurry consumeMessage1) (zip others msgs)
 
-    -- alice commits the pending proposal
-    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommitBundle
+    -- a member commits the pending proposal
+    void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
 
     -- check that only 2 clients are left in the subconv
     do
       psc <-
         liftTest $
           responseJsonError
-            =<< getSubConv (qUnqualified alice) qcnv subId
+            =<< getSubConv (ciUser (head others)) qcnv subId
               <!! do
                 const 200 === statusCode
-      liftIO $ length (pscMembers psc) @?= 2
+      liftIO $ do
+        length (pscMembers psc) @?= 2
+        (sort (pscMembers psc)) @?= (sort others)
+  where
+    allLocalsButLeaver :: [a] -> [(a, [a])]
+    allLocalsButLeaver xs =
+      ( \(l, i) ->
+          let s = splitAt i xs
+           in (l, fst s ++ drop 1 (snd s))
+      )
+        <$> zip xs [0 ..]
+    leaverAndOthers :: Eq a => a -> [a] -> [a]
+    leaverAndOthers leaver xs =
+      let (Just (_, others)) =
+            find (\(l, _) -> l == leaver) (allLocalsButLeaver xs)
+       in others
 
 testLeaveSubConvNonMember :: TestM ()
 testLeaveSubConvNonMember = do
