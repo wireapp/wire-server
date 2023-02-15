@@ -67,8 +67,8 @@ type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi com
 -- 'Wire.API.MakesFederatedCall.exposeAnnotations' for a better understanding
 -- of the information flow here.
 fedClient ::
-  forall (comp :: Component) (name :: Symbol) m api x.
-  (AddAnnotation 'Remote (ShowComponent comp) name x, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  forall (comp :: Component) (name :: Symbol) m (showcomp :: Symbol) api x.
+  (AddAnnotation 'Remote showcomp name x, showcomp ~ ShowComponent comp, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 

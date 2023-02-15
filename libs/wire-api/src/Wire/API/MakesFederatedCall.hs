@@ -120,7 +120,7 @@ instance RoutesToPaths api => RoutesToPaths (MakesFederatedCall comp name :> api
   getRoutes = getRoutes @api
 
 -- | Get a symbol representation of our component.
-type family ShowComponent (x :: Component) :: Symbol where
+type family ShowComponent (x :: Component) = (res :: Symbol) | res -> x where
   ShowComponent 'Brig = "brig"
   ShowComponent 'Galley = "galley"
   ShowComponent 'Cargohold = "cargohold"
