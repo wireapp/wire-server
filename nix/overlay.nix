@@ -61,6 +61,7 @@ self: super: {
 
   nginxModules = super.nginxModules // {
     zauth = {
+      name = "zauth";
       src = ../services/nginz/third_party/nginx-zauth-module;
       inputs = [ self.pkg-config self.zauth ];
     };
