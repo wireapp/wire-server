@@ -60,7 +60,7 @@ import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
-import Polysemy (Members)
+import Polysemy (Member)
 import Servant hiding (Handler, JSON, addHeader)
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
@@ -82,11 +82,9 @@ import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
 
 servantAPI ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member GalleyProvider r
+  ) =>
   ServerT TeamsAPI (Handler r)
 servantAPI =
   Named @"send-team-invitation" createInvitationPublicH
@@ -98,12 +96,9 @@ servantAPI =
     :<|> Named @"get-team-size" teamSizePublic
 
 routesInternal ::
-  ( Members
-      '[ BlacklistStore,
-         GalleyProvider,
-         UserPendingActivationStore p
-       ]
-      r,
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r,
     CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   Routes a (Handler r) ()
@@ -133,7 +128,7 @@ routesInternal = do
     accept "application" "json"
       .&. jsonRequest @NewUserScimInvitation
 
-teamSizePublic :: Members '[GalleyProvider] r => UserId -> TeamId -> (Handler r) TeamSize
+teamSizePublic :: Member GalleyProvider r => UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do
   ensurePermissions uid tid [AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
   teamSize tid
@@ -160,11 +155,9 @@ instance ToJSON FoundInvitationCode where
   toJSON (FoundInvitationCode c) = object ["code" .= c]
 
 createInvitationPublicH ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member GalleyProvider r
+  ) =>
   UserId ->
   TeamId ->
   Public.InvitationRequest ->
@@ -184,11 +177,9 @@ data CreateInvitationInviter = CreateInvitationInviter
   deriving (Eq, Show)
 
 createInvitationPublic ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member GalleyProvider r
+  ) =>
   UserId ->
   TeamId ->
   Public.InvitationRequest ->
@@ -213,12 +204,10 @@ createInvitationPublic uid tid body = do
       (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
 createInvitationViaScimH ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r
+  ) =>
   JSON ::: JsonRequest NewUserScimInvitation ->
   (Handler r) Response
 createInvitationViaScimH (_ ::: req) = do
@@ -226,12 +215,10 @@ createInvitationViaScimH (_ ::: req) = do
   setStatus status201 . json <$> createInvitationViaScim body
 
 createInvitationViaScim ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r
+  ) =>
   NewUserScimInvitation ->
   (Handler r) UserAccount
 createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email role) = do
@@ -272,11 +259,9 @@ logInvitationRequest context action =
         pure (Right result)
 
 createInvitation' ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member GalleyProvider r
+  ) =>
   TeamId ->
   Public.Role ->
   Maybe UserId ->
@@ -336,19 +321,19 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
           timeout
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
-deleteInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) ()
+deleteInvitation :: Member GalleyProvider r => UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   lift $ wrapClient $ DB.deleteInvitation tid iid
 
-listInvitations :: Members '[GalleyProvider] r => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
+listInvitations :: Member GalleyProvider r => UserId -> TeamId -> Maybe InvitationId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.InvitationList
 listInvitations uid tid start mSize = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
   rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start (fromMaybe (unsafeRange 100) mSize)
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
-getInvitation :: Members '[GalleyProvider] r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
+getInvitation :: Member GalleyProvider r => UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ liftSem $ GalleyProvider.getExposeInvitationURLsToTeamAdmin tid
@@ -380,25 +365,25 @@ getInvitationByEmail email = do
   inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
-suspendTeamH :: (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") => JSON ::: TeamId -> (Handler r) Response
+suspendTeamH :: (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") => JSON ::: TeamId -> (Handler r) Response
 suspendTeamH (_ ::: tid) = do
   empty <$ suspendTeam tid
 
-suspendTeam :: (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") => TeamId -> (Handler r) ()
+suspendTeam :: (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") => TeamId -> (Handler r) ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
   lift $ wrapClient $ DB.deleteInvitations tid
   lift $ liftSem $ GalleyProvider.changeTeamStatus tid Team.Suspended Nothing
 
 unsuspendTeamH ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
   JSON ::: TeamId ->
   (Handler r) Response
 unsuspendTeamH (_ ::: tid) = do
   empty <$ unsuspendTeam tid
 
 unsuspendTeam ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
   TeamId ->
   (Handler r) ()
 unsuspendTeam tid = do
@@ -409,7 +394,7 @@ unsuspendTeam tid = do
 -- Internal
 
 changeTeamAccountStatuses ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
   TeamId ->
   AccountStatus ->
   (Handler r) ()

@@ -76,7 +76,10 @@ bodyReaderToStreamT action = fromStepT go
 -- FUTUREWORK: unify this interpretation with similar ones in Galley
 --
 interpretServiceHTTP ::
-  Members '[Embed (Codensity IO), Input Env, TinyLog] r =>
+  ( Member (Embed (Codensity IO)) r,
+    Member (Input Env) r,
+    Member TinyLog r
+  ) =>
   Sem (ServiceStreaming ': r) a ->
   Sem r a
 interpretServiceHTTP = interpret $ \case

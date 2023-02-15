@@ -32,7 +32,7 @@ import GHC.Foreign (peekCStringLen, withCStringLen)
 import GHC.IO.Encoding (getFileSystemEncoding)
 import Imports
 import qualified Network.TLS as TLS
-import Polysemy (Embed, Member, Members, Sem, embed)
+import Polysemy (Embed, Member, Sem, embed)
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.Final (Final)
@@ -108,7 +108,9 @@ runSemDefault :: Logger -> Sem '[TinyLog, Embed IO, Final IO] a -> IO a
 runSemDefault logger = Polysemy.runFinal . Polysemy.embedToFinal . Log.loggerToTinyLog logger
 
 logErrors ::
-  Members '[TinyLog, Polysemy.Error FederationSetupError] r =>
+  ( Member TinyLog r,
+    Member (Polysemy.Error FederationSetupError) r
+  ) =>
   Sem r a ->
   Sem r a
 logErrors action = Polysemy.catch action $ \err -> do
@@ -124,7 +126,10 @@ logAndIgnoreErrors ::
 logAndIgnoreErrors = void . Polysemy.runError . logErrors
 
 delMonitor ::
-  (Members '[TinyLog, Embed IO, Final IO] r) =>
+  ( Member TinyLog r,
+    Member (Embed IO) r,
+    Member (Final IO) r
+  ) =>
   Monitor ->
   Sem r ()
 delMonitor monitor = Polysemy.resourceToIOFinal
@@ -144,8 +149,11 @@ delMonitor monitor = Polysemy.resourceToIOFinal
           . Log.field "descriptor" (show wd)
 
 mkMonitor ::
-  ( Members '[TinyLog, Embed IO] r,
-    Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r1
+  ( Member TinyLog r,
+    Member (Embed IO) r,
+    Member TinyLog r1,
+    Member (Embed IO) r1,
+    Member (Polysemy.Error FederationSetupError) r1
   ) =>
   (Sem r1 () -> IO ()) ->
   IORef TLSSettings ->
@@ -178,7 +186,10 @@ data Action = ReplaceWatch RawFilePath | ReloadSettings
   deriving (Eq, Ord, Show)
 
 handleEvent ::
-  Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r =>
+  ( Member TinyLog r,
+    Member (Embed IO) r,
+    Member (Polysemy.Error FederationSetupError) r
+  ) =>
   (Sem r () -> IO ()) ->
   Monitor ->
   WatchedPath ->
@@ -208,7 +219,10 @@ getActions (WatchedDir dir paths) (Created _ path)
 getActions _ _ = []
 
 applyAction ::
-  (Members '[TinyLog, Embed IO, Polysemy.Error FederationSetupError] r) =>
+  ( Member TinyLog r,
+    Member (Embed IO) r,
+    Member (Polysemy.Error FederationSetupError) r
+  ) =>
   Monitor ->
   Action ->
   Sem r ()
@@ -228,7 +242,9 @@ applyAction monitor (ReplaceWatch path) = do
         WatchedFile _ -> pure ()
 
 addWatchedFile ::
-  Members '[TinyLog, Embed IO] r =>
+  ( Member TinyLog r,
+    Member (Embed IO) r
+  ) =>
   Monitor ->
   WatchedPath ->
   Sem r ()
@@ -334,7 +350,9 @@ showFederationSetupError (InvalidCAStore path) = "invalid CA store: " <> Text.pa
 showFederationSetupError (InvalidClientCertificate msg) = Text.pack msg
 
 mkTLSSettings ::
-  Members '[Embed IO, Polysemy.Error FederationSetupError] r =>
+  ( Member (Embed IO) r,
+    Member (Polysemy.Error FederationSetupError) r
+  ) =>
   RunSettings ->
   Sem r TLSSettings
 mkTLSSettings settings =
@@ -343,7 +361,9 @@ mkTLSSettings settings =
     <*> mkCreds settings
 
 mkCAStore ::
-  Members '[Embed IO, Polysemy.Error FederationSetupError] r =>
+  ( Member (Embed IO) r,
+    Member (Polysemy.Error FederationSetupError) r
+  ) =>
   RunSettings ->
   Sem r CertificateStore
 mkCAStore settings = do
@@ -358,7 +378,9 @@ mkCAStore settings = do
   pure (customCAStore <> systemCAStore)
 
 mkCreds ::
-  Members '[Embed IO, Polysemy.Error FederationSetupError] r =>
+  ( Member (Embed IO) r,
+    Member (Polysemy.Error FederationSetupError) r
+  ) =>
   RunSettings ->
   Sem r TLS.Credential
 mkCreds settings = do

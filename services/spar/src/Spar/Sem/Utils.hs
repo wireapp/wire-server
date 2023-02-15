@@ -48,7 +48,9 @@ import qualified Wire.Sem.Logger as Logger
 
 -- | Run an embedded Cassandra 'Client'  in @Final IO@.
 interpretClientToIO ::
-  Members '[Error SparError, Final IO] r =>
+  ( Member (Error SparError) r,
+    Member (Final IO) r
+  ) =>
   ClientState ->
   Sem (Embed Client ': r) a ->
   Sem r a
@@ -89,7 +91,9 @@ semToRunHttp :: Sem r a -> RunHttp r a
 semToRunHttp = RunHttp . lift . lift . lift
 
 viaRunHttp ::
-  Members '[Error SparError, Embed IO] r =>
+  ( Member (Error SparError) r,
+    Member (Embed IO) r
+  ) =>
   RunHttpEnv r ->
   RunHttp r a ->
   Sem r a
@@ -102,12 +106,22 @@ viaRunHttp env m = do
 instance Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r => TinyLog.MonadLogger (RunHttp r) where
   log lvl msg = semToRunHttp $ Logger.log (Logger.fromLevel lvl) msg
 
-instance Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Embed IO] r => MonadSparToGalley (RunHttp r) where
+instance
+  ( Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r,
+    Member (Embed IO) r
+  ) =>
+  MonadSparToGalley (RunHttp r)
+  where
   call modreq = do
     req <- asks rheRequest
     httpLbs req modreq
 
-instance Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Embed IO] r => MonadSparToBrig (RunHttp r) where
+instance
+  ( Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r,
+    Member (Embed IO) r
+  ) =>
+  MonadSparToBrig (RunHttp r)
+  where
   call modreq = do
     req <- asks rheRequest
     httpLbs req modreq

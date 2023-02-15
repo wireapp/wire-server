@@ -64,18 +64,27 @@ data DiscoverFederator m a where
 makeSem ''DiscoverFederator
 
 discoverFederatorWithError ::
-  Members '[DiscoverFederator, Polysemy.Error DiscoveryFailure] r =>
+  ( Member DiscoverFederator r,
+    Member (Polysemy.Error DiscoveryFailure) r
+  ) =>
   Domain ->
   Sem r SrvTarget
 discoverFederatorWithError = Polysemy.fromEither <=< discoverFederator
 
 discoverAllFederatorsWithError ::
-  Members '[DiscoverFederator, Polysemy.Error DiscoveryFailure] r =>
+  ( Member DiscoverFederator r,
+    Member (Polysemy.Error DiscoveryFailure) r
+  ) =>
   Domain ->
   Sem r (NonEmpty SrvTarget)
 discoverAllFederatorsWithError = Polysemy.fromEither <=< discoverAllFederators
 
-runFederatorDiscovery :: Members '[DNSLookup, TinyLog] r => Sem (DiscoverFederator ': r) a -> Sem r a
+runFederatorDiscovery ::
+  ( Member DNSLookup r,
+    Member TinyLog r
+  ) =>
+  Sem (DiscoverFederator ': r) a ->
+  Sem r a
 runFederatorDiscovery = interpret $ \case
   DiscoverFederator d ->
     -- FUTUREWORK(federation): orderSrvResult and try the list in order this
@@ -89,7 +98,12 @@ runFederatorDiscovery = interpret $ \case
     -- (https://wearezeta.atlassian.net/browse/SQCORE-912)
     domainSrv d = cs $ "_wire-server-federator._tcp." <> domainText d
 
-lookupDomainByDNS :: Members '[DNSLookup, TinyLog] r => ByteString -> Sem r (Either DiscoveryFailure (NonEmpty SrvTarget))
+lookupDomainByDNS ::
+  ( Member DNSLookup r,
+    Member TinyLog r
+  ) =>
+  ByteString ->
+  Sem r (Either DiscoveryFailure (NonEmpty SrvTarget))
 lookupDomainByDNS domainSrv = do
   res <- Lookup.lookupSRV domainSrv
   case res of

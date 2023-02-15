@@ -35,7 +35,7 @@ import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Imports
 import Polysemy
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 
 newConnectConversationWithRemote ::
@@ -54,7 +54,9 @@ newConnectConversationWithRemote creator users =
 
 iUpsertOne2OneConversation ::
   forall r.
-  Members '[ConversationStore, MemberStore] r =>
+  ( Member ConversationStore r,
+    Member MemberStore r
+  ) =>
   UpsertOne2OneConversationRequest ->
   Sem r UpsertOne2OneConversationResponse
 iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
