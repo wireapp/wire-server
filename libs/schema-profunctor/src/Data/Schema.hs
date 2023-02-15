@@ -102,6 +102,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Swagger.Internal as S
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import Imports hiding (Product)
 import Numeric.Natural
@@ -836,6 +837,8 @@ instance ToSchema a => A.FromJSON (Schema a) where
   parseJSON = fmap Schema . schemaParseJSON
 
 instance ToSchema Text where schema = genericToSchema
+
+instance ToSchema TL.Text where schema = genericToSchema
 
 instance ToSchema Int where schema = genericToSchema
 

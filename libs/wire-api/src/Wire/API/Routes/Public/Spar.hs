@@ -35,6 +35,7 @@ import Web.Scim.Class.User as Scim.User
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.Public
+import Wire.API.SwaggerServant
 import Wire.API.User (ScimUserInfos, UserSet)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml

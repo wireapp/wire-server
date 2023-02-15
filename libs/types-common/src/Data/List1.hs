@@ -25,7 +25,8 @@ import Cassandra
 import Data.Aeson
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
-import qualified Data.Vector as V
+import Data.Schema as S
+import qualified Data.Swagger as Swagger
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Test.QuickCheck.Instances ()
@@ -35,6 +36,7 @@ newtype List1 a = List1
   }
   deriving stock (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
   deriving newtype (Applicative, Monad, Semigroup, Arbitrary)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via S.Schema (List1 a)
 
 infixr 5 <|
 
@@ -62,15 +64,17 @@ head :: List1 a -> a
 head = N.head . toNonEmpty
 {-# INLINE head #-}
 
-instance ToJSON a => ToJSON (List1 a) where
-  toJSON = toJSON . toList
-  toEncoding = toEncoding . toList
+instance ToSchema a => ToSchema (List1 a) where
+  schema =
+    named "List1" $
+      toNonEmpty S..= fmap List1 (nonEmptyArray S.schema)
 
-instance FromJSON a => FromJSON (List1 a) where
-  parseJSON a@(Array v)
-    | V.length v >= 1 = List1 . N.fromList <$> parseJSON a
-    | otherwise = fail "At least 1 element in list required."
-  parseJSON _ = mzero
+instance Swagger.ToParamSchema (List1 a) where
+  toParamSchema _ =
+    mempty
+      { Swagger._paramSchemaType = Just Swagger.SwaggerArray,
+        Swagger._paramSchemaMinLength = Just 1
+      }
 
 instance (Cql a) => Cql (List1 a) where
   ctype = Tagged (ListColumn (untag (ctype :: Tagged a ColumnType)))
