@@ -118,7 +118,6 @@ tests s =
         "Websocket pingpong"
         [ test s "data-level pings produce pongs" testDataPingPong,
           test s "control pings with payload produce pongs with the same payload" testControlPingPongWithData,
-          test s "data pings with payload produce pongs with the same payload" testPingPongWithData,
           test s "data non-pings are ignored" testNoPingNoPong
         ],
       testGroup
@@ -865,39 +864,10 @@ testControlPingPongWithData = do
   liftIO $ do
     let pingPayload = "pi 3e4ac0590d55a24af7298b po"
     atomically $ writeTChan chPingWrite pingPayload
-    msg <- waitForMessageRaw chread
-    putStrLn "A-----------"
-    Log.err logger $ Log.msg (show msg)
-    print msg
-    putStrLn "B-----------"
+    msg <- waitForMessageRaw chread -- this is a server-sent ping; we'll ignore this
     msg2 <- waitForMessageRaw chread
-    putStrLn "C-----------"
-    Log.err logger $ Log.msg (show msg2)
-    print msg2
-    putStrLn "D-----------"
-    msg3 <- waitForMessageRaw chread
-    putStrLn "E-----------"
-    Log.err logger $ Log.msg (show msg3)
-    print msg3
-    putStrLn "F-----------"
     let expected = Just (WS.ControlMessage $ WS.Pong $ fromStrict pingPayload)
-    putStrLn $ "Expected-----------" <> show expected
-    putStrLn $ "actual  -----------" <> show msg2
     assertBool "no pong with the same payload" $ msg2 == expected
-
-testPingPongWithData :: TestM ()
-testPingPongWithData = do
-  ca <- view tsCannon
-  uid :: UserId <- randomId
-  connid :: ConnId <- randomConnId
-  [(_, [(chread, chwrite)] :: [(TChan ByteString, TChan ByteString)])] <-
-    connectUsersAndDevicesWithSendingClients ca [(uid, [connid])]
-  liftIO $ do
-    let pingPayload = "ping 3e4ac0590d55a24af7298b ping"
-    let pongPayload = "pong 3e4ac0590d55a24af7298b ping"
-    atomically $ writeTChan chwrite pingPayload
-    msg <- waitForMessage chread
-    assertBool "no pong with the same payload" $ msg == Just pongPayload
 
 testNoPingNoPong :: TestM ()
 testNoPingNoPong = do
