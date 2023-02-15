@@ -26,6 +26,7 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
 import Control.Lens (view)
+import Control.Lens.Extras
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
@@ -60,16 +61,17 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
-import Wire.API.MLS.Message
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -127,7 +129,8 @@ tests s =
             "Local Sender/Local Conversation"
             [ test s "send application message" testAppMessage,
               test s "send remote application message" testRemoteAppMessage,
-              test s "another participant sends an application message" testAppMessage2
+              test s "another participant sends an application message" testAppMessage2,
+              test s "send message, remote users are unreachable" testAppMessageUnreachable
             ],
           testGroup
             "Local Sender/Remote Conversation"
@@ -1103,6 +1106,28 @@ testAppMessage2 = do
         WS.assertMatchN_ (5 # WS.Second) wss $
           wsAssertMLSMessage conversation bob (mpMessage message)
 
+testAppMessageUnreachable :: TestM ()
+testAppMessageUnreachable = do
+  -- alice is local, bob is remote
+  -- alice creates a local conversation and invites bob
+  -- alice then sends a message to the conversation, but bob is not reachable anymore
+  -- since we did not properly setup federation, we can't reach the remote server with bob's msg
+  users@[_alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ setupMLSGroup alice1
+
+    commit <- createAddCommit alice1 [bob]
+    ([event], _) <-
+      withTempMockFederator' (receiveCommitMock [bob1] <|> welcomeMock) $
+        sendAndConsumeCommit commit
+
+    message <- createApplicationMessage alice1 "hi, bob!"
+    us <- sendAndConsumeMessageUnreachable message
+    liftIO $ do
+      assertBool "Event should be member join" $ is _EdMembersJoin (evtData event)
+      UnreachableUsers [bob] @?= us
+
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
   localDomain <- viewFederationDomain
@@ -1200,7 +1225,7 @@ testRemoteToLocal = do
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
       resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
       liftIO $ do
-        resp @?= MLSMessageResponseUpdates [] (UnreachableUsers Map.empty)
+        resp @?= MLSMessageResponseUpdates [] (UnreachableUsers [])
         WS.assertMatch_ (5 # Second) ws $
           wsAssertMLSMessage qcnv bob (mpMessage message)
 
@@ -1970,7 +1995,7 @@ testAddUserToRemoteConvWithBundle = do
     commit <- createAddCommit bob1 [charlie]
     commitBundle <- createBundle commit
 
-    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers Map.empty)
+    let mock = "send-mls-commit-bundle" ~> MLSMessageResponseUpdates [] (UnreachableUsers [])
     (_, reqs) <- withTempMockFederator' mock $ do
       void $ sendAndConsumeCommitBundle commit
 

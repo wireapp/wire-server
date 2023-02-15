@@ -50,10 +50,10 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteArray as BA
-import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Kind
+import Data.Qualified
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
@@ -318,22 +318,24 @@ instance SerialiseMLS (MessagePayload 'MLSPlainText) where
   -- so the next case is left as a stub
   serialiseMLS _ = pure ()
 
-newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: Map Domain [UserId]}
+newtype UnreachableUsers = UnreachableUsers {unreachableUsers :: [Qualified UserId]}
   deriving stock (Eq, Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema UnreachableUsers
+  deriving newtype (Semigroup, Monoid)
 
 instance ToSchema UnreachableUsers where
   schema =
     object "UnreachableUsers" $
       UnreachableUsers
         <$> unreachableUsers
-          .= field "failed_to_send" (map_ schema)
+          .= field "failed_to_send" (array schema)
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
     mmssTime :: UTCTimeMillis,
     mmssUnreachableUsers :: UnreachableUsers
   }
+  deriving (Show)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
 
 instance ToSchema MLSMessageSendingStatus where

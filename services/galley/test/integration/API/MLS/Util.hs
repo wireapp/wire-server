@@ -836,6 +836,23 @@ consumeMessage1 cid msg = do
       ]
       (Just msg)
 
+-- | Send an MLS message and simulate remote clients not receiving it. If the message is a
+-- commit, the 'sendAndConsumeCommit' function should be used instead.
+sendAndConsumeMessageUnreachable :: HasCallStack => MessagePackage -> MLSTest UnreachableUsers
+sendAndConsumeMessageUnreachable mp = do
+  unreachables <-
+    fmap mmssUnreachableUsers . responseJsonError
+      =<< postMessage (mpSender mp) (mpMessage mp)
+        <!! const 201 === statusCode
+  consumeMessage mp
+
+  for_ (mpWelcome mp) $ \welcome -> do
+    postWelcome (ciUser (mpSender mp)) welcome
+      !!! const 201 === statusCode
+    consumeWelcome welcome
+
+  pure unreachables
+
 -- | Send an MLS message and simulate clients receiving it. If the message is a
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
 sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest [Event]

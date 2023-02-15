@@ -172,10 +172,6 @@ newtype Id a = Id
   deriving newtype (Hashable, NFData, ToParamSchema, Binary)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema (Id a)
 
-instance ToSchema [Id a] where
-  -- TODO(elland): needs to handle lists
-  schema = undefined
-
 instance ToSchema (Id a) where
   schema = Id <$> toUUID .= uuid
     where

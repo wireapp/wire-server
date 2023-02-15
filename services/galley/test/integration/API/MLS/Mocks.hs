@@ -20,6 +20,7 @@ module API.MLS.Mocks
     messageSentMock,
     welcomeMock,
     sendMessageMock,
+    sendMessageMockUnreachable,
     claimKeyPackagesMock,
     queryGroupStateMock,
   )
@@ -27,7 +28,6 @@ where
 
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Federator.MockServer
@@ -57,8 +57,19 @@ messageSentMock = "on-mls-message-sent" ~> RemoteMLSMessageOk
 welcomeMock :: Mock LByteString
 welcomeMock = "mls-welcome" ~> MLSWelcomeSent
 
+sendMessageMockUnreachable :: [Qualified UserId] -> Mock LByteString
+sendMessageMockUnreachable users =
+  "on-mls-message-sent" ~>
+    MLSMessageResponseUpdates
+      []
+      (UnreachableUsers users)
+
 sendMessageMock :: Mock LByteString
-sendMessageMock = "send-mls-message" ~> MLSMessageResponseUpdates [] (UnreachableUsers Map.empty)
+sendMessageMock =
+  "send-mls-message" ~>
+    MLSMessageResponseUpdates
+      []
+      (UnreachableUsers [])
 
 claimKeyPackagesMock :: KeyPackageBundle -> Mock LByteString
 claimKeyPackagesMock kpb = "claim-key-packages" ~> kpb

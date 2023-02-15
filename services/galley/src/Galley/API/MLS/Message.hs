@@ -309,13 +309,12 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
-  propagateMessage qusr (qualifyAs lcnv conv) cm conn (rmRaw (cbCommitMsg bundle))
+  unreachables <- propagateMessage qusr (qualifyAs lcnv conv) cm conn (rmRaw (cbCommitMsg bundle))
 
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
 
-  -- TODO(elland): handle unreachables
-  pure (events, UnreachableUsers Map.empty)
+  pure (events, unreachables)
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
@@ -357,7 +356,6 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
       ups <- for updates $ \update -> do
         e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
         pure (LocalConversationUpdate e update)
-      -- TODO(elland): handle unreachables
       pure (ups, unreachables)
 
 postMLSMessage ::
@@ -390,14 +388,15 @@ postMLSMessage ::
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSMessage loc qusr mc qcnv con smsg = case rmValue smsg of
-  SomeMessage tag msg -> do
-    mSender <- fmap ciClient <$> getSenderIdentity qusr mc tag msg
-    foldQualified
-      loc
-      (postMLSMessageToLocalConv qusr mSender con smsg)
-      (postMLSMessageToRemoteConv loc qusr mSender con smsg)
-      qcnv
+postMLSMessage loc qusr mc qcnv con smsg =
+  case rmValue smsg of
+    SomeMessage tag msg -> do
+      mSender <- fmap ciClient <$> getSenderIdentity qusr mc tag msg
+      foldQualified
+        loc
+        (postMLSMessageToLocalConv qusr mSender con smsg)
+        (postMLSMessageToRemoteConv loc qusr mSender con smsg)
+        qcnv
 
 -- Check that the MLS client who created the message belongs to the user who
 -- is the sender of the REST request, identified by HTTP header.
@@ -467,34 +466,33 @@ postMLSMessageToLocalConv ::
   RawMLS SomeMessage ->
   Local ConvId ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
-  SomeMessage tag msg -> do
-    conv <- getLocalConvForUser qusr lcnv
-    mlsMeta <- Data.mlsMetadata conv & noteS @'ConvNotFound
+postMLSMessageToLocalConv qusr senderClient con smsg lcnv =
+  case rmValue smsg of
+    SomeMessage tag msg -> do
+      conv <- getLocalConvForUser qusr lcnv
+      mlsMeta <- Data.mlsMetadata conv & noteS @'ConvNotFound
 
-    -- construct client map
-    cm <- lookupMLSClients (cnvmlsGroupId mlsMeta)
-    let lconv = qualifyAs lcnv conv
+      -- construct client map
+      cm <- lookupMLSClients (cnvmlsGroupId mlsMeta)
+      let lconv = qualifyAs lcnv conv
 
-    -- validate message
-    events <- case tag of
-      SMLSPlainText -> case msgPayload msg of
-        CommitMessage c ->
-          processCommit qusr senderClient con lconv mlsMeta cm (msgEpoch msg) (msgSender msg) c
-        ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-        ProposalMessage prop ->
-          processProposal qusr conv mlsMeta msg prop $> mempty
-      SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
-        Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
-        Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
-        Right ApplicationMessageTag -> pure mempty
-        Left _ -> throwS @'MLSUnsupportedMessage
+      -- validate message
+      events <- case tag of
+        SMLSPlainText -> case msgPayload msg of
+          CommitMessage c ->
+            processCommit qusr senderClient con lconv mlsMeta cm (msgEpoch msg) (msgSender msg) c
+          ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
+          ProposalMessage prop ->
+            processProposal qusr conv mlsMeta msg prop $> mempty
+        SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
+          Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
+          Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
+          Right ApplicationMessageTag -> pure mempty
+          Left _ -> throwS @'MLSUnsupportedMessage
 
-    -- forward message
-    propagateMessage qusr lconv cm con (rmRaw smsg)
-
-    -- TODO(elland): deal with this correctly
-    pure (events, UnreachableUsers Map.empty)
+      -- forward message
+      unreachables <- propagateMessage qusr lconv cm con (rmRaw smsg)
+      pure (events, unreachables)
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -514,8 +512,8 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
-  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
 
+  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
   resp <-
     runFederated rcnv $
       fedClient @'Galley @"send-mls-message" $
@@ -526,14 +524,14 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
-    MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
+    MLSMessageResponseProtocolError e ->
+      throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
     MLSMessageResponseUpdates updates unreachables -> do
       lcus <- for updates $ \update -> do
         e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
         pure (LocalConversationUpdate e update)
 
-      -- TODO(elland): deal with this correctly
       pure (lcus, unreachables)
 
 type HasProposalEffects r =
