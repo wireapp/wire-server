@@ -29,7 +29,6 @@ import Control.Monad.Catch
 import Data.Aeson hiding (Error, Key, (.=))
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import qualified Data.ByteString.Lazy as BL
 import Data.Id (ClientId)
 import qualified Data.Text.Lazy as Text
 import Data.Timeout
@@ -38,10 +37,8 @@ import Lens.Family hiding (reset, set)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)
-import qualified System.Logger as Log
 import System.Logger.Class hiding (Error, close)
 import qualified System.Logger.Class as Logger
-import System.Logger.Extended (structuredJSONRenderer)
 
 -- | Connection state, updated by {read, write}Loop.
 data State = State !Int !Timeout
@@ -125,36 +122,21 @@ writeLoop ws clock (TTL ttl) st = loop
       unless (time > ttl) loop
 
 readLoop :: Websocket -> IORef State -> IO ()
-readLoop ws s = do
-  l <- initLogger
-  loop l
+readLoop ws s = loop
   where
-    initLogger =
-      Log.new
-        . Log.setOutput Log.StdOut
-        . Log.setBufSize 0
-        . Log.setRenderer structuredJSONRenderer
-        $ Log.defSettings
-
-    loop l = do
+    loop = do
       m <- receive (connection ws)
       case m of
         ControlMessage (Ping p) -> do
           adjustPingFreq p
           reset counter s 0
-          Log.debug l $ Log.msg (Log.val "control level ping received") . Log.field "incoming ping" p . Log.field "outgoing answer" (show $ pong p)
           send (connection ws) (pong p)
-          loop l
+          loop
         ControlMessage (Close _ _) -> pure ()
         perhapsPingMsg -> do
           reset counter s 0
-          case isAppLevelPing perhapsPingMsg of
-            Just payload -> do
-              Log.debug l $ Log.msg $ Log.val "application level ping received"
-              sendAppLevelPong payload
-            Nothing ->
-              Log.debug l $ Log.msg $ Log.val "application level *something* received"
-          loop l
+          when (isAppLevelPing perhapsPingMsg) sendAppLevelPong
+          loop
     adjustPingFreq p = case fromByteString (toStrict p) of
       Just i | i > 0 && i < maxPingInterval -> reset pingFreq s (i # Second)
       _ -> pure ()
@@ -163,12 +145,11 @@ readLoop ws s = do
     -- since the browser may silently lose a websocket connection, wire clients are allowed send
     -- 'DataMessage' pings as well, and we respond with a 'DataMessage' pong to allow them to
     -- reliably decide whether the connection is still alive.
-    -- in https://github.com/wireapp/wire-server/pull/561 in 2019, data-level ping-pongs were introduced.
     isAppLevelPing = \case
-      (DataMessage _ _ _ (Text payload _)) -> BL.stripPrefix "ping" payload
-      (DataMessage _ _ _ (Binary payload)) -> BL.stripPrefix "ping" payload
-      _ -> Nothing
-    sendAppLevelPong p = sendMsgIO @ByteString ("pong" <> toStrict p) ws
+      (DataMessage _ _ _ (Text "ping" _)) -> True
+      (DataMessage _ _ _ (Binary "ping")) -> True
+      _ -> False
+    sendAppLevelPong = sendMsgIO @ByteString "pong" ws
 
 rejectOnError :: PendingConnection -> HandshakeException -> IO a
 rejectOnError p x = do
