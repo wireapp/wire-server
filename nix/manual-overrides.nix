@@ -12,7 +12,9 @@ hself: hsuper: {
   multihash = hlib.markUnbroken (hlib.doJailbreak hsuper.multihash);
   network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
   one-liner = hlib.doJailbreak hsuper.one-liner;
-  polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
+  polysemy = hlib.doJailbreak hsuper.polysemy;
+  polysemy-check = hlib.doJailbreak hsuper.polysemy-check;
+  polysemy-plugin = hlib.doJailbreak hsuper.polysemy-plugin;
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
   servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
   servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
