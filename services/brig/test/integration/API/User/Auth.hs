@@ -945,7 +945,7 @@ getAndTestDBSupersededCookieAndItsValidSuccessor :: Opts.Opts -> Brig -> Nginz -
 getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   u <- randomUser b
   let renewAge = Opts.setUserCookieRenewAge $ Opts.optSettings config
-  let minAge = fromIntegral $ renewAge * 1000000 + 1
+  let minAge = fromIntegral $ (renewAge + 1) * 1000000
       Just email = userEmail u
   _rs <-
     login n (emailLogin email defPassword (Just "nexus1")) PersistentCookie
