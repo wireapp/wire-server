@@ -20,10 +20,16 @@ extern crate lazy_static;
 extern crate regex;
 extern crate rustc_serialize;
 extern crate sodiumoxide;
+extern crate jwt_simple;
+extern crate serde_json;
+extern crate serde;
+extern crate thiserror;
+extern crate base64;
 
 pub mod acl;
 pub mod error;
 pub mod zauth;
+pub mod oauth;
 
 mod matcher;
 

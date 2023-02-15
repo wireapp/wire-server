@@ -193,6 +193,7 @@ http {
 
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+    oauth_key      {{ .Values.nginx_conf.oauth_key }};
 
     location /status {
         zauth off;
@@ -345,6 +346,7 @@ http {
     # we need to specify zauth_keystore etc.
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+    oauth_key      {{ .Values.nginx_conf.oauth_key }};
 
     listen {{ .Values.config.http.metricsPort }};
 

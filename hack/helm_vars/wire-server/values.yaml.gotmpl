@@ -244,6 +244,12 @@ nginz:
     zAuth:
       # this must match the key in brig!
       publicKeys: 0UW38se1yeoc5bVNEvf5LyrHWGZkyvcGTVilK2geGdU=
+    oAuth: |
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "mhP-NgFw3ifIXGZqJVB0kemt9L3BtD5P8q4Gah4Iklc"
+      } 
 proxy:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}

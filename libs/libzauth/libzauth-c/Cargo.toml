@@ -13,3 +13,7 @@ libc = ">= 0.2"
 
 [dependencies.zauth]
 path = "../libzauth"
+
+[patch.crates-io.jwt-simple]
+git = "https://github.com/wireapp/rust-jwt-simple"
+tag = "v0.11.3-pre.core-crypto-0.6.0"

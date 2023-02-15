@@ -289,3 +289,29 @@ impl From<TokenVerification> for ZauthTokenVerification {
         }
     }
 }
+
+#[no_mangle]
+pub extern fn verify_oauth_token(jwk: *const u8, jwk_len: size_t, token: *const u8, token_len: size_t, scope: *const u8, scope_len: size_t, s: *mut *mut libc::c_char) -> ZauthResult {
+    if jwk.is_null() {
+        return ZauthResult::NullArg;
+    }
+    if token.is_null() {
+        return ZauthResult::NullArg;
+    }
+    if scope.is_null() {
+        return ZauthResult::NullArg;
+    }        
+    catch_unwind(|| {
+        let bytes = unsafe { slice::from_raw_parts(jwk, jwk_len) };
+        let jwk = try_unwrap!(str::from_utf8(bytes));
+        let bytes = unsafe { slice::from_raw_parts(token, token_len) };
+        let token = try_unwrap!(str::from_utf8(bytes));
+        let bytes = unsafe { slice::from_raw_parts(scope, scope_len) };
+        let scope = try_unwrap!(str::from_utf8(bytes));                
+        let subject = try_unwrap!(verify_oauth_token(jwk, token, scope));
+        unsafe {
+            *s= Box::into_raw(Box::new(CString::new(subject).unwrap().into_raw()));
+        }        
+        ZauthResult::Ok
+    })
+}
