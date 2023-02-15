@@ -215,7 +215,7 @@ apiINTERNAL ::
        ScimUserTimesStore
      ]
     r =>
-  ServerT APIINTERNAL (Sem r)
+  ServerT InternalAPI (Sem r)
 apiINTERNAL =
   internalStatus
     :<|> internalDeleteTeam

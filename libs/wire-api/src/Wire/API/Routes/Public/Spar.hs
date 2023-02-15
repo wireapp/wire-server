@@ -49,7 +49,7 @@ type API =
   "sso" :> APISSO
     :<|> "identity-providers" :> APIIDP
     :<|> "scim" :> APIScim
-    :<|> OmitDocs :> APIINTERNAL
+    :<|> OmitDocs :> InternalAPI
 
 type DeprecateSSOAPIV1 =
   Description

@@ -10,7 +10,7 @@ import Wire.API.SwaggerServant
 import Wire.API.User
 import Wire.API.User.Saml
 
-type APIINTERNAL =
+type InternalAPI =
   SwaggerTag "spar"
     :> "i"
     :> ( "status" :> Get '[JSON] NoContent
@@ -21,5 +21,5 @@ type APIINTERNAL =
 
 swaggerDoc :: Swagger
 swaggerDoc =
-  toSwagger (Proxy @APIINTERNAL)
+  toSwagger (Proxy @InternalAPI)
     & info . title .~ "Wire-Server internal spar API"
