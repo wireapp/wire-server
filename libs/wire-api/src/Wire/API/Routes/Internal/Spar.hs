@@ -22,4 +22,4 @@ type APIINTERNAL =
 swaggerDoc :: Swagger
 swaggerDoc =
   toSwagger (Proxy @APIINTERNAL)
-    & info . title .~ "Wire-Server internal cannon API"
+    & info . title .~ "Wire-Server internal spar API"

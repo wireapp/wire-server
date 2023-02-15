@@ -392,4 +392,4 @@ type IFeatureNoConfigMultiGet f =
 swaggerDoc :: Swagger
 swaggerDoc =
   toSwagger (Proxy @InternalAPI)
-    & info . title .~ "Wire-Server internal cannon API"
+    & info . title .~ "Wire-Server internal galley API"

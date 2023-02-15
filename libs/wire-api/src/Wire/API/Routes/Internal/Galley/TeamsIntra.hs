@@ -84,7 +84,7 @@ data TeamStatusUpdate = TeamStatusUpdate
     -- TODO: Remove Currency selection once billing supports currency changes after team creation
   }
   deriving (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (S.Schema TeamStatusUpdate)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamStatusUpdate
 
 instance S.ToSchema TeamStatusUpdate where
   schema =
@@ -104,7 +104,7 @@ instance S.ToSchema TeamStatusUpdate where
 newtype TeamName = TeamName
   {tnName :: Text}
   deriving (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (S.Schema TeamName)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamName
 
 instance S.ToSchema TeamName where
   schema =
@@ -118,7 +118,7 @@ data GuardLegalholdPolicyConflicts = GuardLegalholdPolicyConflicts
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform GuardLegalholdPolicyConflicts)
-  deriving (ToJSON, FromJSON, Swagger.ToSchema) via (S.Schema GuardLegalholdPolicyConflicts)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema GuardLegalholdPolicyConflicts
 
 instance S.ToSchema GuardLegalholdPolicyConflicts where
   schema =

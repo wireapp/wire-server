@@ -43,4 +43,4 @@ type InternalLegalHoldAPI =
 swaggerDoc :: Swagger
 swaggerDoc =
   toSwagger (Proxy @InternalLegalHoldAPI)
-    & info . title .~ "Wire-Server internal cargohold API"
+    & info . title .~ "Wire-Server internal legalhold API"
