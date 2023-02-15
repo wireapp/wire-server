@@ -3006,7 +3006,7 @@ testLeaveSubConv isSubConvCreator = do
                 const 200 === statusCode
       liftIO $ do
         length (pscMembers psc) @?= 2
-        (sort (pscMembers psc)) @?= (sort others)
+        sort (pscMembers psc) @?= sort others
   where
     allLocalsButLeaver :: [a] -> [(a, [a])]
     allLocalsButLeaver xs =
