@@ -409,7 +409,7 @@ mkSSLContextWithoutCert settings = do
 -- https://wearezeta.atlassian.net/browse/FS-444
 -- https://wearezeta.atlassian.net/browse/FS-443
 --
--- The current list is compliant to TR-02102-2
+-- The current list is compliant with TR-02102-2
 -- https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
 blessedTLS12Ciphers :: String
 blessedTLS12Ciphers =
