@@ -25,7 +25,6 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Extended
-import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Multipart
 import Servant.Swagger (toSwagger)
 import qualified URI.ByteString as URI

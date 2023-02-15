@@ -61,6 +61,7 @@ self: super: {
 
   nginxModules = super.nginxModules // {
     zauth = {
+      name = "zauth";
       src = ../services/nginz/third_party/nginx-zauth-module;
       inputs = [ self.pkg-config self.zauth ];
     };
@@ -129,8 +130,4 @@ self: super: {
 
     inherit (super) stdenv fetchurl;
   };
-
-  # This is to match the ormolu version that ships with HLS.
-  # This doesn't compile with ghc8107 howerver, so we use ghc92
-  ormolu = super.haskell.lib.justStaticExecutables (super.haskell.lib.doJailbreak super.haskell.packages.ghc92.ormolu_0_5_0_1);
 }
