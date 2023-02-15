@@ -357,8 +357,8 @@ servantSitemap =
 
     systemSettingsAPI :: ServerT SystemSettingsAPI (Handler r)
     systemSettingsAPI =
-      Named @"get-system-settings" getSystemSettings
-        :<|> Named @"get-system-settings-authorized" getSystemSettingsInternal
+      Named @"get-system-settings-unauthorized" getSystemSettings
+        :<|> Named @"get-system-settings" getSystemSettingsInternal
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling

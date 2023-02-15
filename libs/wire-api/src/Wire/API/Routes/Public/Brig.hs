@@ -1486,7 +1486,7 @@ type TeamsAPI =
 
 type SystemSettingsAPI =
   Named
-    "get-system-settings"
+    "get-system-settings-unauthorized"
     ( Summary "Returns a curated set of system configuration settings."
         :> From 'V3
         :> "system"
@@ -1495,7 +1495,7 @@ type SystemSettingsAPI =
         :> Get '[JSON] SystemSettingsPublic
     )
     :<|> Named
-           "get-system-settings-authorized"
+           "get-system-settings"
            ( Summary "Returns a curated set of system configuration settings for authorized users."
                :> ZUser
                :> "system"

@@ -55,14 +55,12 @@ data SystemSettingsInternal = SystemSettingsInternal
 
 instance ToSchema SystemSettingsInternal where
   schema =
-    object "SystemSettingsInternal" $
-      SystemSettingsInternal
-        <$> ssiSetEnableMls .= fieldWithDocModifier "setEnableMls" (description ?~ "whether MLS is enabled or not") schema
+    object "SystemSettingsInternal" $ settingsInternalObjectSchema
 
 settingsInternalObjectSchema :: ObjectSchema SwaggerDoc SystemSettingsInternal
 settingsInternalObjectSchema =
   SystemSettingsInternal
-    <$> ssiSetEnableMls .= fieldWithDocModifier "setEnableMls" (description ?~ "whether MLS is enabled or not") schema
+    <$> ssiSetEnableMls .= fieldWithDocModifier "setEnableMls" (description ?~ "Whether MLS is enabled or not") schema
 
 data SystemSettings = SystemSettings
   { ssPublic :: !SystemSettingsPublic,
