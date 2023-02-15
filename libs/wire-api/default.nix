@@ -83,7 +83,6 @@
 , singletons-th
 , sop-core
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -183,7 +182,6 @@ mkDerivation {
     singletons-th
     sop-core
     string-conversions
-    swagger
     swagger2
     tagged
     text

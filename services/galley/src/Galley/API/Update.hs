@@ -294,7 +294,8 @@ updateConversationAccess ::
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-new-remote-subconversation",
-    CallsFed 'Galley "on-conversation-updated"
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -311,7 +312,8 @@ updateConversationAccessUnqualified ::
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-new-remote-subconversation",
-    CallsFed 'Galley "on-conversation-updated"
+    CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -508,7 +510,8 @@ updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMess
 
 deleteLocalConversation ::
   ( Members
-      '[ CodeStore,
+      '[ BrigAccess,
+         CodeStore,
          ConversationStore,
          Error FederationError,
          ErrorS 'NotATeamMember,
@@ -518,6 +521,9 @@ deleteLocalConversation ::
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
+         SubConversationStore,
+         MemberStore,
+         ProposalStore,
          Input Env,
          Input UTCTime,
          SubConversationStore,
@@ -525,6 +531,7 @@ deleteLocalConversation ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-delete-mls-conversation",
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-new-remote-subconversation"
   ) =>
@@ -865,6 +872,7 @@ addMembers ::
        ]
       r,
     CallsFed 'Galley "on-conversation-updated",
+    CallsFed 'Galley "on-delete-mls-conversation",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-new-remote-subconversation"
@@ -912,7 +920,8 @@ addMembersUnqualifiedV2 ::
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation"
+    CallsFed 'Galley "on-new-remote-subconversation",
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Local UserId ->
   ConnId ->
@@ -957,7 +966,8 @@ addMembersUnqualified ::
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation"
+    CallsFed 'Galley "on-new-remote-subconversation",
+    CallsFed 'Galley "on-delete-mls-conversation"
   ) =>
   Local UserId ->
   ConnId ->

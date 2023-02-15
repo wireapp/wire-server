@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
 
 -- This file is part of the Wire Server implementation.
@@ -135,7 +137,8 @@ runFedClient ::
   forall (name :: Symbol) comp m api.
   ( HasUnsafeFedEndpoint comp api name,
     Servant.HasClient Servant.ClientM api,
-    MonadIO m
+    MonadIO m,
+    HasCallStack
   ) =>
   FedClient comp ->
   Domain ->

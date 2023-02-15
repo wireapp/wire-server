@@ -2132,7 +2132,7 @@ postConvQualifiedFederationNotEnabled = do
 
 -- like postConvQualified
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
-postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
+postConvHelper :: MonadHttp m => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
   let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv

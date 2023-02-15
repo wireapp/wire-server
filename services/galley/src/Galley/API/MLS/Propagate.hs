@@ -59,11 +59,17 @@ propagateMessage ::
   Local ConvOrSubConv ->
   Maybe ConnId ->
   ByteString ->
+  -- | The client map that has all the recipients of the message. This is an
+  -- argument, and not constructed within the function, because of a special
+  -- case of subconversations where everyone but the subconversation leaver
+  -- client should get the remove proposal message; in this case the recipients
+  -- are a strict subset of all the clients represented by the in-memory
+  -- conversation/subconversation client maps.
+  ClientMap ->
   Sem r ()
-propagateMessage qusr lConvOrSub con raw = do
+propagateMessage qusr lConvOrSub con raw cm = do
   now <- input @UTCTime
-  let cm = membersConvOrSub (tUnqualified lConvOrSub)
-      mlsConv = convOfConvOrSub <$> lConvOrSub
+  let mlsConv = convOfConvOrSub <$> lConvOrSub
       lmems = mcLocalMembers . tUnqualified $ mlsConv
       botMap = Map.fromList $ do
         m <- lmems
@@ -80,7 +86,7 @@ propagateMessage qusr lConvOrSub con raw = do
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush mlsConv botMap con mm (u, c) e
   runMessagePush mlsConv (Just qcnv) $
-    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients mlsConv cm)
+    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients mlsConv)
 
   -- send to remotes
   traverse_ handleError
@@ -92,20 +98,20 @@ propagateMessage qusr lConvOrSub con raw = do
             rmmSender = qusr,
             rmmMetadata = mm,
             rmmConversation = qUnqualified qcnv,
-            rmmRecipients = rs >>= remoteMemberMLSClients cm,
+            rmmRecipients = rs >>= remoteMemberMLSClients,
             rmmMessage = Base64ByteString raw
           }
   where
-    localMemberMLSClients :: Local x -> ClientMap -> LocalMember -> [(UserId, ClientId)]
-    localMemberMLSClients loc cm lm =
+    localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
+    localMemberMLSClients loc lm =
       let localUserQId = tUntagged (qualifyAs loc localUserId)
           localUserId = lmId lm
        in map
             (\(c, _) -> (localUserId, c))
             (Map.assocs (Map.findWithDefault mempty localUserQId cm))
 
-    remoteMemberMLSClients :: ClientMap -> RemoteMember -> [(UserId, ClientId)]
-    remoteMemberMLSClients cm rm =
+    remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
+    remoteMemberMLSClients rm =
       let remoteUserQId = tUntagged (rmId rm)
           remoteUserId = qUnqualified remoteUserQId
        in map

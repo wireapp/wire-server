@@ -64,17 +64,6 @@ module Wire.API.User.Client
     Latitude (..),
     Longitude (..),
 
-    -- * Swagger
-    modelOtrClientMap,
-    modelUserClients,
-    modelNewClient,
-    modelUpdateClient,
-    modelClientCapabilityList,
-    typeClientCapability,
-    modelDeleteClient,
-    modelSigkeys,
-    modelLocation, -- re-export from types-common
-
     -- * List of MLS client ids
     ClientList (..),
   )
@@ -94,13 +83,12 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
-import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
+import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude)
 import Data.Qualified
 import Data.Schema
 import qualified Data.Set as Set
 import Data.Swagger hiding (Schema, ToSchema, schema)
 import qualified Data.Swagger as Swagger
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)
 import Deriving.Swagger
@@ -164,13 +152,6 @@ instance ToSchema ClientCapability where
     enum @Text "ClientCapability" $
       element "legalhold-implicit-consent" ClientSupportsLegalholdImplicitConsent
 
-typeClientCapability :: Doc.DataType
-typeClientCapability =
-  Doc.string $
-    Doc.enum
-      [ "legalhold-implicit-consent"
-      ]
-
 instance Cql.Cql ClientCapability where
   ctype = Cql.Tagged Cql.IntColumn
 
@@ -205,12 +186,6 @@ capabilitiesFieldSchema =
         ?~ "Hints provided by the client for the backend so it can \
            \behave in a backwards-compatible way."
 
-modelClientCapabilityList :: Doc.Model
-modelClientCapabilityList = Doc.defineModel "ClientCapabilityList" $ do
-  Doc.description "Hints provided by the client for the backend so it can behave in a backwards-compatible way."
-  Doc.property "capabilities" (Doc.array typeClientCapability) $ do
-    Doc.description "Array containing all capabilities supported by a client."
-
 --------------------------------------------------------------------------------
 -- UserClientMap
 
@@ -220,13 +195,6 @@ newtype UserClientMap a = UserClientMap
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
   deriving newtype (Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema (UserClientMap a)
-
--- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
-modelOtrClientMap :: Doc.Model
-modelOtrClientMap = Doc.defineModel "OtrClientMap" $ do
-  Doc.description "Map of client IDs to OTR content."
-  Doc.property "" Doc.bytes' $
-    Doc.description "Mapping from client IDs to OTR content (Base64 in JSON)."
 
 instance ToSchema a => ToSchema (UserClientMap a) where
   schema = userClientMapSchema schema
@@ -411,14 +379,6 @@ instance ToSchema UserClients where
                   ]
               )
 
--- FUTUREWORK: Remove when proto endpoint for sending messages is moved to
--- servant
-modelUserClients :: Doc.Model
-modelUserClients =
-  Doc.defineModel "UserClients" $
-    Doc.property "" (Doc.unique $ Doc.array Doc.bytes') $
-      Doc.description "Map of user IDs to sets of client IDs ({ UserId: [ClientId] })."
-
 instance Arbitrary UserClients where
   arbitrary = UserClients <$> mapOf' arbitrary (setOf' arbitrary)
 
@@ -590,15 +550,6 @@ instance ToSchema ClientType where
         <> element "permanent" PermanentClientType
         <> element "legalhold" LegalHoldClientType
 
-typeClientType :: Doc.DataType
-typeClientType =
-  Doc.string $
-    Doc.enum
-      [ "permanent",
-        "temporary",
-        "legalhold"
-      ]
-
 data ClientClass
   = PhoneClient
   | TabletClient
@@ -615,16 +566,6 @@ instance ToSchema ClientClass where
         <> element "tablet" TabletClient
         <> element "desktop" DesktopClient
         <> element "legalhold" LegalHoldClient
-
-typeClientClass :: Doc.DataType
-typeClientClass =
-  Doc.string $
-    Doc.enum
-      [ "phone",
-        "tablet",
-        "desktop",
-        "legalhold"
-      ]
 
 --------------------------------------------------------------------------------
 -- NewClient
@@ -645,45 +586,6 @@ data NewClient = NewClient
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewClient)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema NewClient
-
-modelNewClient :: Doc.Model
-modelNewClient = Doc.defineModel "NewClient" $ do
-  Doc.description "The registration data for a new client."
-  Doc.property "type" typeClientType $
-    Doc.description
-      "The type of client to register. A user may have no more than \
-      \7 (seven) permanent clients and 1 (one) temporary client. When the \
-      \limit of permanent clients is reached, an error is returned. \
-      \When a temporary client already exists, it is replaced."
-  Doc.property "password" Doc.string' $ do
-    Doc.description
-      "The password of the authenticated user for verification. \
-      \Note: Required for registration of the 2nd, 3rd, ... client."
-    Doc.optional
-  Doc.property "prekeys" (Doc.array (Doc.ref modelPrekey)) $
-    Doc.description "Prekeys for other clients to establish OTR sessions."
-  Doc.property "lastkey" (Doc.ref modelPrekey) $
-    Doc.description
-      "The last resort prekey for other clients to establish OTR sessions. \
-      \This key must have the ID 0xFFFF and is never deleted."
-  -- FUTUREWORK: sigkeys don't seem to be used anymore
-  Doc.property "sigkeys" (Doc.ref modelSigkeys) $
-    Doc.description
-      "The signaling keys to use for encryption and signing of OTR native push \
-      \notifications (APNS, GCM)."
-  Doc.property "label" Doc.string' $ do
-    Doc.description "An optional label to associate with the client."
-    Doc.optional
-  Doc.property "class" typeClientClass $
-    Doc.description "The device class this client belongs to. Either 'phone', 'tablet', or 'desktop'."
-  Doc.property "cookie" Doc.string' $
-    Doc.description "The cookie label, i.e. the label used when logging in."
-  Doc.property "model" Doc.string' $ do
-    Doc.description "Optional model information of this client"
-    Doc.optional
-  Doc.property "capabilities" typeClientCapability $ do
-    Doc.description "Hints for the backend so it can behave in a backwards-compatible way."
-    Doc.optional
 
 instance ToSchema NewClient where
   schema =
@@ -814,28 +716,6 @@ instance ToSchema UpdateClient where
         <*> updateClientCapabilities .= maybe_ capabilitiesFieldSchema
         <*> updateClientMLSPublicKeys .= mlsPublicKeysFieldSchema
 
-modelUpdateClient :: Doc.Model
-modelUpdateClient = Doc.defineModel "UpdateClient" $ do
-  Doc.description "The new data for the registered client."
-  Doc.property "prekeys" (Doc.array (Doc.ref modelPrekey)) $ do
-    Doc.description "New prekeys for other clients to establish OTR sessions."
-    Doc.optional
-  Doc.property "lastkey" (Doc.ref modelPrekey) $ do
-    Doc.description "New last-resort prekey."
-    Doc.optional
-  -- FUTUREWORK: sigkeys don't seem to be used anymore, remove?
-  Doc.property "sigkeys" (Doc.ref modelSigkeys) $ do
-    Doc.description
-      "New signaling keys to use for encryption and signing of OTR native push \
-      \notifications (APNS, GCM)."
-    Doc.optional
-  Doc.property "label" Doc.string' $ do
-    Doc.description "A new name for this client."
-    Doc.optional
-  Doc.property "capabilities" typeClientCapability $ do
-    Doc.description "Hints for the backend so it can behave in a backwards-compatible way."
-    Doc.optional
-
 --------------------------------------------------------------------------------
 -- RmClient
 
@@ -858,23 +738,3 @@ instance ToSchema RmClient where
                    \The password is not required for deleting temporary clients."
             )
             (maybeWithDefault A.Null schema)
-
-modelDeleteClient :: Doc.Model
-modelDeleteClient = Doc.defineModel "DeleteClient" $ do
-  Doc.description "Required information for client deletion."
-  Doc.property "password" Doc.string' $ do
-    Doc.description
-      "The password of the authenticated user for verification. \
-      \The password is not required for deleting temporary clients."
-    Doc.optional
-
---------------------------------------------------------------------------------
--- other models
-
-modelSigkeys :: Doc.Model
-modelSigkeys = Doc.defineModel "SignalingKeys" $ do
-  Doc.description "Signaling keys for encryption and signing of native push notifications (APNS, GCM)."
-  Doc.property "enckey" Doc.bytes' $
-    Doc.description "The base64-encoded, 256 bit encryption key."
-  Doc.property "mackey" Doc.bytes' $
-    Doc.description "The base64-encoded, 256 bit MAC key."

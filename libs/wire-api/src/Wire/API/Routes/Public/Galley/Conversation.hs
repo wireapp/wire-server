@@ -445,6 +445,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "delete-sub-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'MLSNotEnabled
@@ -454,7 +455,7 @@ type ConversationAPI =
                :> QualifiedCapture "cnv" ConvId
                :> "subconversations"
                :> Capture "subconv" SubConvId
-               :> ReqBody '[JSON] DeleteSubConversation
+               :> ReqBody '[JSON] DeleteSubConversationRequest
                :> MultiVerb1
                     'DELETE
                     '[JSON]
@@ -533,6 +534,7 @@ type ConversationAPI =
            "add-members-to-conversation-unqualified"
            ( Summary "Add members to an existing conversation (deprecated)"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
@@ -561,6 +563,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> Until 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
@@ -587,6 +590,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> From 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
@@ -1021,6 +1025,7 @@ type ConversationAPI =
            "update-conversation-access-unqualified"
            ( Summary "Update access modes for a conversation (deprecated)"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
@@ -1051,6 +1056,7 @@ type ConversationAPI =
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> Until 'V3
                :> ZLocalUser
                :> ZConn
@@ -1074,6 +1080,7 @@ type ConversationAPI =
            "update-conversation-access"
            ( Summary "Update access modes for a conversation"
                :> MakesFederatedCall 'Galley "on-conversation-updated"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "on-new-remote-conversation"
                :> MakesFederatedCall 'Galley "on-new-remote-subconversation"

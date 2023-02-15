@@ -76,7 +76,7 @@ wsapp k c e pc = runWS e (go `catches` ioErrors k)
       clock <- getClock
       continue ws clock k `finally` terminate k ws
 
-continue :: (MonadLogger m, MonadUnliftIO m, MonadIO m) => Websocket -> Clock -> Key -> m ()
+continue :: (MonadLogger m, MonadUnliftIO m) => Websocket -> Clock -> Key -> m ()
 continue ws clock k = do
   runInIO <- askRunInIO
   liftIO $ do
@@ -161,7 +161,7 @@ rejectOnError p x = do
     _ -> pure ()
   throwM x
 
-ioErrors :: (MonadLogger m, MonadIO m) => Key -> [Handler m ()]
+ioErrors :: MonadLogger m => Key -> [Handler m ()]
 ioErrors k =
   let f s = Logger.err $ client (key2bytes k) . msg s
    in [ Handler $ \(x :: HandshakeException) -> f (show x),

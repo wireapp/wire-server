@@ -32,7 +32,6 @@
 , servant-swagger-ui
 , split
 , string-conversions
-, swagger
 , swagger2
 , text
 , tinylog
@@ -84,7 +83,6 @@ mkDerivation {
     servant-swagger-ui
     split
     string-conversions
-    swagger
     swagger2
     text
     tinylog

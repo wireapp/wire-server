@@ -139,13 +139,15 @@ ejpdAPI =
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI =
-  ( \ref ->
-      Named @"get-client-by-key-package-ref" (getClientByKeyPackageRef ref)
-        :<|> ( Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
-                 :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
-             )
-        :<|> Named @"put-key-package-ref" (putKeyPackageRef ref)
-        :<|> Named @"post-key-package-ref" (postKeyPackageRef ref)
+  ( ( \ref ->
+        Named @"get-client-by-key-package-ref" (getClientByKeyPackageRef ref)
+          :<|> ( Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
+                   :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
+               )
+          :<|> Named @"put-key-package-ref" (putKeyPackageRef ref)
+          :<|> Named @"post-key-package-ref" (postKeyPackageRef ref)
+    )
+      :<|> Named @"delete-key-package-refs" deleteKeyPackageRefs
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
@@ -245,6 +247,10 @@ upsertKeyPackage nkp = do
     noteH :: Text -> Maybe a -> Handler r a
     noteH errMsg Nothing = mlsProtocolError errMsg
     noteH _ (Just y) = pure y
+
+deleteKeyPackageRefs :: DeleteKeyPackageRefsRequest -> Handler r ()
+deleteKeyPackageRefs (DeleteKeyPackageRefsRequest refs) =
+  lift . wrapClient $ pooledForConcurrentlyN_ 16 refs Data.deleteKeyPackageRef
 
 getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientInfo)
 getMLSClients usr _ss = do

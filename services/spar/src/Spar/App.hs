@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.

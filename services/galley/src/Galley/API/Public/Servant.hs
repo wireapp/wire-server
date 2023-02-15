@@ -27,6 +27,7 @@ import Galley.API.Public.Messaging
 import Galley.API.Public.Team
 import Galley.API.Public.TeamConversation
 import Galley.API.Public.TeamMember
+import Galley.API.Public.TeamNotification
 import Galley.App
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
@@ -43,3 +44,4 @@ servantSitemap =
     <@> customBackendAPI
     <@> legalHoldAPI
     <@> teamMemberAPI
+    <@> teamNotificationAPI

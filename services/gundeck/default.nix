@@ -62,7 +62,6 @@
 , servant-swagger-ui
 , streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -140,7 +139,6 @@ mkDerivation {
     servant-server
     servant-swagger
     servant-swagger-ui
-    swagger
     swagger2
     text
     time

@@ -21,7 +21,6 @@ module Brig.Data.Nonce
   )
 where
 
-import Brig.App (Env)
 import Brig.Data.Instances ()
 import Cassandra
 import Control.Lens hiding (from)
@@ -30,7 +29,7 @@ import Data.Nonce (Nonce, NonceTtlSecs)
 import Imports
 
 insertNonce ::
-  (MonadClient m, MonadReader Brig.App.Env m) =>
+  MonadClient m =>
   NonceTtlSecs ->
   UserId ->
   Text ->
@@ -42,14 +41,14 @@ insertNonce ttl uid key nonce = retry x5 . write insert $ params LocalQuorum (ui
     insert = "INSERT INTO nonce (user, key, nonce) VALUES (?, ?, ?) USING TTL ?"
 
 lookupAndDeleteNonce ::
-  (MonadClient m, MonadReader Env m) =>
+  MonadClient m =>
   UserId ->
   Text ->
   m (Maybe Nonce)
 lookupAndDeleteNonce uid key = lookupNonce uid key <* deleteNonce uid key
 
 lookupNonce ::
-  (MonadClient m, MonadReader Env m) =>
+  MonadClient m =>
   UserId ->
   Text ->
   m (Maybe Nonce)
@@ -59,7 +58,7 @@ lookupNonce uid key = (runIdentity <$$>) . retry x5 . query1 get $ params LocalQ
     get = "SELECT nonce FROM nonce WHERE user = ? AND key = ?"
 
 deleteNonce ::
-  (MonadClient m, MonadReader Env m) =>
+  MonadClient m =>
   UserId ->
   Text ->
   m ()

@@ -81,7 +81,11 @@ setEpochForSubConversation cid sconv epoch =
 
 deleteGroupId :: GroupId -> Client ()
 deleteGroupId groupId =
-  retry x5 $ write Cql.deleteGroupIdForSubconv (params LocalQuorum (Identity groupId))
+  retry x5 $ write Cql.deleteGroupId (params LocalQuorum (Identity groupId))
+
+deleteSubConversation :: ConvId -> SubConvId -> Client ()
+deleteSubConversation cid sconv =
+  retry x5 $ write Cql.deleteSubConversation (params LocalQuorum (cid, sconv))
 
 listSubConversations :: ConvId -> Client (Map SubConvId ConversationMLSData)
 listSubConversations cid = do
@@ -111,6 +115,7 @@ interpretSubConversationStoreToCassandra = interpret $ \case
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
   DeleteGroupIdForSubConversation groupId -> embedClient $ deleteGroupId groupId
   ListSubConversations cid -> embedClient $ listSubConversations cid
+  DeleteSubConversation convId subConvId -> embedClient $ deleteSubConversation convId subConvId
 
 --------------------------------------------------------------------------------
 -- Utilities

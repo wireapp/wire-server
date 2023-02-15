@@ -70,8 +70,15 @@ createAndSendRemoveProposals ::
   Local ConvOrSubConv ->
   t KeyPackageRef ->
   Qualified UserId ->
+  -- | The client map that has all the recipients of the message. This is an
+  -- argument, and not constructed within the function, because of a special
+  -- case of subconversations where everyone but the subconversation leaver
+  -- client should get the remove proposal message; in this case the recipients
+  -- are a strict subset of all the clients represented by the in-memory
+  -- conversation/subconversation client maps.
+  ClientMap ->
   Sem r ()
-createAndSendRemoveProposals lConvOrSubConv cs qusr = do
+createAndSendRemoveProposals lConvOrSubConv cs qusr cm = do
   let meta = mlsMetaConvOrSub (tUnqualified lConvOrSubConv)
   mKeyPair <- getMLSRemovalKey
   case mKeyPair of
@@ -88,7 +95,7 @@ createAndSendRemoveProposals lConvOrSubConv cs qusr = do
           (proposalRef (cnvmlsCipherSuite meta) proposal)
           ProposalOriginBackend
           proposal
-        propagateMessage qusr lConvOrSubConv Nothing msgEncoded
+        propagateMessage qusr lConvOrSubConv Nothing msgEncoded cm
 
 removeClientsWithClientMapRecursively ::
   ( Members
@@ -111,7 +118,8 @@ removeClientsWithClientMapRecursively ::
   Sem r ()
 removeClientsWithClientMapRecursively lMlsConv getKPs qusr = do
   let mainConv = fmap Conv lMlsConv
-  createAndSendRemoveProposals mainConv (getKPs (tUnqualified mainConv)) qusr
+      cm = mcMembers (tUnqualified lMlsConv)
+  createAndSendRemoveProposals mainConv (getKPs (tUnqualified mainConv)) qusr cm
 
   -- remove this client from all subconversations
   subs <- listSubConversations' (mcId (tUnqualified lMlsConv))
@@ -122,6 +130,7 @@ removeClientsWithClientMapRecursively lMlsConv getKPs qusr = do
       subConv
       (getKPs (tUnqualified subConv))
       qusr
+      cm
 
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::

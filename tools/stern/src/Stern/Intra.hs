@@ -133,10 +133,10 @@ assertBackendApiVersion = recoverAll (constantDelay 1000000 <> limitRetries 5) $
     throwIO . ErrorCall $ "newest supported backend api version must be " <> show backendApiVersion
 
 path :: ByteString -> Request -> Request
-path = Bilge.path . ((toByteString' backendApiVersion <> "/") <>)
+path = Bilge.path . ((toPathComponent backendApiVersion <> "/") <>)
 
 paths :: [ByteString] -> Request -> Request
-paths = Bilge.paths . (toByteString' backendApiVersion :)
+paths = Bilge.paths . (toPathComponent backendApiVersion :)
 
 -------------------------------------------------------------------------------
 
@@ -523,7 +523,6 @@ getTeamFeatureFlag ::
   forall cfg.
   ( Typeable (Public.WithStatus cfg),
     FromJSON (Public.WithStatus cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
@@ -543,7 +542,6 @@ getTeamFeatureFlag tid = do
 setTeamFeatureFlag ::
   forall cfg.
   ( ToJSON (Public.WithStatusNoLock cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->

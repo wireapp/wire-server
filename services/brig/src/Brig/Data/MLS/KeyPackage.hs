@@ -25,6 +25,7 @@ module Brig.Data.MLS.KeyPackage
     keyPackageRefSetConvId,
     addKeyPackageRef,
     updateKeyPackageRef,
+    deleteKeyPackageRef,
   )
 where
 
@@ -210,6 +211,14 @@ updateKeyPackageRef prevRef newRef =
     lift $ do
       restoreKeyPackageMeta newRef backup
       deleteKeyPackage prevRef
+
+deleteKeyPackageRef :: MonadClient m => KeyPackageRef -> m ()
+deleteKeyPackageRef ref = do
+  retry x5 $
+    write q (params LocalQuorum (Identity ref))
+  where
+    q :: PrepQuery W (Identity KeyPackageRef) x
+    q = "DELETE FROM mls_key_package_refs WHERE ref = ?"
 
 --------------------------------------------------------------------------------
 -- Utilities

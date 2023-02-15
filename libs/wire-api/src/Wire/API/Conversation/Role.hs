@@ -56,11 +56,6 @@ module Wire.API.Conversation.Role
     isValidRoleName,
     roleActions,
     toConvRole,
-
-    -- * Swagger
-    modelConversationRole,
-    modelConversationRolesList,
-    typeConversationRoleAction,
   )
 where
 
@@ -78,7 +73,6 @@ import Data.Schema
 import qualified Data.Set as Set
 import Data.Singletons.TH
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Deriving.Swagger as S
 import GHC.TypeLits
 import Imports
@@ -124,21 +118,6 @@ type family ActionName (a :: Action) :: Symbol where
   ActionName 'LeaveConversation = "leave_conversation"
   ActionName 'DeleteConversation = "delete_conversation"
 
-typeConversationRoleAction :: Doc.DataType
-typeConversationRoleAction =
-  Doc.string $
-    Doc.enum
-      [ "add_conversation_member",
-        "remove_conversation_member",
-        "modify_conversation_name",
-        "modify_conversation_message_timer",
-        "modify_conversation_receipt_mode",
-        "modify_conversation_access",
-        "modify_other_conversation_member",
-        "leave_conversation",
-        "delete_conversation"
-      ]
-
 A.deriveJSON A.defaultOptions {A.constructorTagModifier = A.camelTo2 '_'} ''Action
 
 $(genSingletons [''Action])
@@ -157,17 +136,6 @@ data ConversationRole
   | ConvRoleCustom RoleName Actions
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationRole)
-
-modelConversationRole :: Doc.Model
-modelConversationRole = Doc.defineModel "ConversationRole" $ do
-  Doc.description "Conversation role"
-  Doc.property "conversation_role" Doc.string' $
-    Doc.description
-      "role name, between 2 and 128 chars, 'wire_' prefix \
-      \is reserved for roles designed by Wire (i.e., no \
-      \custom roles can have the same prefix)"
-  Doc.property "actions" (Doc.array typeConversationRoleAction) $
-    Doc.description "The set of actions allowed for this role"
 
 instance S.ToSchema ConversationRole where
   declareNamedSchema _ = do
@@ -233,12 +201,6 @@ data ConversationRolesList = ConversationRolesList
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationRolesList)
   deriving (S.ToSchema) via (S.CustomSwagger '[S.FieldLabelModifier (S.LabelMappings '["convRolesList" 'S.:-> "conversation_roles"])] ConversationRolesList)
-
-modelConversationRolesList :: Doc.Model
-modelConversationRolesList = Doc.defineModel "ConversationRolesList" $ do
-  Doc.description "list of roles allowed in the given conversation"
-  Doc.property "conversation_roles" (Doc.unique $ Doc.array (Doc.ref modelConversationRole)) $
-    Doc.description "the array of conversation roles"
 
 instance ToJSON ConversationRolesList where
   toJSON (ConversationRolesList r) =

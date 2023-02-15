@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -107,8 +109,6 @@ mapRemoteKeyPackageRef brig bundle =
 postMessage ::
   ( HasCallStack,
     MonadIO m,
-    MonadCatch m,
-    MonadThrow m,
     MonadHttp m,
     HasGalley m
   ) =>
@@ -130,8 +130,6 @@ postMessage sender msg = do
 localPostCommitBundle ::
   ( HasCallStack,
     MonadIO m,
-    MonadCatch m,
-    MonadThrow m,
     MonadHttp m,
     HasGalley m
   ) =>
@@ -1112,8 +1110,6 @@ getGroupInfo qusr qcs = do
 localGetGroupInfo ::
   ( HasCallStack,
     MonadIO m,
-    MonadCatch m,
-    MonadThrow m,
     MonadHttp m,
     HasGalley m
   ) =>
@@ -1206,7 +1202,7 @@ deleteSubConv ::
   UserId ->
   Qualified ConvId ->
   SubConvId ->
-  DeleteSubConversation ->
+  DeleteSubConversationRequest ->
   TestM ResponseLBS
 deleteSubConv u qcnv sconv dsc = do
   g <- viewGalley
@@ -1296,3 +1292,9 @@ leaveCurrentConv cid qsub = case qUnqualified qsub of
       mls
         { mlsMembers = Set.difference (mlsMembers mls) (Set.singleton cid)
         }
+
+getCurrentGroupId :: MLSTest GroupId
+getCurrentGroupId = do
+  State.gets mlsGroupId >>= \case
+    Nothing -> liftIO $ assertFailure "Creating add proposal for non-existing group"
+    Just g -> pure g

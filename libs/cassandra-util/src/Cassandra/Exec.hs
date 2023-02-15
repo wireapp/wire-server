@@ -45,7 +45,7 @@ import Database.CQL.Protocol (Error, QueryParams (QueryParams), Tuple, pagingSta
 import qualified Database.CQL.Protocol as Protocol
 import Imports hiding (init)
 
-params :: Tuple a => Consistency -> a -> QueryParams a
+params :: Consistency -> a -> QueryParams a
 params c p = QueryParams c False p Nothing Nothing Nothing Nothing
 {-# INLINE params #-}
 
@@ -80,7 +80,7 @@ data CassandraError
   | Other !SomeException
   deriving (Show)
 
-syncCassandra :: (Functor m, MonadIO m, MonadCatch m) => m a -> m (Either CassandraError a)
+syncCassandra :: (MonadIO m, MonadCatch m) => m a -> m (Either CassandraError a)
 syncCassandra m =
   catches
     (Right <$> m)

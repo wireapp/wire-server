@@ -115,7 +115,7 @@ utcTimeSchema :: ValueSchema NamedSwaggerDoc UTCTime
 utcTimeSchema = showUTCTime .= utcTimeTextSchema
 
 {-# INLINE toUTCTimeMillis #-}
-toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
+toUTCTimeMillis :: UTCTime -> UTCTimeMillis
 toUTCTimeMillis = UTCTimeMillis . (TL.seconds . coerced @Pico @_ @Integer %~ (* 1e9) . (`div` 1e9))
 
 {-# INLINE showUTCTimeMillis #-}

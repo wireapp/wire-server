@@ -35,7 +35,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
-import Wire.API.MLS.SubConversation
+import Wire.API.MLS.SubConversation hiding (DeleteSubConversationRequest (..))
 import Wire.API.MakesFederatedCall
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
@@ -65,7 +65,8 @@ type GalleyApi =
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-new-remote-conversation",
-              MakesFederatedCall 'Galley "on-new-remote-subconversation"
+              MakesFederatedCall 'Galley "on-new-remote-subconversation",
+              MakesFederatedCall 'Galley "on-delete-mls-conversation"
             ]
            "leave-conversation"
            LeaveConversationRequest
@@ -94,6 +95,7 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "on-conversation-updated",
               MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Galley "on-delete-mls-conversation",
               MakesFederatedCall 'Galley "on-new-remote-conversation",
               MakesFederatedCall 'Galley "on-new-remote-subconversation"
             ]
@@ -108,6 +110,7 @@ type GalleyApi =
               MakesFederatedCall 'Galley "on-new-remote-conversation",
               MakesFederatedCall 'Galley "on-new-remote-subconversation",
               MakesFederatedCall 'Galley "send-mls-message",
+              MakesFederatedCall 'Galley "on-delete-mls-conversation",
               MakesFederatedCall 'Brig "get-mls-clients"
             ]
            "send-mls-message"
@@ -116,6 +119,7 @@ type GalleyApi =
     :<|> FedEndpointWithMods
            '[ MakesFederatedCall 'Galley "mls-welcome",
               MakesFederatedCall 'Galley "on-conversation-updated",
+              MakesFederatedCall 'Galley "on-delete-mls-conversation",
               MakesFederatedCall 'Galley "on-mls-message-sent",
               MakesFederatedCall 'Galley "on-new-remote-conversation",
               MakesFederatedCall 'Galley "on-new-remote-subconversation",
@@ -135,15 +139,18 @@ type GalleyApi =
     :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
     :<|> FedEndpoint "get-sub-conversation" GetSubConversationsRequest GetSubConversationsResponse
     :<|> FedEndpointWithMods
-           '[MakesFederatedCall 'Galley "on-new-remote-subconversation"]
+           '[ MakesFederatedCall 'Galley "on-new-remote-subconversation",
+              MakesFederatedCall 'Galley "on-delete-mls-conversation"
+            ]
            "delete-sub-conversation"
-           DeleteSubConversationRequest
+           DeleteSubConversationFedRequest
            DeleteSubConversationResponse
     :<|> FedEndpointWithMods
            '[MakesFederatedCall 'Galley "on-mls-message-sent"]
            "leave-sub-conversation"
            LeaveSubConversationRequest
            LeaveSubConversationResponse
+    :<|> FedEndpoint "on-delete-mls-conversation" OnDeleteMLSConversationRequest EmptyResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { tdurTypingStatus :: TypingStatus,
@@ -480,7 +487,7 @@ data LeaveSubConversationResponse
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded LeaveSubConversationResponse)
 
-data DeleteSubConversationRequest = DeleteSubConversationRequest
+data DeleteSubConversationFedRequest = DeleteSubConversationFedRequest
   { dscreqUser :: UserId,
     dscreqConv :: ConvId,
     dscreqSubConv :: SubConvId,
@@ -488,10 +495,16 @@ data DeleteSubConversationRequest = DeleteSubConversationRequest
     dscreqEpoch :: Epoch
   }
   deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationFedRequest)
 
 data DeleteSubConversationResponse
   = DeleteSubConversationResponseError GalleyError
   | DeleteSubConversationResponseSuccess
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded DeleteSubConversationResponse)
+
+newtype OnDeleteMLSConversationRequest = OnDeleteMLSConversationRequest
+  { odmcGroupIds :: [GroupId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via (CustomEncoded OnDeleteMLSConversationRequest)

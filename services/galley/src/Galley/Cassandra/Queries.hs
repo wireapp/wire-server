@@ -335,8 +335,8 @@ updateSubConvPublicGroupState = "INSERT INTO subconversation (conv_id, subconv_i
 selectSubConvPublicGroupState :: PrepQuery R (ConvId, SubConvId) (Identity (Maybe OpaquePublicGroupState))
 selectSubConvPublicGroupState = "SELECT public_group_state FROM subconversation WHERE conv_id = ? AND subconv_id = ?"
 
-deleteGroupIdForSubconv :: PrepQuery W (Identity GroupId) ()
-deleteGroupIdForSubconv = "DELETE FROM group_id_conv_id WHERE group_id = ?"
+deleteGroupId :: PrepQuery W (Identity GroupId) ()
+deleteGroupId = "DELETE FROM group_id_conv_id WHERE group_id = ?"
 
 insertGroupIdForSubConversation :: PrepQuery W (GroupId, ConvId, Domain, SubConvId) ()
 insertGroupIdForSubConversation = "INSERT INTO group_id_conv_id (group_id, conv_id, domain, subconv_id) VALUES (?, ?, ?, ?)"
@@ -349,6 +349,12 @@ insertEpochForSubConversation = "UPDATE subconversation set epoch = ? WHERE conv
 
 listSubConversations :: PrepQuery R (Identity ConvId) (SubConvId, CipherSuiteTag, Epoch, Writetime Epoch, GroupId)
 listSubConversations = "SELECT subconv_id, cipher_suite, epoch, WRITETIME(epoch), group_id FROM subconversation WHERE conv_id = ?"
+
+selectSubConversations :: PrepQuery R (Identity ConvId) (Identity SubConvId)
+selectSubConversations = "SELECT subconv_id FROM subconversation WHERE conv_id = ?"
+
+deleteSubConversation :: PrepQuery W (ConvId, SubConvId) ()
+deleteSubConversation = "DELETE FROM subconversation where conv_id = ? and subconv_id = ?"
 
 -- Members ------------------------------------------------------------------
 

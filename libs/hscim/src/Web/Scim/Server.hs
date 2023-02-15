@@ -85,7 +85,7 @@ data Site tag route = Site
 
 siteServer ::
   forall tag m.
-  (DB tag m, Show (GroupId tag)) =>
+  DB tag m =>
   Configuration ->
   Site tag (AsServerT (ScimHandler m))
 siteServer conf =

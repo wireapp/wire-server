@@ -62,6 +62,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       base      >=4.6 && <5.0
@@ -124,7 +125,7 @@ test-suite spec
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -rtsopts -with-rtsopts=-N
+    -threaded -rtsopts -with-rtsopts=-N -Wredundant-constraints
 
   build-tool-depends: hspec-discover:hspec-discover
   build-depends:

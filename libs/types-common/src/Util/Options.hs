@@ -32,7 +32,6 @@ import Imports
 import Options.Applicative
 import Options.Applicative.Types
 import System.Exit (die)
-import System.IO (hPutStrLn)
 import URI.ByteString
 import Util.Options.Common
 
@@ -137,10 +136,6 @@ getOptions desc pars defaultPath = do
         Right o -> pure o
     -- Config doesn't exist but at least we have a CLI options parser
     (False, Just p) -> do
-      hPutStrLn stderr $
-        "Config file at "
-          ++ path
-          ++ " does not exist, falling back to command-line arguments. \n"
       execParser (info (helper <*> p) mkDesc)
     -- No config, no parser :(
     (False, Nothing) -> do
