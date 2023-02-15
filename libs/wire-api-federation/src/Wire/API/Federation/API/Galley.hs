@@ -146,7 +146,10 @@ type GalleyApi =
            DeleteSubConversationFedRequest
            DeleteSubConversationResponse
     :<|> FedEndpointWithMods
-           '[MakesFederatedCall 'Galley "on-mls-message-sent"]
+           '[ MakesFederatedCall 'Galley "on-mls-message-sent",
+              MakesFederatedCall 'Galley "on-delete-mls-conversation",
+              MakesFederatedCall 'Galley "on-new-remote-subconversation"
+            ]
            "leave-sub-conversation"
            LeaveSubConversationRequest
            LeaveSubConversationResponse
