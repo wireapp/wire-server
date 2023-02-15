@@ -28,11 +28,12 @@ module Wire.API.Routes.Internal.Galley.TeamsIntra
   )
 where
 
+import Control.Lens ((?~))
 import Data.Aeson
 import qualified Data.Currency as Currency
 import Data.Json.Util
 import qualified Data.Schema as S
-import qualified Data.Swagger as Swagger hiding (schema)
+import qualified Data.Swagger as Swagger
 import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)
@@ -90,7 +91,15 @@ instance S.ToSchema TeamStatusUpdate where
     S.object "TeamStatusUpdate" $
       TeamStatusUpdate
         <$> tuStatus S..= S.field "status" S.schema
-        <*> tuCurrency S..= S.maybe_ (S.optField "currency" S.schema)
+        <*> tuCurrency S..= S.maybe_ (S.optField "currency" currencyAlphaSchema)
+    where
+      currencyAlphaSchema :: S.ValueSchema S.NamedSwaggerDoc Currency.Alpha
+      currencyAlphaSchema = S.mkSchema docs parseJSON (pure . toJSON)
+        where
+          docs =
+            S.swaggerDoc @Text
+              & Swagger.schema . Swagger.description ?~ "ISO 4217 alphabetic codes"
+              & Swagger.schema . Swagger.example ?~ "EUR"
 
 newtype TeamName = TeamName
   {tnName :: Text}
