@@ -44,7 +44,6 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Wire.API.Conversation.Protocol
-import Wire.API.Federation.API
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -62,8 +61,7 @@ removeClientsWithClientMap ::
          Input Env
        ]
       r,
-    Traversable t,
-    CallsFed 'Galley "on-mls-message-sent"
+    Traversable t
   ) =>
   Local Data.Conversation ->
   t KeyPackageRef ->
@@ -104,8 +102,7 @@ removeClient ::
          ProposalStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-mls-message-sent"
+      r
   ) =>
   Local Data.Conversation ->
   Qualified UserId ->
@@ -131,8 +128,7 @@ removeUserWithClientMap ::
          ProposalStore,
          Input Env
        ]
-      r,
-    CallsFed 'Galley "on-mls-message-sent"
+      r
   ) =>
   Local Data.Conversation ->
   ClientMap ->
@@ -154,8 +150,7 @@ removeUser ::
          ProposalStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-mls-message-sent"
+      r
   ) =>
   Local Data.Conversation ->
   Qualified UserId ->

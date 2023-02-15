@@ -477,8 +477,8 @@ internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
   hoistAPI @InternalAPIBase id $
     mkNamedAPI @"status" (pure ())
-      <@> mkNamedAPI @"delete-user" (callsFed rmUser)
-      <@> mkNamedAPI @"connect" (callsFed Create.createConnectConversation)
+      <@> mkNamedAPI @"delete-user" (callsFed (exposeAnnotations rmUser))
+      <@> mkNamedAPI @"connect" (callsFed (exposeAnnotations Create.createConnectConversation))
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
@@ -529,8 +529,8 @@ featureAPI =
     <@> mkNamedAPI @'("iput", SSOConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SSOConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", LegalholdConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (setFeatureStatusInternal @Cassandra))
-    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (patchFeatureStatusInternal @Cassandra))
+    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (exposeAnnotations (setFeatureStatusInternal @Cassandra)))
+    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (exposeAnnotations (patchFeatureStatusInternal @Cassandra)))
     <@> mkNamedAPI @'("iget", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SearchVisibilityAvailableConfig) (patchFeatureStatusInternal @Cassandra)
@@ -690,10 +690,7 @@ rmUser ::
          P.TinyLog,
          TeamStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-user-deleted-conversations",
-    CallsFed 'Galley "on-mls-message-sent"
+      r
   ) =>
   Local UserId ->
   Maybe ConnId ->

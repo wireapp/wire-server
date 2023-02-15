@@ -87,7 +87,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API (CallsFed, Component (Galley), fedClient)
+import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Team.LegalHold
@@ -273,29 +273,11 @@ ensureAllowed tag loc action conv origUser = do
             throwS @'InvalidTargetAccess
     _ -> pure ()
 
-type PerformActionCalls :: ConversationActionTag -> Constraint
-type family PerformActionCalls tag where
-  PerformActionCalls 'ConversationAccessDataTag =
-    ( CallsFed 'Galley "on-conversation-updated",
-      CallsFed 'Galley "on-mls-message-sent",
-      CallsFed 'Galley "on-new-remote-conversation"
-    )
-  PerformActionCalls 'ConversationJoinTag =
-    ( CallsFed 'Galley "on-conversation-updated",
-      CallsFed 'Galley "on-mls-message-sent",
-      CallsFed 'Galley "on-new-remote-conversation"
-    )
-  PerformActionCalls 'ConversationLeaveTag =
-    ( CallsFed 'Galley "on-mls-message-sent"
-    )
-  PerformActionCalls tag = ()
-
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
 -- and also returns the (possible modified) action that was performed
 performAction ::
   forall tag r.
-  ( HasConversationActionEffects tag r,
-    PerformActionCalls tag
+  ( HasConversationActionEffects tag r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -364,10 +346,7 @@ performAction tag origUser lconv action = do
       pure (bm, act)
 
 performConversationJoin ::
-  ( HasConversationActionEffects 'ConversationJoinTag r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+  ( HasConversationActionEffects 'ConversationJoinTag r
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -494,10 +473,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkLHPolicyConflictsRemote _remotes = pure ()
 
 performConversationAccessData ::
-  ( HasConversationActionEffects 'ConversationAccessDataTag r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+  ( HasConversationActionEffects 'ConversationAccessDataTag r
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -596,10 +572,7 @@ updateLocalConversation ::
        ]
       r,
     HasConversationActionEffects tag r,
-    SingI tag,
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    PerformActionCalls tag
+    SingI tag
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -636,10 +609,7 @@ updateLocalConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    HasConversationActionEffects tag r,
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    PerformActionCalls tag
+    HasConversationActionEffects tag r
   ) =>
   Local Conversation ->
   Qualified UserId ->
@@ -715,9 +685,7 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r,
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated"
+  ( Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -834,10 +802,7 @@ kickMember ::
     Member (Input UTCTime) r,
     Member (Input Env) r,
     Member MemberStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    PerformActionCalls 'ConversationLeaveTag
+    Member TinyLog r
   ) =>
   Qualified UserId ->
   Local Conversation ->

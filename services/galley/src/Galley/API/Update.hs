@@ -290,10 +290,7 @@ type UpdateConversationAccessEffects =
    ]
 
 updateConversationAccess ::
-  ( Members UpdateConversationAccessEffects r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated"
+  ( Members UpdateConversationAccessEffects r
   ) =>
   Local UserId ->
   ConnId ->
@@ -306,10 +303,7 @@ updateConversationAccess lusr con qcnv update = do
     updateLocalConversation @'ConversationAccessDataTag lcnv (tUntagged lusr) (Just con) update
 
 updateConversationAccessUnqualified ::
-  ( Members UpdateConversationAccessEffects r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated"
+  ( Members UpdateConversationAccessEffects r
   ) =>
   Local UserId ->
   ConnId ->
@@ -341,10 +335,7 @@ updateConversationReceiptMode ::
          MemberStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "update-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -380,8 +371,7 @@ updateRemoteConversation ::
        ]
       r,
     RethrowErrors (HasConversationActionGalleyErrors tag) (Error NoChanges : r),
-    SingI tag,
-    CallsFed 'Galley "update-conversation"
+    SingI tag
   ) =>
   Remote ConvId ->
   Local UserId ->
@@ -421,10 +411,7 @@ updateConversationReceiptModeUnqualified ::
          MemberStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "update-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -446,9 +433,7 @@ updateConversationMessageTimer ::
          Input Env,
          Input UTCTime
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -484,9 +469,7 @@ updateConversationMessageTimerUnqualified ::
          Input Env,
          Input UTCTime
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -511,9 +494,7 @@ deleteLocalConversation ::
          Input UTCTime,
          TeamStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -722,9 +703,7 @@ joinConversationByReusableCode ::
          TeamFeatureStore db
        ]
       r,
-    FeaturePersistentConstraint db GuestLinksConfig,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
   ConnId ->
@@ -755,9 +734,7 @@ joinConversationById ::
          TeamStore,
          TeamFeatureStore db
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -784,9 +761,7 @@ joinConversation ::
          TeamStore,
          TeamFeatureStore db
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -843,10 +818,7 @@ addMembers ::
          TeamStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -886,10 +858,7 @@ addMembersUnqualifiedV2 ::
          TeamStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -929,10 +898,7 @@ addMembersUnqualified ::
          TeamStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1026,9 +992,7 @@ updateOtherMemberLocalConv ::
          Input UTCTime,
          MemberStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1057,9 +1021,7 @@ updateOtherMemberUnqualified ::
          Input UTCTime,
          MemberStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1088,9 +1050,7 @@ updateOtherMember ::
          Input UTCTime,
          MemberStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1128,11 +1088,7 @@ removeMemberUnqualified ::
          ProposalStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "leave-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1160,11 +1116,7 @@ removeMemberQualified ::
          ProposalStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "leave-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1187,8 +1139,7 @@ removeMemberFromRemoteConv ::
          ErrorS 'ConvNotFound,
          Input UTCTime
        ]
-      r,
-    CallsFed 'Galley "leave-conversation"
+      r
   ) =>
   Remote ConvId ->
   Local UserId ->
@@ -1236,10 +1187,7 @@ removeMemberFromLocalConv ::
          ProposalStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1276,10 +1224,7 @@ postProteusMessage ::
          TeamStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Brig "get-user-clients",
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Galley "send-message"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1365,9 +1310,7 @@ postBotMessageUnqualified ::
          TinyLog,
          Input UTCTime
        ]
-      r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+      r
   ) =>
   BotId ->
   ConvId ->
@@ -1425,9 +1368,7 @@ postOtrMessageUnqualified ::
          TeamStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1456,9 +1397,7 @@ updateConversationName ::
          Input Env,
          Input UTCTime
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1486,9 +1425,7 @@ updateUnqualifiedConversationName ::
          Input Env,
          Input UTCTime
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1512,9 +1449,7 @@ updateLocalConversationName ::
          Input Env,
          Input UTCTime
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1535,8 +1470,7 @@ isTypingQualified ::
          FederatorAccess,
          WaiRoutes
        ]
-      r,
-    CallsFed 'Galley "on-typing-indicator-updated"
+      r
   ) =>
   Local UserId ->
   ConnId ->

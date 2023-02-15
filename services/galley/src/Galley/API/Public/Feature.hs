@@ -31,7 +31,7 @@ featureAPI :: API FeatureAPI GalleyEffects
 featureAPI =
   mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", LegalholdConfig) (callsFed (setFeatureStatus @Cassandra . DoAuth))
+    <@> mkNamedAPI @'("put", LegalholdConfig) (callsFed (exposeAnnotations (setFeatureStatus @Cassandra . DoAuth)))
     <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)

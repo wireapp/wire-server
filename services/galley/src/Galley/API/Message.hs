@@ -84,6 +84,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
+import Wire.API.Federation.Client (FederatorClient)
 
 data UserType = User | Bot
 
@@ -214,7 +215,7 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
       )
 
 getRemoteClients ::
-  (Member FederatorAccess r, CallsFed 'Brig "get-user-clients") =>
+  (Member FederatorAccess r) =>
   [RemoteMember] ->
   Sem r (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers =
@@ -222,13 +223,14 @@ getRemoteClients remoteMembers =
   mconcat . map tUnqualified
     <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
   where
+    getRemoteClientsFromDomain :: Remote [UserId] -> FederatorClient 'Brig (Map (Domain, UserId) (Set ClientId))
     getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
 -- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
-  (Members '[FederatorAccess] r, CallsFed 'Galley "send-message") =>
+  (Members '[FederatorAccess] r) =>
   Qualified UserId ->
   Remote ConvId ->
   ByteString ->
@@ -371,9 +373,7 @@ postQualifiedOtrMessage ::
          TeamStore,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+      r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -476,8 +476,7 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 sendMessages ::
   forall t r.
   ( t ~ 'NormalMessage,
-    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r,
-    CallsFed 'Galley "on-message-sent"
+    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -555,7 +554,7 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
 
 sendRemoteMessages ::
   forall r x.
-  (Members '[FederatorAccess, P.TinyLog] r, CallsFed 'Galley "on-message-sent") =>
+  (Members '[FederatorAccess, P.TinyLog] r) =>
   Remote x ->
   UTCTime ->
   Qualified UserId ->

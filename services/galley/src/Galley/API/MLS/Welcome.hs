@@ -63,8 +63,7 @@ postMLSWelcome ::
          Input UTCTime,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "mls-welcome"
+      r
   ) =>
   Local x ->
   Maybe ConnId ->
@@ -88,8 +87,7 @@ postMLSWelcomeFromLocalUser ::
          Input Env,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "mls-welcome"
+      r
   ) =>
   Local x ->
   ConnId ->
@@ -139,8 +137,7 @@ sendRemoteWelcomes ::
       '[ FederatorAccess,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "mls-welcome"
+      r
   ) =>
   ByteString ->
   [Remote (UserId, ClientId)] ->

@@ -72,7 +72,6 @@ import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Federation.API
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley.LegalHold
@@ -218,10 +217,7 @@ removeSettingsInternalPaging ::
          TeamStore,
          WaiRoutes
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
@@ -266,10 +262,7 @@ removeSettings ::
          TeamMemberStore p,
          TeamStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   UserId ->
@@ -328,10 +321,7 @@ removeSettings' ::
          ProposalStore,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   TeamId ->
   Sem r ()
@@ -420,10 +410,7 @@ grantConsent ::
          P.TinyLog,
          TeamStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   TeamId ->
@@ -471,10 +458,7 @@ requestDevice ::
          TeamFeatureStore db,
          TeamStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
@@ -555,10 +539,7 @@ approveDevice ::
          TeamFeatureStore db,
          TeamStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
   Local UserId ->
@@ -635,10 +616,7 @@ disableForUser ::
          P.TinyLog,
          TeamStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   TeamId ->
@@ -692,10 +670,7 @@ changeLegalholdStatus ::
          ProposalStore,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   TeamId ->
   Local UserId ->
@@ -812,10 +787,7 @@ handleGroupConvPolicyConflicts ::
          P.TinyLog,
          TeamStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   UserLegalHoldStatus ->

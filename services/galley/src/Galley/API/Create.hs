@@ -71,7 +71,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
@@ -107,8 +106,7 @@ createGroupConversation ::
          TeamStore,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -243,8 +241,7 @@ createOne2OneConversation ::
          TeamStore,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -299,8 +296,7 @@ createLegacyOne2OneConversationUnchecked ::
          Input UTCTime,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -341,8 +337,7 @@ createOne2OneConversationUnchecked ::
          Input UTCTime,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+      r
   ) =>
   Local UserId ->
   ConnId ->
@@ -368,8 +363,7 @@ createOne2OneConversationLocally ::
          Input UTCTime,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+      r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -426,8 +420,7 @@ createConnectConversation ::
          MemberStore,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+      r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -551,8 +544,7 @@ conversationCreated ::
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
 notifyCreatedConversation ::
-  ( Members '[Error InternalError, FederatorAccess, GundeckAccess, Input UTCTime, P.TinyLog] r,
-    CallsFed 'Galley "on-conversation-created"
+  ( Members '[Error InternalError, FederatorAccess, GundeckAccess, Input UTCTime, P.TinyLog] r
   ) =>
   Maybe UTCTime ->
   Local UserId ->

@@ -107,17 +107,17 @@ federationSitemap =
     :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
-    :<|> Named @"leave-conversation" (callsFed leaveConversation)
+    :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))
     :<|> Named @"on-message-sent" onMessageSent
-    :<|> Named @"send-message" (callsFed sendMessage)
-    :<|> Named @"on-user-deleted-conversations" (callsFed onUserDeleted)
-    :<|> Named @"update-conversation" (callsFed updateConversation)
+    :<|> Named @"send-message" (callsFed (exposeAnnotations sendMessage))
+    :<|> Named @"on-user-deleted-conversations" (callsFed (exposeAnnotations onUserDeleted))
+    :<|> Named @"update-conversation" (callsFed (exposeAnnotations updateConversation))
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
-    :<|> Named @"send-mls-message" (callsFed sendMLSMessage)
-    :<|> Named @"send-mls-commit-bundle" (callsFed sendMLSCommitBundle)
+    :<|> Named @"send-mls-message" (callsFed (exposeAnnotations sendMLSMessage))
+    :<|> Named @"send-mls-commit-bundle" (callsFed (exposeAnnotations sendMLSCommitBundle))
     :<|> Named @"query-group-info" queryGroupInfo
-    :<|> Named @"on-client-removed" (callsFed onClientRemoved)
+    :<|> Named @"on-client-removed" (callsFed (exposeAnnotations onClientRemoved))
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
 
 onClientRemoved ::
@@ -134,8 +134,7 @@ onClientRemoved ::
          ProposalStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-mls-message-sent"
+      r
   ) =>
   Domain ->
   ClientRemovedRequest ->
@@ -346,10 +345,7 @@ leaveConversation ::
          ProposalStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Domain ->
   F.LeaveConversationRequest ->
@@ -454,9 +450,7 @@ sendMessage ::
          TeamStore,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+      r
   ) =>
   Domain ->
   F.ProteusMessageSendRequest ->
@@ -484,10 +478,7 @@ onUserDeleted ::
          ProposalStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Domain ->
   F.UserDeletedConversationsNotification ->
@@ -551,10 +542,7 @@ updateConversation ::
          ConversationStore,
          Input (Local ())
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Domain ->
   F.ConversationUpdateRequest ->
@@ -636,13 +624,7 @@ sendMLSCommitBundle ::
         P.TinyLog,
         ProposalStore
       ]
-      r,
-    CallsFed 'Galley "mls-welcome",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "send-mls-commit-bundle",
-    CallsFed 'Brig "get-mls-clients"
+      r
   ) =>
   Domain ->
   F.MLSMessageSendRequest ->
@@ -686,12 +668,7 @@ sendMLSMessage ::
         P.TinyLog,
         ProposalStore
       ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "send-mls-message",
-    CallsFed 'Brig "get-mls-clients"
+      r
   ) =>
   Domain ->
   F.MLSMessageSendRequest ->

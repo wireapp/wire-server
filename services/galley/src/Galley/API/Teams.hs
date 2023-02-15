@@ -128,7 +128,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
-import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
@@ -1113,9 +1112,7 @@ deleteTeamConversation ::
          Input UTCTime,
          TeamStore
        ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+      r
   ) =>
   Local UserId ->
   ConnId ->

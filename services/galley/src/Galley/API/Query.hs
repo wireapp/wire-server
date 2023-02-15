@@ -96,6 +96,7 @@ import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.Sem.Paging.Cassandra
+import Wire.API.Federation.Client (FederatorClient)
 
 getBotConversationH ::
   Members '[ConversationStore, ErrorS 'ConvNotFound, Input (Local ())] r =>
@@ -150,8 +151,7 @@ getConversation ::
          FederatorAccess,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "get-conversations"
+      r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -180,8 +180,7 @@ getRemoteConversations ::
          FederatorAccess,
          P.TinyLog
        ]
-      r,
-    CallsFed 'Galley "get-conversations"
+      r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -228,8 +227,7 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
     split (FailedGetConversation convs (FailedGetConversationRemotely _)) = Right convs
 
 getRemoteConversationsWithFailures ::
-  ( Members '[ConversationStore, FederatorAccess, P.TinyLog] r,
-    CallsFed 'Galley "get-conversations"
+  ( Members '[ConversationStore, FederatorAccess, P.TinyLog] r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -253,7 +251,8 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc = fedClient @'Galley @"get-conversations"
+  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponse
+      rpc = fedClient @'Galley @"get-conversations"
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
@@ -482,7 +481,7 @@ getConversationsInternal luser mids mstart msize = do
       | otherwise = pure True
 
 listConversations ::
-  (Members '[ConversationStore, Error InternalError, FederatorAccess, P.TinyLog] r, CallsFed 'Galley "get-conversations") =>
+  (Members '[ConversationStore, Error InternalError, FederatorAccess, P.TinyLog] r) =>
   Local UserId ->
   Public.ListConversations ->
   Sem r Public.ConversationsResponse
