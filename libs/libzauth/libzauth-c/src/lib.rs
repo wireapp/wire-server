@@ -20,31 +20,32 @@ extern crate zauth;
 
 use libc::size_t;
 use std::char;
+use std::ffi::CString;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
+use std::panic::{self, UnwindSafe};
 use std::path::Path;
 use std::ptr;
 use std::slice;
 use std::str;
-use std::panic::{self, UnwindSafe};
-use zauth::{Acl, Error, Keystore, Token, TokenType, TokenVerification};
 use zauth::acl;
+use zauth::{Acl, Error, Keystore, OauthError, Token, TokenType, TokenVerification};
 
 /// Variant of std::try! that returns the unwrapped error.
 macro_rules! try_unwrap {
     ($expr:expr) => {
         match $expr {
-            Ok(x)  => x,
-            Err(e) => return From::from(e)
+            Ok(x) => x,
+            Err(e) => return From::from(e),
         }
-    }
+    };
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Range {
     ptr: *const u8,
-    len: size_t
+    len: size_t,
 }
 
 pub struct ZauthAcl(zauth::Acl);
@@ -52,58 +53,70 @@ pub struct ZauthKeystore(zauth::Keystore);
 pub struct ZauthToken(zauth::Token<'static>);
 
 #[no_mangle]
-pub extern fn zauth_keystore_open(f: *const u8, n: size_t, s: *mut *mut ZauthKeystore) -> ZauthResult {
+pub extern "C" fn zauth_keystore_open(
+    f: *const u8,
+    n: size_t,
+    s: *mut *mut ZauthKeystore,
+) -> ZauthResult {
     if f.is_null() {
         return ZauthResult::NullArg;
     }
     catch_unwind(|| {
         let bytes = unsafe { slice::from_raw_parts(f, n) };
-        let path  = try_unwrap!(str::from_utf8(bytes));
+        let path = try_unwrap!(str::from_utf8(bytes));
         let store = try_unwrap!(Keystore::open(&Path::new(path)));
         unsafe {
-            *s= Box::into_raw(Box::new(ZauthKeystore(store)));
+            *s = Box::into_raw(Box::new(ZauthKeystore(store)));
         }
         ZauthResult::Ok
     })
 }
 
 #[no_mangle]
-pub extern fn zauth_keystore_delete(s: *mut ZauthKeystore) {
+pub extern "C" fn zauth_keystore_delete(s: *mut ZauthKeystore) {
     catch_unwind(|| {
-        unsafe { Box::from_raw(s); }
+        unsafe {
+            Box::from_raw(s);
+        }
         ZauthResult::Ok
     });
 }
 
 #[no_mangle]
-pub extern fn zauth_acl_open(f: *const u8, n: size_t, a: *mut *mut ZauthAcl) -> ZauthResult {
+pub extern "C" fn zauth_acl_open(f: *const u8, n: size_t, a: *mut *mut ZauthAcl) -> ZauthResult {
     if f.is_null() {
         return ZauthResult::NullArg;
     }
     catch_unwind(|| {
         let bytes = unsafe { slice::from_raw_parts(f, n) };
-        let path  = try_unwrap!(str::from_utf8(bytes));
+        let path = try_unwrap!(str::from_utf8(bytes));
         let mut rdr = BufReader::new(try_unwrap!(File::open(&Path::new(path))));
         let mut txt = String::new();
         try_unwrap!(rdr.read_to_string(&mut txt));
         let acl = try_unwrap!(Acl::from_str(&txt));
         unsafe {
-            *a= Box::into_raw(Box::new(ZauthAcl(acl)));
+            *a = Box::into_raw(Box::new(ZauthAcl(acl)));
         }
         ZauthResult::Ok
     })
 }
 
 #[no_mangle]
-pub extern fn zauth_acl_delete(a: *mut ZauthAcl) {
+pub extern "C" fn zauth_acl_delete(a: *mut ZauthAcl) {
     catch_unwind(|| {
-        unsafe { Box::from_raw(a); }
+        unsafe {
+            Box::from_raw(a);
+        }
         ZauthResult::Ok
     });
 }
 
 #[no_mangle]
-pub extern fn zauth_token_parse(cs: *const u8, n: size_t, zt: *mut *mut ZauthToken) -> ZauthResult {
+pub extern "C" fn zauth_token_parse(
+    cs: *const u8,
+    n: size_t,
+    zt: *mut *mut ZauthToken,
+) -> ZauthResult {
     if cs.is_null() {
         return ZauthResult::NullArg;
     }
@@ -119,23 +132,26 @@ pub extern fn zauth_token_parse(cs: *const u8, n: size_t, zt: *mut *mut ZauthTok
 }
 
 #[no_mangle]
-pub extern fn zauth_token_verify(t: &mut ZauthToken, s: &ZauthKeystore) -> ZauthResult {
+pub extern "C" fn zauth_token_verify(t: &mut ZauthToken, s: &ZauthKeystore) -> ZauthResult {
     let result = catch_unwind(|| {
         try_unwrap!(t.0.verify(&s.0));
         ZauthResult::Ok
     });
-    unsafe { 
-        match result {
-            ZauthResult::Ok => t.0.verification = TokenVerification::Verified,
-            _               => t.0.verification = TokenVerification::Invalid
-        };
+    match result {
+        ZauthResult::Ok => t.0.verification = TokenVerification::Verified,
+        _ => t.0.verification = TokenVerification::Invalid,
     };
     result
 }
 
 #[no_mangle]
-pub extern
-fn zauth_token_allowed(t: &ZauthToken, acl: &ZauthAcl, cp: *const u8, n: size_t, out: *mut u8) -> ZauthResult {
+pub extern "C" fn zauth_token_allowed(
+    t: &ZauthToken,
+    acl: &ZauthAcl,
+    cp: *const u8,
+    n: size_t,
+    out: *mut u8,
+) -> ZauthResult {
     catch_unwind(|| {
         let b = unsafe { slice::from_raw_parts(cp, n) };
         let s = try_unwrap!(str::from_utf8(b));
@@ -149,12 +165,12 @@ fn zauth_token_allowed(t: &ZauthToken, acl: &ZauthAcl, cp: *const u8, n: size_t,
 }
 
 #[no_mangle]
-pub extern fn zauth_token_type(t: &ZauthToken) -> ZauthTokenType {
+pub extern "C" fn zauth_token_type(t: &ZauthToken) -> ZauthTokenType {
     From::from(t.0.token_type)
 }
 
 #[no_mangle]
-pub extern fn zauth_token_verification(t: &ZauthToken) -> ZauthTokenVerification {
+pub extern "C" fn zauth_token_verification(t: &ZauthToken) -> ZauthTokenVerification {
     From::from(t.0.verification)
 }
 
@@ -165,24 +181,32 @@ pub extern fn zauth_token_verification(t: &ZauthToken) -> ZauthTokenVerification
 //}
 
 #[no_mangle]
-pub extern fn zauth_token_version(t: &ZauthToken) -> u8 {
+pub extern "C" fn zauth_token_version(t: &ZauthToken) -> u8 {
     t.0.version
 }
 
 #[no_mangle]
-pub extern fn zauth_token_lookup(t: &ZauthToken, c: u8) -> Range {
+pub extern "C" fn zauth_token_lookup(t: &ZauthToken, c: u8) -> Range {
     if let Some(k) = char::from_u32(c as u32) {
         if let Some(s) = t.0.lookup(k) {
-            return Range { ptr: s.as_ptr(), len: s.len() }
+            return Range {
+                ptr: s.as_ptr(),
+                len: s.len(),
+            };
         }
     }
-    Range { ptr: ptr::null(), len: 0 }
+    Range {
+        ptr: ptr::null(),
+        len: 0,
+    }
 }
 
 #[no_mangle]
-pub extern fn zauth_token_delete(t: *mut ZauthToken) {
+pub extern "C" fn zauth_token_delete(t: *mut ZauthToken) {
     catch_unwind(|| {
-        unsafe { Box::from_raw(t); }
+        unsafe {
+            Box::from_raw(t);
+        }
         ZauthResult::Ok
     });
 }
@@ -190,25 +214,25 @@ pub extern fn zauth_token_delete(t: *mut ZauthToken) {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub enum ZauthTokenType {
-    User            = 0,
-    Bot             = 1,
-    Access          = 2,
-    Provider        = 4,
-    LegalHoldUser   = 5,
+    User = 0,
+    Bot = 1,
+    Access = 2,
+    Provider = 4,
+    LegalHoldUser = 5,
     LegalHoldAccess = 6,
-    Unknown         = 3
+    Unknown = 3,
 }
 
 impl From<TokenType> for ZauthTokenType {
     fn from(t: TokenType) -> ZauthTokenType {
         match t {
-            TokenType::User              => ZauthTokenType::User,
-            TokenType::Access            => ZauthTokenType::Access,
-            TokenType::Bot               => ZauthTokenType::Bot,
-            TokenType::Provider          => ZauthTokenType::Provider,
-            TokenType::LegalHoldUser     => ZauthTokenType::LegalHoldUser,
-            TokenType::LegalHoldAccess   => ZauthTokenType::LegalHoldAccess,
-            TokenType::Unknown           => ZauthTokenType::Unknown
+            TokenType::User => ZauthTokenType::User,
+            TokenType::Access => ZauthTokenType::Access,
+            TokenType::Bot => ZauthTokenType::Bot,
+            TokenType::Provider => ZauthTokenType::Provider,
+            TokenType::LegalHoldUser => ZauthTokenType::LegalHoldUser,
+            TokenType::LegalHoldAccess => ZauthTokenType::LegalHoldAccess,
+            TokenType::Unknown => ZauthTokenType::Unknown,
         }
     }
 }
@@ -216,32 +240,48 @@ impl From<TokenType> for ZauthTokenType {
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub enum ZauthResult {
-    Ok                = 0,
-    Base64Error       = 1,
-    Expired           = 2,
-    InvalidAttr       = 3,
-    IoError           = 4,
-    MissingAttr       = 5,
-    NullArg           = 6,
-    ParseError        = 7,
+    Ok = 0,
+    Base64Error = 1,
+    Expired = 2,
+    InvalidAttr = 3,
+    IoError = 4,
+    MissingAttr = 5,
+    NullArg = 6,
+    ParseError = 7,
     SignatureMismatch = 8,
-    UnknownKey        = 9,
-    Utf8Error         = 10,
-    AclError          = 11,
-    Panic             = 99
+    UnknownKey = 9,
+    Utf8Error = 10,
+    AclError = 11,
+    JsonError = 12,
+    JwtError = 13,
+    JwkError = 14,
+    Panic = 99,
 }
 
 impl From<zauth::Error> for ZauthResult {
     fn from(e: zauth::Error) -> ZauthResult {
         match e {
-            Error::Base64            => ZauthResult::Base64Error,
-            Error::Expired           => ZauthResult::Expired,
-            Error::Invalid(_)        => ZauthResult::InvalidAttr,
-            Error::Io(_)             => ZauthResult::IoError,
-            Error::Missing(_)        => ZauthResult::MissingAttr,
-            Error::Parse             => ZauthResult::ParseError,
+            Error::Base64 => ZauthResult::Base64Error,
+            Error::Expired => ZauthResult::Expired,
+            Error::Invalid(_) => ZauthResult::InvalidAttr,
+            Error::Io(_) => ZauthResult::IoError,
+            Error::Missing(_) => ZauthResult::MissingAttr,
+            Error::Parse => ZauthResult::ParseError,
             Error::SignatureMismatch => ZauthResult::SignatureMismatch,
-            Error::UnknownKey(_)     => ZauthResult::UnknownKey,
+            Error::UnknownKey(_) => ZauthResult::UnknownKey,
+        }
+    }
+}
+
+impl From<zauth::OauthError> for ZauthResult {
+    fn from(e: zauth::OauthError) -> ZauthResult {
+        match e {
+            OauthError::JsonError(_) => Self::JsonError,
+            OauthError::InvalidJwtNoSubject
+            | OauthError::InvalidScope
+            | OauthError::JwtSimpleError(_) => Self::JwtError,
+            OauthError::Base64DecodeError(_) => Self::Base64Error,
+            OauthError::InvalidJwk => Self::JwkError,
         }
     }
 }
@@ -265,10 +305,12 @@ impl From<io::Error> for ZauthResult {
 }
 
 fn catch_unwind<F>(f: F) -> ZauthResult
-  where F: FnOnce() -> ZauthResult + UnwindSafe {
+where
+    F: FnOnce() -> ZauthResult + UnwindSafe,
+{
     match panic::catch_unwind(f) {
-        Ok(x)  => x,
-        Err(_) => ZauthResult::Panic
+        Ok(x) => x,
+        Err(_) => ZauthResult::Panic,
     }
 }
 
@@ -284,14 +326,22 @@ impl From<TokenVerification> for ZauthTokenVerification {
     fn from(t: TokenVerification) -> ZauthTokenVerification {
         match t {
             TokenVerification::Verified => ZauthTokenVerification::Verified,
-            TokenVerification::Invalid  => ZauthTokenVerification::Invalid,
-            TokenVerification::Pending  => ZauthTokenVerification::Pending,
+            TokenVerification::Invalid => ZauthTokenVerification::Invalid,
+            TokenVerification::Pending => ZauthTokenVerification::Pending,
         }
     }
 }
 
 #[no_mangle]
-pub extern fn verify_oauth_token(jwk: *const u8, jwk_len: size_t, token: *const u8, token_len: size_t, scope: *const u8, scope_len: size_t, s: *mut *mut libc::c_char) -> ZauthResult {
+pub extern "C" fn verify_oauth_token(
+    jwk: *const u8,
+    jwk_len: size_t,
+    token: *const u8,
+    token_len: size_t,
+    scope: *const u8,
+    scope_len: size_t,
+    s: *mut *mut libc::c_char,
+) -> ZauthResult {
     if jwk.is_null() {
         return ZauthResult::NullArg;
     }
@@ -300,18 +350,18 @@ pub extern fn verify_oauth_token(jwk: *const u8, jwk_len: size_t, token: *const 
     }
     if scope.is_null() {
         return ZauthResult::NullArg;
-    }        
+    }
     catch_unwind(|| {
         let bytes = unsafe { slice::from_raw_parts(jwk, jwk_len) };
         let jwk = try_unwrap!(str::from_utf8(bytes));
         let bytes = unsafe { slice::from_raw_parts(token, token_len) };
         let token = try_unwrap!(str::from_utf8(bytes));
         let bytes = unsafe { slice::from_raw_parts(scope, scope_len) };
-        let scope = try_unwrap!(str::from_utf8(bytes));                
-        let subject = try_unwrap!(verify_oauth_token(jwk, token, scope));
+        let scope = try_unwrap!(str::from_utf8(bytes));
+        let subject = try_unwrap!(zauth::verify_oauth_token(jwk, token, scope));
         unsafe {
-            *s= Box::into_raw(Box::new(CString::new(subject).unwrap().into_raw()));
-        }        
+            *s = CString::new(subject).unwrap().into_raw();
+        }
         ZauthResult::Ok
     })
 }

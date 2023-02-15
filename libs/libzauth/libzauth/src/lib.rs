@@ -36,3 +36,4 @@ mod matcher;
 pub use acl::Acl;
 pub use error::Error;
 pub use zauth::{Keystore, Token, TokenType, TokenVerification};
+pub use oauth::{verify_oauth_token, OauthError};

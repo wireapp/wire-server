@@ -23,6 +23,7 @@ static char * merge_loc_conf  (ngx_conf_t *, void *, void *);
 static char * merge_srv_conf  (ngx_conf_t *, void *, void *);
 static char * load_keystore   (ngx_conf_t *, ngx_command_t *, void *);
 static char * load_acl        (ngx_conf_t *, ngx_command_t *, void *);
+static char * load_oauth_key  (ngx_conf_t *, ngx_command_t *, void *);
 static void   delete_srv_conf (void *);
 
 // Module setup
@@ -93,6 +94,14 @@ static ngx_command_t zauth_commands [] = {
         , 0
         , NULL
         }
+
+      , { ngx_string ("oauth_key")
+        , NGX_HTTP_SRV_CONF | NGX_CONF_TAKE1
+        , load_oauth_key
+        , NGX_HTTP_SRV_CONF_OFFSET
+        , 0
+        , NULL
+        }        
 
       , ngx_null_command
 };
@@ -223,6 +232,15 @@ static char * load_acl (ngx_conf_t * conf, ngx_command_t * cmd, void * data) {
 
         if (e != ZAUTH_OK || sc->acl == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, conf, 0, "failed to load acl [%d]", e);
+                return NGX_CONF_ERROR;
+        }
+
+        return NGX_CONF_OK;
+}
+
+static char * load_oauth_key (ngx_conf_t * conf, ngx_command_t * cmd, void * data) {
+        ZauthServerConf * sc = data;
+        if (sc == NULL) {
                 return NGX_CONF_ERROR;
         }
 
