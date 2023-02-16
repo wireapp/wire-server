@@ -210,13 +210,6 @@ let
         tasty-hunit = "hunit";
       };
     };
-    tasty-hedgehog = {
-      src = fetchgit {
-          url = "https://github.com/qfpl/tasty-hedgehog";
-          rev = "729617f82699be189954825920d6f30985e1cfa7";
-          sha256 = "sha256-O81wlQbzwCOWLueDLiqf/K2g9XWvSNWgHv7IbYmLsgI=";
-      };
-    };
     jose = {
       src = fetchgit {
           url = "https://github.com/frasertweedale/hs-jose";

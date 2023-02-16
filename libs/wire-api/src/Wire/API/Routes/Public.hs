@@ -265,7 +265,6 @@ instance HasLink endpoint => HasLink (ZAuthServant usr opts scopes :> endpoint) 
 -- independent for now.
 instance
   ( IsZType ztype ctx,
-    HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasContextEntry ctx (Maybe JWK),
     opts ~ InternalAuthDefOpts,
     HasServer api ctx,

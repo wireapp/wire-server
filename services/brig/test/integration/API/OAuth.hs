@@ -789,7 +789,7 @@ registerNewOAuthClient :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =
 registerNewOAuthClient brig reqBody =
   responseJsonError =<< registerNewOAuthClient' brig reqBody <!! const 200 === statusCode
 
-registerNewOAuthClient' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> NewOAuthClient -> m ResponseLBS
+registerNewOAuthClient' :: (MonadHttp m) => Brig -> NewOAuthClient -> m ResponseLBS
 registerNewOAuthClient' brig reqBody =
   post (brig . paths ["i", "oauth", "clients"] . json reqBody)
 
@@ -797,17 +797,17 @@ getOAuthClientInfo :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Br
 getOAuthClientInfo brig uid cid =
   responseJsonError =<< getOAuthClientInfo' brig uid cid <!! const 200 === statusCode
 
-getOAuthClientInfo' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> OAuthClientId -> m ResponseLBS
+getOAuthClientInfo' :: (MonadHttp m) => Brig -> UserId -> OAuthClientId -> m ResponseLBS
 getOAuthClientInfo' brig uid cid =
   get (brig . paths ["oauth", "clients", toByteString' cid] . zUser uid)
 
-createOAuthCode :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> NewOAuthAuthCode -> m ResponseLBS
+createOAuthCode :: (MonadHttp m) => Brig -> UserId -> NewOAuthAuthCode -> m ResponseLBS
 createOAuthCode brig uid reqBody = post (brig . paths ["oauth", "authorization", "codes"] . zUser uid . json reqBody . noRedirect)
 
 createOAuthAccessToken :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> OAuthAccessTokenRequest -> m OAuthAccessTokenResponse
 createOAuthAccessToken brig reqBody = responseJsonError =<< createOAuthAccessToken' brig reqBody <!! const 200 === statusCode
 
-createOAuthAccessToken' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> OAuthAccessTokenRequest -> m ResponseLBS
+createOAuthAccessToken' :: (MonadHttp m) => Brig -> OAuthAccessTokenRequest -> m ResponseLBS
 createOAuthAccessToken' brig reqBody = do
   post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
 
@@ -815,11 +815,11 @@ refreshOAuthAccessToken :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) 
 refreshOAuthAccessToken brig reqBody =
   responseJsonError =<< refreshOAuthAccessToken' brig reqBody <!! const 200 === statusCode
 
-refreshOAuthAccessToken' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> OAuthRefreshAccessTokenRequest -> m ResponseLBS
+refreshOAuthAccessToken' :: (MonadHttp m) => Brig -> OAuthRefreshAccessTokenRequest -> m ResponseLBS
 refreshOAuthAccessToken' brig reqBody =
   post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
 
-listOauthApplications' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> m ResponseLBS
+listOauthApplications' :: (MonadHttp m) => Brig -> UserId -> m ResponseLBS
 listOauthApplications' brig uid =
   get (brig . paths ["oauth", "applications"] . zUser uid)
 
@@ -827,7 +827,7 @@ listOauthApplications :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =>
 listOauthApplications brig uid =
   responseJsonError =<< listOauthApplications' brig uid <!! const 200 === statusCode
 
-revokeOAuthApplicationAccess' :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> OAuthClientId -> m ResponseLBS
+revokeOAuthApplicationAccess' :: (MonadHttp m) => Brig -> UserId -> OAuthClientId -> m ResponseLBS
 revokeOAuthApplicationAccess' brig uid cid =
   delete (brig . paths ["oauth", "applications", toByteString' cid] . zUser uid)
 
@@ -877,7 +877,7 @@ badKey = do
 mkUrl :: ByteString -> RedirectUrl
 mkUrl = fromMaybe (error "invalid url") . fromByteString
 
-revokeOAuthRefreshToken :: (MonadIO m, MonadHttp m, HasCallStack) => Brig -> OAuthRevokeRefreshTokenRequest -> m ResponseLBS
+revokeOAuthRefreshToken :: (MonadHttp m) => Brig -> OAuthRevokeRefreshTokenRequest -> m ResponseLBS
 revokeOAuthRefreshToken brig req = post (brig . paths ["oauth", "revoke"] . json req)
 
 instance ToHttpApiData a => ToHttpApiData (Bearer a) where
