@@ -224,6 +224,7 @@ tests s =
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
               test s "leave a subconversation as a creator" (testLeaveSubConv True),
               test s "leave a subconversation as a non-creator" (testLeaveSubConv False),
+              test s "last to leave a subconversation" testLastLeaverSubConv,
               test s "leave a subconversation as a non-member" testLeaveSubConvNonMember,
               test s "remove user from parent conversation" testRemoveUserParent,
               test s "remove creator from parent conversation" testRemoveCreatorParent,
@@ -2910,6 +2911,38 @@ testDeleteRemoteSubConv isAMember = do
     let req :: Maybe DeleteSubConversationFedRequest =
           Aeson.decode (frBody actualReq)
     liftIO $ req @?= Just expectedReq
+
+testLastLeaverSubConv :: TestM ()
+testLastLeaverSubConv = do
+  alice <- randomQualifiedUser
+
+  runMLSTest $ do
+    [alice1, alice2] <- traverse createMLSClient [alice, alice]
+    void $ uploadNewKeyPackage alice2
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [alice] >>= sendAndConsumeCommitBundle
+
+    let subId = SubConvId "conference"
+    qsub <- createSubConv qcnv alice1 subId
+    prePsc <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv subId
+            <!! do
+              const 200 === statusCode
+    void $ leaveCurrentConv alice1 qsub
+
+    psc <-
+      liftTest $
+        responseJsonError
+          =<< getSubConv (qUnqualified alice) qcnv subId
+            <!! do
+              const 200 === statusCode
+    liftIO $ do
+      pscEpoch psc @?= Epoch 0
+      pscEpochTimestamp psc @?= Nothing
+      assertBool "group ID unchanged" $ pscGroupId prePsc /= pscGroupId psc
+      length (pscMembers psc) @?= 0
 
 testLeaveSubConv :: Bool -> TestM ()
 testLeaveSubConv isSubConvCreator = do
