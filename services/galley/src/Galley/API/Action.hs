@@ -437,11 +437,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedToRemotes lusr remotes
 
     checkLHPolicyConflictsLocal ::
-      ( Member ConversationStore r,
-        Member (Error InternalError) r,
-        Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
-        Member (ErrorS 'InvalidOperation) r,
-        Member (ErrorS 'ConvNotFound) r,
+      ( Member (Error InternalError) r,
         Member (ErrorS 'MissingLegalholdConsent) r,
         Member ExternalAccess r,
         Member FederatorAccess r,
@@ -585,14 +581,12 @@ data LocalConversationUpdate = LocalConversationUpdate
 updateLocalConversation ::
   forall tag r.
   ( Member ConversationStore r,
-    Member (Error NoChanges) r,
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     HasConversationActionEffects tag r,
     SingI tag,
@@ -778,8 +772,7 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
 -- | Notify all local members about a remote conversation update that originated
 -- from a local user
 notifyRemoteConversationAction ::
-  ( Member FederatorAccess r,
-    Member ExternalAccess r,
+  ( Member ExternalAccess r,
     Member GundeckAccess r,
     Member MemberStore r,
     Member P.TinyLog r

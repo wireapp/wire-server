@@ -202,7 +202,6 @@ servantSitemap ::
     Member BlacklistStore r,
     Member CodeStore r,
     Member (Concurrency 'Unsafe) r,
-    Member (Concurrency 'Unsafe) r,
     Member GalleyProvider r,
     Member JwtTools r,
     Member Now r,
@@ -360,12 +359,8 @@ servantSitemap =
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  ( Member BlacklistPhonePrefixStore r,
-    Member BlacklistStore r,
-    Member CodeStore r,
-    Member (Concurrency 'Unsafe) r,
-    Member GalleyProvider r,
-    Member PasswordResetStore r
+  ( Member (Concurrency 'Unsafe) r,
+    Member GalleyProvider r
   ) =>
   Routes () (Handler r) ()
 sitemap = do

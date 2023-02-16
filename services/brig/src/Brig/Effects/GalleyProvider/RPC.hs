@@ -285,9 +285,7 @@ getTeamMembers tid = do
         . expect2xx
 
 memberIsTeamOwner ::
-  ( Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
-  ) =>
+  Member (ServiceRPC 'Galley) r =>
   TeamId ->
   UserId ->
   Sem r Bool
@@ -413,9 +411,7 @@ decodeBodyMaybe :: (Typeable a, FromJSON a) => Text -> Response (Maybe BL.ByteSt
 decodeBodyMaybe t r = hush $ decodeBody t r
 
 getAllFeatureConfigsForUser ::
-  ( Member (ServiceRPC 'Galley) r,
-    Member (Logger (Msg -> Msg)) r
-  ) =>
+  Member (ServiceRPC 'Galley) r =>
   Maybe UserId ->
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForUser mbUserId =

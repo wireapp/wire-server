@@ -122,7 +122,6 @@ federationSitemap =
 
 onClientRemoved ::
   ( Member ConversationStore r,
-    Member (Error InternalError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -149,7 +148,6 @@ onClientRemoved domain req = do
 
 onConversationCreated ::
   ( Member BrigAccess r,
-    Member ConversationStore r,
     Member GundeckAccess r,
     Member ExternalAccess r,
     Member (Input (Local ())) r,
@@ -332,7 +330,6 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 leaveConversation ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
-    Member (Error InvalidInput) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -449,7 +446,6 @@ sendMessage ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member ExternalAccess r,
-    Member MemberStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     CallsFed 'Galley "on-message-sent",
@@ -472,7 +468,6 @@ onUserDeleted ::
     Member FireAndForget r,
     Member ExternalAccess r,
     Member GundeckAccess r,
-    Member (Error InternalError) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (Input Env) r,
@@ -822,8 +817,7 @@ queryGroupInfo origDomain req =
         $ state
 
 onTypingIndicatorUpdated ::
-  ( Member ConversationStore r,
-    Member MemberStore r,
+  ( Member MemberStore r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Input (Local ())) r

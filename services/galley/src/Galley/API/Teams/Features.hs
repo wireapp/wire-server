@@ -336,7 +336,6 @@ updateLockStatus tid lockStatus = do
 getFeatureStatusForUser ::
   forall (db :: Type) cfg r.
   ( Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,
     GetConfigForTeamConstraints db cfg r,
@@ -383,9 +382,7 @@ getAllFeatureConfigsForUser zusr = do
 
 getAllFeatureConfigsForTeam ::
   forall db r.
-  ( Member BrigAccess r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
+  ( Member (ErrorS 'NotATeamMember) r,
     Member (Input Opts) r,
     Member LegalHoldStore r,
     Member (TeamFeatureStore db) r,
@@ -401,35 +398,27 @@ getAllFeatureConfigsForTeam luid tid = do
   getAllFeatureConfigsTeam @db tid
 
 getAllFeatureConfigsForServer ::
-  forall db r.
-  ( Member BrigAccess r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS 'TeamNotFound) r,
-    Member (ErrorS OperationDenied) r,
-    Member (Input Opts) r,
-    Member LegalHoldStore r,
-    Member (TeamFeatureStore db) r,
-    Member TeamStore r
-  ) =>
+  forall r.
+  Member (Input Opts) r =>
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForServer =
   AllFeatureConfigs
-    <$> getConfigForServer @db @LegalholdConfig
-    <*> getConfigForServer @db @SSOConfig
-    <*> getConfigForServer @db @SearchVisibilityAvailableConfig
-    <*> getConfigForServer @db @SearchVisibilityInboundConfig
-    <*> getConfigForServer @db @ValidateSAMLEmailsConfig
-    <*> getConfigForServer @db @DigitalSignaturesConfig
-    <*> getConfigForServer @db @AppLockConfig
-    <*> getConfigForServer @db @FileSharingConfig
-    <*> getConfigForServer @db @ClassifiedDomainsConfig
-    <*> getConfigForServer @db @ConferenceCallingConfig
-    <*> getConfigForServer @db @SelfDeletingMessagesConfig
-    <*> getConfigForServer @db @GuestLinksConfig
-    <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
-    <*> getConfigForServer @db @MLSConfig
-    <*> getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
-    <*> getConfigForServer @db @OutlookCalIntegrationConfig
+    <$> getConfigForServer @LegalholdConfig
+    <*> getConfigForServer @SSOConfig
+    <*> getConfigForServer @SearchVisibilityAvailableConfig
+    <*> getConfigForServer @SearchVisibilityInboundConfig
+    <*> getConfigForServer @ValidateSAMLEmailsConfig
+    <*> getConfigForServer @DigitalSignaturesConfig
+    <*> getConfigForServer @AppLockConfig
+    <*> getConfigForServer @FileSharingConfig
+    <*> getConfigForServer @ClassifiedDomainsConfig
+    <*> getConfigForServer @ConferenceCallingConfig
+    <*> getConfigForServer @SelfDeletingMessagesConfig
+    <*> getConfigForServer @GuestLinksConfig
+    <*> getConfigForServer @SndFactorPasswordChallengeConfig
+    <*> getConfigForServer @MLSConfig
+    <*> getConfigForServer @ExposeInvitationURLsToTeamAdminConfig
+    <*> getConfigForServer @OutlookCalIntegrationConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -466,10 +455,7 @@ getAllFeatureConfigsUser uid =
 
 getAllFeatureConfigsTeam ::
   forall db r.
-  ( Member BrigAccess r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
-    Member (Input Opts) r,
+  ( Member (Input Opts) r,
     Member LegalHoldStore r,
     Member (TeamFeatureStore db) r,
     Member TeamStore r
@@ -531,7 +517,6 @@ genericGetConfigForUser ::
   FeaturePersistentConstraint db cfg =>
   ( Member (Input Opts) r,
     Member (TeamFeatureStore db) r,
-    Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
     Member TeamStore r,

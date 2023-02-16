@@ -728,7 +728,6 @@ getMLSSelfConversation ::
   forall r.
   ( Member ConversationStore r,
     Member (Error InternalError) r,
-    Member (Input Env) r,
     Member P.TinyLog r
   ) =>
   Local UserId ->

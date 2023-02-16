@@ -42,7 +42,6 @@ import Network.HTTP.Client
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
 import Polysemy.Input
-import Polysemy.TinyLog
 import qualified Servant.Client.Core as Servant
 import Servant.Types.SourceT
 import Util.Options
@@ -77,8 +76,7 @@ bodyReaderToStreamT action = fromStepT go
 --
 interpretServiceHTTP ::
   ( Member (Embed (Codensity IO)) r,
-    Member (Input Env) r,
-    Member TinyLog r
+    Member (Input Env) r
   ) =>
   Sem (ServiceStreaming ': r) a ->
   Sem r a

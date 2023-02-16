@@ -1009,9 +1009,7 @@ applyProposal _conv _groupId (ExternalInitProposal _) =
 applyProposal _conv _groupId _ = pure mempty
 
 checkProposalCipherSuite ::
-  ( Member (Error MLSProtocolError) r,
-    Member ProposalStore r
-  ) =>
+  Member (Error MLSProtocolError) r =>
   CipherSuiteTag ->
   Proposal ->
   Sem r ()
@@ -1030,11 +1028,8 @@ checkProposalCipherSuite _suite _prop = pure ()
 
 processProposal ::
   HasProposalEffects r =>
-  ( Member (Error MLSProtocolError) r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member ProposalStore r,
-    Member (Input (Local ())) r
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSStaleMessage) r
   ) =>
   Qualified UserId ->
   Data.Conversation ->

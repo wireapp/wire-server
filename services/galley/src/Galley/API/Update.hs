@@ -142,7 +142,6 @@ acceptConvH ::
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotConnected) r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -160,7 +159,6 @@ acceptConv ::
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotConnected) r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -209,7 +207,6 @@ unblockConvH ::
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotConnected) r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
@@ -227,7 +224,6 @@ unblockConv ::
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotConnected) r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
@@ -323,7 +319,6 @@ updateConversationReceiptMode ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TinyLog r,
@@ -354,7 +349,6 @@ updateConversationReceiptMode lusr zcon qcnv update =
 updateRemoteConversation ::
   forall tag r.
   ( Member BrigAccess r,
-    Member (Error FederationError) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -397,7 +391,6 @@ updateConversationReceiptModeUnqualified ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TinyLog r,
@@ -421,7 +414,6 @@ updateConversationMessageTimer ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation"
@@ -456,7 +448,6 @@ updateConversationMessageTimerUnqualified ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation"
@@ -479,7 +470,6 @@ deleteLocalConversation ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
     CallsFed 'Galley "on-conversation-updated",
@@ -694,10 +684,10 @@ joinConversationByReusableCode lusr zcon convCode = do
   c <- verifyReusableCode convCode
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
-  joinConversation @db lusr zcon conv CodeAccess
+  joinConversation lusr zcon conv CodeAccess
 
 joinConversationById ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
     Member FederatorAccess r,
     Member ConversationStore r,
@@ -712,7 +702,6 @@ joinConversationById ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation"
   ) =>
@@ -722,12 +711,11 @@ joinConversationById ::
   Sem r (UpdateResult Event)
 joinConversationById lusr zcon cnv = do
   conv <- E.getConversation cnv >>= noteS @'ConvNotFound
-  joinConversation @db lusr zcon conv LinkAccess
+  joinConversation lusr zcon conv LinkAccess
 
 joinConversation ::
-  forall db r.
+  forall r.
   ( Member BrigAccess r,
-    Member ConversationStore r,
     Member FederatorAccess r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'InvalidOperation) r,
@@ -739,7 +727,6 @@ joinConversation ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member TeamStore r,
-    Member (TeamFeatureStore db) r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation"
   ) =>
@@ -963,7 +950,6 @@ updateOtherMemberLocalConv ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     CallsFed 'Galley "on-conversation-updated",
@@ -991,7 +977,6 @@ updateOtherMemberUnqualified ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     CallsFed 'Galley "on-conversation-updated",
@@ -1019,7 +1004,6 @@ updateOtherMember ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
     CallsFed 'Galley "on-conversation-updated",
@@ -1185,8 +1169,7 @@ removeMemberFromLocalConv lcnv lusr con victim
 -- OTR
 
 postProteusMessage ::
-  ( Member BotAccess r,
-    Member BrigAccess r,
+  ( Member BrigAccess r,
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
@@ -1194,7 +1177,6 @@ postProteusMessage ::
     Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
     Member TeamStore r,
     Member TinyLog r,
     CallsFed 'Brig "get-user-clients",
@@ -1214,19 +1196,14 @@ postProteusMessage sender zcon conv msg = runLocalInput sender $ do
     conv
 
 postProteusBroadcast ::
-  ( Member BotAccess r,
-    Member BrigAccess r,
+  ( Member BrigAccess r,
     Member ClientStore r,
-    Member ConversationStore r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'NonBindingTeam) r,
     Member (ErrorS 'BroadcastLimitExceeded) r,
-    Member FederatorAccess r,
     Member GundeckAccess r,
-    Member ExternalAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
     Member TeamStore r,
     Member TinyLog r
   ) =>
@@ -1271,13 +1248,11 @@ postBotMessageUnqualified ::
   ( Member BrigAccess r,
     Member ClientStore r,
     Member ConversationStore r,
-    Member (ErrorS 'ConvNotFound) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
-    Member MemberStore r,
     Member TeamStore r,
     Member TinyLog r,
     Member (Input UTCTime) r,
@@ -1324,14 +1299,12 @@ postOtrBroadcastUnqualified sender zcon =
     (postBroadcast sender (Just zcon))
 
 postOtrMessageUnqualified ::
-  ( Member BotAccess r,
-    Member BrigAccess r,
+  ( Member BrigAccess r,
     Member ClientStore r,
     Member ConversationStore r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member ExternalAccess r,
-    Member MemberStore r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
@@ -1362,7 +1335,6 @@ updateConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation"
@@ -1389,7 +1361,6 @@ updateUnqualifiedConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation"
@@ -1412,7 +1383,6 @@ updateLocalConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation"
@@ -1433,7 +1403,6 @@ isTypingQualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member FederatorAccess r,
-    Member WaiRoutes r,
     CallsFed 'Galley "on-typing-indicator-updated"
   ) =>
   Local UserId ->
@@ -1464,8 +1433,7 @@ isTypingUnqualified ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member WaiRoutes r
+    Member MemberStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1509,7 +1477,6 @@ addBotH ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TeamStore r,
     Member WaiRoutes r
   ) =>
   UserId ::: ConnId ::: JsonRequest AddBot ->
@@ -1531,8 +1498,7 @@ addBot ::
     Member GundeckAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
-    Member TeamStore r
+    Member MemberStore r
   ) =>
   Local UserId ->
   ConnId ->

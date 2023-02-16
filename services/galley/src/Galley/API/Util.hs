@@ -295,7 +295,6 @@ acceptOne2One ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Error InternalError) r,
     Member (ErrorS 'InvalidOperation) r,
-    Member (ErrorS 'NotConnected) r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r
@@ -610,7 +609,6 @@ verifyReusableCode convCode = do
 
 ensureConversationAccess ::
   ( Member BrigAccess r,
-    Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r

@@ -365,11 +365,8 @@ postQualifiedOtrMessage ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member ExternalAccess r,
-    Member (Input (Local ())) r,
-    -- FUTUREWORK: remove this
     Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
     Member TeamStore r,
     Member P.TinyLog r,
     CallsFed 'Galley "on-message-sent",
@@ -503,9 +500,7 @@ sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
 
 sendBroadcastMessages ::
-  ( Member GundeckAccess r,
-    Member P.TinyLog r
-  ) =>
+  Member GundeckAccess r =>
   Local x ->
   UTCTime ->
   Qualified UserId ->

@@ -28,7 +28,6 @@ import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Time
-import Galley.API.Error
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
@@ -39,7 +38,6 @@ import Galley.Effects.ProposalStore
 import Galley.Env
 import Imports
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
@@ -90,8 +88,7 @@ removeClientsWithClientMap lc cs cm qusr = do
 
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::
-  ( Member (Error InternalError) r,
-    Member ExternalAccess r,
+  ( Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,
@@ -120,7 +117,6 @@ removeUserWithClientMap ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Error InternalError) r,
     Member ProposalStore r,
     Member (Input Env) r,
     CallsFed 'Galley "on-mls-message-sent"
@@ -134,8 +130,7 @@ removeUserWithClientMap lc cm qusr =
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
-  ( Member (Error InternalError) r,
-    Member ExternalAccess r,
+  ( Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input Env) r,

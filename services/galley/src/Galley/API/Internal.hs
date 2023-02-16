@@ -520,7 +520,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
-              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal @Cassandra (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig) tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig) tid)
           )
 
 featureAPI :: API IFeatureAPI GalleyEffects
@@ -580,7 +580,7 @@ featureAPI =
     <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ilock", OutlookCalIntegrationConfig) (updateLockStatus @Cassandra @OutlookCalIntegrationConfig)
-    <@> mkNamedAPI @"feature-configs-internal" (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
+    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
@@ -830,7 +830,6 @@ guardLegalholdPolicyConflictsH ::
     Member (Input Opts) r,
     Member TeamStore r,
     Member P.TinyLog r,
-    Member WaiRoutes r,
     Member (ErrorS 'MissingLegalholdConsent) r
   ) =>
   GuardLegalholdPolicyConflicts ->

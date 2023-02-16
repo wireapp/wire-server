@@ -713,11 +713,9 @@ addTeamMember ::
     Member (ErrorS 'TooManyTeamMembers) r,
     Member (ErrorS 'UserBindingExists) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
-    Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
-    Member MemberStore r,
     Member (TeamFeatureStore db) r,
     Member TeamNotificationStore r,
     Member TeamStore r,
@@ -755,11 +753,9 @@ uncheckedAddTeamMember ::
   ( Member BrigAccess r,
     Member GundeckAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
-    Member (Input (Local ())) r,
     Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
     Member LegalHoldStore r,
     Member P.TinyLog r,
     Member (TeamFeatureStore db) r,
@@ -781,12 +777,8 @@ uncheckedAddTeamMember tid nmem = do
 uncheckedUpdateTeamMember ::
   forall r.
   ( Member BrigAccess r,
-    Member (ErrorS 'AccessDenied) r,
-    Member (ErrorS 'InvalidPermissions) r,
     Member (ErrorS 'TeamNotFound) r,
     Member (ErrorS 'TeamMemberNotFound) r,
-    Member (ErrorS 'NotATeamMember) r,
-    Member (ErrorS OperationDenied) r,
     Member GundeckAccess r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
@@ -1099,7 +1091,6 @@ deleteTeamConversation ::
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (Error FederationError) r,
-    Member (Error InvalidInput) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'NotATeamMember) r,
@@ -1107,7 +1098,6 @@ deleteTeamConversation ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input Env) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
     CallsFed 'Galley "on-conversation-updated",
@@ -1137,15 +1127,12 @@ getSearchVisibility luid tid = do
   getSearchVisibilityInternal tid
 
 setSearchVisibility ::
-  forall db r.
+  forall r.
   ( Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'TeamSearchVisibilityNotEnabled) r,
-    Member (Input Opts) r,
     Member SearchVisibilityStore r,
-    Member TeamStore r,
-    Member (TeamFeatureStore db) r,
-    Member WaiRoutes r
+    Member TeamStore r
   ) =>
   (TeamId -> Sem r Bool) ->
   Local UserId ->
@@ -1155,7 +1142,7 @@ setSearchVisibility ::
 setSearchVisibility availableForTeam luid tid req = do
   zusrMembership <- E.getTeamMember tid (tUnqualified luid)
   void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
-  setSearchVisibilityInternal @db availableForTeam tid req
+  setSearchVisibilityInternal availableForTeam tid req
 
 -- Internal -----------------------------------------------------------------
 
@@ -1292,10 +1279,8 @@ addTeamMemberInternal ::
   ( Member BrigAccess r,
     Member (ErrorS 'TooManyTeamMembers) r,
     Member GundeckAccess r,
-    Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
     Member TeamNotificationStore r,
     Member TeamStore r,
     Member P.TinyLog r
@@ -1416,11 +1401,9 @@ getSearchVisibilityInternal =
     . SearchVisibilityData.getSearchVisibility
 
 setSearchVisibilityInternal ::
-  forall db r.
+  forall r.
   ( Member (ErrorS 'TeamSearchVisibilityNotEnabled) r,
-    Member (Input Opts) r,
-    Member SearchVisibilityStore r,
-    Member (TeamFeatureStore db) r
+    Member SearchVisibilityStore r
   ) =>
   (TeamId -> Sem r Bool) ->
   TeamId ->

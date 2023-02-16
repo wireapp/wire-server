@@ -74,9 +74,7 @@ instance Member (Input Opts) r => HasConfig (SPImpl r) where
   getConfig = SPImpl $ inputs saml
 
 instance
-  ( Member (Input Opts) r,
-    Member (Logger String) r
-  ) =>
+  Member (Logger String) r =>
   HasLogger (SPImpl r)
   where
   logger lvl = SPImpl . Logger.log (Logger.samlFromLevel lvl)

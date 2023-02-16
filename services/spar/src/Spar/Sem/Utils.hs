@@ -91,9 +91,7 @@ semToRunHttp :: Sem r a -> RunHttp r a
 semToRunHttp = RunHttp . lift . lift . lift
 
 viaRunHttp ::
-  ( Member (Error SparError) r,
-    Member (Embed IO) r
-  ) =>
+  Member (Error SparError) r =>
   RunHttpEnv r ->
   RunHttp r a ->
   Sem r a

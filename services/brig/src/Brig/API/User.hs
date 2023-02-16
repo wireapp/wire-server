@@ -536,8 +536,7 @@ initAccountFeatureConfig uid = do
 -- users are invited to the team via scim.
 createUserInviteViaScim ::
   ( Member BlacklistStore r,
-    Member (UserPendingActivationStore p) r,
-    Member GalleyProvider r
+    Member (UserPendingActivationStore p) r
   ) =>
   UserId ->
   NewUserScimInvitation ->

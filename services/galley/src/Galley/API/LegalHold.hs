@@ -158,8 +158,7 @@ createSettings lzusr tid newService = do
 
 getSettings ::
   forall db r.
-  ( Member (ErrorS OperationDenied) r,
-    Member (ErrorS 'NotATeamMember) r,
+  ( Member (ErrorS 'NotATeamMember) r,
     Member LegalHoldStore r,
     Member (TeamFeatureStore db) r,
     Member TeamStore r
@@ -211,7 +210,6 @@ removeSettingsInternalPaging ::
     Member (TeamFeatureStore db) r,
     Member (TeamMemberStore InternalPaging) r,
     Member TeamStore r,
-    Member WaiRoutes r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-new-remote-conversation"
@@ -390,7 +388,6 @@ grantConsent ::
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
-    Member (ErrorS 'InvalidOperation) r,
     Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
     Member (ErrorS 'TeamMemberNotFound) r,
     Member (ErrorS 'UserLegalHoldIllegalOperation) r,
