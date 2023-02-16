@@ -164,7 +164,7 @@ nginx_conf:
       envs:
       - staging
     - path: /self$ # Matches exactly /self
-      enable_oauth: true
+      oauth_scope: self
       envs:
       - all
     - path: /self/name
@@ -429,7 +429,7 @@ nginx_conf:
       envs:
       - all
       doc: true
-      enable_oauth: true
+      oauth_scope: conversations
     - path: /legalhold/conversations/(.*)
       envs:
       - all
@@ -497,7 +497,7 @@ nginx_conf:
     - path: /feature-configs(.*)
       envs:
       - all
-      enable_oauth: true
+      oauth_scope: feature-configs
     - path: /mls/welcome
       envs:
       - all

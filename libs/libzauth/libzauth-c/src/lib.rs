@@ -113,7 +113,7 @@ pub extern "C" fn zauth_oauth_key_open(f: *const u8, n: size_t, k: *mut *mut lib
         let mut txt = String::new();
         try_unwrap!(rdr.read_to_string(&mut txt));
         unsafe {
-            *k = CString::new(&txt).unwrap().into_raw();
+            *k = CString::new(txt).unwrap().into_raw();
         }
         ZauthResult::Ok
     })

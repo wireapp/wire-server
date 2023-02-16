@@ -259,8 +259,8 @@ http {
               {{- end }}
             {{- end }}
 
-            {{- if ($location.enable_oauth) }}
-        oauth on;
+            {{- if ($location.oauth_scope) }}
+            # todo(leif): set scope
             {{- end }}
 
             {{- if hasKey $location "specific_user_rate_limit" }}

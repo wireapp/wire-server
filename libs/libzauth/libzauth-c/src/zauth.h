@@ -55,6 +55,9 @@ void        zauth_keystore_delete(ZauthKeystore * store);
 ZauthResult zauth_acl_open(uint8_t const * fname, size_t len, ZauthAcl **);
 void        zauth_acl_delete(ZauthAcl * store);
 
+ZauthResult zauth_oauth_key_open(uint8_t const * fname, size_t len, char **);
+// todo(leif): do we need to dereference the key?
+
 ZauthResult            zauth_token_parse(uint8_t const * str, size_t len, ZauthToken **);
 ZauthResult            zauth_token_verify(ZauthToken const *, ZauthKeystore const *);
 ZauthTokenType         zauth_token_type(ZauthToken const *);

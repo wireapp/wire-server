@@ -179,6 +179,7 @@ instance ToSchema OAuthResponseType where
 --   in location settings for the endpoint(s) in question
 -- - Update `charts/nginz/values.yaml` and add `enable_oauth: true` to the endpoint in question
 -- - Consider writing an integration test
+-- todo(leif): update these docs
 data OAuthScope
   = ReadFeatureConfigs
   | ReadSelf
