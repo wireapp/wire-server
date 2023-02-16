@@ -7,7 +7,7 @@ TOP_LEVEL="$DIR/../.."
 export NAMESPACE=${NAMESPACE:-test-integration}
 HELMFILE_ENV=${HELMFILE_ENV:-default}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
-HELM_PARALLELISM=${HELM_PARALLELISM:-1}
+HELM_PARALLELISM=1 # right now, helm dependency updates seem not thread/process safe, so we keep this inefficiently sequential for the time being.
 
 . "$DIR/helm_overrides.sh"
 ${DIR}/integration-cleanup.sh
