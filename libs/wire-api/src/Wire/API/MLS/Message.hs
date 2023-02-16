@@ -354,9 +354,9 @@ instance ToSchema MLSMessageSendingStatus where
             schema
         <*> mmssUnreachableUsers
           .= fieldWithDocModifier
-            "unreachable_users"
+            "failed_to_send"
             (description ?~ "List of federated users who could not be reached and did not receive the message")
-            schema
+            (unreachableUsers .= UnreachableUsers <$> schema)
 
 verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString -> Bool
 verifyMessageSignature cs msg pubkey =
