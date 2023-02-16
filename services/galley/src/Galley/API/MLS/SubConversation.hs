@@ -33,6 +33,7 @@ where
 
 import Control.Arrow
 import Data.Id
+import qualified Data.Map as Map
 import Data.Qualified
 import Data.Time.Clock
 import Galley.API.MLS
@@ -369,17 +370,27 @@ type HasLeaveSubConversationEffects r =
          TinyLog
        ]
       r,
-    CallsFed 'Galley "on-mls-message-sent"
+    CallsFed 'Galley "on-mls-message-sent",
+    CallsFed 'Galley "on-delete-mls-conversation",
+    CallsFed 'Galley "on-new-remote-subconversation"
   )
 
 type LeaveSubConversationStaticErrors =
-  '[ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied]
+  '[ ErrorS 'ConvNotFound,
+     ErrorS 'ConvAccessDenied,
+     ErrorS 'MLSStaleMessage,
+     ErrorS 'MLSNotEnabled
+   ]
 
 leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
     Members
       '[ Error MLSProtocolError,
-         Error FederationError
+         Error FederationError,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSNotEnabled,
+         Resource,
+         SubConversationSupply
        ]
       r,
     Members LeaveSubConversationStaticErrors r,
@@ -402,7 +413,14 @@ leaveSubConversation lusr cli qcnv sub =
 
 leaveLocalSubConversation ::
   ( HasLeaveSubConversationEffects r,
-    Members '[Error MLSProtocolError] r,
+    Members
+      '[ Error MLSProtocolError,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSNotEnabled,
+         Resource,
+         SubConversationSupply
+       ]
+      r,
     Members LeaveSubConversationStaticErrors r
   ) =>
   ClientIdentity ->
@@ -410,6 +428,7 @@ leaveLocalSubConversation ::
   SubConvId ->
   Sem r ()
 leaveLocalSubConversation cid lcnv sub = do
+  assertMLSEnabled
   cnv <- getConversationAndCheckMembership (cidQualifiedUser cid) lcnv
   mlsConv <- noteS @'ConvNotFound =<< mkMLSConversation cnv
   subConv <-
@@ -420,11 +439,20 @@ leaveLocalSubConversation cid lcnv sub = do
       cmLookupRef cid (scMembers subConv)
   -- remove the leaver from the member list
   let cm = cmRemoveClient cid (scMembers subConv)
-  createAndSendRemoveProposals
-    (qualifyAs lcnv (SubConv mlsConv subConv))
-    (Identity kp)
-    (cidQualifiedUser cid)
-    cm
+  if Map.null cm
+    then do
+      let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData subConv)
+      deleteLocalSubConversation
+        (cidQualifiedUser cid)
+        lcnv
+        sub
+        $ DeleteSubConversationRequest gid epoch
+    else
+      createAndSendRemoveProposals
+        (qualifyAs lcnv (SubConv mlsConv subConv))
+        (Identity kp)
+        (cidQualifiedUser cid)
+        cm
 
 leaveRemoteSubConversation ::
   ( Members

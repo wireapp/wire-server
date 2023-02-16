@@ -424,9 +424,13 @@ type ConversationAPI =
            ( Summary "Leave an MLS subconversation"
                :> MakesFederatedCall 'Galley "on-mls-message-sent"
                :> MakesFederatedCall 'Galley "leave-sub-conversation"
+               :> MakesFederatedCall 'Galley "on-delete-mls-conversation"
+               :> MakesFederatedCall 'Galley "on-new-remote-subconversation"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'MLSNotEnabled
                :> ZLocalUser
                :> ZClient
                :> "conversations"

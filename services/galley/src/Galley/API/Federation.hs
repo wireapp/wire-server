@@ -932,7 +932,12 @@ getSubConversationForRemoteUser domain GetSubConversationsRequest {..} =
 
 leaveSubConversation ::
   ( HasLeaveSubConversationEffects r,
-    Members '[Input (Local ())] r
+    Members
+      '[ Input (Local ()),
+         Resource,
+         SubConversationSupply
+       ]
+      r
   ) =>
   Domain ->
   LeaveSubConversationRequest ->
