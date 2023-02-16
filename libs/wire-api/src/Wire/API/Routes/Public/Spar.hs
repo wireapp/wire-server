@@ -25,7 +25,6 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import Servant
 import Servant.API.Extended
-import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Multipart
 import Servant.Swagger (toSwagger)
 import qualified URI.ByteString as URI
@@ -35,6 +34,7 @@ import Web.Scim.Class.User as Scim.User
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.Public
+import Wire.API.SwaggerServant
 import Wire.API.User (ScimUserInfos, UserSet)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml

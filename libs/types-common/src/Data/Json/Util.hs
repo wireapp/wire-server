@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumDecimals #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -74,7 +75,6 @@ import Data.Time.Locale.Compat (defaultTimeLocale)
 import Imports
 import Servant
 import Test.QuickCheck (Arbitrary (arbitrary))
--- for UTCTime
 import Test.QuickCheck.Instances ()
 
 append :: A.Pair -> [A.Pair] -> [A.Pair]
@@ -156,6 +156,18 @@ class ToJSONObject a where
 
 instance ToJSONObject A.Object where
   toJSONObject = id
+
+-----------------------------------------------------------------------------
+-- Aeson Object
+
+instance S.ToParamSchema A.Object where
+  toParamSchema _ =
+    mempty & S.type_ ?~ S.SwaggerString
+
+instance ToSchema A.Object where
+  schema =
+    named "Object" $
+      id .= jsonObject
 
 -----------------------------------------------------------------------------
 -- toJSONFieldName

@@ -70,7 +70,6 @@ import Polysemy.Error (Error, fromExceptionSem, runError, throw, try)
 import Polysemy.Input (Input)
 import qualified SAML2.WebSSO as SAML
 import Servant
-import Servant.API.Generic
 import Servant.Server.Generic (AsServerT)
 import Spar.App (sparToServerErrorWithLogging, throwSparSem)
 import Spar.Error
