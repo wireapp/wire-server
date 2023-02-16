@@ -49,6 +49,7 @@ data TeamStatus
   | Suspended
   | PendingActive
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamStatus
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamStatus
 
 instance S.ToSchema TeamStatus where
@@ -68,6 +69,7 @@ data TeamData = TeamData
     tdStatusTime :: !(Maybe UTCTime) -- This needs to be a Maybe due to backwards compatibility
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamData
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamData
 
 instance S.ToSchema TeamData where
@@ -84,6 +86,7 @@ data TeamStatusUpdate = TeamStatusUpdate
     -- TODO: Remove Currency selection once billing supports currency changes after team creation
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamStatusUpdate
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamStatusUpdate
 
 instance S.ToSchema TeamStatusUpdate where
@@ -104,6 +107,7 @@ instance S.ToSchema TeamStatusUpdate where
 newtype TeamName = TeamName
   {tnName :: Text}
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamName
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamName
 
 instance S.ToSchema TeamName where

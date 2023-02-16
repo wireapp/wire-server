@@ -312,7 +312,11 @@ tests =
       testRoundTrip @User.Search.TeamContact,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),
       testRoundTrip @Conversation.Action.SomeConversationAction,
-      testRoundTrip @TeamsIntra.GuardLegalholdPolicyConflicts
+      testRoundTrip @TeamsIntra.GuardLegalholdPolicyConflicts,
+      testRoundTrip @TeamsIntra.TeamStatus,
+      testRoundTrip @TeamsIntra.TeamStatusUpdate,
+      testRoundTrip @TeamsIntra.TeamData,
+      testRoundTrip @TeamsIntra.TeamName
     ]
 
 testRoundTrip ::
