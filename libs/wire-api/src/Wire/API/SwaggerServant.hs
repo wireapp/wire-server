@@ -6,6 +6,7 @@ module Wire.API.SwaggerServant
 where
 
 import Control.Lens
+import qualified Data.HashMap.Strict.InsOrd as InsOrdMap
 import qualified Data.HashSet.InsOrd as InsOrdSet
 import Data.Metrics.Servant
 import Data.Proxy
@@ -39,14 +40,32 @@ import Servant.Swagger (HasSwagger (toSwagger))
 -- @
 data SwaggerTag tag
 
+-- | Adjust `Swagger` according to its `SwaggerTag`
+--
+-- Unfortunately, paths are stored as keys in a `InsOrdMap.InsOrdHashMap`.
+-- Because those have to be unique, prefix them with the @tag@ (service name.)
+-- Otherwise, the `Monoid` instance of `Swagger.Swagger` would throw duplicated
+-- paths away. The @tag@ is also used as a `Swagger.TagName` for all
+-- `Swagger.Operations`.
 instance (HasSwagger b, KnownSymbol tag) => HasSwagger (SwaggerTag tag :> b) where
-  toSwagger _ = prependTitle (T.pack (symbolVal (Proxy @tag))) $ toSwagger (Proxy :: Proxy b)
+  toSwagger _ = tagSwagger $ toSwagger (Proxy :: Proxy b)
     where
-      prependTitle :: Text -> S.Swagger -> S.Swagger
-      prependTitle tagName s = s & allOperations . S.tags <>~ tag tagName
+      tagString :: String
+      tagString = symbolVal (Proxy @tag)
 
-      tag :: Text -> InsOrdSet.InsOrdHashSet S.TagName
-      tag tagName = InsOrdSet.singleton @S.TagName tagName
+      tagSwagger :: S.Swagger -> S.Swagger
+      tagSwagger s =
+        s
+          & S.paths .~ tagPaths s
+          & allOperations . S.tags <>~ tag
+
+      tag :: InsOrdSet.InsOrdHashSet S.TagName
+      tag = InsOrdSet.singleton @S.TagName (T.pack tagString)
+
+      tagPaths :: S.Swagger -> InsOrdMap.InsOrdHashMap FilePath S.PathItem
+      tagPaths s =
+        let m = s ^. S.paths
+         in InsOrdMap.mapKeys (\k -> "/<" ++ tagString ++ ">" ++ k) m
 
 instance HasServer api ctx => HasServer (SwaggerTag tag :> api) ctx where
   type ServerT (SwaggerTag tag :> api) m = ServerT api m
