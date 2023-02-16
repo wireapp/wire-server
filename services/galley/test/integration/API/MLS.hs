@@ -1214,7 +1214,6 @@ testRemoteToLocal = do
     cannon <- view tsCannon
 
     -- actual test
-
     let msr =
           MLSMessageSendRequest
             { mmsrConvOrSubId = Conv (qUnqualified qcnv),

@@ -117,12 +117,11 @@ propagateMessage qusr lconv cm con raw = do
       [RemoteMember] ->
       Either (Remote [a], FederationError) (Remote RemoteMLSMessageResponse) ->
       Sem r [Qualified UserId]
-    handleError rmems (Right x) = case tUnqualified x of
-      RemoteMLSMessageOk ->
-        pure $ remotesToQIds rmems
+    handleError _ (Right x) = case tUnqualified x of
+      RemoteMLSMessageOk -> pure []
       RemoteMLSMessageMLSNotEnabled -> do
         logFedError x (errorToWai @'MLSNotEnabled)
-        pure $ remotesToQIds rmems
+        pure []
     handleError rmems (Left (r, e)) = do
       logFedError r (toWai e)
       pure $ remotesToQIds rmems

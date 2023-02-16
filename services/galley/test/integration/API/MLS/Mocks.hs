@@ -20,7 +20,6 @@ module API.MLS.Mocks
     messageSentMock,
     welcomeMock,
     sendMessageMock,
-    sendMessageMockUnreachable,
     claimKeyPackagesMock,
     queryGroupStateMock,
   )
@@ -56,13 +55,6 @@ messageSentMock = "on-mls-message-sent" ~> RemoteMLSMessageOk
 
 welcomeMock :: Mock LByteString
 welcomeMock = "mls-welcome" ~> MLSWelcomeSent
-
-sendMessageMockUnreachable :: [Qualified UserId] -> Mock LByteString
-sendMessageMockUnreachable users =
-  "on-mls-message-sent" ~>
-    MLSMessageResponseUpdates
-      []
-      (UnreachableUsers users)
 
 sendMessageMock :: Mock LByteString
 sendMessageMock =
