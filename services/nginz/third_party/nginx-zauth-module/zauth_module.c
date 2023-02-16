@@ -311,7 +311,7 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                 return NGX_DECLINED;
         }
 
-        ngx_log_error(NGX_LOG_ERR, conf->log, 0, "scope: %d", lc->oauth_scope.data);
+        // ngx_log_error(NGX_LOG_ERR, conf->log, 0, "scope: %d", lc->oauth_scope.data);
 
         
         // let's try to handle zauth
