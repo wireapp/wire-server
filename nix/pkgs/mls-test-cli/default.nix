@@ -5,12 +5,13 @@
 , pkg-config
 , rustPlatform
 , stdenv
+, gitMinimal
 }:
 
 rustPlatform.buildRustPackage rec {
   name = "mls-test-cli-${version}";
   version = "0.6.0";
-  nativeBuildInputs = [ pkg-config perl ];
+  nativeBuildInputs = [ pkg-config perl gitMinimal ];
   buildInputs = [ libsodium ];
   src = fetchFromGitHub {
     owner = "wireapp";

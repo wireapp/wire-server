@@ -64,6 +64,7 @@ instance
 
 instance
   ( KnownSymbol capture,
+    Typeable a,
     FromHttpApiData a,
     HasServer api context,
     SBoolI (FoldLenient mods),
