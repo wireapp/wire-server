@@ -129,6 +129,10 @@ createGroupConversation lusr mConn newConv = do
     ProtocolProteusTag -> pure ()
 
   lcnv <- traverse (const E.createConversationId) lusr
+  -- FUTUREWORK: Invoke the creating a conversation action only once
+  -- protocol-specific validation is successful. Otherwise we might write the
+  -- conversation to the database, and throw a validation error when the
+  -- conversation is already in the database.
   conv <- E.createConversation lcnv nc
 
   -- set creator client for MLS conversations

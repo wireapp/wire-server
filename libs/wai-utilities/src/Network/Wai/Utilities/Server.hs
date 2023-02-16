@@ -47,9 +47,8 @@ module Network.Wai.Utilities.Server
   )
 where
 
-import Control.Concurrent.Async
 import Control.Error.Util ((?:))
-import Control.Exception (throw, throwIO)
+import Control.Exception (throw)
 import Control.Monad.Catch hiding (onError, onException)
 import Data.Aeson (decode, encode)
 import qualified Data.ByteString as BS
@@ -124,30 +123,23 @@ newSettings (Server h p l m t) = do
 -- connections up to the given number of seconds.
 --
 -- See also: https://gitlab.haskell.org/ghc/ghc/-/merge_requests/7681
-runSettingsWithShutdown :: Settings -> Application -> Maybe Word16 -> IO ()
+runSettingsWithShutdown :: Settings -> Application -> Maybe Int -> IO ()
 runSettingsWithShutdown s app (fromMaybe defaultShutdownTime -> secs) = do
   initialization
-  latch <- newEmptyMVar
-  let s' = setInstallShutdownHandler (catchSignals latch) s
-  srv <- async $ runSettings s' app `finally` void (tryPutMVar latch ())
-  takeMVar latch
-  await srv secs
+  let s' =
+        setInstallShutdownHandler catchSignals
+          . setGracefulShutdownTimeout (Just secs)
+          $ s
+  runSettings s' app
   where
     initialization :: IO ()
     initialization = do
       spawnGCMetricsCollector
-    catchSignals latch closeSocket = do
-      let shutdown = closeSocket >> putMVar latch ()
-      void $ installHandler sigINT (Sig.CatchOnce shutdown) Nothing
-      void $ installHandler sigTERM (Sig.CatchOnce shutdown) Nothing
-    await srv t = do
-      status <- poll srv
-      case status of
-        Nothing | t > 0 -> threadDelay 1000000 >> await srv (t - 1)
-        Just (Left ex) -> throwIO ex
-        _ -> cancel srv
+    catchSignals closeSocket = do
+      void $ installHandler sigINT (Sig.CatchOnce closeSocket) Nothing
+      void $ installHandler sigTERM (Sig.CatchOnce closeSocket) Nothing
 
-defaultShutdownTime :: Word16
+defaultShutdownTime :: Int
 defaultShutdownTime = 30
 
 compile :: Monad m => Routes a m b -> Tree (App m)

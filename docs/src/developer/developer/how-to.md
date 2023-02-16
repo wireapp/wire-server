@@ -19,11 +19,14 @@ Terminal 2:
 * Run services including nginz: `./services/start-services-only.sh`.
 
 Open your browser at:
+[http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for
+the Swagger 2.0 endpoints of the latest version. This endpoint is versioned;
+i.e. the Swagger docs refer to the API version. Refer to the [Swagger API
+documentation](../../understand/api-client-perspective/swagger.md) regarding
+Swagger and API versioning.
 
-- [http://localhost:8080/api/swagger-ui](http://localhost:8080/api/swagger-ui) for the swagger 2.0 endpoints (in development as of Feb 2021 - more endpoints will be added here as time goes on)
-- [http://localhost:8080/swagger-ui](http://localhost:8080/swagger-ui) for the old swagger 1.2 API (old swagger, endpoints will disappear from here (and become available in the previous link) as time progresses). Run `make -C services/nginz integration-test/conf/nginz/zwagger-ui` once to get JS libraries needed (they are not included in the repo).
+Swagger json is available under [http://localhost:8080/api/swagger.json](http://localhost:8080/api/swagger.json)
 
-Swagger json (for swagger 2.0 endpoints) is available under [http://localhost:8080/api/swagger.json](http://localhost:8080/api/swagger.json)
 
 ## How to run federation tests across two backends
 

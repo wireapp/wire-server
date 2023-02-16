@@ -23,7 +23,7 @@ import Bilge
 import Bilge.Assert
 import qualified Brig.Options as Opts
 import Control.Lens (view, (.~), (?~), (^.))
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch)
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
@@ -219,10 +219,10 @@ assertConfiguration cfg expected = do
 getTurnConfigurationV1 :: UserId -> Brig -> Http RTCConfiguration
 getTurnConfigurationV1 = getAndValidateTurnConfiguration ""
 
-getTurnConfigurationV2 :: HasCallStack => UserId -> Brig -> ((Monad m, MonadHttp m, MonadIO m, MonadCatch m) => m RTCConfiguration)
+getTurnConfigurationV2 :: HasCallStack => UserId -> Brig -> ((MonadHttp m, MonadIO m, MonadCatch m) => m RTCConfiguration)
 getTurnConfigurationV2 = getAndValidateTurnConfiguration "v2"
 
-getTurnConfiguration :: ByteString -> UserId -> Brig -> ((MonadHttp m, MonadIO m) => m (Response (Maybe LB.ByteString)))
+getTurnConfiguration :: ByteString -> UserId -> Brig -> (MonadHttp m => m (Response (Maybe LB.ByteString)))
 getTurnConfiguration suffix u b =
   get
     ( b
@@ -231,7 +231,7 @@ getTurnConfiguration suffix u b =
         . zConn "conn"
     )
 
-getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> ((Monad m, MonadIO m, MonadHttp m, MonadThrow m, MonadCatch m) => m RTCConfiguration)
+getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> ((MonadIO m, MonadHttp m, MonadCatch m) => m RTCConfiguration)
 getAndValidateTurnConfiguration suffix u b =
   responseJsonError =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
 

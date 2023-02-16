@@ -201,6 +201,4 @@ optSettings:
   setOAuthMaxActiveRefreshTokens: 10
 
 logLevel: Warn
-# ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
-#   produces too many logs, hence this is set to Warn.
 logNetStrings: false

@@ -642,14 +642,8 @@ paExternalInitPresent = mempty {paExternalInit = Any True}
 getCommitData ::
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSProposalNotFound) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (Input (Local ())) r,
-    Member (Input Env) r,
-    Member (Input Opts) r,
-    Member (Input UTCTime) r,
-    Member TinyLog r
+    Member (ErrorS 'MLSStaleMessage) r
   ) =>
   Local Data.Conversation ->
   ConversationMLSData ->
@@ -667,8 +661,6 @@ getCommitData lconv mlsMeta epoch commit = do
 
 processCommit ::
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
@@ -677,9 +669,6 @@ processCommit ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input (Local ())) r,
-    Member ProposalStore r,
-    Member BrigAccess r,
     Member Resource r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
@@ -815,19 +804,13 @@ processExternalCommit qusr mSenderClient lconv mlsMeta cm epoch action updatePat
 processCommitWithAction ::
   forall r.
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input (Local ())) r,
-    Member ProposalStore r,
-    Member BrigAccess r,
     Member Resource r,
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
@@ -854,19 +837,12 @@ processCommitWithAction qusr senderClient con lconv mlsMeta cm epoch action send
 processInternalCommit ::
   forall r.
   ( HasProposalEffects r,
-    Member (Error FederationError) r,
-    Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member (ErrorS 'MLSMissingSenderClient) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member (Input (Local ())) r,
-    Member ProposalStore r,
-    Member BrigAccess r,
     Member Resource r,
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-mls-message-sent",
@@ -1188,9 +1164,7 @@ executeProposalAction ::
     Member ConversationStore r,
     Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (Error FederationError) r,
     Member (ErrorS 'MLSClientMismatch) r,
-    Member (Error MLSProtocolError) r,
     Member (Error MLSProposalFailure) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,

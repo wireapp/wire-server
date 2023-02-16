@@ -30,11 +30,6 @@ module Wire.API.User.Search
     TeamUserSearchSortBy (..),
     FederatedUserSearchPolicy (..),
     PagingState (..),
-
-    -- * Swagger
-    modelSearchResult,
-    modelSearchContact,
-    modelTeamContact,
   )
 where
 
@@ -54,7 +49,6 @@ import Data.Schema
 import Data.String.Conversions (cs)
 import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiBase64Url, toText, validateBase64Url)
 import Imports
@@ -137,18 +131,6 @@ deriving via (Schema (SearchResult Contact)) instance S.ToSchema (SearchResult C
 
 deriving via (Schema (SearchResult TeamContact)) instance S.ToSchema (SearchResult TeamContact)
 
-modelSearchResult :: Doc.Model -> Doc.Model
-modelSearchResult modelContact = Doc.defineModel "SearchResult" $ do
-  Doc.description "Search Result"
-  Doc.property "found" Doc.int32' $
-    Doc.description "Total number of hits"
-  Doc.property "returned" Doc.int32' $
-    Doc.description "Number of hits returned"
-  Doc.property "took" Doc.int32' $
-    Doc.description "Search time in ms"
-  Doc.property "documents" (Doc.array (Doc.ref modelContact)) $
-    Doc.description "List of contacts found"
-
 --------------------------------------------------------------------------------
 -- Contact
 
@@ -164,22 +146,6 @@ data Contact = Contact
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Contact)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema Contact
-
-modelSearchContact :: Doc.Model
-modelSearchContact = Doc.defineModel "Contact" $ do
-  Doc.description "Contact discovered through search"
-  Doc.property "id" Doc.string' $
-    Doc.description "User ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name"
-  Doc.property "handle" Doc.string' $
-    Doc.description "Handle"
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent color"
-    Doc.optional
-  Doc.property "team" Doc.string' $ do
-    Doc.description "Team ID"
-    Doc.optional
 
 instance ToSchema Contact where
   schema =
@@ -230,41 +196,6 @@ data TeamContact = TeamContact
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
   deriving (ToJSON, FromJSON) via (Schema TeamContact)
-
-modelSso :: Doc.Model
-modelSso = Doc.defineModel "Sso" $ do
-  Doc.description "Single Sign-On"
-  Doc.property "issuer" Doc.string' $
-    Doc.description "Issuer"
-  Doc.property "nameid" Doc.string' $
-    Doc.description "Name ID"
-
-modelTeamContact :: Doc.Model
-modelTeamContact = Doc.defineModel "TeamContact" $ do
-  Doc.description "Contact discovered through search"
-  Doc.property "id" Doc.string' $
-    Doc.description "User ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name"
-  Doc.property "handle" Doc.string' $
-    Doc.description "Handle"
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent color"
-    Doc.optional
-  Doc.property "team" Doc.string' $ do
-    Doc.description "Team ID"
-    Doc.optional
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email address"
-    Doc.optional
-  Doc.property "scim_external_id" Doc.string' $ do
-    Doc.description "SCIM external ID"
-    Doc.optional
-  Doc.property "sso" (Doc.ref modelSso) $ do
-    Doc.description "Single-Sign-On information"
-  Doc.property "email_unvalidated" Doc.string' $ do
-    Doc.description "Unvalidated email address"
-    Doc.optional
 
 instance ToSchema TeamContact where
   schema =

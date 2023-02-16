@@ -17,20 +17,16 @@
 
 module Galley.API.Public
   ( sitemap,
-    apiDocs,
     filterMissing, -- for tests
     continueE,
   )
 where
 
-import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id
 import qualified Data.Predicate as P
 import Data.Qualified
 import qualified Data.Set as Set
-import Data.Swagger.Build.Api hiding (Response, def, min)
-import Data.Text.Encoding (decodeLatin1)
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams.Features as Features
 import Galley.App
@@ -46,8 +42,6 @@ import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import qualified Network.Wai.Predicate as P
 import Network.Wai.Predicate.Request (HasQuery)
 import Network.Wai.Routing hiding (route)
-import Network.Wai.Utilities hiding (Error)
-import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
 import Polysemy.Error
@@ -59,7 +53,6 @@ import Wire.API.Error.Galley
 import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
 import Wire.API.Routes.API
-import qualified Wire.API.Swagger as Public.Swagger (models)
 import Wire.API.Team.Feature
 
 -- These are all the errors that can be thrown by wai-routing handlers.
@@ -103,7 +96,7 @@ continueE ::
   Sem r ResponseReceived
 continueE h = continue (interpretServerEffects @ErrorEffects . h)
 
-sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
+sitemap :: Routes () (Sem GalleyEffects) ()
 sitemap = do
   -- Bot API ------------------------------------------------------------
 
@@ -132,19 +125,7 @@ getBotConversationH ::
 getBotConversationH arg@(bid ::: cid ::: _) =
   Features.guardSecondFactorDisabled @db (botUserId bid) cid (Query.getBotConversationH arg)
 
-apiDocs :: Routes ApiBuilder (Sem r) ()
-apiDocs =
-  get "/conversations/api-docs" (continue docs) $
-    accept "application" "json"
-      .&. query "base_url"
-
 type JSON = Media "application" "json"
-
-docs :: JSON ::: ByteString -> Sem r Response
-docs (_ ::: url) = do
-  let models = Public.Swagger.models
-  let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
-  pure $ responseLBS status200 [jsonContent] apidoc
 
 -- FUTUREWORK: Maybe would be better to move it to wire-api?
 filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing

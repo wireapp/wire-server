@@ -74,7 +74,7 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
 instance MonadTrans AppT where
   lift = AppT . lift
 
-instance (Monad m, MonadIO m) => MonadHttp (AppT m) where
+instance MonadIO m => MonadHttp (AppT m) where
   handleRequestWithCont req handler = do
     manager <- view httpManager <$> ask
     liftIO $ withResponse req manager handler

@@ -26,9 +26,6 @@ module Wire.API.Conversation.Code
     -- * re-exports
     Code.Key (..),
     Value (..),
-
-    -- * Swagger
-    modelConversationCode,
   )
 where
 
@@ -40,7 +37,6 @@ import Data.Code as Code
 import Data.Misc (HttpsUrl (HttpsUrl))
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified URI.ByteString as URI
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
@@ -53,17 +49,6 @@ data ConversationCode = ConversationCode
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationCode)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationCode
-
-modelConversationCode :: Doc.Model
-modelConversationCode = Doc.defineModel "ConversationCode" $ do
-  Doc.description "Contains conversation properties to update"
-  Doc.property "key" Doc.string' $
-    Doc.description "Stable conversation identifier"
-  Doc.property "code" Doc.string' $
-    Doc.description "Conversation code (random)"
-  Doc.property "uri" Doc.string' $ do
-    Doc.description "Full URI (containing key/code) to join a conversation"
-    Doc.optional
 
 instance ToSchema ConversationCode where
   schema =

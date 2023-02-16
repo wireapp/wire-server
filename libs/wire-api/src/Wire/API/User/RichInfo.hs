@@ -40,10 +40,6 @@ module Wire.API.User.RichInfo
 
     -- * RichField
     RichField (..),
-
-    -- * Swagger
-    modelRichInfo,
-    modelRichField,
   )
 where
 
@@ -59,7 +55,6 @@ import qualified Data.Map as Map
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
 import qualified Test.QuickCheck as QC
@@ -151,15 +146,6 @@ fromRichInfoAssocList (RichInfoAssocList riList) =
     riList' = normalizeRichInfoAssocListInt riList
     riMap = Map.fromList $ (\(RichField k v) -> (k, v)) <$> riList'
 
--- | TODO: this is model is wrong, it says nothing about the map part.
-modelRichInfo :: Doc.Model
-modelRichInfo = Doc.defineModel "RichInfo" $ do
-  Doc.description "Rich info about the user"
-  Doc.property "fields" (Doc.array (Doc.ref modelRichField)) $
-    Doc.description "List of fields"
-  Doc.property "version" Doc.int32' $
-    Doc.description "Format version (the current version is 0)"
-
 instance A.ToJSON RichInfoMapAndList where
   toJSON u =
     A.object
@@ -205,10 +191,10 @@ instance A.FromJSON RichInfoMapAndList where
               v -> Aeson.typeMismatch "A.Object or A.Array" v
           Just v -> Aeson.typeMismatch "A.Object" v
 
-      mapKeys :: (Eq k2, Ord k2) => (k1 -> k2) -> Map k1 v -> Map k2 v
+      mapKeys :: Ord k2 => (k1 -> k2) -> Map k1 v -> Map k2 v
       mapKeys f = Map.fromList . map (Data.Bifunctor.first f) . Map.toList
 
-      lookupOrFail :: (MonadFail m, Show k, Eq k, Ord k) => k -> Map k v -> m v
+      lookupOrFail :: (MonadFail m, Show k, Ord k) => k -> Map k v -> m v
       lookupOrFail key theMap = case Map.lookup key theMap of
         Nothing -> fail $ "key '" ++ show key ++ "' not found"
         Just v -> pure v
@@ -289,14 +275,6 @@ data RichField = RichField
   }
   deriving stock (Eq, Show, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RichField)
-
-modelRichField :: Doc.Model
-modelRichField = Doc.defineModel "RichField" $ do
-  Doc.description "RichInfo field"
-  Doc.property "type" Doc.string' $
-    Doc.description "Field name"
-  Doc.property "value" Doc.string' $
-    Doc.description "Field value"
 
 instance ToSchema RichField where
   -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we

@@ -17,24 +17,14 @@
 
 module Wire.API.Conversation.Typing
   ( TypingStatus (..),
-
-    -- * Swagger
-    modelTyping,
-    typeTypingStatus,
   )
 where
 
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
-
-modelTyping :: Doc.Model
-modelTyping = Doc.defineModel "Typing" $ do
-  Doc.description "Data to describe typing info"
-  Doc.property "status" typeTypingStatus $ Doc.description "typing status"
 
 data TypingStatus
   = StartedTyping
@@ -53,11 +43,3 @@ typingStatusSchema =
   enum @Text "TypingStatus" $
     element "started" StartedTyping
       <> element "stopped" StoppedTyping
-
-typeTypingStatus :: Doc.DataType
-typeTypingStatus =
-  Doc.string $
-    Doc.enum
-      [ "started",
-        "stopped"
-      ]

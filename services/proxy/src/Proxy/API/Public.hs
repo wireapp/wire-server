@@ -187,7 +187,7 @@ soundcloudStream url = do
 x2 :: RetryPolicy
 x2 = exponentialBackoff 5000 <> limitRetries 2
 
-handler :: (MonadIO m, MonadMask m) => RetryStatus -> Handler m Bool
+handler :: MonadIO m => RetryStatus -> Handler m Bool
 handler = const . Handler $ \case
   Client.HttpExceptionRequest _ Client.NoResponseDataReceived -> pure True
   Client.HttpExceptionRequest _ Client.IncompleteHeaders -> pure True

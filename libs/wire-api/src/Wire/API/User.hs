@@ -106,12 +106,6 @@ module Wire.API.User
     module Wire.API.User.Identity,
     module Wire.API.User.Profile,
 
-    -- * Swagger
-    modelDelete,
-    modelEmailUpdate,
-    modelUser,
-    modelUserIdList,
-
     -- * 2nd factor auth
     VerificationAction (..),
     SendVerificationCode (..),
@@ -143,7 +137,6 @@ import Data.SOP
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as T
@@ -162,7 +155,7 @@ import qualified Web.Cookie as Web
 import Wire.API.Error
 import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
-import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
+import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
 import Wire.API.Team.Role
@@ -192,12 +185,6 @@ instance ToSchema UserIdList where
       UserIdList
         <$> mUsers
           .= field "user_ids" (array schema)
-
-modelUserIdList :: Doc.Model
-modelUserIdList = Doc.defineModel "UserIdList" $ do
-  Doc.description "list of user ids"
-  Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
-    Doc.description "the array of team conversations"
 
 --------------------------------------------------------------------------------
 -- QualifiedUserIdList
@@ -293,34 +280,6 @@ instance ToSchema UserProfile where
           .= maybe_ (optField "email" schema)
         <*> profileLegalholdStatus
           .= field "legalhold_status" schema
-
-modelUser :: Doc.Model
-modelUser = Doc.defineModel "User" $ do
-  Doc.description "User Profile"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name"
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email"
-    Doc.optional
-  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $
-    Doc.description "Profile assets"
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent colour ID"
-    Doc.optional
-  Doc.property "deleted" Doc.bool' $ do
-    Doc.description "Whether the account has been deleted."
-    Doc.optional
-  Doc.property "service" (Doc.ref modelServiceRef) $ do
-    Doc.description "The reference to the owning service, if the user is a 'bot'."
-    Doc.optional
-  Doc.property "handle" Doc.string' $ do
-    Doc.description "Unique user handle."
-    Doc.optional
-  Doc.property "team" Doc.string' $ do
-    Doc.description "Team ID"
-    Doc.optional
 
 --------------------------------------------------------------------------------
 -- SelfProfile
@@ -1239,12 +1198,6 @@ instance ToSchema EmailUpdate where
         <$> euEmail
           .= field "email" schema
 
-modelEmailUpdate :: Doc.Model
-modelEmailUpdate = Doc.defineModel "EmailUpdate" $ do
-  Doc.description "Email Update Data"
-  Doc.property "email" Doc.string' $
-    Doc.description "Email"
-
 instance ToJSON EmailUpdate where
   toJSON e = A.object ["email" A..= euEmail e]
 
@@ -1388,13 +1341,6 @@ instance ToSchema DeleteUser where
 
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser
-
-modelDelete :: Doc.Model
-modelDelete = Doc.defineModel "Delete" $ do
-  Doc.description "Data for an account deletion request."
-  Doc.property "password" Doc.string' $ do
-    Doc.description "The account password to authorise the deletion."
-    Doc.optional
 
 instance ToJSON DeleteUser where
   toJSON d =

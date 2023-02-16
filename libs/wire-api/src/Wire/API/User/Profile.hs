@@ -46,10 +46,6 @@ module Wire.API.User.Profile
     -- * Deprecated
     Pict (..),
     noPict,
-
-    -- * Swagger
-    modelAsset,
-    typeManagedBy,
   )
 where
 
@@ -65,7 +61,6 @@ import Data.LanguageCodes
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
 import Wire.API.Asset (AssetKey (..))
@@ -127,35 +122,10 @@ instance ToSchema Asset where
         enum @Text @NamedSwaggerDoc "AssetType" $
           element "image" ()
 
-modelAsset :: Doc.Model
-modelAsset = Doc.defineModel "UserAsset" $ do
-  Doc.description "User profile asset"
-  Doc.property "key" Doc.string' $
-    Doc.description "The unique asset key"
-  Doc.property "type" typeAssetType $
-    Doc.description "The asset type"
-  Doc.property "size" typeAssetSize $
-    Doc.description "The asset size / format"
-
-typeAssetType :: Doc.DataType
-typeAssetType =
-  Doc.string $
-    Doc.enum
-      [ "image"
-      ]
-
 data AssetSize = AssetComplete | AssetPreview
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSize)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema AssetSize
-
-typeAssetSize :: Doc.DataType
-typeAssetSize =
-  Doc.string $
-    Doc.enum
-      [ "preview",
-        "complete"
-      ]
 
 instance ToSchema AssetSize where
   schema =
@@ -254,14 +224,6 @@ data ManagedBy
   deriving stock (Eq, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ManagedBy)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ManagedBy)
-
-typeManagedBy :: Doc.DataType
-typeManagedBy =
-  Doc.string $
-    Doc.enum
-      [ "wire",
-        "scim"
-      ]
 
 instance ToSchema ManagedBy where
   schema =

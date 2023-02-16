@@ -299,8 +299,6 @@ mkFeatureGetRoute ::
   ( IsFeatureConfig cfg,
     ToSchema cfg,
     KnownSymbol (FeatureSymbol cfg),
-    FromJSON (WithStatusNoLock cfg),
-    ToJSON (WithStatusNoLock cfg),
     Typeable cfg
   ) =>
   TeamId ->
@@ -309,12 +307,8 @@ mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
 
 mkFeaturePutRoute ::
   forall cfg.
-  ( IsFeatureConfig cfg,
-    ToSchema cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    FromJSON (WithStatusNoLock cfg),
-    ToJSON (WithStatusNoLock cfg),
-    Typeable cfg
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToJSON (WithStatusNoLock cfg)
   ) =>
   TeamId ->
   WithStatusNoLock cfg ->

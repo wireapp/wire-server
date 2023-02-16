@@ -223,8 +223,7 @@ createNonBindingTeamH ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
-    Member TeamStore r,
-    Member WaiRoutes r
+    Member TeamStore r
   ) =>
   UserId ->
   ConnId ->
@@ -341,7 +340,6 @@ deleteTeam ::
   forall r.
   ( Member BrigAccess r,
     Member (Error AuthenticationError) r,
-    Member (Error InvalidInput) r,
     Member (ErrorS 'DeleteQueueFull) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
@@ -1144,19 +1142,17 @@ getSearchVisibility luid tid = do
 
 setSearchVisibility ::
   forall db r.
-  ( Members
-      '[ ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
-         ErrorS 'TeamSearchVisibilityNotEnabled,
-         Input Opts,
-         SearchVisibilityStore,
-         TeamStore,
-         TeamFeatureStore db,
-         WaiRoutes
-       ]
-      r,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig
-  ) =>
+  Members
+    '[ ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamSearchVisibilityNotEnabled,
+       Input Opts,
+       SearchVisibilityStore,
+       TeamStore,
+       TeamFeatureStore db,
+       WaiRoutes
+     ]
+    r =>
   (TeamId -> Sem r Bool) ->
   Local UserId ->
   TeamId ->
@@ -1414,15 +1410,13 @@ getSearchVisibilityInternal =
 
 setSearchVisibilityInternal ::
   forall db r.
-  ( Members
-      '[ ErrorS 'TeamSearchVisibilityNotEnabled,
-         Input Opts,
-         SearchVisibilityStore,
-         TeamFeatureStore db
-       ]
-      r,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig
-  ) =>
+  Members
+    '[ ErrorS 'TeamSearchVisibilityNotEnabled,
+       Input Opts,
+       SearchVisibilityStore,
+       TeamFeatureStore db
+     ]
+    r =>
   (TeamId -> Sem r Bool) ->
   TeamId ->
   TeamSearchVisibilityView ->
