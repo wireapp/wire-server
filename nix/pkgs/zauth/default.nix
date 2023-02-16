@@ -5,12 +5,13 @@
 , pkg-config
 , rustPlatform
 , stdenv
+, gitMinimal
 }:
 
 rustPlatform.buildRustPackage rec {
   name = "libzauth-${version}";
   version = "3.0.0";
-  nativeBuildInputs = [ pkg-config ];
+  nativeBuildInputs = [ pkg-config gitMinimal ];
   buildInputs = [ libsodium ];
   src = nix-gitignore.gitignoreSourcePure [ ../../../.gitignore ] ../../../libs/libzauth;
   sourceRoot = "libzauth/libzauth-c";

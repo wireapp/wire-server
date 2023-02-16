@@ -24,5 +24,5 @@ settings:
   downloadLinkTTL: 300    # Seconds
   federationDomain: example.com
 
-logLevel: Info
+logLevel: Warn
 logNetStrings: false

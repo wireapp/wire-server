@@ -123,7 +123,9 @@ interpretRemote = interpret $ \case
     let path =
           LBS.toStrict . toLazyByteString $
             HTTP.encodePathSegments ["federation", componentName component, rpc]
-        req' = HTTP2.requestBuilder HTTP.methodPost path headers body
+        -- filter out Host header, because the HTTP2 client adds it back
+        headers' = filter ((/= "Host") . fst) headers
+        req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
         tlsConfig = mkTLSConfig settings hostname port
 
     resp <- mapError (RemoteError target) . (fromEither @FederatorClientHTTP2Error =<<) . embed $

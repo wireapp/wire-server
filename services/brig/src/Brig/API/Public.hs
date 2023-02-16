@@ -108,6 +108,8 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
 import qualified Wire.API.Properties as Public
+import qualified Wire.API.Routes.Internal.Brig as BrigInternalAPI
+import Wire.API.Routes.Internal.Cannon as CannonInternalAPI
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
@@ -141,8 +143,11 @@ import Wire.Sem.Now (Now)
 -- User API -----------------------------------------------------------
 
 docsAPI :: Servant.Server DocsAPI
-docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas
+docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas :<|> internalEndpointsSwaggerDocsAPI
 
+-- | Serves Swagger docs for public endpoints
+--
+-- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
 versionedSwaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
@@ -162,6 +167,34 @@ versionedSwaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
+
+-- | Serves Swagger docs for internal endpoints
+--
+-- Dual to `versionedSwaggerDocsAPI`. Swagger docs for old versions are (almost)
+-- empty. It would have been too tedious to create them. Please add
+-- pre-generated docs on version increase as it's done in
+-- `versionedSwaggerDocsAPI`.
+internalEndpointsSwaggerDocsAPI :: Servant.Server InternalEndpointsSwaggerDocsAPI
+internalEndpointsSwaggerDocsAPI (Just V3) =
+  swaggerSchemaUIServer $
+    ( BrigInternalAPI.swaggerDoc
+        <> CannonInternalAPI.swaggerDoc
+    )
+      & S.info . S.title .~ "Wire-Server internal API"
+      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger-internal-endpoints.md")
+      & cleanupSwagger
+internalEndpointsSwaggerDocsAPI (Just V0) = emptySwagger
+internalEndpointsSwaggerDocsAPI (Just V1) = emptySwagger
+internalEndpointsSwaggerDocsAPI (Just V2) = emptySwagger
+internalEndpointsSwaggerDocsAPI Nothing = internalEndpointsSwaggerDocsAPI (Just maxBound)
+
+emptySwagger :: Servant.Server VersionedSwaggerDocsAPIBase
+emptySwagger =
+  swaggerSchemaUIServer $
+    mempty @S.Swagger
+      & S.info . S.title .~ "Wire-Server internal API"
+      & S.info . S.description
+        ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
 
 servantSitemap ::
   forall r p.

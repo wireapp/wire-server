@@ -30,9 +30,6 @@ module Wire.API.Routes.Public
     ZBot,
     ZConversation,
     ZProvider,
-
-    -- * Swagger combinators
-    OmitDocs,
   )
 where
 
@@ -254,25 +251,3 @@ instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) whe
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
-
--- | A type-level tag that lets us omit any branch from Swagger docs.
---
--- Those are likely to be:
---
---   * Endpoints for which we can't generate Swagger docs.
---   * The endpoint that serves Swagger docs.
---   * Internal endpoints.
-data OmitDocs
-
-instance HasSwagger (OmitDocs :> a) where
-  toSwagger _ = mempty
-
-instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
-  type ServerT (OmitDocs :> api) m = ServerT api m
-
-  route _ = route (Proxy :: Proxy api)
-  hoistServerWithContext _ pc nt s =
-    hoistServerWithContext (Proxy :: Proxy api) pc nt s
-
-instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
-  getRoutes = getRoutes @api
