@@ -44,7 +44,8 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
-import Data.ByteString.Conversion (ToByteString (builder))
+import qualified Data.Binary.Builder as Builder
+import Data.ByteString.Conversion (ToByteString (builder), toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Schema
@@ -62,48 +63,56 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 -- | Version of the public API.  Serializes to `"v<n>"`.  See 'VersionNumber' below for one
 -- that serializes to `<n>`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs`
 -- for serialization rules.
+--
+-- If you add or remove versions from this type, make sure 'versionInt', 'supportedVersions',
+-- and 'developmentVersions' stay in sync; everything else here should keep working without
+-- change.
 data Version = V0 | V1 | V2 | V3
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
 
--- | Manual enumeration of version strings.
+-- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
 --
--- If you want to implement this using `{to,from}Enum`, continue reading the haddocs for
--- 'versionInt' below.  :-)
-versionString :: IsString a => Version -> a
-versionString V0 = "v0"
-versionString V1 = "v1"
-versionString V2 = "v2"
-versionString V3 = "v3"
-
--- | Manual enumeration of version integrals.
---
--- We don't do anything fancy with `{to,from}Enum`
--- because we'll eventually break the invariant that there is a `V<n>` for every `<n>` once we
--- start to deprecate old versions (we may even find a reason to discontinue `V13` but keep
--- supporting `V12`).
+-- This is not the same as 'fromEnum': we will remove unsupported versions in the future,
+-- which will cause `<n>` and `fromEnum V<n>` to diverge.  `Enum` should not be understood as
+-- a bijection between meaningful integers and versions, but merely as a convenient way to say
+-- `allVersions = [minBound..]`.
 versionInt :: Integral i => Version -> i
 versionInt V0 = 0
 versionInt V1 = 1
 versionInt V2 = 2
 versionInt V3 = 3
 
+supportedVersions :: [Version]
+supportedVersions = [minBound ..]
+
+developmentVersions :: [Version]
+developmentVersions = [V3]
+
+----------------------------------------------------------------------
+
+versionText :: Version -> Text
+versionText = ("v" <>) . toUrlPiece . versionInt @Int
+
+versionByteString :: Version -> ByteString
+versionByteString = ("v" <>) . toByteString' . versionInt @Int
+
 instance ToSchema Version where
-  schema = enum @Text "Version" . mconcat $ (\v -> element (versionString v) v) <$> [minBound ..]
+  schema = enum @Text "Version" . mconcat $ (\v -> element (versionText v) v) <$> [minBound ..]
 
 instance FromHttpApiData Version where
   parseQueryParam v = note ("Unknown version: " <> v) $
     getAlt $
       flip foldMap [minBound ..] $ \s ->
-        guard (versionString s == v) $> s
+        guard (versionText s == v) $> s
 
 instance ToHttpApiData Version where
-  toHeader = versionString
-  toUrlPiece = versionString
+  toHeader = versionByteString
+  toUrlPiece = versionText
 
 instance ToByteString Version where
-  builder = versionString
+  builder = Builder.fromByteString . versionByteString
 
 -- | Wrapper around 'Version' that serializes to integers `<n>`, as needed in
 -- eg. `VersionInfo`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs` for
@@ -128,12 +137,6 @@ instance ToHttpApiData VersionNumber where
 
 instance ToByteString VersionNumber where
   builder = toEncodedUrlPiece
-
-supportedVersions :: [Version]
-supportedVersions = [minBound .. maxBound]
-
-developmentVersions :: [Version]
-developmentVersions = [V3]
 
 -- | Information related to the public API version.
 --
