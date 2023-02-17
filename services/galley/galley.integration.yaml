@@ -73,7 +73,7 @@ settings:
         status: disabled
         lockStatus: locked
 
-logLevel: Info
+logLevel: Warn
 logNetStrings: false
 
 journal: # if set, journals; if not set, disables journaling

@@ -47,9 +47,6 @@ module Wire.API.Provider.Service
 
     -- * UpdateServiceWhitelist
     UpdateServiceWhitelist (..),
-
-    -- * Swagger
-    modelServiceRef,
   )
 where
 
@@ -69,7 +66,6 @@ import Data.Proxy
 import Data.Range (Range)
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
@@ -101,14 +97,6 @@ makeLenses ''ServiceRef
 
 newServiceRef :: ServiceId -> ProviderId -> ServiceRef
 newServiceRef = ServiceRef
-
-modelServiceRef :: Doc.Model
-modelServiceRef = Doc.defineModel "ServiceRef" $ do
-  Doc.description "Service Reference"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "Service ID"
-  Doc.property "provider" Doc.bytes' $
-    Doc.description "Provider ID"
 
 --------------------------------------------------------------------------------
 -- ServiceKey

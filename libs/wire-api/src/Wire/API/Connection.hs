@@ -37,11 +37,6 @@ module Wire.API.Connection
     ConnectionRequest (..),
     ConnectionUpdate (..),
     ListConnectionsRequestPaginated,
-
-    -- * Swagger
-    modelConnectionList,
-    modelConnection,
-    modelConnectionUpdate,
   )
 where
 
@@ -54,7 +49,6 @@ import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Data.Text as Text
 import Imports
 import Servant.API
@@ -94,13 +88,6 @@ instance ToSchema UserConnectionList where
         <$> clConnections .= field "connections" (array schema)
         <*> clHasMore .= fieldWithDocModifier "has_more" (description ?~ "Indicator that the server has more connections than returned.") schema
 
-modelConnectionList :: Doc.Model
-modelConnectionList = Doc.defineModel "UserConnectionList" $ do
-  Doc.description "A list of user connections."
-  Doc.property "connections" (Doc.unique $ Doc.array (Doc.ref modelConnection)) Doc.end
-  Doc.property "has_more" Doc.bool' $
-    Doc.description "Indicator that the server has more connections than returned."
-
 --------------------------------------------------------------------------------
 -- UserConnection
 
@@ -134,24 +121,6 @@ instance ToSchema UserConnection where
         <*> ucConvId .= maybe_ (optField "qualified_conversation" schema)
         <* (fmap qUnqualified . ucConvId)
           .= maybe_ (optField "conversation" (deprecatedSchema "qualified_conversation" schema))
-
-modelConnection :: Doc.Model
-modelConnection = Doc.defineModel "Connection" $ do
-  Doc.description "Directed connection between two users"
-  Doc.property "from" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "to" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "status" typeRelation $
-    Doc.description "Relation status"
-  Doc.property "last_update" Doc.dateTime' $
-    Doc.description "Timestamp of last update"
-  Doc.property "message" Doc.string' $ do
-    Doc.description "Message"
-    Doc.optional
-  Doc.property "conversation" Doc.bytes' $ do
-    Doc.description "Conversation ID"
-    Doc.optional
 
 --------------------------------------------------------------------------------
 -- Relation
@@ -220,19 +189,6 @@ relationDropHistory = \case
   MissingLegalholdConsentFromIgnored -> MissingLegalholdConsent
   MissingLegalholdConsentFromSent -> MissingLegalholdConsent
   MissingLegalholdConsentFromCancelled -> MissingLegalholdConsent
-
-typeRelation :: Doc.DataType
-typeRelation =
-  Doc.string $
-    Doc.enum
-      [ "accepted",
-        "blocked",
-        "pending",
-        "ignored",
-        "sent",
-        "cancelled",
-        "missing-legalhold-consent"
-      ]
 
 instance ToSchema Relation where
   schema =
@@ -307,9 +263,3 @@ instance ToSchema ConnectionUpdate where
     object "ConnectionUpdate" $
       ConnectionUpdate
         <$> cuStatus .= fieldWithDocModifier "status" (description ?~ "New relation status") schema
-
-modelConnectionUpdate :: Doc.Model
-modelConnectionUpdate = Doc.defineModel "ConnectionUpdate" $ do
-  Doc.description "Connection update"
-  Doc.property "status" typeRelation $
-    Doc.description "New relation status"

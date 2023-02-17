@@ -118,7 +118,7 @@ instance
       clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
 
-instance HasSwagger api => HasSwagger (Until v :> api) where
+instance HasSwagger (Until v :> api) where
   toSwagger _ = mempty
 
 instance RoutesToPaths api => RoutesToPaths (Until v :> api) where

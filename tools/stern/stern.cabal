@@ -69,7 +69,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields
+    -funbox-strict-fields -Wredundant-constraints
 
   build-depends:
       aeson                  >=2.0.1.0 && <2.2
@@ -99,7 +99,6 @@ library
     , servant-swagger-ui
     , split                  >=0.2
     , string-conversions
-    , swagger
     , swagger2
     , text                   >=1.1
     , tinylog                >=0.10
@@ -165,7 +164,7 @@ executable stern
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -rtsopts -with-rtsopts=-T
+    -threaded -rtsopts -with-rtsopts=-T -Wredundant-constraints
 
   build-depends:
       base

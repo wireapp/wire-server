@@ -32,6 +32,7 @@ module Wire.API.Routes.Version
     developmentVersions,
     readVersionNumber,
     mkVersion,
+    toPathComponent,
 
     -- * Servant combinators
     Until,
@@ -86,6 +87,13 @@ instance ToHttpApiData Version where
 
 instance ToByteString Version where
   builder = toEncodedUrlPiece
+
+-- | `Version` as it appears in an URL path
+--
+-- >>> toPathComponent V1
+-- "v1"
+toPathComponent :: Version -> ByteString
+toPathComponent v = "v" <> toHeader v
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]

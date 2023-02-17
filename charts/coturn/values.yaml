@@ -36,7 +36,7 @@ tls:
     # for handling runtime certificate reloads.
     repository: quay.io/wire/config-reloader-sidecar
     pullPolicy: IfNotPresent
-    tag: 1aa6cbbf2ce3a5182ec47e3579bbcb8f47e22fdc
+    tag: 72c3c8434660bd157d42012b0bcd67f338fc5c7a
 
 metrics:
   serviceMonitor:

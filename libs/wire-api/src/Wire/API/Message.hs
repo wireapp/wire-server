@@ -57,12 +57,6 @@ module Wire.API.Message
     UserClients (..),
     ReportMissing (..),
     IgnoreMissing (..),
-
-    -- * Swagger
-    modelNewOtrMessage,
-    modelOtrRecipients,
-    modelClientMismatch,
-    typePriority,
   )
 where
 
@@ -82,7 +76,6 @@ import Data.Schema
 import Data.Serialize (runGet)
 import qualified Data.Set as Set
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Read as Reader
 import qualified Data.UUID as UUID
 import Imports
@@ -91,7 +84,7 @@ import qualified Proto.Otr_Fields as Proto.Otr
 import Servant (FromHttpApiData (..))
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.ServantProto (FromProto (..), ToProto (..))
-import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap), QualifiedUserClients, UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
+import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap), QualifiedUserClients, UserClientMap (..), UserClients (..))
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -151,31 +144,6 @@ newOtrMessageMetadata msg =
     (newOtrTransient msg)
     (newOtrNativePriority msg)
     (newOtrData msg)
-
-modelNewOtrMessage :: Doc.Model
-modelNewOtrMessage = Doc.defineModel "NewOtrMessage" $ do
-  Doc.description "OTR message per recipient"
-  Doc.property "sender" Doc.bytes' $
-    Doc.description "The sender's client ID"
-  Doc.property "recipients" (Doc.ref modelOtrRecipients) $
-    Doc.description "Per-recipient data (i.e. ciphertext)."
-  Doc.property "native_push" Doc.bool' $ do
-    Doc.description "Whether to issue a native push to offline clients."
-    Doc.optional
-  Doc.property "transient" Doc.bool' $ do
-    Doc.description "Whether to put this message into the notification queue."
-    Doc.optional
-  Doc.property "native_priority" typePriority $ do
-    Doc.description "The native push priority (default 'high')."
-    Doc.optional
-  Doc.property "data" Doc.bytes' $ do
-    Doc.description
-      "Extra (symmetric) data (i.e. ciphertext) that is replicated \
-      \for each recipient."
-    Doc.optional
-  Doc.property "report_missing" (Doc.unique $ Doc.array Doc.bytes') $ do
-    Doc.description "List of user IDs"
-    Doc.optional
 
 instance ToSchema NewOtrMessage where
   schema =
@@ -329,14 +297,6 @@ data Priority = LowPriority | HighPriority
   deriving (Arbitrary) via (GenericUniform Priority)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema Priority
 
-typePriority :: Doc.DataType
-typePriority =
-  Doc.string $
-    Doc.enum
-      [ "low",
-        "high"
-      ]
-
 instance ToSchema Priority where
   schema =
     enum @Text "Priority" $
@@ -367,13 +327,6 @@ newtype OtrRecipients = OtrRecipients
   }
   deriving stock (Eq, Show)
   deriving newtype (ToSchema, A.ToJSON, A.FromJSON, Semigroup, Monoid, Arbitrary)
-
--- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
-modelOtrRecipients :: Doc.Model
-modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
-  Doc.description "Recipients of OTR content."
-  Doc.property "" (Doc.ref modelOtrClientMap) $
-    Doc.description "Mapping of user IDs to 'OtrClientMap's."
 
 protoToOtrRecipients :: [Proto.UserEntry] -> OtrRecipients
 protoToOtrRecipients =
@@ -548,18 +501,6 @@ instance Arbitrary ClientMismatch where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
-
-modelClientMismatch :: Doc.Model
-modelClientMismatch = Doc.defineModel "ClientMismatch" $ do
-  Doc.description "Map of missing, redundant or deleted clients."
-  Doc.property "time" Doc.dateTime' $
-    Doc.description "Server timestamp (date and time)"
-  Doc.property "missing" (Doc.ref modelUserClients) $
-    Doc.description "Map of missing clients per user."
-  Doc.property "redundant" (Doc.ref modelUserClients) $
-    Doc.description "Map of redundant clients per user."
-  Doc.property "deleted" (Doc.ref modelUserClients) $
-    Doc.description "Map of deleted clients per user."
 
 instance ToSchema ClientMismatch where
   schema =

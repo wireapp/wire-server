@@ -115,8 +115,8 @@ library
     Wire.API.Routes.Versioned
     Wire.API.Routes.WebSocket
     Wire.API.ServantProto
-    Wire.API.Swagger
     Wire.API.SwaggerHelper
+    Wire.API.SwaggerServant
     Wire.API.SystemSettings
     Wire.API.Team
     Wire.API.Team.Conversation
@@ -199,6 +199,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       aeson                      >=2.0.1.0
@@ -271,7 +272,6 @@ library
     , singletons-th
     , sop-core
     , string-conversions
-    , swagger                    >=0.1
     , swagger2
     , tagged
     , text                       >=0.11
@@ -588,7 +588,7 @@ test-suite wire-api-golden-tests
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N
+    -threaded -with-rtsopts=-N -Wredundant-constraints
 
   build-depends:
       aeson                    >=2.0.1.0
@@ -647,12 +647,14 @@ test-suite wire-api-tests
     Test.Wire.API.Call.Config
     Test.Wire.API.Conversation
     Test.Wire.API.MLS
+    Test.Wire.API.RawJson
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString
     Test.Wire.API.Roundtrip.CSV
     Test.Wire.API.Roundtrip.HttpApiData
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
+    Test.Wire.API.Routes.Version
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
     Test.Wire.API.Team.Member
@@ -705,7 +707,7 @@ test-suite wire-api-tests
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N
+    -threaded -with-rtsopts=-N -Wredundant-constraints
 
   build-depends:
       aeson                    >=2.0.1.0

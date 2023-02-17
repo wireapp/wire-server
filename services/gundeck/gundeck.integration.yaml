@@ -37,5 +37,5 @@ settings:
     hard: 30  # more than this number of threads will not be allowed
     soft: 10  # more than this number of threads will be warned about
 
-logLevel: Info
+logLevel: Warn
 logNetStrings: false

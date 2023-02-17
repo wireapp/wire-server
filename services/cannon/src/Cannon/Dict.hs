@@ -49,28 +49,28 @@ empty w =
       then Dict <$> V.generateM w (const $ newIORef SHM.empty)
       else error "Dict.empty: slice number out of range [1, 8191]"
 
-insert :: (Eq a, Hashable a, MonadIO m) => a -> b -> Dict a b -> m ()
+insert :: (Hashable a, MonadIO m) => a -> b -> Dict a b -> m ()
 insert k v = mutDict (SHM.insert k v) . getSlice k
 
-add :: (Eq a, Hashable a, MonadIO m) => a -> b -> Dict a b -> m Bool
+add :: (Hashable a, MonadIO m) => a -> b -> Dict a b -> m Bool
 add k v d = liftIO . atomicModifyIORef' (getSlice k d) $ \m ->
   if k `elem` SHM.keys m
     then (m, False)
     else (SHM.insert k v m, True)
 
-remove :: (Eq a, Hashable a, MonadIO m) => a -> Dict a b -> m Bool
+remove :: (Hashable a, MonadIO m) => a -> Dict a b -> m Bool
 remove = removeIf (const True)
 
-removeIf :: (Eq a, Hashable a, MonadIO m) => (Maybe b -> Bool) -> a -> Dict a b -> m Bool
+removeIf :: (Hashable a, MonadIO m) => (Maybe b -> Bool) -> a -> Dict a b -> m Bool
 removeIf f k d = liftIO . atomicModifyIORef' (getSlice k d) $ \m ->
   if f (SHM.lookup k m)
     then (SHM.delete k m, True)
     else (m, False)
 
-lookup :: (Eq a, Hashable a, MonadIO m) => a -> Dict a b -> m (Maybe b)
+lookup :: (Hashable a, MonadIO m) => a -> Dict a b -> m (Maybe b)
 lookup k = liftIO . fmap (SHM.lookup k) . readIORef . getSlice k
 
-toList :: (MonadIO m, Hashable a) => Dict a b -> m [(a, b)]
+toList :: MonadIO m => Dict a b -> m [(a, b)]
 toList =
   fmap (mconcat . V.toList)
     . V.mapM (fmap SHM.toList . readIORef)
@@ -86,5 +86,5 @@ mutDict ::
   m ()
 mutDict f d = liftIO . atomicModifyIORef' d $ \m -> (f m, ())
 
-getSlice :: (Hashable a) => a -> Dict a b -> IORef (SizedHashMap a b)
+getSlice :: Hashable a => a -> Dict a b -> IORef (SizedHashMap a b)
 getSlice k (Dict m) = m ! (hash k `mod` V.length m)

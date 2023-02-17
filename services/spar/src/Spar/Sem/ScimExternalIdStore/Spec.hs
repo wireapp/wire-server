@@ -53,7 +53,7 @@ class
   PropConstraints r f
 
 instance
-  (Arbitrary UserId, CoArbitrary UserId, Functor f, Member E.ScimExternalIdStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
+  (CoArbitrary UserId, Functor f, Member E.ScimExternalIdStore r, forall z. Show z => Show (f z), forall z. Eq z => Eq (f z)) =>
   PropConstraints r f
 
 prop_insertLookup ::

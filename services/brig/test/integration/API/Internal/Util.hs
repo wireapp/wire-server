@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -91,7 +94,7 @@ scaffolding brig gundeck = do
         (userPhone usr)
         toks
 
-    registerPushToken :: TestConstraints m => Gundeck -> UserId -> m Text
+    registerPushToken :: Gundeck -> UserId -> m Text
     registerPushToken gd u = do
       t <- randomToken
       rsp <- registerPushTokenRequest gd u t
@@ -100,7 +103,7 @@ scaffolding brig gundeck = do
           (error . show)
           (pure . PushToken.tokenText . view PushToken.token)
 
-    registerPushTokenRequest :: TestConstraints m => Gundeck -> UserId -> PushToken.PushToken -> m ResponseLBS
+    registerPushTokenRequest :: Gundeck -> UserId -> PushToken.PushToken -> m ResponseLBS
     registerPushTokenRequest gd u t = do
       post
         ( gd
@@ -111,7 +114,7 @@ scaffolding brig gundeck = do
             . json t
         )
 
-    randomToken :: MonadIO m => m PushToken.PushToken
+    randomToken :: m PushToken.PushToken
     randomToken = liftIO $ do
       c <- liftIO $ newClientId <$> (randomIO :: IO Word64)
       tok <- (PushToken.Token . T.decodeUtf8) . B16.encode <$> randomBytes 32
@@ -129,19 +132,19 @@ putAccountConferenceCallingConfigClientM = Client.client (Proxy @("i" :> IAPI.Pu
 deleteAccountConferenceCallingConfigClientM :: UserId -> Client.ClientM NoContent
 deleteAccountConferenceCallingConfigClientM = Client.client (Proxy @("i" :> IAPI.DeleteAccountConferenceCallingConfig))
 
-ejpdRequestClient :: (HasCallStack, MonadThrow m, MonadIO m, MonadHttp m) => Endpoint -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
+ejpdRequestClient :: (HasCallStack, MonadThrow m, MonadIO m) => Endpoint -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
 ejpdRequestClient brigep mgr includeContacts ejpdReqBody = runHereClientM brigep mgr (ejpdRequestClientM includeContacts ejpdReqBody) >>= either throwM pure
 
-getAccountConferenceCallingConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError (Public.WithStatusNoLock Public.ConferenceCallingConfig))
+getAccountConferenceCallingConfigClient :: (HasCallStack, MonadIO m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError (Public.WithStatusNoLock Public.ConferenceCallingConfig))
 getAccountConferenceCallingConfigClient brigep mgr uid = runHereClientM brigep mgr (getAccountConferenceCallingConfigClientM uid)
 
-putAccountConferenceCallingConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> Public.WithStatusNoLock Public.ConferenceCallingConfig -> m (Either Client.ClientError NoContent)
+putAccountConferenceCallingConfigClient :: (HasCallStack, MonadIO m) => Endpoint -> Manager -> UserId -> Public.WithStatusNoLock Public.ConferenceCallingConfig -> m (Either Client.ClientError NoContent)
 putAccountConferenceCallingConfigClient brigep mgr uid cfg = runHereClientM brigep mgr (putAccountConferenceCallingConfigClientM uid cfg)
 
-deleteAccountConferenceCallingConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError NoContent)
+deleteAccountConferenceCallingConfigClient :: (HasCallStack, MonadIO m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError NoContent)
 deleteAccountConferenceCallingConfigClient brigep mgr uid = runHereClientM brigep mgr (deleteAccountConferenceCallingConfigClientM uid)
 
-runHereClientM :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> Client.ClientM a -> m (Either Client.ClientError a)
+runHereClientM :: (HasCallStack, MonadIO m) => Endpoint -> Manager -> Client.ClientM a -> m (Either Client.ClientError a)
 runHereClientM brigep mgr action = do
   let env = Client.mkClientEnv mgr baseurl
       baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""

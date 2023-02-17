@@ -95,7 +95,6 @@
 , stm
 , streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -216,7 +215,6 @@ mkDerivation {
     ssl-util
     stm
     string-conversions
-    swagger
     swagger2
     tagged
     text

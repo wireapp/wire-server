@@ -171,6 +171,7 @@ parseJsonBody req = parseBody req !>> StdError . badRequest
 checkAllowlist :: Either Email Phone -> (Handler r) ()
 checkAllowlist = wrapHttpClientE . checkAllowlistWithError (StdError allowlistError)
 
+-- checkAllowlistWithError :: (MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()
 checkAllowlistWithError :: (MonadReader Env m, MonadError e m) => e -> Either Email Phone -> m ()
 checkAllowlistWithError e key = do
   ok <- isAllowlisted key
@@ -180,3 +181,12 @@ isAllowlisted :: (MonadReader Env m) => Either Email Phone -> m Bool
 isAllowlisted key = do
   env <- view settings
   pure $ Allowlists.verify (setAllowlistEmailDomains env) (setAllowlistPhonePrefixes env) key
+
+{-
+isWhiteListed :: (MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m) => Either Email Phone -> m Bool
+isWhiteListed key = do
+  eb <- setAllowlist <$> view settings
+  case eb of
+    Nothing -> pure True
+    Just b -> Allowlist.verify b key
+-}

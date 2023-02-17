@@ -5,6 +5,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
+-- Disabling for HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -78,7 +80,7 @@ watchSQSQueue env queueUrl = do
     ensureEmpty = void $ execute env $ sendEnv (SQS.newPurgeQueue queueUrl)
 
 -- | Waits for a message matching a predicate for a given number of seconds.
-waitForMessage :: (MonadUnliftIO m, Eq a, Show a) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
+waitForMessage :: (MonadUnliftIO m, Eq a) => SQSWatcher a -> Int -> (a -> Bool) -> m (Maybe a)
 waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
   where
     poll = do
@@ -91,7 +93,7 @@ waitForMessage watcher seconds predicate = timeout (seconds * 1_000_000) poll
 -- | First waits for a message matching a given predicate for 3 seconds (this
 -- number could be chosen more scientifically) and then uses a callback to make
 -- an assertion on such a message.
-assertMessage :: (Show a, MonadUnliftIO m, Eq a, HasCallStack) => SQSWatcher a -> String -> (a -> Bool) -> (String -> Maybe a -> m ()) -> m ()
+assertMessage :: (MonadUnliftIO m, Eq a, HasCallStack) => SQSWatcher a -> String -> (a -> Bool) -> (String -> Maybe a -> m ()) -> m ()
 assertMessage watcher label predicate callback = do
   matched <- waitForMessage watcher 3 predicate
   callback label matched
@@ -114,19 +116,19 @@ receive n url =
       . set SQS.receiveMessage_maxNumberOfMessages (Just n)
       . set SQS.receiveMessage_visibilityTimeout (Just 1)
 
-fetchMessage :: (MonadIO m, Message a, MonadReader AWS.Env m, MonadResource m) => Text -> String -> (String -> Maybe a -> IO ()) -> m ()
+fetchMessage :: (Message a, MonadReader AWS.Env m, MonadResource m) => Text -> String -> (String -> Maybe a -> IO ()) -> m ()
 fetchMessage url label callback = do
   msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> sendEnv (receive 1 url)
   events <- mapM (parseDeleteMessage url) msgs
   liftIO $ callback label (headDef Nothing events)
 
-deleteMessage :: (Monad m, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m ()
+deleteMessage :: (MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m ()
 deleteMessage url m = do
   for_
     (m ^. SQS.message_receiptHandle)
     (void . sendEnv . SQS.newDeleteMessage url)
 
-parseDeleteMessage :: (Monad m, Message a, MonadIO m, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m (Maybe a)
+parseDeleteMessage :: (Message a, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m (Maybe a)
 parseDeleteMessage url m = do
   let decodedMessage = decodeMessage <=< (B64.decode . Text.encodeUtf8)
   evt <- case decodedMessage <$> (m ^. SQS.message_body) of

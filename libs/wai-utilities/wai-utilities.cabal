@@ -20,7 +20,6 @@ library
     Network.Wai.Utilities.Request
     Network.Wai.Utilities.Response
     Network.Wai.Utilities.Server
-    Network.Wai.Utilities.Swagger
     Network.Wai.Utilities.ZAuth
 
   other-modules:      Paths_wai_utilities
@@ -68,6 +67,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
 
   build-depends:
       aeson                  >=2.0.1.0
@@ -87,7 +87,6 @@ library
     , servant-server
     , streaming-commons      >=0.1
     , string-conversions
-    , swagger
     , swagger2
     , text                   >=0.11
     , tinylog                >=0.8

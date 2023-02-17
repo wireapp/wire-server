@@ -49,7 +49,7 @@ serialiseOkProp t = ioProperty $ do
   a <- mkAddress t
   n <- randNotif (0, 1280)
   m <- randMessage n
-  r <- serialise m (a ^. addrUser) (a ^. addrTransport)
+  let r = serialise m (a ^. addrUser) (a ^. addrTransport)
   let sn = either (const Nothing) Just r >>= decode' . LT.encodeUtf8
   let equalTransport = fmap snsNotifTransport sn == Just t
   equalNotif <- case snsNotifBundle <$> sn of

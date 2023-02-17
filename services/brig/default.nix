@@ -121,7 +121,6 @@
 , stomp-queue
 , streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -266,7 +265,6 @@ mkDerivation {
     statistics
     stomp-queue
     string-conversions
-    swagger
     swagger2
     tagged
     template
