@@ -79,4 +79,4 @@ echo "access token : $ACCESS_TOKEN"
 
 echo ""
 echo "making a request to /self..."
-curl -s -H 'Z-OAUTH: Bearer '"$ACCESS_TOKEN" -H "Content-Type: application/json" localhost:8082/self | jq .
+curl -s -i -H 'Authorization: Bearer '"$ACCESS_TOKEN" -H "Content-Type: application/json" localhost:8080/self

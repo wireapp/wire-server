@@ -48,6 +48,7 @@ typedef enum {
 typedef struct ZauthAcl      ZauthAcl;
 typedef struct ZauthKeystore ZauthKeystore;
 typedef struct ZauthToken    ZauthToken;
+typedef struct OAuthJwk      OAuthJwk;
 
 ZauthResult zauth_keystore_open(uint8_t const * fname, size_t len, ZauthKeystore **);
 void        zauth_keystore_delete(ZauthKeystore * store);
@@ -55,7 +56,7 @@ void        zauth_keystore_delete(ZauthKeystore * store);
 ZauthResult zauth_acl_open(uint8_t const * fname, size_t len, ZauthAcl **);
 void        zauth_acl_delete(ZauthAcl * store);
 
-ZauthResult zauth_oauth_key_open(uint8_t const * fname, size_t len, char **);
+ZauthResult zauth_oauth_key_open(uint8_t const * fname, size_t len, OAuthJwk **);
 // todo(leif): do we need to dereference the key?
 
 ZauthResult            zauth_token_parse(uint8_t const * str, size_t len, ZauthToken **);
@@ -67,6 +68,8 @@ uint8_t                zauth_token_version(ZauthToken const *);
 Range                  zauth_token_lookup(ZauthToken const *, uint8_t);
 ZauthResult            zauth_token_allowed(ZauthToken const *, ZauthAcl const *, uint8_t const * path, size_t len, uint8_t * result);
 void                   zauth_token_delete(ZauthToken *);
+char *                 verify_oauth_token(OAuthJwk const *, uint8_t const * t, size_t t_len, uint8_t const * s, size_t s_len);
+void                   print_jwk(OAuthJwk const *);
 
 #ifdef __cplusplus
 }

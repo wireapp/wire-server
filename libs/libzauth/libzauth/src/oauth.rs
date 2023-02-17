@@ -7,15 +7,41 @@ pub struct OAuthToken {
 }
 
 pub fn verify_oauth_token(jwk: &str, token: &str, scope: &str) -> Result<String, OauthError> {
+    println!("verify_oauth_token - jwk: {:?}", jwk);
+    println!("verify_oauth_token - token: {:?}", token);
+    println!("verify_oauth_token - scope: {:?}", scope);
     let jwk = serde_json::from_str::<Jwk>(jwk)?;
+    eprintln!("verify_oauth_token - jwk parsed");
     let key = try_from_jwk(&jwk)?;
+    eprintln!("verify_oauth_token - key: {:?}", key);
     let options = VerificationOptions {
-        time_tolerance: Some(Duration::from_secs(1)),
         ..Default::default()
     };
-    let claims = key.verify_token::<OAuthToken>(token, Some(options))?;
-    let subject = claims.subject.ok_or(OauthError::InvalidJwtNoSubject)?;
-    verify_scope(&claims.custom.scope, scope)?;
+    eprintln!("verify_oauth_token - options: {:?}", options);
+    let claims = match key.verify_token::<OAuthToken>(token, Some(options)) {
+        Ok(claims) => claims,
+        Err(e) => {
+            eprintln!("verify_oauth_token - error: {:?}", e);
+            panic!("verify_oauth_token - error: {:?}", e);
+        },
+    };
+    eprintln!("verify_oauth_token - claims parsed");
+    let subject = match claims.subject.ok_or(OauthError::InvalidJwtNoSubject) {
+        Ok(subject) => subject,
+        Err(e) => {
+            eprintln!("verify_oauth_token - error: {:?}", e);
+            panic!("verify_oauth_token - error: {:?}", e);
+        },
+    };
+    eprintln!("verify_oauth_token - subject parsed");
+    match verify_scope(&claims.custom.scope, scope) {
+        Ok(_) => {},
+        Err(e) => {
+            eprintln!("verify_oauth_token - error: {:?}", e);
+            panic!("verify_oauth_token - error: {:?}", e);
+        },
+    };
+    eprintln!("verify_oauth_token - scope verified");
     Ok(subject)
 }
 

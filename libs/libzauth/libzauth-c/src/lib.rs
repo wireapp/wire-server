@@ -51,6 +51,7 @@ pub struct Range {
 pub struct ZauthAcl(zauth::Acl);
 pub struct ZauthKeystore(zauth::Keystore);
 pub struct ZauthToken(zauth::Token<'static>);
+pub struct OAuthJwk(String);
 
 #[no_mangle]
 pub extern "C" fn zauth_keystore_open(
@@ -102,7 +103,7 @@ pub extern "C" fn zauth_acl_open(f: *const u8, n: size_t, a: *mut *mut ZauthAcl)
 }
 
 #[no_mangle]
-pub extern "C" fn zauth_oauth_key_open(f: *const u8, n: size_t, k: *mut *mut libc::c_char) -> ZauthResult {
+pub extern "C" fn zauth_oauth_key_open(f: *const u8, n: size_t, k: *mut *mut OAuthJwk) -> ZauthResult {
     if f.is_null() {
         return ZauthResult::NullArg;
     }
@@ -112,8 +113,9 @@ pub extern "C" fn zauth_oauth_key_open(f: *const u8, n: size_t, k: *mut *mut lib
         let mut rdr = BufReader::new(try_unwrap!(File::open(&Path::new(path))));
         let mut txt = String::new();
         try_unwrap!(rdr.read_to_string(&mut txt));
+        eprintln!("jwk loaded key: {:?}", txt); // todo(leif): remove
         unsafe {
-            *k = CString::new(txt).unwrap().into_raw();
+            *k = Box::into_raw(Box::new(OAuthJwk(txt)));
         }
         ZauthResult::Ok
     })
@@ -351,35 +353,37 @@ impl From<TokenVerification> for ZauthTokenVerification {
 }
 
 #[no_mangle]
+pub extern "C" fn print_jwk(jwk: &OAuthJwk) {
+    eprintln!("print jwk: {:?}", jwk.0);
+}
+
+#[no_mangle]
 pub extern "C" fn verify_oauth_token(
-    jwk: *const u8,
-    jwk_len: size_t,
+    jwk: &OAuthJwk,
     token: *const u8,
     token_len: size_t,
     scope: *const u8,
-    scope_len: size_t,
-    s: *mut *mut libc::c_char,
-) -> ZauthResult {
-    if jwk.is_null() {
-        return ZauthResult::NullArg;
-    }
+    scope_len: size_t
+) -> *mut libc::c_char {
+    eprintln!("verify_oauth_token");
     if token.is_null() {
-        return ZauthResult::NullArg;
+        eprintln!("token is null");
+        // return ZauthResult::NullArg;
     }
+    eprintln!("token len: {:?}", token_len);
     if scope.is_null() {
-        return ZauthResult::NullArg;
+        eprintln!("scope is null");
+        // return ZauthResult::NullArg;
     }
-    catch_unwind(|| {
-        let bytes = unsafe { slice::from_raw_parts(jwk, jwk_len) };
-        let jwk = try_unwrap!(str::from_utf8(bytes));
-        let bytes = unsafe { slice::from_raw_parts(token, token_len) };
-        let token = try_unwrap!(str::from_utf8(bytes));
-        let bytes = unsafe { slice::from_raw_parts(scope, scope_len) };
-        let scope = try_unwrap!(str::from_utf8(bytes));
-        let subject = try_unwrap!(zauth::verify_oauth_token(jwk, token, scope));
-        unsafe {
-            *s = CString::new(subject).unwrap().into_raw();
-        }
-        ZauthResult::Ok
-    })
+    eprintln!("scope len: {:?}", scope_len);
+    let bytes = unsafe { slice::from_raw_parts(token, token_len) };
+    let token = str::from_utf8(bytes).unwrap();
+    eprintln!("token: {:?}", token);
+    let bytes = unsafe { slice::from_raw_parts(scope, scope_len) };
+    let scope = str::from_utf8(bytes).unwrap();
+    eprintln!("scope: {:?}", scope);
+    let subject = zauth::verify_oauth_token(&jwk.0, token, scope).unwrap();
+    eprintln!("subject: {:?}", subject);
+    let c_str_song = CString::new(subject).unwrap();
+    c_str_song.into_raw()        
 }

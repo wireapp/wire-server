@@ -27,7 +27,7 @@ build:
 	cargo build
 
 build-release:
-	cargo build --release
+	cargo build
 
 install: build-release
 	mkdir -p $(PREFIX_INSTALL)/include
@@ -36,7 +36,7 @@ install: build-release
 	sed -e "s~<<VERSION>>~$(VERSION)~" \
 		-e "s~<<PREFIX>>~$(PREFIX_INSTALL)~" \
 		src/libzauth.pc > $(PREFIX_INSTALL)/lib/pkgconfig/libzauth.pc
-	cp target/release/libzauth.$(LIB_TYPE) $(PREFIX_INSTALL)/lib/
+	cp target/debug/libzauth.$(LIB_TYPE) $(PREFIX_INSTALL)/lib/
 
 uninstall:
 	rm -f $(PREFIX_INSTALL)/include/zauth.h

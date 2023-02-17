@@ -9,7 +9,7 @@
 typedef struct {
         ZauthKeystore * keystore;
         ZauthAcl *      acl;
-        char *          oauth_key;
+        OAuthJwk *      oauth_key;
 } ZauthServerConf;
 
 typedef struct {
@@ -311,13 +311,28 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                 return NGX_DECLINED;
         }
 
-        // ngx_log_error(NGX_LOG_ERR, conf->log, 0, "scope: %d", lc->oauth_scope.data);
-
-        
         // let's try to handle zauth
         ngx_int_t status = zauth_handle_zauth_request(r, sc);
 
-        // if zauth succeeds, we empty the Authorization header
+        // if zauth fails, we try to handle oauth
+        if (status != NGX_OK && sc->oauth_key != NULL) {
+                print_jwk(sc->oauth_key);
+                ngx_str_t *hdr = &r->headers_in.authorization->value;
+                if (strncmp((char const *) hdr->data, "Bearer ", 7) == 0) {
+                        ngx_str_t scope = lc->oauth_scope;
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "scope data: %s", scope.data);
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "hdr data: %s", hdr->data);
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "hdr len: %d", hdr->len - 7);
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "scope len: %d", scope.len);
+                        
+                        char *uid = verify_oauth_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len);
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth user id: %s", uid);
+                } else {
+                        status = ZAUTH_PARSE_ERROR;
+                }                
+        }
+
+        // if zauth or oauth succeeds, we empty the Authorization header
         if (status == NGX_OK) {
                 return empty_authorization_header_in_headers_in(r);
         }
