@@ -54,20 +54,18 @@ import Servant.Swagger (HasSwagger (toSwagger))
 --                                ()
 --                       )
 -- @
-data SwaggerTag tag port
+data SwaggerTag service port
 
 -- | Adjust `Swagger` according to its `SwaggerTag`
 --
--- Unfortunately, paths are stored as keys in a `InsOrdMap.InsOrdHashMap`.
--- Because those have to be unique, prefix them with the @tag@ (service name.)
--- Otherwise, the `Monoid` instance of `Swagger.Swagger` would throw duplicated
--- paths away. The @tag@ is also used as a `Swagger.TagName` for all
--- `Swagger.Operations`.
-instance (HasSwagger b, KnownSymbol tag, KnownNat port) => HasSwagger (SwaggerTag tag port :> b) where
+-- As `SwaggerTags` are used for internal endpoints, use @port@ and @service@ to
+-- render a `kubectl` command that will allow the user to access the internal
+-- endpoint in the Kubernetes cluster.
+instance (HasSwagger b, KnownSymbol service, KnownNat port) => HasSwagger (SwaggerTag service port :> b) where
   toSwagger _ = tagSwagger $ toSwagger (Proxy :: Proxy b)
     where
-      tagString :: String
-      tagString = symbolVal (Proxy @tag)
+      serviceString :: String
+      serviceString = symbolVal (Proxy @service)
 
       portInteger :: Integer
       portInteger = natVal (Proxy @port)
@@ -78,41 +76,43 @@ instance (HasSwagger b, KnownSymbol tag, KnownNat port) => HasSwagger (SwaggerTa
       tagSwagger :: S.Swagger -> S.Swagger
       tagSwagger s =
         s
-          & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ tagString ++ ")")
-          & S.info . S.description ?~ renderDescription
+          & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ serviceString ++ ")")
+          & S.info . S.description ?~ renderedDescription
           & S.host ?~ S.Host "localhost" ((Just . fromInteger) portInteger)
           & allOperations . S.tags <>~ tag
 
       tag :: InsOrdSet.InsOrdHashSet S.TagName
-      tag = InsOrdSet.singleton @S.TagName (T.pack tagString)
+      tag = InsOrdSet.singleton @S.TagName (T.pack serviceString)
 
-      renderDescription :: Text
-      renderDescription =
+      renderedDescription :: Text
+      renderedDescription =
         T.pack . Imports.unlines $
-          [ "To have access to this *internal* endpoint, create a port forwarding to "
-              ++ tagString
-              ++ " into the Kubernetes cluster. E.g.:",
+          [ "To have access to this *internal* endpoint, create a port forwarding to `"
+              ++ serviceString
+              ++ "` into the Kubernetes cluster. E.g.:",
             "```",
             "kubectl port-forward -n wire service/"
-              ++ tagString
+              ++ serviceString
               ++ " "
               ++ portString
               ++ ":8080",
-            "```"
+            "```",
+            "**N.B.:** Execution via this UI won't work due to CORS issues."
+              ++ " But, the proposed `curl` commands will."
           ]
 
-instance HasServer api ctx => HasServer (SwaggerTag tag port :> api) ctx where
-  type ServerT (SwaggerTag tag port :> api) m = ServerT api m
+instance HasServer api ctx => HasServer (SwaggerTag service port :> api) ctx where
+  type ServerT (SwaggerTag service port :> api) m = ServerT api m
 
   route _ = route (Proxy :: Proxy api)
   hoistServerWithContext _ pc nt s =
     hoistServerWithContext (Proxy :: Proxy api) pc nt s
 
-instance RoutesToPaths api => RoutesToPaths (SwaggerTag tag port :> api) where
+instance RoutesToPaths api => RoutesToPaths (SwaggerTag service port :> api) where
   getRoutes = getRoutes @api
 
-instance HasClient m api => HasClient m (SwaggerTag tag port :> api) where
-  type Client m (SwaggerTag tag port :> api) = Client m api
+instance HasClient m api => HasClient m (SwaggerTag service port :> api) where
+  type Client m (SwaggerTag service port :> api) = Client m api
   clientWithRoute proxyM _ = clientWithRoute proxyM (Proxy @api)
   hoistClientMonad proxyM _ = hoistClientMonad proxyM (Proxy @api)
 
