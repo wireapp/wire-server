@@ -1,3 +1,6 @@
+import json
+import requests
+
 class Response:
     def __init__(self, method, url, request, response):
         self.method = method
@@ -20,9 +23,9 @@ class Response:
 
             # print response status code and JSON if present
             print("status code:", self.response.status_code)
+            print("response body:")
             try:
                 resp = self.response.json()
-                print("response body:")
                 print(json.dumps(resp, indent=True))
             except requests.exceptions.JSONDecodeError:
-                pass
+                print(self.response.text)
