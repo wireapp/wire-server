@@ -40,6 +40,7 @@ static void        delete_token      (void *);
 // Variable manipulation
 static ngx_int_t zauth_variables      (ngx_conf_t *);
 static ngx_int_t zauth_token_var      (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
+static ngx_int_t zauth_token_var_user (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_conn (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_conv (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_typeinfo (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
@@ -327,6 +328,19 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                         
                         char *uid = verify_oauth_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len);
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth user id: %s", uid);
+
+                        ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
+                        if (finaliser == NULL) {
+                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser is null");
+                                return NGX_ERROR;
+                        }
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser not null");
+
+                        // finaliser->handler = delete_token;
+                        finaliser->data = uid;
+                        ngx_http_set_ctx(r, uid, zauth_module);
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "user id set to context");
+                        status = NGX_OK;
                 } else {
                         status = ZAUTH_PARSE_ERROR;
                 }                
@@ -502,7 +516,7 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         z_type_var->get_handler = zauth_token_typeinfo;
         z_bot_var->get_handler  = zauth_token_var;
         z_bot_var->data         = 'b';
-        z_user_var->get_handler = zauth_token_var;
+        z_user_var->get_handler = zauth_token_var_user;
         z_user_var->data        = 'u';
         z_client_var->get_handler = zauth_token_var;
         z_client_var->data        = 'i';
@@ -599,6 +613,27 @@ static ngx_int_t zauth_token_var (ngx_http_request_t * r, ngx_http_variable_valu
         }
         
         return zauth_set_var(r->pool, v, zauth_token_lookup(t, data));
+}
+
+static ngx_int_t zauth_token_var_user (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t _) {
+        ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
+        if (t != NULL && zauth_is_authorized_and_allowed(r)) {
+                return zauth_set_var(r->pool, v, zauth_token_lookup(t, 'u'));
+        } else {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "tkn is NULL");
+                char const * oauth_uid = ngx_http_get_module_ctx(r, zauth_module);
+                if (oauth_uid != NULL) {
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid (not null): %s", oauth_uid);
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid (not null) len: %d", strlen(oauth_uid));
+                        ngx_int_t res = zauth_set_var(r->pool, v, (Range) { (u_char*) oauth_uid, strlen(oauth_uid) });
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "result: %d", res);
+                        return res;
+                } else {
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid is NULL");
+                        zauth_empty_val(v);
+                        return NGX_OK;
+                }
+        }
 }
 
 static ngx_int_t zauth_token_var_conn (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t _) {
