@@ -3,7 +3,7 @@ module Brig.API.Public.Swagger
     InternalEndpointsSwaggerDocsAPI,
     VersionedSwaggerDocsAPIBase,
     SwaggerDocsAPIBase,
-    Foo,
+    ServiceSwaggerDocsAPIBase,
     DocsAPI,
     pregenSwagger,
     swaggerPregenUIServer,
@@ -32,9 +32,9 @@ import Wire.API.Routes.Version
 
 type SwaggerDocsAPIBase path = SwaggerSchemaUI path "swagger.json"
 
-type Foo service = SwaggerSchemaUI service (AppendSymbol service "-swagger.json")
+type ServiceSwaggerDocsAPIBase service = SwaggerSchemaUI service (AppendSymbol service "-swagger.json")
 
-type VersionedSwaggerDocsAPIBase service = Header VersionHeader Version :> Foo service
+type VersionedSwaggerDocsAPIBase service = Header VersionHeader Version :> ServiceSwaggerDocsAPIBase service
 
 type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> SwaggerDocsAPIBase "swagger-ui"
 

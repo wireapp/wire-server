@@ -195,7 +195,7 @@ internalEndpointsSwaggerDocsAPI _ (Just V1) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ (Just V2) = emptySwagger
 internalEndpointsSwaggerDocsAPI swagger Nothing = internalEndpointsSwaggerDocsAPI swagger (Just maxBound)
 
-emptySwagger :: Servant.Server (Foo a)
+emptySwagger :: Servant.Server (ServiceSwaggerDocsAPIBase a)
 emptySwagger =
   swaggerSchemaUIServer $
     mempty @S.Swagger
