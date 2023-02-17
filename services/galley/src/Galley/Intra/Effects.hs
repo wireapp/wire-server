@@ -43,7 +43,11 @@ import qualified Polysemy.TinyLog as P
 import qualified UnliftIO
 
 interpretBrigAccess ::
-  Members '[Embed IO, Error InternalError, P.TinyLog, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Error InternalError) r,
+    Member P.TinyLog r,
+    Member (Input Env) r
+  ) =>
   Sem (BrigAccess ': r) a ->
   Sem r a
 interpretBrigAccess = interpret $ \case
@@ -95,7 +99,9 @@ interpretBrigAccess = interpret $ \case
     embedApp $ updateSearchVisibilityInbound status
 
 interpretSparAccess ::
-  Members '[Embed IO, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input Env) r
+  ) =>
   Sem (SparAccess ': r) a ->
   Sem r a
 interpretSparAccess = interpret $ \case
@@ -103,14 +109,18 @@ interpretSparAccess = interpret $ \case
   LookupScimUserInfos uids -> embedApp $ lookupScimUserInfos uids
 
 interpretBotAccess ::
-  Members '[Embed IO, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input Env) r
+  ) =>
   Sem (BotAccess ': r) a ->
   Sem r a
 interpretBotAccess = interpret $ \case
   DeleteBot cid bid -> embedApp $ deleteBot cid bid
 
 interpretGundeckAccess ::
-  Members '[Embed IO, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input Env) r
+  ) =>
   Sem (GundeckAccess ': r) a ->
   Sem r a
 interpretGundeckAccess = interpret $ \case

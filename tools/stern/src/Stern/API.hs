@@ -44,7 +44,6 @@ import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Data.Text as T
 import GHC.TypeLits (KnownSymbol)
-import qualified Galley.Types.Teams.Intra as Team
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
@@ -63,6 +62,7 @@ import Util.Options
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.SearchVisibility

@@ -101,113 +101,109 @@ data NoChanges = NoChanges
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
-    Members
-      '[ BrigAccess,
-         Error FederationError,
-         Error InternalError,
-         ErrorS 'NotATeamMember,
-         ErrorS 'NotConnected,
-         ErrorS ('ActionDenied 'LeaveConversation),
-         ErrorS ('ActionDenied 'AddConversationMember),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvNotFound,
-         ErrorS 'TooManyMembers,
-         ErrorS 'MissingLegalholdConsent,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input Opts,
-         Input UTCTime,
-         LegalHoldStore,
-         MemberStore,
-         ProposalStore,
-         SubConversationStore,
-         TeamStore,
-         TinyLog,
-         ConversationStore,
-         Error NoChanges
-       ]
-      r
+    ( Member BrigAccess r,
+      Member (Error FederationError) r,
+      Member (Error InternalError) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS 'NotConnected) r,
+      Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
+      Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
+      Member (ErrorS 'InvalidOperation) r,
+      Member (ErrorS 'ConvAccessDenied) r,
+      Member (ErrorS 'ConvNotFound) r,
+      Member (ErrorS 'TooManyMembers) r,
+      Member (ErrorS 'MissingLegalholdConsent) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Input Env) r,
+      Member (Input Opts) r,
+      Member (Input UTCTime) r,
+      Member LegalHoldStore r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member SubConversationStore r,
+      Member TeamStore r,
+      Member TinyLog r,
+      Member ConversationStore r,
+      Member (Error NoChanges) r
+    )
   HasConversationActionEffects 'ConversationLeaveTag r =
-    ( Members
-        '[ Error InternalError,
-           Error NoChanges,
-           ExternalAccess,
-           FederatorAccess,
-           GundeckAccess,
-           Input Env,
-           Input UTCTime,
-           MemberStore,
-           ProposalStore,
-           SubConversationStore,
-           TinyLog
-         ]
-        r
+    ( Member MemberStore r,
+      Member (Error InternalError) r,
+      Member (Error NoChanges) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Input UTCTime) r,
+      Member (Input Env) r,
+      Member ProposalStore r,
+      Member SubConversationStore r,
+      Member TinyLog r
     )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
-    ( Members
-        '[ MemberStore,
-           SubConversationStore,
-           ProposalStore,
-           Input Env,
-           Input UTCTime,
-           ExternalAccess,
-           FederatorAccess,
-           GundeckAccess,
-           Error InternalError,
-           Error NoChanges,
-           TinyLog
-         ]
-        r
+    ( Member MemberStore r,
+      Member (Error NoChanges) r,
+      Member SubConversationStore r,
+      Member ProposalStore r,
+      Member (Input Env) r,
+      Member (Input UTCTime) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Error InternalError) r,
+      Member TinyLog r
     )
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
-    (Members '[MemberStore, ErrorS 'ConvMemberNotFound] r)
+    ( Member MemberStore r,
+      Member (ErrorS 'ConvMemberNotFound) r
+    )
   HasConversationActionEffects 'ConversationDeleteTag r =
-    Members
-      '[ Error FederationError,
-         ErrorS 'NotATeamMember,
-         BrigAccess,
-         CodeStore,
-         ConversationStore,
-         FederatorAccess,
-         MemberStore,
-         TeamStore,
-         ProposalStore,
-         SubConversationStore
-       ]
-      r
+    ( Member BrigAccess r,
+      Member CodeStore r,
+      Member ConversationStore r,
+      Member (Error FederationError) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member FederatorAccess r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member SubConversationStore r,
+      Member TeamStore r
+    )
   HasConversationActionEffects 'ConversationRenameTag r =
-    Members '[Error InvalidInput, ConversationStore] r
+    ( Member (Error InvalidInput) r,
+      Member ConversationStore r
+    )
   HasConversationActionEffects 'ConversationAccessDataTag r =
-    Members
-      '[ BotAccess,
-         BrigAccess,
-         CodeStore,
-         Error InternalError,
-         Error InvalidInput,
-         Error NoChanges,
-         ErrorS 'InvalidTargetAccess,
-         ErrorS ('ActionDenied 'RemoveConversationMember),
-         ExternalAccess,
-         FederatorAccess,
-         FireAndForget,
-         GundeckAccess,
-         Input Env,
-         MemberStore,
-         ProposalStore,
-         SubConversationStore,
-         TeamStore,
-         TinyLog,
-         Input UTCTime,
-         ConversationStore
-       ]
-      r
+    ( Member BotAccess r,
+      Member BrigAccess r,
+      Member CodeStore r,
+      Member (Error InternalError) r,
+      Member (Error InvalidInput) r,
+      Member (Error NoChanges) r,
+      Member (ErrorS 'InvalidTargetAccess) r,
+      Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member FireAndForget r,
+      Member GundeckAccess r,
+      Member (Input Env) r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member TeamStore r,
+      Member TinyLog r,
+      Member (Input UTCTime) r,
+      Member ConversationStore r,
+      Member SubConversationStore r
+    )
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
-    Members '[ConversationStore, Error NoChanges] r
+    ( Member ConversationStore r,
+      Member (Error NoChanges) r
+    )
   HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
-    Members '[ConversationStore, Error NoChanges] r
+    ( Member ConversationStore r,
+      Member (Error NoChanges) r
+    )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
@@ -443,14 +439,12 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     conv = tUnqualified lconv
 
     checkLocals ::
-      Members
-        '[ BrigAccess,
-           ErrorS 'NotATeamMember,
-           ErrorS 'NotConnected,
-           ErrorS 'ConvAccessDenied,
-           TeamStore
-         ]
-        r =>
+      ( Member BrigAccess r,
+        Member (ErrorS 'NotATeamMember) r,
+        Member (ErrorS 'NotConnected) r,
+        Member (ErrorS 'ConvAccessDenied) r,
+        Member TeamStore r
+      ) =>
       Local UserId ->
       Maybe TeamId ->
       [UserId] ->
@@ -467,13 +461,11 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedOrSameTeam lusr newUsers
 
     checkRemotes ::
-      Members
-        '[ BrigAccess,
-           Error FederationError,
-           ErrorS 'NotConnected,
-           FederatorAccess
-         ]
-        r =>
+      ( Member BrigAccess r,
+        Member (Error FederationError) r,
+        Member (ErrorS 'NotConnected) r,
+        Member FederatorAccess r
+      ) =>
       Local UserId ->
       [Remote UserId] ->
       Sem r ()
@@ -486,27 +478,21 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedToRemotes lusr remotes
 
     checkLHPolicyConflictsLocal ::
-      Members
-        '[ ConversationStore,
-           Error InternalError,
-           ErrorS ('ActionDenied 'LeaveConversation),
-           ErrorS 'ConvNotFound,
-           ErrorS 'InvalidOperation,
-           ErrorS 'MissingLegalholdConsent,
-           ExternalAccess,
-           FederatorAccess,
-           GundeckAccess,
-           Input Env,
-           Input Opts,
-           Input UTCTime,
-           LegalHoldStore,
-           MemberStore,
-           ProposalStore,
-           SubConversationStore,
-           TeamStore,
-           TinyLog
-         ]
-        r =>
+      ( Member (Error InternalError) r,
+        Member (ErrorS 'MissingLegalholdConsent) r,
+        Member ExternalAccess r,
+        Member FederatorAccess r,
+        Member GundeckAccess r,
+        Member (Input Env) r,
+        Member (Input Opts) r,
+        Member (Input UTCTime) r,
+        Member LegalHoldStore r,
+        Member MemberStore r,
+        Member ProposalStore r,
+        Member SubConversationStore r,
+        Member TeamStore r,
+        Member TinyLog r
+      ) =>
       [UserId] ->
       Sem r ()
     checkLHPolicyConflictsLocal newUsers = do
@@ -637,20 +623,15 @@ data LocalConversationUpdate = LocalConversationUpdate
 
 updateLocalConversation ::
   forall tag r.
-  ( Members
-      '[ ConversationStore,
-         Error NoChanges,
-         ErrorS ('ActionDenied (ConversationActionPermission tag)),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input UTCTime,
-         SubConversationStore
-       ]
-      r,
+  ( Member ConversationStore r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member SubConversationStore r,
     HasConversationActionEffects tag r,
     SingI tag,
     CallsFed 'Galley "on-new-remote-conversation",
@@ -735,11 +716,9 @@ ensureConversationActionAllowed ::
   forall tag mem x r.
   ( IsConvMember mem,
     HasConversationActionEffects tag r,
-    Members
-      '[ ErrorS ('ActionDenied (ConversationActionPermission tag)),
-         ErrorS 'InvalidOperation
-       ]
-      r
+    ( Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
+      Member (ErrorS 'InvalidOperation) r
+    )
   ) =>
   Sing tag ->
   Local x ->
@@ -761,7 +740,9 @@ ensureConversationActionAllowed tag loc action conv self = do
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.
 addMembersToLocalConversation ::
-  Members '[MemberStore, Error NoChanges] r =>
+  ( Member MemberStore r,
+    Member (Error NoChanges) r
+  ) =>
   Local ConvId ->
   UserList UserId ->
   RoleName ->
@@ -774,14 +755,11 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Members
-      '[ FederatorAccess,
-         ExternalAccess,
-         GundeckAccess,
-         Input UTCTime,
-         SubConversationStore
-       ]
-      r,
+  ( Member FederatorAccess r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member SubConversationStore r,
     CallsFed 'Galley "on-new-remote-conversation",
     CallsFed 'Galley "on-new-remote-subconversation",
     CallsFed 'Galley "on-conversation-updated"
@@ -851,14 +829,11 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
 -- | Notify all local members about a remote conversation update that originated
 -- from a local user
 notifyRemoteConversationAction ::
-  Members
-    '[ FederatorAccess,
-       ExternalAccess,
-       GundeckAccess,
-       MemberStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member P.TinyLog r
+  ) =>
   Local x ->
   Remote ConversationUpdate ->
   Maybe ConnId ->

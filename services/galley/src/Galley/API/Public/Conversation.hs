@@ -59,7 +59,7 @@ conversationAPI =
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" (callsFed addMembersUnqualified)
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" (callsFed addMembersUnqualifiedV2)
     <@> mkNamedAPI @"add-members-to-conversation" (callsFed addMembers)
-    <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed (joinConversationById @Cassandra))
+    <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed joinConversationById)
     <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed (joinConversationByReusableCode @Cassandra))
     <@> mkNamedAPI @"code-check" (checkReusableCode @Cassandra)
     <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualified @Cassandra)

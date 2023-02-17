@@ -25,8 +25,11 @@ def make_constraint(e):
 
 def f(m):
     effects = re.split(r'\s*,\s*', m.group(1))
-    constraints = ', '.join(make_constraint(e) for e in effects)
-    return f'({constraints})'
+    constraints = [make_constraint(e) for e in effects]
+    s = ',\n             '.join(constraints)
+    if len(constraints) > 1:
+        s = f'({s})'
+    return s
 
 code = open(sys.argv[1]).read()
 print(re.sub(r"Members\s+'\[\s*([^\]]*)\s*\]\s+r", f, code, flags=re.MULTILINE),

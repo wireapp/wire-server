@@ -42,12 +42,10 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
 getLocalConvForUser ::
-  Members
-    '[ ErrorS 'ConvNotFound,
-       ConversationStore,
-       MemberStore
-     ]
-    r =>
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member ConversationStore r,
+    Member MemberStore r
+  ) =>
   Qualified UserId ->
   Local ConvId ->
   Sem r Data.Conversation
@@ -61,7 +59,9 @@ getLocalConvForUser qusr lcnv = do
   pure conv
 
 getPendingBackendRemoveProposals ::
-  Members '[ProposalStore, TinyLog] r =>
+  ( Member ProposalStore r,
+    Member TinyLog r
+  ) =>
   GroupId ->
   Epoch ->
   Sem r [KeyPackageRef]

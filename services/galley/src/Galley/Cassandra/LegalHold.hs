@@ -55,7 +55,10 @@ import Wire.API.Provider.Service
 import Wire.API.User.Client.Prekey
 
 interpretLegalHoldStoreToCassandra ::
-  Members '[Embed IO, Input ClientState, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member (Input Env) r
+  ) =>
   FeatureLegalHold ->
   Sem (LegalHoldStore ': r) a ->
   Sem r a

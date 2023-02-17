@@ -82,7 +82,9 @@ data RequestData = RequestData
   }
 
 parseRequestData ::
-  Members '[Error ServerError, Embed IO] r =>
+  ( Member (Error ServerError) r,
+    Member (Embed IO) r
+  ) =>
   Wai.Request ->
   Sem r RequestData
 parseRequestData req = do
@@ -112,7 +114,12 @@ parseRequestData req = do
       }
 
 callOutward ::
-  Members '[Remote, Embed IO, Error ValidationError, Error ServerError, Input RunSettings] r =>
+  ( Member Remote r,
+    Member (Embed IO) r,
+    Member (Error ValidationError) r,
+    Member (Error ServerError) r,
+    Member (Input RunSettings) r
+  ) =>
   Wai.Request ->
   Sem r Wai.Response
 callOutward req = do

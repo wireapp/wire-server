@@ -35,16 +35,13 @@ import Wire.Sem.Concurrency
 
 sitemap ::
   forall r p.
-  ( Members
-      '[ BlacklistPhonePrefixStore,
-         BlacklistStore,
-         GalleyProvider,
-         CodeStore,
-         Concurrency 'Unsafe,
-         PasswordResetStore,
-         UserPendingActivationStore p
-       ]
-      r
+  ( Member BlacklistPhonePrefixStore r,
+    Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member CodeStore r,
+    Member (Concurrency 'Unsafe) r,
+    Member PasswordResetStore r,
+    Member (UserPendingActivationStore p) r
   ) =>
   Routes () (Handler r) ()
 sitemap = do

@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,32 +15,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Routes.Internal.LegalHold where
+module Wire.API.Routes.Internal.Spar where
 
 import Control.Lens
 import Data.Id
-import Data.Proxy
 import Data.Swagger
 import Imports
-import Servant.API hiding (Header, WithStatus)
+import Servant
 import Servant.Swagger
 import Wire.API.SwaggerServant
-import Wire.API.Team.Feature
+import Wire.API.User
+import Wire.API.User.Saml
 
-type InternalLegalHoldAPI =
-  SwaggerTag "legalhold"
+type InternalAPI =
+  SwaggerTag "spar"
     :> "i"
-    :> "teams"
-    :> ( Capture "tid" TeamId
-           :> "legalhold"
-           :> Get '[JSON] (WithStatus LegalholdConfig)
-           :<|> Capture "tid" TeamId
-             :> "legalhold"
-             :> ReqBody '[JSON] (WithStatusNoLock LegalholdConfig)
-             :> Put '[] NoContent
+    :> ( "status" :> Get '[JSON] NoContent
+           :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent
+           :<|> "sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent
+           :<|> "scim" :> "userinfos" :> ReqBody '[JSON] UserSet :> Post '[JSON] ScimUserInfos
        )
 
 swaggerDoc :: Swagger
 swaggerDoc =
-  toSwagger (Proxy @InternalLegalHoldAPI)
-    & info . title .~ "Wire-Server internal legalhold API"
+  toSwagger (Proxy @InternalAPI)
+    & info . title .~ "Wire-Server internal spar API"

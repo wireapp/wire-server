@@ -32,7 +32,6 @@ import Data.Either.Combinators hiding (fromRight)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Galley.Types.Bot ()
-import Galley.Types.Teams.Intra
 import Imports
 import Wire.API.Asset (AssetKey, assetKeyToText)
 import Wire.API.Conversation
@@ -42,6 +41,7 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility

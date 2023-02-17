@@ -87,7 +87,12 @@ runWaiError =
     . mapError toWai
     . raiseUnder
   where
-    logError :: Members '[Error Wai.Error, TinyLog] r => Wai.Error -> Sem r a
+    logError ::
+      ( Member (Error Wai.Error) r,
+        Member TinyLog r
+      ) =>
+      Wai.Error ->
+      Sem r a
     logError e = do
       err $ Wai.logErrorMsg e
       throw e

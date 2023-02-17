@@ -26,7 +26,6 @@ import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
 import Data.Time
-import Galley.API.Error
 import Galley.API.MLS.Conversation
 import Galley.API.MLS.Keys (getMLSRemovalKey)
 import Galley.API.MLS.Propagate
@@ -39,7 +38,6 @@ import qualified Galley.Effects.SubConversationStore as E
 import Galley.Env
 import Imports
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
@@ -54,16 +52,13 @@ import Wire.API.MLS.SubConversation
 
 -- | Send remove proposals for a set of clients to clients in the ClientMap.
 createAndSendRemoveProposals ::
-  ( Members
-      '[ Input UTCTime,
-         TinyLog,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         ProposalStore,
-         Input Env
-       ]
-      r,
+  ( Member (Input UTCTime) r,
+    Member TinyLog r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member ProposalStore r,
+    Member (Input Env) r,
     Foldable t,
     CallsFed 'Galley "on-mls-message-sent"
   ) =>
@@ -134,19 +129,15 @@ removeClientsWithClientMapRecursively lMlsConv getKPs qusr = do
 
 -- | Send remove proposals for a single client of a user to the local conversation.
 removeClient ::
-  ( Members
-      '[ Error InternalError,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input UTCTime,
-         MemberStore,
-         ProposalStore,
-         SubConversationStore,
-         TinyLog
-       ]
-      r,
+  ( Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member SubConversationStore r,
+    Member TinyLog r,
     CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->
@@ -161,19 +152,15 @@ removeClient lc qusr cid = do
 
 -- | Send remove proposals for all clients of the user to the local conversation.
 removeUser ::
-  ( Members
-      '[ Error InternalError,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input UTCTime,
-         MemberStore,
-         ProposalStore,
-         SubConversationStore,
-         TinyLog
-       ]
-      r,
+  ( Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member SubConversationStore r,
+    Member TinyLog r,
     CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Local Data.Conversation ->

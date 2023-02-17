@@ -33,7 +33,7 @@ newtype TeamFeatureNoConfigMultiRequest = TeamFeatureNoConfigMultiRequest
   { teams :: [TeamId]
   }
   deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON) via (Schema TeamFeatureNoConfigMultiRequest)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema TeamFeatureNoConfigMultiRequest
 
 instance ToSchema TeamFeatureNoConfigMultiRequest where
   schema =
@@ -45,7 +45,7 @@ newtype TeamFeatureNoConfigMultiResponse cfg = TeamFeatureNoConfigMultiResponse
   { teamsStatuses :: [TeamStatus cfg]
   }
   deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON) via (Schema (TeamFeatureNoConfigMultiResponse cfg))
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (TeamFeatureNoConfigMultiResponse cfg)
 
 instance ToSchema (TeamFeatureNoConfigMultiResponse cfg) where
   schema =
@@ -58,7 +58,7 @@ data TeamStatus cfg = TeamStatus
     status :: Public.FeatureStatus
   }
   deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema (TeamStatus cfg))
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (TeamStatus cfg)
 
 instance ToSchema (TeamStatus cfg) where
   schema =

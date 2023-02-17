@@ -201,7 +201,7 @@ initHttpManager o = do
       }
 
 interpretTinyLog ::
-  Members '[Embed IO] r =>
+  Member (Embed IO) r =>
   Env ->
   Sem (P.TinyLog ': r) a ->
   Sem r a

@@ -282,7 +282,10 @@ localConversation cid =
         )
 
 localConversations ::
-  Members '[Embed IO, Input ClientState, TinyLog] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member TinyLog r
+  ) =>
   [ConvId] ->
   Sem r [Conversation]
 localConversations =
@@ -427,7 +430,10 @@ deleteGroupIds =
   embedClient . UnliftIO.pooledMapConcurrentlyN_ 8 deleteGroupIdForConversation
 
 interpretConversationStoreToCassandra ::
-  Members '[Embed IO, Input ClientState, TinyLog] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member TinyLog r
+  ) =>
   Sem (ConversationStore ': r) a ->
   Sem r a
 interpretConversationStoreToCassandra = interpret $ \case

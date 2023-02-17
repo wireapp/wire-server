@@ -81,10 +81,8 @@ import Galley.API.MLS.Types
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.One2One
 import qualified Galley.Types.Teams as Team
-import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports
 import qualified Network.HTTP.Client as HTTP
@@ -129,7 +127,9 @@ import Wire.API.MLS.SubConversation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
 import Wire.API.Team

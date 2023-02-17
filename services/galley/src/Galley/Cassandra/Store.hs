@@ -25,7 +25,12 @@ import Imports
 import Polysemy
 import Polysemy.Input
 
-embedClient :: Members '[Embed IO, Input ClientState] r => Client a -> Sem r a
+embedClient ::
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
+  Client a ->
+  Sem r a
 embedClient client = do
   cs <- input
   embed @IO $ runClient cs client
