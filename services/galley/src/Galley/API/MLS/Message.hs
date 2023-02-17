@@ -119,28 +119,26 @@ type MLSBundleStaticErrors =
 
 postMLSMessageFromLocalUserV1 ::
   ( HasProposalEffects r,
-    Members
-      '[ Error FederationError,
-         Error InternalError,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvMemberNotFound,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MissingLegalholdConsent,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSGroupConversationMismatch,
-         ErrorS 'MLSMissingSenderClient,
-         ErrorS 'MLSNotEnabled,
-         ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSSelfRemovalNotAllowed,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnsupportedMessage,
-         Input (Local ()),
-         ProposalStore,
-         Resource,
-         TinyLog
-       ]
-      r,
+    ( Member (Error FederationError) r,
+      Member (Error InternalError) r,
+      Member (ErrorS 'ConvAccessDenied) r,
+      Member (ErrorS 'ConvMemberNotFound) r,
+      Member (ErrorS 'ConvNotFound) r,
+      Member (ErrorS 'MissingLegalholdConsent) r,
+      Member (ErrorS 'MLSClientSenderUserMismatch) r,
+      Member (ErrorS 'MLSCommitMissingReferences) r,
+      Member (ErrorS 'MLSGroupConversationMismatch) r,
+      Member (ErrorS 'MLSMissingSenderClient) r,
+      Member (ErrorS 'MLSNotEnabled) r,
+      Member (ErrorS 'MLSProposalNotFound) r,
+      Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+      Member (ErrorS 'MLSStaleMessage) r,
+      Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (Input (Local ())) r,
+      Member ProposalStore r,
+      Member Resource r,
+      Member TinyLog r
+    ),
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Galley "on-conversation-updated",
@@ -162,28 +160,26 @@ postMLSMessageFromLocalUserV1 lusr mc conn smsg = do
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
-    Members
-      '[ Error FederationError,
-         Error InternalError,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvMemberNotFound,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MissingLegalholdConsent,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSGroupConversationMismatch,
-         ErrorS 'MLSMissingSenderClient,
-         ErrorS 'MLSNotEnabled,
-         ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSSelfRemovalNotAllowed,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnsupportedMessage,
-         Input (Local ()),
-         ProposalStore,
-         Resource,
-         TinyLog
-       ]
-      r,
+    ( Member (Error FederationError) r,
+      Member (Error InternalError) r,
+      Member (ErrorS 'ConvAccessDenied) r,
+      Member (ErrorS 'ConvMemberNotFound) r,
+      Member (ErrorS 'ConvNotFound) r,
+      Member (ErrorS 'MissingLegalholdConsent) r,
+      Member (ErrorS 'MLSClientSenderUserMismatch) r,
+      Member (ErrorS 'MLSCommitMissingReferences) r,
+      Member (ErrorS 'MLSGroupConversationMismatch) r,
+      Member (ErrorS 'MLSMissingSenderClient) r,
+      Member (ErrorS 'MLSNotEnabled) r,
+      Member (ErrorS 'MLSProposalNotFound) r,
+      Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+      Member (ErrorS 'MLSStaleMessage) r,
+      Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (Input (Local ())) r,
+      Member ProposalStore r,
+      Member Resource r,
+      Member TinyLog r
+    ),
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Galley "on-conversation-updated",
@@ -206,20 +202,18 @@ postMLSMessageFromLocalUser lusr mc conn msg = do
 postMLSCommitBundle ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
-    Members
-      '[ BrigAccess,
-         Error FederationError,
-         Error InternalError,
-         Error MLSProtocolError,
-         Input (Local ()),
-         Input Opts,
-         Input UTCTime,
-         MemberStore,
-         ProposalStore,
-         Resource,
-         TinyLog
-       ]
-      r,
+    ( Member BrigAccess r,
+      Member (Error FederationError) r,
+      Member (Error InternalError) r,
+      Member (Error MLSProtocolError) r,
+      Member (Input (Local ())) r,
+      Member (Input Opts) r,
+      Member (Input UTCTime) r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member Resource r,
+      Member TinyLog r
+    ),
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "mls-welcome",
     CallsFed 'Galley "send-mls-commit-bundle",
@@ -244,20 +238,18 @@ postMLSCommitBundle loc qusr mc qcnv conn rawBundle =
 postMLSCommitBundleFromLocalUser ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
-    Members
-      '[ BrigAccess,
-         Error FederationError,
-         Error InternalError,
-         ErrorS 'MLSNotEnabled,
-         Input (Local ()),
-         Input Opts,
-         Input UTCTime,
-         MemberStore,
-         ProposalStore,
-         Resource,
-         TinyLog
-       ]
-      r,
+    ( Member BrigAccess r,
+      Member (Error FederationError) r,
+      Member (Error InternalError) r,
+      Member (ErrorS 'MLSNotEnabled) r,
+      Member (Input (Local ())) r,
+      Member (Input Opts) r,
+      Member (Input UTCTime) r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member Resource r,
+      Member TinyLog r
+    ),
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "mls-welcome",
     CallsFed 'Galley "send-mls-commit-bundle",
@@ -283,18 +275,16 @@ postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
     Members MLSBundleStaticErrors r,
-    Members
-      '[ BrigAccess,
-         Error FederationError,
-         Error InternalError,
-         Error MLSProtocolError,
-         Input Opts,
-         Input UTCTime,
-         ProposalStore,
-         Resource,
-         TinyLog
-       ]
-      r,
+    ( Member BrigAccess r,
+      Member (Error FederationError) r,
+      Member (Error InternalError) r,
+      Member (Error MLSProtocolError) r,
+      Member (Input Opts) r,
+      Member (Input UTCTime) r,
+      Member ProposalStore r,
+      Member Resource r,
+      Member TinyLog r
+    ),
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "mls-welcome",
     CallsFed 'Galley "on-conversation-updated",
@@ -354,17 +344,15 @@ postMLSCommitBundleToLocalConv qusr mc conn bundle lcnv = do
 
 postMLSCommitBundleToRemoteConv ::
   ( Members MLSBundleStaticErrors r,
-    Members
-      '[ Error FederationError,
-         Error MLSProtocolError,
-         Error MLSProposalFailure,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         MemberStore,
-         TinyLog
-       ]
-      r,
+    ( Member (Error FederationError) r,
+      Member (Error MLSProtocolError) r,
+      Member (Error MLSProposalFailure) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member MemberStore r,
+      Member TinyLog r
+    ),
     CallsFed 'Galley "send-mls-commit-bundle"
   ) =>
   Local x ->
@@ -399,28 +387,26 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
 
 postMLSMessage ::
   ( HasProposalEffects r,
-    Members
-      '[ Error FederationError,
-         Error InternalError,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvMemberNotFound,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MLSNotEnabled,
-         ErrorS 'MissingLegalholdConsent,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSGroupConversationMismatch,
-         ErrorS 'MLSMissingSenderClient,
-         ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSSelfRemovalNotAllowed,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnsupportedMessage,
-         Input (Local ()),
-         ProposalStore,
-         Resource,
-         TinyLog
-       ]
-      r,
+    ( Member (Error FederationError) r,
+      Member (Error InternalError) r,
+      Member (ErrorS 'ConvAccessDenied) r,
+      Member (ErrorS 'ConvMemberNotFound) r,
+      Member (ErrorS 'ConvNotFound) r,
+      Member (ErrorS 'MLSNotEnabled) r,
+      Member (ErrorS 'MissingLegalholdConsent) r,
+      Member (ErrorS 'MLSClientSenderUserMismatch) r,
+      Member (ErrorS 'MLSCommitMissingReferences) r,
+      Member (ErrorS 'MLSGroupConversationMismatch) r,
+      Member (ErrorS 'MLSMissingSenderClient) r,
+      Member (ErrorS 'MLSProposalNotFound) r,
+      Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+      Member (ErrorS 'MLSStaleMessage) r,
+      Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member (Input (Local ())) r,
+      Member ProposalStore r,
+      Member Resource r,
+      Member TinyLog r
+    ),
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "send-mls-message",
     CallsFed 'Galley "on-conversation-updated",
@@ -448,12 +434,9 @@ postMLSMessage loc qusr mc qcnv con smsg = case rmValue smsg of
 --
 -- The check is skipped in case of conversation creation and encrypted messages.
 getSenderClient ::
-  ( Members
-      '[ ErrorS 'MLSKeyPackageRefNotFound,
-         ErrorS 'MLSClientSenderUserMismatch,
-         BrigAccess
-       ]
-      r
+  ( Member (ErrorS 'MLSKeyPackageRefNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member BrigAccess r
   ) =>
   Qualified UserId ->
   SWireFormatTag tag ->
@@ -473,12 +456,9 @@ getSenderClient qusr SMLSPlainText msg = case msgSender msg of
 -- FUTUREWORK: once we can assume that the Z-Client header is present (i.e.
 -- when v2 is dropped), remove the Maybe in the return type.
 getSenderIdentity ::
-  ( Members
-      '[ ErrorS 'MLSKeyPackageRefNotFound,
-         ErrorS 'MLSClientSenderUserMismatch,
-         BrigAccess
-       ]
-      r
+  ( Member (ErrorS 'MLSKeyPackageRefNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member BrigAccess r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -495,23 +475,21 @@ getSenderIdentity qusr mc fmt msg = do
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
-    Members
-      '[ Error FederationError,
-         Error InternalError,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MissingLegalholdConsent,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSMissingSenderClient,
-         ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSSelfRemovalNotAllowed,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnsupportedMessage,
-         ProposalStore,
-         Resource,
-         TinyLog
-       ]
-      r,
+    ( Member (Error FederationError) r,
+      Member (Error InternalError) r,
+      Member (ErrorS 'ConvNotFound) r,
+      Member (ErrorS 'MissingLegalholdConsent) r,
+      Member (ErrorS 'MLSClientSenderUserMismatch) r,
+      Member (ErrorS 'MLSCommitMissingReferences) r,
+      Member (ErrorS 'MLSMissingSenderClient) r,
+      Member (ErrorS 'MLSProposalNotFound) r,
+      Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+      Member (ErrorS 'MLSStaleMessage) r,
+      Member (ErrorS 'MLSUnsupportedMessage) r,
+      Member ProposalStore r,
+      Member Resource r,
+      Member TinyLog r
+    ),
     CallsFed 'Galley "on-mls-message-sent",
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-new-remote-conversation",
@@ -553,7 +531,9 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
-    Members '[Error FederationError, TinyLog] r,
+    ( Member (Error FederationError) r,
+      Member TinyLog r
+    ),
     HasProposalEffects r,
     CallsFed 'Galley "send-mls-message"
   ) =>
@@ -691,26 +671,23 @@ processCommit qusr senderClient con lconv mlsMeta cm epoch sender commit = do
 
 processExternalCommit ::
   forall r.
-  ( Members
-      '[ BrigAccess,
-         ConversationStore,
-         Error MLSProtocolError,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSKeyPackageRefNotFound,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSMissingSenderClient,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input UTCTime,
-         MemberStore,
-         ProposalStore,
-         Resource,
-         TinyLog
-       ]
-      r,
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Error MLSProtocolError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSClientSenderUserMismatch) r,
+    Member (ErrorS 'MLSKeyPackageRefNotFound) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member Resource r,
+    Member TinyLog r,
     CallsFed 'Galley "on-mls-message-sent"
   ) =>
   Qualified UserId ->
@@ -934,7 +911,9 @@ processInternalCommit qusr senderClient con lconv mlsMeta cm epoch action sender
 
 -- | Note: Use this only for KeyPackage that are already validated
 updateKeyPackageMapping ::
-  Members '[BrigAccess, MemberStore] r =>
+  ( Member BrigAccess r,
+    Member MemberStore r
+  ) =>
   Local Data.Conversation ->
   GroupId ->
   Qualified UserId ->
@@ -962,13 +941,11 @@ updateKeyPackageMapping lconv groupId qusr cid mOld new = do
 
 applyProposalRef ::
   ( HasProposalEffects r,
-    Members
-      '[ ErrorS 'ConvNotFound,
-         ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSStaleMessage,
-         ProposalStore
-       ]
-      r
+    ( Member (ErrorS 'ConvNotFound) r,
+      Member (ErrorS 'MLSProposalNotFound) r,
+      Member (ErrorS 'MLSStaleMessage) r,
+      Member ProposalStore r
+    )
   ) =>
   Data.Conversation ->
   ConversationMLSData ->
@@ -1032,11 +1009,7 @@ applyProposal _conv _groupId (ExternalInitProposal _) =
 applyProposal _conv _groupId _ = pure mempty
 
 checkProposalCipherSuite ::
-  Members
-    '[ Error MLSProtocolError,
-       ProposalStore
-     ]
-    r =>
+  Member (Error MLSProtocolError) r =>
   CipherSuiteTag ->
   Proposal ->
   Sem r ()
@@ -1055,14 +1028,9 @@ checkProposalCipherSuite _suite _prop = pure ()
 
 processProposal ::
   HasProposalEffects r =>
-  Members
-    '[ Error MLSProtocolError,
-       ErrorS 'ConvNotFound,
-       ErrorS 'MLSStaleMessage,
-       ProposalStore,
-       Input (Local ())
-     ]
-    r =>
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSStaleMessage) r
+  ) =>
   Qualified UserId ->
   Data.Conversation ->
   ConversationMLSData ->
@@ -1101,10 +1069,7 @@ processProposal qusr conv mlsMeta msg prop = do
   storeProposal (msgGroupId msg) (msgEpoch msg) propRef ProposalOriginClient prop
 
 checkExternalProposalSignature ::
-  Members
-    '[ ErrorS 'MLSUnsupportedProposal
-     ]
-    r =>
+  Member (ErrorS 'MLSUnsupportedProposal) r =>
   CipherSuiteTag ->
   Message 'MLSPlainText ->
   RawMLS Proposal ->
@@ -1123,12 +1088,10 @@ isExternalProposal msg = case msgSender msg of
 
 -- check owner/subject of the key package exists and belongs to the user
 checkExternalProposalUser ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'MLSUnsupportedProposal,
-       Input (Local ())
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (Input (Local ())) r
+  ) =>
   Qualified UserId ->
   Proposal ->
   Sem r ()
@@ -1322,7 +1285,8 @@ handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
 
 getClientInfo ::
-  ( Members '[BrigAccess, FederatorAccess] r,
+  ( Member BrigAccess r,
+    Member FederatorAccess r,
     CallsFed 'Brig "get-mls-clients"
   ) =>
   Local x ->
@@ -1348,10 +1312,7 @@ getRemoteMLSClients rusr ss = do
 
 -- | Check if the epoch number matches that of a conversation
 checkEpoch ::
-  Members
-    '[ ErrorS 'MLSStaleMessage
-     ]
-    r =>
+  Member (ErrorS 'MLSStaleMessage) r =>
   Epoch ->
   ConversationMLSData ->
   Sem r ()
@@ -1411,12 +1372,9 @@ instance
 
 withCommitLock ::
   forall r a.
-  ( Members
-      '[ Resource,
-         ConversationStore,
-         ErrorS 'MLSStaleMessage
-       ]
-      r
+  ( Member Resource r,
+    Member ConversationStore r,
+    Member (ErrorS 'MLSStaleMessage) r
   ) =>
   GroupId ->
   Epoch ->

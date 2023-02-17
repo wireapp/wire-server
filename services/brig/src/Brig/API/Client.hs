@@ -89,7 +89,7 @@ import Data.String.Conversions (cs)
 import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
-import Polysemy (Member, Members)
+import Polysemy (Member)
 import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
@@ -146,7 +146,7 @@ lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
   UserId ->
   Maybe ConnId ->
   Maybe IP ->
@@ -158,7 +158,7 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
   forall r.
-  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
   Data.ReAuthPolicy ->
   UserId ->
   Maybe ConnId ->
@@ -293,7 +293,7 @@ claimRemotePrekeyBundle quser = do
 
 claimMultiPrekeyBundles ::
   forall r.
-  (Members '[Concurrency 'Unsafe] r, CallsFed 'Brig "claim-multi-prekey-bundle") =>
+  (Member (Concurrency 'Unsafe) r, CallsFed 'Brig "claim-multi-prekey-bundle") =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
@@ -333,7 +333,7 @@ claimMultiPrekeyBundles protectee quc = do
 
 claimLocalMultiPrekeyBundles ::
   forall r.
-  Members '[Concurrency 'Unsafe] r =>
+  Member (Concurrency 'Unsafe) r =>
   LegalholdProtectee ->
   UserClients ->
   ExceptT ClientError (AppT r) UserClientPrekeyMap

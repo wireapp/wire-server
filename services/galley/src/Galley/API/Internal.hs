@@ -148,7 +148,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
-              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal @Cassandra (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig) tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig) tid)
           )
 
 featureAPI :: API IFeatureAPI GalleyEffects
@@ -208,7 +208,7 @@ featureAPI =
     <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ilock", OutlookCalIntegrationConfig) (updateLockStatus @Cassandra @OutlookCalIntegrationConfig)
-    <@> mkNamedAPI @"feature-configs-internal" (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
+    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
@@ -299,26 +299,24 @@ rmUser ::
   forall p1 p2 r.
   ( p1 ~ CassandraPaging,
     p2 ~ InternalPaging,
-    Members
-      '[ BrigAccess,
-         ClientStore,
-         ConversationStore,
-         Error InternalError,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input (Local ()),
-         Input UTCTime,
-         ListItems p1 ConvId,
-         ListItems p1 (Remote ConvId),
-         ListItems p2 TeamId,
-         MemberStore,
-         ProposalStore,
-         P.TinyLog,
-         TeamStore
-       ]
-      r,
+    ( Member BrigAccess r,
+      Member ClientStore r,
+      Member ConversationStore r,
+      Member (Error InternalError) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Input Env) r,
+      Member (Input (Local ())) r,
+      Member (Input UTCTime) r,
+      Member (ListItems p1 ConvId) r,
+      Member (ListItems p1 (Remote ConvId)) r,
+      Member (ListItems p2 TeamId) r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member P.TinyLog r,
+      Member TeamStore r
+    ),
     CallsFed 'Galley "on-conversation-updated",
     CallsFed 'Galley "on-user-deleted-conversations",
     CallsFed 'Galley "on-mls-message-sent"
@@ -456,15 +454,12 @@ safeForever funName action =
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::
-  Members
-    '[ BrigAccess,
-       Input Opts,
-       TeamStore,
-       P.TinyLog,
-       WaiRoutes,
-       ErrorS 'MissingLegalholdConsent
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (Input Opts) r,
+    Member TeamStore r,
+    Member P.TinyLog r,
+    Member (ErrorS 'MissingLegalholdConsent) r
+  ) =>
   GuardLegalholdPolicyConflicts ->
   Sem r ()
 guardLegalholdPolicyConflictsH glh = do

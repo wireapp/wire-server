@@ -88,7 +88,10 @@ import Wire.API.User.Auth.ReAuth
 type JSON = Media "application" "json"
 
 ensureAccessRole ::
-  Members '[BrigAccess, ErrorS 'NotATeamMember, ErrorS 'ConvAccessDenied] r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'ConvAccessDenied) r
+  ) =>
   Set Public.AccessRole ->
   [(UserId, Maybe TeamMember)] ->
   Sem r ()
@@ -110,7 +113,10 @@ ensureAccessRole roles users = do
 -- Team members are always considered connected, so we only check 'ensureConnected'
 -- for non-team-members of the _given_ user
 ensureConnectedOrSameTeam ::
-  Members '[BrigAccess, ErrorS 'NotConnected, TeamStore] r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'NotConnected) r,
+    Member TeamStore r
+  ) =>
   Local UserId ->
   [UserId] ->
   Sem r ()
@@ -129,7 +135,9 @@ ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
 ensureConnected ::
-  Members '[BrigAccess, ErrorS 'NotConnected] r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'NotConnected) r
+  ) =>
   Local UserId ->
   UserList UserId ->
   Sem r ()
@@ -138,7 +146,9 @@ ensureConnected self others = do
   ensureConnectedToRemotes self (ulRemotes others)
 
 ensureConnectedToLocals ::
-  Members '[ErrorS 'NotConnected, BrigAccess] r =>
+  ( Member (ErrorS 'NotConnected) r,
+    Member BrigAccess r
+  ) =>
   UserId ->
   [UserId] ->
   Sem r ()
@@ -150,7 +160,9 @@ ensureConnectedToLocals u uids = do
     throwS @'NotConnected
 
 ensureConnectedToRemotes ::
-  Members '[BrigAccess, ErrorS 'NotConnected] r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'NotConnected) r
+  ) =>
   Local UserId ->
   [Remote UserId] ->
   Sem r ()
@@ -161,11 +173,9 @@ ensureConnectedToRemotes u remotes = do
     throwS @'NotConnected
 
 ensureReAuthorised ::
-  Members
-    '[ BrigAccess,
-       Error AuthenticationError
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (Error AuthenticationError) r
+  ) =>
   UserId ->
   Maybe PlainTextPassword ->
   Maybe Code.Value ->
@@ -179,7 +189,7 @@ ensureReAuthorised u secret mbAction mbCode =
 -- custom role, throw 'ActionDenied'.
 ensureActionAllowed ::
   forall (action :: Action) mem r.
-  (IsConvMember mem, Members '[ErrorS ('ActionDenied action)] r) =>
+  (IsConvMember mem, Member (ErrorS ('ActionDenied action)) r) =>
   Sing action ->
   mem ->
   Sem r ()
@@ -200,7 +210,7 @@ ensureGroupConversation conv = do
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
 ensureConvRoleNotElevated ::
-  (IsConvMember mem, Members '[ErrorS 'InvalidAction] r) =>
+  (IsConvMember mem, Member (ErrorS 'InvalidAction) r) =>
   mem ->
   RoleName ->
   Sem r ()
@@ -218,11 +228,9 @@ permissionCheckS ::
   forall perm (p :: perm) r.
   ( SingKind perm,
     IsPerm (Demote perm),
-    Members
-      '[ ErrorS (PermError p),
-         ErrorS 'NotATeamMember
-       ]
-      r
+    ( Member (ErrorS (PermError p)) r,
+      Member (ErrorS 'NotATeamMember) r
+    )
   ) =>
   Sing p ->
   Maybe TeamMember ->
@@ -240,7 +248,11 @@ permissionCheckS p =
 -- member does not have the given permission, throw 'operationDenied'.
 -- Otherwise, return the team member.
 permissionCheck ::
-  (IsPerm perm, Members '[ErrorS OperationDenied, ErrorS 'NotATeamMember] r) =>
+  ( IsPerm perm,
+    ( Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'NotATeamMember) r
+    )
+  ) =>
   perm ->
   Maybe TeamMember ->
   Sem r TeamMember
@@ -253,14 +265,25 @@ permissionCheck p = \case
   -- FUTUREWORK: factor `noteS` out of this function.
   Nothing -> throwS @'NotATeamMember
 
-assertTeamExists :: Members '[ErrorS 'TeamNotFound, TeamStore] r => TeamId -> Sem r ()
+assertTeamExists ::
+  ( Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r
+  ) =>
+  TeamId ->
+  Sem r ()
 assertTeamExists tid = do
   teamExists <- isJust <$> getTeam tid
   if teamExists
     then pure ()
     else throwS @'TeamNotFound
 
-assertOnTeam :: Members '[ErrorS 'NotATeamMember, TeamStore] r => UserId -> TeamId -> Sem r ()
+assertOnTeam ::
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member TeamStore r
+  ) =>
+  UserId ->
+  TeamId ->
+  Sem r ()
 assertOnTeam uid tid =
   getTeamMember tid uid >>= \case
     Nothing -> throwS @'NotATeamMember
@@ -268,17 +291,14 @@ assertOnTeam uid tid =
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
-  Members
-    '[ ConversationStore,
-       ErrorS 'ConvNotFound,
-       Error InternalError,
-       ErrorS 'InvalidOperation,
-       ErrorS 'NotConnected,
-       GundeckAccess,
-       Input UTCTime,
-       MemberStore
-     ]
-    r =>
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member MemberStore r
+  ) =>
   Local UserId ->
   Data.Conversation ->
   Maybe ConnId ->
@@ -501,7 +521,10 @@ getMember ::
 getMember p u = noteS @e . find ((u ==) . p)
 
 getConversationAndCheckMembership ::
-  Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied] r =>
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r
+  ) =>
   UserId ->
   Local ConvId ->
   Sem r Data.Conversation
@@ -524,7 +547,11 @@ getConversationWithError lcnv =
 
 getConversationAndMemberWithError ::
   forall e uid mem r.
-  (Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r, IsConvMemberId uid mem) =>
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS e) r,
+    IsConvMemberId uid mem
+  ) =>
   uid ->
   Local ConvId ->
   Sem r (Data.Conversation, mem)
@@ -552,7 +579,10 @@ canDeleteMember deleter deletee
 
 -- | Send an event to local users and bots
 pushConversationEvent ::
-  (Members '[GundeckAccess, ExternalAccess] r, Foldable f) =>
+  ( Member GundeckAccess r,
+    Member ExternalAccess r,
+    Foldable f
+  ) =>
   Maybe ConnId ->
   Event ->
   Local (f UserId) ->
@@ -564,7 +594,9 @@ pushConversationEvent conn e lusers bots = do
   deliverAsync (toList bots `zip` repeat e)
 
 verifyReusableCode ::
-  Members '[CodeStore, ErrorS 'CodeNotFound] r =>
+  ( Member CodeStore r,
+    Member (ErrorS 'CodeNotFound) r
+  ) =>
   ConversationCode ->
   Sem r DataTypes.Code
 verifyReusableCode convCode = do
@@ -576,14 +608,11 @@ verifyReusableCode convCode = do
   pure c
 
 ensureConversationAccess ::
-  Members
-    '[ BrigAccess,
-       ConversationStore,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'NotATeamMember,
-       TeamStore
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   Data.Conversation ->
   Access ->
@@ -777,7 +806,9 @@ getLHStatus teamOfUser other = do
       pure $ maybe defUserLegalHoldStatus (view legalHoldStatus) mMember
 
 anyLegalholdActivated ::
-  Members '[Input Opts, TeamStore] r =>
+  ( Member (Input Opts) r,
+    Member TeamStore r
+  ) =>
   [UserId] ->
   Sem r Bool
 anyLegalholdActivated uids = do
@@ -793,7 +824,10 @@ anyLegalholdActivated uids = do
         anyM (\uid -> userLHEnabled <$> getLHStatus (Map.lookup uid teamsOfUsers) uid) uidsPage
 
 allLegalholdConsentGiven ::
-  Members '[Input Opts, LegalHoldStore, TeamStore] r =>
+  ( Member (Input Opts) r,
+    Member LegalHoldStore r,
+    Member TeamStore r
+  ) =>
   [UserId] ->
   Sem r Bool
 allLegalholdConsentGiven uids = do
@@ -833,7 +867,11 @@ getTeamMembersForFanout tid = do
   getTeamMembersWithLimit tid lim
 
 ensureMemberLimit ::
-  (Foldable f, Members '[ErrorS 'TooManyMembers, Input Opts] r) =>
+  ( Foldable f,
+    ( Member (ErrorS 'TooManyMembers) r,
+      Member (Input Opts) r
+    )
+  ) =>
   [LocalMember] ->
   f a ->
   Sem r ()
@@ -844,7 +882,9 @@ ensureMemberLimit old new = do
     throwS @'TooManyMembers
 
 conversationExisted ::
-  Members '[Error InternalError, P.TinyLog] r =>
+  ( Member (Error InternalError) r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Data.Conversation ->
   Sem r ConversationResponse
@@ -876,13 +916,11 @@ instance
 --------------------------------------------------------------------------------
 -- Send typing indicator events
 isTyping ::
-  Members
-    '[ ErrorS 'ConvNotFound,
-       GundeckAccess,
-       Input UTCTime,
-       MemberStore
-     ]
-    r =>
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member MemberStore r
+  ) =>
   Qualified UserId ->
   Maybe ConnId ->
   Local ConvId ->

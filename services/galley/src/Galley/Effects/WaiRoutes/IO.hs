@@ -28,7 +28,9 @@ import Polysemy
 import Polysemy.Error
 
 interpretWaiRoutes ::
-  Members '[Embed IO, Error InvalidInput] r =>
+  ( Member (Embed IO) r,
+    Member (Error InvalidInput) r
+  ) =>
   Sem (WaiRoutes ': r) a ->
   Sem r a
 interpretWaiRoutes = interpret $ \case

@@ -48,7 +48,9 @@ addBotMember s bot cnv = do
 -- Service --------------------------------------------------------------------
 
 interpretServiceStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   Sem (ServiceStore ': r) a ->
   Sem r a
 interpretServiceStoreToCassandra = interpret $ \case

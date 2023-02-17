@@ -67,7 +67,7 @@ import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
-import Polysemy (Members)
+import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
@@ -185,7 +185,7 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: forall r p. (P.Paging p, Members '[UserPendingActivationStore p] r) => AppT r ()
+pendingActivationCleanup :: forall r p. (P.Paging p, Member (UserPendingActivationStore p) r) => AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime

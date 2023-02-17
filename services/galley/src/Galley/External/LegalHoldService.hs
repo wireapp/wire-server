@@ -52,12 +52,10 @@ import Wire.API.Team.LegalHold.External
 
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
 checkLegalHoldServiceStatus ::
-  Members
-    '[ ErrorS 'LegalHoldServiceBadResponse,
-       LegalHoldStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member (ErrorS 'LegalHoldServiceBadResponse) r,
+    Member LegalHoldStore r,
+    Member P.TinyLog r
+  ) =>
   Fingerprint Rsa ->
   HttpsUrl ->
   Sem r ()
@@ -77,13 +75,11 @@ checkLegalHoldServiceStatus fpr url = do
 
 -- | @POST /initiate@.
 requestNewDevice ::
-  Members
-    '[ ErrorS 'LegalHoldServiceBadResponse,
-       ErrorS 'LegalHoldServiceNotRegistered,
-       LegalHoldStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member (ErrorS 'LegalHoldServiceBadResponse) r,
+    Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member LegalHoldStore r,
+    Member P.TinyLog r
+  ) =>
   TeamId ->
   UserId ->
   Sem r NewLegalHoldClient
@@ -105,7 +101,9 @@ requestNewDevice tid uid = do
 -- | @POST /confirm@
 -- Confirm that a device has been linked to a user and provide an authorization token
 confirmLegalHold ::
-  Members '[ErrorS 'LegalHoldServiceNotRegistered, LegalHoldStore] r =>
+  ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member LegalHoldStore r
+  ) =>
   ClientId ->
   TeamId ->
   UserId ->
@@ -125,7 +123,9 @@ confirmLegalHold clientId tid uid legalHoldAuthToken = do
 -- | @POST /remove@
 -- Inform the LegalHold Service that a user's legalhold has been disabled.
 removeLegalHold ::
-  Members '[ErrorS 'LegalHoldServiceNotRegistered, LegalHoldStore] r =>
+  ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member LegalHoldStore r
+  ) =>
   TeamId ->
   UserId ->
   Sem r ()
@@ -146,7 +146,9 @@ removeLegalHold tid uid = do
 -- the TSL fingerprint via 'makeVerifiedRequest' and passes the token so the service can
 -- authenticate the request.
 makeLegalHoldServiceRequest ::
-  Members '[ErrorS 'LegalHoldServiceNotRegistered, LegalHoldStore] r =>
+  ( Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+    Member LegalHoldStore r
+  ) =>
   TeamId ->
   (Http.Request -> Http.Request) ->
   Sem r (Http.Response LC8.ByteString)

@@ -119,7 +119,9 @@ runMessagePush loc mqcnv mp = withSing @t $ \case
   SBroadcast -> push (broadcastPushes mp)
   where
     pushToBots ::
-      Members '[ExternalAccess, TinyLog] r =>
+      ( Member ExternalAccess r,
+        Member TinyLog r
+      ) =>
       [(BotMember, Event)] ->
       Sem r ()
     pushToBots pushes = for_ mqcnv $ \qcnv ->
