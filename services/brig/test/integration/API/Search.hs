@@ -680,7 +680,7 @@ indexProxyServer idx opts mgr =
             else Wai.WPRResponse (Wai.responseLBS HTTP.status400 [] $ "Refusing to proxy to path=" <> cs (Wai.rawPathInfo req))
    in waiProxyTo proxyApp Wai.defaultOnExc mgr
 
-waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadIO m, MonadThrow m, FromJSON a) => ES.TaskNodeId -> m ()
+waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => ES.TaskNodeId -> m ()
 waitForTaskToComplete taskNodeId = do
   let policy = constantDelay 100000 <> limitRetries 30
   let retryCondition _ = fmap not . isTaskComplete

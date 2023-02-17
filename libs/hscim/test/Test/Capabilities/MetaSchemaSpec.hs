@@ -28,7 +28,6 @@ import qualified Data.List as List
 import Data.Text (Text)
 import Network.Wai.Test (SResponse (..))
 import Servant
-import Servant.API.Generic
 import Test.Hspec hiding (shouldSatisfy)
 import qualified Test.Hspec.Expectations as Expect
 import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)

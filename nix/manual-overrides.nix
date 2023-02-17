@@ -2,32 +2,31 @@
 # FUTUREWORK: Figure out a way to detect if some of these packages are not
 # actually marked broken, so we can cleanup this file on every nixpkgs bump.
 hself: hsuper: {
-  network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
-  cql = hlib.markUnbroken hsuper.cql;
-  lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
-  wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
-  bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
-  invertible = hlib.markUnbroken hsuper.invertible;
-  polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
-  multihash = hlib.markUnbroken (hlib.doJailbreak hsuper.multihash);
-  hashable = hsuper.hashable_1_4_1_0;
-  hashable-time = hsuper.hashable-time_0_3;
-  text-short = hlib.dontCheck hsuper.text-short;
   aeson = hsuper.aeson_2_1_1_0;
-  lens-aeson = hsuper.lens-aeson_1_2_2;
-  swagger2 = hlib.doJailbreak hsuper.swagger2;
-  servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
-  servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
-  sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
+  binary-parsers = hlib.markUnbroken (hlib.doJailbreak hsuper.binary-parsers);
+  bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
+  cql = hlib.markUnbroken hsuper.cql;
+  hashtables = hsuper.hashtables_1_3;
+  invertible = hlib.markUnbroken hsuper.invertible;
+  lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
+  multihash = hlib.markUnbroken (hlib.doJailbreak hsuper.multihash);
+  network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
+  one-liner = hlib.doJailbreak hsuper.one-liner;
+  polysemy = hlib.doJailbreak hsuper.polysemy;
+  polysemy-check = hlib.doJailbreak hsuper.polysemy-check;
+  polysemy-plugin = hlib.doJailbreak hsuper.polysemy-plugin;
+  quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
   servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
   servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
-  hashtables = hsuper.hashtables_1_3;
-  quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
-  wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
-  one-liner = hlib.doJailbreak hsuper.one-liner;
+  servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
+  servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
+  sodium-crypto-sign = hlib.addPkgconfigDepend hsuper.sodium-crypto-sign libsodium.dev;
+  swagger2 = hlib.doJailbreak hsuper.swagger2;
+  text-icu-translit = hlib.markUnbroken (hlib.dontCheck hsuper.text-icu-translit);
+  text-short = hlib.dontCheck hsuper.text-short;
   type-errors = hlib.dontCheck hsuper.type-errors;
-  binary-parsers = hlib.doJailbreak hsuper.binary-parsers;
-  generic-data = hsuper.generic-data_1_0_0_0;
+  wai-middleware-prometheus = hlib.doJailbreak hsuper.wai-middleware-prometheus;
+  wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
 
   # Some test seems to be broken
   hsaml2 = hlib.dontCheck hsuper.hsaml2;
@@ -43,8 +42,8 @@ hself: hsuper: {
 
   # These tests require newer version on hspec-wai, which doesn't work with some of the wire-server packages.
   amazonka = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka);
-  amazonka-core = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka-core);
   amazonka-cloudfront = hlib.dontCheck hsuper.amazonka-cloudfront;
+  amazonka-core = hlib.doJailbreak (hlib.dontCheck hsuper.amazonka-core);
   amazonka-dynamodb = hlib.dontCheck hsuper.amazonka-dynamodb;
   amazonka-s3 = hlib.dontCheck hsuper.amazonka-s3;
   amazonka-ses = hlib.dontCheck hsuper.amazonka-ses;
@@ -55,9 +54,9 @@ hself: hsuper: {
   servant-server = hlib.dontCheck hsuper.servant-server;
 
   # Build toool dependencies of local packages
-  wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
+  wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
 
   # Make hoogle static to reduce size of the hoogle image
   hoogle = hlib.justStaticExecutables hsuper.hoogle;

@@ -123,7 +123,7 @@ backendApiVersion :: Version
 backendApiVersion = V2
 
 -- | Make sure the backend supports `backendApiVersion`.  Crash if it doesn't.  (This is called
--- in `Stern.API` so problems make `./services/integration.sh` crash.)
+-- in `Stern.API` so problems make `./services/run-service` crash.)
 assertBackendApiVersion :: App ()
 assertBackendApiVersion = recoverAll (constantDelay 1000000 <> limitRetries 5) $ \_retryStatus -> do
   b <- view brig
@@ -524,7 +524,6 @@ getTeamFeatureFlag ::
   forall cfg.
   ( Typeable (Public.WithStatus cfg),
     FromJSON (Public.WithStatus cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
@@ -544,7 +543,6 @@ getTeamFeatureFlag tid = do
 setTeamFeatureFlag ::
   forall cfg.
   ( ToJSON (Public.WithStatusNoLock cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->

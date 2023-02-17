@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -108,7 +111,7 @@ unregister ref key =
 -- update the budget.
 runWithBudget ::
   forall m.
-  (MonadIO m, LC.MonadLogger m, MonadUnliftIO m) =>
+  (LC.MonadLogger m, MonadUnliftIO m) =>
   Metrics ->
   ThreadBudgetState ->
   Int ->
@@ -182,7 +185,7 @@ watchThreadBudgetState metrics (ThreadBudgetState limits ref) freq = safeForever
 
 recordMetrics ::
   forall m.
-  (MonadIO m, LC.MonadLogger m, MonadCatch m) =>
+  MonadIO m =>
   Metrics ->
   MaxConcurrentNativePushes ->
   IORef BudgetMap ->
@@ -208,7 +211,7 @@ staleTolerance = 3
 -- then remove them from the budgetmap.
 removeStaleHandles ::
   forall m.
-  (MonadIO m, LC.MonadLogger m, MonadCatch m) =>
+  (MonadIO m, LC.MonadLogger m) =>
   IORef BudgetMap ->
   m ()
 removeStaleHandles ref = do

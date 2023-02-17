@@ -32,7 +32,7 @@ import qualified Brig.Options as Opt
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
@@ -96,7 +96,7 @@ tests conf m n b c g aws = do
             test m "post /teams/:tid/invitations - email lookup nginz" $ testInvitationEmailLookupNginz b n,
             test m "post /teams/:tid/invitations - email lookup register" $ testInvitationEmailLookupRegister b,
             test m "post /teams/:tid/invitations - 403 no permission" $ testInvitationNoPermission b,
-            test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b tl,
+            test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending conf b tl,
             test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
             test m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
             test m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
@@ -354,14 +354,17 @@ headInvitationByEmail service email expectedCode =
   Bilge.head (service . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
     !!! const expectedCode === statusCode
 
-testInvitationTooManyPending :: Brig -> TeamSizeLimit -> Http ()
-testInvitationTooManyPending brig (TeamSizeLimit limit) = do
+testInvitationTooManyPending :: Opt.Opts -> Brig -> TeamSizeLimit -> Http ()
+testInvitationTooManyPending opts brig (TeamSizeLimit limit) = do
   (inviter, tid) <- createUserWithTeam brig
   emails <- replicateConcurrently (fromIntegral limit) randomEmail
-  pooledForConcurrentlyN_ 16 emails $ postInvitation brig tid inviter . stdInvitationRequest
   email <- randomEmail
-  -- TODO: If this test takes longer to run than `team-invitation-timeout`, then some of the
-  --       invitations have likely expired already and this test will actually _fail_
+  -- If this test takes longer to run than `team-invitation-timeout`, then some of the
+  -- invitations have likely expired already and this test will actually _fail_
+  -- therefore we increase the timeout from default 10 to 300 seconds
+  let longerTimeout = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setTeamInvitationTimeout = 300}}
+  withSettingsOverrides longerTimeout $ do
+    forM_ emails $ postInvitation brig tid inviter . stdInvitationRequest
   postInvitation brig tid inviter (stdInvitationRequest email) !!! do
     const 403 === statusCode
     const (Just "too-many-team-invitations") === fmap Error.label . responseJsonMaybe
@@ -469,7 +472,6 @@ createAndVerifyInvitation' ::
   ( HasCallStack,
     MonadIO m,
     MonadHttp m,
-    MonadThrow m,
     MonadCatch m,
     MonadFail m,
     a ~ (Maybe (UserId, UTCTimeMillis), Invitation, UserId, ResponseLBS)
@@ -487,7 +489,6 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
         ( HasCallStack,
           MonadIO m',
           MonadHttp m',
-          MonadThrow m',
           MonadCatch m',
           MonadFail m'
         ) =>

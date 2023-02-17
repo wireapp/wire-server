@@ -202,7 +202,6 @@ testPatch ::
     Eq cfg,
     Show cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
-    Arbitrary (Public.WithStatus cfg),
     Arbitrary (Public.WithStatusPatch cfg)
   ) =>
   AssertLockStatusChange ->
@@ -472,8 +471,7 @@ testSimpleFlag ::
     KnownSymbol (Public.FeatureSymbol cfg),
     Public.FeatureTrivialConfig cfg,
     ToSchema cfg,
-    FromJSON (Public.WithStatusNoLock cfg),
-    ToJSON (Public.WithStatusNoLock cfg)
+    FromJSON (Public.WithStatusNoLock cfg)
   ) =>
   Public.FeatureStatus ->
   TestM ()
@@ -487,8 +485,7 @@ testSimpleFlagTTLOverride ::
     KnownSymbol (Public.FeatureSymbol cfg),
     Public.FeatureTrivialConfig cfg,
     ToSchema cfg,
-    FromJSON (Public.WithStatusNoLock cfg),
-    ToJSON (Public.WithStatusNoLock cfg)
+    FromJSON (Public.WithStatusNoLock cfg)
   ) =>
   Public.FeatureStatus ->
   FeatureTTL ->
@@ -628,8 +625,7 @@ testSimpleFlagTTL ::
     KnownSymbol (Public.FeatureSymbol cfg),
     Public.FeatureTrivialConfig cfg,
     ToSchema cfg,
-    FromJSON (Public.WithStatusNoLock cfg),
-    ToJSON (Public.WithStatusNoLock cfg)
+    FromJSON (Public.WithStatusNoLock cfg)
   ) =>
   Public.FeatureStatus ->
   FeatureTTL ->
@@ -726,7 +722,6 @@ testSimpleFlagWithLockStatus ::
     Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
     ToSchema cfg,
-    FromJSON (Public.WithStatusNoLock cfg),
     ToJSON (Public.WithStatusNoLock cfg)
   ) =>
   Public.FeatureStatus ->
@@ -1244,8 +1239,6 @@ assertFlagNoConfig ::
   forall cfg.
   ( HasCallStack,
     Typeable cfg,
-    Public.IsFeatureConfig cfg,
-    Public.FeatureTrivialConfig cfg,
     FromJSON (Public.WithStatusNoLock cfg)
   ) =>
   TestM ResponseLBS ->
@@ -1263,7 +1256,6 @@ assertFlagNoConfigWithLockStatus ::
   forall cfg.
   ( HasCallStack,
     Typeable cfg,
-    Public.IsFeatureConfig cfg,
     Public.FeatureTrivialConfig cfg,
     FromJSON (Public.WithStatus cfg),
     Eq cfg,
@@ -1305,7 +1297,6 @@ wsAssertFeatureTrivialConfigUpdate ::
   forall cfg.
   ( Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON (Public.WithStatusNoLock cfg),
     Public.FeatureTrivialConfig cfg,
     ToSchema cfg
   ) =>
@@ -1326,7 +1317,6 @@ wsAssertFeatureConfigWithLockStatusUpdate ::
   ( Public.IsFeatureConfig cfg,
     ToSchema cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON (Public.WithStatusNoLock cfg),
     Public.FeatureTrivialConfig cfg
   ) =>
   Public.FeatureStatus ->
@@ -1341,10 +1331,8 @@ wsAssertFeatureConfigWithLockStatusUpdate status lockStatus notification = do
 
 wsAssertFeatureConfigUpdate ::
   forall cfg.
-  ( Public.IsFeatureConfig cfg,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    ToJSON (Public.WithStatus cfg),
-    ToSchema cfg
+  ( KnownSymbol (Public.FeatureSymbol cfg),
+    ToJSON (Public.WithStatus cfg)
   ) =>
   Public.WithStatusNoLock cfg ->
   Public.LockStatus ->

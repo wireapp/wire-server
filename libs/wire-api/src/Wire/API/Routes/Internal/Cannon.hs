@@ -1,17 +1,22 @@
 module Wire.API.Routes.Internal.Cannon where
 
+import Control.Lens ((.~))
 import Data.Id
+import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import Imports
 import Servant
+import Servant.Swagger (HasSwagger (toSwagger))
 import Wire.API.Error
 import Wire.API.Error.Cannon
 import Wire.API.Internal.BulkPush
 import Wire.API.RawJson
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
+import Wire.API.SwaggerServant
 
 type API =
-  "i"
+  SwaggerTag "cannon"
+    :> "i"
     :> ( Named
            "get-status"
            ( "status"
@@ -55,3 +60,8 @@ type API =
                            (Maybe ())
                   )
        )
+
+swaggerDoc :: Swagger
+swaggerDoc =
+  toSwagger (Proxy @API)
+    & info . title .~ "Wire-Server internal cannon API"

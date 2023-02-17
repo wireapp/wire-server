@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -33,7 +36,6 @@ import qualified Cassandra as Cass
 import Cassandra.Util
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
-import Control.Monad.Catch
 import Data.Aeson (decode)
 import qualified Data.Aeson.Lens as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -102,7 +104,7 @@ testSuspendNonExistingUser db brig = do
   isUserCreated <- Cass.runClient db (userExists nonExistingUserId)
   liftIO $ isUserCreated @?= False
 
-setAccountStatus :: (MonadIO m, MonadHttp m, HasCallStack, MonadCatch m) => Brig -> UserId -> AccountStatus -> m ResponseLBS
+setAccountStatus :: (MonadHttp m, HasCallStack) => Brig -> UserId -> AccountStatus -> m ResponseLBS
 setAccountStatus brig u s =
   put
     ( brig
@@ -366,11 +368,11 @@ testAddKeyPackageRef brig = do
         <!! const 200 === statusCode
   liftIO $ mqcnv @?= Just qcnv
 
-getFeatureConfig :: forall cfg m. (MonadIO m, MonadHttp m, HasCallStack, ApiFt.IsFeatureConfig cfg, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
+getFeatureConfig :: forall cfg m. (MonadHttp m, HasCallStack, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig galley uid = do
   get $ apiVersion "v1" . galley . paths ["feature-configs", featureNameBS @cfg] . zUser uid
 
-getAllFeatureConfigs :: (MonadIO m, MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
+getAllFeatureConfigs :: (MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
 getAllFeatureConfigs galley uid = do
   get $ galley . paths ["feature-configs"] . zUser uid
 

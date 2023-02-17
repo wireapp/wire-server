@@ -236,11 +236,11 @@ db-migrate-package:
 
 # Usage:
 #
-# Reset all keyspaces and reset the ES index
-# make db-reset
+# Migrate all keyspaces and reset the ES index
+# make db-migrate
 #
-# Reset keyspace for only one service, say galley:
-# make db-reset package=galley
+# Migrate keyspace for only one service, say galley:
+# make db-migrate package=galley
 .PHONY: db-reset
 db-reset: c
 	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
@@ -249,10 +249,20 @@ ifeq ($(package), all)
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
+ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
+	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 --reset
+	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --reset
+	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
+	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
+endif
 else
 	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
+ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
+	$(EXE_SCHEMA) --keyspace $(package)_test2 --replication-factor 1 --reset
 endif
-	./dist/brig-index reset --elasticsearch-server http://localhost:9200 > /dev/null
+endif
+	./dist/brig-index reset --elasticsearch-index directory_test --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index directory_test2 --elasticsearch-server http://localhost:9200 > /dev/null
 
 # Usage:
 #
@@ -267,7 +277,14 @@ db-migrate: c
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 > /dev/null
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 > /dev/null
 	./dist/spar-schema --keyspace spar_test --replication-factor 1 > /dev/null
-	./dist/brig-index reset --elasticsearch-server http://localhost:9200 > /dev/null
+ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
+	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 > /dev/null
+	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 > /dev/null
+	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
+	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
+endif
+	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
 
 #################################
 ## dependencies

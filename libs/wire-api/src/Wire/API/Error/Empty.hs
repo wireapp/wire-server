@@ -52,7 +52,7 @@ instance
   responseUnrender _ output = guard (responseStatusCode output == statusVal (Proxy @s))
 
 instance
-  (KnownStatus s, KnownSymbol desc) =>
+  KnownSymbol desc =>
   IsSwaggerResponse (EmptyErrorForLegacyReasons s desc)
   where
   responseSwagger =

@@ -151,7 +151,7 @@ disabledVersionIsNotAdvertised opts brig version =
       liftIO $ filter (== VersionNumber version) (vinfoDevelopment vinfo) @?= []
 
 getVersionInfo ::
-  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
   Brig ->
   m VersionInfo
 getVersionInfo brig =

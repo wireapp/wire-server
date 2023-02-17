@@ -1,5 +1,7 @@
 module Brig.API.Public.Swagger
   ( VersionedSwaggerDocsAPI,
+    InternalEndpointsSwaggerDocsAPI,
+    VersionedSwaggerDocsAPIBase,
     DocsAPI,
     pregenSwagger,
     swaggerPregenUIServer,
@@ -29,9 +31,14 @@ type VersionedSwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> VersionedSwaggerDocsAPIBase
 
+type InternalEndpointsSwaggerDocsAPI =
+  "api-internal"
+    :> Header VersionHeader Version
+    :> VersionedSwaggerDocsAPIBase
+
 type NotificationSchemasAPI = "api" :> "event-notification-schemas" :> Get '[JSON] [S.Definitions S.Schema]
 
-type DocsAPI = VersionedSwaggerDocsAPI :<|> NotificationSchemasAPI
+type DocsAPI = VersionedSwaggerDocsAPI :<|> NotificationSchemasAPI :<|> InternalEndpointsSwaggerDocsAPI
 
 pregenSwagger :: Version -> Q Exp
 pregenSwagger v =

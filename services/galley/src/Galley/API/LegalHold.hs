@@ -599,7 +599,6 @@ approveDevice lzusr connId tid uid (Public.ApproveLegalHoldForUserRequest mPassw
   changeLegalholdStatus tid luid userLHStatus UserLegalHoldEnabled
   where
     assertUserLHPending ::
-      Members '[ErrorS 'UserLegalHoldNotPending, ErrorS 'UserLegalHoldAlreadyEnabled] r =>
       UserLegalHoldStatus ->
       Sem r ()
     assertUserLHPending userLHStatus = do

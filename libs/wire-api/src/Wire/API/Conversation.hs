@@ -492,7 +492,7 @@ data AccessRole
 genAccessRolesV2 :: [AccessRole] -> [AccessRole] -> IO (Either String (Set AccessRole))
 genAccessRolesV2 = genEnumSet
 
-genEnumSet :: forall a. (Bounded a, Enum a, Ord a, Eq a, Show a) => [a] -> [a] -> IO (Either String (Set a))
+genEnumSet :: forall a. (Bounded a, Enum a, Ord a, Show a) => [a] -> [a] -> IO (Either String (Set a))
 genEnumSet with without =
   if disjointOrd with without
     then do

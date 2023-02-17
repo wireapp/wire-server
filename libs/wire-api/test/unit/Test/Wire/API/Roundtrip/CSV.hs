@@ -43,8 +43,8 @@ testRoundTrip = testProperty msg trip
       counterexample (show $ encodeCSV v) $
         Right v === (decodeCSV . encodeCSV) v
 
-    encodeCSV :: (DefaultOrdered a, ToNamedRecord a) => [a] -> LByteString
+    encodeCSV :: [a] -> LByteString
     encodeCSV = encodeDefaultOrderedByName
 
-    decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
+    decodeCSV :: LByteString -> Either String [a]
     decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)

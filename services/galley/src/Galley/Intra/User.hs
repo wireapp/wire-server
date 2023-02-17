@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -185,7 +188,7 @@ lookupActivatedUsers = chunkify $ \uids -> do
 --   URL length limit of ~6500 (determined experimentally). 100 is a
 --   conservative setting. A uid contributes about 36+3 characters (+3 for the
 --   comma separator) to the overall URL length.
-chunkify :: forall m key a. (Monad m, ToByteString key, Monoid a) => ([key] -> m a) -> [key] -> m a
+chunkify :: forall m key a. (Monad m, Monoid a) => ([key] -> m a) -> [key] -> m a
 chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
   where
     maxSize :: Int

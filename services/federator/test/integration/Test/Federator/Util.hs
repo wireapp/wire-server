@@ -2,6 +2,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -251,7 +253,7 @@ postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid bri
   post (brig . path "/i/users" . bdy)
 
 putHandle ::
-  (MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   BrigReq ->
   UserId ->
   Text ->

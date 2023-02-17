@@ -93,7 +93,7 @@ data Notification = Notification
   }
 
 awaitNotifications ::
-  (MonadSession m, Functor m) =>
+  MonadSession m =>
   -- TODO: Maybe ClientId
   (Notification -> IO ()) ->
   m (Async ())

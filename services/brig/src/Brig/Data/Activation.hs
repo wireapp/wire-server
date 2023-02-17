@@ -143,7 +143,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
 
 -- | Create a new pending activation for a given 'UserKey'.
 newActivation ::
-  (MonadIO m, MonadClient m) =>
+  MonadClient m =>
   UserKey ->
   -- | The timeout for the activation code.
   Timeout ->

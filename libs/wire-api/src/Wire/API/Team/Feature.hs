@@ -176,10 +176,10 @@ class FeatureTrivialConfig cfg where
 class HasDeprecatedFeatureName cfg where
   type DeprecatedFeatureName cfg :: Symbol
 
-featureName :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Text
+featureName :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Text
 featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
 
-featureNameBS :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => ByteString
+featureNameBS :: forall cfg. KnownSymbol (FeatureSymbol cfg) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 ----------------------------------------------------------------------
@@ -286,7 +286,7 @@ withStatus' = WithStatusBase
 
 -- | The ToJSON implementation of `WithStatusPatch` will encode the trivial config as `"config": {}`
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusPatch cfg) where
+instance ToSchema cfg => ToSchema (WithStatusPatch cfg) where
   schema =
     object name $
       WithStatusBase
