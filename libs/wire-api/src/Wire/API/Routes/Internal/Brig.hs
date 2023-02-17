@@ -318,7 +318,7 @@ type GetVerificationCode =
     :> Get '[Servant.JSON] (Maybe Code.Value)
 
 type API =
-  SwaggerTag "brig"
+  SwaggerTag "brig" 9082
     :> "i"
     :> ( EJPD_API
            :<|> AccountAPI

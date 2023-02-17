@@ -166,7 +166,7 @@ type IFeatureAPI =
                :> Get '[Servant.JSON] AllFeatureConfigs
            )
 
-type InternalAPI = SwaggerTag "galley" :> "i" :> InternalAPIBase
+type InternalAPI = SwaggerTag "galley" 9095 :> "i" :> InternalAPIBase
 
 type InternalAPIBase =
   Named

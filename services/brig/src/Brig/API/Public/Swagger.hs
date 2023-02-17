@@ -2,6 +2,8 @@ module Brig.API.Public.Swagger
   ( VersionedSwaggerDocsAPI,
     InternalEndpointsSwaggerDocsAPI,
     VersionedSwaggerDocsAPIBase,
+    SwaggerDocsAPIBase,
+    Foo,
     DocsAPI,
     pregenSwagger,
     swaggerPregenUIServer,
@@ -17,6 +19,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as T
 import FileEmbedLzma
+import GHC.TypeLits
 import Imports hiding (head)
 import Language.Haskell.TH
 import Servant
@@ -27,14 +30,24 @@ import qualified Wire.API.Event.FeatureConfig
 import qualified Wire.API.Event.Team
 import Wire.API.Routes.Version
 
-type VersionedSwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
+type SwaggerDocsAPIBase path = SwaggerSchemaUI path "swagger.json"
 
-type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> VersionedSwaggerDocsAPIBase
+type Foo service = SwaggerSchemaUI service (AppendSymbol service "-swagger.json")
+
+type VersionedSwaggerDocsAPIBase service = Header VersionHeader Version :> Foo service
+
+type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> SwaggerDocsAPIBase "swagger-ui"
 
 type InternalEndpointsSwaggerDocsAPI =
   "api-internal"
-    :> Header VersionHeader Version
-    :> VersionedSwaggerDocsAPIBase
+    :> "swagger-ui"
+    :> ( VersionedSwaggerDocsAPIBase "brig"
+           :<|> VersionedSwaggerDocsAPIBase "cannon"
+           :<|> VersionedSwaggerDocsAPIBase "cargohold"
+           :<|> VersionedSwaggerDocsAPIBase "galley"
+           :<|> VersionedSwaggerDocsAPIBase "legalhold"
+           :<|> VersionedSwaggerDocsAPIBase "spar"
+       )
 
 type NotificationSchemasAPI = "api" :> "event-notification-schemas" :> Get '[JSON] [S.Definitions S.Schema]
 
@@ -46,7 +59,7 @@ pregenSwagger v =
     =<< makeRelativeToProject
       ("docs/swagger-v" <> T.unpack (toUrlPiece v) <> ".json")
 
-swaggerPregenUIServer :: LByteString -> Server VersionedSwaggerDocsAPIBase
+swaggerPregenUIServer :: LByteString -> Server (SwaggerDocsAPIBase a)
 swaggerPregenUIServer =
   swaggerSchemaUIServer
     . fromMaybe A.Null

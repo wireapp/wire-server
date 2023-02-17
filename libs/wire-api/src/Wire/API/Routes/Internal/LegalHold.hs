@@ -28,7 +28,7 @@ import Wire.API.SwaggerServant
 import Wire.API.Team.Feature
 
 type InternalLegalHoldAPI =
-  SwaggerTag "legalhold"
+  SwaggerTag "legalhold" 9099
     :> "i"
     :> "teams"
     :> ( Capture "tid" TeamId

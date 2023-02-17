@@ -15,7 +15,7 @@ import Wire.API.Routes.Named
 import Wire.API.SwaggerServant
 
 type API =
-  SwaggerTag "cannon"
+  SwaggerTag "cannon" 9093
     :> "i"
     :> ( Named
            "get-status"

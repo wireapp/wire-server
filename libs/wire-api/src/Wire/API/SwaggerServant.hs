@@ -23,7 +23,6 @@ module Wire.API.SwaggerServant
 where
 
 import Control.Lens
-import qualified Data.HashMap.Strict.InsOrd as InsOrdMap
 import qualified Data.HashSet.InsOrd as InsOrdSet
 import Data.Metrics.Servant
 import Data.Proxy
@@ -55,7 +54,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 --                                ()
 --                       )
 -- @
-data SwaggerTag tag
+data SwaggerTag tag port
 
 -- | Adjust `Swagger` according to its `SwaggerTag`
 --
@@ -64,38 +63,56 @@ data SwaggerTag tag
 -- Otherwise, the `Monoid` instance of `Swagger.Swagger` would throw duplicated
 -- paths away. The @tag@ is also used as a `Swagger.TagName` for all
 -- `Swagger.Operations`.
-instance (HasSwagger b, KnownSymbol tag) => HasSwagger (SwaggerTag tag :> b) where
+instance (HasSwagger b, KnownSymbol tag, KnownNat port) => HasSwagger (SwaggerTag tag port :> b) where
   toSwagger _ = tagSwagger $ toSwagger (Proxy :: Proxy b)
     where
       tagString :: String
       tagString = symbolVal (Proxy @tag)
 
+      portInteger :: Integer
+      portInteger = natVal (Proxy @port)
+
+      portString :: String
+      portString = show $ portInteger
+
       tagSwagger :: S.Swagger -> S.Swagger
       tagSwagger s =
         s
-          & S.paths .~ tagPaths s
+          & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ tagString ++ ")")
+          & S.info . S.description ?~ renderDescription
+          & S.host ?~ S.Host "localhost" ((Just . fromInteger) portInteger)
           & allOperations . S.tags <>~ tag
 
       tag :: InsOrdSet.InsOrdHashSet S.TagName
       tag = InsOrdSet.singleton @S.TagName (T.pack tagString)
 
-      tagPaths :: S.Swagger -> InsOrdMap.InsOrdHashMap FilePath S.PathItem
-      tagPaths s =
-        let m = s ^. S.paths
-         in InsOrdMap.mapKeys (\k -> "/<" ++ tagString ++ ">" ++ k) m
+      renderDescription :: Text
+      renderDescription =
+        T.pack . Imports.unlines $
+          [ "To have access to this *internal* endpoint, create a port forwarding to "
+              ++ tagString
+              ++ " into the Kubernetes cluster. E.g.:",
+            "```",
+            "kubectl port-forward -n wire service/"
+              ++ tagString
+              ++ " "
+              ++ portString
+              ++ ":8080",
+            "```"
+          ]
 
-instance HasServer api ctx => HasServer (SwaggerTag tag :> api) ctx where
-  type ServerT (SwaggerTag tag :> api) m = ServerT api m
+instance HasServer api ctx => HasServer (SwaggerTag tag port :> api) ctx where
+  type ServerT (SwaggerTag tag port :> api) m = ServerT api m
 
   route _ = route (Proxy :: Proxy api)
   hoistServerWithContext _ pc nt s =
     hoistServerWithContext (Proxy :: Proxy api) pc nt s
 
-instance RoutesToPaths api => RoutesToPaths (SwaggerTag tag :> api) where
+instance RoutesToPaths api => RoutesToPaths (SwaggerTag tag port :> api) where
   getRoutes = getRoutes @api
 
-instance HasClient m api => HasClient m (SwaggerTag tag :> api) where
-  type Client m (SwaggerTag tag :> api) = Client m api
+instance HasClient m api => HasClient m (SwaggerTag tag port :> api) where
+  type Client m (SwaggerTag tag port :> api) = Client m api
   clientWithRoute proxyM _ = clientWithRoute proxyM (Proxy @api)
   hoistClientMonad proxyM _ = hoistClientMonad proxyM (Proxy @api)
 

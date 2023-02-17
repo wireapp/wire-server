@@ -28,7 +28,7 @@ import Wire.API.User
 import Wire.API.User.Saml
 
 type InternalAPI =
-  SwaggerTag "spar"
+  SwaggerTag "spar" 9098
     :> "i"
     :> ( "status" :> Get '[JSON] NoContent
            :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent
