@@ -47,7 +47,6 @@ import Data.Time (addUTCTime, getCurrentTime)
 import qualified Data.UUID as UUID (fromString)
 import qualified Data.UUID.V4 as UUID
 import qualified Galley.Types.Teams as Team
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
@@ -64,6 +63,7 @@ import Util.AWS as Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
 import Wire.API.Connection
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public

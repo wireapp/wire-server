@@ -86,8 +86,6 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import GHC.TypeLits
-import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
-import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Gundeck.Types.Push.V2
 import qualified Gundeck.Types.Push.V2 as Push
 import Imports
@@ -102,6 +100,8 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Properties
+import Wire.API.Routes.Internal.Galley.ConversationsIntra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
+import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User
