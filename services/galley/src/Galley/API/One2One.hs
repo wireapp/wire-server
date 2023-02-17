@@ -29,7 +29,6 @@ import Galley.Data.Conversation
 import Galley.Data.Conversation.Types
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
-import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
@@ -37,6 +36,7 @@ import Imports
 import Polysemy
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 
 newConnectConversationWithRemote ::
   Local UserId ->

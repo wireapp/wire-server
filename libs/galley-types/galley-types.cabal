@@ -15,12 +15,10 @@ library
     Galley.Types
     Galley.Types.Bot
     Galley.Types.Bot.Service
-    Galley.Types.Conversations.Intra
     Galley.Types.Conversations.Members
     Galley.Types.Conversations.One2One
     Galley.Types.Conversations.Roles
     Galley.Types.Teams
-    Galley.Types.Teams.Intra
 
   other-modules:      Paths_galley_types
   hs-source-dirs:     src
