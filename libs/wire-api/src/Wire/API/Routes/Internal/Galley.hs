@@ -40,7 +40,6 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.Feature
-import Wire.API.SwaggerServant
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -166,7 +165,7 @@ type IFeatureAPI =
                :> Get '[Servant.JSON] AllFeatureConfigs
            )
 
-type InternalAPI = SwaggerTag "galley" 9095 :> "i" :> InternalAPIBase
+type InternalAPI = "i" :> InternalAPIBase
 
 type InternalAPIBase =
   Named

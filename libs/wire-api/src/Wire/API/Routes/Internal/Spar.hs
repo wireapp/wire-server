@@ -23,13 +23,11 @@ import Data.Swagger
 import Imports
 import Servant
 import Servant.Swagger
-import Wire.API.SwaggerServant
 import Wire.API.User
 import Wire.API.User.Saml
 
 type InternalAPI =
-  SwaggerTag "spar" 9098
-    :> "i"
+  "i"
     :> ( "status" :> Get '[JSON] NoContent
            :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent
            :<|> "sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent
