@@ -1,11 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -22,8 +14,11 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-module Galley.Types.Teams.Intra
+module Wire.API.Routes.Internal.Galley.TeamsIntra
   ( TeamStatus (..),
     TeamData (..),
     TeamStatusUpdate (..),
@@ -32,12 +27,12 @@ module Galley.Types.Teams.Intra
   )
 where
 
+import Control.Lens ((?~))
 import Data.Aeson
-import Data.Aeson.TH
 import qualified Data.Currency as Currency
 import Data.Json.Util
 import qualified Data.Schema as S
-import qualified Data.Swagger as Swagger hiding (schema)
+import qualified Data.Swagger as Swagger
 import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)
@@ -53,6 +48,7 @@ data TeamStatus
   | Suspended
   | PendingActive
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamStatus
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamStatus
 
 instance S.ToSchema TeamStatus where
@@ -72,6 +68,7 @@ data TeamData = TeamData
     tdStatusTime :: !(Maybe UTCTime) -- This needs to be a Maybe due to backwards compatibility
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamData
   deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamData
 
 instance S.ToSchema TeamData where
@@ -88,25 +85,35 @@ data TeamStatusUpdate = TeamStatusUpdate
     -- TODO: Remove Currency selection once billing supports currency changes after team creation
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamStatusUpdate
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamStatusUpdate
 
-instance FromJSON TeamStatusUpdate where
-  parseJSON = withObject "team-status-update" $ \o ->
-    TeamStatusUpdate
-      <$> o .: "status"
-      <*> o .:? "currency"
-
-instance ToJSON TeamStatusUpdate where
-  toJSON s =
-    object
-      [ "status" .= tuStatus s,
-        "currency" .= tuCurrency s
-      ]
+instance S.ToSchema TeamStatusUpdate where
+  schema =
+    S.object "TeamStatusUpdate" $
+      TeamStatusUpdate
+        <$> tuStatus S..= S.field "status" S.schema
+        <*> tuCurrency S..= S.maybe_ (S.optField "currency" currencyAlphaSchema)
+    where
+      currencyAlphaSchema :: S.ValueSchema S.NamedSwaggerDoc Currency.Alpha
+      currencyAlphaSchema = S.mkSchema docs parseJSON (pure . toJSON)
+        where
+          docs =
+            S.swaggerDoc @Text
+              & Swagger.schema . Swagger.description ?~ "ISO 4217 alphabetic codes"
+              & Swagger.schema . Swagger.example ?~ "EUR"
 
 newtype TeamName = TeamName
   {tnName :: Text}
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform TeamName
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema TeamName
 
-deriveJSON toJSONFieldName ''TeamName
+instance S.ToSchema TeamName where
+  schema =
+    S.object "TeamName" $
+      TeamName
+        <$> tnName S..= S.field "name" S.schema
 
 data GuardLegalholdPolicyConflicts = GuardLegalholdPolicyConflicts
   { glhProtectee :: LegalholdProtectee,
@@ -114,7 +121,11 @@ data GuardLegalholdPolicyConflicts = GuardLegalholdPolicyConflicts
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform GuardLegalholdPolicyConflicts)
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema GuardLegalholdPolicyConflicts
 
-instance ToJSON GuardLegalholdPolicyConflicts
-
-instance FromJSON GuardLegalholdPolicyConflicts
+instance S.ToSchema GuardLegalholdPolicyConflicts where
+  schema =
+    S.object "GuardLegalholdPolicyConflicts" $
+      GuardLegalholdPolicyConflicts
+        <$> glhProtectee S..= S.field "glhProtectee" S.schema
+        <*> glhUserClients S..= S.field "glhUserClients" S.schema

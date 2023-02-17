@@ -53,7 +53,6 @@ import qualified Data.List1 as List1
 import Data.Range
 import Data.String.Conversions (cs)
 import qualified Galley.Types.Teams as Team
-import qualified Galley.Types.Teams.Intra as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -68,6 +67,7 @@ import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig
 import Wire.API.Team

@@ -109,7 +109,6 @@ import Galley.Intra.Push
 import Galley.Options
 import qualified Galley.Types.Conversations.Members as Conv
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.Wai
@@ -131,6 +130,7 @@ import Wire.API.Event.Team
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team

@@ -35,7 +35,6 @@ import Control.Error.Util ((??))
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Data.Id as Id
 import Data.Qualified
-import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Imports
 import Network.Wai.Utilities.Error
 import Wire.API.Connection
@@ -44,6 +43,7 @@ import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
   )
+import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 data LocalConnectionAction

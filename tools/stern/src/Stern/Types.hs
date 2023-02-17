@@ -35,10 +35,10 @@ import Data.Range
 import qualified Data.Schema as S
 import qualified Data.Swagger as Swagger
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra (TeamData)
 import Imports
 import Servant.API
 import Wire.API.Properties
+import Wire.API.Routes.Internal.Galley.TeamsIntra (TeamData)
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 

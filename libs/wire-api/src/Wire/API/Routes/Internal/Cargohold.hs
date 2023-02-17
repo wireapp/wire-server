@@ -17,8 +17,21 @@
 
 module Wire.API.Routes.Internal.Cargohold where
 
+import Control.Lens
+import Data.Swagger
+import Imports
 import Servant
+import Servant.Swagger
 import Wire.API.Routes.MultiVerb
+import Wire.API.SwaggerServant
 
 type InternalAPI =
-  "i" :> "status" :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
+  SwaggerTag "cargohold"
+    :> "i"
+    :> "status"
+    :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
+
+swaggerDoc :: Swagger
+swaggerDoc =
+  toSwagger (Proxy @InternalAPI)
+    & info . title .~ "Wire-Server internal cargohold API"

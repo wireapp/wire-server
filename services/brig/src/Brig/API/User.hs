@@ -161,7 +161,6 @@ import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
 import Polysemy
@@ -175,6 +174,7 @@ import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (forgetLock)
 import Wire.API.Team.Invitation
