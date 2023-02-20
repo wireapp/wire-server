@@ -3,14 +3,19 @@ from .response import Response
 import requests
 
 class Context:
-    def __init__(self, service_map):
+    def __init__(self, service_map, version):
         self.service_map = service_map
+        self.version = version
 
     def mkurl(self, service, path, *, internal=False):
         port = self.service_map[service]
         if not path or path[0] != '/':
             path = '/' + path
-        return f'http://localhost:{port}{path}'
+        if self.version is not None:
+            vpath = f'/v{self.version}'
+        else:
+            vpath = ''
+        return f'http://localhost:{port}{vpath}{path}'
 
     def send(self, args, additional_args):
         # TODO: merge headers
@@ -25,3 +30,6 @@ class Context:
         def method(*args, **kwargs):
             return getattr(api, name)(self, *args, **kwargs)
         return method
+
+    def versioned(self, v):
+        return type(self)(self.service_map, v)
