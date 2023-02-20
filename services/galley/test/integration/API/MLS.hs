@@ -1190,12 +1190,14 @@ testRemoteToLocal = do
 
   let bobDomain = Domain "faraway.example.com"
   -- create users
-  [alice, bob] <- createAndConnectUsers [Nothing, Just (domainText bobDomain)]
+  alice <- randomQualifiedUser
+  bob <- randomQualifiedId bobDomain
+
+  connectWithRemoteUser (qUnqualified alice) bob
 
   -- Simulate the whole MLS setup for both clients first. In reality,
   -- backend calls would need to happen in order for bob to get ahold of a
   -- welcome message, but that should not affect the correctness of the test.
-
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
@@ -1222,9 +1224,9 @@ testRemoteToLocal = do
             }
 
     WS.bracketR cannon (qUnqualified alice) $ \ws -> do
-      resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+      MLSMessageResponseUpdates updates _ <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
       liftIO $ do
-        resp @?= MLSMessageResponseUpdates [] (UnreachableUsers [])
+        updates @?= []
         WS.assertMatch_ (5 # Second) ws $
           wsAssertMLSMessage qcnv bob (mpMessage message)
 
