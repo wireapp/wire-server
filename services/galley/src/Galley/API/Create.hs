@@ -103,8 +103,7 @@ createGroupConversation ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member TeamStore r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-conversation-created"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -242,8 +241,7 @@ createOne2OneConversation ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-conversation-created"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -295,8 +293,7 @@ createLegacyOne2OneConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-conversation-created"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -333,8 +330,7 @@ createOne2OneConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-conversation-created"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -356,8 +352,7 @@ createOne2OneConversationLocally ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-conversation-created"
+    Member P.TinyLog r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -410,8 +405,7 @@ createConnectConversation ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-conversation-created"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -544,8 +538,7 @@ notifyCreatedConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-conversation-created"
+    Member P.TinyLog r
   ) =>
   Maybe UTCTime ->
   Local UserId ->

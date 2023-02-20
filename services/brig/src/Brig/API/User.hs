@@ -227,9 +227,7 @@ verifyUniquenessAndCheckBlacklist uk = do
 
 createUserSpar ::
   forall r.
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   NewUserSpar ->
   ExceptT CreateUserSparError (AppT r) CreateUserResult
 createUserSpar new = do
@@ -294,8 +292,7 @@ createUser ::
   forall r p.
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r,
-    CallsFed 'Brig "on-user-deleted-connections"
+    Member (UserPendingActivationStore p) r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -894,7 +891,7 @@ mkUserEvent usrs status =
 -- Activation
 
 activate ::
-  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
@@ -903,7 +900,7 @@ activate ::
 activate tgt code usr = activateWithCurrency tgt code usr Nothing
 
 activateWithCurrency ::
-  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
@@ -1160,9 +1157,7 @@ mkPasswordResetKey ident = case ident of
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteSelfUser ::
   forall r.
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   Maybe PlainTextPassword ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
@@ -1412,7 +1407,7 @@ userGC u = case userExpire u of
     pure u
 
 lookupProfile ::
-  (Member GalleyProvider r, CallsFed 'Brig "get-users-by-ids") =>
+  (Member GalleyProvider r) =>
   Local UserId ->
   Qualified UserId ->
   ExceptT FederationError (AppT r) (Maybe UserProfile)
@@ -1429,8 +1424,7 @@ lookupProfile self other =
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
   ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r,
-    CallsFed 'Brig "get-users-by-ids"
+    Member (Concurrency 'Unsafe) r
   ) =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
@@ -1444,7 +1438,7 @@ lookupProfiles self others =
       (bucketQualified others)
 
 lookupProfilesFromDomain ::
-  (Member GalleyProvider r, CallsFed 'Brig "get-users-by-ids") =>
+  (Member GalleyProvider r) =>
   Local UserId ->
   Qualified [UserId] ->
   ExceptT FederationError (AppT r) [UserProfile]

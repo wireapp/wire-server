@@ -1098,9 +1098,7 @@ deleteTeamConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TeamStore r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->

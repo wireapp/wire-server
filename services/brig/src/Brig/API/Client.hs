@@ -145,7 +145,7 @@ lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
-  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   UserId ->
   Maybe ConnId ->
   Maybe IP ->
@@ -157,7 +157,7 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
   forall r.
-  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   Data.ReAuthPolicy ->
   UserId ->
   Maybe ConnId ->
@@ -290,7 +290,7 @@ claimRemotePrekeyBundle quser = do
 
 claimMultiPrekeyBundles ::
   forall r.
-  (Member (Concurrency 'Unsafe) r, CallsFed 'Brig "claim-multi-prekey-bundle") =>
+  (Member (Concurrency 'Unsafe) r) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap

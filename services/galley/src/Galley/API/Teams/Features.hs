@@ -668,9 +668,7 @@ instance GetFeatureConfig db LegalholdConfig where
         False -> FeatureStatusDisabled
     pure $ setStatus status defFeatureStatus
 
-instance
-  SetFeatureConfig db LegalholdConfig
-  where
+instance SetFeatureConfig db LegalholdConfig where
   type
     SetConfigForTeamConstraints db LegalholdConfig (r :: EffectRow) =
       ( Bounded (PagingBounds InternalPaging TeamMember),

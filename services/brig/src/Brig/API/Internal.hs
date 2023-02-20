@@ -442,9 +442,7 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
 
 -- | Add a client without authentication checks
 addClientInternalH ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON ->
   (Handler r) Response
 addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
@@ -452,9 +450,7 @@ addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
   setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
 
 addClientInternal ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   Maybe Bool ->
   NewClient ->
@@ -497,8 +493,7 @@ internalListFullClients (UserSet usrs) =
 createUserNoVerify ::
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r,
-    CallsFed 'Brig "on-user-deleted-connections"
+    Member (UserPendingActivationStore p) r
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -516,9 +511,7 @@ createUserNoVerify uData = lift . runExceptT $ do
   pure . SelfProfile $ usr
 
 createUserNoVerifySpar ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
 createUserNoVerifySpar uData =

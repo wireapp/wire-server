@@ -54,11 +54,11 @@ import qualified Polysemy.TinyLog as P
 import qualified System.Logger as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Common (EmptyResponse)
 import Wire.API.Federation.API.Galley (ClientRemovedRequest (ClientRemovedRequest))
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Routes.MultiTablePaging
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
-import Wire.API.Federation.Client (FederatorClient)
-import Wire.API.Federation.API.Common (EmptyResponse)
 
 getClientsH ::
   ( Member BrigAccess r,
@@ -108,9 +108,7 @@ rmClientH ::
       Member (Error InternalError) r,
       Member ProposalStore r,
       Member P.TinyLog r
-    ),
-    CallsFed 'Galley "on-client-removed",
-    CallsFed 'Galley "on-mls-message-sent"
+    )
   ) =>
   UserId ::: ClientId ->
   Sem r Response

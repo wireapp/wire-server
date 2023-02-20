@@ -75,7 +75,7 @@ ensureNotSameTeam self target = do
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
-  (Member GalleyProvider r, CallsFed 'Brig "send-connection-action") =>
+  (Member GalleyProvider r) =>
   Local UserId ->
   ConnId ->
   Qualified UserId ->

@@ -91,12 +91,12 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.Sem.Paging.Cassandra
-import Wire.API.Federation.Client (FederatorClient)
 
 getBotConversationH ::
   ( Member ConversationStore r,
@@ -151,8 +151,7 @@ getConversation ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "get-conversations"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -178,8 +177,7 @@ getRemoteConversations ::
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "get-conversations"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -236,8 +234,7 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
 getRemoteConversationsWithFailures ::
   ( Member ConversationStore r,
     Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "get-conversations"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -501,8 +498,7 @@ listConversations ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "get-conversations"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   Public.ListConversations ->

@@ -23,14 +23,13 @@ module Wire.API.MakesFederatedCall
     callsFed,
     unsafeCallsFed,
     AddAnnotation,
-    Location(..),
+    Location (..),
     ShowComponent,
     Annotation,
-    exposeAnnotations
+    exposeAnnotations,
   )
 where
 
-import TransitiveAnns.Types
 import Data.Aeson (Value (..))
 import Data.Constraint
 import Data.Kind
@@ -45,6 +44,7 @@ import Servant.Client
 import Servant.Server
 import Servant.Swagger
 import Test.QuickCheck (Arbitrary)
+import TransitiveAnns.Types
 import Unsafe.Coerce (unsafeCoerce)
 import Wire.Arbitrary (GenericUniform (..))
 

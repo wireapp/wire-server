@@ -316,10 +316,7 @@ rmUser ::
       Member ProposalStore r,
       Member P.TinyLog r,
       Member TeamStore r
-    ),
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-user-deleted-conversations",
-    CallsFed 'Galley "on-mls-message-sent"
+    )
   ) =>
   Local UserId ->
   Maybe ConnId ->

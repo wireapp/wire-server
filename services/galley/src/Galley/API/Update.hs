@@ -315,10 +315,7 @@ updateConversationReceiptMode ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "update-conversation"
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -386,10 +383,7 @@ updateConversationReceiptModeUnqualified ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "update-conversation"
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -407,9 +401,7 @@ updateConversationMessageTimer ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member (Input UTCTime) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -441,9 +433,7 @@ updateConversationMessageTimerUnqualified ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member (Input UTCTime) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -464,9 +454,7 @@ deleteLocalConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TeamStore r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -665,9 +653,7 @@ joinConversationByReusableCode ::
     Member MemberStore r,
     Member TeamStore r,
     Member (TeamFeatureStore db) r,
-    FeaturePersistentConstraint db GuestLinksConfig,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
   ConnId ->
@@ -694,9 +680,7 @@ joinConversationById ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TeamStore r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -719,9 +703,7 @@ joinConversation ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TeamStore r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -775,10 +757,7 @@ addMembers ::
     Member MemberStore r,
     Member ProposalStore r,
     Member TeamStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -815,10 +794,7 @@ addMembersUnqualifiedV2 ::
     Member MemberStore r,
     Member ProposalStore r,
     Member TeamStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -855,10 +831,7 @@ addMembersUnqualified ::
     Member MemberStore r,
     Member ProposalStore r,
     Member TeamStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -944,9 +917,7 @@ updateOtherMemberLocalConv ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member MemberStore r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -971,9 +942,7 @@ updateOtherMemberUnqualified ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member MemberStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -998,9 +967,7 @@ updateOtherMember ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member MemberStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1035,11 +1002,7 @@ removeMemberUnqualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "leave-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1064,11 +1027,7 @@ removeMemberQualified ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "leave-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1088,8 +1047,7 @@ removeMemberFromRemoteConv ::
   ( Member FederatorAccess r,
     Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (Input UTCTime) r,
-    CallsFed 'Galley "leave-conversation"
+    Member (Input UTCTime) r
   ) =>
   Remote ConvId ->
   Local UserId ->
@@ -1136,10 +1094,7 @@ removeMemberFromLocalConv ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member ProposalStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TinyLog r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -1171,10 +1126,7 @@ postProteusMessage ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member TinyLog r,
-    CallsFed 'Brig "get-user-clients",
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Galley "send-message"
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1248,9 +1200,7 @@ postBotMessageUnqualified ::
     Member (Input Opts) r,
     Member TeamStore r,
     Member TinyLog r,
-    Member (Input UTCTime) r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+    Member (Input UTCTime) r
   ) =>
   BotId ->
   ConvId ->
@@ -1301,9 +1251,7 @@ postOtrMessageUnqualified ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+    Member TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1328,9 +1276,7 @@ updateConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member (Input UTCTime) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1354,9 +1300,7 @@ updateUnqualifiedConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member (Input UTCTime) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1376,9 +1320,7 @@ updateLocalConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member (Input UTCTime) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1395,8 +1337,7 @@ isTypingQualified ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member FederatorAccess r,
-    CallsFed 'Galley "on-typing-indicator-updated"
+    Member FederatorAccess r
   ) =>
   Local UserId ->
   ConnId ->

@@ -151,7 +151,7 @@ downloadAssetV3 usr key tok1 tok2 = do
   AssetLocation <$$> V3.download (mkPrincipal usr) key (tok1 <|> tok2)
 
 downloadAssetV4 ::
-  (CallsFed 'Cargohold "get-asset", CallsFed 'Cargohold "stream-asset") =>
+  () =>
   Local UserId ->
   Qualified AssetKey ->
   Maybe AssetToken ->

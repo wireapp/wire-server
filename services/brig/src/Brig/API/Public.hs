@@ -293,8 +293,10 @@ servantSitemap =
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client" (callsFed (exposeAnnotations addClient)) :<|> Named
-      @"update-client" updateClient
+      Named @"add-client" (callsFed (exposeAnnotations addClient))
+        :<|> Named
+          @"update-client"
+          updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients" listClients
         :<|> Named @"get-client" getClient
@@ -464,7 +466,7 @@ getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH ::
-  (Member (Concurrency 'Unsafe) r, CallsFed 'Brig "claim-multi-prekey-bundle") =>
+  (Member (Concurrency 'Unsafe) r) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMap
@@ -479,9 +481,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   ConnId ->
   Maybe IpAddr ->
@@ -591,8 +591,7 @@ createAccessToken method uid cid proof = do
 createUser ::
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r,
-    CallsFed 'Brig "on-user-deleted-connections"
+    Member (UserPendingActivationStore p) r
   ) =>
   Public.NewUserPublic ->
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
@@ -670,9 +669,7 @@ getSelf self =
     >>= ifNothing (errorToWai @'E.UserNotFound)
 
 getUserUnqualifiedH ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "get-users-by-ids"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   UserId ->
   (Handler r) (Maybe Public.UserProfile)
@@ -681,9 +678,7 @@ getUserUnqualifiedH self uid = do
   getUser self (Qualified uid domain)
 
 getUser ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "get-users-by-ids"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   Qualified UserId ->
   (Handler r) (Maybe Public.UserProfile)
@@ -694,8 +689,7 @@ getUser self qualifiedUserId = do
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
   ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r,
-    CallsFed 'Brig "get-users-by-ids"
+    Member (Concurrency 'Unsafe) r
   ) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
@@ -719,8 +713,7 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
 listUsersByIdsOrHandles ::
   forall r.
   ( Member GalleyProvider r,
-    Member (Concurrency 'Unsafe) r,
-    CallsFed 'Brig "get-users-by-ids"
+    Member (Concurrency 'Unsafe) r
   ) =>
   UserId ->
   Public.ListUsersQuery ->
@@ -809,9 +802,7 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "get-user-by-handle",
-    CallsFed 'Brig "get-users-by-ids"
+  ( Member GalleyProvider r
   ) =>
   UserId ->
   Handle ->
@@ -878,9 +869,7 @@ customerExtensionCheckBlockedDomains email = do
             customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "send-connection-action"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   ConnId ->
   Public.ConnectionRequest ->
@@ -891,9 +880,7 @@ createConnectionUnqualified self conn cr = do
   API.createConnection lself conn (tUntagged target) !>> connError
 
 createConnection ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "send-connection-action"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   ConnId ->
   Qualified UserId ->
@@ -973,9 +960,7 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
@@ -1017,9 +1002,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 -- activation
 
 activate ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
   (Handler r) ActivationRespWithStatus
@@ -1029,9 +1012,7 @@ activate k c = do
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
-  ( Member GalleyProvider r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)

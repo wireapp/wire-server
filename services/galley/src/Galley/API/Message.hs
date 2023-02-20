@@ -77,6 +77,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
@@ -84,7 +85,6 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
-import Wire.API.Federation.Client (FederatorClient)
 
 data UserType = User | Bot
 
@@ -230,7 +230,7 @@ getRemoteClients remoteMembers =
 
 -- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
-  (Member FederatorAccess r, CallsFed 'Galley "send-message") =>
+  (Member FederatorAccess r) =>
   Qualified UserId ->
   Remote ConvId ->
   ByteString ->
@@ -370,9 +370,7 @@ postQualifiedOtrMessage ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+    Member P.TinyLog r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -479,8 +477,7 @@ sendMessages ::
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member P.TinyLog r
-    ),
-    CallsFed 'Galley "on-message-sent"
+    )
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -562,8 +559,7 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
 sendRemoteMessages ::
   forall r x.
   ( Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-message-sent"
+    Member P.TinyLog r
   ) =>
   Remote x ->
   UTCTime ->

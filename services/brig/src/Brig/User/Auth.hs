@@ -134,7 +134,7 @@ lookupLoginCode phone =
 
 login ::
   forall r.
-  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
@@ -462,7 +462,7 @@ ssoLogin (SsoLogin uid label) typ = do
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
-  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   LegalHoldLogin ->
   CookieType ->
   ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)

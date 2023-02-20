@@ -138,12 +138,7 @@ postMLSMessageFromLocalUserV1 ::
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
-    ),
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "send-mls-message",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    )
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -179,12 +174,7 @@ postMLSMessageFromLocalUser ::
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
-    ),
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "send-mls-message",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    )
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -213,13 +203,7 @@ postMLSCommitBundle ::
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
-    ),
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "mls-welcome",
-    CallsFed 'Galley "send-mls-commit-bundle",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    )
   ) =>
   Local x ->
   Qualified UserId ->
@@ -249,13 +233,7 @@ postMLSCommitBundleFromLocalUser ::
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
-    ),
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "mls-welcome",
-    CallsFed 'Galley "send-mls-commit-bundle",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    )
   ) =>
   Local UserId ->
   Maybe ClientId ->
@@ -284,12 +262,7 @@ postMLSCommitBundleToLocalConv ::
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
-    ),
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "mls-welcome",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    )
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -352,8 +325,7 @@ postMLSCommitBundleToRemoteConv ::
       Member GundeckAccess r,
       Member MemberStore r,
       Member TinyLog r
-    ),
-    CallsFed 'Galley "send-mls-commit-bundle"
+    )
   ) =>
   Local x ->
   Qualified UserId ->
@@ -406,12 +378,7 @@ postMLSMessage ::
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
-    ),
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "send-mls-message",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    )
   ) =>
   Local x ->
   Qualified UserId ->
@@ -489,11 +456,7 @@ postMLSMessageToLocalConv ::
       Member ProposalStore r,
       Member Resource r,
       Member TinyLog r
-    ),
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    )
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -534,8 +497,7 @@ postMLSMessageToRemoteConv ::
     ( Member (Error FederationError) r,
       Member TinyLog r
     ),
-    HasProposalEffects r,
-    CallsFed 'Galley "send-mls-message"
+    HasProposalEffects r
   ) =>
   Local x ->
   Qualified UserId ->
@@ -649,11 +611,7 @@ processCommit ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member Resource r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    Member Resource r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -687,8 +645,7 @@ processExternalCommit ::
     Member MemberStore r,
     Member ProposalStore r,
     Member Resource r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-mls-message-sent"
+    Member TinyLog r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -788,11 +745,7 @@ processCommitWithAction ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member Resource r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    Member Resource r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -820,11 +773,7 @@ processInternalCommit ::
     Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member Resource r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Brig "get-mls-clients"
+    Member Resource r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
@@ -1282,8 +1231,7 @@ handleNoChanges = fmap fold . runError
 
 getClientInfo ::
   ( Member BrigAccess r,
-    Member FederatorAccess r,
-    CallsFed 'Brig "get-mls-clients"
+    Member FederatorAccess r
   ) =>
   Local x ->
   Qualified UserId ->

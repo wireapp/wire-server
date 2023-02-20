@@ -681,9 +681,7 @@ notifyConversationAction ::
   ( Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated"
+    Member (Input UTCTime) r
   ) =>
   Sing tag ->
   Qualified UserId ->
