@@ -145,13 +145,13 @@ postMLSMessageFromLocalUserV1 ::
   Maybe ClientId ->
   ConnId ->
   RawMLS SomeMessage ->
-  Sem r ([Event], UnreachableUsers)
+  Sem r [Event]
 postMLSMessageFromLocalUserV1 lusr mc conn smsg = do
   assertMLSEnabled
   case rmValue smsg of
     SomeMessage _ msg -> do
       qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-      first (map lcuEvent)
+      fst . first (map lcuEvent)
         <$> postMLSMessage lusr (tUntagged lusr) mc qcnv (Just conn) smsg
 
 postMLSMessageFromLocalUser ::
@@ -182,11 +182,17 @@ postMLSMessageFromLocalUser ::
   ConnId ->
   RawMLS SomeMessage ->
   Sem r MLSMessageSendingStatus
-postMLSMessageFromLocalUser lusr mc conn msg = do
+postMLSMessageFromLocalUser lusr mc conn smsg = do
   -- FUTUREWORK: Inline the body of 'postMLSMessageFromLocalUserV1' once version
   -- V1 is dropped
   assertMLSEnabled
-  (events, unreachables) <- postMLSMessageFromLocalUserV1 lusr mc conn msg
+  -- (events, unreachables) <- postMLSMessageFromLocalUserV1 lusr mc conn msg
+  assertMLSEnabled
+  (events, unreachables) <- case rmValue smsg of
+    SomeMessage _ msg -> do
+      qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+      first (map lcuEvent)
+        <$> postMLSMessage lusr (tUntagged lusr) mc qcnv (Just conn) smsg
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t unreachables
 
