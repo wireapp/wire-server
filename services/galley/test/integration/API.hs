@@ -66,7 +66,6 @@ import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
 import Galley.Options (optFederator)
-import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
 import Imports
 import qualified Network.HTTP.Types.Status as HTTP
@@ -94,6 +93,7 @@ import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Internal.Notification
 import Wire.API.Message
 import qualified Wire.API.Message as Message
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
@@ -2132,7 +2132,7 @@ postConvQualifiedFederationNotEnabled = do
 
 -- like postConvQualified
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
-postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
+postConvHelper :: MonadHttp m => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
   let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv

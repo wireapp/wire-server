@@ -230,7 +230,7 @@ getRemoteClients remoteMembers =
 
 -- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
-  (Members '[FederatorAccess] r) =>
+  (Member FederatorAccess r, CallsFed 'Galley "send-message") =>
   Qualified UserId ->
   Remote ConvId ->
   ByteString ->
@@ -246,19 +246,17 @@ postRemoteOtrMessage sender conv rawMsg = do
   msResponse <$> runFederated conv rpc
 
 postBroadcast ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       ErrorS 'TeamNotFound,
-       ErrorS 'NonBindingTeam,
-       ErrorS 'BroadcastLimitExceeded,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member ClientStore r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NonBindingTeam) r,
+    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member GundeckAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Maybe ConnId ->
   QualifiedNewOtrMessage ->
@@ -336,7 +334,9 @@ postBroadcast lusr con msg = runError $ do
   pure otrResult {mssFailedToSend = failedToSend}
   where
     maybeFetchLimitedTeamMemberList ::
-      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
+      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+        Member TeamStore r
+      ) =>
       Int ->
       TeamId ->
       [UserId] ->
@@ -349,7 +349,9 @@ postBroadcast lusr con msg = runError $ do
         throwS @'BroadcastLimitExceeded
       selectTeamMembers tid localUserIdsToLookup
     maybeFetchAllMembersInTeam ::
-      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
+      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+        Member TeamStore r
+      ) =>
       TeamId ->
       Sem r [TeamMember]
     maybeFetchAllMembersInTeam tid = do
@@ -359,21 +361,18 @@ postBroadcast lusr con msg = runError $ do
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
-  ( Members
-      '[ BrigAccess,
-         ClientStore,
-         ConversationStore,
-         FederatorAccess,
-         GundeckAccess,
-         ExternalAccess,
-         Input (Local ()), -- FUTUREWORK: remove this
-         Input Opts,
-         Input UTCTime,
-         MemberStore,
-         TeamStore,
-         P.TinyLog
-       ]
-      r
+  ( Member BrigAccess r,
+    Member ClientStore r,
+    Member ConversationStore r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member P.TinyLog r,
+    CallsFed 'Galley "on-message-sent",
+    CallsFed 'Brig "get-user-clients"
   ) =>
   UserType ->
   Qualified UserId ->
@@ -476,7 +475,12 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 sendMessages ::
   forall t r.
   ( t ~ 'NormalMessage,
-    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r
+    ( Member GundeckAccess r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member P.TinyLog r
+    ),
+    CallsFed 'Galley "on-message-sent"
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -498,7 +502,7 @@ sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
 
 sendBroadcastMessages ::
-  Members '[GundeckAccess, P.TinyLog] r =>
+  Member GundeckAccess r =>
   Local x ->
   UTCTime ->
   Qualified UserId ->
@@ -552,9 +556,15 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
   runMessagePush @t loc qcnv (pushes ^. traversed)
   pure mempty
 
+-- | Send remote messages to the backend given by the domain argument, and
+-- return the set of clients for which sending has failed. In case there was no
+-- failure, the empty set is returned.
 sendRemoteMessages ::
   forall r x.
-  (Members '[FederatorAccess, P.TinyLog] r) =>
+  ( Member FederatorAccess r,
+    Member P.TinyLog r,
+    CallsFed 'Galley "on-message-sent"
+  ) =>
   Remote x ->
   UTCTime ->
   Qualified UserId ->

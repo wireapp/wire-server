@@ -329,7 +329,7 @@ testGetUserByQualifiedHandleNoFederation opt brig = do
         const "Bad Request" === statusMessage
         const (Right "federation-not-enabled") === fmap Wai.label . responseJsonEither
 
-assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
+assertCanFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCanFind brig from target = do
   liftIO $ assertBool "assertCanFind: Target must have a handle set" (isJust $ userHandle target)
   let targetHandle = fromMaybe (error "Impossible") (userHandle target)
@@ -341,7 +341,7 @@ assertCanFind brig from target = do
     const 200 === statusCode
     const (Just (UserHandleInfo $ userQualifiedId target)) === responseJsonMaybe
 
-assertCannotFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
+assertCannotFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCannotFind brig from target = do
   liftIO $ assertBool "assertCannotFind: Target must have a handle set" (isJust $ userHandle target)
   let targetHandle = fromMaybe (error "Impossible") (userHandle target)

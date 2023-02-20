@@ -134,7 +134,7 @@ lookupLoginCode phone =
 
 login ::
   forall r.
-  (Members '[GalleyProvider] r) =>
+  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
   Login ->
   CookieType ->
   ExceptT LoginError (AppT r) (Access ZAuth.User)
@@ -171,7 +171,7 @@ login (SmsLogin (SmsLoginData phone code label)) typ = do
 
 verifyCode ::
   forall r.
-  Members '[GalleyProvider] r =>
+  Member GalleyProvider r =>
   Maybe Code.Value ->
   VerificationAction ->
   UserId ->
@@ -211,7 +211,7 @@ checkRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT Login
 checkRetryLimit = withRetryLimit checkBudget
 
 withRetryLimit ::
-  (MonadClient m, MonadReader Env m) =>
+  MonadReader Env m =>
   (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
   UserId ->
   ExceptT LoginError m ()
@@ -414,7 +414,6 @@ validateTokens uts at = do
 
 validateToken ::
   ( ZAuth.TokenPair u a,
-    Monad m,
     ZAuth.MonadZAuth m,
     MonadClient m
   ) =>
@@ -463,7 +462,7 @@ ssoLogin (SsoLogin uid label) typ = do
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin ::
-  (Members '[GalleyProvider] r) =>
+  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
   LegalHoldLogin ->
   CookieType ->
   ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)
@@ -481,7 +480,7 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
     !>> LegalHoldLoginError
 
 assertLegalHoldEnabled ::
-  Members '[GalleyProvider] r =>
+  Member GalleyProvider r =>
   TeamId ->
   ExceptT LegalHoldLoginError (AppT r) ()
 assertLegalHoldEnabled tid = do

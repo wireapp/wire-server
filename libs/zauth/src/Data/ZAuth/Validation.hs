@@ -130,5 +130,5 @@ check t = do
     throwError Expired
   pure t
 
-now :: (Functor m, MonadIO m) => m Integer
+now :: MonadIO m => m Integer
 now = floor <$> liftIO getPOSIXTime

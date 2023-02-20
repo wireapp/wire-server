@@ -31,7 +31,9 @@ import Polysemy.Input
 import Wire.API.CustomBackend
 
 interpretCustomBackendStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   Sem (CustomBackendStore ': r) a ->
   Sem r a
 interpretCustomBackendStoreToCassandra = interpret $ \case

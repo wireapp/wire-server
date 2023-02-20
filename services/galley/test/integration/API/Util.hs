@@ -15,6 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module API.Util where
 
@@ -78,10 +80,8 @@ import GHC.TypeNats
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.One2One
 import qualified Galley.Types.Teams as Team
-import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports
 import qualified Network.HTTP.Client as HTTP
@@ -125,7 +125,9 @@ import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Version
 import Wire.API.Team
@@ -955,7 +957,7 @@ mkOtrPayload sender rec reportMissingBody ad =
 mkOtrMessage :: (UserId, ClientId, Text) -> (Text, HashMap.HashMap Text Text)
 mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
   where
-    fn :: (FromByteString a, ToByteString a) => a -> Text
+    fn :: ToByteString a => a -> Text
     fn = fromJust . fromByteString . toByteString'
 
 postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
@@ -1052,10 +1054,8 @@ getConv u c = do
       . zType "access"
 
 getConvQualifiedV2 ::
-  ( Monad m,
-    MonadReader TestSetup m,
-    MonadHttp m,
-    MonadIO m
+  ( MonadReader TestSetup m,
+    MonadHttp m
   ) =>
   UserId ->
   Qualified ConvId ->
@@ -1130,7 +1130,7 @@ listRemoteConvs remoteDomain uid = do
   pure $ filter (\qcnv -> qDomain qcnv == remoteDomain) allConvs
 
 postQualifiedMembers ::
-  (MonadReader TestSetup m, MonadIO m, MonadHttp m) =>
+  (MonadReader TestSetup m, MonadHttp m) =>
   UserId ->
   NonEmpty (Qualified UserId) ->
   ConvId ->
@@ -1256,7 +1256,7 @@ putOtherMember from to m c = do
       . json m
 
 putQualifiedConversationName ::
-  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadMask m) =>
+  (HasCallStack, HasGalley m, MonadIO m, MonadHttp m) =>
   UserId ->
   Qualified ConvId ->
   Text ->
@@ -1440,7 +1440,7 @@ deleteConvCode u c = do
       . zConn "conn"
       . zType "access"
 
-deleteUser :: (MonadIO m, MonadCatch m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> m ResponseLBS
+deleteUser :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> m ResponseLBS
 deleteUser u = do
   g <- viewGalley
   delete (g . path "/i/user" . zUser u)
@@ -1511,7 +1511,7 @@ registerRemoteConv convId originUser name othMembers = do
         ccProtocol = ProtocolProteus
       }
 
-getFeatureStatusMulti :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
+getFeatureStatusMulti :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
 getFeatureStatusMulti req = do
   g <- viewGalley
   post

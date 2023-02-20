@@ -45,7 +45,7 @@ import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
 
 getHandleInfo ::
-  (Members '[GalleyProvider] r) =>
+  (Member GalleyProvider r, CallsFed 'Brig "get-user-by-handle", CallsFed 'Brig "get-users-by-ids") =>
   UserId ->
   Qualified Handle ->
   (Handler r) (Maybe Public.UserProfile)
@@ -65,7 +65,7 @@ getRemoteHandleInfo handle = do
   Federation.getUserHandleInfo handle !>> fedError
 
 getLocalHandleInfo ::
-  (Members '[GalleyProvider] r) =>
+  (Member GalleyProvider r, CallsFed 'Brig "get-users-by-ids") =>
   Local UserId ->
   Handle ->
   (Handler r) (Maybe Public.UserProfile)

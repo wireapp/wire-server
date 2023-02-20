@@ -168,7 +168,7 @@ withAdditionalESUrl action = do
 --------------------------------------------------------------------------------
 -- Updates
 
-reindex :: (MonadLogger m, MonadCatch m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
+reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
 reindex u = do
   ixu <- lookupIndexUser u
   updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
@@ -679,12 +679,12 @@ mappingName :: ES.MappingName
 mappingName = ES.MappingName "user"
 
 lookupIndexUser ::
-  (MonadCatch m, MonadIndexIO m, C.MonadClient m) =>
+  (MonadIndexIO m, C.MonadClient m) =>
   UserId ->
   m (Maybe IndexUser)
 lookupIndexUser = lookupForIndex
 
-lookupForIndex :: (MonadThrow m, C.MonadClient m, MonadIndexIO m) => UserId -> m (Maybe IndexUser)
+lookupForIndex :: (C.MonadClient m, MonadIndexIO m) => UserId -> m (Maybe IndexUser)
 lookupForIndex u = do
   mrow <- C.retry C.x1 (C.query1 cql (C.params C.LocalQuorum (Identity u)))
   for mrow $ \row -> do

@@ -20,7 +20,6 @@
 
 module Brig.API.Public
   ( sitemap,
-    apiDocs,
     servantSitemap,
     docsAPI,
     DocsAPI,
@@ -88,19 +87,15 @@ import Data.Nonce (Nonce, randomNonce)
 import Data.Qualified
 import Data.Range
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
-import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
-import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.Swagger (mkSwaggerApi)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
@@ -113,6 +108,12 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
 import qualified Wire.API.Properties as Public
+import qualified Wire.API.Routes.Internal.Brig as BrigInternalAPI
+import qualified Wire.API.Routes.Internal.Cannon as CannonInternalAPI
+import qualified Wire.API.Routes.Internal.Cargohold as CargoholdInternalAPI
+import qualified Wire.API.Routes.Internal.Galley as GalleyInternalAPI
+import qualified Wire.API.Routes.Internal.LegalHold as LegalHoldInternalAPI
+import qualified Wire.API.Routes.Internal.Spar as SparInternalAPI
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
@@ -124,7 +125,6 @@ import qualified Wire.API.Routes.Public.Proxy as ProxyAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
-import qualified Wire.API.Swagger as Public.Swagger (models)
 import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import qualified Wire.API.Team as Public
@@ -147,8 +147,11 @@ import Wire.Sem.Now (Now)
 -- User API -----------------------------------------------------------
 
 docsAPI :: Servant.Server DocsAPI
-docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas
+docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas :<|> internalEndpointsSwaggerDocsAPI
 
+-- | Serves Swagger docs for public endpoints
+--
+-- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
 versionedSwaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
@@ -169,22 +172,50 @@ versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
 versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 
+-- | Serves Swagger docs for internal endpoints
+--
+-- Dual to `versionedSwaggerDocsAPI`. Swagger docs for old versions are (almost)
+-- empty. It would have been too tedious to create them. Please add
+-- pre-generated docs on version increase as it's done in
+-- `versionedSwaggerDocsAPI`.
+internalEndpointsSwaggerDocsAPI :: Servant.Server InternalEndpointsSwaggerDocsAPI
+internalEndpointsSwaggerDocsAPI (Just V3) =
+  swaggerSchemaUIServer $
+    ( BrigInternalAPI.swaggerDoc
+        <> CannonInternalAPI.swaggerDoc
+        <> CargoholdInternalAPI.swaggerDoc
+        <> LegalHoldInternalAPI.swaggerDoc
+        <> GalleyInternalAPI.swaggerDoc
+        <> SparInternalAPI.swaggerDoc
+    )
+      & S.info . S.title .~ "Wire-Server internal API"
+      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger-internal-endpoints.md")
+      & cleanupSwagger
+internalEndpointsSwaggerDocsAPI (Just V0) = emptySwagger
+internalEndpointsSwaggerDocsAPI (Just V1) = emptySwagger
+internalEndpointsSwaggerDocsAPI (Just V2) = emptySwagger
+internalEndpointsSwaggerDocsAPI Nothing = internalEndpointsSwaggerDocsAPI (Just maxBound)
+
+emptySwagger :: Servant.Server VersionedSwaggerDocsAPIBase
+emptySwagger =
+  swaggerSchemaUIServer $
+    mempty @S.Swagger
+      & S.info . S.title .~ "Wire-Server internal API"
+      & S.info . S.description
+        ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
+
 servantSitemap ::
   forall r p.
-  ( Members
-      '[ BlacklistPhonePrefixStore,
-         BlacklistStore,
-         CodeStore,
-         Concurrency 'Unsafe,
-         Concurrency 'Unsafe,
-         GalleyProvider,
-         JwtTools,
-         Now,
-         PasswordResetStore,
-         PublicKeyBundle,
-         UserPendingActivationStore p
-       ]
-      r
+  ( Member BlacklistPhonePrefixStore r,
+    Member BlacklistStore r,
+    Member CodeStore r,
+    Member (Concurrency 'Unsafe) r,
+    Member GalleyProvider r,
+    Member JwtTools r,
+    Member Now r,
+    Member PasswordResetStore r,
+    Member PublicKeyBundle r,
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
@@ -336,40 +367,12 @@ servantSitemap =
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  Members
-    '[ BlacklistPhonePrefixStore,
-       BlacklistStore,
-       CodeStore,
-       Concurrency 'Unsafe,
-       GalleyProvider,
-       PasswordResetStore
-     ]
-    r =>
-  Routes Doc.ApiBuilder (Handler r) ()
+  ( Member (Concurrency 'Unsafe) r,
+    Member GalleyProvider r
+  ) =>
+  Routes () (Handler r) ()
 sitemap = do
   Provider.routesPublic
-
-apiDocs ::
-  forall r.
-  Members
-    '[ BlacklistPhonePrefixStore,
-       BlacklistStore,
-       CodeStore,
-       Concurrency 'Unsafe,
-       GalleyProvider,
-       PasswordResetStore
-     ]
-    r =>
-  Routes Doc.ApiBuilder (Handler r) ()
-apiDocs =
-  get
-    "/users/api-docs"
-    ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models (sitemap @r)
-         in k $ json doc
-    )
-    $ accept "application" "json"
-      .&. query "base_url"
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -450,7 +453,7 @@ getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
 getMultiUserPrekeyBundleUnqualifiedH ::
-  Members '[Concurrency 'Unsafe] r =>
+  Member (Concurrency 'Unsafe) r =>
   UserId ->
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
@@ -461,7 +464,7 @@ getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH ::
-  (Members '[Concurrency 'Unsafe] r) =>
+  (Member (Concurrency 'Unsafe) r, CallsFed 'Brig "claim-multi-prekey-bundle") =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMap
@@ -476,10 +479,8 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   ConnId ->
@@ -588,12 +589,10 @@ createAccessToken method uid cid proof = do
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
-  ( Members
-      '[ BlacklistStore,
-         GalleyProvider,
-         UserPendingActivationStore p
-       ]
-      r
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   Public.NewUserPublic ->
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
@@ -671,10 +670,8 @@ getSelf self =
     >>= ifNothing (errorToWai @'E.UserNotFound)
 
 getUserUnqualifiedH ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "get-users-by-ids"
   ) =>
   UserId ->
   UserId ->
@@ -684,10 +681,8 @@ getUserUnqualifiedH self uid = do
   getUser self (Qualified uid domain)
 
 getUser ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "get-users-by-ids"
   ) =>
   UserId ->
   Qualified UserId ->
@@ -698,11 +693,9 @@ getUser self qualifiedUserId = do
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  ( Members
-      '[ GalleyProvider,
-         Concurrency 'Unsafe
-       ]
-      r
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r,
+    CallsFed 'Brig "get-users-by-ids"
   ) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
@@ -725,11 +718,9 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
 
 listUsersByIdsOrHandles ::
   forall r.
-  ( Members
-      '[ GalleyProvider,
-         Concurrency 'Unsafe
-       ]
-      r
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r,
+    CallsFed 'Brig "get-users-by-ids"
   ) =>
   UserId ->
   Public.ListUsersQuery ->
@@ -767,11 +758,9 @@ updateUser uid conn uu = do
   pure $ either Just (const Nothing) eithErr
 
 changePhone ::
-  Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member BlacklistPhonePrefixStore r
+  ) =>
   UserId ->
   ConnId ->
   Public.PhoneUpdate ->
@@ -820,10 +809,9 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "get-user-by-handle",
+    CallsFed 'Brig "get-users-by-ids"
   ) =>
   UserId ->
   Handle ->
@@ -839,7 +827,7 @@ changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
 beginPasswordReset ::
-  Members '[PasswordResetStore] r =>
+  Member PasswordResetStore r =>
   Public.NewPasswordReset ->
   (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
@@ -851,7 +839,9 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
 completePasswordReset ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  ( Member CodeStore r,
+    Member PasswordResetStore r
+  ) =>
   Public.CompletePasswordReset ->
   (Handler r) ()
 completePasswordReset req = do
@@ -860,12 +850,10 @@ completePasswordReset req = do
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
-  Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member BlacklistPhonePrefixStore r,
+    Member GalleyProvider r
+  ) =>
   Public.SendActivationCode ->
   (Handler r) ()
 sendActivationCode Public.SendActivationCode {..} = do
@@ -890,10 +878,8 @@ customerExtensionCheckBlockedDomains email = do
             customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "send-connection-action"
   ) =>
   UserId ->
   ConnId ->
@@ -905,10 +891,8 @@ createConnectionUnqualified self conn cr = do
   API.createConnection lself conn (tUntagged target) !>> connError
 
 createConnection ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "send-connection-action"
   ) =>
   UserId ->
   ConnId ->
@@ -989,10 +973,8 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Public.DeleteUser ->
@@ -1005,11 +987,9 @@ verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 
 updateUserEmail ::
   forall r.
-  Members
-    '[ BlacklistStore,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member GalleyProvider r
+  ) =>
   UserId ->
   UserId ->
   Public.EmailUpdate ->
@@ -1037,10 +1017,8 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 -- activation
 
 activate ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
@@ -1051,10 +1029,8 @@ activate k c = do
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus
@@ -1073,10 +1049,7 @@ activateKey (Public.Activate tgt code dryrun)
 
 sendVerificationCode ::
   forall r.
-  Members
-    '[ GalleyProvider
-     ]
-    r =>
+  Member GalleyProvider r =>
   Public.SendVerificationCode ->
   (Handler r) ()
 sendVerificationCode req = do
@@ -1130,7 +1103,9 @@ deprecatedOnboarding :: UserId -> JsonValue -> (Handler r) DeprecatedMatchingRes
 deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 
 deprecatedCompletePasswordReset ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  ( Member CodeStore r,
+    Member PasswordResetStore r
+  ) =>
   Public.PasswordResetKey ->
   Public.PasswordReset ->
   (Handler r) ()

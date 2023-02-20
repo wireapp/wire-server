@@ -34,7 +34,9 @@ import qualified Wire.Sem.Now as Now
 
 passwordResetStoreToCodeStore ::
   forall r a.
-  Members '[CodeStore, Now] r =>
+  ( Member CodeStore r,
+    Member Now r
+  ) =>
   Sem (PasswordResetStore ': r) a ->
   Sem r a
 passwordResetStoreToCodeStore = interpret $ \case
@@ -49,7 +51,9 @@ ttl :: NominalDiffTime
 ttl = 3600 -- 60 minutes
 
 create ::
-  Members '[CodeStore, Now] r =>
+  ( Member CodeStore r,
+    Member Now r
+  ) =>
   UserId ->
   Either Email Phone ->
   Sem r PasswordResetPair
@@ -64,7 +68,9 @@ create u target = do
   pure (key, code)
 
 lookup ::
-  Members '[CodeStore, Now] r =>
+  ( Member CodeStore r,
+    Member Now r
+  ) =>
   UserId ->
   Sem r (Maybe PasswordResetCode)
 lookup u = do
@@ -76,7 +82,9 @@ lookup u = do
     validate _ _ = pure Nothing
 
 verify ::
-  Members '[CodeStore, Now] r =>
+  ( Member CodeStore r,
+    Member Now r
+  ) =>
   PasswordResetPair ->
   Sem r (Maybe UserId)
 verify (k, c) = do

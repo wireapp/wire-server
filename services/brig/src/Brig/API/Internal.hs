@@ -17,9 +17,7 @@
 module Brig.API.Internal
   ( sitemap,
     servantSitemap,
-    swaggerDocsAPI,
     BrigIRoutes.API,
-    BrigIRoutes.SwaggerDocsAPI,
     getMLSClients,
   )
 where
@@ -81,7 +79,6 @@ import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
-import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import UnliftIO.Async
 import Wire.API.Connection
@@ -106,12 +103,9 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap ::
-  ( Members
-      '[ BlacklistStore,
-         GalleyProvider,
-         UserPendingActivationStore p
-       ]
-      r
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap =
@@ -124,10 +118,7 @@ servantSitemap =
     :<|> authAPI
 
 ejpdAPI ::
-  Members
-    '[ GalleyProvider
-     ]
-    r =>
+  Member GalleyProvider r =>
   ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
@@ -152,12 +143,9 @@ mlsAPI =
     :<|> Named @"put-key-package-add" upsertKeyPackage
 
 accountAPI ::
-  ( Members
-      '[ BlacklistStore,
-         GalleyProvider,
-         UserPendingActivationStore p
-       ]
-      r
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r
   ) =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
@@ -280,22 +268,16 @@ getVerificationCode uid action = do
       code <- wrapClientE $ Code.lookup key (Code.scopeFromAction a)
       pure $ Code.codeValue <$> code
 
-swaggerDocsAPI :: Servant.Server BrigIRoutes.SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
-
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)
 
 sitemap ::
-  ( Members
-      '[ CodeStore,
-         PasswordResetStore,
-         BlacklistStore,
-         BlacklistPhonePrefixStore,
-         GalleyProvider,
-         UserPendingActivationStore p
-       ]
-      r
+  ( Member CodeStore r,
+    Member PasswordResetStore r,
+    Member BlacklistStore r,
+    Member BlacklistPhonePrefixStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r
   ) =>
   Routes a (Handler r) ()
 sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
@@ -460,10 +442,8 @@ sitemap = unsafeCallsFed @'Brig @"on-user-deleted-connections" $ do
 
 -- | Add a client without authentication checks
 addClientInternalH ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON ->
   (Handler r) Response
@@ -472,10 +452,8 @@ addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
   setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
 
 addClientInternal ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   UserId ->
   Maybe Bool ->
@@ -517,12 +495,10 @@ internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
 createUserNoVerify ::
-  ( Members
-      '[ BlacklistStore,
-         GalleyProvider,
-         UserPendingActivationStore p
-       ]
-      r
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   NewUser ->
   (Handler r) (Either RegisterError SelfProfile)
@@ -540,10 +516,8 @@ createUserNoVerify uData = lift . runExceptT $ do
   pure . SelfProfile $ usr
 
 createUserNoVerifySpar ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r
+  ( Member GalleyProvider r,
+    CallsFed 'Brig "on-user-deleted-connections"
   ) =>
   NewUserSpar ->
   (Handler r) (Either CreateUserSparError SelfProfile)
@@ -642,14 +616,18 @@ instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 getPasswordResetCodeH ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  ( Member CodeStore r,
+    Member PasswordResetStore r
+  ) =>
   JSON ::: Either Email Phone ->
   (Handler r) Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
   maybe (throwStd (errorToWai @'E.InvalidPasswordResetKey)) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
 
 getPasswordResetCode ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  ( Member CodeStore r,
+    Member PasswordResetStore r
+  ) =>
   Either Email Phone ->
   (AppT r) (Maybe GetPasswordResetCodeResp)
 getPasswordResetCode emailOrPhone =

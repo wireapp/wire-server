@@ -24,7 +24,6 @@ import Control.Lens
 import Data.Set hiding (drop)
 import qualified Data.Set as Set
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts)
 import Imports
 import Test.Galley.Roundtrip (testRoundTrip)
 import qualified Test.QuickCheck as QC
@@ -49,7 +48,6 @@ tests =
             assertBool "owner.self" ((rolePermissions r2 ^. self) `isSubsetOf` (rolePermissions r1 ^. self))
             assertBool "owner.copy" ((rolePermissions r2 ^. copy) `isSubsetOf` (rolePermissions r1 ^. copy)),
       testRoundTrip @FeatureFlags,
-      testRoundTrip @GuardLegalholdPolicyConflicts,
       testGroup
         "permissionsRole, rolePermissions"
         [ testCase "'Role' maps to expected permissions" $ do

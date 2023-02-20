@@ -86,8 +86,6 @@ import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
 import GHC.TypeLits (KnownSymbol)
-import Galley.Types.Teams.Intra
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
@@ -104,6 +102,8 @@ import Wire.API.Internal.Notification
 import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Galley.TeamsIntra
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Routes.Version
 import Wire.API.Routes.Versioned
 import Wire.API.Team
@@ -122,7 +122,7 @@ backendApiVersion :: Version
 backendApiVersion = V2
 
 -- | Make sure the backend supports `backendApiVersion`.  Crash if it doesn't.  (This is called
--- in `Stern.API` so problems make `./services/integration.sh` crash.)
+-- in `Stern.API` so problems make `./services/run-service` crash.)
 assertBackendApiVersion :: App ()
 assertBackendApiVersion = recoverAll (constantDelay 1000000 <> limitRetries 5) $ \_retryStatus -> do
   b <- view brig
@@ -133,10 +133,10 @@ assertBackendApiVersion = recoverAll (constantDelay 1000000 <> limitRetries 5) $
     throwIO . ErrorCall $ "newest supported backend api version must be " <> show backendApiVersion
 
 path :: ByteString -> Request -> Request
-path = Bilge.path . ((toByteString' backendApiVersion <> "/") <>)
+path = Bilge.path . ((toPathComponent backendApiVersion <> "/") <>)
 
 paths :: [ByteString] -> Request -> Request
-paths = Bilge.paths . (toByteString' backendApiVersion :)
+paths = Bilge.paths . (toPathComponent backendApiVersion :)
 
 -------------------------------------------------------------------------------
 
@@ -523,7 +523,6 @@ getTeamFeatureFlag ::
   forall cfg.
   ( Typeable (Public.WithStatus cfg),
     FromJSON (Public.WithStatus cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
@@ -543,7 +542,6 @@ getTeamFeatureFlag tid = do
 setTeamFeatureFlag ::
   forall cfg.
   ( ToJSON (Public.WithStatusNoLock cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->

@@ -64,12 +64,6 @@ module Wire.API.Team
     newTeamDeleteData,
     tdAuthPassword,
     tdVerificationCode,
-
-    -- * Swagger
-    modelTeam,
-    modelTeamList,
-    modelUpdateData,
-    modelTeamDelete,
   )
 where
 
@@ -85,7 +79,6 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)
@@ -112,26 +105,6 @@ data Team = Team
 newTeam :: TeamId -> UserId -> Text -> Icon -> TeamBinding -> Team
 newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb DefaultIcon
 
-modelTeam :: Doc.Model
-modelTeam = Doc.defineModel "Team" $ do
-  Doc.description "Team information"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "team ID"
-  Doc.property "creator" Doc.bytes' $
-    Doc.description "team creator's user ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "team name"
-  Doc.property "icon" Doc.string' $
-    Doc.description "team icon (asset ID)"
-  Doc.property "icon_key" Doc.string' $ do
-    Doc.description "team icon asset key"
-    Doc.optional
-  Doc.property "binding" Doc.bool' $
-    Doc.description "user binding team"
-  Doc.property "splash_screen" Doc.string' $ do
-    Doc.description "new splash screen asset key"
-    Doc.optional
-
 instance ToSchema Team where
   schema =
     object "Team" $
@@ -144,6 +117,22 @@ instance ToSchema Team where
         <*> _teamBinding .= (fromMaybe Binding <$> optField "binding" schema)
         <*> _teamSplashScreen .= (fromMaybe DefaultIcon <$> optField "splash_screen" schema)
 
+-- | How a team "binds" its members (users)
+--
+-- A `Binding` team is the normal team which we see in the UI. A user is
+-- on-boarded as part of the team. If the team gets deleted/suspended the user
+-- gets deleted/suspended.
+--
+-- A `NonBinding` team is a concept only in the backend. It is a team someone
+-- can create and someone who has an account on Wire can join that team. This
+-- way, in theory, one person can join many teams. This concept never made it as
+-- a concept of product, but got used a lot of writing integration tests. Newer
+-- features don't really work well with this and sometimes we have to rewrite
+-- parts of the tests to use `Binding` teams.
+--
+-- Please try to not use `NonBinding` teams in tests anymore. In future, we
+-- would like it to be deleted, but it is hard to delete because it requires a
+-- bunch of tests to be rewritten.
 data TeamBinding
   = Binding
   | NonBinding
@@ -169,14 +158,6 @@ data TeamList = TeamList
 
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
-
-modelTeamList :: Doc.Model
-modelTeamList = Doc.defineModel "TeamList" $ do
-  Doc.description "list of teams"
-  Doc.property "teams" (Doc.unique $ Doc.array (Doc.ref modelTeam)) $
-    Doc.description "the Doc.array of teams"
-  Doc.property "has_more" Doc.bool' $
-    Doc.description "if more teams are available"
 
 instance ToSchema TeamList where
   schema =
@@ -285,22 +266,6 @@ instance Arbitrary TeamUpdateData where
       valid (TeamUpdateData Nothing Nothing Nothing Nothing) = False
       valid _ = True
 
-modelUpdateData :: Doc.Model
-modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
-  Doc.description "team update data"
-  Doc.property "name" Doc.string' $ do
-    Doc.description "new team name"
-    Doc.optional
-  Doc.property "icon" Doc.string' $ do
-    Doc.description "new icon asset id"
-    Doc.optional
-  Doc.property "icon_key" Doc.string' $ do
-    Doc.description "new icon asset key"
-    Doc.optional
-  Doc.property "splash_screen" Doc.string' $ do
-    Doc.description "new splash screen asset key"
-    Doc.optional
-
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing Nothing
 
@@ -339,15 +304,6 @@ newTeamDeleteData = flip TeamDeleteData Nothing
 
 newTeamDeleteDataWithCode :: Maybe PlainTextPassword -> Maybe Code.Value -> TeamDeleteData
 newTeamDeleteDataWithCode = TeamDeleteData
-
--- FUTUREWORK: fix name of model? (upper case)
-modelTeamDelete :: Doc.Model
-modelTeamDelete = Doc.defineModel "teamDeleteData" $ do
-  Doc.description "Data for a team deletion request in case of binding teams."
-  Doc.property "password" Doc.string' $
-    Doc.description "The account password to authorise the deletion."
-  Doc.property "verification_code" Doc.string' $
-    Doc.description "The verification code to authorise the deletion."
 
 instance ToSchema TeamDeleteData where
   schema =

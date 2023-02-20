@@ -44,7 +44,9 @@ data Cassandra
 type instance TFS.FeaturePersistentConstraint Cassandra = FeatureStatusCassandra
 
 interpretTeamFeatureStoreToCassandra ::
-  (Members '[Embed IO, Input ClientState] r) =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   Sem (TFS.TeamFeatureStore Cassandra ': r) a ->
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case

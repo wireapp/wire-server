@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -38,7 +41,14 @@ import qualified Wire.Sem.Now as Now
 
 assIDStoreToCassandra ::
   forall m r a.
-  (MonadClient m, Members '[Embed m, Now, Error TTLError, Embed IO, Input Opts] r) =>
+  ( MonadClient m,
+    ( Member (Embed m) r,
+      Member Now r,
+      Member (Error TTLError) r,
+      Member (Embed IO) r,
+      Member (Input Opts) r
+    )
+  ) =>
   Sem (AssIDStore ': r) a ->
   Sem r a
 assIDStoreToCassandra =

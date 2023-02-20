@@ -45,7 +45,6 @@ import UnliftIO (timeout)
 -- Has a one-minute timeout that should be enough for anything that it does.
 onEvent ::
   ( Log.MonadLogger m,
-    MonadCatch m,
     MonadIndexIO m,
     MonadReader Env m,
     MonadMask m,

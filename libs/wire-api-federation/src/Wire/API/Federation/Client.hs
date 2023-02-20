@@ -293,7 +293,6 @@ mkFailureResponse status domain path body
 
 -- | Run federator client synchronously.
 runFederatorClient ::
-  KnownComponent c =>
   FederatorClientEnv ->
   FederatorClient c a ->
   IO (Either FederatorClientError a)
@@ -303,7 +302,6 @@ runFederatorClient env =
 
 runFederatorClientToCodensity ::
   forall c a.
-  KnownComponent c =>
   FederatorClientEnv ->
   FederatorClient c a ->
   Codensity IO (Either FederatorClientError a)
@@ -317,7 +315,6 @@ runFederatorClientToCodensity env action = runExceptT $ do
     action
 
 runVersionedFederatorClientToCodensity ::
-  KnownComponent c =>
   FederatorClientVersionedEnv ->
   FederatorClient c a ->
   ExceptT FederatorClientError (Codensity IO) a

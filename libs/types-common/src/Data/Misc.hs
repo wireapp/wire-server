@@ -52,9 +52,6 @@ module Data.Misc
     -- * PlainTextPassword
     PlainTextPassword (..),
 
-    -- * Swagger
-    modelLocation,
-
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
   )
@@ -76,7 +73,6 @@ import Data.Range
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
@@ -183,14 +179,6 @@ newtype Longitude = Longitude Double deriving (NFData, Generic)
 location :: Latitude -> Longitude -> Location
 location (Latitude lat) (Longitude lon) =
   Location {_latitude = lat, _longitude = lon}
-
-modelLocation :: Doc.Model
-modelLocation = Doc.defineModel "Location" $ do
-  Doc.description "Geographical location"
-  Doc.property "lat" Doc.double' $
-    Doc.description "Latitude"
-  Doc.property "lon" Doc.double' $
-    Doc.description "Longitude"
 
 instance Arbitrary Location where
   arbitrary = Location <$> arbitrary <*> arbitrary

@@ -164,16 +164,12 @@ deleteUser env tok = case users @tag (scimClients env) tok of ((_ :<|> (_ :<|> _
 -- groups
 
 getGroups ::
-  forall tag.
-  HasScimClient tag =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   IO (ListResponse (StoredGroup tag))
 getGroups = error "groups are not authenticated at the moment; implement that first!"
 
 getGroup ::
-  forall tag.
-  HasScimClient tag =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   GroupId tag ->
@@ -181,8 +177,6 @@ getGroup ::
 getGroup = error "groups are not authenticated at the moment; implement that first!"
 
 postGroup ::
-  forall tag.
-  HasScimClient tag =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   Group ->
@@ -190,8 +184,6 @@ postGroup ::
 postGroup = error "groups are not authenticated at the moment; implement that first!"
 
 putGroup ::
-  forall tag.
-  HasScimClient tag =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   GroupId tag ->
@@ -199,8 +191,6 @@ putGroup ::
 putGroup = error "groups are not authenticated at the moment; implement that first!"
 
 patchGroup ::
-  forall tag.
-  HasScimClient tag =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   GroupId tag ->
@@ -208,8 +198,6 @@ patchGroup ::
 patchGroup = error "groups are not authenticated at the moment; implement that first!"
 
 deleteGroup ::
-  forall tag.
-  HasScimClient tag =>
   ClientEnv ->
   Maybe (AuthData tag) ->
   GroupId tag ->

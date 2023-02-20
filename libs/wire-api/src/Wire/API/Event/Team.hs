@@ -32,15 +32,6 @@ module Wire.API.Event.Team
 
     -- * EventData
     EventData (..),
-
-    -- * Swagger
-    modelEvent,
-    modelMemberEvent,
-    modelMemberData,
-    modelConvEvent,
-    modelConversationData,
-    modelUpdateEvent,
-    typeEventType,
   )
 where
 
@@ -53,11 +44,10 @@ import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Data.Time (UTCTime)
 import Imports
 import qualified Test.QuickCheck as QC
-import Wire.API.Team (Team, TeamUpdateData, modelUpdateData)
+import Wire.API.Team (Team, TeamUpdateData)
 import Wire.API.Team.Permission (Permissions)
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -235,65 +225,3 @@ genEventData = \case
   ConvDelete -> EdConvDelete <$> arbitrary
 
 makeLenses ''Event
-
-----------------------------------------------------------------------
--- swagger1.2 stuff, to be removed in
--- https://wearezeta.atlassian.net/browse/SQSERVICES-1096
-
-typeEventType :: Doc.DataType
-typeEventType =
-  Doc.string $
-    Doc.enum
-      [ "team.create",
-        "team.delete",
-        "team.update",
-        "team.member-join",
-        "team.member-leave",
-        "team.conversation-create",
-        "team.conversation-delete"
-      ]
-
-modelEvent :: Doc.Model
-modelEvent = Doc.defineModel "TeamEvent" $ do
-  Doc.description "team event data"
-  Doc.property "type" typeEventType $
-    Doc.description "event type"
-  Doc.property "team" Doc.bytes' $
-    Doc.description "team ID"
-  Doc.property "time" Doc.dateTime' $
-    Doc.description "date and time this event occurred"
-  -- This doesn't really seem to work in swagger-ui.
-  -- The children/subTypes are not displayed.
-  Doc.children
-    "type"
-    [ modelMemberEvent,
-      modelConvEvent,
-      modelUpdateEvent
-    ]
-
-modelMemberEvent :: Doc.Model
-modelMemberEvent = Doc.defineModel "TeamMemberEvent" $ do
-  Doc.description "team member event"
-  Doc.property "data" (Doc.ref modelMemberData) $ Doc.description "member data"
-
-modelMemberData :: Doc.Model
-modelMemberData =
-  Doc.defineModel "MemberData" $
-    Doc.property "user" Doc.bytes' $
-      Doc.description "user ID"
-
-modelConvEvent :: Doc.Model
-modelConvEvent = Doc.defineModel "TeamConversationEvent" $ do
-  Doc.description "team conversation event"
-  Doc.property "data" (Doc.ref modelConversationData) $ Doc.description "conversation data"
-
-modelConversationData :: Doc.Model
-modelConversationData =
-  Doc.defineModel "ConversationData" $
-    Doc.property "conv" Doc.bytes' $
-      Doc.description "conversation ID"
-
-modelUpdateEvent :: Doc.Model
-modelUpdateEvent = Doc.defineModel "TeamUpdateEvent" $ do
-  Doc.description "team update event"
-  Doc.property "data" (Doc.ref modelUpdateData) $ Doc.description "update data"

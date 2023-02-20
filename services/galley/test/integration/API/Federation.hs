@@ -41,7 +41,6 @@ import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
-import Galley.Types.Conversations.Intra
 import Imports
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
@@ -59,6 +58,7 @@ import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification
 import Wire.API.Message
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
 

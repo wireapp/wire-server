@@ -80,20 +80,6 @@ module Wire.API.Conversation
 
     -- * re-exports
     module Wire.API.Conversation.Member,
-
-    -- * Swagger
-    modelConversation,
-    modelConversations,
-    modelConversationIds,
-    modelInvite,
-    modelNewConversation,
-    modelTeamInfo,
-    modelConversationUpdateName,
-    modelConversationAccessData,
-    modelConversationReceiptModeUpdate,
-    modelConversationMessageTimerUpdate,
-    typeConversationType,
-    typeAccess,
   )
 where
 
@@ -114,7 +100,6 @@ import Data.Schema
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V5 as UUIDV5
 import Imports
@@ -294,43 +279,6 @@ conversationSchema v =
       <*> cnvMembers .= field "members" schema
       <*> cnvProtocol .= protocolSchema
 
-modelConversation :: Doc.Model
-modelConversation = Doc.defineModel "Conversation" $ do
-  Doc.description "A conversation object as returned from the server"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "Conversation ID"
-  Doc.property "type" typeConversationType $
-    Doc.description "The conversation type of this object (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
-  Doc.property "creator" Doc.bytes' $
-    Doc.description "The creator's user ID."
-  -- TODO: Doc.property "access"
-  -- Doc.property "access_role"
-  Doc.property "name" Doc.string' $ do
-    Doc.description "The conversation name (can be null)"
-  Doc.property "members" (Doc.ref modelConversationMembers) $
-    Doc.description "The current set of conversation members"
-  -- Doc.property "team"
-  Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
-    Doc.description "Per-conversation message timer (can be null)"
-
--- | This is used to describe a @ConversationList ConvId@.
---
--- FUTUREWORK: Create a new ConversationIdList type instead.
-modelConversationIds :: Doc.Model
-modelConversationIds = Doc.defineModel "ConversationIds" $ do
-  Doc.description "Object holding a list of conversation IDs"
-  Doc.property "conversations" (Doc.unique $ Doc.array Doc.string') Doc.end
-  Doc.property "has_more" Doc.bool' $
-    Doc.description "Indicator that the server has more IDs than returned"
-
--- | This is used to describe a @ConversationList Conversation@.
-modelConversations :: Doc.Model
-modelConversations = Doc.defineModel "Conversations" $ do
-  Doc.description "Object holding a list of conversations"
-  Doc.property "conversations" (Doc.unique $ Doc.array (Doc.ref modelConversation)) Doc.end
-  Doc.property "has_more" Doc.bool' $
-    Doc.description "Indicator that the server has more conversations than returned"
-
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
 data ConversationCoverView = ConversationCoverView
@@ -485,9 +433,6 @@ instance ToSchema Access where
             element "code" CodeAccess
           ]
 
-typeAccess :: Doc.DataType
-typeAccess = Doc.string . Doc.enum $ cs . A.encode <$> [(minBound :: Access) ..]
-
 -- | AccessRoles define who can join conversations. The roles are
 -- "supersets", i.e. Activated includes Team and NonActivated includes
 -- Activated.
@@ -547,7 +492,7 @@ data AccessRole
 genAccessRolesV2 :: [AccessRole] -> [AccessRole] -> IO (Either String (Set AccessRole))
 genAccessRolesV2 = genEnumSet
 
-genEnumSet :: forall a. (Bounded a, Enum a, Ord a, Eq a, Show a) => [a] -> [a] -> IO (Either String (Set a))
+genEnumSet :: forall a. (Bounded a, Enum a, Ord a, Show a) => [a] -> [a] -> IO (Either String (Set a))
 genEnumSet with without =
   if disjointOrd with without
     then do
@@ -629,9 +574,6 @@ instance ToSchema ConvType where
           element 3 ConnectConv
         ]
 
-typeConversationType :: Doc.DataType
-typeConversationType = Doc.int32 $ Doc.enum [0, 1, 2, 3]
-
 -- | Define whether receipts should be sent in the given conversation
 --   This datatype is defined as an int32 but the Backend does not
 --   interpret it in any way, rather just stores and forwards it
@@ -652,29 +594,6 @@ instance ToSchema ReceiptMode where
 
 --------------------------------------------------------------------------------
 -- create
-
--- | Used to describe a 'NewConv'.
-modelNewConversation :: Doc.Model
-modelNewConversation = Doc.defineModel "NewConversation" $ do
-  Doc.description "JSON object to create a new conversation"
-  Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
-    Doc.description "List of user IDs (excluding the requestor) to be part of this conversation"
-  Doc.property "qualified_users" (Doc.unique . Doc.array $ Doc.bytes') $
-    Doc.description "List of qualified user IDs to be part of this conversation"
-  Doc.property "name" Doc.string' $ do
-    Doc.description "The conversation name"
-    Doc.optional
-  Doc.property "team" (Doc.ref modelTeamInfo) $ do
-    Doc.description "Team information of this conversation"
-    Doc.optional
-  -- TODO: Doc.property "access"
-  -- Doc.property "access_role"
-  Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
-    Doc.description "Per-conversation message timer"
-    Doc.optional
-  Doc.property "receipt_mode" (Doc.int32 (Doc.min 0)) $ do
-    Doc.description "Conversation receipt mode"
-    Doc.optional
 
 data NewConv = NewConv
   { newConvUsers :: [UserId],
@@ -798,14 +717,6 @@ instance ToSchema ConvTeamInfo where
       c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
 
-modelTeamInfo :: Doc.Model
-modelTeamInfo = Doc.defineModel "TeamInfo" $ do
-  Doc.description "Team information"
-  Doc.property "teamid" Doc.bytes' $
-    Doc.description "Team ID"
-  Doc.property "managed" Doc.bool' $
-    Doc.description managedDesc
-
 --------------------------------------------------------------------------------
 -- invite
 
@@ -847,12 +758,6 @@ instance ToSchema InviteQualified where
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
 
-modelInvite :: Doc.Model
-modelInvite = Doc.defineModel "Invite" $ do
-  Doc.description "Add users to a conversation"
-  Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
-    Doc.description "List of user IDs to add to a conversation"
-
 --------------------------------------------------------------------------------
 -- update
 
@@ -874,12 +779,6 @@ instance ToSchema ConversationRename where
             (unnamed (schema @Text))
     where
       desc = "The new conversation name"
-
-modelConversationUpdateName :: Doc.Model
-modelConversationUpdateName = Doc.defineModel "ConversationUpdateName" $ do
-  Doc.description "Contains conversation name to update"
-  Doc.property "name" Doc.string' $
-    Doc.description "The new conversation name"
 
 data ConversationAccessData = ConversationAccessData
   { cupAccess :: Set Access,
@@ -906,14 +805,6 @@ instance ToSchema ConversationAccessData where
 instance ToSchema (Versioned 'V2 ConversationAccessData) where
   schema = Versioned <$> unVersioned .= conversationAccessDataSchema V2
 
-modelConversationAccessData :: Doc.Model
-modelConversationAccessData = Doc.defineModel "ConversationAccessData" $ do
-  Doc.description "Contains conversation properties to update"
-  Doc.property "access" (Doc.unique $ Doc.array typeAccess) $
-    Doc.description "List of conversation access modes."
-  Doc.property "access_role" Doc.bytes' $
-    Doc.description "Conversation access role: private|team|activated|non_activated"
-
 data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
   { cruReceiptMode :: ReceiptMode
   }
@@ -932,15 +823,6 @@ instance ToSchema ConversationReceiptModeUpdate where
         \clients whether certain types of receipts should be sent in the given \
         \conversation or not. How this value is interpreted is up to clients."
 
-modelConversationReceiptModeUpdate :: Doc.Model
-modelConversationReceiptModeUpdate = Doc.defineModel "conversationReceiptModeUpdate" $ do
-  Doc.description
-    "Contains conversation receipt mode to update to. Receipt mode tells \
-    \clients whether certain types of receipts should be sent in the given \
-    \conversation or not. How this value is interpreted is up to clients."
-  Doc.property "receipt_mode" Doc.int32' $
-    Doc.description "Receipt mode: int32"
-
 data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
   { -- | New message timer
     cupMessageTimer :: Maybe Milliseconds
@@ -956,12 +838,6 @@ instance ToSchema ConversationMessageTimerUpdate where
       (description ?~ "Contains conversation properties to update")
       $ ConversationMessageTimerUpdate
         <$> cupMessageTimer .= optField "message_timer" (maybeWithDefault A.Null schema)
-
-modelConversationMessageTimerUpdate :: Doc.Model
-modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerUpdate" $ do
-  Doc.description "Contains conversation properties to update"
-  Doc.property "message_timer" Doc.int64' $
-    Doc.description "Conversation message timer (in milliseconds); can be null"
 
 data ConversationJoin = ConversationJoin
   { cjUsers :: NonEmpty (Qualified UserId),

@@ -36,7 +36,7 @@ import Polysemy
 import Polysemy.Error
 import qualified Polysemy.TinyLog as P
 import System.Logger.Message (msg, val, (+++))
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Conversation
 import Wire.API.Federation.API.Galley
 
@@ -44,7 +44,9 @@ import Wire.API.Federation.API.Galley
 --
 -- Throws @BadMemberState@ when the user is not part of the conversation.
 conversationView ::
-  Members '[Error InternalError, P.TinyLog] r =>
+  ( Member (Error InternalError) r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Data.Conversation ->
   Sem r Conversation
@@ -57,7 +59,9 @@ conversationView luid conv = do
 -- from pre-computing the list of @OtherMember@s in the conversation. For
 -- instance, creating @ConvesationView@ for more than 1 member of the same conversation.
 conversationViewWithCachedOthers ::
-  Members '[Error InternalError, P.TinyLog] r =>
+  ( Member (Error InternalError) r,
+    Member P.TinyLog r
+  ) =>
   [OtherMember] ->
   [OtherMember] ->
   Data.Conversation ->

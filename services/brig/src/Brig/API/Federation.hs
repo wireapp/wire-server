@@ -70,11 +70,9 @@ import Wire.Sem.Concurrency
 type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
-  Members
-    '[ GalleyProvider,
-       Concurrency 'Unsafe
-     ]
-    r =>
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
+  ) =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
   Named @"api-version" (\_ _ -> pure versionInfo)
@@ -103,10 +101,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle ::
-  Members
-    '[ GalleyProvider
-     ]
-    r =>
+  Member GalleyProvider r =>
   Domain ->
   Handle ->
   ExceptT Error (AppT r) (Maybe UserProfile)
@@ -129,10 +124,7 @@ getUserByHandle domain handle = do
           listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
 
 getUsersByIds ::
-  Members
-    '[ GalleyProvider
-     ]
-    r =>
+  Member GalleyProvider r =>
   Domain ->
   [UserId] ->
   ExceptT Error (AppT r) [UserProfile]
@@ -148,7 +140,7 @@ claimPrekeyBundle _ user =
   API.claimLocalPrekeyBundle LegalholdPlusFederationNotImplemented user !>> clientError
 
 claimMultiPrekeyBundle ::
-  Members '[Concurrency 'Unsafe] r =>
+  Member (Concurrency 'Unsafe) r =>
   Domain ->
   UserClients ->
   Handler r UserClientPrekeyMap
@@ -169,7 +161,7 @@ fedClaimKeyPackages domain ckpr =
 -- (This decision may change in the future)
 searchUsers ::
   forall r.
-  Members '[GalleyProvider] r =>
+  Member GalleyProvider r =>
   Domain ->
   SearchRequest ->
   ExceptT Error (AppT r) SearchResponse

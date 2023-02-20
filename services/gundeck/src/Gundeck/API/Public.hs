@@ -81,7 +81,7 @@ servantSitemap = pushAPI :<|> notificationAPI
 -- We will return all the notifications that we have that happened after 'since'
 -- but return status code 404 to signal that 'since' itself was missing.
 --
--- (arianvp): I am not sure why it is convenient for clients to distinct
+-- (arianvp): I am not sure why it is convenient for clients to distinguish
 -- between these two cases.
 paginateUntilV2 ::
   UserId ->

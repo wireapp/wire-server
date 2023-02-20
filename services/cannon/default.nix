@@ -35,7 +35,6 @@
 , servant-conduit
 , servant-server
 , strict
-, swagger
 , tasty
 , tasty-hunit
 , tasty-quickcheck
@@ -89,7 +88,6 @@ mkDerivation {
     servant-conduit
     servant-server
     strict
-    swagger
     text
     tinylog
     types-common

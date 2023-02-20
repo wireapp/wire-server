@@ -34,11 +34,6 @@ module Wire.API.Notification
     queuedHasMore,
     queuedTime,
     GetNotificationsResponse (..),
-
-    -- * Swagger
-    modelEvent,
-    modelNotification,
-    modelNotificationList,
   )
 where
 
@@ -55,7 +50,6 @@ import Data.Schema
 import Data.String.Conversions (cs)
 import Data.Swagger (ToParamSchema (..))
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Data.Time.Clock (UTCTime)
 import Imports
 import Servant
@@ -68,12 +62,6 @@ type NotificationId = Id QueuedNotification
 -- This definition is very opaque, but we know some of the structure already
 -- (e.g. visible in 'modelEvent'). Can we specify it in a better way?
 type Event = Aeson.Object
-
-modelEvent :: Doc.Model
-modelEvent = Doc.defineModel "NotificationEvent" $ do
-  Doc.description "A single event"
-  Doc.property "type" Doc.string' $
-    Doc.description "Event type"
 
 -- | Schema for an `Event` object.
 --
@@ -121,14 +109,6 @@ instance ToSchema QueuedNotification where
 
 makeLenses ''QueuedNotification
 
-modelNotification :: Doc.Model
-modelNotification = Doc.defineModel "Notification" $ do
-  Doc.description "A single notification"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "Notification ID"
-  Doc.property "payload" (Doc.array (Doc.ref modelEvent)) $
-    Doc.description "List of events"
-
 data QueuedNotificationList = QueuedNotificationList
   { _queuedNotifications :: [QueuedNotification],
     _queuedHasMore :: Bool,
@@ -140,14 +120,6 @@ data QueuedNotificationList = QueuedNotificationList
 
 queuedNotificationList :: [QueuedNotification] -> Bool -> Maybe UTCTime -> QueuedNotificationList
 queuedNotificationList = QueuedNotificationList
-
-modelNotificationList :: Doc.Model
-modelNotificationList = Doc.defineModel "NotificationList" $ do
-  Doc.description "Zero or more notifications"
-  Doc.property "notifications" (Doc.array (Doc.ref modelNotification)) $
-    Doc.description "Notifications"
-  Doc.property "has_more" Doc.bool' $
-    Doc.description "Whether there are still more notifications."
 
 instance ToSchema QueuedNotificationList where
   schema =

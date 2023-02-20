@@ -77,7 +77,6 @@ module Wire.API.Team.Feature
     MLSConfig (..),
     OutlookCalIntegrationConfig (..),
     AllFeatureConfigs (..),
-    typeFeatureTTL,
     unImplicitLockStatus,
     ImplicitLockStatus (..),
   )
@@ -99,7 +98,6 @@ import Data.Schema
 import Data.Scientific (toBoundedInteger)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
@@ -143,7 +141,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 -- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
 -- implement them in Galley.API.Public.Feature.
 --
--- 7. Add internal routes in Galley.API.Internal
+-- 7. Add internal routes in Wire.API.Routes.Internal.Galley
 --
 -- 8. If the feature should be configurable via Stern add routes to Stern.API.
 -- Manually check that the swagger looks okay and works.
@@ -178,10 +176,10 @@ class FeatureTrivialConfig cfg where
 class HasDeprecatedFeatureName cfg where
   type DeprecatedFeatureName cfg :: Symbol
 
-featureName :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Text
+featureName :: forall cfg. KnownSymbol (FeatureSymbol cfg) => Text
 featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
 
-featureNameBS :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => ByteString
+featureNameBS :: forall cfg. KnownSymbol (FeatureSymbol cfg) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 ----------------------------------------------------------------------
@@ -288,7 +286,7 @@ withStatus' = WithStatusBase
 
 -- | The ToJSON implementation of `WithStatusPatch` will encode the trivial config as `"config": {}`
 -- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusPatch cfg) where
+instance ToSchema cfg => ToSchema (WithStatusPatch cfg) where
   schema =
     object name $
       WithStatusBase
@@ -450,10 +448,6 @@ instance Cass.Cql FeatureTTL where
   toCql FeatureTTLUnlimited = Cass.CqlInt 0
   toCql (FeatureTTLSeconds d) = Cass.CqlInt . fromIntegral $ d
 
-typeFeatureTTL :: Doc.DataType
-typeFeatureTTL =
-  Doc.int64'
-
 invalidTTLErrorString :: Text
 invalidTTLErrorString = "Invalid FeatureTTLSeconds: must be a positive integer or 'unlimited.'"
 
@@ -474,6 +468,8 @@ instance ToSchema LockStatus where
         [ element "locked" LockStatusLocked,
           element "unlocked" LockStatusUnlocked
         ]
+
+instance S.ToParamSchema LockStatus
 
 instance ToByteString LockStatus where
   builder LockStatusLocked = "locked"
@@ -695,6 +691,7 @@ instance FeatureTrivialConfig SndFactorPasswordChallengeConfig where
 data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SearchVisibilityInboundConfig)
+  deriving (S.ToSchema) via Schema SearchVisibilityInboundConfig
 
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"

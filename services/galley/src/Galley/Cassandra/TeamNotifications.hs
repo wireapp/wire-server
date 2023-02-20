@@ -48,7 +48,9 @@ import Polysemy.Input
 import Wire.API.Internal.Notification
 
 interpretTeamNotificationStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   Sem (TeamNotificationStore ': r) a ->
   Sem r a
 interpretTeamNotificationStoreToCassandra = interpret $ \case

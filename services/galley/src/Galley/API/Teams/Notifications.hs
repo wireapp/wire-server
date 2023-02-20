@@ -57,7 +57,10 @@ import Wire.API.Internal.Notification
 import Wire.API.User
 
 getTeamNotifications ::
-  Members '[BrigAccess, ErrorS 'TeamNotFound, TeamNotificationStore] r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamNotificationStore r
+  ) =>
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->

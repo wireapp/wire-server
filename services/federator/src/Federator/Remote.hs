@@ -106,14 +106,12 @@ data Remote m a where
 makeSem ''Remote
 
 interpretRemote ::
-  Members
-    '[ Embed (Codensity IO),
-       DiscoverFederator,
-       Error DiscoveryFailure,
-       Error RemoteError,
-       Input TLSSettings
-     ]
-    r =>
+  ( Member (Embed (Codensity IO)) r,
+    Member DiscoverFederator r,
+    Member (Error DiscoveryFailure) r,
+    Member (Error RemoteError) r,
+    Member (Input TLSSettings) r
+  ) =>
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
@@ -123,7 +121,9 @@ interpretRemote = interpret $ \case
     let path =
           LBS.toStrict . toLazyByteString $
             HTTP.encodePathSegments ["federation", componentName component, rpc]
-        req' = HTTP2.requestBuilder HTTP.methodPost path headers body
+        -- filter out Host header, because the HTTP2 client adds it back
+        headers' = filter ((/= "Host") . fst) headers
+        req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
         tlsConfig = mkTLSConfig settings hostname port
 
     resp <- mapError (RemoteError target) . (fromEither @FederatorClientHTTP2Error =<<) . embed $

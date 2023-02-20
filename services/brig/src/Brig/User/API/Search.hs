@@ -85,7 +85,7 @@ routesInternal = do
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
 search ::
-  (Members '[GalleyProvider] r) =>
+  (Member GalleyProvider r, CallsFed 'Brig "get-users-by-ids", CallsFed 'Brig "search-users") =>
   UserId ->
   Text ->
   Maybe Domain ->
@@ -120,7 +120,7 @@ searchRemotely domain searchTerm = do
 
 searchLocally ::
   forall r.
-  (Members '[GalleyProvider] r) =>
+  (Member GalleyProvider r, CallsFed 'Brig "get-users-by-ids") =>
   UserId ->
   Text ->
   Maybe (Range 1 500 Int32) ->
@@ -175,7 +175,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
             <$$> HandleAPI.getLocalHandleInfo lsearcherId handle
 
 teamUserSearch ::
-  Members '[GalleyProvider] r =>
+  Member GalleyProvider r =>
   UserId ->
   TeamId ->
   Maybe Text ->

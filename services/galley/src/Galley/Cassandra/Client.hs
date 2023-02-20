@@ -58,7 +58,10 @@ eraseClients :: UserId -> Client ()
 eraseClients user = retry x5 (write Cql.rmClients (params LocalQuorum (Identity user)))
 
 interpretClientStoreToCassandra ::
-  Members '[Embed IO, Input ClientState, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member (Input Env) r
+  ) =>
   Sem (ClientStore ': r) a ->
   Sem r a
 interpretClientStoreToCassandra = interpret $ \case

@@ -49,13 +49,13 @@ conversationAPI =
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
-    <@> mkNamedAPI @"create-one-to-one-conversation@v2" (callsFed (exposeAnnotations createOne2OneConversation))
-    <@> mkNamedAPI @"create-one-to-one-conversation" (callsFed (exposeAnnotations createOne2OneConversation))
-    <@> mkNamedAPI @"add-members-to-conversation-unqualified" (callsFed (exposeAnnotations addMembersUnqualified))
-    <@> mkNamedAPI @"add-members-to-conversation-unqualified2" (callsFed (exposeAnnotations addMembersUnqualifiedV2))
-    <@> mkNamedAPI @"add-members-to-conversation" (callsFed (exposeAnnotations addMembers))
-    <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed (exposeAnnotations (joinConversationById @Cassandra)))
-    <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed (exposeAnnotations (joinConversationByReusableCode @Cassandra)))
+    <@> mkNamedAPI @"create-one-to-one-conversation@v2" (callsFed createOne2OneConversation)
+    <@> mkNamedAPI @"create-one-to-one-conversation" (callsFed createOne2OneConversation)
+    <@> mkNamedAPI @"add-members-to-conversation-unqualified" (callsFed addMembersUnqualified)
+    <@> mkNamedAPI @"add-members-to-conversation-unqualified2" (callsFed addMembersUnqualifiedV2)
+    <@> mkNamedAPI @"add-members-to-conversation" (callsFed addMembers)
+    <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed joinConversationById)
+    <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed (joinConversationByReusableCode @Cassandra))
     <@> mkNamedAPI @"code-check" (checkReusableCode @Cassandra)
     <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualified @Cassandra)
     <@> mkNamedAPI @"get-conversation-guest-links-status" (getConversationGuestLinksStatus @Cassandra)
