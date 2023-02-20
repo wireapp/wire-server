@@ -11,10 +11,29 @@ def random_letters(n=10):
 def random_email():
     return 'test-email' + '-' + random_letters(10) + '@example.com'
 
-def std_headers(uid=None):
+def qid_path(qid):
+    return qid['domain'] + '/' + qid['id']
+
+def user_id(user):
+    if isinstance(user, str):
+        return user
+    else:
+        return user['id']
+
+def user_path(user):
+    if 'qualified_id' in user:
+        user = user['qualified_id']
+    return qid_path(user)
+
+def conv_path(conv):
+    if 'qualified_id' in conv:
+        conv = conv['qualified_id']
+    return qid_path(conv)
+
+def std_headers(user=None):
     headers = {'Z-Connection': '0'}
-    if uid is not None:
-        headers['Z-User'] = uid
+    if user is not None:
+        headers['Z-User'] = user_id(user)
     return headers
 
 def create_user(ctx, email=None, password=None, name=None, **kwargs):
@@ -37,7 +56,7 @@ def create_user(ctx, email=None, password=None, name=None, **kwargs):
     }
     return ctx.send(args, kwargs)
 
-def add_client(ctx, uid, pks, lpk, *, internal=False, ctype=None, 
+def add_client(ctx, user, pks, lpk, *, internal=False, ctype=None, 
                label="Test Device", model="Test Model",
                password=DEFAULT_PASSWORD, **kwargs):
     body = {
@@ -51,38 +70,73 @@ def add_client(ctx, uid, pks, lpk, *, internal=False, ctype=None,
     if ctype == 'legalhold':
         body['class'] = 'legalhold'
     if internal:
-        url = f'/i/clients/{uid}'
+        url = f'/i/clients/{user_id(user)}'
     else:
         url = '/clients'
 
     args = {
         'method': 'POST',
         'json': body,
-        'headers': std_headers(uid),
+        'headers': std_headers(user),
         'url': ctx.mkurl('brig', url, internal=internal)
     }
     return ctx.send(args, kwargs)
 
-def delete_client(ctx, uid, client_id, password=DEFAULT_PASSWORD, **kwargs):
+def delete_client(ctx, user, client_id, password=DEFAULT_PASSWORD, **kwargs):
     args = {
         'method': 'DELETE',
         'json': {'password': password},
-        'url': ctx.mkurl('brig', f'/clients/{uid}')
+        'url': ctx.mkurl('brig', f'/clients/{user_id(user)}')
     }
     return ctx.send(args, kwargs)
 
-def get_clients_unqualified(ctx, uid, **kwargs):
+def get_clients_unqualified(ctx, user, **kwargs):
     args = {
         'method': 'GET',
         'url': ctx.mkurl('brig', '/clients'),
-        'headers': std_headers(uid)
+        'headers': std_headers(user)
     }
     return ctx.send(args, kwargs)
 
-def get_user_clients(ctx, uid1, domain2, uid2, **kwargs):
+def get_user_clients(ctx, user, target, **kwargs):
     args = {
         'method': 'GET',
-        'url': ctx.mkurl('brig', f'/users/{domain2}/{uid2}/clients'),
-        'headers': std_headers(uid1)
+        'url': ctx.mkurl('brig', f'/users/{user_path(target)}/clients'),
+        'headers': std_headers(user)
+    }
+    return ctx.send(args, kwargs)
+
+def create_connection(ctx, user, target, **kwargs):
+    args = {
+        'method': 'POST',
+        'url': ctx.mkurl('brig', f'/connections/{user_path(target)}'),
+        'headers': std_headers(user)
+    }
+    return ctx.send(args, kwargs)
+
+def update_connection(ctx, user, target, status, **kwargs):
+    args = {
+        'method': 'PUT',
+        'url': ctx.mkurl('brig', f'/connections/{user_path(target)}'),
+        'headers': std_headers(user),
+        'json': {'status': status}
+    }
+    return ctx.send(args, kwargs)
+
+def create_conversation(ctx, user, users=None, **kwargs):
+    if users is None: users = []
+    args = {
+        'method': 'POST',
+        'url': ctx.mkurl('galley', '/conversations'),
+        'headers': std_headers(user),
+        'json': {'qualified_users': [u['qualified_id'] for u in users]}
+    }
+    return ctx.send(args, kwargs)
+
+def get_conversation(ctx, user, conv, **kwargs):
+    args = {
+        'method': 'GET',
+        'url': ctx.mkurl('galley', f'/conversations/{conv_path(conv)}'),
+        'headers': std_headers(user)
     }
     return ctx.send(args, kwargs)

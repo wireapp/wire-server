@@ -15,9 +15,9 @@ class Context:
     def send(self, args, additional_args):
         # TODO: merge headers
         args = dict(**args, **additional_args)
-        return self.send_(**args)
+        return self.request(**args)
 
-    def send_(self, method, url, **kwargs):
+    def request(self, method, url, **kwargs):
         return Response(method, url, kwargs, 
                         requests.request(method, url, **kwargs))
     

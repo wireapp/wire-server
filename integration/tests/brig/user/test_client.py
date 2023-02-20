@@ -27,11 +27,11 @@ def test_get_user_clients_unqualified(ctx, prekeys):
         assert r.status_code == 200
         assert set(c['id'] for c in r.json()) == ids
 
-def test_get_user_clients(ctx, prekeys, domain):
-    uid1 = setup.random_user(ctx)['id']
-    uid2 = setup.random_user(ctx)['id']
+def test_get_user_clients(ctx, prekeys):
+    user1 = setup.random_user(ctx)
+    user2 = setup.random_user(ctx)
 
-    ids = set(setup.create_client(ctx, uid1, prekeys) for _ in range(3))
-    with ctx.get_user_clients(uid2, domain, uid1) as r:
+    ids = set(setup.create_client(ctx, user1, prekeys) for _ in range(3))
+    with ctx.get_user_clients(user2, user1) as r:
         r.status_code == 200
         assert set(c['id'] for c in r.json()) == ids
