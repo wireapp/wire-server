@@ -2,7 +2,7 @@
 
 Here are some workflow suggestions when you're trying to upgrade packages (or GHC) in wire-server.
 
-- Use and install https://github.com/maralorn/nix-output-monitor when building nix derivations locally. It shows you the dependency tree building as well as the progress. This can give you a feeling how much progress you've made.
+- Use and install [nix-output-monitor](https://github.com/maralorn/nix-output-monitor) when building nix derivations locally. It shows you the dependency tree building as well as the progress. This can give you a sense for much progress you've made.
 
 - The `.envrc` environment probably won't load anymore. To fix this adjust the for packages that get passed to `shellFor` in `wire-server.nix`. In the beginning you might want to start out with an empty list as an argument.
 
