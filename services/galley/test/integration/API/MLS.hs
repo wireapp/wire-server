@@ -2976,7 +2976,7 @@ testLeaveSubConv isSubConvCreator = do
         <$> getClientsFromGroupState
           alice1
           (cidQualifiedUser firstLeaver)
-    let others = leaverAndOthers firstLeaver allLocals
+    let others = filter (/= firstLeaver) allLocals
     mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
       (_, reqs) <-
         withTempMockFederator' messageSentMock $
@@ -3040,19 +3040,6 @@ testLeaveSubConv isSubConvCreator = do
       liftIO $ do
         length (pscMembers psc) @?= 2
         sort (pscMembers psc) @?= sort others
-  where
-    allLocalsButLeaver :: [a] -> [(a, [a])]
-    allLocalsButLeaver xs =
-      ( \(l, i) ->
-          let s = splitAt i xs
-           in (l, fst s ++ drop 1 (snd s))
-      )
-        <$> zip xs [0 ..]
-    leaverAndOthers :: Eq a => a -> [a] -> [a]
-    leaverAndOthers leaver xs =
-      let (Just (_, others)) =
-            find (\(l, _) -> l == leaver) (allLocalsButLeaver xs)
-       in others
 
 testLeaveSubConvNonMember :: TestM ()
 testLeaveSubConvNonMember = do
