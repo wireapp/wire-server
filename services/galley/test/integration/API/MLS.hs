@@ -224,6 +224,7 @@ tests s =
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
               test s "leave a subconversation as a creator" (testLeaveSubConv True),
               test s "leave a subconversation as a non-creator" (testLeaveSubConv False),
+              test s "leave a subconversation and skip receiving messages" testLeaveSubConvSkipReceive,
               test s "last to leave a subconversation" testLastLeaverSubConv,
               test s "leave a subconversation as a non-member" testLeaveSubConvNonMember,
               test s "remove user from parent conversation" testRemoveUserParent,
@@ -3050,6 +3051,69 @@ testLeaveSubConv isSubConvCreator = do
       liftIO $ do
         length (pscMembers psc) @?= 2
         sort (pscMembers psc) @?= sort others
+
+testLeaveSubConvSkipReceive :: TestM ()
+testLeaveSubConvSkipReceive = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    allLocals@[alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    (_, qcnv) <- setupMLSGroup alice1
+
+    let subId = SubConvId "conference"
+    (qsub, _) <- withTempMockFederator' (mockReply ()) $ do
+      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+      qsub <- createSubConv qcnv bob1 subId
+      void $ createExternalCommit alice1 Nothing qsub >>= sendAndConsumeCommitBundle
+      void $ createExternalCommit bob2 Nothing qsub >>= sendAndConsumeCommitBundle
+      pure qsub
+
+    let firstLeaver = bob1
+    -- a member leaves the subconversation
+    [firstLeaverKP] <-
+      map snd . filter (\(cid, _) -> cid == firstLeaver)
+        <$> getClientsFromGroupState
+          alice1
+          (cidQualifiedUser firstLeaver)
+    let others = filter (/= firstLeaver) allLocals
+    mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
+      void $
+        withTempMockFederator' messageSentMock $
+          leaveCurrentConv firstLeaver qsub
+
+      msgs <-
+        WS.assertMatchN (5 # WS.Second) wss $
+          wsAssertBackendRemoveProposal
+            (cidQualifiedUser firstLeaver)
+            (Conv <$> qcnv)
+            firstLeaverKP
+      traverse_ (uncurry consumeMessage1) (zip others msgs)
+      -- assert the leaver gets no proposal or event
+      void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
+
+    -- a member commits the pending proposal
+    void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
+
+    -- check that only 3 clients are left in the subconv
+    do
+      psc <-
+        liftTest $
+          responseJsonError
+            =<< getSubConv (ciUser (head others)) qcnv subId
+              <!! do
+                const 200 === statusCode
+      liftIO $ length (pscMembers psc) @?= 2
+
+    -- send an application message
+    message <- createApplicationMessage (head others) "some text"
+    mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
+      events <- sendAndConsumeMessage message
+      liftIO $ events @?= []
+      WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
+        wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage message) n
+      void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
 
 testLeaveSubConvNonMember :: TestM ()
 testLeaveSubConvNonMember = do
