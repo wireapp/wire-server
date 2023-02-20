@@ -50,7 +50,9 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 import Wire.API.User (UserProfile)
 
-instance CallsFed comp name
+
+instance AddAnnotation loc comp name x
+
 
 targetDomain :: Domain
 targetDomain = Domain "target.example.com"
