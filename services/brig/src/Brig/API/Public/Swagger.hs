@@ -77,6 +77,7 @@ adjustSwaggerForInternalEndpoint service examplePort swagger =
     & S.host ?~ S.Host "localhost" (Just examplePort)
     & S.allOperations . S.tags <>~ tag
     -- Enforce HTTP as the services themselves don't understand HTTPS
+    & S.schemes ?~ [S.Http]
     & S.allOperations . S.schemes ?~ [S.Http]
   where
     tag :: InsOrdSet.InsOrdHashSet S.TagName
