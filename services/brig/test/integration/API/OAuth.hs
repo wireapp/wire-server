@@ -59,12 +59,12 @@ import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import qualified Wire.API.Conversation.Role as Role
 import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer, unBearer))
-import Wire.API.User (SelfProfile, User (userId), userEmail)
+import Wire.API.User (User (userId), userEmail)
 import Wire.API.User.Auth (CookieType (PersistentCookie))
 import Wire.Sem.Jwk (readJwk)
 
-tests :: Manager -> C.ClientState -> Brig -> Galley -> Nginz -> Opts -> TestTree
-tests m db b g n o = do
+tests :: Manager -> C.ClientState -> Brig -> Nginz -> Opts -> TestTree
+tests m db b n o = do
   testGroup
     "oauth"
     [ test m "register new oauth client" $ testRegisterNewOAuthClient b,
@@ -94,32 +94,22 @@ tests m db b g n o = do
         ],
       testGroup
         "accessing a resource"
-        [ test m "success (internal)" $ testAccessResourceSuccessInternal b,
-          test m "success (nginz)" $ testAccessResourceSuccessNginz b n,
-          test m "insufficient scope" $ testAccessResourceInsufficientScope b,
-          test m "expired token" $ testAccessResourceExpiredToken o b,
-          test m "nonsense token" $ testAccessResourceNonsenseToken b,
+        [ test m "success (nginz)" $ testAccessResourceSuccessNginz b n,
+          test m "insufficient scope" $ testAccessResourceInsufficientScope b n,
+          test m "expired token" $ testAccessResourceExpiredToken o b n,
+          test m "nonsense token" $ testAccessResourceNonsenseToken n,
           test m "no token" $ testAccessResourceNoToken b,
-          test m "invalid signature" $ testAccessResourceInvalidSignature o b
+          test m "invalid signature" $ testAccessResourceInvalidSignature o b n
         ],
       testGroup
         "accessing resources"
-        [ testGroup
-            "internal"
-            [ test m "write:conversation" $ testWriteConversationSuccessInternal b g,
-              test m "read:feature_configs" $ testReadFeatureConfigsSuccessInternal b g,
-              test m "write:conversation_code" $ testWriteConversationCodeSuccessInternal b g
-            ],
-          testGroup
-            "nginz"
-            [ test m "write:conversation" $ testWriteConversationSuccessNginz b n,
-              test m "read:feature_configs" $ testReadFeatureConfigsSuccessNginz b n,
-              test m "write:conversation_code" $ testWriteConversationCodeSuccessNginz b n
-            ]
+        [ test m "write:conversation" $ testWriteConversationSuccessNginz b n,
+          test m "read:feature_configs" $ testReadFeatureConfigsSuccessNginz b n,
+          test m "write:conversation_code" $ testWriteConversationCodeSuccessNginz b n
         ],
       testGroup "refresh tokens" $
         [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b,
-          test m "refresh access token - success" $ testRefreshTokenRetrieveAccessToken o b,
+          test m "refresh access token - success" $ testRefreshTokenRetrieveAccessToken o b n,
           test m "wrong signature - fail" $ testRefreshTokenWrongSignature o b,
           test m "no token id - fail" $ testRefreshTokenNoTokenId o b,
           test m "non-existing id - fail" $ testRefreshTokenNonExistingId o b,
@@ -341,20 +331,6 @@ assertAccessDenied = do
   const 403 === statusCode
   const (Just "forbidden") === fmap Error.label . responseJsonMaybe
 
-testAccessResourceSuccessInternal :: Brig -> Http ()
-testAccessResourceSuccessInternal brig = do
-  uid <- userId <$> createUser "alice" brig
-  let redirectUrl = mkUrl "https://example.com"
-  let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
-  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
-  accessToken <- createOAuthAccessToken brig accessTokenRequest
-  -- should succeed with Z-User header
-  response :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . zUser uid) <!! const 200 === statusCode
-  -- should succeed with Z-OAuth header containing an OAuth bearer token
-  response' :: SelfProfile <- responseJsonError =<< get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) <!! const 200 === statusCode
-  liftIO $ response @?= response'
-
 testAccessResourceSuccessNginz :: Brig -> Nginz -> Http ()
 testAccessResourceSuccessNginz brig nginz = do
   -- with ZAuth header
@@ -371,21 +347,21 @@ testAccessResourceSuccessNginz brig nginz = do
   oauthToken <- oatAccessToken <$> createOAuthAccessToken brig accessTokenRequest
   get (nginz . paths ["self"] . authHeader oauthToken) !!! const 200 === statusCode
 
-testAccessResourceInsufficientScope :: Brig -> Http ()
-testAccessResourceInsufficientScope brig = do
+testAccessResourceInsufficientScope :: Brig -> Nginz -> Http ()
+testAccessResourceInsufficientScope brig nginz = do
   uid <- userId <$> createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [WriteConversation]
   (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   accessToken <- createOAuthAccessToken brig accessTokenRequest
-  get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! do
+  get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! do
     const 403 === statusCode
     const "Access denied" === statusMessage
     const (Just "Insufficient scope") === responseBody
 
-testAccessResourceExpiredToken :: Opt.Opts -> Brig -> Http ()
-testAccessResourceExpiredToken opts brig =
+testAccessResourceExpiredToken :: Opt.Opts -> Brig -> Nginz -> Http ()
+testAccessResourceExpiredToken opts brig nginz =
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAccessTokenExpirationTimeSecsInternal ?~ 1) $ do
     uid <- userId <$> createUser "alice" brig
     let redirectUrl = mkUrl "https://example.com"
@@ -394,14 +370,14 @@ testAccessResourceExpiredToken opts brig =
     let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
     accessToken <- createOAuthAccessToken brig accessTokenRequest
     liftIO $ threadDelay (1 * 1200 * 1000)
-    get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! do
+    get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! do
       const 403 === statusCode
       const "Access denied" === statusMessage
       const (Just "Invalid token: JWTExpired") === responseBody
 
-testAccessResourceNonsenseToken :: Brig -> Http ()
-testAccessResourceNonsenseToken brig = do
-  get (brig . paths ["self"] . zOAuthHeader @Text "foo") !!! do
+testAccessResourceNonsenseToken :: Nginz -> Http ()
+testAccessResourceNonsenseToken nginz = do
+  get (nginz . paths ["self"] . authHeader @Text "foo") !!! do
     const 403 === statusCode
     const "Access denied" === statusMessage
     const (Just "Invalid token: Failed reading: JWSError") =~= responseBody
@@ -412,8 +388,8 @@ testAccessResourceNoToken brig =
     const 403 === statusCode
     const "Access denied" === statusMessage
 
-testAccessResourceInvalidSignature :: Opt.Opts -> Brig -> Http ()
-testAccessResourceInvalidSignature opts brig = do
+testAccessResourceInvalidSignature :: Opt.Opts -> Brig -> Nginz -> Http ()
+testAccessResourceInvalidSignature opts brig nginz = do
   uid <- userId <$> createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
@@ -423,7 +399,7 @@ testAccessResourceInvalidSignature opts brig = do
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthToken $ oatAccessToken accessToken))
   tokenSignedWithotherKey <- signAccessToken badKey claimSet
-  get (brig . paths ["self"] . zOAuthHeader (OAuthToken tokenSignedWithotherKey)) !!! do
+  get (nginz . paths ["self"] . authHeader (OAuthToken tokenSignedWithotherKey)) !!! do
     const 403 === statusCode
     const "Access denied" === statusMessage
     const (Just "Invalid token: JWSError JWSInvalidSignature") === responseBody
@@ -486,8 +462,8 @@ testRefreshTokenMaxActiveTokens opts db brig =
     hasSameElems :: (Eq a) => [a] -> [a] -> Bool
     hasSameElems x y = null (x \\ y) && null (y \\ x)
 
-testRefreshTokenRetrieveAccessToken :: Opts -> Brig -> Http ()
-testRefreshTokenRetrieveAccessToken opts brig =
+testRefreshTokenRetrieveAccessToken :: Opts -> Brig -> Nginz -> Http ()
+testRefreshTokenRetrieveAccessToken opts brig nginz =
   -- overriding settings and set access token to expire in 2 seconds
   withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAccessTokenExpirationTimeSecsInternal ?~ 2) $ do
     uid <- userId <$> createUser "alice" brig
@@ -496,12 +472,12 @@ testRefreshTokenRetrieveAccessToken opts brig =
     (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
     let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
     accessToken <- createOAuthAccessToken brig accessTokenRequest
-    get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! const 200 === statusCode
+    get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! const 200 === statusCode
     threadDelay $ 2 * 1000 * 1000 -- wait 2 seconds for access token to expire
-    get (brig . paths ["self"] . zOAuthHeader (oatAccessToken accessToken)) !!! const 403 === statusCode
+    get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! const 403 === statusCode
     let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret (oatRefreshToken accessToken)
     refreshedToken <- refreshOAuthAccessToken brig refreshAccessTokenRequest
-    get (brig . paths ["self"] . zOAuthHeader (oatAccessToken refreshedToken)) !!! const 200 === statusCode
+    get (nginz . paths ["self"] . authHeader (oatAccessToken refreshedToken)) !!! const 200 === statusCode
 
 testRefreshTokenWrongSignature :: Opts -> Brig -> Http ()
 testRefreshTokenWrongSignature opts brig = do
@@ -664,11 +640,11 @@ testRevokeApplicationAccountAccess brig = do
         liftIO $ assertEqual "apps" 0 (length apps)
     _ -> liftIO $ assertFailure "unexpected number of apps"
 
-testWriteConversationSuccessInternal :: Brig -> Galley -> Http ()
-testWriteConversationSuccessInternal brig galley = do
+testWriteConversationSuccessInternal :: Brig -> Nginz -> Http ()
+testWriteConversationSuccessInternal brig nginz = do
   (uid, tid) <- Team.createUserWithTeam brig
   accessToken <- getAccessTokenForScope brig uid [WriteConversation]
-  createTeamConv galley zOAuthHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
+  createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
     const 201 === statusCode
 
 testWriteConversationSuccessNginz :: Brig -> Nginz -> Http ()
@@ -678,11 +654,11 @@ testWriteConversationSuccessNginz brig nginz = do
   createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
     const 201 === statusCode
 
-testReadFeatureConfigsSuccessInternal :: Brig -> Galley -> Http ()
-testReadFeatureConfigsSuccessInternal brig galley = do
+testReadFeatureConfigsSuccessInternal :: Brig -> Nginz -> Http ()
+testReadFeatureConfigsSuccessInternal brig nginz = do
   (uid, _) <- Team.createUserWithTeam brig
   accessToken <- getAccessTokenForScope brig uid [ReadFeatureConfigs]
-  getFeatureConfigs galley zOAuthHeader (oatAccessToken accessToken) !!! do
+  getFeatureConfigs nginz authHeader (oatAccessToken accessToken) !!! do
     const 200 === statusCode
 
 testReadFeatureConfigsSuccessNginz :: Brig -> Nginz -> Http ()
@@ -692,15 +668,15 @@ testReadFeatureConfigsSuccessNginz brig nginz = do
   getFeatureConfigs nginz authHeader (oatAccessToken accessToken) !!! do
     const 200 === statusCode
 
-testWriteConversationCodeSuccessInternal :: Brig -> Galley -> Http ()
-testWriteConversationCodeSuccessInternal brig galley = do
+testWriteConversationCodeSuccessInternal :: Brig -> Nginz -> Http ()
+testWriteConversationCodeSuccessInternal brig nginz = do
   (uid, tid) <- Team.createUserWithTeam brig
   accessToken <- getAccessTokenForScope brig uid [WriteConversation, WriteConversationCode]
   conv <-
     responseJsonError
-      =<< createTeamConv galley zOAuthHeader (oatAccessToken accessToken) tid "oauth test group" <!! do
+      =<< createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" <!! do
         const 201 === statusCode
-  postConvCode galley zOAuthHeader (oatAccessToken accessToken) (qUnqualified . cnvQualifiedId $ conv) !!! do
+  postConvCode nginz authHeader (oatAccessToken accessToken) (qUnqualified . cnvQualifiedId $ conv) !!! do
     const 201 === statusCode
 
 testWriteConversationCodeSuccessNginz :: Brig -> Nginz -> Http ()
@@ -772,9 +748,6 @@ verifyRefreshToken jwk jwt =
 
 authHeader :: ToHttpApiData a => a -> Request -> Request
 authHeader = bearer "Authorization"
-
-zOAuthHeader :: ToHttpApiData a => a -> Request -> Request
-zOAuthHeader = bearer "Z-OAuth"
 
 bearer :: ToHttpApiData a => HeaderName -> a -> Request -> Request
 bearer name = header name . toHeader . Bearer
