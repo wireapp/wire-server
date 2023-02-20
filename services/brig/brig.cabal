@@ -179,7 +179,7 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -funbox-strict-fields -fplugin=Polysemy.Plugin
-    -Wredundant-constraints
+    -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
 
   build-depends:
       aeson                      >=2.0.1.0

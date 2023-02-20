@@ -66,7 +66,6 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
-import Wire.API.Federation.API
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig
