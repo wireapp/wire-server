@@ -2,6 +2,7 @@ import json
 import random
 import requests
 import string
+from .conversions import *
 
 DEFAULT_PASSWORD = 's3cret'
 
@@ -11,29 +12,10 @@ def random_letters(n=10):
 def random_email():
     return 'test-email' + '-' + random_letters(10) + '@example.com'
 
-def qid_path(qid):
-    return qid['domain'] + '/' + qid['id']
-
-def user_id(user):
-    if isinstance(user, str):
-        return user
-    else:
-        return user['id']
-
-def user_path(user):
-    if 'qualified_id' in user:
-        user = user['qualified_id']
-    return qid_path(user)
-
-def conv_path(conv):
-    if 'qualified_id' in conv:
-        conv = conv['qualified_id']
-    return qid_path(conv)
-
 def std_headers(user=None):
     headers = {'Z-Connection': '0'}
     if user is not None:
-        headers['Z-User'] = user_id(user)
+        headers['Z-User'] = obj_id(user)
     return headers
 
 def create_user(ctx, email=None, password=None, name=None, **kwargs):
@@ -70,7 +52,7 @@ def add_client(ctx, user, pks, lpk, *, internal=False, ctype=None,
     if ctype == 'legalhold':
         body['class'] = 'legalhold'
     if internal:
-        url = f'/i/clients/{user_id(user)}'
+        url = f'/i/clients/{obj_id(user)}'
     else:
         url = '/clients'
 
@@ -86,7 +68,7 @@ def delete_client(ctx, user, client_id, password=DEFAULT_PASSWORD, **kwargs):
     args = {
         'method': 'DELETE',
         'json': {'password': password},
-        'url': ctx.mkurl('brig', f'/clients/{user_id(user)}')
+        'url': ctx.mkurl('brig', f'/clients/{obj_id(user)}')
     }
     return ctx.send(args, kwargs)
 
@@ -101,7 +83,7 @@ def get_clients_unqualified(ctx, user, **kwargs):
 def get_user_clients(ctx, user, target, **kwargs):
     args = {
         'method': 'GET',
-        'url': ctx.mkurl('brig', f'/users/{user_path(target)}/clients'),
+        'url': ctx.mkurl('brig', f'/users/{obj_path(target)}/clients'),
         'headers': std_headers(user)
     }
     return ctx.send(args, kwargs)
@@ -109,7 +91,7 @@ def get_user_clients(ctx, user, target, **kwargs):
 def create_connection(ctx, user, target, **kwargs):
     args = {
         'method': 'POST',
-        'url': ctx.mkurl('brig', f'/connections/{user_path(target)}'),
+        'url': ctx.mkurl('brig', f'/connections/{obj_path(target)}'),
         'headers': std_headers(user)
     }
     return ctx.send(args, kwargs)
@@ -117,13 +99,13 @@ def create_connection(ctx, user, target, **kwargs):
 def update_connection(ctx, user, target, status, **kwargs):
     args = {
         'method': 'PUT',
-        'url': ctx.mkurl('brig', f'/connections/{user_path(target)}'),
+        'url': ctx.mkurl('brig', f'/connections/{obj_path(target)}'),
         'headers': std_headers(user),
         'json': {'status': status}
     }
     return ctx.send(args, kwargs)
 
-def create_conversation(ctx, user, users=None, **kwargs):
+def create_conversation(ctx, user, users=None, name=None, **kwargs):
     if users is None: users = []
     args = {
         'method': 'POST',
@@ -131,12 +113,25 @@ def create_conversation(ctx, user, users=None, **kwargs):
         'headers': std_headers(user),
         'json': {'qualified_users': [u['qualified_id'] for u in users]}
     }
+    if name is not None: args['json']['name'] = name
     return ctx.send(args, kwargs)
 
 def get_conversation(ctx, user, conv, **kwargs):
     args = {
         'method': 'GET',
-        'url': ctx.mkurl('galley', f'/conversations/{conv_path(conv)}'),
+        'url': ctx.mkurl('galley', f'/conversations/{obj_path(conv)}'),
         'headers': std_headers(user)
+    }
+    return ctx.send(args, kwargs)
+
+def ws_await(ctx, user, **kwargs):
+    headers = std_headers(user)
+    headers['Upgrade'] = 'websocket'
+    headers['Connection'] = 'Upgrade'
+    headers['Sec-Websocket-Key'] = 'foobar'
+    args = {
+        'method': 'GET',
+        'url': ctx.mkurl('cannon', f'/await'),
+        'headers': headers
     }
     return ctx.send(args, kwargs)

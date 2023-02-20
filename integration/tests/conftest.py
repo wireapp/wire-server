@@ -2,7 +2,7 @@ import pytest
 from helpers import context
 from helpers.prekeys import Prekeys
 
-CTX = context.Context({'brig': 8082, 'galley': 8085},
+CTX = context.Context({'brig': 8082, 'galley': 8085, 'cannon': 8083},
                       version=3)
 LOCAL_DOMAIN = 'example.com'
 

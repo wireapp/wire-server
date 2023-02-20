@@ -1,4 +1,5 @@
-from helpers import setup
+from helpers import setup, assertions, conversions
+from helpers.conversions import QID
 
 def test_status(ctx):
     url = ctx.mkurl('galley', '/i/status', internal=True)
@@ -17,12 +18,33 @@ def test_get_conv_v2(ctx):
     alice, bob = setup.connected_users(ctx, 2)
     with ctx.create_conversation(alice, users=[bob]) as r:
         assert r.status_code == 201
-        conv = r.json()
-
-    # turn conv to v2 format
-    conv['access_role_v2'] = conv['access_role']
-    conv['access_role'] = 'activated'
+        conv = conversions.conv_v2(r.json())
 
     with ctx.versioned(2).get_conversation(alice, conv) as r:
         assert r.status_code == 200
         assert conv == r.json()
+
+def test_create_proteus_conv(ctx):
+    users = setup.connected_users(ctx, 3)
+    alice, bob, jane = users
+
+    name = "a" * 256
+    with setup.ws_connect_users(ctx, bob) as ws:
+        with ctx.create_conversation(alice, users=[bob, jane], name=name) as r:
+            assert r.status_code == 201
+            conv = r.json()
+
+        assertions.conversation(conv, creator=alice['id'], name=name, members=[bob, jane])
+        conv_qid = QID.from_obj(conv)
+        e = ws.expect(lambda e: e['qualified_conversation'] == conv_qid,
+                      user=bob)
+
+        with ctx.get_conversation(bob, conv) as r:
+            r.status_code == 200
+            conv_view = conversions.conv_v2(r.json())
+
+        assert not e['transient']
+        assert e['type'] == 'conversation.create'
+        assert e['qualified_from'] == QID.from_obj(alice).dict()
+        assert conversions.conv_canonical(e['data']) == \
+                conversions.conv_canonical(conv_view)

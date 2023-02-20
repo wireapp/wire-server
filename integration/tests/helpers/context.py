@@ -7,7 +7,7 @@ class Context:
         self.service_map = service_map
         self.version = version
 
-    def mkurl(self, service, path, *, internal=False):
+    def mkurl(self, service, path, *, internal=False, protocol='http'):
         port = self.service_map[service]
         if not path or path[0] != '/':
             path = '/' + path
@@ -15,7 +15,7 @@ class Context:
             vpath = f'/v{self.version}'
         else:
             vpath = ''
-        return f'http://localhost:{port}{vpath}{path}'
+        return f'{protocol}://localhost:{port}{vpath}{path}'
 
     def send(self, args, additional_args):
         # TODO: merge headers

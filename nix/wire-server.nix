@@ -378,6 +378,7 @@ in
           requests
           ipdb
           pytest
+          websockets
           ]))
       pkgs.rsync
       pkgs.wget

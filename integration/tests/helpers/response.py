@@ -13,19 +13,22 @@ class Response:
 
     def __exit__(self, etype, evalue, traceback):
         if evalue is not None:
-            print(f"{self.method} {self.url}:")
+            self.debug()
 
-            # print request JSON if present
-            req = self.request.get('json')
-            if req is not None:
-                print("request body:")
-                print(json.dumps(req, indent=True))
+    def debug(self):
+        print(f"{self.method} {self.url}:")
 
-            # print response status code and JSON if present
-            print("status code:", self.response.status_code)
-            print("response body:")
-            try:
-                resp = self.response.json()
-                print(json.dumps(resp, indent=True))
-            except requests.exceptions.JSONDecodeError:
-                print(self.response.text)
+        # print request JSON if present
+        req = self.request.get('json')
+        if req is not None:
+            print("request body:")
+            print(json.dumps(req, indent=True))
+
+        # print response status code and JSON if present
+        print("status code:", self.response.status_code)
+        print("response body:")
+        try:
+            resp = self.response.json()
+            print(json.dumps(resp, indent=True))
+        except requests.exceptions.JSONDecodeError:
+            print(self.response.text)

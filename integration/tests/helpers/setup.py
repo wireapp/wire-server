@@ -1,4 +1,13 @@
+from . import api
+from .conversions import *
+
+import asyncio
+from contextlib import contextmanager
 import itertools
+import json
+import queue
+import threading
+import websockets
 
 """Higher level utilities. Useful for setting up tests without carefully
 checking that the endpoints used are working correctly."""
@@ -21,3 +30,59 @@ def connected_users(ctx, num):
         ctx.update_connection(u2, u1, 'accepted')
 
     return users
+
+class WS:
+    def __init__(self, msgs):
+        self.msgs = msgs
+
+    def expect(self, p, user=None):
+        e = json.loads(self.msgs.get())
+        assert len(e['payload']) == 1
+
+        # flatten event: move payload fields into top-level dict
+        for k, v in e['payload'][0].items():
+            e[k] = v
+        del e['payload']
+        return e
+
+@contextmanager
+def ws_connect_users(ctx, *users):
+    keys = {}
+
+    msgs = queue.Queue()
+    control = asyncio.Queue()
+
+    url = ctx.mkurl('cannon', '/await', protocol='ws')
+
+    async def connect():
+        cms = [websockets.connect(url, extra_headers=api.std_headers(user))
+               for user in users]
+        return cms, [await cm.__aenter__() for cm in cms]
+
+    async def main(cm, wss):
+        try:
+            for ws in wss:
+                asyncio.create_task(get_messages(ws))
+            await control.get()
+            for ws in wss:
+                await ws.close()
+        finally:
+            for cm in cms:
+                await cm.__aexit__(None, None, None)
+
+    async def get_messages(ws):
+        async for msg in ws:
+            msgs.put(msg)
+
+    async def shutdown():
+        await control.put(None)
+
+    loop = asyncio.new_event_loop()
+    cms, wss = loop.run_until_complete(connect())
+    t = threading.Thread(target=lambda: loop.run_until_complete(main(cms, wss)))
+    try:
+        t.start()
+        yield WS(msgs)
+    finally:
+        asyncio.run_coroutine_threadsafe(shutdown(), loop)
+        t.join()
