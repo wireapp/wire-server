@@ -59,9 +59,9 @@ let
   gitPins = {
     transitive-anns = {
       src = fetchgit {
-        url = "https://github.com/isovector/transitive-anns";
-        rev = "22f1b2b48b1d4422f32fd204a8b3454b03852ce3";
-        sha256 = "sha256-V5kfYsmaExeJVoQ7BChsXmW8gaDmt6gh2Wu7CH0IcZo=";
+        url = "https://github.com/wireapp/transitive-anns";
+        rev = "c3bdc423f84bf15fe8b3618b5dddd5764fc8a470";
+        sha256 = "sha256-mWBZ2uY0shlxNRceyC2Zu1f3Kr4IDtT/rOL7CKWgilA=";
       };
     };
     HaskellNet-SSL = {
