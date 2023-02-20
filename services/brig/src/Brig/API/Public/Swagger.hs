@@ -8,6 +8,8 @@ module Brig.API.Public.Swagger
     pregenSwagger,
     swaggerPregenUIServer,
     eventNotificationSchemas,
+    adjustSwaggerForInternalEndpoint,
+    emptySwagger,
   )
 where
 
@@ -15,6 +17,7 @@ import Control.Lens
 import qualified Data.Aeson as A
 import Data.FileEmbed
 import qualified Data.HashMap.Strict.InsOrd as HM
+import qualified Data.HashSet.InsOrd as InsOrdSet
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as T
@@ -22,6 +25,7 @@ import FileEmbedLzma
 import GHC.TypeLits
 import Imports hiding (head)
 import Language.Haskell.TH
+import Network.Socket
 import Servant
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
@@ -30,13 +34,13 @@ import qualified Wire.API.Event.FeatureConfig
 import qualified Wire.API.Event.Team
 import Wire.API.Routes.Version
 
-type SwaggerDocsAPIBase path = SwaggerSchemaUI path "swagger.json"
+type SwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
+
+type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> SwaggerDocsAPIBase
 
 type ServiceSwaggerDocsAPIBase service = SwaggerSchemaUI service (AppendSymbol service "-swagger.json")
 
 type VersionedSwaggerDocsAPIBase service = Header VersionHeader Version :> ServiceSwaggerDocsAPIBase service
-
-type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> SwaggerDocsAPIBase "swagger-ui"
 
 type InternalEndpointsSwaggerDocsAPI =
   "api-internal"
@@ -59,11 +63,48 @@ pregenSwagger v =
     =<< makeRelativeToProject
       ("docs/swagger-v" <> T.unpack (toUrlPiece v) <> ".json")
 
-swaggerPregenUIServer :: LByteString -> Server (SwaggerDocsAPIBase a)
+swaggerPregenUIServer :: LByteString -> Server SwaggerDocsAPIBase
 swaggerPregenUIServer =
   swaggerSchemaUIServer
     . fromMaybe A.Null
     . A.decode
+
+adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.Swagger -> S.Swagger
+adjustSwaggerForInternalEndpoint service examplePort swagger =
+  swagger
+    & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ service ++ ")")
+    & S.info . S.description ?~ renderedDescription
+    & S.host ?~ S.Host "localhost" (Just examplePort)
+    & S.allOperations . S.tags <>~ tag
+    -- Enforce HTTP as the services themselves don't understand HTTPS
+    & S.allOperations . S.schemes ?~ [S.Http]
+  where
+    tag :: InsOrdSet.InsOrdHashSet S.TagName
+    tag = InsOrdSet.singleton @S.TagName (T.pack service)
+
+    renderedDescription :: Text
+    renderedDescription =
+      T.pack . Imports.unlines $
+        [ "To have access to this *internal* endpoint, create a port forwarding to `"
+            ++ service
+            ++ "` into the Kubernetes cluster. E.g.:",
+          "```",
+          "kubectl port-forward -n wire service/"
+            ++ service
+            ++ " "
+            ++ show examplePort
+            ++ ":8080",
+          "```",
+          "**N.B.:** Execution via this UI won't work due to CORS issues."
+            ++ " But, the proposed `curl` commands will."
+        ]
+
+emptySwagger :: Servant.Server (ServiceSwaggerDocsAPIBase a)
+emptySwagger =
+  swaggerSchemaUIServer $
+    mempty @S.Swagger
+      & S.info . S.description
+        ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
 
 {- FUTUREWORK(fisx): there are a few things that need to be fixed before this schema collection
    is of any practical use!

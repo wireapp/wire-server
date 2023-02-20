@@ -70,7 +70,7 @@ import Brig.User.Phone
 import qualified Cassandra as C
 import qualified Cassandra as Data
 import Control.Error hiding (bool)
-import Control.Lens (view, (.~), (<>~), (?~), (^.))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.Bifunctor
@@ -80,7 +80,6 @@ import Data.CommaSeparatedList
 import Data.Domain
 import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
-import qualified Data.HashSet.InsOrd as InsOrdSet
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
@@ -88,7 +87,6 @@ import Data.Nonce (Nonce, randomNonce)
 import Data.Qualified
 import Data.Range
 import qualified Data.Swagger as S
-import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (pack)
@@ -189,7 +187,11 @@ versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 -- empty. It would have been too tedious to create them. Please add
 -- pre-generated docs on version increase as it's done in
 -- `versionedSwaggerDocsAPI`.
-internalEndpointsSwaggerDocsAPI :: String -> PortNumber -> S.Swagger -> Servant.Server (VersionedSwaggerDocsAPIBase a)
+internalEndpointsSwaggerDocsAPI ::
+  String ->
+  PortNumber ->
+  S.Swagger ->
+  Servant.Server (VersionedSwaggerDocsAPIBase service)
 internalEndpointsSwaggerDocsAPI service examplePort swagger (Just V3) =
   swaggerSchemaUIServer $
     swagger
@@ -200,43 +202,6 @@ internalEndpointsSwaggerDocsAPI _ _ _ (Just V1) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just V2) = emptySwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
   internalEndpointsSwaggerDocsAPI service examplePort swagger (Just maxBound)
-
-adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.Swagger -> S.Swagger
-adjustSwaggerForInternalEndpoint service examplePort swagger =
-  swagger
-    & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ service ++ ")")
-    & S.info . S.description ?~ renderedDescription
-    & S.host ?~ S.Host "localhost" (Just examplePort)
-    & S.allOperations . S.tags <>~ tag
-    -- Enforce HTTP as the services themselves don't understand HTTPS
-    & S.allOperations . S.schemes ?~ [S.Http]
-  where
-    tag :: InsOrdSet.InsOrdHashSet S.TagName
-    tag = InsOrdSet.singleton @S.TagName (T.pack service)
-
-    renderedDescription :: Text
-    renderedDescription =
-      T.pack . Imports.unlines $
-        [ "To have access to this *internal* endpoint, create a port forwarding to `"
-            ++ service
-            ++ "` into the Kubernetes cluster. E.g.:",
-          "```",
-          "kubectl port-forward -n wire service/"
-            ++ service
-            ++ " "
-            ++ show examplePort
-            ++ ":8080",
-          "```",
-          "**N.B.:** Execution via this UI won't work due to CORS issues."
-            ++ " But, the proposed `curl` commands will."
-        ]
-
-emptySwagger :: Servant.Server (ServiceSwaggerDocsAPIBase a)
-emptySwagger =
-  swaggerSchemaUIServer $
-    mempty @S.Swagger
-      & S.info . S.description
-        ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
 
 servantSitemap ::
   forall r p.
