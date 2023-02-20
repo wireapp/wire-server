@@ -363,27 +363,25 @@ pub extern "C" fn verify_oauth_token(
     token: *const u8,
     token_len: size_t,
     scope: *const u8,
-    scope_len: size_t
+    scope_len: size_t,
+    method: *const u8,
+    method_len: size_t,
 ) -> *mut libc::c_char {
-    eprintln!("verify_oauth_token");
     if token.is_null() {
         eprintln!("token is null");
         // return ZauthResult::NullArg;
     }
-    eprintln!("token len: {:?}", token_len);
     if scope.is_null() {
         eprintln!("scope is null");
         // return ZauthResult::NullArg;
     }
-    eprintln!("scope len: {:?}", scope_len);
     let bytes = unsafe { slice::from_raw_parts(token, token_len) };
     let token = str::from_utf8(bytes).unwrap();
-    eprintln!("token: {:?}", token);
     let bytes = unsafe { slice::from_raw_parts(scope, scope_len) };
     let scope = str::from_utf8(bytes).unwrap();
-    eprintln!("scope: {:?}", scope);
-    let subject = zauth::verify_oauth_token(&jwk.0, token, scope).unwrap();
-    eprintln!("subject: {:?}", subject);
+    let bytes = unsafe { slice::from_raw_parts(method, method_len) };
+    let method = str::from_utf8(bytes).unwrap();
+    let subject = zauth::verify_oauth_token(&jwk.0, token, scope, method).unwrap();
     let c_str_song = CString::new(subject).unwrap();
     c_str_song.into_raw()        
 }

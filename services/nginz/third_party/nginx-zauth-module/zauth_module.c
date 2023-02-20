@@ -325,8 +325,9 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "hdr data: %s", hdr->data);
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "hdr len: %d", hdr->len - 7);
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "scope len: %d", scope.len);
-                        
-                        char *uid = verify_oauth_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len);
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "method: %s", r->method_name.data);
+
+                        char *uid = verify_oauth_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth user id: %s", uid);
 
                         ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
@@ -336,6 +337,7 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                         }
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser not null");
 
+                        // todo(leif): set deconstructor?
                         // finaliser->handler = delete_token;
                         finaliser->data = uid;
                         ngx_http_set_ctx(r, uid, zauth_module);
