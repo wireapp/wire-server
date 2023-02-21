@@ -258,10 +258,10 @@ static char * load_oauth_key (ngx_conf_t * conf, ngx_command_t * cmd, void * dat
         }
 
         ngx_str_t * const fname = conf->args->elts;
-        ZauthResult e = oauth_key_open(fname[1].data, fname[1].len, &sc->oauth_key);
+        OAuthResultStatus status = oauth_key_open(fname[1].data, fname[1].len, &sc->oauth_key);
 
-        if (e != ZAUTH_OK || sc->oauth_key == NULL) {
-                ngx_conf_log_error(NGX_LOG_EMERG, conf, 0, "failed to load oauth key [%d]", e);
+        if (status != OAUTH_OK || sc->oauth_key == NULL) {
+                ngx_conf_log_error(NGX_LOG_EMERG, conf, 0, "failed to load oauth key [%d]", status);
                 return NGX_CONF_ERROR;
         }        
 
@@ -331,26 +331,29 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
 
                         OAuthResult res = oauth_verify_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
 
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_verify_token called");
+                        if (res.status == OAUTH_OK) {
+                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_verify_token called");
 
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result status: %d", res.status);
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result: %s", res.uid);
+                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result status: %d", res.status);
+                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result: %s", res.uid);
 
-                        ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
-                        if (finaliser == NULL) {
-                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser is null");
-                                return NGX_ERROR;
+                                ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
+                                if (finaliser == NULL) {
+                                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser is null");
+                                        return NGX_ERROR;
+                                }
+                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser not null");
+
+                                finaliser->handler = delete_oauth_uid;
+                                finaliser->data = res.uid;
+                                ngx_http_set_ctx(r, res.uid, zauth_module);
+                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "user id set to context");
+                                status = NGX_OK;
+                        } else {
+                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_verify_token failed");
+                                return NGX_HTTP_UNAUTHORIZED;
                         }
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser not null");
-
-                        finaliser->handler = delete_oauth_uid;
-                        finaliser->data = res.uid;
-                        ngx_http_set_ctx(r, res.uid, zauth_module);
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "user id set to context");
-                        status = NGX_OK;
-                } else {
-                        status = ZAUTH_PARSE_ERROR;
-                }                
+                }              
         }
 
         // if zauth or oauth succeeds, we empty the Authorization header
@@ -576,8 +579,8 @@ static ngx_int_t zauth_token_typeinfo (ngx_http_request_t * r, ngx_http_variable
         }
 }
 
-// check if the signature has been validated (authorized)
-// and endpoint is either not denied or allowed according to the access control list (acl) configuration
+// check if the signature has been validated
+// and access is allowed (endpoint is either allowed or not denied according to the access control list (ACL) configuration)
 static bool zauth_is_authorized_and_allowed(ngx_http_request_t * r) {
         ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
 

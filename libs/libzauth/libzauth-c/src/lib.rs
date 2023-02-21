@@ -20,7 +20,7 @@ extern crate zauth;
 
 use libc::size_t;
 use std::char;
-use std::ffi::CString;
+use std::ffi::{CString, NulError};
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::panic::{self, UnwindSafe};
@@ -29,7 +29,9 @@ use std::ptr;
 use std::slice;
 use std::str;
 use zauth::acl;
-use zauth::{Acl, Error, Keystore, OauthError, Token, TokenType, TokenVerification};
+use zauth::{
+    verify_oauth_token, Acl, Error, Keystore, OauthError, Token, TokenType, TokenVerification,
+};
 
 /// Variant of std::try! that returns the unwrapped error.
 macro_rules! try_unwrap {
@@ -48,17 +50,9 @@ pub struct Range {
     len: size_t,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct OAuthResult {
-    uid: *const libc::c_char,
-    status: ZauthResult,
-}
-
 pub struct ZauthAcl(zauth::Acl);
 pub struct ZauthKeystore(zauth::Keystore);
 pub struct ZauthToken(zauth::Token<'static>);
-pub struct OAuthJwk(String);
 
 #[no_mangle]
 pub extern "C" fn zauth_keystore_open(
@@ -111,34 +105,6 @@ pub extern "C" fn zauth_acl_open(f: *const u8, n: size_t, a: *mut *mut ZauthAcl)
 
 #[no_mangle]
 pub extern "C" fn zauth_acl_delete(a: *mut ZauthAcl) {
-    catch_unwind(|| {
-        unsafe {
-            drop(Box::from_raw(a));
-        }
-        ZauthResult::Ok
-    });
-}
-
-#[no_mangle]
-pub extern "C" fn oauth_key_open(f: *const u8, n: size_t, k: *mut *mut OAuthJwk) -> ZauthResult {
-    if f.is_null() {
-        return ZauthResult::NullArg;
-    }
-    catch_unwind(|| {
-        let bytes = unsafe { slice::from_raw_parts(f, n) };
-        let path = try_unwrap!(str::from_utf8(bytes));
-        let mut rdr = BufReader::new(try_unwrap!(File::open(&Path::new(path))));
-        let mut txt = String::new();
-        try_unwrap!(rdr.read_to_string(&mut txt));
-        unsafe {
-            *k = Box::into_raw(Box::new(OAuthJwk(txt)));
-        }
-        ZauthResult::Ok
-    })
-}
-
-#[no_mangle]
-pub extern "C" fn oauth_key_delete(a: *mut OAuthJwk) {
     catch_unwind(|| {
         unsafe {
             drop(Box::from_raw(a));
@@ -288,9 +254,6 @@ pub enum ZauthResult {
     UnknownKey = 9,
     Utf8Error = 10,
     AclError = 11,
-    JsonError = 12,
-    JwtError = 13,
-    JwkError = 14,
     Panic = 99,
 }
 
@@ -305,19 +268,6 @@ impl From<zauth::Error> for ZauthResult {
             Error::Parse => ZauthResult::ParseError,
             Error::SignatureMismatch => ZauthResult::SignatureMismatch,
             Error::UnknownKey(_) => ZauthResult::UnknownKey,
-        }
-    }
-}
-
-impl From<zauth::OauthError> for ZauthResult {
-    fn from(e: zauth::OauthError) -> ZauthResult {
-        match e {
-            OauthError::JsonError(_) => Self::JsonError,
-            OauthError::InvalidJwtNoSubject
-            | OauthError::InvalidScope
-            | OauthError::JwtSimpleError(_) => Self::JwtError,
-            OauthError::Base64DecodeError(_) => Self::Base64Error,
-            OauthError::InvalidJwk => Self::JwkError,
         }
     }
 }
@@ -368,6 +318,129 @@ impl From<TokenVerification> for ZauthTokenVerification {
     }
 }
 
+// ------------------------------------------------------------------------
+// OAuth
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub enum OAuthResultStatus {
+    Ok = 0,
+    InsufficientScope = 1,
+    NullArg = 2,
+    IoError = 3,
+    Utf8Error = 4,
+    Panic = 99,
+}
+
+pub struct OAuthJwk(String);
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct OAuthResult {
+    uid: *const libc::c_char,
+    status: OAuthResultStatus,
+}
+
+fn catch_unwind_with<F, R>(f: F, r: R) -> R
+where
+    F: FnOnce() -> R + UnwindSafe,
+{
+    match panic::catch_unwind(f) {
+        Ok(x) => x,
+        Err(_) => r,
+    }
+}
+
+impl From<OauthError> for OAuthResultStatus {
+    fn from(e: OauthError) -> OAuthResultStatus {
+        match e {
+            OauthError::JsonError(_) => Self::Panic,
+            OauthError::JwtSimpleError(_) => Self::Panic,
+            OauthError::Base64DecodeError(_) => Self::Panic,
+            OauthError::InvalidJwk => Self::Panic,
+            OauthError::InvalidJwtNoSubject => Self::Panic,
+            OauthError::InvalidScope => Self::InsufficientScope,
+        }
+    }
+}
+
+impl From<io::Error> for OAuthResultStatus {
+    fn from(_: io::Error) -> OAuthResultStatus {
+        OAuthResultStatus::IoError
+    }
+}
+
+impl From<str::Utf8Error> for OAuthResultStatus {
+    fn from(_: str::Utf8Error) -> OAuthResultStatus {
+        OAuthResultStatus::Utf8Error
+    }
+}
+
+impl From<str::Utf8Error> for OAuthResult {
+    fn from(_: str::Utf8Error) -> OAuthResult {
+        OAuthResult {
+            uid: ptr::null(),
+            status: OAuthResultStatus::Utf8Error,
+        }
+    }
+}
+
+impl From<NulError> for OAuthResult {
+    fn from(_: NulError) -> OAuthResult {
+        OAuthResult {
+            uid: ptr::null(),
+            status: OAuthResultStatus::Panic,
+        }
+    }
+}
+
+impl From<OauthError> for OAuthResult {
+    fn from(e: OauthError) -> OAuthResult {
+        OAuthResult {
+            uid: ptr::null(),
+            status: e.into(),
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn oauth_key_open(
+    f: *const u8,
+    n: size_t,
+    k: *mut *mut OAuthJwk,
+) -> OAuthResultStatus {
+    if f.is_null() {
+        return OAuthResultStatus::NullArg;
+    }
+    catch_unwind_with(
+        || {
+            let bytes = unsafe { slice::from_raw_parts(f, n) };
+            let path = try_unwrap!(str::from_utf8(bytes));
+            let mut rdr = BufReader::new(try_unwrap!(File::open(&Path::new(path))));
+            let mut txt = String::new();
+            try_unwrap!(rdr.read_to_string(&mut txt));
+            unsafe {
+                *k = Box::into_raw(Box::new(OAuthJwk(txt)));
+            }
+            OAuthResultStatus::Ok
+        },
+        OAuthResultStatus::Panic,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn oauth_key_delete(a: *mut OAuthJwk) {
+    catch_unwind_with(
+        || {
+            unsafe {
+                drop(Box::from_raw(a));
+            }
+            OAuthResultStatus::Ok
+        },
+        OAuthResultStatus::Panic,
+    );
+}
+
 #[no_mangle]
 pub extern "C" fn oauth_verify_token(
     jwk: &OAuthJwk,
@@ -378,37 +451,52 @@ pub extern "C" fn oauth_verify_token(
     method: *const u8,
     method_len: size_t,
 ) -> OAuthResult {
-    if token.is_null() {
-        eprintln!("token is null");
-        // return ZauthResult::NullArg;
-    }
-    if scope.is_null() {
-        eprintln!("scope is null");
-        // return ZauthResult::NullArg;
-    }
-    let bytes = unsafe { slice::from_raw_parts(token, token_len) };
-    let token = str::from_utf8(bytes).unwrap();
-    let bytes = unsafe { slice::from_raw_parts(scope, scope_len) };
-    let scope = str::from_utf8(bytes).unwrap();
-    let bytes = unsafe { slice::from_raw_parts(method, method_len) };
-    let method = str::from_utf8(bytes).unwrap();
-    let subject = zauth::verify_oauth_token(&jwk.0, token, scope, method).unwrap();
-    let c_str = CString::new(subject).unwrap();
-    OAuthResult {
-        uid: c_str.into_raw(),
-        status: ZauthResult::Ok,
+    match panic::catch_unwind(|| {
+        if token.is_null() {
+            return OAuthResult {
+                uid: ptr::null(),
+                status: OAuthResultStatus::NullArg,
+            };
+        }
+        if scope.is_null() {
+            return OAuthResult {
+                uid: ptr::null(),
+                status: OAuthResultStatus::NullArg,
+            };
+        }
+        let bytes = unsafe { slice::from_raw_parts(token, token_len) };
+        let token = try_unwrap!(str::from_utf8(bytes));
+        let bytes = unsafe { slice::from_raw_parts(scope, scope_len) };
+        let scope = try_unwrap!(str::from_utf8(bytes));
+        let bytes = unsafe { slice::from_raw_parts(method, method_len) };
+        let method = str::from_utf8(bytes).unwrap();
+        let subject = try_unwrap!(verify_oauth_token(&jwk.0, token, scope, method));
+        let c_str = try_unwrap!(CString::new(subject));
+        OAuthResult {
+            uid: c_str.into_raw(),
+            status: OAuthResultStatus::Ok,
+        }
+    }) {
+        Ok(x) => x,
+        Err(_) => OAuthResult {
+            uid: ptr::null(),
+            status: OAuthResultStatus::Panic,
+        },
     }
 }
 
 #[no_mangle]
 pub extern "C" fn oauth_result_uid_delete(s: *mut libc::c_char) {
-    catch_unwind(|| {
-        unsafe {
-            if s.is_null() {
-                return ZauthResult::Ok;
-            }
-            CString::from_raw(s)
-        };
-        ZauthResult::Ok
-    });
+    catch_unwind_with(
+        || {
+            unsafe {
+                if s.is_null() {
+                    return OAuthResultStatus::Ok;
+                }
+                CString::from_raw(s)
+            };
+            OAuthResultStatus::Ok
+        },
+        OAuthResultStatus::Panic,
+    );
 }
