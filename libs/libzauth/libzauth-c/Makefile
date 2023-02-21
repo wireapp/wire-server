@@ -27,7 +27,7 @@ build:
 	cargo build
 
 build-release:
-	cargo build
+	cargo build --release
 
 install: build-release
 	mkdir -p $(PREFIX_INSTALL)/include

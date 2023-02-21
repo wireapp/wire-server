@@ -335,7 +335,7 @@ pub enum OAuthResultStatus {
 pub struct OAuthJwk(String);
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct OAuthResult {
     uid: *const libc::c_char,
     status: OAuthResultStatus,
@@ -352,7 +352,7 @@ where
 }
 
 impl From<OauthError> for OAuthResultStatus {
-    fn from(e: OauthError) -> OAuthResultStatus {
+    fn from(e: OauthError) -> Self {
         match e {
             OauthError::JsonError(_) => Self::Panic,
             OauthError::JwtSimpleError(_) => Self::Panic,
@@ -365,19 +365,19 @@ impl From<OauthError> for OAuthResultStatus {
 }
 
 impl From<io::Error> for OAuthResultStatus {
-    fn from(_: io::Error) -> OAuthResultStatus {
-        OAuthResultStatus::IoError
+    fn from(_: io::Error) -> Self {
+        Self::IoError
     }
 }
 
 impl From<str::Utf8Error> for OAuthResultStatus {
-    fn from(_: str::Utf8Error) -> OAuthResultStatus {
-        OAuthResultStatus::Utf8Error
+    fn from(_: str::Utf8Error) -> Self {
+        Self::Utf8Error
     }
 }
 
 impl From<str::Utf8Error> for OAuthResult {
-    fn from(_: str::Utf8Error) -> OAuthResult {
+    fn from(_: str::Utf8Error) -> Self {
         OAuthResult {
             uid: ptr::null(),
             status: OAuthResultStatus::Utf8Error,
@@ -386,7 +386,7 @@ impl From<str::Utf8Error> for OAuthResult {
 }
 
 impl From<NulError> for OAuthResult {
-    fn from(_: NulError) -> OAuthResult {
+    fn from(_: NulError) -> Self {
         OAuthResult {
             uid: ptr::null(),
             status: OAuthResultStatus::Panic,
@@ -395,7 +395,7 @@ impl From<NulError> for OAuthResult {
 }
 
 impl From<OauthError> for OAuthResult {
-    fn from(e: OauthError) -> OAuthResult {
+    fn from(e: OauthError) -> Self {
         OAuthResult {
             uid: ptr::null(),
             status: e.into(),
@@ -464,6 +464,12 @@ pub extern "C" fn oauth_verify_token(
                 status: OAuthResultStatus::NullArg,
             };
         }
+        if method.is_null() {
+            return OAuthResult {
+                uid: ptr::null(),
+                status: OAuthResultStatus::NullArg,
+            };
+        }        
         let bytes = unsafe { slice::from_raw_parts(token, token_len) };
         let token = try_unwrap!(str::from_utf8(bytes));
         let bytes = unsafe { slice::from_raw_parts(scope, scope_len) };
