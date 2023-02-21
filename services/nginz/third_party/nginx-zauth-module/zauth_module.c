@@ -192,7 +192,7 @@ static void delete_srv_conf (void * data) {
                 zauth_acl_delete(c->acl);
         }
         if (c->oauth_key != NULL) {
-                zauth_oauth_key_delete(c->oauth_key);
+                oauth_key_delete(c->oauth_key);
         }
 }
 
@@ -258,7 +258,7 @@ static char * load_oauth_key (ngx_conf_t * conf, ngx_command_t * cmd, void * dat
         }
 
         ngx_str_t * const fname = conf->args->elts;
-        ZauthResult e = zauth_oauth_key_open(fname[1].data, fname[1].len, &sc->oauth_key);
+        ZauthResult e = oauth_key_open(fname[1].data, fname[1].len, &sc->oauth_key);
 
         if (e != ZAUTH_OK || sc->oauth_key == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, conf, 0, "failed to load oauth key [%d]", e);
@@ -329,9 +329,9 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "scope len: %d", scope.len);
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "method: %s", r->method_name.data);
 
-                        OAuthResult res = verify_oauth_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
+                        OAuthResult res = oauth_verify_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
 
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "verify_oauth_token called");
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_verify_token called");
 
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result status: %d", res.status);
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result: %s", res.uid);
@@ -414,7 +414,7 @@ static void delete_token (void * data) {
 }
 
 static void delete_oauth_uid(void * data) {
-        oauth_result_uid_free((char *) data);
+        oauth_result_uid_delete((char *) data);
 }
 
 static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {

@@ -120,7 +120,7 @@ pub extern "C" fn zauth_acl_delete(a: *mut ZauthAcl) {
 }
 
 #[no_mangle]
-pub extern "C" fn zauth_oauth_key_open(
+pub extern "C" fn oauth_key_open(
     f: *const u8,
     n: size_t,
     k: *mut *mut OAuthJwk,
@@ -142,7 +142,7 @@ pub extern "C" fn zauth_oauth_key_open(
 }
 
 #[no_mangle]
-pub extern "C" fn zauth_oauth_key_delete(a: *mut OAuthJwk) {
+pub extern "C" fn oauth_key_delete(a: *mut OAuthJwk) {
     catch_unwind(|| {
         unsafe {
             Box::from_raw(a);
@@ -373,7 +373,7 @@ impl From<TokenVerification> for ZauthTokenVerification {
 }
 
 #[no_mangle]
-pub extern "C" fn verify_oauth_token(
+pub extern "C" fn oauth_verify_token(
     jwk: &OAuthJwk,
     token: *const u8,
     token_len: size_t,
@@ -405,7 +405,7 @@ pub extern "C" fn verify_oauth_token(
 }
 
 #[no_mangle]
-pub extern "C" fn oauth_result_uid_free(s: *mut libc::c_char) {
+pub extern "C" fn oauth_result_uid_delete(s: *mut libc::c_char) {
     catch_unwind(|| {
         unsafe {
             if s.is_null() {
