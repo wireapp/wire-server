@@ -84,7 +84,7 @@ pub extern "C" fn zauth_keystore_open(
 pub extern "C" fn zauth_keystore_delete(s: *mut ZauthKeystore) {
     catch_unwind(|| {
         unsafe {
-            Box::from_raw(s);
+            drop(Box::from_raw(s));
         }
         ZauthResult::Ok
     });
@@ -113,7 +113,7 @@ pub extern "C" fn zauth_acl_open(f: *const u8, n: size_t, a: *mut *mut ZauthAcl)
 pub extern "C" fn zauth_acl_delete(a: *mut ZauthAcl) {
     catch_unwind(|| {
         unsafe {
-            Box::from_raw(a);
+            drop(Box::from_raw(a));
         }
         ZauthResult::Ok
     });
@@ -145,7 +145,7 @@ pub extern "C" fn oauth_key_open(
 pub extern "C" fn oauth_key_delete(a: *mut OAuthJwk) {
     catch_unwind(|| {
         unsafe {
-            Box::from_raw(a);
+            drop(Box::from_raw(a));
         }
         ZauthResult::Ok
     });
@@ -245,7 +245,7 @@ pub extern "C" fn zauth_token_lookup(t: &ZauthToken, c: u8) -> Range {
 pub extern "C" fn zauth_token_delete(t: *mut ZauthToken) {
     catch_unwind(|| {
         unsafe {
-            Box::from_raw(t);
+            drop(Box::from_raw(t));
         }
         ZauthResult::Ok
     });
