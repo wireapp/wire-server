@@ -39,5 +39,9 @@ class Response:
     def status_code(self):
         return self.response.status_code
 
+    @property
+    def text(self):
+        return self.response.text
+
     def json(self):
         return self.response.json(object_hook=frozendict)

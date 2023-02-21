@@ -1,4 +1,5 @@
 import dataclasses
+from .frozendict import frozendict
 
 def qid_path(qid):
     return qid['domain'] + '/' + qid['id']
@@ -36,4 +37,4 @@ def conv_v2(conv):
     conv = dict(conv)
     conv['access_role_v2'] = conv['access_role']
     conv['access_role'] = 'activated'
-    return conv
+    return frozendict(conv)
