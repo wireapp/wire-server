@@ -50,6 +50,11 @@ typedef struct ZauthKeystore ZauthKeystore;
 typedef struct ZauthToken    ZauthToken;
 typedef struct OAuthJwk      OAuthJwk;
 
+typedef struct {
+  char *      uid;
+  ZauthResult status;
+} OAuthResult;
+
 ZauthResult zauth_keystore_open(uint8_t const * fname, size_t len, ZauthKeystore **);
 void        zauth_keystore_delete(ZauthKeystore * store);
 
@@ -68,8 +73,9 @@ uint8_t                zauth_token_version(ZauthToken const *);
 Range                  zauth_token_lookup(ZauthToken const *, uint8_t);
 ZauthResult            zauth_token_allowed(ZauthToken const *, ZauthAcl const *, uint8_t const * path, size_t len, uint8_t * result);
 void                   zauth_token_delete(ZauthToken *);
-char *                 verify_oauth_token(OAuthJwk const *, uint8_t const * t, size_t t_len, uint8_t const * s, size_t s_len, uint8_t const * m, size_t m_len);
-void                   print_jwk(OAuthJwk const *);
+OAuthResult            verify_oauth_token(OAuthJwk const *, uint8_t const * t, size_t t_len, uint8_t const * s, size_t s_len, uint8_t const * m, size_t m_len);
+void                   print_jwk(OAuthJwk const *);  // todo(leif): remove
+ZauthResult            oauth_result_uid_free(char *);
 
 #ifdef __cplusplus
 }

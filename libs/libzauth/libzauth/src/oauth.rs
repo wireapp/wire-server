@@ -28,6 +28,8 @@ pub fn verify_oauth_token(
 // if method is POST, authorized scopes must contain either write:_ or admin:_
 // if method is PUT, authorized scopes must contain either write:_ or admin:_
 // if method is DELETE, authorized scopes must contain admin:_
+// FUTUREWORK: this works for now, but maybe we should consider using a more flexible scope system in the future
+// e.g. by using a configuration file with a mapping of scopes to methods and paths
 fn verify_scope(
     authorized_scopes: &str,
     required_scope: &str,

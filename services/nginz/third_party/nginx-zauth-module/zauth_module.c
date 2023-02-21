@@ -36,6 +36,7 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t *);
 static ZauthResult token_from_header (ngx_str_t const *, ZauthToken **);
 static ZauthResult token_from_query  (ngx_str_t const *, ZauthToken **);
 static void        delete_token      (void *);
+static void        delete_oauth_uid  (void *);
 
 // Variable manipulation
 static ngx_int_t zauth_variables      (ngx_conf_t *);
@@ -327,8 +328,12 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "scope len: %d", scope.len);
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "method: %s", r->method_name.data);
 
-                        char *uid = verify_oauth_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth user id: %s", uid);
+                        OAuthResult res = verify_oauth_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
+
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "verify_oauth_token called");
+
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result status: %d", res.status);
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result: %s", res.uid);
 
                         ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
                         if (finaliser == NULL) {
@@ -337,10 +342,9 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                         }
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser not null");
 
-                        // todo(leif): set deconstructor?
-                        // finaliser->handler = delete_token;
-                        finaliser->data = uid;
-                        ngx_http_set_ctx(r, uid, zauth_module);
+                        finaliser->handler = delete_oauth_uid;
+                        finaliser->data = res.uid;
+                        ngx_http_set_ctx(r, res.uid, zauth_module);
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "user id set to context");
                         status = NGX_OK;
                 } else {
@@ -406,6 +410,10 @@ static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t * r, const Zauth
 
 static void delete_token (void * data) {
         zauth_token_delete((ZauthToken *) data);
+}
+
+static void delete_oauth_uid(void * data) {
+        oauth_result_uid_free((char *) data);
 }
 
 static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
@@ -623,15 +631,14 @@ static ngx_int_t zauth_token_var_user (ngx_http_request_t * r, ngx_http_variable
                 return zauth_set_var(r->pool, v, zauth_token_lookup(t, 'u'));
         } else {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "tkn is NULL");
-                char const * oauth_uid = ngx_http_get_module_ctx(r, zauth_module);
-                if (oauth_uid != NULL) {
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid (not null): %s", oauth_uid);
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid (not null) len: %d", strlen(oauth_uid));
-                        ngx_int_t res = zauth_set_var(r->pool, v, (Range) { (u_char*) oauth_uid, strlen(oauth_uid) });
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "result: %d", res);
-                        return res;
+                char const * uid = ngx_http_get_module_ctx(r, zauth_module);
+                if (uid != NULL) {
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid (not null): %s", uid);
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid (not null) len: %d", strlen(uid));
+                        ngx_int_t status = zauth_set_var(r->pool, v, (Range) { (u_char*) uid, strlen(uid) });
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "result: %d", status);
+                        return status;
                 } else {
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid is NULL");
                         zauth_empty_val(v);
                         return NGX_OK;
                 }

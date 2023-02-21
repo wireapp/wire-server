@@ -20,7 +20,6 @@ extern crate zauth;
 
 use libc::size_t;
 use std::char;
-use std::ffi::CString;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::panic::{self, UnwindSafe};
@@ -30,6 +29,7 @@ use std::slice;
 use std::str;
 use zauth::acl;
 use zauth::{Acl, Error, Keystore, OauthError, Token, TokenType, TokenVerification};
+use std::ffi::CString;
 
 /// Variant of std::try! that returns the unwrapped error.
 macro_rules! try_unwrap {
@@ -46,6 +46,13 @@ macro_rules! try_unwrap {
 pub struct Range {
     ptr: *const u8,
     len: size_t,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct OAuthResult {
+    uid: *const libc::c_char,
+    status: ZauthResult,
 }
 
 pub struct ZauthAcl(zauth::Acl);
@@ -365,8 +372,8 @@ pub extern "C" fn verify_oauth_token(
     scope: *const u8,
     scope_len: size_t,
     method: *const u8,
-    method_len: size_t,
-) -> *mut libc::c_char {
+    method_len: size_t
+) -> OAuthResult {
     if token.is_null() {
         eprintln!("token is null");
         // return ZauthResult::NullArg;
@@ -382,6 +389,23 @@ pub extern "C" fn verify_oauth_token(
     let bytes = unsafe { slice::from_raw_parts(method, method_len) };
     let method = str::from_utf8(bytes).unwrap();
     let subject = zauth::verify_oauth_token(&jwk.0, token, scope, method).unwrap();
-    let c_str_song = CString::new(subject).unwrap();
-    c_str_song.into_raw()        
+    eprintln!("subject: {:?}", subject);
+    let c_str = CString::new(subject).unwrap();
+    OAuthResult {
+        uid: c_str.into_raw(),
+        status: ZauthResult::Ok,
+    } 
+}
+
+#[no_mangle]
+pub extern "C" fn oauth_result_uid_free(s: *mut libc::c_char) {
+    catch_unwind(|| {
+        unsafe {
+            if s.is_null() {
+                return ZauthResult::Ok;
+            }
+            CString::from_raw(s)
+        };
+        ZauthResult::Ok
+    });
 }
