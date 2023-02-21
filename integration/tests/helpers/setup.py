@@ -42,22 +42,15 @@ class WS:
     def match(self, p, user=None, timeout=DEFAULT_TIMEOUT):
         t0 = time.time()
         while time.time() - t0 < timeout:
-            e = self.next_event()
-            if p(e): return e
-            self.msgs.put(e)
+            uid, e = self.msgs.get()
+
+            # if the queue contains an exception, just raise it here
+            if isinstance(e, Exception): raise e
+
+            if p(e) and (user is None or obj_qid(user) == uid):
+                return e
+            self.msgs.put((uid, e))
         assert False, "event timeout expired"
-
-    def next_event(self):
-        e = json.loads(self.msgs.get(), object_hook=frozendict)
-        assert len(e['payload']) == 1
-
-        # flatten event: move payload fields into top-level dict
-        event = dict(e)
-        for k, v in e['payload'][0].items():
-            event[k] = v
-        del event['payload']
-
-        return frozendict(event)
 
 @contextmanager
 def ws_connect_users(ctx, *users):
@@ -75,8 +68,8 @@ def ws_connect_users(ctx, *users):
 
     async def main(cm, wss):
         try:
-            for ws in wss:
-                asyncio.create_task(get_messages(ws))
+            for user, ws in zip(users, wss):
+                asyncio.create_task(get_messages(obj_qid(user), ws))
             await control.get()
             for ws in wss:
                 await ws.close()
@@ -84,9 +77,21 @@ def ws_connect_users(ctx, *users):
             for cm in cms:
                 await cm.__aexit__(None, None, None)
 
-    async def get_messages(ws):
-        async for msg in ws:
-            msgs.put(msg)
+    async def get_messages(uid, ws):
+        try:
+            async for msg in ws:
+                e = json.loads(msg, object_hook=frozendict)
+                assert len(e['payload']) == 1
+
+                # flatten event: move payload fields into top-level dict
+                event = dict(e)
+                for k, v in e['payload'][0].items():
+                    event[k] = v
+                del event['payload']
+
+                msgs.put((uid, frozendict(event)))
+        except Exception as e:
+            msgs.put((uid, e))
 
     async def shutdown():
         await control.put(None)

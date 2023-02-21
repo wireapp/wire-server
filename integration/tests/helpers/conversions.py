@@ -1,31 +1,21 @@
 import dataclasses
 
-class QID:
-    def __init__(self, domain, id):
-        self.domain = domain
-        self.id = id
+def qid_path(qid):
+    return qid['domain'] + '/' + qid['id']
 
-    def path(self):
-        return self.domain + '/' + self.id
+def obj_qid(obj):
+    """
+    Extract a qualified ID from an arbitrary dict-like object. If the object
+    is already a qualified ID, return the object itself, otherwise assume the ID
+    is contained in a `qualified_id` field, and return that.
+    """
+    if 'qualified_id' in obj:
+        return obj['qualified_id']
+    else:
+        return obj
 
-    @classmethod
-    def from_obj(cls, obj):
-        if 'qualified_id' in obj:
-            return cls(**obj['qualified_id'])
-        else:
-            return cls(**obj)
-
-    def __hash__(self):
-        return hash((self.domain, self.id))
-
-    def __eq__(self, other):
-        return (self.domain, self.id) == (other.domain, other.id)
-
-    def __ne__(self, other):
-        return not self == other
-
-    def dict(self):
-        return {'domain': self.domain, 'id': self.id}
+def obj_path(obj):
+    return qid_path(obj_qid(obj))
 
 def conv_canonical(obj):
     obj = dict(obj)
@@ -39,8 +29,6 @@ def obj_id(user):
         return user
     else:
         return user['id']
-
-def obj_path(user): return QID.from_obj(user).path()
 
 def conv_v2(conv):
     """Turn conversation to v2 format."""

@@ -1,5 +1,4 @@
 from helpers import setup, assertions, conversions
-from helpers.conversions import QID
 
 def test_status(ctx):
     url = ctx.mkurl('galley', '/i/status', internal=True)
@@ -29,21 +28,23 @@ def test_create_proteus_conv(ctx):
     alice, bob, jane = users
 
     name = "a" * 256
-    with setup.ws_connect_users(ctx, bob) as ws:
+    with setup.ws_connect_users(ctx, bob, jane) as ws:
         with ctx.create_conversation(alice, users=[bob, jane], name=name) as r:
             assert r.status_code == 201
             conv = r.json()
 
         assertions.conversation(conv, creator=alice['id'], name=name, members=[bob, jane])
-        e = ws.match(lambda e: e['qualified_conversation'] == conv['qualified_id'],
-                      user=bob)
 
-        with ctx.get_conversation(bob, conv) as r:
-            r.status_code == 200
-            conv_view = conversions.conv_v2(r.json())
+        for user in (bob, jane):
+            e = ws.match(lambda e: e['qualified_conversation'] == conv['qualified_id'],
+                          user=user)
 
-        assert not e['transient']
-        assert e['type'] == 'conversation.create'
-        assert e['qualified_from'] == alice['qualified_id']
-        assert conversions.conv_canonical(e['data']) == \
-                conversions.conv_canonical(conv_view)
+            with ctx.get_conversation(user, conv) as r:
+                r.status_code == 200
+                conv_view = conversions.conv_v2(r.json())
+
+            assert not e['transient']
+            assert e['type'] == 'conversation.create'
+            assert e['qualified_from'] == alice['qualified_id']
+            assert conversions.conv_canonical(e['data']) == \
+                    conversions.conv_canonical(conv_view)
