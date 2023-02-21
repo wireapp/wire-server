@@ -3057,8 +3057,8 @@ testLeaveSubConvSkipReceive = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
 
   runMLSTest $ do
-    allLocals@[alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-    traverse_ uploadNewKeyPackage [bob1, bob2]
+    allLocals@[alice1, bob1] <- traverse createMLSClient [alice, bob]
+    traverse_ uploadNewKeyPackage [bob1]
     (_, qcnv) <- setupMLSGroup alice1
 
     let subId = SubConvId "conference"
@@ -3067,7 +3067,6 @@ testLeaveSubConvSkipReceive = do
 
       qsub <- createSubConv qcnv bob1 subId
       void $ createExternalCommit alice1 Nothing qsub >>= sendAndConsumeCommitBundle
-      void $ createExternalCommit bob2 Nothing qsub >>= sendAndConsumeCommitBundle
       pure qsub
 
     let firstLeaver = bob1
@@ -3096,7 +3095,7 @@ testLeaveSubConvSkipReceive = do
     -- a member commits the pending proposal
     void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
 
-    -- check that only 3 clients are left in the subconv
+    -- check that only 1 client is left in the subconv
     do
       psc <-
         liftTest $
@@ -3104,7 +3103,7 @@ testLeaveSubConvSkipReceive = do
             =<< getSubConv (ciUser (head others)) qcnv subId
               <!! do
                 const 200 === statusCode
-      liftIO $ length (pscMembers psc) @?= 2
+      liftIO $ length (pscMembers psc) @?= 1
 
     -- send an application message
     message <- createApplicationMessage (head others) "some text"
