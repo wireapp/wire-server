@@ -1,5 +1,6 @@
 from . import api
 from .conversions import *
+from .frozendict import frozendict
 
 import asyncio
 from contextlib import contextmanager
@@ -47,16 +48,16 @@ class WS:
         assert False, "event timeout expired"
 
     def next_event(self):
-        e = json.loads(self.msgs.get())
+        e = json.loads(self.msgs.get(), object_hook=frozendict)
         assert len(e['payload']) == 1
 
         # flatten event: move payload fields into top-level dict
+        event = dict(e)
         for k, v in e['payload'][0].items():
-            e[k] = v
-        del e['payload']
+            event[k] = v
+        del event['payload']
 
-        e['qualified_conversation'] = QID.from_obj(e['qualified_conversation'])
-        return e
+        return frozendict(event)
 
 @contextmanager
 def ws_connect_users(ctx, *users):

@@ -35,8 +35,7 @@ def test_create_proteus_conv(ctx):
             conv = r.json()
 
         assertions.conversation(conv, creator=alice['id'], name=name, members=[bob, jane])
-        conv_qid = QID.from_obj(conv)
-        e = ws.match(lambda e: e['qualified_conversation'] == conv_qid,
+        e = ws.match(lambda e: e['qualified_conversation'] == conv['qualified_id'],
                       user=bob)
 
         with ctx.get_conversation(bob, conv) as r:
@@ -45,6 +44,6 @@ def test_create_proteus_conv(ctx):
 
         assert not e['transient']
         assert e['type'] == 'conversation.create'
-        assert e['qualified_from'] == QID.from_obj(alice).dict()
+        assert e['qualified_from'] == alice['qualified_id']
         assert conversions.conv_canonical(e['data']) == \
                 conversions.conv_canonical(conv_view)
