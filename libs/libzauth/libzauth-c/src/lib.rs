@@ -120,11 +120,7 @@ pub extern "C" fn zauth_acl_delete(a: *mut ZauthAcl) {
 }
 
 #[no_mangle]
-pub extern "C" fn oauth_key_open(
-    f: *const u8,
-    n: size_t,
-    k: *mut *mut OAuthJwk,
-) -> ZauthResult {
+pub extern "C" fn oauth_key_open(f: *const u8, n: size_t, k: *mut *mut OAuthJwk) -> ZauthResult {
     if f.is_null() {
         return ZauthResult::NullArg;
     }
