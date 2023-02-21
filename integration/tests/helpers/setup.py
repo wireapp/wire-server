@@ -6,8 +6,11 @@ from contextlib import contextmanager
 import itertools
 import json
 import queue
+import time
 import threading
 import websockets
+
+DEFAULT_TIMEOUT = 5
 
 """Higher level utilities. Useful for setting up tests without carefully
 checking that the endpoints used are working correctly."""
@@ -35,7 +38,15 @@ class WS:
     def __init__(self, msgs):
         self.msgs = msgs
 
-    def expect(self, p, user=None):
+    def match(self, p, user=None, timeout=DEFAULT_TIMEOUT):
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            e = self.next_event()
+            if p(e): return e
+            self.msgs.put(e)
+        assert False, "event timeout expired"
+
+    def next_event(self):
         e = json.loads(self.msgs.get())
         assert len(e['payload']) == 1
 
@@ -43,6 +54,8 @@ class WS:
         for k, v in e['payload'][0].items():
             e[k] = v
         del e['payload']
+
+        e['qualified_conversation'] = QID.from_obj(e['qualified_conversation'])
         return e
 
 @contextmanager

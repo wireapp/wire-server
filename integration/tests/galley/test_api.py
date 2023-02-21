@@ -36,7 +36,7 @@ def test_create_proteus_conv(ctx):
 
         assertions.conversation(conv, creator=alice['id'], name=name, members=[bob, jane])
         conv_qid = QID.from_obj(conv)
-        e = ws.expect(lambda e: e['qualified_conversation'] == conv_qid,
+        e = ws.match(lambda e: e['qualified_conversation'] == conv_qid,
                       user=bob)
 
         with ctx.get_conversation(bob, conv) as r:
