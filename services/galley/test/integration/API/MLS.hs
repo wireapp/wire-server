@@ -1891,6 +1891,8 @@ testBackendRemoveProposalLocalConvLocalClient = do
       mp <- createPendingProposalCommit charlie1
       events <- sendAndConsumeCommit mp
       liftIO $ events @?= []
+      WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $ \n -> do
+        wsAssertMLSMessage (Conv <$> qcnv) charlie (mpMessage mp) n
 
 testBackendRemoveProposalLocalConvRemoteClient :: TestM ()
 testBackendRemoveProposalLocalConvRemoteClient = do
@@ -3093,7 +3095,13 @@ testLeaveSubConvSkipReceive = do
       void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
 
     -- a member commits the pending proposal
-    void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
+    leaveCommit <- createPendingProposalCommit (head others)
+    mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
+      events <- sendAndConsumeCommit leaveCommit
+      liftIO $ events @?= []
+      WS.assertMatchN_ (5 # WS.Second) (wsLeaver : wss) $ \n -> do
+        wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage leaveCommit) n
+    -- void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
 
     -- check that only 1 client is left in the subconv
     do
