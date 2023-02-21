@@ -36,10 +36,20 @@ def connected_users(ctx, num):
     return users
 
 class WS:
+    """
+    Websocket connection abstraction.
+
+    This object contains a number of different connections to cannon and allows
+    test code to assert on events received on those websockets.
+    """
     def __init__(self, msgs):
         self.msgs = msgs
 
     def match(self, p, user=None, timeout=DEFAULT_TIMEOUT):
+        """
+        Extract an event for a given user from the stream of events in a
+        websocket. The event is identified by a predicate.
+        """
         t0 = time.time()
         while time.time() - t0 < timeout:
             uid, e = self.msgs.get()
