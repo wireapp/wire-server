@@ -3004,6 +3004,16 @@ testLeaveSubConv isSubConvCreator = do
     -- a member commits the pending proposal
     void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
 
+    -- send an application message
+    do
+      message <- createApplicationMessage (head others) "some text"
+      mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
+        events <- sendAndConsumeMessage message
+        liftIO $ events @?= []
+        WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
+          wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage message) n
+        void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
+
     -- check that only 3 clients are left in the subconv
     do
       psc <-
