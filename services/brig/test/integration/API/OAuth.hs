@@ -357,8 +357,7 @@ testAccessResourceInsufficientScope brig nginz = do
   accessToken <- createOAuthAccessToken brig accessTokenRequest
   get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! do
     const 403 === statusCode
-    const "Access denied" === statusMessage
-    const (Just "Insufficient scope") === responseBody
+    const "Forbidden" === statusMessage
 
 testAccessResourceExpiredToken :: Opt.Opts -> Brig -> Nginz -> Http ()
 testAccessResourceExpiredToken opts brig nginz =
@@ -373,14 +372,12 @@ testAccessResourceExpiredToken opts brig nginz =
     get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! do
       const 403 === statusCode
       const "Access denied" === statusMessage
-      const (Just "Invalid token: JWTExpired") === responseBody
 
 testAccessResourceNonsenseToken :: Nginz -> Http ()
 testAccessResourceNonsenseToken nginz = do
   get (nginz . paths ["self"] . authHeader @Text "foo") !!! do
-    const 403 === statusCode
-    const "Access denied" === statusMessage
-    const (Just "Invalid token: Failed reading: JWSError") =~= responseBody
+    const 401 === statusCode
+    const "Unauthorized" === statusMessage
 
 testAccessResourceNoToken :: Brig -> Http ()
 testAccessResourceNoToken brig =
@@ -400,9 +397,8 @@ testAccessResourceInvalidSignature opts brig nginz = do
   claimSet <- fromRight (error "token invalid") <$> liftIO (verify key (unOAuthToken $ oatAccessToken accessToken))
   tokenSignedWithotherKey <- signAccessToken badKey claimSet
   get (nginz . paths ["self"] . authHeader (OAuthToken tokenSignedWithotherKey)) !!! do
-    const 403 === statusCode
-    const "Access denied" === statusMessage
-    const (Just "Invalid token: JWSError JWSInvalidSignature") === responseBody
+    const 401 === statusCode
+    const "Unauthorized" === statusMessage
 
 testRefreshTokenMaxActiveTokens :: Opts -> C.ClientState -> Brig -> Http ()
 testRefreshTokenMaxActiveTokens opts db brig =
@@ -463,21 +459,19 @@ testRefreshTokenMaxActiveTokens opts db brig =
     hasSameElems x y = null (x \\ y) && null (y \\ x)
 
 testRefreshTokenRetrieveAccessToken :: Opts -> Brig -> Nginz -> Http ()
-testRefreshTokenRetrieveAccessToken opts brig nginz =
-  -- overriding settings and set access token to expire in 2 seconds
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAccessTokenExpirationTimeSecsInternal ?~ 2) $ do
-    uid <- userId <$> createUser "alice" brig
-    let redirectUrl = mkUrl "https://example.com"
-    let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-    (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
-    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
-    accessToken <- createOAuthAccessToken brig accessTokenRequest
-    get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! const 200 === statusCode
-    threadDelay $ 2 * 1000 * 1000 -- wait 2 seconds for access token to expire
-    get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! const 403 === statusCode
-    let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret (oatRefreshToken accessToken)
-    refreshedToken <- refreshOAuthAccessToken brig refreshAccessTokenRequest
-    get (nginz . paths ["self"] . authHeader (oatAccessToken refreshedToken)) !!! const 200 === statusCode
+testRefreshTokenRetrieveAccessToken _opts brig nginz = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ReadSelf]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! const 200 === statusCode
+  threadDelay $ 5 * 1000 * 1000 -- wait 5 seconds for access token to expire
+  get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! const 401 === statusCode
+  let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret (oatRefreshToken accessToken)
+  refreshedToken <- refreshOAuthAccessToken brig refreshAccessTokenRequest
+  get (nginz . paths ["self"] . authHeader (oatAccessToken refreshedToken)) !!! const 200 === statusCode
 
 testRefreshTokenWrongSignature :: Opts -> Brig -> Http ()
 testRefreshTokenWrongSignature opts brig = do

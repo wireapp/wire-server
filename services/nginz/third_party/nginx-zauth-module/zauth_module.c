@@ -323,34 +323,23 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                 ngx_str_t *hdr = &r->headers_in.authorization->value;
                 if (strncmp((char const *) hdr->data, "Bearer ", 7) == 0) {
                         ngx_str_t scope = lc->oauth_scope;
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "scope data: %s", scope.data);
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "hdr data: %s", hdr->data);
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "hdr len: %d", hdr->len - 7);
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "scope len: %d", scope.len);
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "method: %s", r->method_name.data);
 
                         OAuthResult res = oauth_verify_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
 
                         if (res.status == OAUTH_OK) {
-                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_verify_token called");
-
-                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result status: %d", res.status);
-                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth result: %s", res.uid);
-
                                 ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
                                 if (finaliser == NULL) {
-                                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser is null");
                                         return NGX_ERROR;
                                 }
-                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "finaliser not null");
-
                                 finaliser->handler = delete_oauth_uid;
                                 finaliser->data = res.uid;
                                 ngx_http_set_ctx(r, res.uid, zauth_module);
-                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "user id set to context");
                                 status = NGX_OK;
+                        } else if (res.status == OAUTH_INSUFFICIENT_SCOPE) {
+                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth insufficient cope");
+                                return NGX_HTTP_FORBIDDEN;
                         } else {
-                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_verify_token failed");
+                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth token verification failed with: %d", res.status);
                                 return NGX_HTTP_UNAUTHORIZED;
                         }
                 }              
@@ -634,13 +623,9 @@ static ngx_int_t zauth_token_var_user (ngx_http_request_t * r, ngx_http_variable
         if (t != NULL && zauth_is_authorized_and_allowed(r)) {
                 return zauth_set_var(r->pool, v, zauth_token_lookup(t, 'u'));
         } else {
-                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "tkn is NULL");
                 char const * uid = ngx_http_get_module_ctx(r, zauth_module);
                 if (uid != NULL) {
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid (not null): %s", uid);
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "oauth_uid (not null) len: %d", strlen(uid));
                         ngx_int_t status = zauth_set_var(r->pool, v, (Range) { (u_char*) uid, strlen(uid) });
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "result: %d", status);
                         return status;
                 } else {
                         zauth_empty_val(v);
