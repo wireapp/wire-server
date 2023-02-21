@@ -425,11 +425,20 @@ nginx_conf:
       - all
       max_body_size: 40m
       body_buffer_size: 256k
-    - path: /conversations
+    - path: /conversations$
       envs:
       - all
       doc: true
       oauth_scope: conversations
+    - path: /conversations/([^/]*)/code
+      envs:
+      - all
+      doc: true
+      oauth_scope: conversations_code
+    - path: /conversations
+      envs:
+      - all
+      doc: true
     - path: /legalhold/conversations/(.*)
       envs:
       - all
@@ -497,7 +506,7 @@ nginx_conf:
     - path: /feature-configs(.*)
       envs:
       - all
-      oauth_scope: feature-configs
+      oauth_scope: feature_configs
     - path: /mls/welcome
       envs:
       - all

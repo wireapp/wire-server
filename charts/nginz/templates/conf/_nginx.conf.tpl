@@ -260,7 +260,7 @@ http {
             {{- end }}
 
             {{- if ($location.oauth_scope) }}
-            # todo(leif): set scope
+            oauth_scope $oauth_scope;
             {{- end }}
 
             {{- if hasKey $location "specific_user_rate_limit" }}

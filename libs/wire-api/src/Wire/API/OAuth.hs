@@ -220,8 +220,8 @@ instance (IsOAuthScope scope, IsOAuthScopes scopes) => IsOAuthScopes (scope ': s
 
 instance ToByteString OAuthScope where
   builder = \case
-    WriteConversation -> "write:conversation"
-    WriteConversationCode -> "write:conversation_code"
+    WriteConversation -> "write:conversations"
+    WriteConversationCode -> "write:conversations_code"
     ReadSelf -> "read:self"
     ReadFeatureConfigs -> "read:feature_configs"
 
@@ -229,8 +229,8 @@ instance FromByteString OAuthScope where
   parser = do
     s <- parser
     case s & T.toLower of
-      "write:conversation" -> pure WriteConversation
-      "write:conversation_code" -> pure WriteConversationCode
+      "write:conversations" -> pure WriteConversation
+      "write:conversations_code" -> pure WriteConversationCode
       "read:self" -> pure ReadSelf
       "read:feature_configs" -> pure ReadFeatureConfigs
       _ -> fail "invalid scope"
