@@ -86,7 +86,7 @@ brig:
       setDpopTokenExpirationTimeSecs: 300
       setEnableMLS: true
       setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
-      setOAuthAccessTokenExpirationTimeSecs: 1814400 # 3 weeks
+      setOAuthAccessTokenExpirationTimeSecs: 3 # 3 secs
       setOAuthEnabled: true
       setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
       setOAuthMaxActiveRefreshTokens: 10
@@ -193,12 +193,6 @@ galley:
           -----BEGIN PRIVATE KEY-----
           MC4CAQAwBQYDK2VwBCIEIAocCDXsKIAjb65gOUn5vEF0RIKnVJkKR4ebQzuZ709c
           -----END PRIVATE KEY-----
-    oauthPublicJwk: |
-      {
-        "kty": "OKP",
-        "crv": "Ed25519",
-        "x": "mhP-NgFw3ifIXGZqJVB0kemt9L3BtD5P8q4Gah4Iklc"
-      }          
 
 gundeck:
   replicaCount: 1

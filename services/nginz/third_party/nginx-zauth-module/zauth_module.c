@@ -318,11 +318,14 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
         // let's try to handle zauth
         ngx_int_t status = zauth_handle_zauth_request(r, sc);
 
+        ngx_str_t scope = lc->oauth_scope;
+        // if the status us forbidden, we do not want to handle oauth
+        if (status == NGX_HTTP_FORBIDDEN) {
+                return status;
         // if zauth fails, we try to handle oauth
-        if (status != NGX_OK && sc->oauth_key != NULL) {
+        } else if (status != NGX_OK && sc->oauth_key != NULL && scope.len > 0 && r->headers_in.authorization != NULL) {
                 ngx_str_t *hdr = &r->headers_in.authorization->value;
                 if (strncmp((char const *) hdr->data, "Bearer ", 7) == 0) {
-                        ngx_str_t scope = lc->oauth_scope;
 
                         OAuthResult res = oauth_verify_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
 

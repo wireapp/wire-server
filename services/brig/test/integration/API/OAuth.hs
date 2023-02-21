@@ -96,9 +96,9 @@ tests m db b n o = do
         "accessing a resource"
         [ test m "success (nginz)" $ testAccessResourceSuccessNginz b n,
           test m "insufficient scope" $ testAccessResourceInsufficientScope b n,
-          test m "expired token" $ testAccessResourceExpiredToken o b n,
+          test m "expired token" $ testAccessResourceExpiredToken b n,
           test m "nonsense token" $ testAccessResourceNonsenseToken n,
-          test m "no token" $ testAccessResourceNoToken b,
+          test m "no token" $ testAccessResourceNoToken n,
           test m "invalid signature" $ testAccessResourceInvalidSignature o b n
         ],
       testGroup
@@ -109,7 +109,7 @@ tests m db b n o = do
         ],
       testGroup "refresh tokens" $
         [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b,
-          test m "refresh access token - success" $ testRefreshTokenRetrieveAccessToken o b n,
+          test m "refresh access token - success" $ testRefreshTokenRetrieveAccessToken b n,
           test m "wrong signature - fail" $ testRefreshTokenWrongSignature o b,
           test m "no token id - fail" $ testRefreshTokenNoTokenId o b,
           test m "non-existing id - fail" $ testRefreshTokenNonExistingId o b,
@@ -359,19 +359,18 @@ testAccessResourceInsufficientScope brig nginz = do
     const 403 === statusCode
     const "Forbidden" === statusMessage
 
-testAccessResourceExpiredToken :: Opt.Opts -> Brig -> Nginz -> Http ()
-testAccessResourceExpiredToken opts brig nginz =
-  withSettingsOverrides (opts & Opt.optionSettings . Opt.oauthAccessTokenExpirationTimeSecsInternal ?~ 1) $ do
-    uid <- userId <$> createUser "alice" brig
-    let redirectUrl = mkUrl "https://example.com"
-    let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-    (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
-    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
-    accessToken <- createOAuthAccessToken brig accessTokenRequest
-    liftIO $ threadDelay (1 * 1200 * 1000)
-    get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! do
-      const 403 === statusCode
-      const "Access denied" === statusMessage
+testAccessResourceExpiredToken :: Brig -> Nginz -> Http ()
+testAccessResourceExpiredToken brig nginz = do
+  uid <- userId <$> createUser "alice" brig
+  let redirectUrl = mkUrl "https://example.com"
+  let scopes = OAuthScopes $ Set.fromList [ReadSelf]
+  (cid, secret, code) <- generateOAuthClientAndAuthCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
+  liftIO $ threadDelay (5 * 1000 * 1000)
+  get (nginz . paths ["self"] . authHeader (oatAccessToken accessToken)) !!! do
+    const 401 === statusCode
+    const "Unauthorized" === statusMessage
 
 testAccessResourceNonsenseToken :: Nginz -> Http ()
 testAccessResourceNonsenseToken nginz = do
@@ -379,11 +378,11 @@ testAccessResourceNonsenseToken nginz = do
     const 401 === statusCode
     const "Unauthorized" === statusMessage
 
-testAccessResourceNoToken :: Brig -> Http ()
-testAccessResourceNoToken brig =
-  get (brig . paths ["self"]) !!! do
-    const 403 === statusCode
-    const "Access denied" === statusMessage
+testAccessResourceNoToken :: Nginz -> Http ()
+testAccessResourceNoToken nginz =
+  get (nginz . paths ["self"]) !!! do
+    const 401 === statusCode
+    const "Unauthorized" === statusMessage
 
 testAccessResourceInvalidSignature :: Opt.Opts -> Brig -> Nginz -> Http ()
 testAccessResourceInvalidSignature opts brig nginz = do
@@ -458,8 +457,8 @@ testRefreshTokenMaxActiveTokens opts db brig =
     hasSameElems :: (Eq a) => [a] -> [a] -> Bool
     hasSameElems x y = null (x \\ y) && null (y \\ x)
 
-testRefreshTokenRetrieveAccessToken :: Opts -> Brig -> Nginz -> Http ()
-testRefreshTokenRetrieveAccessToken _opts brig nginz = do
+testRefreshTokenRetrieveAccessToken :: Brig -> Nginz -> Http ()
+testRefreshTokenRetrieveAccessToken brig nginz = do
   uid <- userId <$> createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]

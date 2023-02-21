@@ -64,7 +64,6 @@ import Util.Options
 import Wire.API.Routes.API
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
-import Wire.Sem.Jwk (readJwk)
 
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
@@ -90,7 +89,7 @@ mkApp opts =
     metrics <- lift $ M.metrics
     env <- lift $ App.createEnv metrics opts
     lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
-    mJwk <- lift $ join <$> forM (opts ^. optSettings . setOauthPublicJwk) readJwk
+
     let logger = env ^. App.applog
 
     let middlewares =
@@ -103,21 +102,20 @@ mkApp opts =
       Log.info logger $ Log.msg @Text "Galley application finished."
       Log.flush logger
       Log.close logger
-    pure (middlewares $ servantApp env mJwk, env)
+    pure (middlewares $ servantApp env, env)
   where
     rtree = compile API.sitemap
     runGalley e r k = evalGalleyToIO e (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
-    servantApp e0 mJwk r =
+    servantApp e0 r =
       let e = reqId .~ lookupReqId r $ e0
        in Servant.serveWithContext
             (Proxy @CombinedAPI)
-            ( mJwk
-                :. view (options . optSettings . setFederationDomain) e
+            ( view (options . optSettings . setFederationDomain) e
                 :. customFormatters
                 :. Servant.EmptyContext
             )
-            ( hoistAPIHandler @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
+            ( hoistAPIHandler (toServantHandler e) API.servantSitemap
                 :<|> hoistAPIHandler (toServantHandler e) internalAPI
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> Servant.Tagged (runGalley e)

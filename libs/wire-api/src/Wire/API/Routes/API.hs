@@ -17,21 +17,18 @@
 
 module Wire.API.Routes.API
   ( API,
-    hoistAPI,
     hoistAPIHandler,
+    hoistAPI,
     mkAPI,
     mkNamedAPI,
-    hoistServerWithDomain,
-    hoistServerWithDomainAndJwk,
     (<@>),
     ServerEffect (..),
     ServerEffects (..),
+    hoistServerWithDomain,
   )
 where
 
-import Crypto.JOSE (JWK)
 import Data.Domain
-import Data.Kind (Type)
 import Data.Proxy
 import Imports
 import Polysemy
@@ -50,29 +47,15 @@ mkAPI ::
   (HasServer api '[Domain], ServerEffects (DeclaredErrorEffects api) r0) =>
   ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
   API api r0
-mkAPI = mkAPIWithContext @'[Domain]
-
-mkAPIWithContext ::
-  forall (context :: [Type]) r0 api.
-  (HasServer api context, ServerEffects (DeclaredErrorEffects api) r0) =>
-  ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
-  API api r0
-mkAPIWithContext h = API $ hoistServerWithContext (Proxy @api) (Proxy @context) (interpretServerEffects @(DeclaredErrorEffects api) @r0) h
+mkAPI h = API $ hoistServerWithDomain @api (interpretServerEffects @(DeclaredErrorEffects api) @r0) h
 
 -- | Convert a polysemy handler to a named 'API' value.
 mkNamedAPI ::
   forall name r0 api.
-  (HasServer api '[Domain, Maybe JWK], ServerEffects (DeclaredErrorEffects api) r0) =>
+  (HasServer api '[Domain], ServerEffects (DeclaredErrorEffects api) r0) =>
   ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
   API (Named name api) r0
-mkNamedAPI = mkNamedAPIWithContext @'[Domain, Maybe JWK]
-
-mkNamedAPIWithContext ::
-  forall (context :: [Type]) name r0 api.
-  (HasServer api context, ServerEffects (DeclaredErrorEffects api) r0) =>
-  ServerT api (Sem (Append (DeclaredErrorEffects api) r0)) ->
-  API (Named name api) r0
-mkNamedAPIWithContext = API . Named . unAPI . mkAPIWithContext @context @r0 @api
+mkNamedAPI = API . Named . unAPI . mkAPI @r0 @api
 
 -- | Combine APIs.
 (<@>) :: API api1 r -> API api2 r -> API (api1 :<|> api2) r
@@ -94,22 +77,13 @@ hoistServerWithDomain ::
   ServerT api n
 hoistServerWithDomain = hoistServerWithContext (Proxy @api) (Proxy @'[Domain])
 
--- | Like `hoistServerWithDomain`, but with a additional 'Maybe JWK' context.
-hoistServerWithDomainAndJwk ::
-  forall api m n.
-  HasServer api '[Domain, Maybe JWK] =>
-  (forall x. m x -> n x) ->
-  ServerT api m ->
-  ServerT api n
-hoistServerWithDomainAndJwk = hoistServerWithContext (Proxy @api) (Proxy @'[Domain, Maybe JWK])
-
 hoistAPIHandler ::
   forall api r n.
-  HasServer api '[Domain, Maybe JWK] =>
+  HasServer api '[Domain] =>
   (forall x. Sem r x -> n x) ->
   API api r ->
   ServerT api n
-hoistAPIHandler f = hoistServerWithContext (Proxy @api) (Proxy @'[Domain, Maybe JWK]) f . unAPI
+hoistAPIHandler f = hoistServerWithDomain @api f . unAPI
 
 hoistAPI ::
   forall api1 api2 r1 r2.

@@ -49,7 +49,6 @@ import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
-import Wire.API.OAuth
 import Wire.API.Properties
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
@@ -262,7 +261,7 @@ type SelfAPI =
   Named
     "get-self"
     ( Summary "Get your own profile"
-        :> ZOauthUser '[ 'ReadSelf]
+        :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile
     )

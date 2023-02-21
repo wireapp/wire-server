@@ -48,7 +48,6 @@ import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
-import Crypto.JWT
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
@@ -68,7 +67,7 @@ import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
-import Polysemy (Members)
+import Polysemy (Member)
 import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
@@ -79,7 +78,6 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
-import Wire.Sem.Jwk (readJwk)
 import qualified Wire.Sem.Paging as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -121,8 +119,7 @@ run o = do
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
-  mJwk <- join <$> forM (setOAuthJwkKeyPair $ view settings e) readJwk
-  pure (middleware e $ \reqId -> servantApp mJwk (e & requestId .~ reqId), e)
+  pure (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
     rtree :: Tree (App (Handler BrigCanonicalEffects))
     rtree = compile sitemap
@@ -139,14 +136,14 @@ mkApp o = do
     app e r k = runHandler e r (Server.route rtree r k) k
 
     -- the servant API wraps the one defined using wai-routing
-    servantApp :: Maybe JWK -> Env -> Wai.Application
-    servantApp mJwk e =
+    servantApp :: Env -> Wai.Application
+    servantApp e =
       let localDomain = view (settings . federationDomain) e
        in Servant.serveWithContext
             (Proxy @ServantCombinedAPI)
-            (mJwk :. customFormatters :. localDomain :. Servant.EmptyContext)
+            (customFormatters :. localDomain :. Servant.EmptyContext)
             ( docsAPI
-                :<|> hoistServerWithDomainAndJwk @BrigAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
                 :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
@@ -188,7 +185,7 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: forall r p. (P.Paging p, Members '[UserPendingActivationStore p] r) => AppT r ()
+pendingActivationCleanup :: forall r p. (P.Paging p, Member (UserPendingActivationStore p) r) => AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
