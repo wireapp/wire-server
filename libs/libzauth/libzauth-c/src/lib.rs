@@ -20,6 +20,7 @@ extern crate zauth;
 
 use libc::size_t;
 use std::char;
+use std::ffi::CString;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::panic::{self, UnwindSafe};
@@ -29,7 +30,6 @@ use std::slice;
 use std::str;
 use zauth::acl;
 use zauth::{Acl, Error, Keystore, OauthError, Token, TokenType, TokenVerification};
-use std::ffi::CString;
 
 /// Variant of std::try! that returns the unwrapped error.
 macro_rules! try_unwrap {
@@ -110,7 +110,21 @@ pub extern "C" fn zauth_acl_open(f: *const u8, n: size_t, a: *mut *mut ZauthAcl)
 }
 
 #[no_mangle]
-pub extern "C" fn zauth_oauth_key_open(f: *const u8, n: size_t, k: *mut *mut OAuthJwk) -> ZauthResult {
+pub extern "C" fn zauth_acl_delete(a: *mut ZauthAcl) {
+    catch_unwind(|| {
+        unsafe {
+            Box::from_raw(a);
+        }
+        ZauthResult::Ok
+    });
+}
+
+#[no_mangle]
+pub extern "C" fn zauth_oauth_key_open(
+    f: *const u8,
+    n: size_t,
+    k: *mut *mut OAuthJwk,
+) -> ZauthResult {
     if f.is_null() {
         return ZauthResult::NullArg;
     }
@@ -120,7 +134,6 @@ pub extern "C" fn zauth_oauth_key_open(f: *const u8, n: size_t, k: *mut *mut OAu
         let mut rdr = BufReader::new(try_unwrap!(File::open(&Path::new(path))));
         let mut txt = String::new();
         try_unwrap!(rdr.read_to_string(&mut txt));
-        eprintln!("jwk loaded key: {:?}", txt); // todo(leif): remove
         unsafe {
             *k = Box::into_raw(Box::new(OAuthJwk(txt)));
         }
@@ -129,7 +142,7 @@ pub extern "C" fn zauth_oauth_key_open(f: *const u8, n: size_t, k: *mut *mut OAu
 }
 
 #[no_mangle]
-pub extern "C" fn zauth_acl_delete(a: *mut ZauthAcl) {
+pub extern "C" fn zauth_oauth_key_delete(a: *mut OAuthJwk) {
     catch_unwind(|| {
         unsafe {
             Box::from_raw(a);
@@ -360,11 +373,6 @@ impl From<TokenVerification> for ZauthTokenVerification {
 }
 
 #[no_mangle]
-pub extern "C" fn print_jwk(jwk: &OAuthJwk) {
-    eprintln!("print jwk: {:?}", jwk.0);
-}
-
-#[no_mangle]
 pub extern "C" fn verify_oauth_token(
     jwk: &OAuthJwk,
     token: *const u8,
@@ -372,7 +380,7 @@ pub extern "C" fn verify_oauth_token(
     scope: *const u8,
     scope_len: size_t,
     method: *const u8,
-    method_len: size_t
+    method_len: size_t,
 ) -> OAuthResult {
     if token.is_null() {
         eprintln!("token is null");
@@ -389,12 +397,11 @@ pub extern "C" fn verify_oauth_token(
     let bytes = unsafe { slice::from_raw_parts(method, method_len) };
     let method = str::from_utf8(bytes).unwrap();
     let subject = zauth::verify_oauth_token(&jwk.0, token, scope, method).unwrap();
-    eprintln!("subject: {:?}", subject);
     let c_str = CString::new(subject).unwrap();
     OAuthResult {
         uid: c_str.into_raw(),
         status: ZauthResult::Ok,
-    } 
+    }
 }
 
 #[no_mangle]

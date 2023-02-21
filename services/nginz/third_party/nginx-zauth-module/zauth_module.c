@@ -191,7 +191,9 @@ static void delete_srv_conf (void * data) {
         if (c->acl != NULL) {
                 zauth_acl_delete(c->acl);
         }
-        // todo(leif): free oauth_key?
+        if (c->oauth_key != NULL) {
+                zauth_oauth_key_delete(c->oauth_key);
+        }
 }
 
 static void * create_loc_conf (ngx_conf_t * conf) {
@@ -318,7 +320,6 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
 
         // if zauth fails, we try to handle oauth
         if (status != NGX_OK && sc->oauth_key != NULL) {
-                print_jwk(sc->oauth_key);
                 ngx_str_t *hdr = &r->headers_in.authorization->value;
                 if (strncmp((char const *) hdr->data, "Bearer ", 7) == 0) {
                         ngx_str_t scope = lc->oauth_scope;
