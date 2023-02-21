@@ -17,8 +17,8 @@ roman:
   pubKeyBase64: LS0tLS1CRUdJTiBQVcFQvWjcKMlczd1A1TzJveFVCTElDIEtFWS0tLS0tCg==
   publicURL: roman.example.com # Link to the subdomain pointing to roman.
   dbURL: jdbc:postgresql://postgresql:5432/externalPostgresql # Link to your Postgres server.
-  dbUser: externalPostgresql # Provide your Postgres DB username.
-  dbPassword: externalPostgresql # Provide your Postgres DB password.
+  dbUser: # Provide your Postgres DB username.
+  dbPassword: # Provide your Postgres DB password.
 
 tls:
   issuerRef:
