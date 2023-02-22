@@ -135,8 +135,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             );
         |]
 
-
-
   -- Switch to leveled compaction
   void $
     schema'
@@ -179,16 +177,12 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
         alter columnfamily invitee_info with compaction = { 'class' : 'LeveledCompactionStrategy' };
         |]
 
-
-
   -- Add user.status column
   void $
     schema'
       [r|
         alter columnfamily user add status int;
         |]
-
-
 
   -- Lower gc_grace_seconds on all CFs to 4 days
   void $
@@ -232,8 +226,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
         alter columnfamily invitee_info with gc_grace_seconds = 345600;
         |]
 
-
-
   -- Introduce reverse push CF (user_push) and remove index from push
   void $
     schema'
@@ -251,8 +243,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
       [r|
         drop index if exists push_usr_key;
         |]
-
-
 
   -- Increase gc_grace_seconds back to 10 days
   void $
@@ -296,16 +286,12 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
         alter columnfamily invitee_info with gc_grace_seconds = 864000;
         |]
 
-
-
   -- Add user.tracking_id
   void $
     schema'
       [r|
        alter columnfamily user add tracking_id uuid;
        |]
-
-
 
   -- Drop push column family
   void $
@@ -314,8 +300,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
        drop columnfamily if exists push;
        |]
 
-
-
   -- Drop user_push column family
   -- 'user_push' has been moved to gundeck
   void $
@@ -323,8 +307,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
       [r|
        drop columnfamily if exists user_push;
        |]
-
-
 
   -- Add prekeys
   void $
@@ -351,8 +333,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             );
        |]
 
-
-
   -- Add properties
   void $
     schema'
@@ -365,8 +345,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             );
        |]
 
-
-
   -- Add activation_keys.challenge
   void $
     schema'
@@ -374,16 +352,12 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
        alter columnfamily activation_keys add challenge ascii;
        |]
 
-
-
   -- Remove password_reset.email
   void $
     schema'
       [r|
        alter columnfamily password_reset drop email;
        |]
-
-
 
   -- Add login_codes
   void $
@@ -398,8 +372,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             );
        |]
 
-
-
   -- Add password_reset.retries and timeout
   void $
     schema'
@@ -411,8 +383,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
       [r|
        alter columnfamily password_reset add timeout timestamp;
        |]
-
-
 
   -- Add user.language and user.country
   void $
@@ -426,19 +396,13 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
        alter columnfamily user add country ascii;
        |]
 
-
-
   -- Change client IDs from ascii to text
   schema' [r| alter columnfamily clients alter client type text; |]
   schema' [r| alter columnfamily prekeys alter client type text; |]
 
-
-
   -- Add additional client properties
   schema' [r| alter columnfamily clients add class int; |]
   schema' [r| alter columnfamily clients add cookie text; |]
-
-
 
   -- Create new invitations tables
   void $
@@ -470,25 +434,17 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             );
         |]
 
-
-
   -- Add even more client properties
   schema' [r| alter columnfamily clients add ip inet; |]
   schema' [r| alter columnfamily clients add lat double; |]
-  schema' [r| alter columnfamily clients add lon double; |]
-
-
-
-
+  schema'
+    [r| alter columnfamily clients add lon double; |]
     -- Add model to clients
-    schema' [r| alter columnfamily clients add model text; |]
-
-
-
-
+    schema'
+    [r| alter columnfamily clients add model text; |]
     -- Add generic verification codes
     schema'
-      [r|
+    [r|
         create columnfamily if not exists codes
             ( user    uuid
             , scope   int
@@ -497,8 +453,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , primary key (user, scope)
             );
     |]
-
-
 
   -- Add user.assets column
   schema'
@@ -512,17 +466,13 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     [r|
         alter columnfamily user add assets list<frozen<asset>>;
     |]
-
-
-
-
     -- Add vcodes table
     -- Supposed to cover all existing use-cases for short-lived
     -- verification codes sent either by e-mail, sms or voice call,
     -- eventually superseding the 'activation_keys', 'login_codes',
     -- 'password_reset' and 'codes' tables.
     schema'
-      [r|
+    [r|
         create table if not exists vcodes
             ( key       ascii -- opaque 'email' or 'phone'
             , scope     int
@@ -535,8 +485,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             ) with compaction = {'class': 'LeveledCompactionStrategy'}
               and gc_grace_seconds = 0;
     |]
-
-
 
   -- Add service provider tables
   schema'
@@ -604,22 +552,14 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     [r|
         alter table user add service uuid;
     |]
-
-
-
-
     -- Add asset.size attribute
     schema'
-      [r|
+    [r|
         alter type asset add size int;
     |]
-
-
-
-
     -- Add budget table
     schema'
-      [r|
+    [r|
         create table if not exists budget
             ( key    text
             , budget int
@@ -627,8 +567,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             ) with compaction = {'class': 'LeveledCompactionStrategy'}
               and gc_grace_seconds = 0;
     |]
-
-
 
   -- Add user handles
   schema'
@@ -652,13 +590,9 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     [r|
         alter table user add handle text;
     |]
-
-
-
-
     -- Add user_cookies table
     schema'
-      [r|
+    [r|
         create table if not exists user_cookies
             ( user    uuid
             , expires timestamp
@@ -670,13 +604,9 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , primary key (user, expires, id)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-
-
-
-
     -- Add hashed userkeys table
     schema'
-      [r|
+    [r|
         create table if not exists user_keys_hash
             ( key      blob
             , key_type int  -- hash type (0 = PHONE, 1 = EMAIL)
@@ -684,27 +614,17 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , primary key (key)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-
-
-
-
     -- Add searchable field to user table
     schema'
-      [r|
+    [r|
         alter table user add searchable boolean
     |]
-
-
-
-
     -- Remove user.tracking_id
-    void $
-      schema'
-        [r|
+    void
+    $ schema'
+      [r|
        alter columnfamily user drop tracking_id;
        |]
-
-
 
   -- Add team invitations
   schema'
