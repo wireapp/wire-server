@@ -74,7 +74,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             ( key      ascii -- opaque version of the user ID
             , code     ascii -- random code
             , user     uuid
-            , email    text
             , primary key (key)
             );
         |]
@@ -161,44 +160,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
       [r|
         alter columnfamily user add status int;
         |]
-
-  -- Lower gc_grace_seconds on all CFs to 4 days
-  void $
-    schema'
-      [r|
-        alter columnfamily user with gc_grace_seconds = 345600;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily user_keys with gc_grace_seconds = 345600;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily activation_keys with gc_grace_seconds = 345600;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily password_reset with gc_grace_seconds = 345600;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily connection with gc_grace_seconds = 345600;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily invitation with gc_grace_seconds = 345600;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily invitee_info with gc_grace_seconds = 345600;
-        |]
-
 
   -- Increase gc_grace_seconds back to 10 days
   void $
@@ -287,13 +248,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     schema'
       [r|
        alter columnfamily activation_keys add challenge ascii;
-       |]
-
-  -- Remove password_reset.email
-  void $
-    schema'
-      [r|
-       alter columnfamily password_reset drop email;
        |]
 
   -- Add login_codes
