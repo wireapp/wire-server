@@ -336,7 +336,7 @@ ngx_int_t oauth_handle_request(ngx_http_request_t *r, ngx_str_t const * hdr, OAu
                         ngx_http_set_ctx(r, res.uid, zauth_module);
                         return NGX_OK;
                 } else if (res.status == OAUTH_INSUFFICIENT_SCOPE) {
-                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth insufficient cope");
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth insufficient scope");
                         return NGX_HTTP_FORBIDDEN;
                 } else {
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth token verification failed with: %d", res.status);
