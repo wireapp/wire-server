@@ -177,12 +177,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
         alter columnfamily invitee_info with gc_grace_seconds = 864000;
         |]
 
-  -- Add user.tracking_id
-  void $
-    schema'
-      [r|
-       alter columnfamily user add tracking_id uuid;
-       |]
 
 
   -- Add prekeys
@@ -485,12 +479,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     [r|
         alter table user add searchable boolean
     |]
-    -- Remove user.tracking_id
-    void
-    $ schema'
-      [r|
-       alter columnfamily user drop tracking_id;
-       |]
 
   -- Add team invitations
   schema'
