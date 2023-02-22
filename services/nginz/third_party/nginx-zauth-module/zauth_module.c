@@ -17,6 +17,22 @@ typedef struct {
         ngx_str_t  oauth_scope;
 } ZauthLocationConf;
 
+enum {
+        ZAUTH_CONTEXT_NONE = 0,
+        ZAUTH_CONTEXT_ZAUTH,
+        ZAUTH_CONTEXT_OAUTH
+};
+
+typedef struct {
+        ngx_int_t tag;
+        union {
+          /* valid if tag == ZAUTH_CONTEXT_ZAUTH */
+          ZauthToken * token;
+          /* valid if tag == ZAUTH_CONTEXT_OAUTH */
+          char const * user_id;
+        };
+} ZauthContext;
+
 // Configuration setup
 static void * create_srv_conf (ngx_conf_t *);
 static void * create_loc_conf (ngx_conf_t *);
@@ -327,13 +343,13 @@ ngx_int_t oauth_handle_request(ngx_http_request_t *r, ngx_str_t const * hdr, OAu
         if (strncmp((char const *) hdr->data, "Bearer ", 7) == 0) {
                 OAuthResult res = oauth_verify_token(key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
                 if (res.status == OAUTH_OK) {
-                        ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
-                        if (finaliser == NULL) {
-                                return NGX_ERROR;
+                        ZauthContext * ctx = alloc_oauth_context(r, res.uid);
+                        ngx_int_t e = setup_zauth_context(r, ctx);
+                        if (e != NGX_OK) {
+                                ngx_free(ctx);
+                                return e;
                         }
-                        finaliser->handler = delete_oauth_uid;
-                        finaliser->data = res.uid;
-                        ngx_http_set_ctx(r, res.uid, zauth_module);
+
                         return NGX_OK;
                 } else if (res.status == OAUTH_INSUFFICIENT_SCOPE) {
                         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth insufficient scope");
@@ -382,12 +398,47 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r, const ZauthServer
         return NGX_OK;
 }
 
-static void delete_token (void * data) {
-        zauth_token_delete((ZauthToken *) data);
+static ngx_int_t setup_zauth_context(ngx_http_request_t * r, ZauthContext * ctx) {
+        ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
+        if (finaliser == NULL) {
+                return NGX_ERROR;
+        }
+
+        finaliser->handler = delete_zauth_context;
+        finaliser->data = ctx;
+        ngx_http_set_ctx(r, ctx, zauth_module);
+
+        return NGX_OK;
 }
 
-static void delete_oauth_uid(void * data) {
-        oauth_result_uid_delete((char *) data);
+static ZauthContext alloc_zauth_context(ngx_http_request_t * r, ZauthToken * token) {
+        ZauthContext * ctx = ngx_alloc(sizeof(ZauthContext), r->connection->log);
+        if (ctx == NULL) {
+                return NGX_ERROR;
+        }
+        ctx->tag = ZAUTH_CONTEXT_ZAUTH;
+        ctx->user_id = token;
+}
+
+
+static ZauthContext alloc_oauth_context(ngx_http_request_t * r, char const * user_id) {
+        ZauthContext * ctx = ngx_alloc(sizeof(ZauthContext), r->connection->log);
+        if (ctx == NULL) {
+                return NGX_ERROR;
+        }
+        ctx->tag = ZAUTH_CONTEXT_OAUTH;
+        ctx->user_id = user_id;
+}
+
+static void delete_zauth_context(void * data) {
+        ZauthContext *ctx = data;
+        if (ctx->tag == ZAUTH_CONTEXT_ZAUTH) {
+          zauth_token_delete(ctx->token);
+        }
+        else if (ctx->tag == ZAUTH_CONTEXT_OAUTH) {
+          oauth_result_uid_delete(ctx->user_id);
+        }
+        ngx_free(ctx);
 }
 
 static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
@@ -417,13 +468,13 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
         }
 
         if (res == ZAUTH_OK && tkn != NULL) {
-                ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
-                if (finaliser == NULL) {
-                        return NGX_ERROR;
+                ZauthContext * ctx = alloc_zauth_context(r, tkn);
+
+                ngx_int_t e = setup_zauth_context(r);
+                if (e != NGX_OK) {
+                        ngx_free(ctx);
+                        return e;
                 }
-                finaliser->handler = delete_token;
-                finaliser->data    = tkn;
-                ngx_http_set_ctx(r, tkn, zauth_module);
                 return NGX_OK;
         }
 
