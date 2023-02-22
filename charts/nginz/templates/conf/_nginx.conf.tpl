@@ -294,6 +294,10 @@ http {
         proxy_set_header   Connection     "";
             {{ end -}}
 
+            {{- if not ($location.disable_zauth) }}
+        proxy_set_header   Authorization  "";
+            {{- end }}            
+
         proxy_set_header   Z-Type         $zauth_type;
         proxy_set_header   Z-User         $zauth_user;
         proxy_set_header   Z-Client       $zauth_client;

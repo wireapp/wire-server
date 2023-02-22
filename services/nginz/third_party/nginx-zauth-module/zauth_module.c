@@ -49,9 +49,9 @@ static ngx_int_t zauth_set_var        (ngx_pool_t *, ngx_http_variable_value_t *
 static void      zauth_empty_val      (ngx_http_variable_value_t *);
 
 // Utility functions
-static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t *, const ZauthServerConf *);
-static ngx_int_t empty_authorization_header_in_headers_in(ngx_http_request_t *);
+static ngx_int_t zauth_handle_request (ngx_http_request_t *, const ZauthServerConf *);
 static bool zauth_is_authorized_and_allowed(ngx_http_request_t *);
+static ngx_int_t oauth_handle_request(ngx_http_request_t *, ngx_str_t const *, OAuthJwk const *, ngx_str_t const);
 
 static ngx_http_module_t zauth_module_ctx = {
         zauth_variables // pre-configuration
@@ -315,61 +315,39 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
                 return NGX_DECLINED;
         }
 
-        // let's try to handle zauth
-        ngx_int_t status = zauth_handle_zauth_request(r, sc);
+        ngx_int_t status = zauth_handle_request(r, sc);
 
-        ngx_str_t scope = lc->oauth_scope;
-        // if the status us forbidden, we do not want to handle oauth
-        if (status == NGX_HTTP_FORBIDDEN) {
-                return status;
-        // if zauth fails, we try to handle oauth
-        } else if (status != NGX_OK && sc->oauth_key != NULL && scope.len > 0 && r->headers_in.authorization != NULL) {
-                ngx_str_t *hdr = &r->headers_in.authorization->value;
-                if (strncmp((char const *) hdr->data, "Bearer ", 7) == 0) {
+        if (status == NGX_HTTP_UNAUTHORIZED && sc->oauth_key != NULL && lc->oauth_scope.len > 0 && r->headers_in.authorization != NULL) {
+                status = oauth_handle_request(r, &r->headers_in.authorization->value, sc->oauth_key, lc->oauth_scope);
+        }
+        return status;
+}
 
-                        OAuthResult res = oauth_verify_token(sc->oauth_key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
-
-                        if (res.status == OAUTH_OK) {
-                                ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
-                                if (finaliser == NULL) {
-                                        return NGX_ERROR;
-                                }
-                                finaliser->handler = delete_oauth_uid;
-                                finaliser->data = res.uid;
-                                ngx_http_set_ctx(r, res.uid, zauth_module);
-                                status = NGX_OK;
-                        } else if (res.status == OAUTH_INSUFFICIENT_SCOPE) {
-                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth insufficient cope");
-                                return NGX_HTTP_FORBIDDEN;
-                        } else {
-                                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth token verification failed with: %d", res.status);
-                                return NGX_HTTP_UNAUTHORIZED;
+ngx_int_t oauth_handle_request(ngx_http_request_t *r, ngx_str_t const * hdr, OAuthJwk const * key, ngx_str_t const scope) {
+        if (strncmp((char const *) hdr->data, "Bearer ", 7) == 0) {
+                OAuthResult res = oauth_verify_token(key, &hdr->data[7], hdr->len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
+                if (res.status == OAUTH_OK) {
+                        ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
+                        if (finaliser == NULL) {
+                                return NGX_ERROR;
                         }
-                }              
-        }
-
-        // if zauth or oauth succeeds, we empty the Authorization header
-        if (status == NGX_OK) {
-                return empty_authorization_header_in_headers_in(r);
-        }
-        // in all other cases (which should only be errors) we return the status
-        else {
-                return status;
+                        finaliser->handler = delete_oauth_uid;
+                        finaliser->data = res.uid;
+                        ngx_http_set_ctx(r, res.uid, zauth_module);
+                        return NGX_OK;
+                } else if (res.status == OAUTH_INSUFFICIENT_SCOPE) {
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth insufficient cope");
+                        return NGX_HTTP_FORBIDDEN;
+                } else {
+                        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "OAuth token verification failed with: %d", res.status);
+                        return NGX_HTTP_UNAUTHORIZED;
+                }
+        } else {
+                return NGX_HTTP_UNAUTHORIZED;
         }
 }
 
-ngx_int_t empty_authorization_header_in_headers_in(ngx_http_request_t *r) {
-        ngx_table_elt_t * h = r->headers_in.authorization;
-        if (h == NULL) {
-                return NGX_OK;
-        }
-        ngx_str_t value = ngx_string("");
-        h->value = value;
-        h->hash = 1;
-        return NGX_OK;
-}
-
-static ngx_int_t zauth_handle_zauth_request (ngx_http_request_t * r, const ZauthServerConf * sc) {
+static ngx_int_t zauth_handle_request (ngx_http_request_t * r, const ZauthServerConf * sc) {
         ZauthToken const * tkn = ngx_http_get_module_ctx(r, zauth_module);
 
         // internal redirects clear module contexts => try to parse again
