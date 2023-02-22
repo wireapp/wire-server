@@ -549,8 +549,8 @@ static ngx_int_t zauth_token_typeinfo (ngx_http_request_t * r, ngx_http_variable
         }
 }
 
-// check if the signature has been validated
-// and access is allowed (endpoint is either allowed or not denied according to the access control list (ACL) configuration)
+// this function checks if the signature has been validated successfully,
+// and if access is allowed (endpoint is either allowed or not denied) according to the access control list (ACL) configuration
 static bool zauth_is_authorized_and_allowed(ngx_http_request_t * r) {
         ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
 
@@ -586,11 +586,12 @@ static ngx_int_t zauth_token_var (ngx_http_request_t * r, ngx_http_variable_valu
                 return NGX_ERROR;
         }
 
-        // in this function the user, client, provider, and bot ID is retrieved from the token
-        // and assigned to variables that are used in the nginx config to set the headers.
+        // in this function client, provider, and bot ID is retrieved from the ZAuth token
+        // and assigned to variables that are used in the nginx config to set the corresponding headers (e.g. Z-Client, Z-Provider, ...).
         // therefore we want to make sure that the token is authorized (has a valid signature)
-        // and access is allowed (endpoint is either allowed or not denied according to the access control list configuration)
-        // before we set these variables.
+        // and access is allowed (endpoint is either allowed or not denied) according to the access control list (ACL) configuration
+        // before we set the variable
+        // otherwise 'zauth_token_lookup' will crash for OAuth requests
         if (!zauth_is_authorized_and_allowed(r)) {
                 zauth_empty_val(v);
                 return NGX_OK;
