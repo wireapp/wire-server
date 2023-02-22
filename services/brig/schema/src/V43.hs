@@ -145,8 +145,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
         alter columnfamily invitee_info with gc_grace_seconds = 864000;
         |]
 
-
-
   -- Add prekeys
   void $
     schema'
