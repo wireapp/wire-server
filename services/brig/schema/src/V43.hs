@@ -98,17 +98,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
   void $
     schema'
       [r|
-        create columnfamily if not exists invitation
-            ( inviter     uuid      -- user id that created the invitation
-            , invitee     uuid      -- user id generated with the invitation
-            , email       text      -- email of the user invited
-            , last_update timestamp -- last time this invitation was updated
-            , primary key (inviter, email)
-            );
-        |]
-  void $
-    schema'
-      [r|
         create columnfamily if not exists invitee_info
             ( invitee uuid  -- user id generated with the invitation
             , inviter uuid  -- user id that created the invitation
@@ -142,11 +131,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     schema'
       [r|
         alter columnfamily connection with compaction = { 'class' : 'LeveledCompactionStrategy' };
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily invitation with compaction = { 'class' : 'LeveledCompactionStrategy' };
         |]
   void $
     schema'
@@ -186,11 +170,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     schema'
       [r|
         alter columnfamily connection with gc_grace_seconds = 864000;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily invitation with gc_grace_seconds = 864000;
         |]
   void $
     schema'
@@ -296,10 +275,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
   schema' [r| alter columnfamily clients add cookie text; |]
 
   -- Create new invitations tables
-  void $
-    schema'
-      [r|
-        drop columnfamily if exists invitation |]
   void $
     schema'
       [r|
