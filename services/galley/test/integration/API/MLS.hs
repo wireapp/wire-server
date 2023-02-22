@@ -3067,8 +3067,8 @@ testLeaveSubConvSkipReceive = do
     (qsub, _) <- withTempMockFederator' (mockReply ()) $ do
       void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-      qsub <- createSubConv qcnv bob1 subId
-      void $ createExternalCommit alice1 Nothing qsub >>= sendAndConsumeCommitBundle
+      qsub <- createSubConv qcnv alice1 subId
+      void $ createExternalCommit bob1 Nothing qsub >>= sendAndConsumeCommitBundle
       pure qsub
 
     let firstLeaver = bob1
@@ -3099,9 +3099,9 @@ testLeaveSubConvSkipReceive = do
     mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
       events <- sendAndConsumeCommit leaveCommit
       liftIO $ events @?= []
-      WS.assertMatchN_ (5 # WS.Second) (wsLeaver : wss) $ \n -> do
+      WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
         wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage leaveCommit) n
-    -- void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
+      void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
 
     -- check that only 1 client is left in the subconv
     do
