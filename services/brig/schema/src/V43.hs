@@ -81,17 +81,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
   void $
     schema'
       [r|
-        create columnfamily if not exists push
-            ( ptoken    text -- token
-            , app       text -- application
-            , transport int  -- transport type (0 = GCM, 1 = APNS)
-            , usr       uuid -- user id
-            , primary key (ptoken, app, transport)
-            );
-        |]
-  void $
-    schema'
-      [r|
         create columnfamily if not exists connection
             ( left        uuid      -- user id "from" in the relation
             , right       uuid      -- user id "to"   in the relation
@@ -153,11 +142,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
   void $
     schema'
       [r|
-        alter columnfamily push with compaction = { 'class' : 'LeveledCompactionStrategy' };
-        |]
-  void $
-    schema'
-      [r|
         alter columnfamily connection with compaction = { 'class' : 'LeveledCompactionStrategy' };
         |]
   void $
@@ -202,11 +186,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
   void $
     schema'
       [r|
-        alter columnfamily push with gc_grace_seconds = 345600;
-        |]
-  void $
-    schema'
-      [r|
         alter columnfamily connection with gc_grace_seconds = 345600;
         |]
   void $
@@ -220,18 +199,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
         alter columnfamily invitee_info with gc_grace_seconds = 345600;
         |]
 
-  -- Introduce reverse push CF (user_push) and remove index from push
-  void $
-    schema'
-      [r|
-            create columnfamily if not exists user_push
-                ( usr       uuid -- user id
-                , ptoken    text -- token
-                , app       text -- application
-                , transport int  -- transport type (0 = GCM, 1 = APNS)
-                , primary key (usr, ptoken, app, transport)
-                );
-            |]
 
   -- Increase gc_grace_seconds back to 10 days
   void $
@@ -257,11 +224,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
   void $
     schema'
       [r|
-        alter columnfamily push with gc_grace_seconds = 864000;
-        |]
-  void $
-    schema'
-      [r|
         alter columnfamily connection with gc_grace_seconds = 864000;
         |]
   void $
@@ -282,20 +244,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
        alter columnfamily user add tracking_id uuid;
        |]
 
-  -- Drop push column family
-  void $
-    schema'
-      [r|
-       drop columnfamily if exists push;
-       |]
-
-  -- Drop user_push column family
-  -- 'user_push' has been moved to gundeck
-  void $
-    schema'
-      [r|
-       drop columnfamily if exists user_push;
-       |]
 
   -- Add prekeys
   void $
