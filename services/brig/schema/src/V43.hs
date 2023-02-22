@@ -92,12 +92,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
   void $
     schema'
       [r|
-        -- TODO: usr is a really bad secondary index!
-        create index if not exists push_usr_key on push (usr);
-        |]
-  void $
-    schema'
-      [r|
         create columnfamily if not exists connection
             ( left        uuid      -- user id "from" in the relation
             , right       uuid      -- user id "to"   in the relation
@@ -238,11 +232,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
                 , primary key (usr, ptoken, app, transport)
                 );
             |]
-  void $
-    schema'
-      [r|
-        drop index if exists push_usr_key;
-        |]
 
   -- Increase gc_grace_seconds back to 10 days
   void $
