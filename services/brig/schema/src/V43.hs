@@ -40,7 +40,7 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , password  blob        -- pw hash
             , activated boolean
             , primary key (id)
-            );
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
   void $
     schema'
@@ -50,7 +50,7 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             ( key  text           -- email or phone number
             , user uuid           -- user ID
             , primary key (key)
-            );
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
   void $
     schema'
@@ -64,7 +64,7 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , user     uuid
             , retries  int   -- # of remaining attempts
             , primary key (key)
-            );
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
   void $
     schema'
@@ -75,7 +75,7 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , code     ascii -- random code
             , user     uuid
             , primary key (key)
-            );
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
   void $
     schema'
@@ -88,7 +88,7 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , message     text      -- message sent together with the request
             , conv        uuid      -- conv id between the 2 (if needed)
             , primary key (left, right)
-            );
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
   void $
     schema'
@@ -103,39 +103,7 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , inviter uuid  -- user id that created the invitation
             , conv    uuid  -- conv id between the 2
             , primary key (invitee)
-            );
-        |]
-
-  -- Switch to leveled compaction
-  void $
-    schema'
-      [r|
-        alter columnfamily user with compaction = { 'class' : 'LeveledCompactionStrategy' };
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily user_keys with compaction = { 'class' : 'LeveledCompactionStrategy' };
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily activation_keys with compaction = { 'class' : 'LeveledCompactionStrategy' };
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily password_reset with compaction = { 'class' : 'LeveledCompactionStrategy' };
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily connection with compaction = { 'class' : 'LeveledCompactionStrategy' };
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily invitee_info with compaction = { 'class' : 'LeveledCompactionStrategy' };
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
 
   -- Add user.status column
