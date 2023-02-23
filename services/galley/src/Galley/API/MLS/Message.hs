@@ -1057,6 +1057,7 @@ processProposal qusr conv mlsMeta msg prop = do
           . getRemoteMember (convId conv)
       )
       qusr
+
   unless isMember' $ throwS @'ConvNotFound
 
   -- FUTUREWORK: validate the member's conversation role
