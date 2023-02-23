@@ -89,14 +89,14 @@ static ngx_command_t zauth_commands [] = {
         , offsetof (ZauthLocationConf, zauth)
         , NULL
         }
-        
+
       , { ngx_string ("oauth_scope")
         , NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1
         , ngx_conf_set_str_slot
         , NGX_HTTP_LOC_CONF_OFFSET
         , offsetof (ZauthLocationConf, oauth_scope)
         , NULL
-        }        
+        }
 
       , { ngx_string ("zauth_keystore")
         , NGX_HTTP_SRV_CONF | NGX_CONF_TAKE1
