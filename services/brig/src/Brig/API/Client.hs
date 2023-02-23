@@ -42,6 +42,7 @@ module Brig.API.Client
     claimLocalPrekey,
     claimPrekeyBundle,
     claimMultiPrekeyBundles,
+    claimMultiPrekeyBundlesV3,
     Data.lookupClientIds,
   )
 where
@@ -319,6 +320,52 @@ claimMultiPrekeyBundles protectee quc = do
       ) =>
       Remote UserClients ->
       ExceptT FederationError m (Qualified UserClientPrekeyMap)
+    claimRemote ruc =
+      tUntagged . qualifyAs ruc
+        <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)
+
+    claimLocal :: Local UserClients -> ExceptT ClientError (AppT r) (Qualified UserClientPrekeyMap)
+    claimLocal luc =
+      tUntagged . qualifyAs luc
+        <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
+
+-- Similar to claimMultiPrekeyBundles except for the following changes
+-- 1) A new return type that contains both the client map and a list of
+--    users that messages couldn't be sent to.
+-- 2) A semantic change on federation errors when gathering remote clients.
+--    Remote federation errors at this step no-longer cause the entire call
+--    to fail, allowing partial results to be returned.
+claimMultiPrekeyBundlesV3 ::
+  forall r.
+  Member (Concurrency 'Unsafe) r =>
+  LegalholdProtectee ->
+  QualifiedUserClients ->
+  ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMapV3
+claimMultiPrekeyBundlesV3 protectee quc = do
+  loc <- qualifyLocal ()
+  let (locals, remotes) =
+        partitionQualifiedAndTag
+          loc
+          ( map
+              (fmap UserClients . uncurry (flip Qualified))
+              (Map.assocs (qualifiedUserClients quc))
+          )
+  localPrekeys <- traverse claimLocal locals
+  remotePrekeys <- mapExceptT wrapHttpClient $ lift $ traverseConcurrently claimRemote remotes
+  let prekeys =
+        getQualifiedUserClientPrekeyMap $
+          qualifiedUserClientPrekeyMapFromList $
+            localPrekeys <> rights remotePrekeys
+      failed = lefts remotePrekeys >>= toQualifiedUser . fst
+  pure $
+    QualifiedUserClientPrekeyMapV3 prekeys $
+      if null failed
+        then Nothing
+        else pure failed
+  where
+    toQualifiedUser :: Remote UserClients -> [Qualified UserId]
+    toQualifiedUser r = fmap (\u -> Qualified u $ tDomain r) . Map.keys . userClients . qUnqualified $ tUntagged r
+    claimRemote :: Remote UserClients -> ExceptT FederationError HttpClientIO (Qualified UserClientPrekeyMap)
     claimRemote ruc =
       tUntagged . qualifyAs ruc
         <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)

@@ -651,6 +651,20 @@ type PrekeyAPI =
                :> Post '[JSON] UserClientPrekeyMap
            )
     :<|> Named
+           "get-multi-user-prekey-bundle-qualified@v2"
+           ( Summary
+               "Given a map of domain to (map of user IDs to client IDs) return a \
+               \prekey for each one. You can't request information for more users than \
+               \maximum conversation size."
+               :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
+               :> ZUser
+               :> Until 'V3
+               :> "users"
+               :> "list-prekeys"
+               :> ReqBody '[JSON] QualifiedUserClients
+               :> Post '[JSON] QualifiedUserClientPrekeyMap
+           )
+    :<|> Named
            "get-multi-user-prekey-bundle-qualified"
            ( Summary
                "Given a map of domain to (map of user IDs to client IDs) return a \
@@ -658,10 +672,11 @@ type PrekeyAPI =
                \maximum conversation size."
                :> MakesFederatedCall 'Brig "claim-multi-prekey-bundle"
                :> ZUser
+               :> From 'V3
                :> "users"
                :> "list-prekeys"
                :> ReqBody '[JSON] QualifiedUserClients
-               :> Post '[JSON] QualifiedUserClientPrekeyMap
+               :> Post '[JSON] QualifiedUserClientPrekeyMapV3
            )
 
 type UserClientAPI =

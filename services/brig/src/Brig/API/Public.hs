@@ -286,7 +286,8 @@ servantSitemap =
         :<|> Named @"get-users-prekey-bundle-unqualified" (callsFed (exposeAnnotations getPrekeyBundleUnqualifiedH))
         :<|> Named @"get-users-prekey-bundle-qualified" (callsFed (exposeAnnotations getPrekeyBundleH))
         :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
-        :<|> Named @"get-multi-user-prekey-bundle-qualified" (callsFed (exposeAnnotations getMultiUserPrekeyBundleH))
+        :<|> Named @"get-multi-user-prekey-bundle-qualified@v2" (callsFed (exposeAnnotations getMultiUserPrekeyBundleH))
+        :<|> Named @"get-multi-user-prekey-bundle-qualified" (callsFed (exposeAnnotations getMultiUserPrekeyBundleHV3))
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
@@ -476,6 +477,21 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   when (size > maxSize) $
     throwStd (errorToWai @'E.TooManyClients)
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
+
+getMultiUserPrekeyBundleHV3 ::
+  Member (Concurrency 'Unsafe) r =>
+  UserId ->
+  Public.QualifiedUserClients ->
+  (Handler r) Public.QualifiedUserClientPrekeyMapV3
+getMultiUserPrekeyBundleHV3 zusr qualUserClients = do
+  maxSize <- fromIntegral . setMaxConvSize <$> view settings
+  let Sum (size :: Int) =
+        Map.foldMapWithKey
+          (\_ v -> Sum . Map.size $ v)
+          (Public.qualifiedUserClients qualUserClients)
+  when (size > maxSize) $
+    throwStd (errorToWai @'E.TooManyClients)
+  API.claimMultiPrekeyBundlesV3 (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
   (Member GalleyProvider r) =>
