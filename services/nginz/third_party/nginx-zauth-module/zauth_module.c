@@ -120,7 +120,7 @@ static ngx_command_t zauth_commands [] = {
         , NGX_HTTP_SRV_CONF_OFFSET
         , 0
         , NULL
-        }        
+        }
 
       , ngx_null_command
 };
