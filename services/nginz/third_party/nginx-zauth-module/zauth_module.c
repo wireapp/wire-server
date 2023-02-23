@@ -387,6 +387,7 @@ ngx_int_t oauth_handle_request(ngx_http_request_t *r, OAuthJwk const * key, ngx_
                 OAuthResult res = oauth_verify_token(key, &hdr.data[7], hdr.len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
                 if (res.status == OAUTH_OK) {
                         ZauthContext * ctx = alloc_oauth_context(r, res.uid);
+                        if (ctx == NULL) return NGX_HTTP_INTERNAL_SERVER_ERROR; // for OOM-safety
                         ngx_int_t e = setup_zauth_context(r, ctx);
                         if (e != NGX_OK) {
                                 ngx_free(ctx);
@@ -479,6 +480,7 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
 
         if (res == ZAUTH_OK && tkn != NULL) {
                 ZauthContext * ctx = alloc_zauth_context(r, tkn);
+                if (ctx == NULL) return NGX_HTTP_INTERNAL_SERVER_ERROR; // for OOM-safety
                 ngx_int_t e = setup_zauth_context(r, ctx);
                 if (e != NGX_OK) {
                         ngx_free(ctx);
