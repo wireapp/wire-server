@@ -33,3 +33,12 @@ class Context:
 
     def versioned(self, v):
         return type(self)(self.service_map, v)
+
+    def check_status(self, service):
+        url = self.mkurl(service, '/i/status', internal=True)
+        try:
+            return self.request('HEAD', url).status_code == 200
+        except requests.exceptions.ConnectionError:
+            return False
+
+
