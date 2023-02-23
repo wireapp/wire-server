@@ -35,6 +35,7 @@ import Control.Arrow
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
+import qualified Data.Set as Set
 import Data.Time.Clock
 import Galley.API.MLS
 import Galley.API.MLS.Conversation
@@ -418,7 +419,8 @@ leaveLocalSubConversation ::
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSNotEnabled,
          Resource,
-         SubConversationSupply
+         SubConversationSupply,
+         MemberStore
        ]
       r,
     Members LeaveSubConversationStaticErrors r
@@ -438,10 +440,11 @@ leaveLocalSubConversation cid lcnv sub = do
     note (mlsProtocolError "Client is not a member of the subconversation") $
       cmLookupRef cid (scMembers subConv)
   -- remove the leaver from the member list
+  let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData subConv)
+  Eff.removeMLSClients gid (cidQualifiedUser cid) . Set.singleton . ciClient $ cid
   let cm = cmRemoveClient cid (scMembers subConv)
   if Map.null cm
     then do
-      let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData subConv)
       deleteLocalSubConversation
         (cidQualifiedUser cid)
         lcnv

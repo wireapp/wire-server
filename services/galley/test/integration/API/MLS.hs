@@ -1890,6 +1890,8 @@ testBackendRemoveProposalLocalConvLocalClient = do
       mp <- createPendingProposalCommit charlie1
       events <- sendAndConsumeCommit mp
       liftIO $ events @?= []
+      WS.assertMatchN_ (5 # WS.Second) [wsA, wsB] $ \n -> do
+        wsAssertMLSMessage (Conv <$> qcnv) charlie (mpMessage mp) n
 
 testBackendRemoveProposalLocalConvRemoteClient :: TestM ()
 testBackendRemoveProposalLocalConvRemoteClient = do
@@ -2976,7 +2978,7 @@ testLeaveSubConv isSubConvCreator = do
         <$> getClientsFromGroupState
           alice1
           (cidQualifiedUser firstLeaver)
-    let others = leaverAndOthers firstLeaver allLocals
+    let others = filter (/= firstLeaver) allLocals
     mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
       (_, reqs) <-
         withTempMockFederator' messageSentMock $
@@ -3002,7 +3004,24 @@ testLeaveSubConv isSubConvCreator = do
       void . liftIO $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
 
     -- a member commits the pending proposal
-    void $ createPendingProposalCommit (head others) >>= sendAndConsumeCommitBundle
+    do
+      leaveCommit <- createPendingProposalCommit (head others)
+      mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
+        events <- sendAndConsumeCommit leaveCommit
+        liftIO $ events @?= []
+        WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
+          wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage leaveCommit) n
+        void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
+
+    -- send an application message
+    do
+      message <- createApplicationMessage (head others) "some text"
+      mlsBracket (firstLeaver : others) $ \(wsLeaver : wss) -> do
+        events <- sendAndConsumeMessage message
+        liftIO $ events @?= []
+        WS.assertMatchN_ (5 # WS.Second) wss $ \n -> do
+          wsAssertMLSMessage qsub (cidQualifiedUser . head $ others) (mpMessage message) n
+        void $ WS.assertNoEvent (5 # WS.Second) [wsLeaver]
 
     -- check that only 3 clients are left in the subconv
     do
@@ -3040,19 +3059,6 @@ testLeaveSubConv isSubConvCreator = do
       liftIO $ do
         length (pscMembers psc) @?= 2
         sort (pscMembers psc) @?= sort others
-  where
-    allLocalsButLeaver :: [a] -> [(a, [a])]
-    allLocalsButLeaver xs =
-      ( \(l, i) ->
-          let s = splitAt i xs
-           in (l, fst s ++ drop 1 (snd s))
-      )
-        <$> zip xs [0 ..]
-    leaverAndOthers :: Eq a => a -> [a] -> [a]
-    leaverAndOthers leaver xs =
-      let (Just (_, others)) =
-            find (\(l, _) -> l == leaver) (allLocalsButLeaver xs)
-       in others
 
 testLeaveSubConvNonMember :: TestM ()
 testLeaveSubConvNonMember = do

@@ -654,7 +654,7 @@ updateLocalConversation lcnv qusr con action = do
   unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
     throwS @'InvalidOperation
 
-  -- perform all authorisation checks and, if successful, the update itself
+  -- perform all authorisation checks and, if successful, then update itself
   updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
