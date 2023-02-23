@@ -750,7 +750,7 @@ fromConversationCreated loc rc@ConversationCreated {..} =
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::
-  (Member FederatorAccess r, CallsFed 'Galley "on-conversation-created") =>
+  (Member FederatorAccess r) =>
   -- | The time stamp when the conversation was created
   UTCTime ->
   -- | The domain of the user that created the conversation

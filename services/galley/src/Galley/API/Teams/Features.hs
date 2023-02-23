@@ -76,7 +76,6 @@ import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.FeatureConfig as Event
-import Wire.API.Federation.API
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -669,13 +668,7 @@ instance GetFeatureConfig db LegalholdConfig where
         False -> FeatureStatusDisabled
     pure $ setStatus status defFeatureStatus
 
-instance
-  ( CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
-  ) =>
-  SetFeatureConfig db LegalholdConfig
-  where
+instance SetFeatureConfig db LegalholdConfig where
   type
     SetConfigForTeamConstraints db LegalholdConfig (r :: EffectRow) =
       ( Bounded (PagingBounds InternalPaging TeamMember),

@@ -60,8 +60,7 @@ postMLSWelcome ::
     Member GundeckAccess r,
     Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (Input UTCTime) r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "mls-welcome"
+    Member P.TinyLog r
   ) =>
   Local x ->
   Maybe ConnId ->
@@ -82,8 +81,7 @@ postMLSWelcomeFromLocalUser ::
     Member (ErrorS 'MLSNotEnabled) r,
     Member (Input UTCTime) r,
     Member (Input Env) r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "mls-welcome"
+    Member P.TinyLog r
   ) =>
   Local x ->
   ConnId ->
@@ -128,8 +126,7 @@ sendLocalWelcomes con now rawWelcome lclients = do
 
 sendRemoteWelcomes ::
   ( Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "mls-welcome"
+    Member P.TinyLog r
   ) =>
   ByteString ->
   [Remote (UserId, ClientId)] ->

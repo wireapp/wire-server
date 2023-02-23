@@ -54,7 +54,9 @@ import qualified Polysemy.TinyLog as P
 import qualified System.Logger as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Common (EmptyResponse)
 import Wire.API.Federation.API.Galley (ClientRemovedRequest (ClientRemovedRequest))
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Routes.MultiTablePaging
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
@@ -106,9 +108,7 @@ rmClientH ::
       Member (Error InternalError) r,
       Member ProposalStore r,
       Member P.TinyLog r
-    ),
-    CallsFed 'Galley "on-client-removed",
-    CallsFed 'Galley "on-mls-message-sent"
+    )
   ) =>
   UserId ::: ClientId ->
   Sem r Response
@@ -121,7 +121,9 @@ rmClientH (usr ::: cid) = do
   E.deleteClient usr cid
   pure empty
   where
+    rpc :: ClientRemovedRequest -> FederatorClient 'Galley EmptyResponse
     rpc = fedClient @'Galley @"on-client-removed"
+
     goConvs :: Range 1 1000 Int32 -> ConvIdsPage -> Local UserId -> Sem r ()
     goConvs range page lusr = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)

@@ -127,7 +127,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
-import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -1099,9 +1098,7 @@ deleteTeamConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TeamStore r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->

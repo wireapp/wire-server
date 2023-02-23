@@ -57,6 +57,7 @@
 , text
 , time
 , tinylog
+, transitive-anns
 , types-common
 , types-common-aws
 , unliftio
@@ -118,6 +119,7 @@ mkDerivation {
     text
     time
     tinylog
+    transitive-anns
     types-common
     types-common-aws
     unliftio
