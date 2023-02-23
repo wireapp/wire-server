@@ -519,7 +519,7 @@ instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
 
 data RegisterError
-  = RegisterErrorWhitelistError
+  = RegisterErrorAllowlistError
   | RegisterErrorInvalidInvitationCode
   | RegisterErrorMissingIdentity
   | RegisterErrorUserKeyExists
@@ -537,7 +537,7 @@ data RegisterError
 instance GSOP.Generic RegisterError
 
 type RegisterErrorResponses =
-  '[ ErrorResponse 'WhitelistError,
+  '[ ErrorResponse 'AllowlistError,
      ErrorResponse 'InvalidInvitationCode,
      ErrorResponse 'MissingIdentity,
      ErrorResponse 'UserKeyExists,

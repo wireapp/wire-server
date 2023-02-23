@@ -129,7 +129,7 @@ import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.User (RegisterError (RegisterErrorWhitelistError))
+import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
 import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public
@@ -597,8 +597,8 @@ createUser ::
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
-  for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Left
-  for_ (Public.newUserPhone new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Right
+  for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Left
+  for_ (Public.newUserPhone new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Right
   result <- API.createUser new
   let acc = createdAccount result
 
@@ -822,7 +822,7 @@ beginPasswordReset ::
   Public.NewPasswordReset ->
   (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
-  checkWhitelist target
+  checkAllowlist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
   loc <- lift $ wrapClient $ API.lookupLocale u
   lift $ case target of
@@ -849,7 +849,7 @@ sendActivationCode ::
   (Handler r) ()
 sendActivationCode Public.SendActivationCode {..} = do
   either customerExtensionCheckBlockedDomains (const $ pure ()) saUserKey
-  checkWhitelist saUserKey
+  checkAllowlist saUserKey
   API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
