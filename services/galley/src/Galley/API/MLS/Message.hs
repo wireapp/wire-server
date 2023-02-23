@@ -1062,6 +1062,7 @@ processProposal qusr conv mlsMeta msg prop = do
 
   -- FUTUREWORK: validate the member's conversation role
   let propValue = rmValue prop
+
   checkProposalCipherSuite suiteTag propValue
   when (isExternalProposal msg) $ do
     checkExternalProposalSignature suiteTag msg prop
