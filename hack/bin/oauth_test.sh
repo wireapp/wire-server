@@ -65,7 +65,7 @@ AUTH_CODE=$(
 )
 
 ACCESS_TOKEN=$(
-  curl -s -X POST localhost:8082/oauth/token \
+  curl -s -X POST localhost:8080/oauth/token \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d 'code='"$AUTH_CODE"'&client_id='"$CLIENT_ID"'&grant_type=authorization_code&redirect_uri=https://example.com&client_secret='"$CLIENT_SECRET" |
     jq -r '.accessToken'
