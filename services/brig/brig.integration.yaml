@@ -196,7 +196,7 @@ optSettings:
   setAllowlistEmailDomains:
     - wire.com
   setAllowlistPhonePrefixes:
-    - +1555555
+    - "+1555555"
   setOAuthJwkKeyPair: test/resources/oauth/ed25519.jwk
   setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
   setOAuthAccessTokenExpirationTimeSecs: 3 # 3 secs
