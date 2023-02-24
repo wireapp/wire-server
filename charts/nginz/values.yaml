@@ -397,6 +397,13 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true  # authorized by auth code (see above)
+    - path: /oauth/revoke
+      envs:
+      - all
+      disable_zauth: true
+    - path: /oauth/applications
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
