@@ -438,7 +438,6 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
                 where
                   domain = qDomain $ tUntagged l
                   users = qUnqualified $ tUntagged l
-
       -- check if the sender client exists (as one of the clients in the conversation)
       unless
         ( Set.member
@@ -485,21 +484,19 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           -- from the filter search. We have to focus on only the domain and user. These clients
           -- should be listed in the failedToSend field however, as tracking these clients is an
           -- important part of the proteus protocol.
-          predicate (d, (u, _)) = none (\(d', (u', _)) -> d == d' && u == u') failed'
-          (redundant, redundantFailed) = partition predicate redundant'
+          predicate (d, (u, _)) = any (\(d', (u', _)) -> d == d' && u == u') failed'
+          redundantFailed = filter predicate redundant'
       pure
         otrResult
           { mssFailedToSend =
               QualifiedUserClients $
                 foldr
-                  (Map.unionWith (Map.unionWith (<>)))
+                  (Map.unionWith (Map.unionWith Set.union))
                   mempty
                   [ qualifiedUserClients failedToSend,
                     qualifiedUserClients failedToSendFetchingClients,
                     fromDomUserClient redundantFailed
-                  ],
-            mssRedundantClients =
-              QualifiedUserClients $ fromDomUserClient redundant
+                  ]
           }
   where
     -- Get the triples for domains, users, and clients so we can easily filter
@@ -512,8 +509,9 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
     fromDomUserClient :: [(Domain, (UserId, Set ClientId))] -> Map Domain (Map UserId (Set ClientId))
     fromDomUserClient = foldr f mempty
       where
-        f (d, (u, c)) = Map.update (pure . Map.update (g c) u) d
-        g c = pure . mappend c
+        f :: (Domain, (UserId, Set ClientId)) -> Map Domain (Map UserId (Set ClientId)) -> Map Domain (Map UserId (Set ClientId))
+        f (d, (u, c)) m = Map.alter (pure . Map.alter (g c . fromMaybe mempty) u . fromMaybe mempty) d m
+        g c = pure . Set.union c
 
 makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
 makeUserMap keys = (<> Map.fromSet (const mempty) keys)
