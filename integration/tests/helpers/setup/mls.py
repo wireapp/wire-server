@@ -36,10 +36,16 @@ class MLS:
         self.prekeys = Prekeys.new()
         self.state = {}
         self.directory = directory
+
+        self.members = []
         self.new_members = []
+        self.epoch = None
 
     def __getitem__(self, cid):
         return self.state[cid]
+
+    def removal_key(self):
+        return os.path.join(self.directory, "removal.key")
 
     def temp(self):
         return tempfile.NamedTemporaryFile(dir=self.directory, delete=False)
@@ -48,7 +54,6 @@ class MLS:
         # create wire client
         client = util.create_client(self.ctx, user, self.prekeys)
         cid = ClientIdentity(obj_qid(user), client)
-        print('created client', cid)
 
         # setup client state
         directory = os.path.join(self.directory, str(cid))
@@ -67,7 +72,6 @@ class MLS:
         return cid
 
     def upload_new_key_package(self, cid):
-        print('upload', cid)
         kp = self.cli(cid, "key-package", "create")
         self.ctx.upload_key_packages(cid.user, cid.client, [kp]).check(status=201)
 
@@ -86,7 +90,9 @@ class MLS:
         group_id = conv['group_id']
         group = json.loads(self.cli(cid, "group", "create", group_id))
         self[cid].group = group
-        json.dumps(group, indent=2)
+
+        self.epoch = 0
+        self.members = [cid]
 
     def key_package_file(self, kp):
         with self.temp() as kpf:
@@ -124,6 +130,27 @@ class MLS:
 
         return MessagePackage(sender=cid, message=msg)
 
+    def send_and_consume_message(self, mp):
+        events = self.ctx.mls_message(mp.sender.user, mp.message) \
+                     .check(status=201).json()
+        self.consume_message(mp)
+        if mp.welcome:
+            self.consume_welcome(mp.welcome)
+        return events
+
+    def send_and_consume_commit(self, mp):
+        self.send_and_consume_message(mp)
+        self.epoch += 1
+
+    def consume_message(self, mp):
+        for cid in self.members:
+            if cid == mp.sender: continue
+            self.consume_message_for(cid, mp.message)
+
+    def consume_message_for(self, cid, message):
+        self.cli(cid, "consume", "--group", "<group-in>", "--group-out", "<group-out>",
+                 "--signer-key", self.removal_key(), "-", stdin=message)
+
     def consume_welcome(self, welcome):
         for cid in self.new_members:
             state = self[cid]
@@ -131,6 +158,8 @@ class MLS:
             self.cli(cid,
                 "group", "from-welcome", "--group-out", "<group-out>", "-",
                 stdin=welcome)
+
+        self.members.extend(self.new_members)
         self.new_members = []
 
     def cli(self, cid, *args, stdin=None):
