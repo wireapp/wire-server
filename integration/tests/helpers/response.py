@@ -35,6 +35,14 @@ class Response:
         except requests.exceptions.JSONDecodeError:
             print(self.response.text)
 
+    def check(self, prop=None, *, status=None):
+        with self:
+            if prop is not None:
+                assert prop(self)
+            if status is not None:
+                assert self.status_code == status
+        return self
+
     @property
     def status_code(self):
         return self.response.status_code
@@ -44,4 +52,5 @@ class Response:
         return self.response.text
 
     def json(self):
-        return self.response.json(object_hook=frozendict)
+        with self:
+            return self.response.json(object_hook=frozendict)

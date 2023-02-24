@@ -29,9 +29,8 @@ def test_create_proteus_conv(ctx):
 
     name = "a" * 256
     with setup.ws_connect_users(ctx, bob, jane) as ws:
-        with ctx.create_conversation(alice, users=[bob, jane], name=name) as r:
-            assert r.status_code == 201
-            conv = r.json()
+        conv = ctx.create_conversation(alice, users=[bob, jane], name=name) \
+                .check(status=201).json()
 
         assertions.conversation(conv, creator=alice['id'], name=name, members=[bob, jane])
 

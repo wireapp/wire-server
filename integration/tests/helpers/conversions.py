@@ -1,6 +1,9 @@
 import dataclasses
 from .frozendict import frozendict
 
+def qid(domain, id):
+    return frozendict({'domain': domain, 'id': id})
+
 def qid_path(qid):
     return qid['domain'] + '/' + qid['id']
 

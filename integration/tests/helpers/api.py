@@ -1,3 +1,4 @@
+from base64 import b64encode
 import json
 import random
 import requests
@@ -105,13 +106,17 @@ def update_connection(ctx, user, target, status, **kwargs):
     }
     return ctx.send(args, kwargs)
 
-def create_conversation(ctx, user, users=None, name=None, **kwargs):
-    if users is None: users = []
+def create_conversation(ctx, user, users=None, name=None, protocol=None, 
+                        creator_client=None, **kwargs):
+    data = {'qualified_users': [u['qualified_id'] for u in (users or [])]}
+    if protocol is not None: data['protocol'] = protocol
+    if creator_client is not None: data['creator_client'] = creator_client
+
     args = {
         'method': 'POST',
         'url': ctx.mkurl('galley', '/conversations'),
         'headers': std_headers(user),
-        'json': {'qualified_users': [u['qualified_id'] for u in users]}
+        'json': data
     }
     if name is not None: args['json']['name'] = name
     return ctx.send(args, kwargs)
@@ -131,7 +136,35 @@ def ws_await(ctx, user, **kwargs):
     headers['Sec-Websocket-Key'] = 'foobar'
     args = {
         'method': 'GET',
-        'url': ctx.mkurl('cannon', f'/await'),
+        'url': ctx.mkurl('cannon', '/await'),
         'headers': headers
+    }
+    return ctx.send(args, kwargs)
+
+def mls_message(ctx, user, message, **kwargs):
+    headers = std_headers(user)
+    headers['Content-Type'] = 'message/mls'
+    args = {
+        'method': 'POST',
+        'url': ctx.mkurl('galley', '/mls/messages'),
+        'headers': headers,
+        'data': message
+    }
+    return ctx.send(args, kwargs)
+
+def upload_key_packages(ctx, user, client, key_packages, **kwargs):
+    args = {
+        'method': 'POST',
+        'url': ctx.mkurl('brig', f'/mls/key-packages/self/{client}'),
+        'headers': std_headers(user),
+        'json': {'key_packages': [b64encode(kp).decode('ascii') for kp in key_packages]}
+    }
+    return ctx.send(args, kwargs)
+
+def claim_key_packages(ctx, user, target, **kwargs):
+    args = {
+        'method': 'POST',
+        'url': ctx.mkurl('brig', f'/mls/key-packages/claim/{obj_path(target)}'),
+        'headers': std_headers(user)
     }
     return ctx.send(args, kwargs)
