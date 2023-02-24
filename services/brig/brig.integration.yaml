@@ -196,7 +196,7 @@ optSettings:
   setAllowlistEmailDomains:
     - wire.com
   setAllowlistPhonePrefixes:
-    - +1555555
+    - "+1555555"
 
 logLevel: Warn
 logNetStrings: false

@@ -181,12 +181,3 @@ isAllowlisted :: (MonadReader Env m) => Either Email Phone -> m Bool
 isAllowlisted key = do
   env <- view settings
   pure $ Allowlists.verify (setAllowlistEmailDomains env) (setAllowlistPhonePrefixes env) key
-
-{-
-isWhiteListed :: (MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m) => Either Email Phone -> m Bool
-isWhiteListed key = do
-  eb <- setAllowlist <$> view settings
-  case eb of
-    Nothing -> pure True
-    Just b -> Allowlist.verify b key
--}
