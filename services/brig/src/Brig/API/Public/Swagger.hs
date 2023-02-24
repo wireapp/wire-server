@@ -49,7 +49,6 @@ type InternalEndpointsSwaggerDocsAPI =
            :<|> VersionedSwaggerDocsAPIBase "cannon"
            :<|> VersionedSwaggerDocsAPIBase "cargohold"
            :<|> VersionedSwaggerDocsAPIBase "galley"
-           :<|> VersionedSwaggerDocsAPIBase "legalhold"
            :<|> VersionedSwaggerDocsAPIBase "spar"
        )
 

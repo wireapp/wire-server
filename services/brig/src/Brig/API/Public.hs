@@ -113,7 +113,6 @@ import qualified Wire.API.Routes.Internal.Brig as BrigInternalAPI
 import qualified Wire.API.Routes.Internal.Cannon as CannonInternalAPI
 import qualified Wire.API.Routes.Internal.Cargohold as CargoholdInternalAPI
 import qualified Wire.API.Routes.Internal.Galley as GalleyInternalAPI
-import qualified Wire.API.Routes.Internal.LegalHold as LegalHoldInternalAPI
 import qualified Wire.API.Routes.Internal.Spar as SparInternalAPI
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
@@ -155,7 +154,6 @@ docsAPI =
     :<|> internalEndpointsSwaggerDocsAPI "cannon" 9093 CannonInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "galley" 9095 GalleyInternalAPI.swaggerDoc
-    :<|> internalEndpointsSwaggerDocsAPI "legalhold" 9099 LegalHoldInternalAPI.swaggerDoc
     :<|> internalEndpointsSwaggerDocsAPI "spar" 9098 SparInternalAPI.swaggerDoc
 
 -- | Serves Swagger docs for public endpoints
