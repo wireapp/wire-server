@@ -13,8 +13,8 @@ def random_letters(n=10):
 def random_email():
     return 'test-email' + '-' + random_letters(10) + '@example.com'
 
-def std_headers(user=None):
-    headers = {'Z-Connection': '0'}
+def std_headers(user=None, conn_id='0'):
+    headers = {'Z-Connection': conn_id}
     if user is not None:
         headers['Z-User'] = obj_id(user)
     return headers
@@ -149,6 +149,17 @@ def mls_message(ctx, user, message, **kwargs):
         'url': ctx.mkurl('galley', '/mls/messages'),
         'headers': headers,
         'data': message
+    }
+    return ctx.send(args, kwargs)
+
+def mls_welcome(ctx, user, welcome, **kwargs):
+    headers = std_headers(user)
+    headers['Content-Type'] = 'message/mls'
+    args = {
+        'method': 'POST',
+        'url': ctx.mkurl('galley', '/mls/welcome'),
+        'headers': headers,
+        'data': welcome
     }
     return ctx.send(args, kwargs)
 

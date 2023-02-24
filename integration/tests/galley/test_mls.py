@@ -1,4 +1,5 @@
 from helpers import setup
+from helpers.conversions import *
 
 def test_sender_not_in_conv(mls):
     alice, bob = setup.connected_users(mls.ctx, 2)
@@ -12,7 +13,7 @@ def test_sender_not_in_conv(mls):
     mls.consume_welcome(mp.welcome)
 
     msg = mls.create_application_message(bob1, "some text")
-    with ctx.mls_message(bob, msg.message) as r:
+    with mls.ctx.mls_message(bob, msg.message) as r:
         assert r.status_code == 404
         assert r.json()['label'] == 'no-conversation'
 
@@ -33,3 +34,20 @@ def test_another_user_commit(mls):
     with mls.ctx.mls_message(bob, mp.message) as r:
         assert r.status_code == 400
         assert r.json()['label'] == 'mls-client-sender-user-mismatch'
+
+def test_welcome(mls):
+    alice, bob = setup.connected_users(mls.ctx, 2)
+    alice1 = mls.create_client(alice)
+    bob1 = mls.create_client(bob)
+    mls.upload_new_key_package(bob1)
+    mls.setup_group(alice1)
+    mp = mls.create_add_commit(alice1, [bob])
+    assert mp.welcome, "expected welcome message"
+    with setup.ws_connect_users(mls.ctx, bob1) as ws:
+        mls.send_and_consume_commit(mp)
+
+        qid = obj_qid(bob)
+        e = ws.match(type='conversation.mls-welcome')
+        assert not e['transient']
+        assert e['conversation'] == qid['id']
+        assert e['qualified_from'] == qid

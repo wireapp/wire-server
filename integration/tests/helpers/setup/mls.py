@@ -135,6 +135,7 @@ class MLS:
                      .check(status=201).json()
         self.consume_message(mp)
         if mp.welcome:
+            self.ctx.mls_welcome(mp.sender.user, mp.welcome).check(status=201)
             self.consume_welcome(mp.welcome)
         return events
 

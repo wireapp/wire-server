@@ -3,12 +3,18 @@ from contextlib import contextmanager
 import queue
 import json
 import websockets
+import random
 import threading
 import time
+from urllib.parse import urlencode
+
 from .. import api
 from ..conversions import *
 
-DEFAULT_TIMEOUT = 5
+DEFAULT_TIMEOUT = 1
+
+def random_conn_id():
+    return str(random.randrange(0, 4294967296))
 
 class WS:
     """
@@ -20,40 +26,71 @@ class WS:
     def __init__(self, msgs):
         self.msgs = msgs
 
-    def match(self, p, user=None, timeout=DEFAULT_TIMEOUT):
+    def match(self, p=lambda e: True, user=None, type=None, timeout=DEFAULT_TIMEOUT):
         """
         Extract an event for a given user from the stream of events in a
         websocket. The event is identified by a predicate.
         """
-        t0 = time.time()
-        while time.time() - t0 < timeout:
-            uid, e = self.msgs.get()
+        endtime = time.time() + timeout
+        processed = []
+        try:
+            while True:
+                remaining = endtime - time.time()
+                if remaining <= 0: break
+                uid, e = self.msgs.get(timeout=remaining)
 
-            # if the queue contains an exception, just raise it here
-            if isinstance(e, Exception): raise e
+                # if the queue contains an exception, just raise it here
+                if isinstance(e, Exception): raise e
 
-            if p(e) and (user is None or obj_qid(user) == uid):
-                return e
-            self.msgs.put((uid, e))
+                def check():
+                    if not p(e): return False
+                    if user is not None and obj_qid(user) != uid: return False
+                    if type is not None and e['type'] != type: return False
+                    return True
+
+                if check(): return e
+                processed.append((uid, e))
+        except queue.Empty:
+            pass
+        finally:
+            for x in processed:
+                self.msgs.put(x)
         assert False, "event timeout expired"
 
 @contextmanager
 def ws_connect_users(ctx, *users):
     keys = {}
 
+    # preprocess users
+    def user_to_userclient(u):
+        if hasattr(u, 'user') and hasattr(u, 'client'):
+            return (u.user, u.client)
+        elif isinstance(u, tuple) and len(u) == 2:
+            return u
+        else:
+            return (u, None)
+    users = [user_to_userclient(u) for u in users]
+
     msgs = queue.Queue()
     control = asyncio.Queue()
 
-    url = ctx.mkurl('cannon', '/await', protocol='ws')
+    def mkurl(user, client):
+        url = '/await'
+        if client is not None:
+            url += '?' + urlencode({'client': client})
+        url = ctx.mkurl('cannon', url, protocol='ws')
+        return url
 
     async def connect():
-        cms = [websockets.connect(url, extra_headers=api.std_headers(user))
-               for user in users]
+        cms = [websockets.connect(mkurl(user, client),
+                                  extra_headers=api.std_headers(user,
+                                    conn_id=random_conn_id()))
+               for user, client in users]
         return cms, [await cm.__aenter__() for cm in cms]
 
     async def main(cm, wss):
         try:
-            for user, ws in zip(users, wss):
+            for (user, client), ws in zip(users, wss):
                 asyncio.create_task(get_messages(obj_qid(user), ws))
             await control.get()
             for ws in wss:
