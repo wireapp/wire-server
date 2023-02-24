@@ -146,8 +146,8 @@ optSettings:
     - example.com
     - notagoodexample.com
   setAllowlistPhonePrefixes:
-    - +49
-    - +1555555
+    - "+49"
+    - "+1555555"
 ```
 
 When those options are present, the backend will match every activation request against these lists.
