@@ -70,7 +70,7 @@ ACCESS_TOKEN_RESPONSE=$(
     -d 'code='"$AUTH_CODE"'&client_id='"$CLIENT_ID"'&grant_type=authorization_code&redirect_uri=https://example.com&client_secret='"$CLIENT_SECRET"
 )
 
-echo $ACCESS_TOKEN_RESPONSE | jq
+echo "$ACCESS_TOKEN_RESPONSE" | jq
 
 ACCESS_TOKEN=$(echo "$ACCESS_TOKEN_RESPONSE" | jq -r '.accessToken')
 REFRESH_TOKEN=$(echo "$ACCESS_TOKEN_RESPONSE" | jq -r '.refreshToken')
