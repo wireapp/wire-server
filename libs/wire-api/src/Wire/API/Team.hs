@@ -117,6 +117,22 @@ instance ToSchema Team where
         <*> _teamBinding .= (fromMaybe Binding <$> optField "binding" schema)
         <*> _teamSplashScreen .= (fromMaybe DefaultIcon <$> optField "splash_screen" schema)
 
+-- | How a team "binds" its members (users)
+--
+-- A `Binding` team is the normal team which we see in the UI. A user is
+-- on-boarded as part of the team. If the team gets deleted/suspended the user
+-- gets deleted/suspended.
+--
+-- A `NonBinding` team is a concept only in the backend. It is a team someone
+-- can create and someone who has an account on Wire can join that team. This
+-- way, in theory, one person can join many teams. This concept never made it as
+-- a concept of product, but got used a lot of writing integration tests. Newer
+-- features don't really work well with this and sometimes we have to rewrite
+-- parts of the tests to use `Binding` teams.
+--
+-- Please try to not use `NonBinding` teams in tests anymore. In future, we
+-- would like it to be deleted, but it is hard to delete because it requires a
+-- bunch of tests to be rewritten.
 data TeamBinding
   = Binding
   | NonBinding

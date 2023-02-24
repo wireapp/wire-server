@@ -273,7 +273,10 @@ localConversation cid =
       <*> UnliftIO.Concurrently (retry x1 $ query1 Cql.selectConv (params LocalQuorum (Identity cid)))
 
 localConversations ::
-  Members '[Embed IO, Input ClientState, TinyLog] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member TinyLog r
+  ) =>
   [ConvId] ->
   Sem r [Conversation]
 localConversations =
@@ -374,7 +377,10 @@ lookupGroupId gId =
   uncurry Qualified <$$> retry x1 (query1 Cql.lookupGroupId (params LocalQuorum (Identity gId)))
 
 interpretConversationStoreToCassandra ::
-  Members '[Embed IO, Input ClientState, TinyLog] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member TinyLog r
+  ) =>
   Sem (ConversationStore ': r) a ->
   Sem r a
 interpretConversationStoreToCassandra = interpret $ \case

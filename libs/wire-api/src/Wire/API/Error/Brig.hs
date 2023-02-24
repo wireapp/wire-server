@@ -43,7 +43,7 @@ data BrigError
   | HandleNotFound
   | UserCreationRestricted
   | BlacklistedPhone
-  | WhitelistError
+  | AllowlistError
   | InvalidInvitationCode
   | MissingIdentity
   | BlacklistedEmail
@@ -135,7 +135,7 @@ type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-
 
 type instance MapError 'BlacklistedPhone = 'StaticError 403 "blacklisted-phone" "The given phone number has been blacklisted due to suspected abuse or a complaint"
 
-type instance MapError 'WhitelistError = 'StaticError 403 "unauthorized" "Unauthorized e-mail address or phone number."
+type instance MapError 'AllowlistError = 'StaticError 403 "unauthorized" "Unauthorized e-mail address or phone number."
 
 type instance MapError 'InvalidInvitationCode = 'StaticError 400 "invalid-invitation-code" "Invalid invitation code."
 

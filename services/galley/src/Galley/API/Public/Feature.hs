@@ -31,13 +31,13 @@ featureAPI :: API FeatureAPI GalleyEffects
 featureAPI =
   mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
-    <@> mkNamedAPI @'("put", LegalholdConfig) (callsFed (setFeatureStatus @Cassandra . DoAuth))
+    <@> mkNamedAPI @'("put", LegalholdConfig) (callsFed (exposeAnnotations (setFeatureStatus @Cassandra . DoAuth)))
     <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
-    <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility @Cassandra (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig))
+    <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig))
     <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", DigitalSignaturesConfig) (getFeatureStatus @Cassandra . DoAuth)

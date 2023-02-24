@@ -34,7 +34,10 @@ import qualified System.Logger as TinyLog
 import Wire.Sem.Logger (Logger)
 
 galleyAccessToHttp ::
-  Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Error SparError, Embed IO] r =>
+  ( Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r,
+    Member (Error SparError) r,
+    Member (Embed IO) r
+  ) =>
   Bilge.Manager ->
   Bilge.Request ->
   Sem (GalleyAccess ': r) a ->

@@ -270,8 +270,11 @@ data:
       {{- if .setSftListAllServers }}
       setSftListAllServers: {{ .setSftListAllServers }}
       {{- end }}
-      {{- if .setWhitelist }}
-      setWhitelist: {{ toYaml .setWhitelist | nindent 8 }}
+      {{- if .setAllowlistEmailDomains }}
+      setAllowlistEmailDomains: {{ toYaml .setAllowlistEmailDomains | nindent 8 }}
+      {{- end }}
+      {{- if .setAllowlistPhonePrefixes }}
+      setAllowlistPhonePrefixes: {{ toYaml .setAllowlistPhonePrefixes | nindent 8 }}
       {{- end }}
       {{- if .setFeatureFlags }}
       setFeatureFlags: {{ toYaml .setFeatureFlags | nindent 8 }}

@@ -51,11 +51,11 @@ import Galley.Env
 import Galley.Monad
 import Galley.Options
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra
 import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
 import qualified UnliftIO
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Member
@@ -63,7 +63,10 @@ import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
 import Wire.Sem.Paging.Cassandra
 
 interpretTeamStoreToCassandra ::
-  Members '[Embed IO, Input Env, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input Env) r,
+    Member (Input ClientState) r
+  ) =>
   FeatureLegalHold ->
   Sem (TeamStore ': r) a ->
   Sem r a
@@ -102,14 +105,18 @@ interpretTeamStoreToCassandra lh = interpret $ \case
       embed @IO $ Aws.execute env (Aws.enqueue e)
 
 interpretTeamListToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   Sem (ListItems LegacyPaging TeamId ': r) a ->
   Sem r a
 interpretTeamListToCassandra = interpret $ \case
   ListItems uid ps lim -> embedClient $ teamIdsFrom uid ps lim
 
 interpretInternalTeamListToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   Sem (ListItems InternalPaging TeamId ': r) a ->
   Sem r a
 interpretInternalTeamListToCassandra = interpret $ \case
@@ -120,7 +127,9 @@ interpretInternalTeamListToCassandra = interpret $ \case
     Just ps -> ipNext ps
 
 interpretTeamMemberStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   FeatureLegalHold ->
   Sem (TeamMemberStore InternalPaging ': r) a ->
   Sem r a
@@ -132,7 +141,9 @@ interpretTeamMemberStoreToCassandra lh = interpret $ \case
     Just ps -> ipNext ps
 
 interpretTeamMemberStoreToCassandraWithPaging ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   FeatureLegalHold ->
   Sem (TeamMemberStore CassandraPaging ': r) a ->
   Sem r a

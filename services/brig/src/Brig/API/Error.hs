@@ -295,8 +295,8 @@ activationCodeNotFound = invalidActivationCode "Activation key/code not found or
 deletionCodePending :: Wai.Error
 deletionCodePending = Wai.mkError status403 "pending-delete" "A verification code for account deletion is still pending."
 
-whitelistError :: Wai.Error
-whitelistError = Wai.mkError status403 "unauthorized" "Unauthorized e-mail address or phone number."
+allowlistError :: Wai.Error
+allowlistError = Wai.mkError status403 "unauthorized" "Unauthorized e-mail address or phone number."
 
 blacklistedEmail :: Wai.Error
 blacklistedEmail =

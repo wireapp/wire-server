@@ -106,14 +106,12 @@ data Remote m a where
 makeSem ''Remote
 
 interpretRemote ::
-  Members
-    '[ Embed (Codensity IO),
-       DiscoverFederator,
-       Error DiscoveryFailure,
-       Error RemoteError,
-       Input TLSSettings
-     ]
-    r =>
+  ( Member (Embed (Codensity IO)) r,
+    Member DiscoverFederator r,
+    Member (Error DiscoveryFailure) r,
+    Member (Error RemoteError) r,
+    Member (Input TLSSettings) r
+  ) =>
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case

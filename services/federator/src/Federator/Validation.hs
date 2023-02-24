@@ -92,7 +92,9 @@ validationErrorStatus _ = HTTP.status403
 -- | Validates an already-parsed domain against the allowList using the federator
 -- startup configuration.
 ensureCanFederateWith ::
-  Members '[Input RunSettings, Error ValidationError] r =>
+  ( Member (Input RunSettings) r,
+    Member (Error ValidationError) r
+  ) =>
   Domain ->
   Sem r ()
 ensureCanFederateWith targetDomain = do
@@ -137,13 +139,11 @@ parseDomainText domain =
 -- federator startup configuration and checks that it matches the names reported
 -- by the client certificate
 validateDomain ::
-  Members
-    '[ Input RunSettings,
-       Error ValidationError,
-       Error DiscoveryFailure,
-       DiscoverFederator
-     ]
-    r =>
+  ( Member (Input RunSettings) r,
+    Member (Error ValidationError) r,
+    Member (Error DiscoveryFailure) r,
+    Member DiscoverFederator r
+  ) =>
   Maybe ByteString ->
   ByteString ->
   Sem r Domain

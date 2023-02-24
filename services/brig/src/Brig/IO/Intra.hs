@@ -86,8 +86,6 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import GHC.TypeLits
-import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
-import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Gundeck.Types.Push.V2
 import qualified Gundeck.Types.Push.V2 as Push
 import Imports
@@ -98,10 +96,11 @@ import qualified System.Logger.Extended as ExLog
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Event.Conversation (Connect (Connect))
-import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Properties
+import Wire.API.Routes.Internal.Galley.ConversationsIntra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
+import Wire.API.Routes.Internal.Galley.TeamsIntra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User
@@ -118,8 +117,7 @@ onUserEvent ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadClient m
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -249,8 +247,7 @@ dispatchNotifications ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadClient m
   ) =>
   UserId ->
   Maybe ConnId ->
@@ -299,8 +296,7 @@ notifyUserDeletionRemotes ::
   forall m.
   ( MonadReader Env m,
     MonadClient m,
-    MonadLogger m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadLogger m
   ) =>
   UserId ->
   m ()

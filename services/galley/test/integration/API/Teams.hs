@@ -64,7 +64,6 @@ import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra as TeamsIntra
 import Imports
 import Network.HTTP.Types.Status (status403)
 import qualified Network.Wai.Utilities.Error as Error
@@ -84,6 +83,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Team
 import Wire.API.Internal.Notification hiding (target)
+import Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public

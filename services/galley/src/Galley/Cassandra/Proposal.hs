@@ -39,7 +39,9 @@ defaultTTL :: Timeout
 defaultTTL = 28 # Day
 
 interpretProposalStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   Sem (ProposalStore ': r) a ->
   Sem r a
 interpretProposalStoreToCassandra =

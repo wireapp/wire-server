@@ -32,20 +32,20 @@ conversationAPI :: API ConversationAPI GalleyEffects
 conversationAPI =
   mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
     <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
-    <@> mkNamedAPI @"get-conversation@v2" (callsFed getConversation)
-    <@> mkNamedAPI @"get-conversation" (callsFed getConversation)
+    <@> mkNamedAPI @"get-conversation@v2" (callsFed (exposeAnnotations getConversation))
+    <@> mkNamedAPI @"get-conversation" (callsFed (exposeAnnotations getConversation))
     <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
-    <@> mkNamedAPI @"get-group-info" (callsFed getGroupInfo)
+    <@> mkNamedAPI @"get-group-info" (callsFed (exposeAnnotations getGroupInfo))
     <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
     <@> mkNamedAPI @"list-conversation-ids-v2" (conversationIdsPageFromV2 DoNotListGlobalSelf)
     <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
     <@> mkNamedAPI @"get-conversations" getConversations
-    <@> mkNamedAPI @"list-conversations@v1" (callsFed listConversations)
-    <@> mkNamedAPI @"list-conversations@v2" (callsFed listConversations)
-    <@> mkNamedAPI @"list-conversations" (callsFed listConversations)
+    <@> mkNamedAPI @"list-conversations@v1" (callsFed (exposeAnnotations listConversations))
+    <@> mkNamedAPI @"list-conversations@v2" (callsFed (exposeAnnotations listConversations))
+    <@> mkNamedAPI @"list-conversations" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
-    <@> mkNamedAPI @"create-group-conversation@v2" (callsFed createGroupConversation)
-    <@> mkNamedAPI @"create-group-conversation" (callsFed createGroupConversation)
+    <@> mkNamedAPI @"create-group-conversation@v2" (callsFed (exposeAnnotations createGroupConversation))
+    <@> mkNamedAPI @"create-group-conversation" (callsFed (exposeAnnotations createGroupConversation))
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
     <@> mkNamedAPI @"get-mls-self-conversation" getMLSSelfConversationWithError
@@ -54,7 +54,7 @@ conversationAPI =
     <@> mkNamedAPI @"add-members-to-conversation-unqualified" (callsFed addMembersUnqualified)
     <@> mkNamedAPI @"add-members-to-conversation-unqualified2" (callsFed addMembersUnqualifiedV2)
     <@> mkNamedAPI @"add-members-to-conversation" (callsFed addMembers)
-    <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed (joinConversationById @Cassandra))
+    <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed joinConversationById)
     <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed (joinConversationByReusableCode @Cassandra))
     <@> mkNamedAPI @"code-check" (checkReusableCode @Cassandra)
     <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualified @Cassandra)
@@ -62,21 +62,21 @@ conversationAPI =
     <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
     <@> mkNamedAPI @"get-code" (getCode @Cassandra)
     <@> mkNamedAPI @"member-typing-unqualified" isTypingUnqualified
-    <@> mkNamedAPI @"member-typing-qualified" (callsFed isTypingQualified)
-    <@> mkNamedAPI @"remove-member-unqualified" (callsFed removeMemberUnqualified)
-    <@> mkNamedAPI @"remove-member" (callsFed removeMemberQualified)
-    <@> mkNamedAPI @"update-other-member-unqualified" (callsFed updateOtherMemberUnqualified)
-    <@> mkNamedAPI @"update-other-member" (callsFed updateOtherMember)
-    <@> mkNamedAPI @"update-conversation-name-deprecated" (callsFed updateUnqualifiedConversationName)
-    <@> mkNamedAPI @"update-conversation-name-unqualified" (callsFed updateUnqualifiedConversationName)
-    <@> mkNamedAPI @"update-conversation-name" (callsFed updateConversationName)
-    <@> mkNamedAPI @"update-conversation-message-timer-unqualified" (callsFed updateConversationMessageTimerUnqualified)
-    <@> mkNamedAPI @"update-conversation-message-timer" (callsFed updateConversationMessageTimer)
-    <@> mkNamedAPI @"update-conversation-receipt-mode-unqualified" (callsFed updateConversationReceiptModeUnqualified)
-    <@> mkNamedAPI @"update-conversation-receipt-mode" (callsFed updateConversationReceiptMode)
-    <@> mkNamedAPI @"update-conversation-access-unqualified" (callsFed updateConversationAccessUnqualified)
-    <@> mkNamedAPI @"update-conversation-access@v2" (callsFed updateConversationAccess)
-    <@> mkNamedAPI @"update-conversation-access" (callsFed updateConversationAccess)
+    <@> mkNamedAPI @"member-typing-qualified" (callsFed (exposeAnnotations isTypingQualified))
+    <@> mkNamedAPI @"remove-member-unqualified" (callsFed (exposeAnnotations removeMemberUnqualified))
+    <@> mkNamedAPI @"remove-member" (callsFed (exposeAnnotations removeMemberQualified))
+    <@> mkNamedAPI @"update-other-member-unqualified" (callsFed (exposeAnnotations updateOtherMemberUnqualified))
+    <@> mkNamedAPI @"update-other-member" (callsFed (exposeAnnotations updateOtherMember))
+    <@> mkNamedAPI @"update-conversation-name-deprecated" (callsFed (exposeAnnotations updateUnqualifiedConversationName))
+    <@> mkNamedAPI @"update-conversation-name-unqualified" (callsFed (exposeAnnotations updateUnqualifiedConversationName))
+    <@> mkNamedAPI @"update-conversation-name" (callsFed (exposeAnnotations updateConversationName))
+    <@> mkNamedAPI @"update-conversation-message-timer-unqualified" (callsFed (exposeAnnotations updateConversationMessageTimerUnqualified))
+    <@> mkNamedAPI @"update-conversation-message-timer" (callsFed (exposeAnnotations updateConversationMessageTimer))
+    <@> mkNamedAPI @"update-conversation-receipt-mode-unqualified" (callsFed (exposeAnnotations updateConversationReceiptModeUnqualified))
+    <@> mkNamedAPI @"update-conversation-receipt-mode" (callsFed (exposeAnnotations updateConversationReceiptMode))
+    <@> mkNamedAPI @"update-conversation-access-unqualified" (callsFed (exposeAnnotations updateConversationAccessUnqualified))
+    <@> mkNamedAPI @"update-conversation-access@v2" (callsFed (exposeAnnotations updateConversationAccess))
+    <@> mkNamedAPI @"update-conversation-access" (callsFed (exposeAnnotations updateConversationAccess))
     <@> mkNamedAPI @"get-conversation-self-unqualified" getLocalSelf
     <@> mkNamedAPI @"update-conversation-self-unqualified" updateUnqualifiedSelfMember
     <@> mkNamedAPI @"update-conversation-self" updateSelfMember

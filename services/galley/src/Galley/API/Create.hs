@@ -71,7 +71,6 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Util
@@ -85,30 +84,26 @@ import Wire.API.Team.Permission hiding (self)
 
 -- | The public-facing endpoint for creating group conversations.
 createGroupConversation ::
-  ( Members
-      '[ BrigAccess,
-         ConversationStore,
-         MemberStore,
-         ErrorS 'ConvAccessDenied,
-         Error InternalError,
-         Error InvalidInput,
-         ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
-         ErrorS 'NotConnected,
-         ErrorS 'MLSNotEnabled,
-         ErrorS 'MLSNonEmptyMemberList,
-         ErrorS 'MissingLegalholdConsent,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input Opts,
-         Input UTCTime,
-         LegalHoldStore,
-         TeamStore,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member MemberStore r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member TeamStore r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -149,7 +144,11 @@ createGroupConversation lusr mConn newConv = do
   conversationCreated lusr conv
 
 ensureNoLegalholdConflicts ::
-  Members '[ErrorS 'MissingLegalholdConsent, Input Opts, LegalHoldStore, TeamStore] r =>
+  ( Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Input Opts) r,
+    Member LegalHoldStore r,
+    Member TeamStore r
+  ) =>
   UserList UserId ->
   Sem r ()
 ensureNoLegalholdConflicts (UserList locals remotes) = do
@@ -159,15 +158,13 @@ ensureNoLegalholdConflicts (UserList locals remotes) = do
       throwS @'MissingLegalholdConsent
 
 checkCreateConvPermissions ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ErrorS 'NotConnected,
-       TeamStore
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotConnected) r,
+    Member TeamStore r
+  ) =>
   Local UserId ->
   NewConv ->
   Maybe ConvTeamInfo ->
@@ -204,7 +201,10 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
 
 createProteusSelfConversation ::
   forall r.
-  Members '[ConversationStore, Error InternalError, P.TinyLog] r =>
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Sem r ConversationResponse
 createProteusSelfConversation lusr = do
@@ -225,30 +225,23 @@ createProteusSelfConversation lusr = do
 
 createOne2OneConversation ::
   forall r.
-  ( Members
-      '[ BrigAccess,
-         ConversationStore,
-         ErrorS 'ConvAccessDenied,
-         Error FederationError,
-         Error InternalError,
-         Error InvalidInput,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'NotATeamMember,
-         ErrorS 'NonBindingTeam,
-         ErrorS 'NoBindingTeamMembers,
-         ErrorS OperationDenied,
-         ErrorS 'TeamNotFound,
-         ErrorS 'InvalidOperation,
-         ErrorS 'NotConnected,
-         ErrorS 'MissingLegalholdConsent,
-         FederatorAccess,
-         GundeckAccess,
-         Input UTCTime,
-         TeamStore,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'NonBindingTeam) r,
+    Member (ErrorS 'NoBindingTeamMembers) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'NotConnected) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -294,17 +287,13 @@ createOne2OneConversation lusr zcon j = do
         Nothing -> throwS @'TeamNotFound
 
 createLegacyOne2OneConversationUnchecked ::
-  ( Members
-      '[ ConversationStore,
-         Error InternalError,
-         Error InvalidInput,
-         FederatorAccess,
-         GundeckAccess,
-         Input UTCTime,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -335,18 +324,13 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
       conversationCreated self c
 
 createOne2OneConversationUnchecked ::
-  ( Members
-      '[ ConversationStore,
-         Error FederationError,
-         Error InternalError,
-         ErrorS 'MissingLegalholdConsent,
-         FederatorAccess,
-         GundeckAccess,
-         Input UTCTime,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+  ( Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   ConnId ->
@@ -363,17 +347,12 @@ createOne2OneConversationUnchecked self zcon name mtid other = do
   create (one2OneConvId (tUntagged self) other) self zcon name mtid other
 
 createOne2OneConversationLocally ::
-  ( Members
-      '[ ConversationStore,
-         Error InternalError,
-         ErrorS 'MissingLegalholdConsent,
-         FederatorAccess,
-         GundeckAccess,
-         Input UTCTime,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -416,22 +395,17 @@ createOne2OneConversationRemotely _ _ _ _ _ _ =
   throw FederationNotImplemented
 
 createConnectConversation ::
-  ( Members
-      '[ ConversationStore,
-         ErrorS 'ConvNotFound,
-         Error FederationError,
-         Error InternalError,
-         Error InvalidInput,
-         ErrorS 'InvalidOperation,
-         ErrorS 'NotConnected,
-         FederatorAccess,
-         GundeckAccess,
-         Input UTCTime,
-         MemberStore,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-created"
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -514,7 +488,10 @@ createConnectConversation lusr conn j = do
 
 -- | Return a 'NewConversation' record suitable for creating a group conversation.
 newRegularConversation ::
-  Members '[ErrorS 'MLSNonEmptyMemberList, Error InvalidInput, Input Opts] r =>
+  ( Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (Error InvalidInput) r,
+    Member (Input Opts) r
+  ) =>
   Local UserId ->
   NewConv ->
   Sem r (NewConversation, ConvSizeChecked UserList UserId)
@@ -548,15 +525,20 @@ newRegularConversation lusr newConv = do
 -- Helpers
 
 conversationCreated ::
-  Members '[Error InternalError, P.TinyLog] r =>
+  ( Member (Error InternalError) r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Data.Conversation ->
   Sem r ConversationResponse
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
 notifyCreatedConversation ::
-  ( Members '[Error InternalError, FederatorAccess, GundeckAccess, Input UTCTime, P.TinyLog] r,
-    CallsFed 'Galley "on-conversation-created"
+  ( Member (Error InternalError) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r
   ) =>
   Maybe UTCTime ->
   Local UserId ->

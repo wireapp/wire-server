@@ -88,17 +88,15 @@ instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Sem r) where
 -- | API for manipulating SCIM tokens (protected by normal Wire authentication and available
 -- only to team owners).
 apiScimToken ::
-  Members
-    '[ Random,
-       Input Opts,
-       GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       Now,
-       IdPConfigStore,
-       Error E.SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Input Opts) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member Now r,
+    Member IdPConfigStore r,
+    Member (Error E.SparError) r
+  ) =>
   ServerT APIScimToken (Sem r)
 apiScimToken =
   createScimToken
@@ -110,17 +108,15 @@ apiScimToken =
 -- Create a token for user's team.
 createScimToken ::
   forall r.
-  Members
-    '[ Random,
-       Input Opts,
-       GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       IdPConfigStore,
-       Now,
-       Error E.SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Input Opts) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member Now r,
+    Member (Error E.SparError) r
+  ) =>
   -- | Who is trying to create a token
   Maybe UserId ->
   -- | Request body
@@ -171,7 +167,11 @@ createScimToken zusr Api.CreateScimToken {..} = do
 --
 -- Delete a token belonging to user's team.
 deleteScimToken ::
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, Error E.SparError] r =>
+  ( Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member (Error E.SparError) r
+  ) =>
   -- | Who is trying to delete a token
   Maybe UserId ->
   ScimTokenId ->
@@ -186,7 +186,11 @@ deleteScimToken zusr tokenid = do
 -- List all tokens belonging to user's team. Tokens themselves are not available, only
 -- metadata about them.
 listScimTokens ::
-  Members '[GalleyAccess, BrigAccess, ScimTokenStore, Error E.SparError] r =>
+  ( Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member (Error E.SparError) r
+  ) =>
   -- | Who is trying to list tokens
   Maybe UserId ->
   Sem r ScimTokenList

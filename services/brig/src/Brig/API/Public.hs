@@ -110,7 +110,11 @@ import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.Internal.Brig as BrigInternalAPI
-import Wire.API.Routes.Internal.Cannon as CannonInternalAPI
+import qualified Wire.API.Routes.Internal.Cannon as CannonInternalAPI
+import qualified Wire.API.Routes.Internal.Cargohold as CargoholdInternalAPI
+import qualified Wire.API.Routes.Internal.Galley as GalleyInternalAPI
+import qualified Wire.API.Routes.Internal.LegalHold as LegalHoldInternalAPI
+import qualified Wire.API.Routes.Internal.Spar as SparInternalAPI
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Routes.Public.Brig
@@ -127,7 +131,7 @@ import Wire.API.SwaggerHelper (cleanupSwagger)
 import Wire.API.SystemSettings
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
-import Wire.API.User (RegisterError (RegisterErrorWhitelistError))
+import Wire.API.User (RegisterError (RegisterErrorAllowlistError))
 import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public
@@ -183,6 +187,10 @@ internalEndpointsSwaggerDocsAPI (Just V3) =
   swaggerSchemaUIServer $
     ( BrigInternalAPI.swaggerDoc
         <> CannonInternalAPI.swaggerDoc
+        <> CargoholdInternalAPI.swaggerDoc
+        <> LegalHoldInternalAPI.swaggerDoc
+        <> GalleyInternalAPI.swaggerDoc
+        <> SparInternalAPI.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server internal API"
       & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger-internal-endpoints.md")
@@ -241,35 +249,35 @@ servantSitemap = brigAPI
 
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
-      Named @"get-user-unqualified" (callsFed getUserUnqualifiedH)
-        :<|> Named @"get-user-qualified" (callsFed getUser)
+      Named @"get-user-unqualified" (callsFed (exposeAnnotations getUserUnqualifiedH))
+        :<|> Named @"get-user-qualified" (callsFed (exposeAnnotations getUser))
         :<|> Named @"update-user-email" updateUserEmail
-        :<|> Named @"get-handle-info-unqualified" (callsFed getHandleInfoUnqualifiedH)
-        :<|> Named @"get-user-by-handle-qualified" (callsFed Handle.getHandleInfo)
-        :<|> Named @"list-users-by-unqualified-ids-or-handles" (callsFed listUsersByUnqualifiedIdsOrHandles)
-        :<|> Named @"list-users-by-ids-or-handles" (callsFed listUsersByIdsOrHandles)
+        :<|> Named @"get-handle-info-unqualified" (callsFed (exposeAnnotations getHandleInfoUnqualifiedH))
+        :<|> Named @"get-user-by-handle-qualified" (callsFed (exposeAnnotations Handle.getHandleInfo))
+        :<|> Named @"list-users-by-unqualified-ids-or-handles" (callsFed (exposeAnnotations listUsersByUnqualifiedIdsOrHandles))
+        :<|> Named @"list-users-by-ids-or-handles" (callsFed (exposeAnnotations listUsersByIdsOrHandles))
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
       Named @"get-self" getSelf
-        :<|> Named @"delete-self" (callsFed deleteSelfUser)
-        :<|> Named @"put-self" (callsFed updateUser)
+        :<|> Named @"delete-self" (callsFed (exposeAnnotations deleteSelfUser))
+        :<|> Named @"put-self" (callsFed (exposeAnnotations updateUser))
         :<|> Named @"change-phone" changePhone
-        :<|> Named @"remove-phone" (callsFed removePhone)
-        :<|> Named @"remove-email" (callsFed removeEmail)
+        :<|> Named @"remove-phone" (callsFed (exposeAnnotations removePhone))
+        :<|> Named @"remove-email" (callsFed (exposeAnnotations removeEmail))
         :<|> Named @"check-password-exists" checkPasswordExists
         :<|> Named @"change-password" changePassword
-        :<|> Named @"change-locale" (callsFed changeLocale)
-        :<|> Named @"change-handle" (callsFed changeHandle)
+        :<|> Named @"change-locale" (callsFed (exposeAnnotations changeLocale))
+        :<|> Named @"change-handle" (callsFed (exposeAnnotations changeHandle))
 
     accountAPI :: ServerT AccountAPI (Handler r)
     accountAPI =
-      Named @"register" (callsFed createUser)
-        :<|> Named @"verify-delete" (callsFed verifyDeleteUser)
-        :<|> Named @"get-activate" (callsFed activate)
-        :<|> Named @"post-activate" (callsFed activateKey)
+      Named @"register" (callsFed (exposeAnnotations createUser))
+        :<|> Named @"verify-delete" (callsFed (exposeAnnotations verifyDeleteUser))
+        :<|> Named @"get-activate" (callsFed (exposeAnnotations activate))
+        :<|> Named @"post-activate" (callsFed (exposeAnnotations activateKey))
         :<|> Named @"post-activate-send" sendActivationCode
         :<|> Named @"post-password-reset" beginPasswordReset
         :<|> Named @"post-password-reset-complete" completePasswordReset
@@ -278,27 +286,29 @@ servantSitemap = brigAPI
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
-      Named @"get-user-clients-unqualified" (callsFed getUserClientsUnqualified)
-        :<|> Named @"get-user-clients-qualified" (callsFed getUserClientsQualified)
-        :<|> Named @"get-user-client-unqualified" (callsFed getUserClientUnqualified)
-        :<|> Named @"get-user-client-qualified" (callsFed getUserClientQualified)
-        :<|> Named @"list-clients-bulk" (callsFed listClientsBulk)
-        :<|> Named @"list-clients-bulk-v2" (callsFed listClientsBulkV2)
-        :<|> Named @"list-clients-bulk@v2" (callsFed listClientsBulkV2)
+      Named @"get-user-clients-unqualified" (callsFed (exposeAnnotations getUserClientsUnqualified))
+        :<|> Named @"get-user-clients-qualified" (callsFed (exposeAnnotations getUserClientsQualified))
+        :<|> Named @"get-user-client-unqualified" (callsFed (exposeAnnotations getUserClientUnqualified))
+        :<|> Named @"get-user-client-qualified" (callsFed (exposeAnnotations getUserClientQualified))
+        :<|> Named @"list-clients-bulk" (callsFed (exposeAnnotations listClientsBulk))
+        :<|> Named @"list-clients-bulk-v2" (callsFed (exposeAnnotations listClientsBulkV2))
+        :<|> Named @"list-clients-bulk@v2" (callsFed (exposeAnnotations listClientsBulkV2))
 
     prekeyAPI :: ServerT PrekeyAPI (Handler r)
     prekeyAPI =
-      Named @"get-users-prekeys-client-unqualified" (callsFed getPrekeyUnqualifiedH)
-        :<|> Named @"get-users-prekeys-client-qualified" (callsFed getPrekeyH)
-        :<|> Named @"get-users-prekey-bundle-unqualified" (callsFed getPrekeyBundleUnqualifiedH)
-        :<|> Named @"get-users-prekey-bundle-qualified" (callsFed getPrekeyBundleH)
+      Named @"get-users-prekeys-client-unqualified" (callsFed (exposeAnnotations getPrekeyUnqualifiedH))
+        :<|> Named @"get-users-prekeys-client-qualified" (callsFed (exposeAnnotations getPrekeyH))
+        :<|> Named @"get-users-prekey-bundle-unqualified" (callsFed (exposeAnnotations getPrekeyBundleUnqualifiedH))
+        :<|> Named @"get-users-prekey-bundle-qualified" (callsFed (exposeAnnotations getPrekeyBundleH))
         :<|> Named @"get-multi-user-prekey-bundle-unqualified" getMultiUserPrekeyBundleUnqualifiedH
-        :<|> Named @"get-multi-user-prekey-bundle-qualified" (callsFed getMultiUserPrekeyBundleH)
+        :<|> Named @"get-multi-user-prekey-bundle-qualified" (callsFed (exposeAnnotations getMultiUserPrekeyBundleH))
 
     userClientAPI :: ServerT UserClientAPI (Handler r)
     userClientAPI =
-      Named @"add-client" (callsFed addClient)
-        :<|> Named @"update-client" updateClient
+      Named @"add-client" (callsFed (exposeAnnotations addClient))
+        :<|> Named
+          @"update-client"
+          updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients" listClients
         :<|> Named @"get-client" getClient
@@ -310,15 +320,15 @@ servantSitemap = brigAPI
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
-      Named @"create-connection-unqualified" (callsFed createConnectionUnqualified)
-        :<|> Named @"create-connection" (callsFed createConnection)
+      Named @"create-connection-unqualified" (callsFed (exposeAnnotations createConnectionUnqualified))
+        :<|> Named @"create-connection" (callsFed (exposeAnnotations createConnection))
         :<|> Named @"list-local-connections" listLocalConnections
         :<|> Named @"list-connections" listConnections
         :<|> Named @"get-connection-unqualified" getLocalConnection
         :<|> Named @"get-connection" getConnection
-        :<|> Named @"update-connection-unqualified" (callsFed updateLocalConnection)
-        :<|> Named @"update-connection" (callsFed updateConnection)
-        :<|> Named @"search-contacts" (callsFed Search.search)
+        :<|> Named @"update-connection-unqualified" (callsFed (exposeAnnotations updateLocalConnection))
+        :<|> Named @"update-connection" (callsFed (exposeAnnotations updateConnection))
+        :<|> Named @"search-contacts" (callsFed (exposeAnnotations Search.search))
 
     propertiesAPI :: ServerT PropertiesAPI (Handler r)
     propertiesAPI =
@@ -333,7 +343,7 @@ servantSitemap = brigAPI
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
       Named @"mls-key-packages-upload" uploadKeyPackages
-        :<|> Named @"mls-key-packages-claim" (callsFed claimKeyPackages)
+        :<|> Named @"mls-key-packages-claim" (callsFed (exposeAnnotations claimKeyPackages))
         :<|> Named @"mls-key-packages-count" countKeyPackages
 
     userHandleAPI :: ServerT UserHandleAPI (Handler r)
@@ -347,9 +357,9 @@ servantSitemap = brigAPI
 
     authAPI :: ServerT AuthAPI (Handler r)
     authAPI =
-      Named @"access" (callsFed accessH)
+      Named @"access" (callsFed (exposeAnnotations accessH))
         :<|> Named @"send-login-code" sendLoginCode
-        :<|> Named @"login" (callsFed login)
+        :<|> Named @"login" (callsFed (exposeAnnotations login))
         :<|> Named @"logout" logoutH
         :<|> Named @"change-self-email" changeSelfEmailH
         :<|> Named @"list-cookies" listCookies
@@ -371,15 +381,9 @@ servantSitemap = brigAPI
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  Members
-    '[ BlacklistPhonePrefixStore,
-       BlacklistStore,
-       CodeStore,
-       Concurrency 'Unsafe,
-       GalleyProvider,
-       PasswordResetStore
-     ]
-    r =>
+  ( Member (Concurrency 'Unsafe) r,
+    Member GalleyProvider r
+  ) =>
   Routes () (Handler r) ()
 sitemap = do
   Provider.routesPublic
@@ -443,27 +447,27 @@ listPropertyKeysAndValues u = do
   keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
   Public.PropertyKeysAndValues <$> traverse parseStoredPropertyValue keysAndVals
 
-getPrekeyUnqualifiedH :: (CallsFed 'Brig "claim-prekey") => UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
+getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
   domain <- viewFederationDomain
   getPrekeyH zusr (Qualified user domain) client
 
-getPrekeyH :: (CallsFed 'Brig "claim-prekey") => UserId -> Qualified UserId -> ClientId -> (Handler r) Public.ClientPrekey
+getPrekeyH :: UserId -> Qualified UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyH zusr (Qualified user domain) client = do
   mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
-getPrekeyBundleUnqualifiedH :: (CallsFed 'Brig "claim-prekey-bundle") => UserId -> UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH :: UserId -> UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH zusr uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
-getPrekeyBundleH :: (CallsFed 'Brig "claim-prekey-bundle") => UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
+getPrekeyBundleH :: UserId -> Qualified UserId -> (Handler r) Public.PrekeyBundle
 getPrekeyBundleH zusr (Qualified uid domain) =
   API.claimPrekeyBundle (ProtectedUser zusr) domain uid !>> clientError
 
 getMultiUserPrekeyBundleUnqualifiedH ::
-  Members '[Concurrency 'Unsafe] r =>
+  Member (Concurrency 'Unsafe) r =>
   UserId ->
   Public.UserClients ->
   Handler r Public.UserClientPrekeyMap
@@ -474,7 +478,7 @@ getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH ::
-  (Members '[Concurrency 'Unsafe] r, CallsFed 'Brig "claim-multi-prekey-bundle") =>
+  (Member (Concurrency 'Unsafe) r) =>
   UserId ->
   Public.QualifiedUserClients ->
   (Handler r) Public.QualifiedUserClientPrekeyMap
@@ -489,12 +493,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   ConnId ->
   Maybe IpAddr ->
@@ -525,28 +524,28 @@ listClients zusr =
 getClient :: UserId -> ClientId -> (Handler r) (Maybe Public.Client)
 getClient zusr clientId = lift $ API.lookupLocalClient zusr clientId
 
-getUserClientsUnqualified :: (CallsFed 'Brig "get-user-clients") => UserId -> (Handler r) [Public.PubClient]
+getUserClientsUnqualified :: UserId -> (Handler r) [Public.PubClient]
 getUserClientsUnqualified uid = do
   localdomain <- viewFederationDomain
   API.lookupPubClients (Qualified uid localdomain) !>> clientError
 
-getUserClientsQualified :: (CallsFed 'Brig "get-user-clients") => Qualified UserId -> (Handler r) [Public.PubClient]
+getUserClientsQualified :: Qualified UserId -> (Handler r) [Public.PubClient]
 getUserClientsQualified quid = API.lookupPubClients quid !>> clientError
 
-getUserClientUnqualified :: (CallsFed 'Brig "get-user-clients") => UserId -> ClientId -> (Handler r) Public.PubClient
+getUserClientUnqualified :: UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientUnqualified uid cid = do
   localdomain <- viewFederationDomain
   x <- API.lookupPubClient (Qualified uid localdomain) cid !>> clientError
   ifNothing (notFound "client not found") x
 
-listClientsBulk :: (CallsFed 'Brig "get-user-clients") => UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> (Handler r) (Public.QualifiedUserMap (Set Public.PubClient))
+listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> (Handler r) (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids =
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
-listClientsBulkV2 :: (CallsFed 'Brig "get-user-clients") => UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> (Handler r) (Public.WrappedQualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> (Handler r) (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
-getUserClientQualified :: (CallsFed 'Brig "get-user-clients") => Qualified UserId -> ClientId -> (Handler r) Public.PubClient
+getUserClientQualified :: Qualified UserId -> ClientId -> (Handler r) Public.PubClient
 getUserClientQualified quid cid = do
   x <- API.lookupPubClient quid cid !>> clientError
   ifNothing (notFound "client not found") x
@@ -602,20 +601,16 @@ createAccessToken method uid cid proof = do
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
-  ( Members
-      '[ BlacklistStore,
-         GalleyProvider,
-         UserPendingActivationStore p
-       ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r
   ) =>
   Public.NewUserPublic ->
   (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
-  for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Left
-  for_ (Public.newUserPhone new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Right
+  for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Left
+  for_ (Public.newUserPhone new) $ mapExceptT wrapHttp . checkAllowlistWithError RegisterErrorAllowlistError . Right
   result <- API.createUser new
   let acc = createdAccount result
 
@@ -686,12 +681,7 @@ getSelf self =
     >>= ifNothing (errorToWai @'E.UserNotFound)
 
 getUserUnqualifiedH ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "get-users-by-ids"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   UserId ->
   (Handler r) (Maybe Public.UserProfile)
@@ -700,12 +690,7 @@ getUserUnqualifiedH self uid = do
   getUser self (Qualified uid domain)
 
 getUser ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "get-users-by-ids"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   Qualified UserId ->
   (Handler r) (Maybe Public.UserProfile)
@@ -715,12 +700,8 @@ getUser self qualifiedUserId = do
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  ( Members
-      '[ GalleyProvider,
-         Concurrency 'Unsafe
-       ]
-      r,
-    CallsFed 'Brig "get-users-by-ids"
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
   ) =>
   UserId ->
   Maybe (CommaSeparatedList UserId) ->
@@ -743,12 +724,8 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
 
 listUsersByIdsOrHandles ::
   forall r.
-  ( Members
-      '[ GalleyProvider,
-         Concurrency 'Unsafe
-       ]
-      r,
-    CallsFed 'Brig "get-users-by-ids"
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
   ) =>
   UserId ->
   Public.ListUsersQuery ->
@@ -780,17 +757,15 @@ newtype GetActivationCodeResp
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUser :: (CallsFed 'Brig "on-user-deleted-connections") => UserId -> ConnId -> Public.UserUpdate -> (Handler r) (Maybe Public.UpdateProfileError)
+updateUser :: UserId -> ConnId -> Public.UserUpdate -> (Handler r) (Maybe Public.UpdateProfileError)
 updateUser uid conn uu = do
   eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
   pure $ either Just (const Nothing) eithErr
 
 changePhone ::
-  Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member BlacklistPhonePrefixStore r
+  ) =>
   UserId ->
   ConnId ->
   Public.PhoneUpdate ->
@@ -801,11 +776,11 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   let apair = (activationKey adata, activationCode adata)
   lift . wrapClient $ sendActivationSms pn apair loc
 
-removePhone :: (CallsFed 'Brig "on-user-deleted-connections") => UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
+removePhone :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
 removePhone self conn =
   lift . exceptTToMaybe $ API.removePhone self conn
 
-removeEmail :: (CallsFed 'Brig "on-user-deleted-connections") => UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
+removeEmail :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
 removeEmail self conn =
   lift . exceptTToMaybe $ API.removeEmail self conn
 
@@ -815,7 +790,7 @@ checkPasswordExists = fmap isJust . lift . wrapClient . API.lookupPassword
 changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
-changeLocale :: (CallsFed 'Brig "on-user-deleted-connections") => UserId -> ConnId -> Public.LocaleUpdate -> (Handler r) ()
+changeLocale :: UserId -> ConnId -> Public.LocaleUpdate -> (Handler r) ()
 changeLocale u conn l = lift $ API.changeLocale u conn l
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
@@ -839,12 +814,7 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "get-user-by-handle",
-    CallsFed 'Brig "get-users-by-ids"
+  ( Member GalleyProvider r
   ) =>
   UserId ->
   Handle ->
@@ -854,17 +824,17 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle :: (CallsFed 'Brig "on-user-deleted-connections") => UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Public.ChangeHandleError)
+changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Public.ChangeHandleError)
 changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
 beginPasswordReset ::
-  Members '[PasswordResetStore] r =>
+  Member PasswordResetStore r =>
   Public.NewPasswordReset ->
   (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
-  checkWhitelist target
+  checkAllowlist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
   loc <- lift $ wrapClient $ API.lookupLocale u
   lift $ case target of
@@ -872,7 +842,9 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
 completePasswordReset ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  ( Member CodeStore r,
+    Member PasswordResetStore r
+  ) =>
   Public.CompletePasswordReset ->
   (Handler r) ()
 completePasswordReset req = do
@@ -881,17 +853,15 @@ completePasswordReset req = do
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
-  Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member BlacklistPhonePrefixStore r,
+    Member GalleyProvider r
+  ) =>
   Public.SendActivationCode ->
   (Handler r) ()
 sendActivationCode Public.SendActivationCode {..} = do
   either customerExtensionCheckBlockedDomains (const $ pure ()) saUserKey
-  checkWhitelist saUserKey
+  checkAllowlist saUserKey
   API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
 
 -- | If the user presents an email address from a blocked domain, throw an error.
@@ -911,12 +881,7 @@ customerExtensionCheckBlockedDomains email = do
             customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "send-connection-action"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   ConnId ->
   Public.ConnectionRequest ->
@@ -927,12 +892,7 @@ createConnectionUnqualified self conn cr = do
   API.createConnection lself conn (tUntagged target) !>> connError
 
 createConnection ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "send-connection-action"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   ConnId ->
   Qualified UserId ->
@@ -941,12 +901,12 @@ createConnection self conn target = do
   lself <- qualifyLocal self
   API.createConnection lself conn target !>> connError
 
-updateLocalConnection :: (CallsFed 'Brig "send-connection-action") => UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
+updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
   lother <- qualifyLocal other
   updateConnection self conn (tUntagged lother) update
 
-updateConnection :: (CallsFed 'Brig "send-connection-action") => UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
+updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
 updateConnection self conn other update = do
   let newStatus = Public.cuStatus update
   lself <- qualifyLocal self
@@ -1012,28 +972,21 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
 deleteSelfUser u body =
   API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
-verifyDeleteUser :: (CallsFed 'Brig "on-user-deleted-connections") => Public.VerifyDeleteUser -> Handler r ()
+verifyDeleteUser :: Public.VerifyDeleteUser -> Handler r ()
 verifyDeleteUser body = API.verifyDeleteUser body !>> deleteUserError
 
 updateUserEmail ::
   forall r.
-  Members
-    '[ BlacklistStore,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member GalleyProvider r
+  ) =>
   UserId ->
   UserId ->
   Public.EmailUpdate ->
@@ -1061,12 +1014,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
 -- activation
 
 activate ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   Public.ActivationKey ->
   Public.ActivationCode ->
   (Handler r) ActivationRespWithStatus
@@ -1076,12 +1024,7 @@ activate k c = do
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   Public.Activate ->
   (Handler r) ActivationRespWithStatus
 activateKey (Public.Activate tgt code dryrun)
@@ -1099,10 +1042,7 @@ activateKey (Public.Activate tgt code dryrun)
 
 sendVerificationCode ::
   forall r.
-  Members
-    '[ GalleyProvider
-     ]
-    r =>
+  Member GalleyProvider r =>
   Public.SendVerificationCode ->
   (Handler r) ()
 sendVerificationCode req = do
@@ -1156,7 +1096,9 @@ deprecatedOnboarding :: UserId -> JsonValue -> (Handler r) DeprecatedMatchingRes
 deprecatedOnboarding _ _ = pure DeprecatedMatchingResult
 
 deprecatedCompletePasswordReset ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  ( Member CodeStore r,
+    Member PasswordResetStore r
+  ) =>
   Public.PasswordResetKey ->
   Public.PasswordReset ->
   (Handler r) ()

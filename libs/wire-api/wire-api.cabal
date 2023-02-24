@@ -84,8 +84,12 @@ library
     Wire.API.Routes.Internal.Brig.OAuth
     Wire.API.Routes.Internal.Cannon
     Wire.API.Routes.Internal.Cargohold
+    Wire.API.Routes.Internal.Galley
+    Wire.API.Routes.Internal.Galley.ConversationsIntra
     Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
+    Wire.API.Routes.Internal.Galley.TeamsIntra
     Wire.API.Routes.Internal.LegalHold
+    Wire.API.Routes.Internal.Spar
     Wire.API.Routes.LowLevelStream
     Wire.API.Routes.MultiTablePaging
     Wire.API.Routes.MultiTablePaging.State
@@ -280,6 +284,7 @@ library
     , tagged
     , text                       >=0.11
     , time                       >=1.4
+    , transitive-anns
     , types-common               >=0.16
     , unordered-containers       >=0.2
     , uri-bytestring             >=0.2

@@ -107,35 +107,30 @@ federationSitemap =
     :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
-    :<|> Named @"leave-conversation" (callsFed leaveConversation)
+    :<|> Named @"leave-conversation" (callsFed (exposeAnnotations leaveConversation))
     :<|> Named @"on-message-sent" onMessageSent
-    :<|> Named @"send-message" (callsFed sendMessage)
-    :<|> Named @"on-user-deleted-conversations" (callsFed onUserDeleted)
-    :<|> Named @"update-conversation" (callsFed updateConversation)
+    :<|> Named @"send-message" (callsFed (exposeAnnotations sendMessage))
+    :<|> Named @"on-user-deleted-conversations" (callsFed (exposeAnnotations onUserDeleted))
+    :<|> Named @"update-conversation" (callsFed (exposeAnnotations updateConversation))
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
-    :<|> Named @"send-mls-message" (callsFed sendMLSMessage)
-    :<|> Named @"send-mls-commit-bundle" (callsFed sendMLSCommitBundle)
+    :<|> Named @"send-mls-message" (callsFed (exposeAnnotations sendMLSMessage))
+    :<|> Named @"send-mls-commit-bundle" (callsFed (exposeAnnotations sendMLSCommitBundle))
     :<|> Named @"query-group-info" queryGroupInfo
-    :<|> Named @"on-client-removed" (callsFed onClientRemoved)
+    :<|> Named @"on-client-removed" (callsFed (exposeAnnotations onClientRemoved))
     :<|> Named @"on-typing-indicator-updated" onTypingIndicatorUpdated
 
 onClientRemoved ::
-  ( Members
-      '[ ConversationStore,
-         Error InternalError,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input (Local ()),
-         Input UTCTime,
-         MemberStore,
-         ProposalStore,
-         TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-mls-message-sent"
+  ( Member ConversationStore r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member TinyLog r
   ) =>
   Domain ->
   ClientRemovedRequest ->
@@ -151,16 +146,13 @@ onClientRemoved domain req = do
   pure EmptyResponse
 
 onConversationCreated ::
-  Members
-    '[ BrigAccess,
-       ConversationStore,
-       GundeckAccess,
-       ExternalAccess,
-       Input (Local ()),
-       MemberStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member (Input (Local ())) r,
+    Member MemberStore r,
+    Member P.TinyLog r
+  ) =>
   Domain ->
   F.ConversationCreated ConvId ->
   Sem r ()
@@ -210,7 +202,9 @@ onNewRemoteConversation domain nrc = do
   pure EmptyResponse
 
 getConversations ::
-  Members '[ConversationStore, Input (Local ())] r =>
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r
+  ) =>
   Domain ->
   F.GetConversationsRequest ->
   Sem r F.GetConversationsResponse
@@ -227,15 +221,13 @@ getLocalUsers localDomain = map qUnqualified . filter ((== localDomain) . qDomai
 -- | Update the local database with information on conversation members joining
 -- or leaving. Finally, push out notifications to local users.
 onConversationUpdated ::
-  Members
-    '[ BrigAccess,
-       GundeckAccess,
-       ExternalAccess,
-       Input (Local ()),
-       MemberStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member (Input (Local ())) r,
+    Member MemberStore r,
+    Member P.TinyLog r
+  ) =>
   Domain ->
   F.ConversationUpdate ->
   Sem r ()
@@ -305,7 +297,10 @@ onConversationUpdated requestingDomain cu = do
     pushConversationEvent Nothing event (qualifyAs loc targets) []
 
 addLocalUsersToRemoteConv ::
-  Members '[BrigAccess, MemberStore, P.TinyLog] r =>
+  ( Member BrigAccess r,
+    Member MemberStore r,
+    Member P.TinyLog r
+  ) =>
   Remote ConvId ->
   Qualified UserId ->
   [UserId] ->
@@ -332,24 +327,17 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 
 -- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
-  ( Members
-      '[ ConversationStore,
-         Error InternalError,
-         Error InvalidInput,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input (Local ()),
-         Input UTCTime,
-         MemberStore,
-         ProposalStore,
-         TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member TinyLog r
   ) =>
   Domain ->
   F.LeaveConversationRequest ->
@@ -397,7 +385,12 @@ leaveConversation requestingDomain lc = do
 -- FUTUREWORK: error handling for missing / mismatched clients
 -- FUTUREWORK: support bots
 onMessageSent ::
-  Members '[GundeckAccess, ExternalAccess, MemberStore, Input (Local ()), P.TinyLog] r =>
+  ( Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member MemberStore r,
+    Member (Input (Local ())) r,
+    Member P.TinyLog r
+  ) =>
   Domain ->
   F.RemoteMessage ConvId ->
   Sem r ()
@@ -439,24 +432,18 @@ onMessageSent domain rmUnqualified = do
       (Map.filterWithKey (\(uid, _) _ -> Set.member uid members) msgs)
 
 sendMessage ::
-  ( Members
-      '[ BrigAccess,
-         ClientStore,
-         ConversationStore,
-         Error InvalidInput,
-         FederatorAccess,
-         GundeckAccess,
-         Input (Local ()),
-         Input Opts,
-         Input UTCTime,
-         ExternalAccess,
-         MemberStore,
-         TeamStore,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+  ( Member BrigAccess r,
+    Member ClientStore r,
+    Member ConversationStore r,
+    Member (Error InvalidInput) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input (Local ())) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member ExternalAccess r,
+    Member TeamStore r,
+    Member P.TinyLog r
   ) =>
   Domain ->
   F.ProteusMessageSendRequest ->
@@ -470,24 +457,17 @@ sendMessage originDomain msr = do
     throwErr = throw . InvalidPayload . LT.pack
 
 onUserDeleted ::
-  ( Members
-      '[ ConversationStore,
-         FederatorAccess,
-         FireAndForget,
-         ExternalAccess,
-         GundeckAccess,
-         Error InternalError,
-         Input (Local ()),
-         Input UTCTime,
-         Input Env,
-         MemberStore,
-         ProposalStore,
-         TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+  ( Member ConversationStore r,
+    Member FederatorAccess r,
+    Member FireAndForget r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (Input Env) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member TinyLog r
   ) =>
   Domain ->
   F.UserDeletedConversationsNotification ->
@@ -529,32 +509,26 @@ onUserDeleted origDomain udcn = do
 
 updateConversation ::
   forall r.
-  ( Members
-      '[ BrigAccess,
-         CodeStore,
-         BotAccess,
-         FireAndForget,
-         Error FederationError,
-         Error InvalidInput,
-         ExternalAccess,
-         FederatorAccess,
-         Error InternalError,
-         GundeckAccess,
-         Input Env,
-         Input Opts,
-         Input UTCTime,
-         LegalHoldStore,
-         MemberStore,
-         ProposalStore,
-         TeamStore,
-         TinyLog,
-         ConversationStore,
-         Input (Local ())
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+  ( Member BrigAccess r,
+    Member CodeStore r,
+    Member BotAccess r,
+    Member FireAndForget r,
+    Member (Error FederationError) r,
+    Member (Error InvalidInput) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member (Error InternalError) r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member TeamStore r,
+    Member TinyLog r,
+    Member ConversationStore r,
+    Member (Input (Local ())) r
   ) =>
   Domain ->
   F.ConversationUpdateRequest ->
@@ -617,32 +591,23 @@ updateConversation origDomain updateRequest = do
     toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
 
 sendMLSCommitBundle ::
-  ( Members
-      [ BrigAccess,
-        ConversationStore,
-        ExternalAccess,
-        Error FederationError,
-        Error InternalError,
-        FederatorAccess,
-        GundeckAccess,
-        Input (Local ()),
-        Input Env,
-        Input Opts,
-        Input UTCTime,
-        LegalHoldStore,
-        MemberStore,
-        Resource,
-        TeamStore,
-        P.TinyLog,
-        ProposalStore
-      ]
-      r,
-    CallsFed 'Galley "mls-welcome",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "send-mls-commit-bundle",
-    CallsFed 'Brig "get-mls-clients"
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member ExternalAccess r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input (Local ())) r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member MemberStore r,
+    Member Resource r,
+    Member TeamStore r,
+    Member P.TinyLog r,
+    Member ProposalStore r
   ) =>
   Domain ->
   F.MLSMessageSendRequest ->
@@ -667,31 +632,23 @@ sendMLSCommitBundle remoteDomain msr =
         <$> postMLSCommitBundle loc (tUntagged sender) Nothing qcnv Nothing bundle
 
 sendMLSMessage ::
-  ( Members
-      [ BrigAccess,
-        ConversationStore,
-        ExternalAccess,
-        Error FederationError,
-        Error InternalError,
-        FederatorAccess,
-        GundeckAccess,
-        Input (Local ()),
-        Input Env,
-        Input Opts,
-        Input UTCTime,
-        LegalHoldStore,
-        MemberStore,
-        Resource,
-        TeamStore,
-        P.TinyLog,
-        ProposalStore
-      ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "send-mls-message",
-    CallsFed 'Brig "get-mls-clients"
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member ExternalAccess r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input (Local ())) r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member MemberStore r,
+    Member Resource r,
+    Member TeamStore r,
+    Member P.TinyLog r,
+    Member ProposalStore r
   ) =>
   Domain ->
   F.MLSMessageSendRequest ->
@@ -740,15 +697,13 @@ instance
         Right res -> pure res
 
 mlsSendWelcome ::
-  Members
-    '[ BrigAccess,
-       Error InternalError,
-       GundeckAccess,
-       Input Env,
-       Input (Local ()),
-       Input UTCTime
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (Error InternalError) r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r
+  ) =>
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
@@ -774,15 +729,13 @@ mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawW
       sendLocalWelcomes Nothing now rawWelcome lrcpts
 
 onMLSMessageSent ::
-  Members
-    '[ ExternalAccess,
-       GundeckAccess,
-       Input (Local ()),
-       Input Env,
-       MemberStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input (Local ())) r,
+    Member (Input Env) r,
+    Member MemberStore r,
+    Member P.TinyLog r
+  ) =>
   Domain ->
   F.RemoteMLSMessage ->
   Sem r F.RemoteMLSMessageResponse
@@ -818,12 +771,9 @@ onMLSMessageSent domain rmm =
         foldMap mkPush recipients
 
 queryGroupInfo ::
-  ( Members
-      '[ ConversationStore,
-         Input (Local ()),
-         Input Env
-       ]
-      r,
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r,
+    Member (Input Env) r,
     Member MemberStore r
   ) =>
   Domain ->
@@ -844,14 +794,10 @@ queryGroupInfo origDomain req =
         $ state
 
 onTypingIndicatorUpdated ::
-  ( Members
-      '[ ConversationStore,
-         MemberStore,
-         GundeckAccess,
-         Input UTCTime,
-         Input (Local ())
-       ]
-      r
+  ( Member MemberStore r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member (Input (Local ())) r
   ) =>
   Domain ->
   TypingDataUpdateRequest ->
