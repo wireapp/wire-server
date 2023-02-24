@@ -193,10 +193,12 @@ optSettings:
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
   setEnableMLS: true
-  setAllowlistEmailDomains:
-    - wire.com
-  setAllowlistPhonePrefixes:
-    - "+1555555"
+  # To only allow specific email address domains to register, uncomment and update the setting below
+  # setAllowlistEmailDomains:
+  #   - wire.com
+  # To only allow specific phone number prefixes to register uncomment and update the settings below
+  # setAllowlistPhonePrefixes:
+  #   - "+1555555"
 
 logLevel: Warn
 logNetStrings: false
