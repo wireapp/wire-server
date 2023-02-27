@@ -660,7 +660,6 @@ executable brig-schema
     V74_AddOAuthClientTable
     V75_AddOAuthCodeTable
     V76_AddOAuthRefreshToken
-    V9
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src
