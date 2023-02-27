@@ -18,15 +18,21 @@ Then the following Makefile targets can be used to compile and test wire-server 
 
     # to compile all binaries to ./dist run
     make
-    
+
     # to build and install all of galley's executables
     make c package=galley
-    
+
     # also run galley's unit tests
     make c package=galley test=1
 
 
 ## Troubleshooting
+
+### If the PR doesn't pass the CI (read check marks on github)
+
+```
+make sanitize-pr
+```
 
 ### Linker errors while compiling
 

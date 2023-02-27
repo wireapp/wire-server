@@ -91,6 +91,15 @@ endif
 ci: c db-migrate
 	./hack/bin/cabal-run-integration.sh $(package)
 
+.PHONY: sanitize-pr
+sanitize-pr:
+	./hack/bin/generate-local-nix-packages.sh
+	make formatf-all
+	make hlint-inplace-all
+	make git-add-cassandra-schema
+	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
+	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
+
 .PHONY: cabal-fmt
 cabal-fmt:
 	./hack/bin/cabal-fmt.sh $(package)
