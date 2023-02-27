@@ -47,7 +47,6 @@ import URI.ByteString
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
 import Wire.Arbitrary (GenericUniform (..))
-import qualified SAML2.WebSSO as configs
 
 --------------------------------------------------------------------------------
 -- Types
