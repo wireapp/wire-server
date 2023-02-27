@@ -71,21 +71,20 @@ discoverLocalhost hostname port = interpret $ \case
     pure (Right (SrvTarget hostname (fromIntegral port)))
   DiscoverFederator _ -> pure (Left (DiscoveryFailureSrvNotAvailable "only localhost is supported"))
 
-assertNoRemoteError :: IO (Either RemoteError x) -> IO x
-assertNoRemoteError action =
-  action >>= \case
-    Left err -> assertFailure $ "Unexpected remote error: " <> show err
-    Right x -> pure x
+assertNoRemoteError :: Either RemoteError x -> IO x
+assertNoRemoteError = \case
+  Left err -> assertFailure $ "Unexpected remote error: " <> show err
+  Right x -> pure x
 
-mkTestCall :: SSLContext -> ByteString -> Int -> IO (Either RemoteError ())
+mkTestCall :: SSLContext -> ByteString -> Int -> Codensity IO (Either RemoteError ())
 mkTestCall sslCtx hostname port =
   runM
+    . runEmbedded @IO @(Codensity IO) liftIO
     . runError @RemoteError
     . void
     . runInputConst sslCtx
     . discoverLocalhost hostname port
     . assertNoError @DiscoveryFailure
-    . runEmbedded @(Codensity IO) @IO lowerCodensity
     . interpretRemote
     $ discoverAndCall (Domain "localhost") Brig "test" [] mempty
 
@@ -105,11 +104,11 @@ testValidatesCertificateSuccess =
     [ testCase "when hostname=localhost and certificate-for=localhost" $
         withMockServer certForLocalhost $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          assertNoRemoteError (mkTestCall tlsSettings "localhost" port),
+          runCodensity (mkTestCall tlsSettings "localhost" port) assertNoRemoteError,
       testCase "when hostname=localhost. and certificate-for=localhost" $
         withMockServer certForLocalhost $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          assertNoRemoteError (mkTestCall tlsSettings "localhost." port),
+          runCodensity (mkTestCall tlsSettings "localhost." port) assertNoRemoteError,
       -- It is not very clear how to handle this, this test just exists to
       -- document what we do.
       -- Some discussion from author of curl:
@@ -121,8 +120,7 @@ testValidatesCertificateSuccess =
       testCase "when hostname=localhost. and certificate-for=localhost." $
         withMockServer certForLocalhostDot $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          eitherClient <- mkTestCall tlsSettings "localhost." port
-          case eitherClient of
+          runCodensity (mkTestCall tlsSettings "localhost." port) $ \case
             Left _ -> pure ()
             Right _ -> assertFailure "Congratulations, you fixed a known issue!"
     ]
@@ -140,16 +138,14 @@ testValidatesCertificateWrongHostname =
     [ testCase "when the server's certificate doesn't match the hostname" $
         withMockServer certForWrongDomain $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          eitherClient <- mkTestCall tlsSettings "localhost" port
-          case eitherClient of
+          runCodensity (mkTestCall tlsSettings "localhost" port) $ \case
             Left (RemoteError _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail",
       testCase "when the server's certificate does not have the server key usage flag" $
         withMockServer certWithoutServerKeyUsage $ \port -> do
           tlsSettings <- mkTLSSettingsOrThrow settings
-          eitherClient <- mkTestCall tlsSettings "localhost" port
-          case eitherClient of
+          runCodensity (mkTestCall tlsSettings "localhost" port) $ \case
             Left (RemoteError _ (FederatorClientTLSException _)) -> pure ()
             Left x -> assertFailure $ "Expected TLS failure, got: " <> show x
             Right _ -> assertFailure "Expected connection with the server to fail"
@@ -160,8 +156,7 @@ testValidatesCertificateWrongHostname =
 testConnectionError :: TestTree
 testConnectionError = testCase "connection failures are reported correctly" $ do
   tlsSettings <- mkTLSSettingsOrThrow settings
-  result <- mkTestCall tlsSettings "localhost" 1
-  case result of
+  runCodensity (mkTestCall tlsSettings "localhost" 1) $ \case
     Left (RemoteError _ (FederatorClientConnectionError _)) -> pure ()
     Left x -> assertFailure $ "Expected connection error, got: " <> show x
     Right _ -> assertFailure "Expected connection with the server to fail"
