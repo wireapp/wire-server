@@ -39,6 +39,9 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , phone     text
             , password  blob        -- pw hash
             , activated boolean
+            , status    int
+            , language  ascii
+            , country   ascii
             , primary key (id)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
@@ -57,12 +60,13 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
       [r|
         -- (temporary) activation keys
         create columnfamily if not exists activation_keys
-            ( key      ascii -- opaque version of key_text
-            , key_type ascii -- ("email" or "phone")
-            , key_text text  -- the plain 'key' (phone or email)
-            , code     ascii -- random code
-            , user     uuid
-            , retries  int   -- # of remaining attempts
+            ( key       ascii -- opaque version of key_text
+            , key_type  ascii -- ("email" or "phone")
+            , key_text  text  -- the plain 'key' (phone or email)
+            , code      ascii -- random code
+            , user      uuid
+            , retries   int   -- # of remaining attempts
+            , challenge ascii
             , primary key (key)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
@@ -106,45 +110,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
 
-  -- Add user.status column
-  void $
-    schema'
-      [r|
-        alter columnfamily user add status int;
-        |]
-
-  -- Increase gc_grace_seconds back to 10 days
-  void $
-    schema'
-      [r|
-        alter columnfamily user with gc_grace_seconds = 864000;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily user_keys with gc_grace_seconds = 864000;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily activation_keys with gc_grace_seconds = 864000;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily password_reset with gc_grace_seconds = 864000;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily connection with gc_grace_seconds = 864000;
-        |]
-  void $
-    schema'
-      [r|
-        alter columnfamily invitee_info with gc_grace_seconds = 864000;
-        |]
-
   -- Add prekeys
   void $
     schema'
@@ -182,13 +147,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             );
        |]
 
-  -- Add activation_keys.challenge
-  void $
-    schema'
-      [r|
-       alter columnfamily activation_keys add challenge ascii;
-       |]
-
   -- Add login_codes
   void $
     schema'
@@ -213,19 +171,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
       [r|
        alter columnfamily password_reset add timeout timestamp;
        |]
-
-  -- Add user.language and user.country
-  void $
-    schema'
-      [r|
-       alter columnfamily user add language ascii;
-       |]
-  void $
-    schema'
-      [r|
-       alter columnfamily user add country ascii;
-       |]
-
 
   -- Add additional client properties
   schema' [r| alter columnfamily clients add class int; |]
