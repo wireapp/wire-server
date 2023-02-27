@@ -13,11 +13,12 @@ def create_client(ctx, uid, prekeys):
         assert r.status_code == 201
         return r.json()['id']
 
-def connected_users(ctx, num):
-    users = [random_user(ctx) for _ in range(num)]
+def connected_users(*num_by_ctx):
+    users = [(ctx, random_user(ctx)) for ctx, num in num_by_ctx
+             for _ in range(num)]
 
-    for u1, u2 in itertools.combinations(users, 2):
-        ctx.create_connection(u1, u2)
-        ctx.update_connection(u2, u1, 'accepted')
+    for (ctx1, u1), (ctx2, u2) in itertools.combinations(users, 2):
+        ctx1.create_connection(u1, u2).check(status=201)
+        ctx2.update_connection(u2, u1, 'accepted').check(status=200)
 
-    return users
+    return [u for _, u in users]

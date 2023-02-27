@@ -3,7 +3,8 @@ from .response import Response
 import requests
 
 class Context:
-    def __init__(self, service_map, version):
+    def __init__(self, domain, service_map, version):
+        self.domain = domain
         self.service_map = service_map
         self.version = version
 
@@ -32,7 +33,7 @@ class Context:
         return method
 
     def versioned(self, v):
-        return type(self)(self.service_map, v)
+        return type(self)(self.domain, self.service_map, v)
 
     def check_status(self, service):
         url = self.mkurl(service, '/i/status', internal=True)

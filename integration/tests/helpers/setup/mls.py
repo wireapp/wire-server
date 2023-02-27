@@ -20,7 +20,7 @@ class MessagePackage:
 @dataclasses.dataclass
 class ClientState:
     directory: str
-    group: bytes = None
+    group: object = None
 
 @dataclasses.dataclass(frozen=True)
 class ClientIdentity:
@@ -31,8 +31,8 @@ class ClientIdentity:
         return f"{self.user['id']}:{self.client}@{self.user['domain']}"
 
 class MLS:
-    def __init__(self, ctx, directory):
-        self.ctx = ctx
+    def __init__(self, directory, *ctxs):
+        self.ctxs = {ctx.domain:ctx for ctx in ctxs}
         self.prekeys = Prekeys.new()
         self.state = {}
         self.directory = directory
@@ -51,8 +51,11 @@ class MLS:
         return tempfile.NamedTemporaryFile(dir=self.directory, delete=False)
 
     def create_client(self, user):
+        user = obj_qid(user)
+        ctx = self.ctxs[user['domain']]
+
         # create wire client
-        client = util.create_client(self.ctx, user, self.prekeys)
+        client = util.create_client(ctx, user, self.prekeys)
         cid = ClientIdentity(obj_qid(user), client)
 
         # setup client state
@@ -64,9 +67,9 @@ class MLS:
 
         # upload public key
         pk = base64.b64encode(self.cli(cid, "public-key")).decode('ascii')
-        self.ctx.request('PUT', self.ctx.mkurl('brig', f'/clients/{client}'),
-                         headers=api.std_headers(cid.user),
-                         json={'mls_public_keys': {'ed25519': pk}}) \
+        ctx.request('PUT', ctx.mkurl('brig', f'/clients/{client}'),
+                    headers=api.std_headers(cid.user),
+                    json={'mls_public_keys': {'ed25519': pk}}) \
                 .check(status=200)
 
         return cid
@@ -75,19 +78,22 @@ class MLS:
         return self.cli(cid, "key-package", "create")
 
     def upload_new_key_package(self, cid):
+        ctx = self.ctxs[cid.user['domain']]
         kp = self.generate_key_package(cid)
-        self.ctx.upload_key_packages(cid.user, cid.client, [kp]).check(status=201)
+        ctx.upload_key_packages(cid.user, cid.client, [kp]).check(status=201)
 
     def claim_key_packages(self, cid, user):
-        r = self.ctx.claim_key_packages(cid.user, user).check(status=200).json()
+        ctx = self.ctxs[cid.user['domain']]
+        r = ctx.claim_key_packages(cid.user, user).check(status=200).json()
         for e in r['key_packages']:
             cid1 = ClientIdentity(qid(e['domain'], e['user']), e['client'])
             yield cid1, base64.b64decode(e['key_package'])
 
     def setup_group(self, cid):
-        conv = self.ctx.create_conversation(cid.user, 
-                                            protocol='mls',
-                                            creator_client=cid.client) \
+        ctx = self.ctxs[cid.user['domain']]
+        conv = ctx.create_conversation(cid.user,
+                                       protocol='mls',
+                                       creator_client=cid.client) \
                     .check(status=201).json()
         assert conv['protocol'] == 'mls'
         group_id = conv['group_id']
@@ -141,11 +147,12 @@ class MLS:
         return MessagePackage(sender=cid, message=msg)
 
     def send_and_consume_message(self, mp):
-        events = self.ctx.mls_message(mp.sender.user, mp.message) \
-                     .check(status=201).json()
+        ctx = self.ctxs[mp.sender.user['domain']]
+        events = ctx.mls_message(mp.sender.user, mp.message) \
+                    .check(status=201).json()
         self.consume_message(mp)
         if mp.welcome:
-            self.ctx.mls_welcome(mp.sender.user, mp.welcome).check(status=201)
+            ctx.mls_welcome(mp.sender.user, mp.welcome).check(status=201)
             self.consume_welcome(mp.welcome)
         return events
 

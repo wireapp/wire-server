@@ -14,7 +14,7 @@ def test_metrics(ctx):
         assert "TYPE http_request_duration_seconds histogram" in r.text
 
 def test_get_conv_v2(ctx):
-    alice, bob = setup.connected_users(ctx, 2)
+    alice, bob = setup.connected_users((ctx, 2))
     with ctx.create_conversation(alice, users=[bob]) as r:
         assert r.status_code == 201
         conv = conversions.conv_v2(r.json())
@@ -24,7 +24,7 @@ def test_get_conv_v2(ctx):
         assert conv == r.json()
 
 def test_create_proteus_conv(ctx):
-    users = setup.connected_users(ctx, 3)
+    users = setup.connected_users((ctx, 3))
     alice, bob, jane = users
 
     name = "a" * 256
