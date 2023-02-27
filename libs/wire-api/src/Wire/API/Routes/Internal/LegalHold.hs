@@ -24,12 +24,10 @@ import Data.Swagger
 import Imports
 import Servant.API hiding (Header, WithStatus)
 import Servant.Swagger
-import Wire.API.SwaggerServant
 import Wire.API.Team.Feature
 
 type InternalLegalHoldAPI =
-  SwaggerTag "legalhold"
-    :> "i"
+  "i"
     :> "teams"
     :> ( Capture "tid" TeamId
            :> "legalhold"

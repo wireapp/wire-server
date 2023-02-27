@@ -95,6 +95,7 @@ import qualified Data.ZAuth.Token as ZAuth
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
+import Network.Socket (PortNumber)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Polysemy
@@ -113,7 +114,6 @@ import qualified Wire.API.Routes.Internal.Brig as BrigInternalAPI
 import qualified Wire.API.Routes.Internal.Cannon as CannonInternalAPI
 import qualified Wire.API.Routes.Internal.Cargohold as CargoholdInternalAPI
 import qualified Wire.API.Routes.Internal.Galley as GalleyInternalAPI
-import qualified Wire.API.Routes.Internal.LegalHold as LegalHoldInternalAPI
 import qualified Wire.API.Routes.Internal.Spar as SparInternalAPI
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named (Named (Named))
@@ -150,7 +150,14 @@ import Wire.Sem.Now (Now)
 -- User API -----------------------------------------------------------
 
 docsAPI :: Servant.Server DocsAPI
-docsAPI = versionedSwaggerDocsAPI :<|> pure eventNotificationSchemas :<|> internalEndpointsSwaggerDocsAPI
+docsAPI =
+  versionedSwaggerDocsAPI
+    :<|> pure eventNotificationSchemas
+    :<|> internalEndpointsSwaggerDocsAPI "brig" 9082 BrigInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI "cannon" 9093 CannonInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI "cargohold" 9094 CargoholdInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI "galley" 9095 GalleyInternalAPI.swaggerDoc
+    :<|> internalEndpointsSwaggerDocsAPI "spar" 9098 SparInternalAPI.swaggerDoc
 
 -- | Serves Swagger docs for public endpoints
 --
@@ -182,31 +189,21 @@ versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 -- empty. It would have been too tedious to create them. Please add
 -- pre-generated docs on version increase as it's done in
 -- `versionedSwaggerDocsAPI`.
-internalEndpointsSwaggerDocsAPI :: Servant.Server InternalEndpointsSwaggerDocsAPI
-internalEndpointsSwaggerDocsAPI (Just V3) =
+internalEndpointsSwaggerDocsAPI ::
+  String ->
+  PortNumber ->
+  S.Swagger ->
+  Servant.Server (VersionedSwaggerDocsAPIBase service)
+internalEndpointsSwaggerDocsAPI service examplePort swagger (Just V3) =
   swaggerSchemaUIServer $
-    ( BrigInternalAPI.swaggerDoc
-        <> CannonInternalAPI.swaggerDoc
-        <> CargoholdInternalAPI.swaggerDoc
-        <> LegalHoldInternalAPI.swaggerDoc
-        <> GalleyInternalAPI.swaggerDoc
-        <> SparInternalAPI.swaggerDoc
-    )
-      & S.info . S.title .~ "Wire-Server internal API"
-      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger-internal-endpoints.md")
+    swagger
+      & adjustSwaggerForInternalEndpoint service examplePort
       & cleanupSwagger
-internalEndpointsSwaggerDocsAPI (Just V0) = emptySwagger
-internalEndpointsSwaggerDocsAPI (Just V1) = emptySwagger
-internalEndpointsSwaggerDocsAPI (Just V2) = emptySwagger
-internalEndpointsSwaggerDocsAPI Nothing = internalEndpointsSwaggerDocsAPI (Just maxBound)
-
-emptySwagger :: Servant.Server VersionedSwaggerDocsAPIBase
-emptySwagger =
-  swaggerSchemaUIServer $
-    mempty @S.Swagger
-      & S.info . S.title .~ "Wire-Server internal API"
-      & S.info . S.description
-        ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
+internalEndpointsSwaggerDocsAPI _ _ _ (Just V0) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just V1) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just V2) = emptySwagger
+internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
+  internalEndpointsSwaggerDocsAPI service examplePort swagger (Just maxBound)
 
 servantSitemap ::
   forall r p.

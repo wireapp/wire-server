@@ -1146,7 +1146,7 @@ CREATE TABLE brig_test.provider (
 CREATE TABLE brig_test.user_keys (
     key text PRIMARY KEY,
     user uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1187,7 +1187,7 @@ CREATE TABLE brig_test.invitee_info (
     invitee uuid PRIMARY KEY,
     conv uuid,
     inviter uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1400,7 +1400,7 @@ CREATE TABLE brig_test.user (
     sso_id text,
     status int,
     team uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1508,7 +1508,7 @@ CREATE TABLE brig_test.oauth_auth_code (
     redirect_uri blob,
     scope set<text>,
     user uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
@@ -1623,7 +1623,7 @@ CREATE TABLE brig_test.connection (
     status int,
     PRIMARY KEY (left, right)
 ) WITH CLUSTERING ORDER BY (right ASC)
-    AND bloom_filter_fp_chance = 0.01
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1668,7 +1668,7 @@ CREATE TABLE brig_test.activation_keys (
     key_type ascii,
     retries int,
     user uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
