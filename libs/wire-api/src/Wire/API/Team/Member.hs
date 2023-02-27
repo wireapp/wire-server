@@ -271,7 +271,8 @@ instance ToSchema (TeamMember' tag) => ToSchema (TeamMemberList' tag) where
         <*> _teamMemberListType
           .= fieldWithDocModifier "hasMore" (description ?~ "true if 'members' doesn't contain all team members") schema
 
-type HardTruncationLimit = (2000 :: Nat)
+-- TODO: Revert this to 2000 before mergin 'mls' to the develop branch
+type HardTruncationLimit = (100000 :: Nat)
 
 hardTruncationLimit :: Integral a => a
 hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
