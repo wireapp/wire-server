@@ -226,9 +226,6 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
        alter columnfamily user add country ascii;
        |]
 
-  -- Change client IDs from ascii to text
-  schema' [r| alter columnfamily clients alter client type text; |]
-  schema' [r| alter columnfamily prekeys alter client type text; |]
 
   -- Add additional client properties
   schema' [r| alter columnfamily clients add class int; |]
