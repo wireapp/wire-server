@@ -179,3 +179,12 @@ def claim_key_packages(ctx, user, target, **kwargs):
         'headers': std_headers(user)
     }
     return ctx.send(args, kwargs)
+
+def remove_member(ctx, user, conv, target, **kwargs):
+    args = {
+        'method': 'DELETE',
+        'url': ctx.mkurl('galley',
+             f'/conversations/{obj_path(conv)}/members/{obj_path(target)}'),
+        'headers': std_headers(user)
+    }
+    return ctx.send(args, kwargs)

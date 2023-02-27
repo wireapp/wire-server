@@ -11,7 +11,10 @@ from urllib.parse import urlencode
 from .. import api
 from ..conversions import *
 
-DEFAULT_TIMEOUT = 1
+DEFAULT_TIMEOUT = 0.1
+
+class Timeout(Exception):
+    pass
 
 def random_conn_id():
     return str(random.randrange(0, 4294967296))
@@ -26,7 +29,8 @@ class WS:
     def __init__(self, msgs):
         self.msgs = msgs
 
-    def match(self, p=lambda e: True, user=None, type=None, timeout=DEFAULT_TIMEOUT):
+    def match(self, p=lambda e: True, user=None, client=None,
+              type=None, timeout=DEFAULT_TIMEOUT):
         """
         Extract an event for a given user from the stream of events in a
         websocket. The event is identified by a predicate.
@@ -37,25 +41,28 @@ class WS:
             while True:
                 remaining = endtime - time.time()
                 if remaining <= 0: break
-                uid, e = self.msgs.get(timeout=remaining)
+                e = self.msgs.get(timeout=remaining)
 
                 # if the queue contains an exception, just raise it here
                 if isinstance(e, Exception): raise e
 
                 def check():
                     if not p(e): return False
-                    if user is not None and obj_qid(user) != uid: return False
-                    if type is not None and e['type'] != type: return False
+                    if user is not None and obj_qid(user) != e['target_user']:
+                        return False
+                    if client is not None and client != e['target_client']:
+                        return False
+                    if type is not None and e['type'] != type:
+                        return False
                     return True
 
                 if check(): return e
-                processed.append((uid, e))
+                processed.append(e)
         except queue.Empty:
             pass
         finally:
-            for x in processed:
-                self.msgs.put(x)
-        assert False, "event timeout expired"
+            for e in processed: self.msgs.put(e)
+        raise Timeout()
 
 @contextmanager
 def ws_connect_users(ctx, *users):
@@ -91,7 +98,7 @@ def ws_connect_users(ctx, *users):
     async def main(cm, wss):
         try:
             for (user, client), ws in zip(users, wss):
-                asyncio.create_task(get_messages(obj_qid(user), ws))
+                asyncio.create_task(get_messages(obj_qid(user), client, ws))
             await control.get()
             for ws in wss:
                 await ws.close()
@@ -99,7 +106,7 @@ def ws_connect_users(ctx, *users):
             for cm in cms:
                 await cm.__aexit__(None, None, None)
 
-    async def get_messages(uid, ws):
+    async def get_messages(uid, client, ws):
         try:
             async for msg in ws:
                 e = json.loads(msg, object_hook=frozendict)
@@ -111,9 +118,13 @@ def ws_connect_users(ctx, *users):
                     event[k] = v
                 del event['payload']
 
-                msgs.put((uid, frozendict(event)))
+                # add target
+                event['target_user'] = uid
+                event['target_client'] = client
+
+                msgs.put(frozendict(event))
         except Exception as e:
-            msgs.put((uid, e))
+            msgs.put(e)
 
     async def shutdown():
         await control.put(None)

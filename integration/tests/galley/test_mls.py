@@ -1,3 +1,6 @@
+import base64
+import pytest
+
 from helpers import setup
 from helpers.conversions import *
 
@@ -81,5 +84,50 @@ def test_remote_welcome(ctx, ctx2, mls):
     with setup.ws_connect_users(ctx2, bill1) as ws:
         mls.send_and_consume_commit(mp)
         e = ws.match(type='conversation.mls-welcome')
+        assert not e['transient']
         assert e['conversation'] == obj_id(bill)
         assert e['qualified_from'] == obj_qid(bill)
+
+def test_remote_welcome_kp_not_found(ctx, ctx2, mls):
+    alice, bill = setup.connected_users((ctx, 1), (ctx2, 1))
+    alice1 = mls.create_client(alice)
+    bill1 = mls.create_client(bill)
+    kp = mls.generate_key_package(bill1)
+    mls.setup_group(alice1)
+    mp = mls.create_add_commit(alice1, extra_key_packages={bill1: kp})
+    with setup.ws_connect_users(ctx2, bill1) as ws:
+        mls.send_and_consume_commit(mp)
+        with pytest.raises(setup.Timeout):
+            ws.match(type='conversation.mls-welcome')
+
+def test_remove_proposal(ctx, mls):
+    alice, bob = setup.connected_users((ctx, 2))
+    alice1 = mls.create_client(alice)
+    bob1, bob2 = (mls.create_client(bob) for _ in range(2))
+    for c in (bob1, bob2): mls.upload_new_key_package(c)
+    mls.setup_group(alice1)
+    mls.send_and_consume_commit(mls.create_add_commit(alice1, users=[bob]))
+
+    with setup.ws_connect_users(ctx, alice1, bob1, bob2) as ws:
+        mls.leave(alice)
+
+        # only bob's clients should receive the external proposals
+        for c in bob1, bob2:
+            e = ws.match(type='conversation.mls-message-add',
+                         user=c.user, client=c.client)
+            assert e['qualified_from'] == obj_qid(alice)
+            # TODO: re-enable this once the removal key is set
+            # mls.consume_message_for(c, base64.b64decode(e['data']))
+
+        # but everyone should receive leave events
+        for c in alice1, bob1, bob2:
+            e = ws.match(type='conversation.member-leave',
+                         user=c.user, client=c.client)
+            assert e['qualified_from'] == obj_qid(alice)
+            assert e['conversation'] == obj_id(mls.conversation)
+
+        # check that no more events are sent, so in particular alice does not
+        # receive any mls messages
+        with pytest.raises(setup.Timeout): ws.match()
+
+    # TODO: commit the external proposal

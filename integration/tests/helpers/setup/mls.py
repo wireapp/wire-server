@@ -40,6 +40,7 @@ class MLS:
         self.members = []
         self.new_members = []
         self.epoch = None
+        self.conversation = None
 
     def __getitem__(self, cid):
         return self.state[cid]
@@ -101,6 +102,7 @@ class MLS:
         self[cid].group = group
 
         self.epoch = 0
+        self.conversation = obj_qid(conv)
         self.members = [cid]
 
     def key_package_file(self, kp):
@@ -145,6 +147,16 @@ class MLS:
         msg = self.cli(cid, "message", "--group", "<group-in>", text)
 
         return MessagePackage(sender=cid, message=msg)
+
+    def leave(self, user):
+        user = obj_qid(user)
+        ctx = self.ctxs[user['domain']]
+        ctx.remove_member(user, self.conversation, user).check(status=200)
+
+        # remove states, members and new_members
+        self.state = {m:s for m, s in self.state.items() if m.user != user}
+        self.members = [m for m in self.members if m.user != user]
+        self.new_members = [m for m in self.new_members if m.user != user]
 
     def send_and_consume_message(self, mp):
         ctx = self.ctxs[mp.sender.user['domain']]
