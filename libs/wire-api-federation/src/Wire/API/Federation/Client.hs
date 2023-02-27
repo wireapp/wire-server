@@ -175,7 +175,7 @@ withHTTP2Request mSSLCtx req hostname port k = do
         HTTP2.run clientConfig conf $ \sendRequest ->
           sendRequest req $ \resp -> do
             let headers = headersFromTable (HTTP2.responseHeaders resp)
-                result = fromAction BS.null (HTTP2.getResponseBodyChunk resp)
+                result = fromAction BS.null $ HTTP2.getResponseBodyChunk resp
             case HTTP2.responseStatus resp of
               Nothing -> E.throw FederatorClientNoStatusCode
               Just status ->
@@ -365,24 +365,8 @@ allocTLSConfig :: SSL -> HTTP2.BufferSize -> IO HTTP2.Config
 allocTLSConfig ssl bufsize = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
-  ref <- newIORef mempty
   let readData :: Int -> IO ByteString
-      readData n = do
-        chunk <- readIORef ref
-        if BS.length chunk >= n
-          then case BS.splitAt n chunk of
-            (result, chunk') -> do
-              writeIORef ref chunk'
-              pure result
-          else do
-            -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
-            -- (some sites terminate SSL connection right after returning the data).
-            chunk' <- SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
-            if BS.null chunk'
-              then pure chunk
-              else do
-                modifyIORef ref (<> chunk')
-                readData n
+      readData n = SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
   pure
     HTTP2.Config
       { HTTP2.confWriteBuffer = buf,
