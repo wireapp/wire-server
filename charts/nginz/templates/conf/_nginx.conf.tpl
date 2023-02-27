@@ -296,7 +296,7 @@ http {
 
             {{- if not ($location.disable_zauth) }}
         proxy_set_header   Authorization  "";
-            {{- end }}            
+            {{- end }}
 
         proxy_set_header   Z-Type         $zauth_type;
         proxy_set_header   Z-User         $zauth_user;
