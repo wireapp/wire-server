@@ -240,7 +240,8 @@ withInfiniteMockServer k = bracket (startMockServer Nothing app) fst (k . snd)
       Wai.responseStream HTTP.ok200 mempty $ \write flush ->
         let go n = do
               when (n == 0) flush
-              write (byteString "Hello\n") *> go (if n == 0 then 100 else n - 1)
+              write (byteString "Hello\n")
+              go (if n == 0 then 100 else n - 1)
          in go (1000 :: Int)
 
 -- SourceT utilities

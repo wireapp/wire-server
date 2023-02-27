@@ -126,14 +126,14 @@ callOutward req = do
   rd <- parseRequestData req
   domain <- parseDomainText (rdTargetDomain rd)
   ensureCanFederateWith domain
-  resp <-
-    discoverAndCall
-      domain
-      (rdComponent rd)
-      (rdRPC rd)
-      (rdHeaders rd)
-      (fromLazyByteString (rdBody rd))
-  pure $ streamingResponseToWai resp
+  discoverAndCall
+    domain
+    (rdComponent rd)
+    (rdRPC rd)
+    (rdHeaders rd)
+    (fromLazyByteString (rdBody rd))
+    -- TODO: It doesn't look like this will actuallly consume the body before returning
+    (pure . streamingResponseToWai)
 
 serveOutward :: Env -> Int -> IO ()
 serveOutward = serve callOutward
