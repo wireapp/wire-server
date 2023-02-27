@@ -71,7 +71,7 @@ data:
       {{- end -}}
       {{- if .settings.disabledAPIVersions }}
       disabledAPIVersions: {{ .settings.disabledAPIVersions }}
-      {{- end }}     
+      {{- end }}
       {{- if .settings.featureFlags }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
