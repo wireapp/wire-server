@@ -71,8 +71,11 @@ class MLS:
 
         return cid
 
+    def generate_key_package(self, cid):
+        return self.cli(cid, "key-package", "create")
+
     def upload_new_key_package(self, cid):
-        kp = self.cli(cid, "key-package", "create")
+        kp = self.generate_key_package(cid)
         self.ctx.upload_key_packages(cid.user, cid.client, [kp]).check(status=201)
 
     def claim_key_packages(self, cid, user):
@@ -99,13 +102,20 @@ class MLS:
             kpf.write(kp)
             return kpf.name
 
-    def create_add_commit(self, cid, users):
+    def create_add_commit(self, cid, users=None, extra_key_packages=None):
         # note: these files are saved in the sender's client dir
         welcome_file = self.temp()
         pgs_file = self.temp()
 
-        key_packages = {c: self.key_package_file(kp) for user in users 
-                        for c, kp in self.claim_key_packages(cid, user)}
+        key_packages = {}
+
+        for user in (users or []):
+            for c, kp in self.claim_key_packages(cid, user):
+                key_packages[c] = self.key_package_file(kp)
+        if extra_key_packages is not None:
+            for c, kp in extra_key_packages.items():
+                key_packages[c] = self.key_package_file(kp)
+
         assert len(key_packages) > 0
 
         msg = self.cli(cid, 

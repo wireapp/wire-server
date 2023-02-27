@@ -51,3 +51,18 @@ def test_welcome(mls):
         assert not e['transient']
         assert e['conversation'] == qid['id']
         assert e['qualified_from'] == qid
+
+def test_welcome_no_key(mls):
+    alice, bob = setup.connected_users(mls.ctx, 2)
+    alice1 = mls.create_client(alice)
+    bob1 = mls.create_client(bob)
+    mls.setup_group(alice1)
+
+    # add bob using an "out-of-band" key package
+    kp = mls.generate_key_package(bob1)
+    mp = mls.create_add_commit(alice1, extra_key_packages={bob1: kp})
+    assert mp.welcome, "expected welcome message"
+
+    with mls.ctx.mls_welcome(alice, mp.welcome) as r:
+        assert r.status_code == 404
+        assert r.json()['label'] == "mls-key-package-ref-not-found"
