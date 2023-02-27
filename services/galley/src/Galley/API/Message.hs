@@ -77,6 +77,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
@@ -214,7 +215,7 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
       )
 
 getRemoteClients ::
-  (Member FederatorAccess r, CallsFed 'Brig "get-user-clients") =>
+  (Member FederatorAccess r) =>
   [RemoteMember] ->
   Sem r [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))]
 getRemoteClients remoteMembers =
@@ -223,13 +224,14 @@ getRemoteClients remoteMembers =
   -- which domains and users aren't contactable at the moment.
   tUnqualified <$$$> runFederatedConcurrentlyEither (map rmId remoteMembers) getRemoteClientsFromDomain
   where
+    getRemoteClientsFromDomain :: Remote [UserId] -> FederatorClient 'Brig (Map (Domain, UserId) (Set ClientId))
     getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
 -- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
-  (Member FederatorAccess r, CallsFed 'Galley "send-message") =>
+  (Member FederatorAccess r) =>
   Qualified UserId ->
   Remote ConvId ->
   ByteString ->
@@ -369,9 +371,7 @@ postQualifiedOtrMessage ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member TeamStore r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+    Member P.TinyLog r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -525,8 +525,7 @@ sendMessages ::
       Member ExternalAccess r,
       Member FederatorAccess r,
       Member P.TinyLog r
-    ),
-    CallsFed 'Galley "on-message-sent"
+    )
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -608,8 +607,7 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
 sendRemoteMessages ::
   forall r x.
   ( Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "on-message-sent"
+    Member P.TinyLog r
   ) =>
   Remote x ->
   UTCTime ->

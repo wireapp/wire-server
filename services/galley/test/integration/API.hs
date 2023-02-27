@@ -1199,7 +1199,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients2 = do
                     *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
                 )
 
-    (resp2, _requests) <- withTempMockFederator' mock $ 
+    (resp2, _requests) <- withTempMockFederator' mock $
       postProteusMessageQualified
         aliceUnqualified
         aliceClient
