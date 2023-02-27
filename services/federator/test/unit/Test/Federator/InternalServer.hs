@@ -75,13 +75,13 @@ federatedRequestSuccess =
           }
     let interpretCall :: Member (Embed IO) r => Sem (Remote ': r) a -> Sem r a
         interpretCall = interpret $ \case
-          DiscoverAndCall domain component rpc headers body respConsumer -> embed @IO $ do
+          DiscoverAndCall domain component rpc headers body -> embed @IO $ do
             domain @?= targetDomain
             component @?= Brig
             rpc @?= "get-user-by-handle"
             headers @?= requestHeaders
             toLazyByteString body @?= "\"foo\""
-            respConsumer
+            pure
               Response
                 { responseStatusCode = HTTP.ok200,
                   responseHeaders = mempty,
@@ -117,17 +117,16 @@ federatedRequestFailureAllowList =
             trExtraHeaders = headers
           }
 
-    let checkRequest :: Member (Embed IO) r => Sem (Remote ': r) a -> Sem r a
+    let checkRequest :: Sem (Remote ': r) a -> Sem r a
         checkRequest = interpret $ \case
-          DiscoverAndCall _domain _component _rpc _headers _body respConsumer ->
-            embed $
-              respConsumer
-                Response
-                  { responseStatusCode = HTTP.ok200,
-                    responseHeaders = mempty,
-                    responseHttpVersion = HTTP.http20,
-                    responseBody = source ["\"bar\""]
-                  }
+          DiscoverAndCall {} ->
+            pure
+              Response
+                { responseStatusCode = HTTP.ok200,
+                  responseHeaders = mempty,
+                  responseHttpVersion = HTTP.http20,
+                  responseBody = source ["\"bar\""]
+                }
 
     eith <-
       runM

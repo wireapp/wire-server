@@ -27,6 +27,7 @@ module Federator.Remote
 where
 
 import qualified Control.Exception as E
+import Control.Monad.Codensity
 import Data.Binary.Builder
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
@@ -91,13 +92,12 @@ data Remote m a where
     Text ->
     [HTTP.Header] ->
     Builder ->
-    (StreamingResponse -> IO a) ->
-    Remote m a
+    Remote m StreamingResponse
 
 makeSem ''Remote
 
 interpretRemote ::
-  ( Member (Embed IO) r,
+  ( Member (Embed (Codensity IO)) r,
     Member DiscoverFederator r,
     Member (Error DiscoveryFailure) r,
     Member (Error RemoteError) r,
@@ -106,7 +106,7 @@ interpretRemote ::
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
-  DiscoverAndCall domain component rpc headers body respConsumer -> do
+  DiscoverAndCall domain component rpc headers body -> do
     target@(SrvTarget hostname port) <- discoverFederatorWithError domain
     let path =
           LBS.toStrict . toLazyByteString $
@@ -116,13 +116,17 @@ interpretRemote = interpret $ \case
         req' = HTTP2.requestBuilder HTTP.methodPost path headers' body
 
     sslCtx <- input
-    (fromEither @RemoteError =<<)
-      . embed
-      . E.handle (pure . Left . RemoteError target)
-      $ withHTTP2Request (Just sslCtx) req' hostname (fromIntegral port)
-      $ \resp -> do
-        if HTTP.statusIsSuccessful (responseStatusCode resp)
-          then Right <$> respConsumer resp
-          else do
-            bdy <- streamingResponseStrictBody resp
-            pure . Left $ RemoteErrorResponse target (responseStatusCode resp) (toLazyByteString bdy)
+    resp <- mapError (RemoteError target) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
+      Codensity $ \k ->
+        E.catch
+          (withHTTP2Request (Just sslCtx) req' hostname (fromIntegral port) (k . Right))
+          (k . Left)
+
+    unless (HTTP.statusIsSuccessful (responseStatusCode resp)) $ do
+      bdy <- embed @(Codensity IO) . liftIO $ streamingResponseStrictBody resp
+      throw $
+        RemoteErrorResponse
+          target
+          (responseStatusCode resp)
+          (toLazyByteString bdy)
+    pure resp

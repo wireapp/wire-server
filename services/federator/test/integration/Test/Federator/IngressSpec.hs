@@ -61,17 +61,17 @@ spec env = do
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-        runTestSem
-          . assertNoError @RemoteError
-          . inwardBrigCallViaIngress "get-user-by-handle" (Aeson.fromEncoding (Aeson.toEncoding hdl))
-          $ \resp -> do
-            hFlush stdout
-            liftIO $ do
-              bdy <- streamingResponseStrictBody resp
-              hFlush stdout
-              let actualProfile = Aeson.decode (toLazyByteString bdy)
-              responseStatusCode resp `shouldBe` HTTP.status200
-              actualProfile `shouldBe` Just expectedProfile
+        resp <-
+          runTestSem
+            . assertNoError @RemoteError
+            $ inwardBrigCallViaIngress
+              "get-user-by-handle"
+              (Aeson.fromEncoding (Aeson.toEncoding hdl))
+        liftIO $ do
+          bdy <- streamingResponseStrictBody resp
+          let actualProfile = Aeson.decode (toLazyByteString bdy)
+          responseStatusCode resp `shouldBe` HTTP.status200
+          actualProfile `shouldBe` Just expectedProfile
 
   -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
   --
@@ -103,7 +103,6 @@ spec env = do
             sslCtxWithoutCert
             "get-user-by-handle"
             (Aeson.fromEncoding (Aeson.toEncoding hdl))
-            pure
       liftIO $ case r of
         Right _ -> expectationFailure "Expected client certificate error, got response"
         Left (RemoteError _ _) ->
@@ -128,20 +127,18 @@ inwardBrigCallViaIngress ::
   Members [Input TestEnv, Embed IO, Error RemoteError] r =>
   Text ->
   Builder ->
-  (StreamingResponse -> IO a) ->
-  Sem r a
-inwardBrigCallViaIngress path payload respConsumer = do
+  Sem r StreamingResponse
+inwardBrigCallViaIngress path payload = do
   sslCtx <- inputs (view teSSLContext)
-  inwardBrigCallViaIngressWithSettings sslCtx path payload respConsumer
+  inwardBrigCallViaIngressWithSettings sslCtx path payload
 
 inwardBrigCallViaIngressWithSettings ::
   Members [Input TestEnv, Embed IO, Error RemoteError] r =>
   SSLContext ->
   Text ->
   Builder ->
-  (StreamingResponse -> IO a) ->
-  Sem r a
-inwardBrigCallViaIngressWithSettings sslCtx requestPath payload respConsumer =
+  Sem r StreamingResponse
+inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
   do
     Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> input
     originDomain <- cfgOriginDomain . view teTstOpts <$> input
@@ -152,4 +149,4 @@ inwardBrigCallViaIngressWithSettings sslCtx requestPath payload respConsumer =
       . discoverConst target
       . runEmbedded @(Codensity IO) @IO lowerCodensity
       . interpretRemote
-      $ discoverAndCall (Domain "example.com") Brig requestPath headers payload respConsumer
+      $ discoverAndCall (Domain "example.com") Brig requestPath headers payload

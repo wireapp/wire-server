@@ -18,6 +18,7 @@
 module Test.Federator.Remote where
 
 import Control.Exception (bracket)
+import Control.Monad.Codensity
 import Data.Domain
 import Federator.Discovery
 import Federator.Options
@@ -31,6 +32,7 @@ import qualified Network.Wai.Handler.WarpTLS as Warp
 import Network.Wai.Utilities.MockServer (startMockServer)
 import OpenSSL.Session (SSLContext)
 import Polysemy
+import Polysemy.Embed
 import Polysemy.Error
 import Polysemy.Input
 import Test.Federator.Options (defRunSettings)
@@ -79,11 +81,13 @@ mkTestCall :: SSLContext -> ByteString -> Int -> IO (Either RemoteError ())
 mkTestCall sslCtx hostname port =
   runM
     . runError @RemoteError
+    . void
     . runInputConst sslCtx
     . discoverLocalhost hostname port
     . assertNoError @DiscoveryFailure
+    . runEmbedded @(Codensity IO) @IO lowerCodensity
     . interpretRemote
-    $ discoverAndCall (Domain "localhost") Brig "test" [] mempty (void . pure)
+    $ discoverAndCall (Domain "localhost") Brig "test" [] mempty
 
 withMockServer :: Warp.TLSSettings -> (Warp.Port -> IO a) -> IO a
 withMockServer tls k =
