@@ -64,12 +64,16 @@ AUTH_CODE=$(
     awk -F ': ' '/^Location/ {print $2}' | awk -F'[=&]' '{print $2}'
 )
 
-ACCESS_TOKEN=$(
-  curl -s -X POST localhost:8082/oauth/token \
+ACCESS_TOKEN_RESPONSE=$(
+  curl -s -X POST localhost:8080/oauth/token \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d 'code='"$AUTH_CODE"'&client_id='"$CLIENT_ID"'&grant_type=authorization_code&redirect_uri=https://example.com&client_secret='"$CLIENT_SECRET" |
-    jq -r '.accessToken'
+    -d 'code='"$AUTH_CODE"'&client_id='"$CLIENT_ID"'&grant_type=authorization_code&redirect_uri=https://example.com&client_secret='"$CLIENT_SECRET"
 )
+
+echo "$ACCESS_TOKEN_RESPONSE" | jq
+
+ACCESS_TOKEN=$(echo "$ACCESS_TOKEN_RESPONSE" | jq -r '.accessToken')
+REFRESH_TOKEN=$(echo "$ACCESS_TOKEN_RESPONSE" | jq -r '.refreshToken')
 
 echo "client id    : $CLIENT_ID"
 echo "client secret: $CLIENT_SECRET"
@@ -80,3 +84,20 @@ echo "access token : $ACCESS_TOKEN"
 echo ""
 echo "making a request to /self..."
 curl -s -H 'Authorization: Bearer '"$ACCESS_TOKEN" -H "Content-Type: application/json" localhost:8080/self | jq
+
+REFRESH_ACCESS_TOKEN_RESPONSE=$(
+  curl -s -X POST localhost:8080/oauth/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d 'refresh_token='"$REFRESH_TOKEN"'&client_id='"$CLIENT_ID"'&grant_type=refresh_token&client_secret='"$CLIENT_SECRET"
+)
+
+NEW_ACCESS_TOKEN=$(echo "$REFRESH_ACCESS_TOKEN_RESPONSE" | jq -r '.accessToken')
+
+echo ""
+echo "making a request to /self with a new access token ..."
+curl -s -H 'Authorization: Bearer '"$NEW_ACCESS_TOKEN" -H "Content-Type: application/json" localhost:8080/self | jq
+
+echo ""
+echo "Getting list of OAuth apps with account access..."
+
+curl -s -H 'Z-User: '"$USER" localhost:8082/oauth/applications | jq

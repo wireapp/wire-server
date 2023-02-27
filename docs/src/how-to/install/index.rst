@@ -19,7 +19,6 @@ Installing wire-server
    (production) Other configuration options <configuration-options.rst>
    Server and team feature settings <team-feature-settings.md>
    Messaging Layer Security (MLS) <mls.md>
-   OAuth <oauth.md>
    Web app settings <web-app-settings.md>
    sft
    restund

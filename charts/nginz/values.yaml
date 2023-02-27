@@ -389,6 +389,9 @@ nginx_conf:
     - path: /oauth/authorization/codes
       envs:
       - all
+    - path: /oauth/applications
+      envs:
+      - all
     - path: /oauth/token
       envs:
       - all
