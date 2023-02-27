@@ -215,6 +215,7 @@ tests s =
             [ test s "get subconversation of MLS conv - 200" (testCreateSubConv True),
               test s "get subconversation of Proteus conv - 404" (testCreateSubConv False),
               test s "join subconversation with an external commit bundle" testJoinSubConv,
+              test s "rejoin a subconversation with the same client" testExternalCommitSameClientSubConv,
               test s "join subconversation with a client that is not in the parent conv" testJoinSubNonMemberClient,
               test s "fail to add another client to a subconversation via internal commit" testAddClientSubConvFailure,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
@@ -2332,6 +2333,36 @@ testJoinSubConv = do
       void $
         createExternalCommit alice1 Nothing (fmap (flip SubConv subId) qcnv)
           >>= sendAndConsumeCommitBundle
+
+testExternalCommitSameClientSubConv :: TestM ()
+testExternalCommitSameClientSubConv = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+
+    let subId = SubConvId "conference"
+
+    -- alice1 and bob1 create and join a subconversation, respectively
+    qsub <- createSubConv qcnv alice1 subId
+    void $
+      createExternalCommit bob1 Nothing qsub
+        >>= sendAndConsumeCommitBundle
+
+    Just (_, kpBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
+
+    -- bob1 leaves and immediately rejoins
+    mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
+      void $ leaveCurrentConv bob1 qsub
+      WS.assertMatchN_ (5 # WS.Second) [wsA] $
+        wsAssertBackendRemoveProposal bob qsub kpBob1
+      void $
+        createExternalCommit bob1 Nothing qsub
+          >>= sendAndConsumeCommitBundle
+      WS.assertNoEvent (2 # WS.Second) [wsB]
 
 testJoinSubNonMemberClient :: TestM ()
 testJoinSubNonMemberClient = do
