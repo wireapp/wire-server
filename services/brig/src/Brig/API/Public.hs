@@ -223,27 +223,24 @@ servantSitemap ::
      ]
     r =>
   ServerT BrigAPI (Handler r)
-servantSitemap = brigAPI
+servantSitemap =
+  userAPI
+    :<|> selfAPI
+    :<|> accountAPI
+    :<|> clientAPI
+    :<|> prekeyAPI
+    :<|> userClientAPI
+    :<|> connectionAPI
+    :<|> propertiesAPI
+    :<|> mlsAPI
+    :<|> userHandleAPI
+    :<|> searchAPI
+    :<|> authAPI
+    :<|> callingAPI
+    :<|> Team.servantAPI
+    :<|> systemSettingsAPI
+    :<|> oauthAPI
   where
-    brigAPI :: ServerT BrigAPI (Handler r)
-    brigAPI =
-      userAPI
-        :<|> selfAPI
-        :<|> accountAPI
-        :<|> clientAPI
-        :<|> prekeyAPI
-        :<|> userClientAPI
-        :<|> connectionAPI
-        :<|> propertiesAPI
-        :<|> mlsAPI
-        :<|> userHandleAPI
-        :<|> searchAPI
-        :<|> authAPI
-        :<|> callingAPI
-        :<|> Team.servantAPI
-        :<|> systemSettingsAPI
-        :<|> oauthAPI
-
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
       Named @"get-user-unqualified" (callsFed (exposeAnnotations getUserUnqualifiedH))
