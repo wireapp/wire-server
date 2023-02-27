@@ -263,13 +263,11 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
   -- Add even more client properties
   schema' [r| alter columnfamily clients add ip inet; |]
   schema' [r| alter columnfamily clients add lat double; |]
+  schema' [r| alter columnfamily clients add lon double; |]
+  -- Add model to clients
+  schema' [r| alter columnfamily clients add model text; |]
+  -- Add generic verification codes
   schema'
-    [r| alter columnfamily clients add lon double; |]
-    -- Add model to clients
-    schema'
-    [r| alter columnfamily clients add model text; |]
-    -- Add generic verification codes
-    schema'
     [r|
         create columnfamily if not exists codes
             ( user    uuid
@@ -292,12 +290,12 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     [r|
         alter columnfamily user add assets list<frozen<asset>>;
     |]
-    -- Add vcodes table
-    -- Supposed to cover all existing use-cases for short-lived
-    -- verification codes sent either by e-mail, sms or voice call,
-    -- eventually superseding the 'activation_keys', 'login_codes',
-    -- 'password_reset' and 'codes' tables.
-    schema'
+  -- Add vcodes table
+  -- Supposed to cover all existing use-cases for short-lived
+  -- verification codes sent either by e-mail, sms or voice call,
+  -- eventually superseding the 'activation_keys', 'login_codes',
+  -- 'password_reset' and 'codes' tables.
+  schema'
     [r|
         create table if not exists vcodes
             ( key       ascii -- opaque 'email' or 'phone'
@@ -378,13 +376,13 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     [r|
         alter table user add service uuid;
     |]
-    -- Add asset.size attribute
-    schema'
+  -- Add asset.size attribute
+  schema'
     [r|
         alter type asset add size int;
     |]
-    -- Add budget table
-    schema'
+  -- Add budget table
+  schema'
     [r|
         create table if not exists budget
             ( key    text
@@ -416,8 +414,8 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
     [r|
         alter table user add handle text;
     |]
-    -- Add user_cookies table
-    schema'
+  -- Add user_cookies table
+  schema'
     [r|
         create table if not exists user_cookies
             ( user    uuid
@@ -430,8 +428,8 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , primary key (user, expires, id)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-    -- Add hashed userkeys table
-    schema'
+  -- Add hashed userkeys table
+  schema'
     [r|
         create table if not exists user_keys_hash
             ( key      blob
@@ -440,8 +438,8 @@ migration = Migration 43 "Initial brig schema at time of open-sourcing wire-serv
             , primary key (key)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
-    -- Add searchable field to user table
-    schema'
+  -- Add searchable field to user table
+  schema'
     [r|
         alter table user add searchable boolean
     |]
