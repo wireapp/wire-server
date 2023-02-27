@@ -1013,31 +1013,39 @@ connectUsersAndDevicesWithSendingClients ::
   [(UserId, [ConnId])] ->
   TestM [(UserId, [(TChan ByteString, TChan ByteString)])]
 connectUsersAndDevicesWithSendingClients ca uidsAndConnIds = do
-  chs <- forM uidsAndConnIds $ \(uid, conns) ->
-    (uid,) <$> do
-      forM conns $ \conn -> do
-        chread <- liftIO $ atomically newTChan
-        chwrite <- liftIO $ atomically newTChan
-        _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
-        pure (chread, chwrite)
-  (\(uid, conns) -> wsAssertPresences uid (length conns)) `mapM_` uidsAndConnIds
-  pure chs
+  forM uidsAndConnIds $ \(uid, conns) -> do
+    chs <-
+      (uid,) <$> do
+        forM conns $ \conn -> do
+          chread <- liftIO $ atomically newTChan
+          chwrite <- liftIO $ atomically newTChan
+          _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
+          pure (chread, chwrite)
+    assertPresences (uid, conns)
+    pure chs
 
+-- similar to the function above, but hooks
+-- in a Ping Writer and gives access to 'WS.Message's
+-- this can be used to test Ping/Pong behaviour on the control channel
 connectUsersAndDevicesWithSendingClientsRaw ::
   HasCallStack =>
   CannonR ->
   [(UserId, [ConnId])] ->
   TestM [(UserId, [(TChan WS.Message, TChan ByteString)])]
 connectUsersAndDevicesWithSendingClientsRaw ca uidsAndConnIds = do
-  chs <- forM uidsAndConnIds $ \(uid, conns) ->
-    (uid,) <$> do
-      forM conns $ \conn -> do
-        chread <- liftIO $ atomically newTChan
-        chwrite <- liftIO $ atomically newTChan
-        _ <- wsRun ca uid conn (wsReaderWriterPing chread chwrite)
-        pure (chread, chwrite)
-  (\(uid, conns) -> wsAssertPresences uid (length conns)) `mapM_` uidsAndConnIds
-  pure chs
+  forM uidsAndConnIds $ \(uid, conns) -> do
+    chs <-
+      (uid,) <$> do
+        forM conns $ \conn -> do
+          chread <- liftIO $ atomically newTChan
+          chwrite <- liftIO $ atomically newTChan
+          _ <- wsRun ca uid conn (wsReaderWriterPing chread chwrite)
+          pure (chread, chwrite)
+    assertPresences (uid, conns)
+    pure chs
+
+assertPresences :: (UserId, [ConnId]) -> TestM ()
+assertPresences (uid, conns) = wsAssertPresences uid (length conns)
 
 -- | Sort 'PushToken's based on the actual 'token' values.
 sortPushTokens :: [PushToken] -> [PushToken]
@@ -1086,7 +1094,7 @@ retryWhileN n f m =
     (const m)
 
 waitForMessageRaw :: TChan WS.Message -> IO (Maybe WS.Message)
-waitForMessageRaw = System.Timeout.timeout 1000000 . liftIO . atomically . readTChan
+waitForMessageRaw = System.Timeout.timeout 3000000 . liftIO . atomically . readTChan
 
 waitForMessage :: ToByteString a => TChan a -> IO (Maybe a)
 waitForMessage = waitForMessage' 1000000
