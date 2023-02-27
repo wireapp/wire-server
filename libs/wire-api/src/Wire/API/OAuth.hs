@@ -47,6 +47,7 @@ import URI.ByteString
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
 import Wire.Arbitrary (GenericUniform (..))
+import qualified SAML2.WebSSO as configs
 
 --------------------------------------------------------------------------------
 -- Types
@@ -98,8 +99,8 @@ instance ToSchema NewOAuthClient where
   schema =
     object "NewOAuthClient" $
       NewOAuthClient
-        <$> nocApplicationName .= fieldWithDocModifier "applicationName" applicationNameDescription schema
-        <*> nocRedirectUrl .= fieldWithDocModifier "redirectUrl" redirectUrlDescription schema
+        <$> nocApplicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
+        <*> nocRedirectUrl .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
     where
       applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application."
       redirectUrlDescription = description ?~ "The URL to redirect to after the user has authorized the application."
@@ -131,8 +132,8 @@ instance ToSchema OAuthClientCredentials where
   schema =
     object "OAuthClientCredentials" $
       OAuthClientCredentials
-        <$> occClientId .= fieldWithDocModifier "clientId" clientIdDescription schema
-        <*> occClientSecret .= fieldWithDocModifier "clientSecret" clientSecretDescription schema
+        <$> occClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> occClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
     where
       clientIdDescription = description ?~ "The ID of the application."
       clientSecretDescription = description ?~ "The secret of the application."
@@ -149,9 +150,9 @@ instance ToSchema OAuthClient where
   schema =
     object "OAuthClient" $
       OAuthClient
-        <$> ocId .= field "clientId" schema
-        <*> ocName .= field "applicationName" schema
-        <*> ocRedirectUrl .= field "redirectUrl" schema
+        <$> ocId .= field "client_id" schema
+        <*> ocName .= field "application_name" schema
+        <*> ocRedirectUrl .= field "redirect_url" schema
 
 data OAuthResponseType = OAuthResponseTypeCode
   deriving (Eq, Show, Generic)
@@ -165,21 +166,11 @@ instance ToSchema OAuthResponseType where
         [ element "code" OAuthResponseTypeCode
         ]
 
--- | This types represents all valid OAuth scopes
--- If you want to add an OAuth scope, you may want to go through this checklist:
--- - Add the new scope to the list below
--- - Update `ToByteString` and `FromByteString` instance of `OAuthScope` (run unit tests)
--- - Implement an `IsOAuthScope` instance for the new scope
--- - For the endpoint(s) that require the new scope, replace:
---   - `ZUser` with `ZOauthUser '[ '<NewScope>]`
---   - or `ZLocalUser` with `ZOauthLocalUser '[ '<NewScope>]`
--- - If the endpoint has other ZAuth combinators like `ZConn` e.g., these have to be made optional (e.g. replace with `ZOptConn`)
--- - Update `services/nginz/integration-test/conf/nginz/nginx.conf` and replace
---   `include common_response_with_zauth.conf` with `include common_response_with_zauth_oauth.conf`
---   in location settings for the endpoint(s) in question
--- - Update `charts/nginz/values.yaml` and add `enable_oauth: true` to the endpoint in question
--- - Consider writing an integration test
--- todo(leif): update these docs
+-- | The OAuth scopes that are supported by the backend.
+-- This type is a bit redundant and unfortunately has to be kept in sync
+-- with the supported scopes defined in the nginx configs.
+-- However, having this typed makes it easier to handle scopes in the backend,
+-- and e.g. provide more meaningful error messages when the scope is invalid.
 data OAuthScope
   = ReadFeatureConfigs
   | ReadSelf
@@ -187,36 +178,6 @@ data OAuthScope
   | WriteConversationCode
   deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
-
-class IsOAuthScope scope where
-  toOAuthScope :: OAuthScope
-
-instance IsOAuthScope 'WriteConversation where
-  toOAuthScope = WriteConversation
-
-instance IsOAuthScope 'WriteConversationCode where
-  toOAuthScope = WriteConversationCode
-
-instance IsOAuthScope 'ReadSelf where
-  toOAuthScope = ReadSelf
-
-instance IsOAuthScope 'ReadFeatureConfigs where
-  toOAuthScope = ReadFeatureConfigs
-
--- | Given a type-level list of scopes X, this class gives you a function that tests if
--- a list of scopes from a token intersects with X, ie., if a token grants access to the route
--- with scopes X.
-class IsOAuthScopes scopes where
-  showOAuthScopeList :: Text
-  allowOAuthScopeList :: Set.Set OAuthScope -> Bool
-
-instance IsOAuthScopes '[] where
-  showOAuthScopeList = mempty
-  allowOAuthScopeList _ = False
-
-instance (IsOAuthScope scope, IsOAuthScopes scopes) => IsOAuthScopes (scope ': scopes) where
-  showOAuthScopeList = T.unwords [cs $ toByteString (toOAuthScope @scope), showOAuthScopeList @scopes]
-  allowOAuthScopeList scopes = ((toOAuthScope @scope) `Set.member` scopes) || allowOAuthScopeList @scopes scopes
 
 instance ToByteString OAuthScope where
   builder = \case
@@ -241,14 +202,14 @@ newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
 
 instance ToSchema OAuthScopes where
   schema = OAuthScopes <$> (oauthScopesToText . unOAuthScopes) .= withParser schema oauthScopeParser
+    where
+      oauthScopesToText :: Set OAuthScope -> Text
+      oauthScopesToText = T.intercalate " " . fmap (cs . toByteString') . Set.toList
 
-oauthScopesToText :: Set OAuthScope -> Text
-oauthScopesToText = T.intercalate " " . fmap (cs . toByteString') . Set.toList
-
-oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
-oauthScopeParser "" = pure Set.empty
-oauthScopeParser scope =
-  pure $ (not . T.null) `filter` T.splitOn " " scope & maybe Set.empty Set.fromList . mapM (fromByteString' . cs)
+      oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
+      oauthScopeParser "" = pure Set.empty
+      oauthScopeParser scope =
+        pure $ (not . T.null) `filter` T.splitOn " " scope & maybe Set.empty Set.fromList . mapM (fromByteString' . cs)
 
 data NewOAuthAuthCode = NewOAuthAuthCode
   { noacClientId :: OAuthClientId,
@@ -264,10 +225,10 @@ instance ToSchema NewOAuthAuthCode where
   schema =
     object "NewOAuthAuthCode" $
       NewOAuthAuthCode
-        <$> noacClientId .= fieldWithDocModifier "clientId" clientIdDescription schema
+        <$> noacClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
         <*> noacScope .= fieldWithDocModifier "scope" scopeDescription schema
-        <*> noacResponseType .= fieldWithDocModifier "responseType" responseTypeDescription schema
-        <*> noacRedirectUri .= fieldWithDocModifier "redirectUri" redirectUriDescription schema
+        <*> noacResponseType .= fieldWithDocModifier "response_type" responseTypeDescription schema
+        <*> noacRedirectUri .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
         <*> noacState .= fieldWithDocModifier "state" stateDescription schema
     where
       clientIdDescription = description ?~ "The ID of the OAuth client"
@@ -342,11 +303,11 @@ instance ToSchema OAuthAccessTokenRequest where
   schema =
     object "OAuthAccessTokenRequest" $
       OAuthAccessTokenRequest
-        <$> oatGrantType .= fieldWithDocModifier "grantType" grantTypeDescription schema
-        <*> oatClientId .= fieldWithDocModifier "clientId" clientIdDescription schema
-        <*> oatClientSecret .= fieldWithDocModifier "clientSecret" clientSecretDescription schema
+        <$> oatGrantType .= fieldWithDocModifier "grant_type" grantTypeDescription schema
+        <*> oatClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> oatClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
         <*> oatCode .= fieldWithDocModifier "code" codeDescription schema
-        <*> oatRedirectUri .= fieldWithDocModifier "redirectUri" redirectUriDescription schema
+        <*> oatRedirectUri .= fieldWithDocModifier "redirect_uri" redirectUriDescription schema
     where
       grantTypeDescription = description ?~ "Indicates which authorization flow to use. Use `authorization_code` for authorization code flow."
       clientIdDescription = description ?~ "The ID of the OAuth client"
@@ -428,10 +389,10 @@ instance ToSchema OAuthAccessTokenResponse where
   schema =
     object "OAuthAccessTokenResponse" $
       OAuthAccessTokenResponse
-        <$> oatAccessToken .= fieldWithDocModifier "accessToken" accessTokenDescription schema
-        <*> oatTokenType .= fieldWithDocModifier "tokenType" tokenTypeDescription schema
-        <*> oatExpiresIn .= fieldWithDocModifier "expiresIn" expiresInDescription (fromIntegral <$> roundDiffTime .= schema)
-        <*> oatRefreshToken .= fieldWithDocModifier "refreshToken" refreshTokenDescription schema
+        <$> oatAccessToken .= fieldWithDocModifier "access_token" accessTokenDescription schema
+        <*> oatTokenType .= fieldWithDocModifier "token_type" tokenTypeDescription schema
+        <*> oatExpiresIn .= fieldWithDocModifier "expires_in" expiresInDescription (fromIntegral <$> roundDiffTime .= schema)
+        <*> oatRefreshToken .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       roundDiffTime :: NominalDiffTime -> Int32
       roundDiffTime = round
@@ -464,9 +425,6 @@ hcsSub =
   view claimSub
     >=> preview string
     >=> either (const Nothing) pure . parseIdFromText
-
-hasScope :: forall scopes. IsOAuthScopes scopes => OAuthClaimsSet -> Bool
-hasScope = allowOAuthScopeList @scopes . unOAuthScopes . scope
 
 -- | Verify a JWT and return the claims set. Use this function if you have a custom claims set.
 verify :: JWK -> SignedJWT -> IO (Either JWTError OAuthClaimsSet)
@@ -551,9 +509,9 @@ instance ToSchema OAuthRevokeRefreshTokenRequest where
   schema =
     object "OAuthRevokeRefreshTokenRequest" $
       OAuthRevokeRefreshTokenRequest
-        <$> ortrClientId .= fieldWithDocModifier "clientId" clientIdDescription schema
-        <*> ortrClientSecret .= fieldWithDocModifier "clientSecret" clientSecretDescription schema
-        <*> ortrRefreshToken .= fieldWithDocModifier "refreshToken" refreshTokenDescription schema
+        <$> ortrClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
+        <*> ortrClientSecret .= fieldWithDocModifier "client_secret" clientSecretDescription schema
+        <*> ortrRefreshToken .= fieldWithDocModifier "refresh_token" refreshTokenDescription schema
     where
       clientIdDescription = description ?~ "The OAuth client's ID"
       clientSecretDescription = description ?~ "The OAuth client's secret"

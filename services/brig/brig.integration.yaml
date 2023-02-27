@@ -193,10 +193,10 @@ optSettings:
   setDpopTokenExpirationTimeSecs: 300 # 5 minutes
   setPublicKeyBundle: test/resources/jwt/ed25519_bundle.pem
   setEnableMLS: true
-  setAllowlistEmailDomains:
-    - wire.com
-  setAllowlistPhonePrefixes:
-    - "+1555555"
+  # setAllowlistEmailDomains:
+  #   - wire.com
+  # setAllowlistPhonePrefixes:
+  #   - "+1555555"
   setOAuthJwkKeyPair: test/resources/oauth/ed25519.jwk
   setOAuthAuthCodeExpirationTimeSecs: 3 # 3 secs
   setOAuthAccessTokenExpirationTimeSecs: 3 # 3 secs
