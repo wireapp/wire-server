@@ -211,63 +211,11 @@ executable federator
     -Wredundant-constraints
 
   build-depends:
-      aeson
-    , async
-    , base
-    , bilge
-    , binary
-    , bytestring
-    , bytestring-conversion
-    , constraints
-    , containers
-    , data-default
-    , dns
-    , dns-util
-    , either
-    , exceptions
-    , extended
+      base
     , federator
-    , filepath
-    , hinotify
-    , http-client
-    , http-client-openssl
-    , http-media
-    , http-types
-    , http2
+    , HsOpenSSL
     , imports
-    , kan-extensions
-    , lens
-    , metrics-core
-    , metrics-wai
-    , mtl
-    , network
-    , network-uri
-    , pem
-    , polysemy
-    , polysemy-wire-zoo
-    , retry
-    , servant
-    , servant-client-core
-    , streaming-commons
-    , string-conversions
-    , text
-    , time-manager
-    , tinylog
-    , tls
     , types-common
-    , unix
-    , uri-bytestring
-    , uuid
-    , wai
-    , wai-utilities
-    , warp
-    , warp-tls
-    , wire-api
-    , wire-api-federation
-    , x509
-    , x509-store
-    , x509-system
-    , x509-validation
 
   default-language:   Haskell2010
 
