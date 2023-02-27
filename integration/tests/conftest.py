@@ -21,11 +21,17 @@ if not CTX.check_status('brig'):
     import sys
     sys.exit(1)
 
+if not CTX2.check_status('brig'):
+    CTX2 = None
+
 @pytest.fixture
 def ctx(): return CTX
 
 @pytest.fixture
-def ctx2(): return CTX2
+def ctx2():
+    if CTX2 is None:
+        pytest.skip("no remote domain")
+    return CTX2
 
 @pytest.fixture
 def prekeys(): return Prekeys.new()
@@ -34,6 +40,9 @@ def prekeys(): return Prekeys.new()
 def domain(): return LOCAL_DOMAIN
 
 @pytest.fixture
-def mls(ctx, ctx2):
+def mls():
+    ctxs = [CTX]
+    if CTX2 is not None:
+        ctxs.append(CTX2)
     with tempfile.TemporaryDirectory() as directory:
-        yield MLS(directory, ctx, ctx2)
+        yield MLS(directory, *ctxs)
