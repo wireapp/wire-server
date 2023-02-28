@@ -15,7 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.OAuth where
+module Brig.API.OAuth
+  ( internalOauthAPI,
+    oauthAPI,
+    lookupOAuthRefreshTokens,
+    verifyRefreshToken,
+  )
+where
 
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
@@ -86,20 +92,16 @@ createNewOAuthClient (NewOAuthClient name uri) = do
     hashClientSecret :: MonadIO m => OAuthClientPlainTextSecret -> m Password
     hashClientSecret = mkSafePassword . PlainTextPassword . toText . unOAuthClientPlainTextSecret
 
+--------------------------------------------------------------------------------
+
 getOAuthClient :: UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
 getOAuthClient _ cid = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   lift $ wrapClient $ lookupOauthClient cid
 
-data CreateNewOAuthCodeError
-  = CreateNewOAuthCodeErrorFeatureDisabled
-  | CreateNewOAuthCodeErrorClientNotFound
-  | CreateNewOAuthCodeErrorUnsupportedResponseType
-  | CreateNewOAuthCodeErrorRedirectUrlMissMatch
-
 createNewOAuthAuthCode :: UserId -> NewOAuthAuthCode -> (Handler r) CreateOAuthCodeResponse
-createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl state) = do
-  runExceptT validateAndCreateAuthCode >>= \case
+createNewOAuthAuthCode uid code@(NewOAuthAuthCode _cid _scope _responseType redirectUrl state) = do
+  runExceptT (validateAndCreateAuthCode uid code) >>= \case
     Right oauthCode ->
       pure $ CreateOAuthCodeSuccess $ redirectUrl & addParams [("code", toByteString' oauthCode), ("state", cs state)]
     Left CreateNewOAuthCodeErrorFeatureDisabled ->
@@ -110,21 +112,29 @@ createNewOAuthAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl 
       pure $ CreateOAuthCodeUnsupportedResponseType $ redirectUrl & addParams [("error", "access_denied"), ("error_description", "The client ID was not found"), ("state", cs state)]
     Left CreateNewOAuthCodeErrorRedirectUrlMissMatch ->
       pure CreateOAuthCodeRedirectUrlMissMatch
+
+data CreateNewOAuthCodeError
+  = CreateNewOAuthCodeErrorFeatureDisabled
+  | CreateNewOAuthCodeErrorClientNotFound
+  | CreateNewOAuthCodeErrorUnsupportedResponseType
+  | CreateNewOAuthCodeErrorRedirectUrlMissMatch
+
+validateAndCreateAuthCode :: UserId -> NewOAuthAuthCode -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthCode
+validateAndCreateAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl _state) = do
+  failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
+  OAuthClient _ _ uri <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
+  failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
+  failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ uri == redirectUrl)
+  lift mkAuthCode
   where
-    validateAndCreateAuthCode :: ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthCode
-    validateAndCreateAuthCode = do
-      failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
-      OAuthClient _ _ uri <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
-      failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
-      failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ uri == redirectUrl)
-      lift mkAuthCode
-      where
-        mkAuthCode :: (Handler r) OAuthAuthCode
-        mkAuthCode = do
-          oauthCode <- OAuthAuthCode <$> rand32Bytes
-          ttl <- Opt.setOAuthAuthCodeExpirationTimeSecs <$> view settings
-          lift $ wrapClient $ insertOAuthAuthCode ttl oauthCode cid uid scope redirectUrl
-          pure oauthCode
+    mkAuthCode :: (Handler r) OAuthAuthCode
+    mkAuthCode = do
+      oauthCode <- OAuthAuthCode <$> rand32Bytes
+      ttl <- Opt.setOAuthAuthCodeExpirationTimeSecs <$> view settings
+      lift $ wrapClient $ insertOAuthAuthCode ttl oauthCode cid uid scope redirectUrl
+      pure oauthCode
+
+--------------------------------------------------------------------------------
 
 createAccessTokenWith :: (Member Now r, Member Jwk r) => Either OAuthAccessTokenRequest OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
 createAccessTokenWith req = do
@@ -254,6 +264,8 @@ verifyClientSecret secret cid = do
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
+--------------------------------------------------------------------------------
+
 revokeRefreshToken :: Member Jwk r => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
 revokeRefreshToken req = do
   key <- signingKey
@@ -265,6 +277,8 @@ revokeRefreshToken req = do
   unlessM (verifyClientSecret (ortrClientSecret req) cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   lift $ wrapClient $ deleteOAuthRefreshToken info
 
+--------------------------------------------------------------------------------
+
 getOAuthApplications :: UserId -> (Handler r) [OAuthApplication]
 getOAuthApplications uid = do
   activeRefreshTokens <- lift $ wrapClient $ lookupOAuthRefreshTokens uid
@@ -272,6 +286,8 @@ getOAuthApplications uid = do
   where
     oauthApp :: OAuthRefreshTokenInfo -> (Handler r) (Maybe OAuthApplication)
     oauthApp info = (OAuthApplication (oriClientId info) . ocName) <$$> getOAuthClient (oriUserId info) (oriClientId info)
+
+--------------------------------------------------------------------------------
 
 revokeOAuthAccountAccess :: UserId -> OAuthClientId -> (Handler r) ()
 revokeOAuthAccountAccess uid cid = do
