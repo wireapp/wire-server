@@ -1,20 +1,27 @@
 { fetchFromGitHub
 , lib
 , rustPlatform
+, pkg-config
+, perl
+, gitMinimal
 }:
 
 rustPlatform.buildRustPackage rec {
   name = "rusty_jwt-tools_ffi-${version}";
-  version = "0.1.0";
+  version = "0.2.0";
+  nativeBuildInputs = [ pkg-config perl gitMinimal ];
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "rusty-jwt-tools";
     # if you update this, please generate a new Cargo.lock file es described below at `cargoPatches`
-    rev = "6370cd556f03f6834d0b8043615ffaf0044ef1fa";
-    sha256 = "sha256-vnTvKITie4pu+ISIl/RdYPfb/yWCdCI9eHl1KcZb050=";
+    rev = "a68ed483f7e98613c0d5c3608c684f25225a58d3";
+    sha256 = "sha256-+2fjwtG80l8Vt48QWKm4wevY7MQRAwuo4YFbjB+6w9I=";
   };
-  cargoBuildFeatures = "haskell";
-  cargoSha256 = "sha256-9etHOl3B/ybKdKMRUDb/VPxg4ghlIe75smWuupLORU8=";
+  doCheck = false;
+  cargoSha256 = "sha256-BHq28U3OzYCPNmfnxlmXsz9XYEy1kRiNrFM9OTnAkk0=";
+  cargoDepsHook = ''
+    mkdir -p rusty_jwt-tools_ffi-${version}-vendor.tar.gz/ring/.git
+  '';
   cargoPatches = [
     # a patch file to add/update Cargo.lock in the source code
     # it's good practice not to add Cargo.lock to the source code for libraries
@@ -23,7 +30,7 @@ rustPlatform.buildRustPackage rec {
     # - `git clone git@github.com:wireapp/rusty-jwt-tools.git`
     # - checkout the commit specified in `rev`
     # - create a new branch: `git checkout -b patch-cargo-lock-<rev>` (replace `<rev>` with the commit hash)
-    # - `cargo build --release --features haskell`
+    # - `cargo clean && cargo build --release`
     # - `git add -f Cargo.lock`
     # - `git commit -am "generate new cargo.lock"`
     # - `git format-patch main`
