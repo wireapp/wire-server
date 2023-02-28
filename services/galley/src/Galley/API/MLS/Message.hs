@@ -801,7 +801,10 @@ processExternalCommit qusr mSenderClient lConvOrSub epoch action updatePath =
     lConvOrSub' <- for lConvOrSub incrementEpoch
 
     -- fetch backend remove proposals of the previous epoch
-    kpRefs <- getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
+    kpRefs <-
+      -- skip remove proposals of already removed by the external commit
+      filter (maybe (const True) (/=) remRef)
+        <$> getPendingBackendRemoveProposals (cnvmlsGroupId . mlsMetaConvOrSub . tUnqualified $ lConvOrSub') epoch
     -- requeue backend remove proposals for the current epoch
     let cm = membersConvOrSub (tUnqualified lConvOrSub')
     createAndSendRemoveProposals lConvOrSub' kpRefs qusr cm
