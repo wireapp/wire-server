@@ -15,9 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V79_TeamFeatureMlsE2EId
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 79
+migration :: Migration
+migration = Migration 79 "Add feature config for team feature MLS MlsE2EId" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          mls_e2eid_status int,
+          mls_e2eid_lock_status int,
+          mls_e2eid_ver_exp timestamp
+        )
+     |]
