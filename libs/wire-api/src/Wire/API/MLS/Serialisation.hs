@@ -1,3 +1,6 @@
+{-# LANGUAGE BinaryLiterals #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,6 +21,7 @@
 module Wire.API.MLS.Serialisation
   ( ParseMLS (..),
     SerialiseMLS (..),
+    VarInt (..),
     parseMLSVector,
     serialiseMLSVector,
     parseMLSBytes,
@@ -52,9 +56,10 @@ import Data.Aeson (FromJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
 import Data.Binary
-import Data.Binary.Builder
+import Data.Binary.Builder (toLazyByteString)
 import Data.Binary.Get
 import Data.Binary.Put
+import Data.Bits
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Json.Util
@@ -64,6 +69,7 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Imports
+import Test.QuickCheck (Arbitrary (..), chooseInt)
 
 -- | Parse a value encoded using the "TLS presentation" format.
 class ParseMLS a where
@@ -72,6 +78,47 @@ class ParseMLS a where
 -- | Convert a value to "TLS presentation" format.
 class SerialiseMLS a where
   serialiseMLS :: a -> Put
+
+-- | An integer value serialised with a variable-size encoding.
+--
+-- The underlying Word32 must be strictly less than 2^30.
+newtype VarInt = VarInt {unVarInt :: Word32}
+  deriving newtype (Eq, Ord, Num, Enum, Integral, Real, Show)
+
+instance Arbitrary VarInt where
+  arbitrary = fromIntegral <$> chooseInt (0, 1073741823)
+
+-- From the MLS spec:
+--
+-- Prefix | Length | Usable Bits | Min | Max
+-- -------+--------+-------------+-----+---------
+-- 00       1        6             0     63
+-- 01       2        14            64    16383
+-- 10       4        30            16384 1073741823
+-- 11       invalid  -             -     -
+--
+instance Binary VarInt where
+  put :: VarInt -> Put
+  put (VarInt w)
+    | w < 64 = putWord8 (fromIntegral w)
+    | w < 16384 = putWord16be (0x4000 .|. fromIntegral w)
+    | w < 1073741824 = putWord32be (0x80000000 .|. w)
+    | otherwise = error "invalid VarInt"
+
+  get :: Get VarInt
+  get = do
+    w <- lookAhead getWord8
+    let x = shiftR (w .&. 0xc0) 6
+        maskVarInt = VarInt . (.&. 0x3fffffff)
+    if
+        | x == 0b00 -> maskVarInt . fromIntegral <$> getWord8
+        | x == 0b01 -> maskVarInt . fromIntegral <$> getWord16be
+        | x == 0b10 -> maskVarInt . fromIntegral <$> getWord32be
+        | otherwise -> fail "invalid VarInt prefix"
+
+instance SerialiseMLS VarInt where serialiseMLS = put
+
+instance ParseMLS VarInt where parseMLS = get
 
 parseMLSVector :: forall w a. (Binary w, Integral w) => Get a -> Get [a]
 parseMLSVector getItem = do

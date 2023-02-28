@@ -49,6 +49,7 @@ tests =
       testRoundTrip @PublicGroupState,
       testRoundTrip @Welcome,
       testRoundTrip @OpaquePublicGroupState,
+      testRoundTrip @VarInt,
       testConvertProtoRoundTrip @Proto.Mls.GroupInfoBundle @GroupInfoBundle,
       testConvertProtoRoundTrip @Proto.Mls.CommitBundle @TestCommitBundle
     ]
