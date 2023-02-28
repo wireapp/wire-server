@@ -10,9 +10,9 @@ Currently, only 3rd party apps that have been implemented and approved by Wire a
 
 The user is the resource owner who gives permission to the OAuth client to access parts of their resources.
 
-### 3rd party application (OAuth client)
+### 3rd party app (application, client)
 
-A 3rd party app is an application that is attempting to get access a resource on behalf of the user. It needs to get permission from the user in order to do so.
+A 3rd party app is attempting to get access a resource on behalf of the user. It needs to get permission from the user in order to do so.  The terminology is a bit fuzzy here: we use the terms app, application, client synonymous.  To disambiguate, we qualify with "oauth" (*oauth* client, ...).
 
 ### Resource server
 
