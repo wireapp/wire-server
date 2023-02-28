@@ -22,7 +22,7 @@ The user is the resource owner who gives permission to the OAuth client to acces
 
 #### 3rd party application (OAuth client)
 
-A 3rd party app is an application that is attempting to get access a resource on behalf of the user. It needs to get permission from the user in order to do so.
+A 3rd party app is attempting to get access a resource on behalf of the user. It needs to get permission from the user in order to do so.  The terminology is a bit fuzzy here: we use the terms app, application, client synonymous.  To disambiguate, we qualify with "oauth" (*oauth* client, ...).
 
 #### Resource server
 
