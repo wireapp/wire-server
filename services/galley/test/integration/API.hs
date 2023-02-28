@@ -1199,14 +1199,15 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients2 = do
                     *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
                 )
 
-    (resp2, _requests) <- withTempMockFederator' mock $
-      postProteusMessageQualified
-        aliceUnqualified
-        aliceClient
-        convId
-        message
-        "data"
-        Message.MismatchReportAll
+    (resp2, _requests) <-
+      withTempMockFederator' mock $
+        postProteusMessageQualified
+          aliceUnqualified
+          aliceClient
+          convId
+          message
+          "data"
+          Message.MismatchReportAll
 
     let expectedFailedToSend =
           QualifiedUserClients . Map.fromList $
