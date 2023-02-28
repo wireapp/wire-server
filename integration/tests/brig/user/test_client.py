@@ -11,13 +11,15 @@ def test_cant_delete_lh_client(ctx, prekeys):
     lh_client_id = resp['id']
 
     with ctx.delete_client(uid, lh_client_id) as r:
-        assert r.status_code == 400
+        assert r.status_code == 404
+        assert r.json()['label'] == 'client-not-found'
 
 def test_cant_add_lh_client(ctx, prekeys):
     uid = setup.random_user(ctx)['id']
     # regular users cannot add legalhold clients
     with ctx.add_client(uid, [prekeys.pop()], prekeys.lpop(), ctype='legalhold') as r:
         assert r.status_code == 400
+        assert r.json()['label'] == 'client-error'
 
 def test_get_user_clients_unqualified(ctx, prekeys):
     uid = setup.random_user(ctx)['id']

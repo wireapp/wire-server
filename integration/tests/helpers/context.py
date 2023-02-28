@@ -1,4 +1,5 @@
 from . import api
+from .conversions import *
 from .response import Response
 import requests
 
@@ -18,14 +19,14 @@ class Context:
             vpath = ''
         return f'{protocol}://localhost:{port}{vpath}{path}'
 
-    def send(self, args, additional_args):
-        # TODO: merge headers
-        args = dict(**args, **additional_args)
-        return self.request(**args)
-
-    def request(self, method, url, **kwargs):
+    def request(self, method, url, user=None, conn_id='0', headers=None, **kwargs):
+        if headers is None:
+            headers = {}
+        if user is not None:
+            headers['Z-User'] = obj_id(user)
+            headers['Z-Connection'] = conn_id
         return Response(method, url, kwargs, 
-                        requests.request(method, url, **kwargs))
+                        requests.request(method, url, headers=headers, **kwargs))
     
     def __getattr__(self, name):
         def method(*args, **kwargs):

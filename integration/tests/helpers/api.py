@@ -31,17 +31,14 @@ def create_user(ctx, email=None, password=None, name=None, **kwargs):
 
     body = {'email': email, 'password': password, 
             'name': name, "icon": "default"}
+    for k, v in kwargs: body[k] = v
 
-    args = {
-        'method': 'POST',
-        'json': body,
-        'url': ctx.mkurl('brig', '/i/users', internal=True)
-    }
-    return ctx.send(args, kwargs)
+    url = ctx.mkurl('brig', '/i/users', internal=True)
+    return ctx.request('POST', url, json=body)
 
 def add_client(ctx, user, pks, lpk, *, internal=False, ctype=None, 
                label="Test Device", model="Test Model",
-               password=DEFAULT_PASSWORD, **kwargs):
+               password=DEFAULT_PASSWORD):
     body = {
         'prekeys': pks,
         'lastkey': lpk,
@@ -57,134 +54,59 @@ def add_client(ctx, user, pks, lpk, *, internal=False, ctype=None,
     else:
         url = '/clients'
 
-    args = {
-        'method': 'POST',
-        'json': body,
-        'headers': std_headers(user),
-        'url': ctx.mkurl('brig', url, internal=internal)
-    }
-    return ctx.send(args, kwargs)
+    url = ctx.mkurl('brig', url, internal=internal)
+    return ctx.request('POST', url, user=user, json=body)
 
-def delete_client(ctx, user, client_id, password=DEFAULT_PASSWORD, **kwargs):
-    args = {
-        'method': 'DELETE',
-        'json': {'password': password},
-        'url': ctx.mkurl('brig', f'/clients/{obj_id(user)}')
-    }
-    return ctx.send(args, kwargs)
+def delete_client(ctx, user, client_id, password=DEFAULT_PASSWORD):
+    url = ctx.mkurl('brig', f'/clients/{obj_id(user)}')
+    return ctx.request('DELETE', url, user=user, json={'password': password})
 
 def get_clients_unqualified(ctx, user, **kwargs):
-    args = {
-        'method': 'GET',
-        'url': ctx.mkurl('brig', '/clients'),
-        'headers': std_headers(user)
-    }
-    return ctx.send(args, kwargs)
+    url = ctx.mkurl('brig', '/clients')
+    return ctx.request('GET', url, user=user)
 
-def get_user_clients(ctx, user, target, **kwargs):
-    args = {
-        'method': 'GET',
-        'url': ctx.mkurl('brig', f'/users/{obj_path(target)}/clients'),
-        'headers': std_headers(user)
-    }
-    return ctx.send(args, kwargs)
+def get_user_clients(ctx, user, target):
+    url = ctx.mkurl('brig', f'/users/{obj_path(target)}/clients')
+    return ctx.request('GET', url, user=user)
 
-def create_connection(ctx, user, target, **kwargs):
-    args = {
-        'method': 'POST',
-        'url': ctx.mkurl('brig', f'/connections/{obj_path(target)}'),
-        'headers': std_headers(user)
-    }
-    return ctx.send(args, kwargs)
+def create_connection(ctx, user, target):
+    url = ctx.mkurl('brig', f'/connections/{obj_path(target)}')
+    return ctx.request('POST', url, user=user)
 
-def update_connection(ctx, user, target, status, **kwargs):
-    args = {
-        'method': 'PUT',
-        'url': ctx.mkurl('brig', f'/connections/{obj_path(target)}'),
-        'headers': std_headers(user),
-        'json': {'status': status}
-    }
-    return ctx.send(args, kwargs)
+def update_connection(ctx, user, target, status):
+    url = ctx.mkurl('brig', f'/connections/{obj_path(target)}')
+    return ctx.request('PUT', url, user=user, json={'status': status})
 
-def create_conversation(ctx, user, users=None, name=None, protocol=None, 
-                        creator_client=None, **kwargs):
-    data = {'qualified_users': [u['qualified_id'] for u in (users or [])]}
-    if protocol is not None: data['protocol'] = protocol
-    if creator_client is not None: data['creator_client'] = creator_client
+def create_conversation(ctx, user, users=None, **kwargs):
+    data = {'qualified_users': [obj_qid(u) for u in (users or [])],
+            **kwargs}
+    url = ctx.mkurl('galley', '/conversations')
+    return ctx.request('POST', url, user=user, json=data)
 
-    args = {
-        'method': 'POST',
-        'url': ctx.mkurl('galley', '/conversations'),
-        'headers': std_headers(user),
-        'json': data
-    }
-    if name is not None: args['json']['name'] = name
-    return ctx.send(args, kwargs)
+def get_conversation(ctx, user, conv):
+    url = ctx.mkurl('galley', f'/conversations/{obj_path(conv)}')
+    return ctx.request('GET', url, user=user)
 
-def get_conversation(ctx, user, conv, **kwargs):
-    args = {
-        'method': 'GET',
-        'url': ctx.mkurl('galley', f'/conversations/{obj_path(conv)}'),
-        'headers': std_headers(user)
-    }
-    return ctx.send(args, kwargs)
+def mls_message(ctx, user, message):
+    headers = {'Content-Type': 'message/mls'}
+    url = ctx.mkurl('galley', '/mls/messages')
+    return ctx.request('POST', url, user=user, data=message, headers=headers)
 
-def ws_await(ctx, user, **kwargs):
-    headers = std_headers(user)
-    headers['Upgrade'] = 'websocket'
-    headers['Connection'] = 'Upgrade'
-    headers['Sec-Websocket-Key'] = 'foobar'
-    args = {
-        'method': 'GET',
-        'url': ctx.mkurl('cannon', '/await'),
-        'headers': headers
-    }
-    return ctx.send(args, kwargs)
+def mls_welcome(ctx, user, welcome):
+    headers = {'Content-Type': 'message/mls'}
+    url = ctx.mkurl('galley', '/mls/welcome')
+    return ctx.request('POST', url, user=user, data=welcome, headers=headers)
 
-def mls_message(ctx, user, message, **kwargs):
-    headers = std_headers(user)
-    headers['Content-Type'] = 'message/mls'
-    args = {
-        'method': 'POST',
-        'url': ctx.mkurl('galley', '/mls/messages'),
-        'headers': headers,
-        'data': message
-    }
-    return ctx.send(args, kwargs)
-
-def mls_welcome(ctx, user, welcome, **kwargs):
-    headers = std_headers(user)
-    headers['Content-Type'] = 'message/mls'
-    args = {
-        'method': 'POST',
-        'url': ctx.mkurl('galley', '/mls/welcome'),
-        'headers': headers,
-        'data': welcome
-    }
-    return ctx.send(args, kwargs)
-
-def upload_key_packages(ctx, user, client, key_packages, **kwargs):
-    args = {
-        'method': 'POST',
-        'url': ctx.mkurl('brig', f'/mls/key-packages/self/{client}'),
-        'headers': std_headers(user),
-        'json': {'key_packages': [b64encode(kp).decode('ascii') for kp in key_packages]}
-    }
-    return ctx.send(args, kwargs)
+def upload_key_packages(ctx, user, client, key_packages):
+    url = ctx.mkurl('brig', f'/mls/key-packages/self/{client}')
+    data = {'key_packages': [b64encode(kp).decode('ascii') for kp in key_packages]}
+    return ctx.request('POST', url, user=user, json=data)
 
 def claim_key_packages(ctx, user, target, **kwargs):
-    args = {
-        'method': 'POST',
-        'url': ctx.mkurl('brig', f'/mls/key-packages/claim/{obj_path(target)}'),
-        'headers': std_headers(user)
-    }
-    return ctx.send(args, kwargs)
+    url = ctx.mkurl('brig', f'/mls/key-packages/claim/{obj_path(target)}')
+    return ctx.request('POST', url, user=user)
 
 def remove_member(ctx, user, conv, target, **kwargs):
-    args = {
-        'method': 'DELETE',
-        'url': ctx.mkurl('galley',
-             f'/conversations/{obj_path(conv)}/members/{obj_path(target)}'),
-        'headers': std_headers(user)
-    }
-    return ctx.send(args, kwargs)
+    url = ctx.mkurl('galley',
+        f'/conversations/{obj_path(conv)}/members/{obj_path(target)}')
+    return ctx.request('DELETE', url, user=user)
