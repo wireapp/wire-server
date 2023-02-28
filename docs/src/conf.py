@@ -14,7 +14,8 @@ import os
 import requests
 
 # unset SOURCE_DATE_EPOCH to aviod side effects caused by sphinx
-del os.environ['SOURCE_DATE_EPOCH']
+if 'SOURCE_DATE_EPOCH' in os.environ:
+    del os.environ['SOURCE_DATE_EPOCH']
 
 # -- Project information -----------------------------------------------------
 
