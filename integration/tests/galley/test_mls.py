@@ -2,7 +2,7 @@ import base64
 import pytest
 
 from helpers import setup
-from helpers.conversions import *
+from helpers.conversions import obj_qid, obj_id
 
 def test_sender_not_in_conv(ctx, mls):
     alice, bob = setup.connected_users((ctx, 2))

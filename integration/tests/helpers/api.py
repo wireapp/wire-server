@@ -3,7 +3,7 @@ import json
 import random
 import requests
 import string
-from .conversions import *
+from .conversions import obj_qid, obj_id, obj_path
 
 DEFAULT_PASSWORD = 's3cret'
 

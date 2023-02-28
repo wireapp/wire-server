@@ -1,5 +1,5 @@
 from . import api
-from .conversions import *
+from .conversions import obj_qid, obj_id
 from .response import Response
 import requests
 

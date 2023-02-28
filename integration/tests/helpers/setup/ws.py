@@ -9,7 +9,8 @@ import time
 from urllib.parse import urlencode
 
 from .. import api
-from ..conversions import *
+from ..conversions import obj_qid
+from ..frozendict import frozendict
 
 DEFAULT_TIMEOUT = 0.1
 

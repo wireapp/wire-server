@@ -1,4 +1,4 @@
-from .conversions import *
+from .conversions import obj_qid
 
 def conversation(conv, *, ctype=0, creator=None, name=None, members=None):
     assert conv['type'] == ctype

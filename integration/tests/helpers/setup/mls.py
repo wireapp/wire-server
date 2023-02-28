@@ -1,7 +1,7 @@
 from ..prekeys import Prekeys
 from .. import api
 from . import util
-from ..conversions import *
+from ..conversions import obj_qid, qid
 
 import base64
 import dataclasses
