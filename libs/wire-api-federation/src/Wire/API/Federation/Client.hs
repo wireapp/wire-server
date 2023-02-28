@@ -366,6 +366,12 @@ allocTLSConfig ssl bufsize = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
   let readData :: Int -> IO ByteString
+      -- Sometimes the frame header says that the payload length is 0. Reading 0
+      -- bytes multiple times seems to be causing errors in openssl. I cannot
+      -- figure out why. The previous implementation didn't try to read from the
+      -- socket when trying to read 0 bytes, so special handling for 0 maintains
+      -- that behaviour.
+      readData 0 = pure ""
       readData n = SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
   pure
     HTTP2.Config
