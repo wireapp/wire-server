@@ -68,8 +68,7 @@ class MLS:
 
         # upload public key
         pk = base64.b64encode(self.cli(cid, "public-key")).decode('ascii')
-        ctx.request('PUT', ctx.mkurl('brig', f'/clients/{client}'),
-                    headers=api.std_headers(cid.user),
+        ctx.request('PUT', ctx.mkurl('brig', f'/clients/{client}'), user=user,
                     json={'mls_public_keys': {'ed25519': pk}}) \
                 .check(status=200)
 

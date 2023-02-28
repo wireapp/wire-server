@@ -19,12 +19,16 @@ class Context:
             vpath = ''
         return f'{protocol}://localhost:{port}{vpath}{path}'
 
+    @staticmethod
+    def headers(user, conn_id='0'):
+        return {'Z-User': obj_id(user),
+                'Z-Connection': conn_id}
+
     def request(self, method, url, user=None, conn_id='0', headers=None, **kwargs):
         if headers is None:
             headers = {}
         if user is not None:
-            headers['Z-User'] = obj_id(user)
-            headers['Z-Connection'] = conn_id
+            headers = {**headers, **self.headers(user, conn_id)}
         return Response(method, url, kwargs, 
                         requests.request(method, url, headers=headers, **kwargs))
     

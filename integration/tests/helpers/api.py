@@ -13,12 +13,6 @@ def random_letters(n=10):
 def random_email():
     return 'test-email' + '-' + random_letters(10) + '@example.com'
 
-def std_headers(user=None, conn_id='0'):
-    headers = {'Z-Connection': conn_id}
-    if user is not None:
-        headers['Z-User'] = obj_id(user)
-    return headers
-
 def create_user(ctx, email=None, password=None, name=None, **kwargs):
     if email is None:
         email = random_email()

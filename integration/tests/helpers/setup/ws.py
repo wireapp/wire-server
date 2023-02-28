@@ -90,7 +90,7 @@ def ws_connect_users(ctx, *users):
 
     async def connect():
         cms = [websockets.connect(mkurl(user, client),
-                                  extra_headers=api.std_headers(user,
+                                  extra_headers=ctx.headers(user,
                                     conn_id=random_conn_id()))
                for user, client in users]
         return cms, [await cm.__aenter__() for cm in cms]
