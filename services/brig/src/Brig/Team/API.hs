@@ -66,7 +66,6 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
-import Wire.API.Federation.API
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public.Brig
@@ -98,8 +97,7 @@ servantAPI =
 routesInternal ::
   ( Member BlacklistStore r,
     Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r,
-    CallsFed 'Brig "on-user-deleted-connections"
+    Member (UserPendingActivationStore p) r
   ) =>
   Routes a (Handler r) ()
 routesInternal = do
@@ -365,25 +363,25 @@ getInvitationByEmail email = do
   inv <- lift $ wrapClient $ DB.lookupInvitationByEmail HideInvitationUrl email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
-suspendTeamH :: (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") => JSON ::: TeamId -> (Handler r) Response
+suspendTeamH :: (Member GalleyProvider r) => JSON ::: TeamId -> (Handler r) Response
 suspendTeamH (_ ::: tid) = do
   empty <$ suspendTeam tid
 
-suspendTeam :: (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") => TeamId -> (Handler r) ()
+suspendTeam :: (Member GalleyProvider r) => TeamId -> (Handler r) ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
   lift $ wrapClient $ DB.deleteInvitations tid
   lift $ liftSem $ GalleyProvider.changeTeamStatus tid Team.Suspended Nothing
 
 unsuspendTeamH ::
-  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   JSON ::: TeamId ->
   (Handler r) Response
 unsuspendTeamH (_ ::: tid) = do
   empty <$ unsuspendTeam tid
 
 unsuspendTeam ::
-  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   TeamId ->
   (Handler r) ()
 unsuspendTeam tid = do
@@ -394,7 +392,7 @@ unsuspendTeam tid = do
 -- Internal
 
 changeTeamAccountStatuses ::
-  (Member GalleyProvider r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   TeamId ->
   AccountStatus ->
   (Handler r) ()

@@ -57,6 +57,13 @@
 { lib, fetchgit }: hself: hsuper:
 let
   gitPins = {
+    transitive-anns = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/transitive-anns";
+        rev = "c3bdc423f84bf15fe8b3618b5dddd5764fc8a470";
+        sha256 = "sha256-mWBZ2uY0shlxNRceyC2Zu1f3Kr4IDtT/rOL7CKWgilA=";
+      };
+    };
     HaskellNet-SSL = {
       src = fetchgit {
         url = "https://github.com/dpwright/HaskellNet-SSL";
@@ -232,6 +239,14 @@ let
         url = "https://gitlab.com/wireapp/forks/tinylog.git";
         rev = "9609104263e8cd2a631417c1c3ef23e090de0d09";
         sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
+      };
+    };
+    # PR: https://github.com/haskell-cryptography/HsOpenSSL/pull/76
+    HsOpenSSL = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/HsOpenSSL";
+        rev = "b36c063d44b8b8732f0e6334ad58d2235fedd92e";
+        sha256 = "sha256-NdWzTqWDQvCwyp3la3RGN9D1lGaLHHrxQuFxpk9R+lQ=";
       };
     };
   };

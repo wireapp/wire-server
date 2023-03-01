@@ -137,6 +137,9 @@ CREATE TABLE galley_test.team_features (
     mls_allowed_ciphersuites set<int>,
     mls_default_ciphersuite int,
     mls_default_protocol int,
+    mls_e2eid_lock_status int,
+    mls_e2eid_status int,
+    mls_e2eid_ver_exp timestamp,
     mls_protocol_toggle_users set<uuid>,
     mls_status int,
     outlook_cal_integration_lock_status int,
@@ -1110,7 +1113,7 @@ CREATE TABLE brig_test.provider (
 CREATE TABLE brig_test.user_keys (
     key text PRIMARY KEY,
     user uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1151,7 +1154,7 @@ CREATE TABLE brig_test.invitee_info (
     invitee uuid PRIMARY KEY,
     conv uuid,
     inviter uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1317,7 +1320,7 @@ CREATE TABLE brig_test.user (
     sso_id text,
     status int,
     team uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1425,7 +1428,7 @@ CREATE TABLE brig_test.password_reset (
     retries int,
     timeout timestamp,
     user uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1540,7 +1543,7 @@ CREATE TABLE brig_test.connection (
     status int,
     PRIMARY KEY (left, right)
 ) WITH CLUSTERING ORDER BY (right ASC)
-    AND bloom_filter_fp_chance = 0.01
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1611,7 +1614,7 @@ CREATE TABLE brig_test.activation_keys (
     key_type ascii,
     retries int,
     user uuid
-) WITH bloom_filter_fp_chance = 0.01
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}

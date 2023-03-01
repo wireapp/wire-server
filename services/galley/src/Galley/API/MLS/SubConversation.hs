@@ -88,8 +88,7 @@ getSubConversation ::
          Error FederationError,
          FederatorAccess
        ]
-      r,
-    CallsFed 'Galley "get-sub-conversation"
+      r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -158,8 +157,7 @@ getRemoteSubConversation ::
          FederatorAccess
        ]
       r,
-    RethrowErrors MLSGetSubConvStaticErrors r,
-    CallsFed 'Galley "get-sub-conversation"
+    RethrowErrors MLSGetSubConvStaticErrors r
   ) =>
   Local UserId ->
   Remote ConvId ->
@@ -189,8 +187,7 @@ getSubConversationGroupInfo ::
          SubConversationStore
        ]
       r,
-    Members MLSGroupInfoStaticErrors r,
-    CallsFed 'Galley "query-group-info"
+    Members MLSGroupInfoStaticErrors r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -243,10 +240,7 @@ deleteSubConversation ::
          SubConversationStore,
          SubConversationSupply
        ]
-      r,
-    CallsFed 'Galley "delete-sub-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation",
-    CallsFed 'Galley "on-delete-mls-conversation"
+      r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -275,9 +269,7 @@ deleteLocalSubConversation ::
          SubConversationSupply,
          SubConversationSupply
        ]
-      r,
-    CallsFed 'Galley "on-new-remote-subconversation",
-    CallsFed 'Galley "on-delete-mls-conversation"
+      r
   ) =>
   Qualified UserId ->
   Local ConvId ->
@@ -331,8 +323,7 @@ deleteRemoteSubConversation ::
          FederatorAccess,
          Input Env
        ]
-      r,
-    CallsFed 'Galley "delete-sub-conversation"
+      r
   ) =>
   Local UserId ->
   Remote ConvId ->
@@ -370,10 +361,7 @@ type HasLeaveSubConversationEffects r =
          SubConversationStore,
          TinyLog
        ]
-      r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-delete-mls-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation"
+      r
   )
 
 type LeaveSubConversationStaticErrors =
@@ -394,8 +382,7 @@ leaveSubConversation ::
          SubConversationSupply
        ]
       r,
-    Members LeaveSubConversationStaticErrors r,
-    CallsFed 'Galley "leave-sub-conversation"
+    Members LeaveSubConversationStaticErrors r
   ) =>
   Local UserId ->
   ClientId ->
@@ -465,8 +452,7 @@ leaveRemoteSubConversation ::
          Error MLSProtocolError,
          FederatorAccess
        ]
-      r,
-    CallsFed 'Galley "leave-sub-conversation"
+      r
   ) =>
   ClientIdentity ->
   Remote ConvId ->

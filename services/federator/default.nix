@@ -25,6 +25,7 @@
 , filepath
 , gitignoreSource
 , hinotify
+, HsOpenSSL
 , hspec
 , http-client
 , http-client-openssl
@@ -104,6 +105,7 @@ mkDerivation {
     extended
     filepath
     hinotify
+    HsOpenSSL
     http-client
     http-client-openssl
     http-media
@@ -166,6 +168,7 @@ mkDerivation {
     extended
     filepath
     hinotify
+    HsOpenSSL
     hspec
     http-client
     http-client-openssl
@@ -233,6 +236,7 @@ mkDerivation {
     extended
     filepath
     hinotify
+    HsOpenSSL
     http-client
     http-client-openssl
     http-media

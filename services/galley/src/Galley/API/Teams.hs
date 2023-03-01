@@ -127,7 +127,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
-import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -1091,29 +1090,22 @@ getTeamConversation zusr tid cid = do
     >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
-  ( ( Member BrigAccess r,
-      Member CodeStore r,
-      Member ConversationStore r,
-      Member (Error FederationError) r,
-      Member (Error InvalidInput) r,
-      Member (ErrorS 'ConvNotFound) r,
-      Member (ErrorS 'InvalidOperation) r,
-      Member (ErrorS 'NotATeamMember) r,
-      Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
-      Member MemberStore r,
-      Member ProposalStore r,
-      Member ExternalAccess r,
-      Member FederatorAccess r,
-      Member GundeckAccess r,
-      Member (Input Env) r,
-      Member (Input UTCTime) r,
-      Member SubConversationStore r,
-      Member TeamStore r
-    ),
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-new-remote-subconversation",
-    CallsFed 'Galley "on-delete-mls-conversation"
+  ( Member BrigAccess r,
+    Member CodeStore r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
+    Member MemberStore r,
+    Member ProposalStore r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member SubConversationStore r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->

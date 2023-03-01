@@ -59,7 +59,6 @@ import Wire.API.Routes.Internal.Brig.EJPD
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.SwaggerServant
 import Wire.API.Team.Feature
 import Wire.API.User
 import Wire.API.User.Auth
@@ -341,8 +340,7 @@ type GetVerificationCode =
     :> Get '[Servant.JSON] (Maybe Code.Value)
 
 type API =
-  SwaggerTag "brig"
-    :> "i"
+  "i"
     :> ( EJPD_API
            :<|> AccountAPI
            :<|> MLSAPI

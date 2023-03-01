@@ -40,7 +40,6 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley.Conversation
 import Wire.API.Routes.Public.Galley.Feature
-import Wire.API.SwaggerServant
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -150,6 +149,11 @@ type IFeatureAPI =
     :<|> IFeatureStatusPut '[] '() OutlookCalIntegrationConfig
     :<|> IFeatureStatusPatch '[] '() OutlookCalIntegrationConfig
     :<|> IFeatureStatusLockStatusPut OutlookCalIntegrationConfig
+    -- MlsE2EIdConfig
+    :<|> IFeatureStatusGet MlsE2EIdConfig
+    :<|> IFeatureStatusPut '[] '() MlsE2EIdConfig
+    :<|> IFeatureStatusPatch '[] '() MlsE2EIdConfig
+    :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -168,7 +172,7 @@ type IFeatureAPI =
                :> Get '[Servant.JSON] AllFeatureConfigs
            )
 
-type InternalAPI = SwaggerTag "galley" :> "i" :> InternalAPIBase
+type InternalAPI = "i" :> InternalAPIBase
 
 type InternalAPIBase =
   Named

@@ -86,6 +86,7 @@ library
     , either
     , errors
     , exceptions
+    , HsOpenSSL
     , http-media
     , http-types
     , http2

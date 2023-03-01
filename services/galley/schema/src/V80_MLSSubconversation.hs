@@ -15,10 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V41
-  ( migration,
-  )
-where
+module V80_MLSSubconversation (migration) where
 
 import Cassandra.Schema
 import Imports
@@ -26,8 +23,20 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 41 "Add searchable field to user table" $
+  Migration 80 "Add the MLS subconversation tables" $ do
     schema'
-      [r|
-        alter table user add searchable boolean
-    |]
+      [r| CREATE TABLE subconversation (
+            conv_id uuid,
+            subconv_id text,
+            group_id blob,
+            cipher_suite int,
+            public_group_state blob,
+            epoch bigint,
+            PRIMARY KEY (conv_id, subconv_id)
+          );
+        |]
+    schema'
+      [r| ALTER TABLE group_id_conv_id ADD (
+            subconv_id text
+          );
+        |]

@@ -64,7 +64,7 @@ run opts = do
     bracket (newEnv opts res) closeEnv $ \env -> do
       let externalServer = serveInward env portExternal
           internalServer = serveOutward env portInternal
-      withMonitor (env ^. applog) (env ^. tls) (optSettings opts) $ do
+      withMonitor (env ^. applog) (env ^. sslContext) (optSettings opts) $ do
         internalServerThread <- async internalServer
         externalServerThread <- async externalServer
         void $ waitAnyCancel [internalServerThread, externalServerThread]
@@ -97,7 +97,7 @@ newEnv o _dnsResolver = do
       _service Galley = Opt.galley o
       _service Cargohold = Opt.cargohold o
   _httpManager <- initHttpManager
-  _tls <- mkTLSSettingsOrThrow _runSettings >>= newIORef
+  _sslContext <- mkTLSSettingsOrThrow _runSettings >>= newIORef
   pure Env {..}
 
 closeEnv :: Env -> IO ()

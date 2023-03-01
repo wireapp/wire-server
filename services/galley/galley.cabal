@@ -190,7 +190,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
+    -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
 
   build-depends:
       aeson                      >=2.0.1.0
@@ -277,6 +277,7 @@ library
     , tinylog                    >=0.10
     , tls                        >=1.3.10
     , transformers
+    , transitive-anns
     , types-common               >=0.16
     , types-common-aws
     , types-common-journal       >=0.1
@@ -708,7 +709,8 @@ executable galley-schema
     V76_ProposalOrigin
     V77_MLSGroupMemberClient
     V78_TeamFeatureOutlookCalIntegration
-    V79_MLSSubconversation
+    V79_TeamFeatureMlsE2EId
+    V80_MLSSubconversation
 
   hs-source-dirs:     schema/src
   default-extensions:

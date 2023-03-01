@@ -50,8 +50,7 @@ getGroupInfo ::
     Member (Error FederationError) r,
     Member FederatorAccess r,
     Member (Input Env) r,
-    Member MemberStore r,
-    CallsFed 'Galley "query-group-info"
+    Member MemberStore r
   ) =>
   Members MLSGroupInfoStaticErrors r =>
   Local UserId ->
@@ -80,8 +79,7 @@ getGroupInfoFromLocalConv qusr lcnvId = do
 
 getGroupInfoFromRemoteConv ::
   ( Member (Error FederationError) r,
-    Member FederatorAccess r,
-    CallsFed 'Galley "query-group-info"
+    Member FederatorAccess r
   ) =>
   Members MLSGroupInfoStaticErrors r =>
   Local UserId ->

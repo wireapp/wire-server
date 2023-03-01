@@ -91,6 +91,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
@@ -150,8 +151,7 @@ getConversation ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "get-conversations"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -177,8 +177,7 @@ getRemoteConversations ::
     Member (Error FederationError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "get-conversations"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -235,8 +234,7 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
 getRemoteConversationsWithFailures ::
   ( Member ConversationStore r,
     Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "get-conversations"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -260,7 +258,8 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc = fedClient @'Galley @"get-conversations"
+  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponse
+      rpc = fedClient @'Galley @"get-conversations"
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
@@ -499,8 +498,7 @@ listConversations ::
   ( Member ConversationStore r,
     Member (Error InternalError) r,
     Member FederatorAccess r,
-    Member P.TinyLog r,
-    CallsFed 'Galley "get-conversations"
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   Public.ListConversations ->
