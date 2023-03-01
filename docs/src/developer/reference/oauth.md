@@ -1,5 +1,9 @@
 # OAuth
 
+```{contents}
+:depth: 3
+```
+
 ## Introduction and overview
 
 OAuth 2.0 is used to authorize 3rd party applications to access `wire-server` resources on behalf of a Wire user.
@@ -167,7 +171,7 @@ Example response:
 
 ### Accessing a resource
 
-The access token, presented as `Bearer <token>` in the `Authorization` header, can now be used to by the 3rd party app to access resources on behalf of the user.
+The access token, presented as `Bearer <token>` in the `Authorization` header, can now be used by the 3rd party app to access resources on behalf of the user.
 
 ### Refresh access token
 
@@ -314,7 +318,7 @@ brig:
       }
 ```
 
-Note that the JWK is a sensitive configuration value, so it is recommended to use Helm's support for managing secrets instead of including it in a plaintext values.yaml file.
+Note that the JWK is a sensitive configuration value, so it is recommended to use Helm's support for managing secrets instead of including it in a plaintext `values.yaml` file.
 
 ### OAuth authorization code, access token, and refresh token expiration
 
@@ -350,13 +354,13 @@ brig:
 
 3rd party apps are enabled based on the team's payment plan by `ibis`.
 
-### OutlookCalIntegrationConfig
-
 ## Implementation details
 
 ### Token handling
 
 #### Access token
+
+Access tokens are self-encoded.
 
 Payload
 
