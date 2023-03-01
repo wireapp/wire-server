@@ -47,13 +47,13 @@ import Foreign.Storable (peek)
 import Imports
 import Network.HTTP.Types (StdMethod (..))
 
-data JwtResponse
+data HsResult
 
 type ProofCStr = CString
 
 type UserIdCStr = CString
 
-type ClientIdWord16 = Word16
+type ClientIdWord64 = Word64
 
 type DomainCStr = CString
 
@@ -75,7 +75,7 @@ foreign import ccall unsafe "generate_dpop_access_token"
   generate_dpop_access_token ::
     ProofCStr ->
     UserIdCStr ->
-    ClientIdWord16 ->
+    ClientIdWord64 ->
     DomainCStr ->
     NonceCStr ->
     UrlCStr ->
@@ -84,18 +84,18 @@ foreign import ccall unsafe "generate_dpop_access_token"
     ExpiryEpochWord64 ->
     EpochWord64 ->
     BackendBundleCStr ->
-    IO (Ptr JwtResponse)
+    IO (Ptr HsResult)
 
-foreign import ccall unsafe "free_dpop_access_token" free_dpop_access_token :: Ptr JwtResponse -> IO ()
+foreign import ccall unsafe "free_dpop_access_token" free_dpop_access_token :: Ptr HsResult -> IO ()
 
-foreign import ccall unsafe "get_error" get_error :: Ptr JwtResponse -> Ptr CUChar
+foreign import ccall unsafe "get_error" get_error :: Ptr HsResult -> Ptr CUChar
 
-foreign import ccall unsafe "get_token" get_token :: Ptr JwtResponse -> CString
+foreign import ccall unsafe "get_token" get_token :: Ptr HsResult -> CString
 
 generateDpopAccessTokenFfi ::
   ProofCStr ->
   UserIdCStr ->
-  ClientIdWord16 ->
+  ClientIdWord64 ->
   DomainCStr ->
   NonceCStr ->
   UrlCStr ->
@@ -104,26 +104,26 @@ generateDpopAccessTokenFfi ::
   ExpiryEpochWord64 ->
   EpochWord64 ->
   BackendBundleCStr ->
-  IO (Maybe (Ptr JwtResponse))
+  IO (Maybe (Ptr HsResult))
 generateDpopAccessTokenFfi dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys = do
   ptr <- generate_dpop_access_token dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys
   if ptr /= nullPtr
     then pure $ Just ptr
     else pure Nothing
 
-getErrorFfi :: Ptr JwtResponse -> IO (Maybe Word8)
+getErrorFfi :: Ptr HsResult -> IO (Maybe Word8)
 getErrorFfi ptr = do
   let errorPtr = get_error ptr
   if errorPtr /= nullPtr
-    then Just . fromIntegral <$> peek errorPtr
-    else pure Nothing
+    then putStrLn "error ptr is not null" *> (Just . fromIntegral <$> peek errorPtr)
+    else putStrLn "error ptr is null" *> (pure Nothing)
 
-getTokenFfi :: Ptr JwtResponse -> IO (Maybe String)
+getTokenFfi :: Ptr HsResult -> IO (Maybe String)
 getTokenFfi ptr = do
   let tokenPtr = get_token ptr
   if tokenPtr /= nullPtr
-    then Just <$> peekCString tokenPtr
-    else pure Nothing
+    then putStrLn "token ptr is not null" *> (Just <$> peekCString tokenPtr)
+    else putStrLn "token ptr is null" *> (pure Nothing)
 
 generateDpopToken ::
   (MonadIO m) =>
@@ -162,10 +162,14 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
           (_unNowEpoch now)
           backendPubkeyBundleCStr
 
+  let printErr w8 = do
+        putStrLn $ "error code: " <> show w8
+        pure w8
+
   let mkAccessToken response = do
         case response of
           Nothing -> pure $ Left FfiError
-          Just r -> toResult <$> getErrorFfi r <*> getTokenFfi r
+          Just r -> toResult <$> (getErrorFfi r >>= printErr) <*> getTokenFfi r
 
   let free = maybe (pure ()) free_dpop_access_token
 
@@ -212,7 +216,7 @@ newtype UserId = UserId {_unUserId :: ByteString}
   deriving (Eq, Show)
   deriving newtype (ToByteString)
 
-newtype ClientId = ClientId {_unClientId :: Word16}
+newtype ClientId = ClientId {_unClientId :: Word64}
   deriving (Eq, Show)
   deriving newtype (ToByteString)
 
