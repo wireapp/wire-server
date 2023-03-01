@@ -119,5 +119,9 @@ data:
         outlookCalIntegration:
           {{- toYaml .settings.featureFlags.outlookCalIntegration | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.mlsE2EId }}
+        mlsE2EId:
+          {{- toYaml .settings.featureFlags.mlsE2EId | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}

@@ -1,7 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,29 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Env where
+module V79_TeamFeatureMlsE2EId
+  ( migration,
+  )
+where
 
-import Bilge (RequestId)
-import Control.Lens (makeLenses)
-import Data.Metrics (Metrics)
-import Federator.Options (RunSettings)
+import Cassandra.Schema
 import Imports
-import Network.DNS.Resolver (Resolver)
-import qualified Network.HTTP.Client as HTTP
-import OpenSSL.Session (SSLContext)
-import qualified System.Logger.Class as LC
-import Util.Options
-import Wire.API.Federation.Component
+import Text.RawString.QQ
 
-data Env = Env
-  { _metrics :: Metrics,
-    _applog :: LC.Logger,
-    _requestId :: RequestId,
-    _dnsResolver :: Resolver,
-    _runSettings :: RunSettings,
-    _service :: Component -> Endpoint,
-    _httpManager :: HTTP.Manager,
-    _sslContext :: IORef SSLContext
-  }
-
-makeLenses ''Env
+migration :: Migration
+migration = Migration 79 "Add feature config for team feature MLS MlsE2EId" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          mls_e2eid_status int,
+          mls_e2eid_lock_status int,
+          mls_e2eid_ver_exp timestamp
+        )
+     |]

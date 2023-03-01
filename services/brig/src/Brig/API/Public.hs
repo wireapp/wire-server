@@ -356,7 +356,9 @@ servantSitemap =
         :<|> Named @"get-calls-config-v2" Calling.getCallsConfigV2
 
     systemSettingsAPI :: ServerT SystemSettingsAPI (Handler r)
-    systemSettingsAPI = Named @"get-system-settings" getSystemSettings
+    systemSettingsAPI =
+      Named @"get-system-settings-unauthorized" getSystemSettings
+        :<|> Named @"get-system-settings" getSystemSettingsInternal
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1067,13 +1069,19 @@ sendVerificationCode req = do
       mbStatusEnabled <- lift $ liftSem $ GalleyProvider.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
-getSystemSettings :: ExceptT Brig.API.Error.Error (AppT r) SystemSettings
+getSystemSettings :: (Handler r) SystemSettingsPublic
 getSystemSettings = do
   optSettings <- view settings
   pure $
-    SystemSettings
-      { systemSettingsSetRestrictUserCreation = fromMaybe False (setRestrictUserCreation optSettings)
-      }
+    SystemSettingsPublic $
+      fromMaybe False (setRestrictUserCreation optSettings)
+
+getSystemSettingsInternal :: UserId -> (Handler r) SystemSettings
+getSystemSettingsInternal _ = do
+  optSettings <- view settings
+  let pSettings = SystemSettingsPublic $ fromMaybe False (setRestrictUserCreation optSettings)
+  let iSettings = SystemSettingsInternal $ fromMaybe False (setEnableMLS optSettings)
+  pure $ SystemSettings pSettings iSettings
 
 -- Deprecated
 

@@ -170,6 +170,24 @@ class GetFeatureConfig (db :: Type) cfg => SetFeatureConfig (db :: Type) cfg whe
     TeamId ->
     WithStatusNoLock cfg ->
     Sem r (WithStatus cfg)
+  default setConfigForTeam ::
+    ( GetConfigForTeamConstraints db cfg r,
+      FeaturePersistentConstraint db cfg,
+      IsFeatureConfig cfg,
+      KnownSymbol (FeatureSymbol cfg),
+      ToSchema cfg,
+      Members
+        '[ TeamFeatureStore db,
+           P.Logger (Log.Msg -> Log.Msg),
+           GundeckAccess,
+           TeamStore
+         ]
+        r
+    ) =>
+    TeamId ->
+    WithStatusNoLock cfg ->
+    Sem r (WithStatus cfg)
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 type FeaturePersistentAllFeatures db =
   ( FeaturePersistentConstraint db LegalholdConfig,
@@ -187,7 +205,8 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db MLSConfig,
     FeaturePersistentConstraint db SearchVisibilityInboundConfig,
     FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig,
-    FeaturePersistentConstraint db OutlookCalIntegrationConfig
+    FeaturePersistentConstraint db OutlookCalIntegrationConfig,
+    FeaturePersistentConstraint db MlsE2EIdConfig
   )
 
 getFeatureStatus ::
@@ -418,6 +437,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @MLSConfig
     <*> getConfigForServer @ExposeInvitationURLsToTeamAdminConfig
     <*> getConfigForServer @OutlookCalIntegrationConfig
+    <*> getConfigForServer @MlsE2EIdConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -451,6 +471,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @MLSConfig uid
     <*> getConfigForUser @db @ExposeInvitationURLsToTeamAdminConfig uid
     <*> getConfigForUser @db @OutlookCalIntegrationConfig uid
+    <*> getConfigForUser @db @MlsE2EIdConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -480,6 +501,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @MLSConfig tid
     <*> getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid
     <*> getConfigForTeam @db @OutlookCalIntegrationConfig tid
+    <*> getConfigForTeam @db @MlsE2EIdConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -630,13 +652,11 @@ instance GetFeatureConfig db ValidateSAMLEmailsConfig where
   getConfigForServer =
     inputs (view (optSettings . setFeatureFlags . flagsTeamFeatureValidateSAMLEmailsStatus . unDefaults . unImplicitLockStatus))
 
-instance SetFeatureConfig db ValidateSAMLEmailsConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db ValidateSAMLEmailsConfig
 
 instance GetFeatureConfig db DigitalSignaturesConfig
 
-instance SetFeatureConfig db DigitalSignaturesConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db DigitalSignaturesConfig
 
 instance GetFeatureConfig db LegalholdConfig where
   type
@@ -729,8 +749,7 @@ instance GetFeatureConfig db FileSharingConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagFileSharing . unDefaults)
 
-instance SetFeatureConfig db FileSharingConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db FileSharingConfig
 
 instance GetFeatureConfig db AppLockConfig where
   getConfigForServer =
@@ -769,25 +788,21 @@ instance GetFeatureConfig db ConferenceCallingConfig where
     wsnl <- getAccountConferenceCallingConfigClient uid
     pure $ withLockStatus (wsLockStatus (defFeatureStatus @ConferenceCallingConfig)) wsnl
 
-instance SetFeatureConfig db ConferenceCallingConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db ConferenceCallingConfig
 
 instance GetFeatureConfig db SelfDeletingMessagesConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
 
-instance SetFeatureConfig db SelfDeletingMessagesConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db SelfDeletingMessagesConfig
 
-instance SetFeatureConfig db GuestLinksConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db GuestLinksConfig
 
 instance GetFeatureConfig db GuestLinksConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
 
-instance SetFeatureConfig db SndFactorPasswordChallengeConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db SndFactorPasswordChallengeConfig
 
 instance GetFeatureConfig db SndFactorPasswordChallengeConfig where
   getConfigForServer =
@@ -807,9 +822,7 @@ instance GetFeatureConfig db MLSConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagMLS . unDefaults . unImplicitLockStatus)
 
-instance SetFeatureConfig db MLSConfig where
-  setConfigForTeam tid wsnl = do
-    persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db MLSConfig
 
 instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   getConfigForTeam tid = do
@@ -832,16 +845,19 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
           ExposeInvitationURLsToTeamAdminConfig
           FeatureTTLUnlimited
 
-instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
-  type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig
 
-instance SetFeatureConfig db OutlookCalIntegrationConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db OutlookCalIntegrationConfig
 
 instance GetFeatureConfig db OutlookCalIntegrationConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagOutlookCalIntegration . unDefaults)
+
+instance SetFeatureConfig db MlsE2EIdConfig
+
+instance GetFeatureConfig db MlsE2EIdConfig where
+  getConfigForServer =
+    input <&> view (optSettings . setFeatureFlags . flagMlsE2EId . unDefaults)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

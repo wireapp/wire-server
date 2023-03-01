@@ -208,6 +208,10 @@ featureAPI =
     <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ilock", OutlookCalIntegrationConfig) (updateLockStatus @Cassandra @OutlookCalIntegrationConfig)
+    <@> mkNamedAPI @'("iget", MlsE2EIdConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", MlsE2EIdConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", MlsE2EIdConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @Cassandra @MlsE2EIdConfig)
     <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()

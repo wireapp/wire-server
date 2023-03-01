@@ -147,6 +147,11 @@ type IFeatureAPI =
     :<|> IFeatureStatusPut '[] '() OutlookCalIntegrationConfig
     :<|> IFeatureStatusPatch '[] '() OutlookCalIntegrationConfig
     :<|> IFeatureStatusLockStatusPut OutlookCalIntegrationConfig
+    -- MlsE2EIdConfig
+    :<|> IFeatureStatusGet MlsE2EIdConfig
+    :<|> IFeatureStatusPut '[] '() MlsE2EIdConfig
+    :<|> IFeatureStatusPatch '[] '() MlsE2EIdConfig
+    :<|> IFeatureStatusLockStatusPut MlsE2EIdConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"

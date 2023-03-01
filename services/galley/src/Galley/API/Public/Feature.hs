@@ -62,6 +62,8 @@ featureAPI =
     <@> mkNamedAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("get", OutlookCalIntegrationConfig) (getFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @'("put", OutlookCalIntegrationConfig) (setFeatureStatus @Cassandra . DoAuth)
+    <@> mkNamedAPI @'("get", MlsE2EIdConfig) (getFeatureStatus @Cassandra . DoAuth)
+    <@> mkNamedAPI @'("put", MlsE2EIdConfig) (setFeatureStatus @Cassandra . DoAuth)
     <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
     <@> mkNamedAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam @Cassandra)
     <@> mkNamedAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser @Cassandra)

@@ -88,6 +88,12 @@ config:
         defaults:
           status: disabled
           lockStatus: locked
+      mlsE2EId:
+        defaults:
+          status: disabled
+          config:
+            verificationExpiration: null
+          lockStatus: unlocked
 
   aws:
     region: "eu-west-1"
