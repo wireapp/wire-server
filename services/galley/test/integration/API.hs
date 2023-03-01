@@ -62,9 +62,11 @@ import Data.Singletons
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
+import Data.UUID.Types
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
+import Galley.API.Message
 import Galley.Options (optFederator)
 import Galley.Types.Conversations.Members
 import Imports
@@ -220,7 +222,8 @@ tests s =
           test s "post message qualified - local owning backend - redundant and deleted clients" postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients,
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
           test s "post message qualified - local owning backend - failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClients,
-          test s "post message qualified - local owning backend - failed to send clients 2" postMessageQualifiedLocalOwningBackendFailedToSendClients2,
+          test s "post message qualified - local owning backend - failed to get clients and failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients,
+          test s "build failed to send map for post message qualified" testBuildFailedToSend,
           test s "post message qualified - remote owning backend - federation failure" postMessageQualifiedRemoteOwningBackendFailure,
           test s "post message qualified - remote owning backend - success" postMessageQualifiedRemoteOwningBackendSuccess,
           test s "join conversation" postJoinConvOk,
@@ -1151,8 +1154,8 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
 
 -- This test is similar to postMessageQualifiedLocalOwningBackendFailedToSendClients
 -- except that both of the calls to the federated server are failing.
-postMessageQualifiedLocalOwningBackendFailedToSendClients2 :: TestM ()
-postMessageQualifiedLocalOwningBackendFailedToSendClients2 = do
+postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients :: TestM ()
+postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients = do
   -- WS receive timeout
   let t = 5 # Second
   -- Cannon for local users
@@ -1166,8 +1169,12 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients2 = do
   (chadOwningDomain, chadClient) <- randomUserWithClientQualified (someLastPrekeys !! 3)
   deeId <- randomId
   deeClient <- liftIO $ generate arbitrary
+  emilyId <- randomId
+  emilyClient <- liftIO $ generate arbitrary
   let remoteDomain = Domain "far-away.example.com"
       deeRemote = Qualified deeId remoteDomain
+      remoteDomain2 = Domain "far-away2.example.com"
+      emilyRemote = Qualified emilyId remoteDomain2
 
   let aliceUnqualified = qUnqualified aliceOwningDomain
       bobUnqualified = qUnqualified bobOwningDomain
@@ -1175,12 +1182,13 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients2 = do
 
   connectLocalQualifiedUsers aliceUnqualified (list1 bobOwningDomain [chadOwningDomain])
   connectWithRemoteUser aliceUnqualified deeRemote
+  connectWithRemoteUser aliceUnqualified emilyRemote
 
   -- FUTUREWORK: Do this test with more than one remote domains
   resp <-
     postConvWithRemoteUsers
       aliceUnqualified
-      defNewProteusConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
+      defNewProteusConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote, emilyRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
   WS.bracketR2 cannon bobUnqualified chadUnqualified $ \(wsBob, wsChad) -> do
@@ -1188,12 +1196,21 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients2 = do
           [ (bobOwningDomain, bobClient, "text-for-bob"),
             (bobOwningDomain, bobClient2, "text-for-bob2"),
             (chadOwningDomain, chadClient, "text-for-chad"),
-            (deeRemote, deeClient, "text-for-dee")
+            (deeRemote, deeClient, "text-for-dee"),
+            (emilyRemote, emilyClient, "text-for-emily")
           ]
 
     let mock =
-          ( guardRPC "get-user-clients"
-              *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+          ( do
+              -- Dee is always unavailable,
+              -- Emily is paritally available
+              guardRPC "get-user-clients"
+              d <- frTargetDomain <$> getRequest
+              if d == remoteDomain
+              then
+                throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+              else
+                mockReply $ UserMap (Map.singleton (qUnqualified emilyRemote) (Set.singleton (PubClient emilyClient Nothing)))
           )
             <|> ( guardRPC "on-message-sent"
                     *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
@@ -1209,15 +1226,25 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients2 = do
           "data"
           Message.MismatchReportAll
 
-    let expectedFailedToSend =
-          QualifiedUserClients . Map.fromList $
-            [ ( remoteDomain,
-                Map.fromList
-                  [ (deeId, Set.singleton deeClient)
-                  ]
-              )
-            ]
-        expectedRedundant = expectedFailedToSend
+    let expectedFailedToSend = QualifiedUserClients . Map.fromList $
+          [ ( remoteDomain,
+              Map.fromList
+                [ (deeId, Set.singleton deeClient)
+                ]
+            )
+          , ( remoteDomain2,
+              Map.fromList
+                [ (emilyId, Set.singleton emilyClient)
+                ]
+            )
+          ]
+        expectedRedundant = QualifiedUserClients . Map.fromList $
+          [ ( remoteDomain,
+              Map.fromList
+                [ (deeId, Set.singleton deeClient)
+                ]
+            )
+          ]
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified expectedFailedToSend mempty expectedRedundant mempty
@@ -1228,6 +1255,44 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients2 = do
           encodedData = toBase64Text "data"
       WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
       WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
+
+testBuildFailedToSend :: TestM ()
+testBuildFailedToSend = liftIO $ do
+  assertEqual "Empty case - trivial"
+    (collectFailedToSend [])
+    mempty
+  assertEqual "Empty case - single empty map"
+    (collectFailedToSend [mempty])
+    mempty
+  assertEqual "Empty case - multiple empty maps"
+    (collectFailedToSend [mempty, mempty])
+    mempty
+  assertEqual "Single domain"
+    (collectFailedToSend [Map.singleton (Domain "foo") mempty])
+    (Map.singleton (Domain "foo") mempty)
+  assertEqual "Single domain duplicated"
+    (collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "foo") mempty])
+    (Map.singleton (Domain "foo") mempty)
+  assertEqual "Mutliple domains in multiple maps"
+    (collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "bar") mempty])
+    (Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)])
+  assertEqual "Mutliple domains in single map"
+    (collectFailedToSend [Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)]])
+    (Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)])
+  assertEqual "Single domain duplicated with unique sub-maps"
+    (collectFailedToSend
+      [ Map.singleton (Domain "foo") $ Map.singleton idA mempty
+      , Map.singleton (Domain "foo") $ Map.singleton idB mempty
+      ]
+    )
+    (Map.singleton (Domain "foo") $ Map.fromList
+      [ (idA, mempty)
+      , (idB, mempty)
+      ]
+    )
+  where
+    idA = Id $ fromJust $ Data.UUID.Types.fromString "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    idB = Id $ fromJust $ Data.UUID.Types.fromString "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
 postMessageQualifiedRemoteOwningBackendFailure :: TestM ()
 postMessageQualifiedRemoteOwningBackendFailure = do

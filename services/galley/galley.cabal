@@ -532,6 +532,7 @@ executable galley-integration
     , unordered-containers
     , uri-bytestring
     , uuid
+    , uuid-types
     , vector
     , wai
     , wai-extra

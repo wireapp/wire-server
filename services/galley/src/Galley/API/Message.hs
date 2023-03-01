@@ -31,6 +31,7 @@ module Galley.API.Message
     QualifiedMismatch (..),
     mkQualifiedUserClients,
     clientMismatchStrategyApply,
+    collectFailedToSend
   )
 where
 
@@ -437,7 +438,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
               extractUserMap l = Map.singleton domain $ Map.fromList $ (,mempty) <$> users
                 where
                   domain = qDomain $ tUntagged l
-                  users = qUnqualified $ tUntagged l
+                  users = tUnqualified l
       -- check if the sender client exists (as one of the clients in the conversation)
       unless
         ( Set.member
@@ -488,15 +489,11 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           redundantFailed = filter predicate redundant'
       pure
         otrResult
-          { mssFailedToSend =
-              QualifiedUserClients $
-                foldr
-                  (Map.unionWith (Map.unionWith Set.union))
-                  mempty
-                  [ qualifiedUserClients failedToSend,
-                    qualifiedUserClients failedToSendFetchingClients,
-                    fromDomUserClient redundantFailed
-                  ]
+          { mssFailedToSend = QualifiedUserClients $ collectFailedToSend
+            [ qualifiedUserClients failedToSend,
+              qualifiedUserClients failedToSendFetchingClients,
+              fromDomUserClient redundantFailed
+            ]
           }
   where
     -- Get the triples for domains, users, and clients so we can easily filter
@@ -507,11 +504,16 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
       (d,) <$> Map.assocs m'
     -- Rebuild the map, concatenating results along the way.
     fromDomUserClient :: [(Domain, (UserId, Set ClientId))] -> Map Domain (Map UserId (Set ClientId))
-    fromDomUserClient = foldr f mempty
+    fromDomUserClient = foldr buildUserClientMap mempty
       where
-        f :: (Domain, (UserId, Set ClientId)) -> Map Domain (Map UserId (Set ClientId)) -> Map Domain (Map UserId (Set ClientId))
-        f (d, (u, c)) m = Map.alter (pure . Map.alter (g c . fromMaybe mempty) u . fromMaybe mempty) d m
-        g c = pure . Set.union c
+        buildUserClientMap :: (Domain, (UserId, Set ClientId)) -> Map Domain (Map UserId (Set ClientId)) -> Map Domain (Map UserId (Set ClientId))
+        buildUserClientMap (d, (u, c)) m = Map.alter (pure . Map.alter (pure . Set.union c . fromMaybe mempty) u . fromMaybe mempty) d m
+
+collectFailedToSend
+  :: Foldable f
+  => f (Map Domain (Map UserId (Set ClientId)))
+  -> Map Domain (Map UserId (Set ClientId))
+collectFailedToSend = foldr (Map.unionWith (Map.unionWith Set.union)) mempty
 
 makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
 makeUserMap keys = (<> Map.fromSet (const mempty) keys)
