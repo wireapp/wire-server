@@ -15,29 +15,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Run
-  ( main,
-  )
-where
+module Wire.API.MLS.ProposalTag where
 
+import Data.Binary
 import Imports
-import qualified Test.Brig.Calling
-import qualified Test.Brig.Calling.Internal
-import qualified Test.Brig.InternalNotification
-import qualified Test.Brig.MLS
-import qualified Test.Brig.Roundtrip
-import qualified Test.Brig.User.Search.Index.Types
-import Test.Tasty
+import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
-        Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests,
-        Test.Brig.Roundtrip.tests,
-        Test.Brig.MLS.tests,
-        Test.Brig.InternalNotification.tests
-      ]
+data ProposalTag
+  = AddProposalTag
+  | UpdateProposalTag
+  | RemoveProposalTag
+  | PreSharedKeyProposalTag
+  | ReInitProposalTag
+  | ExternalInitProposalTag
+  | AppAckProposalTag
+  | GroupContextExtensionsProposalTag
+  deriving stock (Bounded, Enum, Eq, Generic, Show)
+  deriving (Arbitrary) via GenericUniform ProposalTag
+
+instance ParseMLS ProposalTag where
+  parseMLS = parseMLSEnum @Word16 "proposal type"
+
+instance SerialiseMLS ProposalTag where
+  serialiseMLS = serialiseMLSEnum @Word16

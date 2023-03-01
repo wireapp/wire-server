@@ -15,29 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Run
-  ( main,
-  )
-where
+module Run where
 
+import Galley.DataMigration
 import Imports
-import qualified Test.Brig.Calling
-import qualified Test.Brig.Calling.Internal
-import qualified Test.Brig.InternalNotification
-import qualified Test.Brig.MLS
-import qualified Test.Brig.Roundtrip
-import qualified Test.Brig.User.Search.Index.Types
-import Test.Tasty
+import Options.Applicative
+import qualified System.Logger.Extended as Log
+import qualified V1_BackfillBillingTeamMembers
+import qualified V2_MigrateMLSMembers
 
 main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
-        Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests,
-        Test.Brig.Roundtrip.tests,
-        Test.Brig.MLS.tests,
-        Test.Brig.InternalNotification.tests
-      ]
+main = do
+  o <- execParser (info (helper <*> cassandraSettingsParser) desc)
+  l <- Log.mkLogger Log.Debug Nothing Nothing
+  migrate
+    l
+    o
+    [ V1_BackfillBillingTeamMembers.migration,
+      V2_MigrateMLSMembers.migration
+    ]
+  where
+    desc = header "Galley Cassandra Data Migrations" <> fullDesc

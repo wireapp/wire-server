@@ -29,11 +29,7 @@ import Control.Exception (throw)
 import Control.Lens (view)
 import Control.Lens.Extras
 import qualified Control.Monad.State as State
-import Crypto.Error
-import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Data.Aeson as Aeson
-import Data.Binary.Put
-import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
@@ -998,7 +994,7 @@ testLocalToRemoteNonMember = do
               . paths ["mls", "messages"]
               . zUser (qUnqualified bob)
               . zConn "conn"
-              . content "message/mls"
+              . Bilge.content "message/mls"
               . bytes (mpMessage message)
           )
           !!! do
@@ -1650,38 +1646,8 @@ testPublicKeys = do
       )
       @?= [Ed25519]
 
--- | The test manually reads from mls-test-cli's store and extracts a private
--- key. The key is needed for signing an AppAck proposal, which as of August 24,
--- 2022 only gets forwarded by the backend, i.e., there's no action taken by the
--- backend.
 propUnsupported :: TestM ()
-propUnsupported = do
-  users@[_alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  runMLSTest $ do
-    [alice1, bob1] <- traverse createMLSClient users
-    void $ uploadNewKeyPackage bob1
-    (gid, _) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
-
-    mems <- readGroupState <$> getClientGroupState alice1
-
-    (_, ref) <- assertJust $ find ((== alice1) . fst) mems
-    (priv, pub) <- clientKeyPair alice1
-    msg <-
-      assertJust $
-        maybeCryptoError $
-          mkAppAckProposalMessage
-            gid
-            (Epoch 1)
-            ref
-            []
-            <$> Ed25519.secretKey priv
-            <*> Ed25519.publicKey pub
-    let msgData = LBS.toStrict (runPut (serialiseMLS msg))
-
-    -- we cannot use sendAndConsumeMessage here, because openmls does not yet
-    -- support AppAck proposals
-    postMessage alice1 msgData !!! const 201 === statusCode
+propUnsupported = pure () -- TODO (app ack does not exist anymore)
 
 testBackendRemoveProposalRecreateClient :: TestM ()
 testBackendRemoveProposalRecreateClient = do

@@ -37,6 +37,7 @@ import Util
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.CipherSuite
 import Wire.API.User.Client
 
 data SetKey = SetKey | DontSetKey

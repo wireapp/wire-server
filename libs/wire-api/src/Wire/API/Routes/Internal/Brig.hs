@@ -51,6 +51,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.Error
 import Wire.API.Error.Brig
+import Wire.API.MLS.CipherSuite (SignatureSchemeTag)
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MakesFederatedCall

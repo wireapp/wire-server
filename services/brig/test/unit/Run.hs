@@ -15,17 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
+module Run
   ( main,
   )
 where
 
 import Imports
-import qualified Test.Galley.API
-import qualified Test.Galley.API.Message
-import qualified Test.Galley.API.One2One
-import qualified Test.Galley.Intra.User
-import qualified Test.Galley.Mapping
+import qualified Test.Brig.Calling
+import qualified Test.Brig.Calling.Internal
+import qualified Test.Brig.InternalNotification
+import qualified Test.Brig.MLS
+import qualified Test.Brig.Roundtrip
+import qualified Test.Brig.User.Search.Index.Types
 import Test.Tasty
 
 main :: IO ()
@@ -33,9 +34,10 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Galley.API.tests,
-        Test.Galley.API.Message.tests,
-        Test.Galley.API.One2One.tests,
-        Test.Galley.Intra.User.tests,
-        Test.Galley.Mapping.tests
+      [ Test.Brig.User.Search.Index.Types.tests,
+        Test.Brig.Calling.tests,
+        Test.Brig.Calling.Internal.tests,
+        Test.Brig.Roundtrip.tests,
+        Test.Brig.MLS.tests,
+        Test.Brig.InternalNotification.tests
       ]

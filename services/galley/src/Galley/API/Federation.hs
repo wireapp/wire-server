@@ -95,7 +95,6 @@ import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
 import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Message
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -668,8 +667,8 @@ sendMLSCommitBundle remoteDomain msr =
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
       bundle <- either (throw . mlsProtocolError) pure $ deserializeCommitBundle (fromBase64ByteString (F.mmsrRawMessage msr))
-      let msg = rmValue (cbCommitMsg bundle)
-      qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+      ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
+      qConvOrSub <- E.lookupConvByGroupId ibundle.groupId >>= noteS @'ConvNotFound
       when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
       uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
         <$> postMLSCommitBundle
@@ -678,7 +677,7 @@ sendMLSCommitBundle remoteDomain msr =
           (Just (mmsrSenderClient msr))
           qConvOrSub
           Nothing
-          bundle
+          ibundle
 
 sendMLSMessage ::
   ( Member BrigAccess r,
@@ -716,18 +715,17 @@ sendMLSMessage remoteDomain msr =
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.mmsrSender msr)
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.mmsrRawMessage msr))
-      case rmValue raw of
-        SomeMessage _ msg -> do
-          qConvOrSub <- E.lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-          when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
-          uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
-            <$> postMLSMessage
-              loc
-              (tUntagged sender)
-              (Just (mmsrSenderClient msr))
-              qConvOrSub
-              Nothing
-              raw
+      msg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage raw
+      qConvOrSub <- E.lookupConvByGroupId msg.groupId >>= noteS @'ConvNotFound
+      when (qUnqualified qConvOrSub /= F.mmsrConvOrSubId msr) $ throwS @'MLSGroupConversationMismatch
+      uncurry F.MLSMessageResponseUpdates . first (map lcuUpdate)
+        <$> postMLSMessage
+          loc
+          (tUntagged sender)
+          (Just (mmsrSenderClient msr))
+          qConvOrSub
+          Nothing
+          msg
 
 mlsSendWelcome ::
   ( Member BrigAccess r,

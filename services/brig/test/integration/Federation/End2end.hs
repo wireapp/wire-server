@@ -61,7 +61,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification (ntfTransient)
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.SubConversation
@@ -737,7 +737,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
             { updateClientMLSPublicKeys =
                 Map.singleton
                   Ed25519
-                  (bcSignatureKey (kpCredential (rmValue aliceKP)))
+                  aliceKP.rmValue.leafNode.signatureKey
             }
     put
       ( brig1
@@ -1015,7 +1015,7 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
             { updateClientMLSPublicKeys =
                 Map.singleton
                   Ed25519
-                  (bcSignatureKey (kpCredential (rmValue aliceKP)))
+                  aliceKP.rmValue.leafNode.signatureKey
             }
     put
       ( brig1

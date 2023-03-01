@@ -1,4 +1,4 @@
-cabal-version: 1.12
+cabal-version: 3.0
 name:          galley
 version:       0.83.0
 synopsis:      Conversations
@@ -6,7 +6,7 @@ category:      Network
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2017 Wire Swiss GmbH
-license:       AGPL-3
+license:       AGPL-3.0-only
 license-file:  LICENSE
 build-type:    Simple
 
@@ -15,7 +15,60 @@ flag static
   manual:      True
   default:     False
 
+common common-all
+  default-language:   Haskell2010
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -Wredundant-constraints
+
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DuplicateRecordFields
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedLabels
+    OverloadedRecordDot
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
 library
+  import:           common-all
+
   -- cabal-fmt: expand src
   exposed-modules:
     Galley.API
@@ -145,57 +198,11 @@ library
     Galley.Types.UserList
     Galley.Validation
 
-  other-modules:      Paths_galley
-  hs-source-dirs:     src
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -fplugin=TransitiveAnns.Plugin -Wredundant-constraints
-
+  ghc-options:      -fplugin=TransitiveAnns.Plugin
+  other-modules:    Paths_galley
+  hs-source-dirs:   src
   build-depends:
-      aeson                      >=2.0.1.0
+    , aeson                      >=2.0.1.0
     , amazonka                   >=1.4.5
     , amazonka-sqs               >=1.4.5
     , asn1-encoding
@@ -300,60 +307,15 @@ library
     , wire-api-federation
     , x509
 
-  default-language:   Haskell2010
+  default-language: Haskell2010
 
 executable galley
-  main-is:            exec/Main.hs
-  other-modules:      Paths_galley
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-T -rtsopts -Wredundant-constraints
-
+  import:           common-all
+  main-is:          exec/Main.hs
+  other-modules:    Paths_galley
+  ghc-options:      -threaded -with-rtsopts=-T -rtsopts
   build-depends:
-      base
+    , base
     , case-insensitive
     , extended
     , extra                >=1.3
@@ -375,10 +337,11 @@ executable galley
   if flag(static)
     ld-options: -static
 
-  default-language:   Haskell2010
+  default-language: Haskell2010
 
 executable galley-integration
-  main-is:            Main.hs
+  import:         common-all
+  main-is:        ../integration.hs
 
   -- cabal-fmt: expand test/integration
   other-modules:
@@ -399,60 +362,14 @@ executable galley-integration
     API.Teams.LegalHold.Util
     API.Util
     API.Util.TeamFeature
-    Main
+    Run
     TestHelpers
     TestSetup
 
-  hs-source-dirs:     test/integration
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N -Wredundant-constraints
-
+  ghc-options:    -threaded -with-rtsopts=-N -rtsopts
+  hs-source-dirs: test/integration
   build-depends:
-      aeson
+    , aeson
     , aeson-qq
     , amazonka
     , amazonka-sqs
@@ -559,70 +476,22 @@ executable galley-integration
     , wire-message-proto-lens
     , yaml
 
-  default-language:   Haskell2010
-
 executable galley-migrate-data
-  main-is:            Main.hs
+  import:           common-all
+  main-is:          ../main.hs
 
   -- cabal-fmt: expand migrate-data/src
   other-modules:
     Galley.DataMigration
     Galley.DataMigration.Types
-    Main
     Paths_galley
+    Run
     V1_BackfillBillingTeamMembers
     V2_MigrateMLSMembers
 
-  hs-source-dirs:     migrate-data/src
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
-
+  hs-source-dirs:   migrate-data/src
   build-depends:
-      base
+    , base
     , case-insensitive
     , cassandra-util
     , conduit
@@ -653,14 +522,15 @@ executable galley-migrate-data
   if flag(static)
     ld-options: -static
 
-  default-language:   Haskell2010
+  default-language: Haskell2010
 
 executable galley-schema
-  main-is:            Main.hs
+  import:             common-all
+  main-is:            ../main.hs
 
   -- cabal-fmt: expand schema/src
   other-modules:
-    Main
+    Run
     V20
     V21
     V22
@@ -725,55 +595,9 @@ executable galley-schema
     V81_MLSSubconversation
 
   hs-source-dirs:     schema/src
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints
-
+  default-extensions: TemplateHaskell
   build-depends:
-      base
+    , base
     , case-insensitive
     , cassandra-util
     , extended
@@ -798,66 +622,22 @@ executable galley-schema
   default-language:   Haskell2010
 
 test-suite galley-tests
-  type:               exitcode-stdio-1.0
-  main-is:            Main.hs
+  import:           common-all
+  type:             exitcode-stdio-1.0
+  main-is:          ../unit.hs
   other-modules:
     Paths_galley
+    Run
     Test.Galley.API
     Test.Galley.API.Message
     Test.Galley.API.One2One
     Test.Galley.Intra.User
     Test.Galley.Mapping
 
-  hs-source-dirs:     test/unit
-  default-extensions:
-    NoImplicitPrelude
-    AllowAmbiguousTypes
-    BangPatterns
-    ConstraintKinds
-    DataKinds
-    DefaultSignatures
-    DeriveFunctor
-    DeriveGeneric
-    DeriveLift
-    DeriveTraversable
-    DerivingStrategies
-    DerivingVia
-    DuplicateRecordFields
-    EmptyCase
-    FlexibleContexts
-    FlexibleInstances
-    FunctionalDependencies
-    GADTs
-    InstanceSigs
-    KindSignatures
-    LambdaCase
-    MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
-    OverloadedRecordDot
-    OverloadedStrings
-    PackageImports
-    PatternSynonyms
-    PolyKinds
-    QuasiQuotes
-    RankNTypes
-    ScopedTypeVariables
-    StandaloneDeriving
-    TupleSections
-    TypeApplications
-    TypeFamilies
-    TypeFamilyDependencies
-    TypeOperators
-    UndecidableInstances
-    ViewPatterns
-
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N -Wredundant-constraints
-
+  ghc-options:      -threaded -with-rtsopts=-N
+  hs-source-dirs:   test/unit
   build-depends:
-      base
+    , base
     , case-insensitive
     , containers
     , extended
@@ -889,4 +669,4 @@ test-suite galley-tests
     , wire-api
     , wire-api-federation
 
-  default-language:   Haskell2010
+  default-language: Haskell2010

@@ -14,25 +14,29 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Main where
+module Wire.API.MLS.Lifetime where
 
-import Galley.DataMigration
+import Data.Time.Clock.POSIX
 import Imports
-import Options.Applicative
-import qualified System.Logger.Extended as Log
-import qualified V1_BackfillBillingTeamMembers
-import qualified V2_MigrateMLSMembers
+import Test.QuickCheck
+import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
-main :: IO ()
-main = do
-  o <- execParser (info (helper <*> cassandraSettingsParser) desc)
-  l <- Log.mkLogger Log.Debug Nothing Nothing
-  migrate
-    l
-    o
-    [ V1_BackfillBillingTeamMembers.migration,
-      V2_MigrateMLSMembers.migration
-    ]
-  where
-    desc = header "Galley Cassandra Data Migrations" <> fullDesc
+-- | Seconds since the UNIX epoch.
+newtype Timestamp = Timestamp {timestampSeconds :: Word64}
+  deriving newtype (Eq, Show, Arbitrary, ParseMLS)
+
+tsPOSIX :: Timestamp -> POSIXTime
+tsPOSIX = fromIntegral . timestampSeconds
+
+data Lifetime = Lifetime
+  { ltNotBefore :: Timestamp,
+    ltNotAfter :: Timestamp
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via GenericUniform Lifetime
+
+instance ParseMLS Lifetime where
+  parseMLS = Lifetime <$> parseMLS <*> parseMLS

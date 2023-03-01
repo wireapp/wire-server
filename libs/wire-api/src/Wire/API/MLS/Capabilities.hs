@@ -1,7 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,24 +15,32 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.Extension where
+module Wire.API.MLS.Capabilities where
 
-import Data.Binary
 import Imports
+import Test.QuickCheck
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Credential
+import Wire.API.MLS.ProposalTag
+import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
-data Extension = Extension
-  { extType :: Word16,
-    extData :: ByteString
+data Capabilities = Capabilities
+  { versions :: [ProtocolVersion],
+    ciphersuites :: [CipherSuite],
+    extensions :: [Word16],
+    proposals :: [ProposalTag],
+    credentials :: [CredentialTag]
   }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform Extension
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform Capabilities)
 
-instance ParseMLS Extension where
-  parseMLS = Extension <$> parseMLS <*> parseMLSBytes @VarInt
-
-instance SerialiseMLS Extension where
-  serialiseMLS (Extension ty d) = do
-    serialiseMLS ty
-    serialiseMLSBytes @Word32 d
+instance ParseMLS Capabilities where
+  parseMLS =
+    Capabilities
+      <$> parseMLSVector @VarInt parseMLS
+      <*> parseMLSVector @VarInt parseMLS
+      <*> parseMLSVector @VarInt parseMLS
+      <*> parseMLSVector @VarInt parseMLS
+      <*> parseMLSVector @VarInt parseMLS

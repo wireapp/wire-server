@@ -63,6 +63,7 @@ import qualified Polysemy.TinyLog as P
 import Servant
 import qualified System.Logger.Class as Logger
 import Wire.API.Error.Galley
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig

@@ -15,25 +15,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
+module Run
   ( main,
   )
 where
 
 import Imports
+import qualified Test.Galley.API
+import qualified Test.Galley.API.Message
+import qualified Test.Galley.API.One2One
+import qualified Test.Galley.Intra.User
+import qualified Test.Galley.Mapping
 import Test.Tasty
-import qualified Test.Wire.API.Golden.FromJSON as Golden.FromJSON
-import qualified Test.Wire.API.Golden.Generated as Golden.Generated
-import qualified Test.Wire.API.Golden.Manual as Golden.Manual
-import qualified Test.Wire.API.Golden.Protobuf as Golden.Protobuf
 
 main :: IO ()
 main =
   defaultMain $
     testGroup
       "Tests"
-      [ Golden.Generated.tests,
-        Golden.Manual.tests,
-        Golden.FromJSON.tests,
-        Golden.Protobuf.tests
+      [ Test.Galley.API.tests,
+        Test.Galley.API.Message.tests,
+        Test.Galley.API.One2One.tests,
+        Test.Galley.Intra.User.tests,
+        Test.Galley.Mapping.tests
       ]

@@ -26,7 +26,7 @@ import Data.Range (unsafeRange)
 import qualified Data.Set as Set
 import Data.Text.Ascii (AsciiChars (validate))
 import Imports (Maybe (Just, Nothing), fromRight, mempty, undefined)
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey

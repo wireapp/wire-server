@@ -86,6 +86,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -220,7 +221,7 @@ upsertKeyPackage nkp = do
     either
       (const $ mlsProtocolError "upsertKeyPackage: Cannot decode ClientIdentity")
       pure
-      $ kpIdentity (rmValue kp)
+      $ keyPackageIdentity (rmValue kp)
   mp <- lift . wrapClient . runMaybeT $ Data.derefKeyPackage ref
   when (isNothing mp) $ do
     void $ validateKeyPackage identity kp

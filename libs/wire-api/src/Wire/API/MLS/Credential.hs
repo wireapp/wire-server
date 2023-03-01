@@ -19,7 +19,6 @@
 
 module Wire.API.MLS.Credential where
 
-import Cassandra.CQL
 import Control.Error.Util
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
@@ -37,6 +36,7 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.UUID
+import GHC.Records
 import Imports
 import Web.HttpApiData
 import Wire.API.MLS.Serialisation
@@ -45,16 +45,14 @@ import Wire.Arbitrary
 -- | An MLS credential.
 --
 -- Only the @BasicCredential@ type is supported.
-data Credential = BasicCredential
-  { bcIdentity :: ByteString,
-    bcSignatureScheme :: SignatureScheme,
-    bcSignatureKey :: ByteString
-  }
+data Credential = BasicCredential ByteString
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform Credential
 
-data CredentialTag = BasicCredentialTag
-  deriving stock (Enum, Bounded, Eq, Show)
+data CredentialTag where
+  BasicCredentialTag :: CredentialTag
+  deriving stock (Enum, Bounded, Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CredentialTag)
 
 instance ParseMLS CredentialTag where
   parseMLS = parseMLSEnum @Word16 "credential type"
@@ -64,75 +62,13 @@ instance ParseMLS Credential where
     parseMLS >>= \case
       BasicCredentialTag ->
         BasicCredential
-          <$> parseMLSBytes @Word16
-          <*> parseMLS
-          <*> parseMLSBytes @Word16
+          <$> parseMLSBytes @VarInt
 
 credentialTag :: Credential -> CredentialTag
 credentialTag BasicCredential {} = BasicCredentialTag
 
--- | A TLS signature scheme.
---
--- See <https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-signaturescheme>.
-newtype SignatureScheme = SignatureScheme {unSignatureScheme :: Word16}
-  deriving stock (Eq, Show)
-  deriving newtype (ParseMLS, Arbitrary)
-
-signatureScheme :: SignatureSchemeTag -> SignatureScheme
-signatureScheme = SignatureScheme . signatureSchemeNumber
-
-data SignatureSchemeTag = Ed25519
-  deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
-  deriving (Arbitrary) via GenericUniform SignatureSchemeTag
-
-instance Cql SignatureSchemeTag where
-  ctype = Tagged TextColumn
-  toCql = CqlText . signatureSchemeName
-  fromCql (CqlText name) =
-    note ("Unexpected signature scheme: " <> T.unpack name) $
-      signatureSchemeFromName name
-  fromCql _ = Left "SignatureScheme: Text expected"
-
-signatureSchemeNumber :: SignatureSchemeTag -> Word16
-signatureSchemeNumber Ed25519 = 0x807
-
-signatureSchemeName :: SignatureSchemeTag -> Text
-signatureSchemeName Ed25519 = "ed25519"
-
-signatureSchemeTag :: SignatureScheme -> Maybe SignatureSchemeTag
-signatureSchemeTag (SignatureScheme n) = getAlt $
-  flip foldMap [minBound .. maxBound] $ \s ->
-    guard (signatureSchemeNumber s == n) $> s
-
-signatureSchemeFromName :: Text -> Maybe SignatureSchemeTag
-signatureSchemeFromName name = getAlt $
-  flip foldMap [minBound .. maxBound] $ \s ->
-    guard (signatureSchemeName s == name) $> s
-
-parseSignatureScheme :: MonadFail f => Text -> f SignatureSchemeTag
-parseSignatureScheme name =
-  maybe
-    (fail ("Unsupported signature scheme " <> T.unpack name))
-    pure
-    (signatureSchemeFromName name)
-
-instance FromJSON SignatureSchemeTag where
-  parseJSON = Aeson.withText "SignatureScheme" parseSignatureScheme
-
-instance FromJSONKey SignatureSchemeTag where
-  fromJSONKey = Aeson.FromJSONKeyTextParser parseSignatureScheme
-
-instance S.ToParamSchema SignatureSchemeTag where
-  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
-
-instance FromHttpApiData SignatureSchemeTag where
-  parseQueryParam = note "Unknown signature scheme" . signatureSchemeFromName
-
-instance ToJSON SignatureSchemeTag where
-  toJSON = Aeson.String . signatureSchemeName
-
-instance ToJSONKey SignatureSchemeTag where
-  toJSONKey = Aeson.toJSONKeyText signatureSchemeName
+instance HasField "identityData" Credential ByteString where
+  getField (BasicCredential i) = i
 
 data ClientIdentity = ClientIdentity
   { ciDomain :: Domain,

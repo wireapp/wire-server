@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -24,12 +22,7 @@ module Wire.API.MLS.KeyPackage
     KeyPackageCount (..),
     KeyPackageData (..),
     KeyPackage (..),
-    kpProtocolVersion,
-    kpCipherSuite,
-    kpInitKey,
-    kpCredential,
-    kpExtensions,
-    kpIdentity,
+    keyPackageIdentity,
     kpRef,
     kpRef',
     KeyPackageTBS (..),
@@ -52,6 +45,7 @@ import Data.Json.Util
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
+import GHC.Records
 import Imports
 import Test.QuickCheck
 import Web.HttpApiData
@@ -59,6 +53,9 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
+import Wire.API.MLS.HPKEPublicKey
+import Wire.API.MLS.LeafNode
+import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
@@ -160,17 +157,18 @@ kpRef cs =
 kpRef' :: RawMLS KeyPackage -> Maybe KeyPackageRef
 kpRef' kp =
   kpRef
-    <$> cipherSuiteTag (kpCipherSuite (rmValue kp))
+    <$> cipherSuiteTag (kp.rmValue.cipherSuite)
     <*> pure (KeyPackageData (rmRaw kp))
 
 --------------------------------------------------------------------------------
 
 data KeyPackageTBS = KeyPackageTBS
-  { kpuProtocolVersion :: ProtocolVersion,
-    kpuCipherSuite :: CipherSuite,
-    kpuInitKey :: ByteString,
-    kpuCredential :: Credential,
-    kpuExtensions :: [Extension]
+  { protocolVersion :: ProtocolVersion,
+    cipherSuite :: CipherSuite,
+    initKey :: HPKEPublicKey,
+    leafNode :: LeafNode,
+    credential :: Credential,
+    extensions :: [Extension]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform KeyPackageTBS
@@ -180,36 +178,40 @@ instance ParseMLS KeyPackageTBS where
     KeyPackageTBS
       <$> parseMLS
       <*> parseMLS
-      <*> parseMLSBytes @Word16
       <*> parseMLS
-      <*> parseMLSVector @Word32 parseMLS
+      <*> parseMLS
+      <*> parseMLS
+      <*> parseMLSVector @VarInt parseMLS
 
 data KeyPackage = KeyPackage
-  { kpTBS :: RawMLS KeyPackageTBS,
-    kpSignature :: ByteString
+  { tbs :: RawMLS KeyPackageTBS,
+    signature_ :: ByteString
   }
   deriving stock (Eq, Show)
 
 instance S.ToSchema KeyPackage where
   declareNamedSchema _ = pure (mlsSwagger "KeyPackage")
 
-kpProtocolVersion :: KeyPackage -> ProtocolVersion
-kpProtocolVersion = kpuProtocolVersion . rmValue . kpTBS
+instance HasField "protocolVersion" KeyPackage ProtocolVersion where
+  getField = (.tbs.rmValue.protocolVersion)
 
-kpCipherSuite :: KeyPackage -> CipherSuite
-kpCipherSuite = kpuCipherSuite . rmValue . kpTBS
+instance HasField "cipherSuite" KeyPackage CipherSuite where
+  getField = (.tbs.rmValue.cipherSuite)
 
-kpInitKey :: KeyPackage -> ByteString
-kpInitKey = kpuInitKey . rmValue . kpTBS
+instance HasField "initKey" KeyPackage HPKEPublicKey where
+  getField = (.tbs.rmValue.initKey)
 
-kpCredential :: KeyPackage -> Credential
-kpCredential = kpuCredential . rmValue . kpTBS
+instance HasField "credential" KeyPackage Credential where
+  getField = (.tbs.rmValue.credential)
 
-kpExtensions :: KeyPackage -> [Extension]
-kpExtensions = kpuExtensions . rmValue . kpTBS
+instance HasField "extensions" KeyPackage [Extension] where
+  getField = (.tbs.rmValue.extensions)
 
-kpIdentity :: KeyPackage -> Either Text ClientIdentity
-kpIdentity = decodeMLS' @ClientIdentity . bcIdentity . kpCredential
+instance HasField "leafNode" KeyPackage LeafNode where
+  getField = (.tbs.rmValue.leafNode)
+
+keyPackageIdentity :: KeyPackage -> Either Text ClientIdentity
+keyPackageIdentity = decodeMLS' @ClientIdentity . (.credential.identityData)
 
 rawKeyPackageSchema :: ValueSchema NamedSwaggerDoc (RawMLS KeyPackage)
 rawKeyPackageSchema =

@@ -80,7 +80,13 @@ createAndSendRemoveProposals lConvOrSubConv cs qusr cm = do
     Just (secKey, pubKey) -> do
       for_ cs $ \kpref -> do
         let proposal = mkRemoveProposal kpref
-            msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
+            msg =
+              mkSignedMessage
+                secKey
+                pubKey
+                (cnvmlsGroupId meta)
+                (cnvmlsEpoch meta)
+                (FramedContentProposal proposal)
             msgEncoded = encodeMLS' msg
         storeProposal
           (cnvmlsGroupId meta)

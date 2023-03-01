@@ -87,68 +87,75 @@ testConvertProtoRoundTrip = testProperty (show (typeRep @a)) trip
 -- auxiliary types
 
 class ArbitrarySender a where
-  arbitrarySender :: Gen (Sender 'MLSPlainText)
+  arbitrarySender :: Gen Sender
 
-class ArbitraryMessagePayload a where
-  arbitraryMessagePayload :: Gen (MessagePayload 'MLSPlainText)
+class ArbitraryFramedContentData a where
+  arbitraryFramedContentData :: Gen FramedContentData
 
-class ArbitraryMessageTBS a where
-  arbitraryArbitraryMessageTBS :: Gen (MessageTBS 'MLSPlainText)
+class ArbitraryFramedContent a where
+  arbitraryFramedContent :: Gen FramedContent
 
-newtype MessageGenerator tbs = MessageGenerator {unMessageGenerator :: Message 'MLSPlainText}
+newtype MessageGenerator tbs = MessageGenerator {unMessageGenerator :: Message}
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
-instance (ArbitraryMessageTBS tbs) => Arbitrary (MessageGenerator tbs) where
-  arbitrary = do
-    tbs <- arbitraryArbitraryMessageTBS @tbs
-    MessageGenerator
-      <$> (Message (mkRawMLS tbs) <$> arbitrary)
+instance ArbitraryFramedContent fc => Arbitrary (MessageGenerator fc) where
+  arbitrary =
+    fmap MessageGenerator $
+      Message
+        <$> arbitrary
+        <*> fmap
+          MessagePublic
+          ( PublicMessage
+              <$> fmap mkRawMLS (arbitraryFramedContent @fc)
+              <*> (FramedContentAuthData <$> arbitrary <*> pure Nothing)
+              <*> arbitrary
+          )
 
-data MessageTBSGenerator sender payload
+data FramedContentGenerator sender payload
 
 instance
   ( ArbitrarySender sender,
-    ArbitraryMessagePayload payload
+    ArbitraryFramedContentData payload
   ) =>
-  ArbitraryMessageTBS (MessageTBSGenerator sender payload)
+  ArbitraryFramedContent (FramedContentGenerator sender payload)
   where
-  arbitraryArbitraryMessageTBS =
-    MessageTBS KnownFormatTag
+  arbitraryFramedContent =
+    FramedContent
       <$> arbitrary
       <*> arbitrary
-      <*> arbitrary
       <*> arbitrarySender @sender
-      <*> arbitraryMessagePayload @payload
+      <*> arbitrary
+      <*> arbitraryFramedContentData @payload
 
 ---
 
-newtype RemoveProposalMessage = RemoveProposalMessage {unRemoveProposalMessage :: Message 'MLSPlainText}
+newtype RemoveProposalMessage = RemoveProposalMessage {unRemoveProposalMessage :: Message}
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
 instance Arbitrary RemoveProposalMessage where
   arbitrary =
     RemoveProposalMessage
-      <$> (unMessageGenerator <$> arbitrary @(MessageGenerator (MessageTBSGenerator TestPreconfiguredSender RemoveProposalPayload)))
+      <$> (unMessageGenerator <$> arbitrary @(MessageGenerator (FramedContentGenerator TestPreconfiguredSender RemoveProposalPayload)))
 
 ---
 
-newtype RemoveProposalPayload = RemoveProposalPayload {unRemoveProposalPayload :: MessagePayload 'MLSPlainText}
+newtype RemoveProposalPayload = RemoveProposalPayload {unRemoveProposalPayload :: FramedContentData}
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
 instance Arbitrary RemoveProposalPayload where
-  arbitrary = RemoveProposalPayload . ProposalMessage . mkRemoveProposal <$> arbitrary
+  arbitrary = RemoveProposalPayload . FramedContentProposal . mkRemoveProposal <$> arbitrary
 
-instance ArbitraryMessagePayload RemoveProposalPayload where
-  arbitraryMessagePayload = unRemoveProposalPayload <$> arbitrary
+instance ArbitraryFramedContentData RemoveProposalPayload where
+  arbitraryFramedContentData = unRemoveProposalPayload <$> arbitrary
 
 ---
 
 newtype TestPreconfiguredSender = TestPreconfiguredSender
-  {unTestPreconfiguredSender :: Sender 'MLSPlainText}
+  {unTestPreconfiguredSender :: Sender}
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
 instance Arbitrary TestPreconfiguredSender where
-  arbitrary = TestPreconfiguredSender . PreconfiguredSender <$> arbitrary
+  arbitrary = TestPreconfiguredSender . SenderExternal <$> arbitrary
 
 instance ArbitrarySender TestPreconfiguredSender where
   arbitrarySender = unTestPreconfiguredSender <$> arbitrary

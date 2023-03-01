@@ -73,6 +73,7 @@ import Polysemy
 import Polysemy.Error
 import Wire.API.Connection
 import Wire.API.Error.Galley
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig

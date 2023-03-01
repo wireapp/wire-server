@@ -27,9 +27,9 @@ import Imports
 import Test.QuickCheck hiding (label)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
-import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 

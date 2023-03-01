@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,7 +17,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE TemplateHaskell #-}
 
 module Wire.API.MLS.Proposal where
 
@@ -32,26 +33,10 @@ import Wire.API.MLS.Context
 import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.ProposalTag
+import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
-
-data ProposalTag
-  = AddProposalTag
-  | UpdateProposalTag
-  | RemoveProposalTag
-  | PreSharedKeyProposalTag
-  | ReInitProposalTag
-  | ExternalInitProposalTag
-  | AppAckProposalTag
-  | GroupContextExtensionsProposalTag
-  deriving stock (Bounded, Enum, Eq, Generic, Show)
-  deriving (Arbitrary) via GenericUniform ProposalTag
-
-instance ParseMLS ProposalTag where
-  parseMLS = parseMLSEnum @Word16 "proposal type"
-
-instance SerialiseMLS ProposalTag where
-  serialiseMLS = serialiseMLSEnum @Word16
 
 data Proposal
   = AddProposal (RawMLS KeyPackage)

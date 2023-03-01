@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,29 +17,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Run
-  ( main,
-  )
-where
+module Wire.API.MLS.HPKEPublicKey where
 
 import Imports
-import qualified Test.Brig.Calling
-import qualified Test.Brig.Calling.Internal
-import qualified Test.Brig.InternalNotification
-import qualified Test.Brig.MLS
-import qualified Test.Brig.Roundtrip
-import qualified Test.Brig.User.Search.Index.Types
-import Test.Tasty
+import Test.QuickCheck
+import Wire.API.MLS.Serialisation
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
-        Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests,
-        Test.Brig.Roundtrip.tests,
-        Test.Brig.MLS.tests,
-        Test.Brig.InternalNotification.tests
-      ]
+newtype HPKEPublicKey = HPKEPublicKey {unHPKEPublicKey :: ByteString}
+  deriving (Show, Eq, Arbitrary)
+
+instance ParseMLS HPKEPublicKey where
+  parseMLS = HPKEPublicKey <$> parseMLSBytes @VarInt

@@ -83,7 +83,7 @@ type MLSMessagingAPI =
                :> ZLocalUser
                :> ZOptClient
                :> ZConn
-               :> ReqBody '[MLS] (RawMLS SomeMessage)
+               :> ReqBody '[MLS] (RawMLS Message)
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" [Event])
            )
     :<|> Named
@@ -121,7 +121,7 @@ type MLSMessagingAPI =
                :> ZLocalUser
                :> ZOptClient
                :> ZConn
-               :> ReqBody '[MLS] (RawMLS SomeMessage)
+               :> ReqBody '[MLS] (RawMLS Message)
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" MLSMessageSendingStatus)
            )
     :<|> Named

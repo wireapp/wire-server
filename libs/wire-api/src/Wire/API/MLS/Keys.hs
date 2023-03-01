@@ -32,6 +32,7 @@ import qualified Data.Map as Map
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 
 data MLSKeys = MLSKeys

@@ -49,6 +49,7 @@ import Data.Time.Clock.POSIX
 import Imports
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Serialisation
 import Wire.API.Routes.Internal.Brig
 
@@ -127,11 +128,11 @@ getNonClaimedKeyPackages u c = do
 
     hasExpired :: POSIXTime -> Maybe NominalDiffTime -> (KeyPackage, a) -> Bool
     hasExpired now mMaxLifetime (kp, _) =
-      case findExtensions (kpExtensions kp) of
-        Left _ -> True -- the assumption is the key package is valid and has the
-        -- required extensions so we return 'True'
-        Right (runIdentity . reLifetime -> lt) ->
+      case kp.leafNode.source of
+        LeafNodeSourceKeyPackage lt ->
           either (const True) (const False) . validateLifetime' now mMaxLifetime $ lt
+        _ -> True -- the assumption is the key package is valid and has the
+        -- required extensions so we return 'True'
 
 -- | Add key package ref to mapping table.
 mapKeyPackageRef :: MonadClient m => KeyPackageRef -> Qualified UserId -> ClientId -> m ()

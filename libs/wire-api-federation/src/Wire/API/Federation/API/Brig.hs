@@ -27,7 +27,7 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
-import Wire.API.MLS.Credential
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client

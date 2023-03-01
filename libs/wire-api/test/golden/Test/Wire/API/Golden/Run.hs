@@ -15,29 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Run
-  ( main,
-  )
-where
+module Test.Wire.API.Golden.Run (main) where
 
 import Imports
-import qualified Test.Brig.Calling
-import qualified Test.Brig.Calling.Internal
-import qualified Test.Brig.InternalNotification
-import qualified Test.Brig.MLS
-import qualified Test.Brig.Roundtrip
-import qualified Test.Brig.User.Search.Index.Types
 import Test.Tasty
+import qualified Test.Wire.API.Golden.FromJSON as Golden.FromJSON
+import qualified Test.Wire.API.Golden.Generated as Golden.Generated
+import qualified Test.Wire.API.Golden.Manual as Golden.Manual
+import qualified Test.Wire.API.Golden.Protobuf as Golden.Protobuf
 
 main :: IO ()
 main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
-        Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests,
-        Test.Brig.Roundtrip.tests,
-        Test.Brig.MLS.tests,
-        Test.Brig.InternalNotification.tests
+      [ Golden.Generated.tests,
+        Golden.Manual.tests,
+        Golden.FromJSON.tests,
+        Golden.Protobuf.tests
       ]

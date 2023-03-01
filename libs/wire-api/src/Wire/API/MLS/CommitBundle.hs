@@ -34,7 +34,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
 data CommitBundle = CommitBundle
-  { cbCommitMsg :: RawMLS (Message 'MLSPlainText),
+  { cbCommitMsg :: RawMLS Message,
     cbWelcome :: Maybe (RawMLS Welcome),
     cbGroupInfoBundle :: GroupInfoBundle
   }
@@ -43,7 +43,10 @@ data CommitBundle = CommitBundle
 instance ConvertProtoLens Proto.Mls.CommitBundle CommitBundle where
   fromProtolens protoBundle = protoLabel "CommitBundle" $ do
     CommitBundle
-      <$> protoLabel "commit" (decodeMLS' (view Proto.Mls.commit protoBundle))
+      <$> protoLabel
+        "commit"
+        ( decodeMLS' (view Proto.Mls.commit protoBundle)
+        )
       <*> protoLabel
         "welcome"
         ( let bs = view Proto.Mls.welcome protoBundle

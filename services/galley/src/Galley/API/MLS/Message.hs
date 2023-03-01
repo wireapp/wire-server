@@ -16,7 +16,11 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.MLS.Message
-  ( postMLSCommitBundle,
+  ( IncomingBundle (..),
+    mkIncomingBundle,
+    IncomingMessage (..),
+    mkIncomingMessage,
+    postMLSCommitBundle,
     postMLSCommitBundleFromLocalUser,
     postMLSMessageFromLocalUser,
     postMLSMessageFromLocalUserV1,
@@ -40,6 +44,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Time
 import Data.Tuple.Extra
+import GHC.Records
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.Conversation
@@ -97,6 +102,90 @@ import Wire.API.Message
 import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Client
 
+data IncomingMessage = IncomingMessage
+  { epoch :: Epoch,
+    groupId :: GroupId,
+    content :: IncomingMessageContent,
+    rawMessage :: RawMLS Message
+  }
+
+instance HasField "sender" IncomingMessage (Maybe Sender) where
+  getField msg = case msg.content of
+    IncomingMessageContentPublic pub -> Just pub.sender
+    _ -> Nothing
+
+data IncomingMessageContent
+  = IncomingMessageContentPublic IncomingPublicMessageContent
+  | IncomingMessageContentPrivate
+
+data IncomingPublicMessageContent = IncomingPublicMessageContent
+  { sender :: Sender,
+    content :: FramedContentData,
+    -- for verification
+    framedContent :: RawMLS FramedContent,
+    authData :: FramedContentAuthData
+  }
+
+data IncomingBundle = IncomingBundle
+  { epoch :: Epoch,
+    groupId :: GroupId,
+    sender :: Sender,
+    commit :: RawMLS Commit,
+    rawMessage :: RawMLS Message,
+    welcome :: Maybe (RawMLS Welcome),
+    groupInfoBundle :: GroupInfoBundle,
+    serialized :: ByteString
+  }
+
+mkIncomingMessage :: RawMLS Message -> Maybe IncomingMessage
+mkIncomingMessage msg = case msg.rmValue.content of
+  MessagePublic pmsg ->
+    Just
+      IncomingMessage
+        { epoch = pmsg.content.rmValue.epoch,
+          groupId = pmsg.content.rmValue.groupId,
+          content =
+            IncomingMessageContentPublic
+              IncomingPublicMessageContent
+                { sender = pmsg.content.rmValue.sender,
+                  content = pmsg.content.rmValue.content,
+                  framedContent = pmsg.content,
+                  authData = pmsg.authData
+                },
+          rawMessage = msg
+        }
+  MessagePrivate pmsg
+    | pmsg.rmValue.tag == FramedContentApplicationDataTag ->
+        Just
+          IncomingMessage
+            { epoch = pmsg.rmValue.epoch,
+              groupId = pmsg.rmValue.groupId,
+              content = IncomingMessageContentPrivate,
+              rawMessage = msg
+            }
+  _ -> Nothing
+
+mkIncomingBundle :: CommitBundle -> Maybe IncomingBundle
+mkIncomingBundle bundle = do
+  imsg <- mkIncomingMessage bundle.cbCommitMsg
+  content <- case imsg.content of
+    IncomingMessageContentPublic c -> pure c
+    _ -> Nothing
+  commit <- case content.content of
+    FramedContentCommit c -> pure c
+    _ -> Nothing
+  pure
+    IncomingBundle
+      { epoch = imsg.epoch,
+        groupId = imsg.groupId,
+        sender = content.sender,
+        commit = commit,
+        rawMessage = bundle.cbCommitMsg,
+        welcome = bundle.cbWelcome,
+        groupInfoBundle = bundle.cbGroupInfoBundle,
+        serialized = serializeCommitBundle bundle
+      }
+
 type MLSMessageStaticErrors =
   '[ ErrorS 'ConvAccessDenied,
      ErrorS 'ConvMemberNotFound,
@@ -145,15 +234,14 @@ postMLSMessageFromLocalUserV1 ::
   Local UserId ->
   Maybe ClientId ->
   ConnId ->
-  RawMLS SomeMessage ->
+  RawMLS Message ->
   Sem r [Event]
 postMLSMessageFromLocalUserV1 lusr mc conn smsg = do
   assertMLSEnabled
-  case rmValue smsg of
-    SomeMessage _ msg -> do
-      cnvOrSub <- lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-      fst . first (map lcuEvent)
-        <$> postMLSMessage lusr (tUntagged lusr) mc cnvOrSub (Just conn) smsg
+  imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
+  cnvOrSub <- lookupConvByGroupId imsg.groupId >>= noteS @'ConvNotFound
+  fst . first (map lcuEvent)
+    <$> postMLSMessage lusr (tUntagged lusr) mc cnvOrSub (Just conn) imsg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -178,16 +266,15 @@ postMLSMessageFromLocalUser ::
   Local UserId ->
   Maybe ClientId ->
   ConnId ->
-  RawMLS SomeMessage ->
+  RawMLS Message ->
   Sem r MLSMessageSendingStatus
 postMLSMessageFromLocalUser lusr mc conn smsg = do
   assertMLSEnabled
+  imsg <- noteS @'MLSUnsupportedMessage $ mkIncomingMessage smsg
+  cnvOrSub <- lookupConvByGroupId imsg.groupId >>= noteS @'ConvNotFound
   (events, unreachables) <-
-    case rmValue smsg of
-      SomeMessage _ msg -> do
-        cnvOrSub <- lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-        first (map lcuEvent)
-          <$> postMLSMessage lusr (tUntagged lusr) mc cnvOrSub (Just conn) smsg
+    first (map lcuEvent)
+      <$> postMLSMessage lusr (tUntagged lusr) mc cnvOrSub (Just conn) imsg
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t unreachables
 
@@ -203,13 +290,13 @@ postMLSCommitBundle ::
   Maybe ClientId ->
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
-  CommitBundle ->
+  IncomingBundle ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSCommitBundle loc qusr mc qConvOrSub conn rawBundle =
+postMLSCommitBundle loc qusr mc qConvOrSub conn bundle =
   foldQualified
     loc
-    (postMLSCommitBundleToLocalConv qusr mc conn rawBundle)
-    (postMLSCommitBundleToRemoteConv loc qusr mc conn rawBundle)
+    (postMLSCommitBundleToLocalConv qusr mc conn bundle)
+    (postMLSCommitBundleToRemoteConv loc qusr mc conn bundle)
     qConvOrSub
 
 postMLSCommitBundleFromLocalUser ::
@@ -226,11 +313,11 @@ postMLSCommitBundleFromLocalUser ::
   Sem r MLSMessageSendingStatus
 postMLSCommitBundleFromLocalUser lusr mc conn bundle = do
   assertMLSEnabled
-  let msg = rmValue (cbCommitMsg bundle)
-  qConvOrSub <- lookupConvByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+  ibundle <- noteS @'MLSUnsupportedMessage $ mkIncomingBundle bundle
+  qConvOrSub <- lookupConvByGroupId ibundle.groupId >>= noteS @'ConvNotFound
   (events, unreachables) <-
     first (map lcuEvent)
-      <$> postMLSCommitBundle lusr (tUntagged lusr) mc qConvOrSub (Just conn) bundle
+      <$> postMLSCommitBundle lusr (tUntagged lusr) mc qConvOrSub (Just conn) ibundle
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus events t unreachables
 
@@ -243,46 +330,37 @@ postMLSCommitBundleToLocalConv ::
   Qualified UserId ->
   Maybe ClientId ->
   Maybe ConnId ->
-  CommitBundle ->
+  IncomingBundle ->
   Local ConvOrSubConvId ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
 postMLSCommitBundleToLocalConv qusr mc conn bundle lConvOrSubId = do
   lConvOrSub <- fetchConvOrSub qusr lConvOrSubId
-  let msg = rmValue (cbCommitMsg bundle)
 
-  senderClient <- fmap ciClient <$> getSenderIdentity qusr mc SMLSPlainText msg
+  senderClient <- fmap ciClient <$> getSenderIdentity qusr mc (Just bundle.sender)
 
-  events <- case msgPayload msg of
-    CommitMessage commit ->
-      do
-        action <- getCommitData lConvOrSub (msgEpoch msg) commit
-        -- check that the welcome message matches the action
-        for_ (cbWelcome bundle) $ \welcome ->
-          when
-            ( Set.fromList (map gsNewMember (welSecrets (rmValue welcome)))
-                /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
-            )
-            $ throwS @'MLSWelcomeMismatch
-        updates <-
-          processCommitWithAction
-            qusr
-            senderClient
-            conn
-            lConvOrSub
-            (msgEpoch msg)
-            action
-            (msgSender msg)
-            commit
-        storeGroupInfoBundle (idForConvOrSub . tUnqualified $ lConvOrSub) (cbGroupInfoBundle bundle)
-        pure updates
-    ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-    ProposalMessage _ -> throwS @'MLSUnsupportedMessage
+  action <- getCommitData lConvOrSub bundle.epoch bundle.commit.rmValue
+  -- check that the welcome message matches the action
+  for_ bundle.welcome $ \welcome ->
+    when
+      ( Set.fromList (map gsNewMember (welSecrets (rmValue welcome)))
+          /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
+      )
+      $ throwS @'MLSWelcomeMismatch
+  events <-
+    processCommitWithAction
+      qusr
+      senderClient
+      conn
+      lConvOrSub
+      bundle.epoch
+      action
+      bundle.sender
+      bundle.commit.rmValue
+  storeGroupInfoBundle (idForConvOrSub . tUnqualified $ lConvOrSub) bundle.groupInfoBundle
 
   let cm = membersConvOrSub (tUnqualified lConvOrSub)
-  unreachables <- propagateMessage qusr lConvOrSub conn (rmRaw (cbCommitMsg bundle)) cm
-
-  for_ (cbWelcome bundle) $
-    postMLSWelcome lConvOrSub conn
+  unreachables <- propagateMessage qusr lConvOrSub conn bundle.commit.rmRaw cm
+  traverse_ (postMLSWelcome lConvOrSub conn) bundle.welcome
 
   pure (events, unreachables)
 
@@ -303,7 +381,7 @@ postMLSCommitBundleToRemoteConv ::
   Qualified UserId ->
   Maybe ClientId ->
   Maybe ConnId ->
-  CommitBundle ->
+  IncomingBundle ->
   Remote ConvOrSubConvId ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
 postMLSCommitBundleToRemoteConv loc qusr mc con bundle rConvOrSubId = do
@@ -315,11 +393,7 @@ postMLSCommitBundleToRemoteConv loc qusr mc con bundle rConvOrSubId = do
 
   senderIdentity <-
     noteS @'MLSMissingSenderClient
-      =<< getSenderIdentity
-        qusr
-        mc
-        SMLSPlainText
-        (rmValue (cbCommitMsg bundle))
+      =<< getSenderIdentity qusr mc (Just bundle.sender)
 
   resp <-
     runFederated rConvOrSubId $
@@ -328,7 +402,7 @@ postMLSCommitBundleToRemoteConv loc qusr mc con bundle rConvOrSubId = do
           { mmsrConvOrSubId = tUnqualified rConvOrSubId,
             mmsrSender = tUnqualified lusr,
             mmsrSenderClient = ciClient senderIdentity,
-            mmsrRawMessage = Base64ByteString (serializeCommitBundle bundle)
+            mmsrRawMessage = Base64ByteString bundle.serialized
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
@@ -365,60 +439,40 @@ postMLSMessage ::
   Maybe ClientId ->
   Qualified ConvOrSubConvId ->
   Maybe ConnId ->
-  RawMLS SomeMessage ->
+  IncomingMessage ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSMessage loc qusr mc qconvOrSub con smsg = case rmValue smsg of
-  SomeMessage tag msg -> do
-    mSender <- fmap ciClient <$> getSenderIdentity qusr mc tag msg
-    foldQualified
-      loc
-      (postMLSMessageToLocalConv qusr mSender con smsg)
-      (postMLSMessageToRemoteConv loc qusr mSender con smsg)
-      qconvOrSub
+postMLSMessage loc qusr mc qconvOrSub con msg = do
+  mSender <- fmap ciClient <$> getSenderIdentity qusr mc msg.sender
+  foldQualified
+    loc
+    (postMLSMessageToLocalConv qusr mSender con msg)
+    (postMLSMessageToRemoteConv loc qusr mSender con msg)
+    qconvOrSub
 
--- Check that the MLS client who created the message belongs to the user who
--- is the sender of the REST request, identified by HTTP header.
---
--- The check is skipped in case of conversation creation and encrypted messages.
-getSenderClient ::
-  ( Member (ErrorS 'MLSKeyPackageRefNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member BrigAccess r
-  ) =>
-  Qualified UserId ->
-  SWireFormatTag tag ->
-  Message tag ->
-  Sem r (Maybe ClientId)
-getSenderClient _ SMLSCipherText _ = pure Nothing
-getSenderClient _ _ msg | msgEpoch msg == Epoch 0 = pure Nothing
-getSenderClient qusr SMLSPlainText msg = case msgSender msg of
-  PreconfiguredSender _ -> pure Nothing
-  NewMemberSender -> pure Nothing
-  MemberSender ref -> do
-    cid <- derefKeyPackage ref
-    when (fmap fst (cidQualifiedClient cid) /= qusr) $
-      throwS @'MLSClientSenderUserMismatch
-    pure (Just (ciClient cid))
+getSenderIndex :: Sender -> Maybe Word32
+getSenderIndex sender = case sender of
+  SenderMember index -> Just index
+  _ -> Nothing
 
 -- FUTUREWORK: once we can assume that the Z-Client header is present (i.e.
 -- when v2 is dropped), remove the Maybe in the return type.
 getSenderIdentity ::
-  ( Member (ErrorS 'MLSKeyPackageRefNotFound) r,
-    Member (ErrorS 'MLSClientSenderUserMismatch) r,
-    Member BrigAccess r
+  ( Member (ErrorS 'MLSClientSenderUserMismatch) r
   ) =>
   Qualified UserId ->
   Maybe ClientId ->
-  SWireFormatTag tag ->
-  Message tag ->
+  Maybe Sender ->
   Sem r (Maybe ClientIdentity)
-getSenderIdentity qusr mc fmt msg = do
-  mSender <- getSenderClient qusr fmt msg
-  -- At this point, mc is the client ID of the request, while mSender is the
+getSenderIdentity qusr mc mSender = do
+  let mSenderClient = do
+        sender <- mSender
+        index <- getSenderIndex sender
+        error "TODO: get client ID from index" index
+  -- At this point, mc is the client ID of the request, while mSenderClient is the
   -- one contained in the message. We throw an error if the two don't match.
-  when (((==) <$> mc <*> mSender) == Just False) $
+  when (((==) <$> mc <*> mSenderClient) == Just False) $
     throwS @'MLSClientSenderUserMismatch
-  pure (mkClientIdentity qusr <$> (mc <|> mSender))
+  pure (mkClientIdentity qusr <$> (mc <|> mSenderClient))
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
@@ -438,32 +492,25 @@ postMLSMessageToLocalConv ::
   Qualified UserId ->
   Maybe ClientId ->
   Maybe ConnId ->
-  RawMLS SomeMessage ->
+  IncomingMessage ->
   Local ConvOrSubConvId ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSMessageToLocalConv qusr senderClient con smsg convOrSubId =
-  case rmValue smsg of
-    SomeMessage tag msg -> do
-      lConvOrSub <- fetchConvOrSub qusr convOrSubId
+postMLSMessageToLocalConv qusr senderClient con msg convOrSubId = do
+  lConvOrSub <- fetchConvOrSub qusr convOrSubId
 
-      -- validate message
-      events <- case tag of
-        SMLSPlainText -> case msgPayload msg of
-          CommitMessage c ->
-            processCommit qusr senderClient con lConvOrSub (msgEpoch msg) (msgSender msg) c
-          ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-          ProposalMessage prop ->
-            processProposal qusr lConvOrSub msg prop $> mempty
-        SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
-          Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
-          Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
-          Right ApplicationMessageTag -> pure mempty
-          Left _ -> throwS @'MLSUnsupportedMessage
+  -- validate message
+  events <- case msg.content of
+    IncomingMessageContentPublic pub -> case pub.content of
+      FramedContentCommit c ->
+        processCommit qusr senderClient con lConvOrSub msg.epoch pub.sender c.rmValue
+      FramedContentApplicationData _ -> throwS @'MLSUnsupportedMessage
+      FramedContentProposal prop ->
+        processProposal qusr lConvOrSub msg pub prop $> mempty
+    IncomingMessageContentPrivate -> pure mempty
 
-      let cm = membersConvOrSub (tUnqualified lConvOrSub)
-      -- forward message
-      unreachables <- propagateMessage qusr lConvOrSub con (rmRaw smsg) cm
-      pure (events, unreachables)
+  let cm = membersConvOrSub (tUnqualified lConvOrSub)
+  unreachables <- propagateMessage qusr lConvOrSub con msg.rawMessage.rmRaw cm
+  pure (events, unreachables)
 
 postMLSMessageToRemoteConv ::
   ( Members MLSMessageStaticErrors r,
@@ -476,10 +523,10 @@ postMLSMessageToRemoteConv ::
   Qualified UserId ->
   Maybe ClientId ->
   Maybe ConnId ->
-  RawMLS SomeMessage ->
+  IncomingMessage ->
   Remote ConvOrSubConvId ->
   Sem r ([LocalConversationUpdate], UnreachableUsers)
-postMLSMessageToRemoteConv loc qusr mc con smsg rConvOrSubId = do
+postMLSMessageToRemoteConv loc qusr mc con msg rConvOrSubId = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
@@ -493,7 +540,7 @@ postMLSMessageToRemoteConv loc qusr mc con smsg rConvOrSubId = do
           { mmsrConvOrSubId = tUnqualified rConvOrSubId,
             mmsrSender = tUnqualified lusr,
             mmsrSenderClient = senderClient,
-            mmsrRawMessage = Base64ByteString (rmRaw smsg)
+            mmsrRawMessage = Base64ByteString msg.rawMessage.rmRaw
           }
   case resp of
     MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
@@ -598,7 +645,7 @@ processCommit ::
   Maybe ConnId ->
   Local ConvOrSubConv ->
   Epoch ->
-  Sender 'MLSPlainText ->
+  Sender ->
   Commit ->
   Sem r [LocalConversationUpdate]
 processCommit qusr senderClient con lConvOrSub epoch sender commit = do
@@ -743,14 +790,17 @@ processCommitWithAction ::
   Local ConvOrSubConv ->
   Epoch ->
   ProposalAction ->
-  Sender 'MLSPlainText ->
+  Sender ->
   Commit ->
   Sem r [LocalConversationUpdate]
 processCommitWithAction qusr senderClient con lConvOrSub epoch action sender commit =
   case sender of
-    MemberSender ref -> processInternalCommit qusr senderClient con lConvOrSub epoch action ref commit
-    NewMemberSender -> processExternalCommit qusr senderClient lConvOrSub epoch action (cPath commit) $> []
-    _ -> throw (mlsProtocolError "Unexpected sender")
+    SenderMember index ->
+      processInternalCommit qusr senderClient con lConvOrSub epoch action (error "TODO" index) commit
+    SenderExternal _ -> throw (mlsProtocolError "Unexpected sender")
+    SenderNewMemberProposal -> throw (mlsProtocolError "Unexpected sender")
+    SenderNewMemberCommit ->
+      processExternalCommit qusr senderClient lConvOrSub epoch action (cPath commit) $> []
 
 processInternalCommit ::
   forall r.
@@ -958,14 +1008,14 @@ checkProposalCipherSuite ::
   Sem r ()
 checkProposalCipherSuite suite (AddProposal kpRaw) = do
   let kp = rmValue kpRaw
-  unless (kpCipherSuite kp == tagCipherSuite suite)
+  unless (kp.cipherSuite == tagCipherSuite suite)
     . throw
     . mlsProtocolError
     . T.pack
     $ "The group's cipher suite "
       <> show (cipherSuiteNumber (tagCipherSuite suite))
       <> " and the cipher suite of the proposal's key package "
-      <> show (cipherSuiteNumber (kpCipherSuite kp))
+      <> show (cipherSuiteNumber kp.cipherSuite)
       <> " do not match."
 checkProposalCipherSuite _suite _prop = pure ()
 
@@ -976,13 +1026,14 @@ processProposal ::
   ) =>
   Qualified UserId ->
   Local ConvOrSubConv ->
-  Message 'MLSPlainText ->
+  IncomingMessage -> -- TODO: just pass header?
+  IncomingPublicMessageContent ->
   RawMLS Proposal ->
   Sem r ()
-processProposal qusr lConvOrSub msg prop = do
+processProposal qusr lConvOrSub msg pub prop = do
   let mlsMeta = mlsMetaConvOrSub (tUnqualified lConvOrSub)
-  checkEpoch (msgEpoch msg) mlsMeta
-  checkGroup (msgGroupId msg) mlsMeta
+  checkEpoch msg.epoch mlsMeta
+  checkGroup msg.groupId mlsMeta
   let suiteTag = cnvmlsCipherSuite mlsMeta
   let cid = mcId . convOfConvOrSub . tUnqualified $ lConvOrSub
 
@@ -1006,29 +1057,27 @@ processProposal qusr lConvOrSub msg prop = do
   -- FUTUREWORK: validate the member's conversation role
   let propValue = rmValue prop
   checkProposalCipherSuite suiteTag propValue
-  when (isExternalProposal msg) $ do
-    checkExternalProposalSignature suiteTag msg prop
+  when (isExternal pub.sender) $ do
+    checkExternalProposalSignature pub prop
     checkExternalProposalUser qusr propValue
   let propRef = proposalRef suiteTag prop
-  storeProposal (msgGroupId msg) (msgEpoch msg) propRef ProposalOriginClient prop
+  storeProposal msg.groupId msg.epoch propRef ProposalOriginClient prop
+
+isExternal :: Sender -> Bool
+isExternal (SenderMember _) = False
+isExternal _ = True
 
 checkExternalProposalSignature ::
   Member (ErrorS 'MLSUnsupportedProposal) r =>
-  CipherSuiteTag ->
-  Message 'MLSPlainText ->
+  IncomingPublicMessageContent ->
   RawMLS Proposal ->
   Sem r ()
-checkExternalProposalSignature csTag msg prop = case rmValue prop of
+checkExternalProposalSignature msg prop = case rmValue prop of
   AddProposal kp -> do
-    let pubKey = bcSignatureKey . kpCredential $ rmValue kp
-    unless (verifyMessageSignature csTag msg pubKey) $ throwS @'MLSUnsupportedProposal
+    let pubkey = kp.rmValue.leafNode.signatureKey
+        ctx = error "TODO: get group context"
+    unless (verifyMessageSignature ctx msg.framedContent msg.authData pubkey) $ throwS @'MLSUnsupportedProposal
   _ -> pure () -- FUTUREWORK: check signature of other proposals as well
-
-isExternalProposal :: Message 'MLSPlainText -> Bool
-isExternalProposal msg = case msgSender msg of
-  NewMemberSender -> True
-  PreconfiguredSender _ -> True
-  _ -> False
 
 -- check owner/subject of the key package exists and belongs to the user
 checkExternalProposalUser ::
@@ -1044,14 +1093,12 @@ checkExternalProposalUser qusr prop = do
   foldQualified
     loc
     ( \lusr -> case prop of
-        AddProposal keyPackage -> do
+        AddProposal kp -> do
           ClientIdentity {ciUser, ciClient} <-
             either
               (const $ throwS @'MLSUnsupportedProposal)
               pure
-              . kpIdentity
-              . rmValue
-              $ keyPackage
+              (keyPackageIdentity kp.rmValue)
           -- requesting user must match key package owner
           when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
           -- client referenced in key package must be one of the user's clients
