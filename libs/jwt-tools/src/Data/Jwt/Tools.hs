@@ -115,15 +115,15 @@ getErrorFfi :: Ptr HsResult -> IO (Maybe Word8)
 getErrorFfi ptr = do
   let errorPtr = get_error ptr
   if errorPtr /= nullPtr
-    then putStrLn "error ptr is not null" *> (Just . fromIntegral <$> peek errorPtr)
-    else putStrLn "error ptr is null" *> (pure Nothing)
+    then Just . fromIntegral <$> peek errorPtr
+    else pure Nothing
 
 getTokenFfi :: Ptr HsResult -> IO (Maybe String)
 getTokenFfi ptr = do
   let tokenPtr = get_token ptr
   if tokenPtr /= nullPtr
-    then putStrLn "token ptr is not null" *> (Just <$> peekCString tokenPtr)
-    else putStrLn "token ptr is null" *> (pure Nothing)
+    then Just <$> peekCString tokenPtr
+    else pure Nothing
 
 generateDpopToken ::
   (MonadIO m) =>
@@ -162,14 +162,10 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
           (_unNowEpoch now)
           backendPubkeyBundleCStr
 
-  let printErr w8 = do
-        putStrLn $ "error code: " <> show w8
-        pure w8
-
   let mkAccessToken response = do
         case response of
           Nothing -> pure $ Left FfiError
-          Just r -> toResult <$> (getErrorFfi r >>= printErr) <*> getTokenFfi r
+          Just r -> toResult <$> getErrorFfi r <*> getTokenFfi r
 
   let free = maybe (pure ()) free_dpop_access_token
 
@@ -194,7 +190,7 @@ generateDpopToken dpopProof uid cid domain nonce uri method maxSkewSecs maxExpir
       PATCH -> "PATCH"
 
 toResult :: Maybe Word8 -> Maybe String -> Either DPoPTokenGenerationError ByteString
--- the only valid case is when the error=0 (meaning no error) and the token is not null
+-- the only valid cases are when the error=0 (meaning no error) or nothing and the token is not null
 toResult (Just 0) (Just token) = Right $ cs token
 toResult Nothing (Just token) = Right $ cs token
 -- errors
