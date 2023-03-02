@@ -1,0 +1,12 @@
+New nginx-ingress-controller wrapper chart compatible with k8s versions [1.21 - 1.26].
+In case you have custom overrides, you need to modify the top-level configuration key:
+
+```diff
+# IF you have overrides in
+# nginx-ingress-controller/values.yaml
+-nginx-ingress:
++ingress-nginx:
+   controller:
+```
+
+and double-check if all overrides you use are indeed provided under the same name by the upstream chart.
