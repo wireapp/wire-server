@@ -420,7 +420,8 @@ setupMLSGroup creator = setupMLSGroupWithConv action creator
         =<< liftTest
           ( postConvQualified
               (ciUser creator)
-              (defNewMLSConv (ciClient creator))
+              (Just (ciClient creator))
+              defNewMLSConv
           )
           <!! const 201 === statusCode
 

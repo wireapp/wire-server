@@ -95,6 +95,7 @@ createGroupConversation ::
     Member (ErrorS 'NotConnected) r,
     Member (ErrorS 'MLSNotEnabled) r,
     Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -106,10 +107,11 @@ createGroupConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
+  Maybe ClientId ->
   ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversation lusr conn newConv = do
+createGroupConversation lusr mCreatorClient conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
   checkCreateConvPermissions lusr newConv tinfo allUsers
@@ -131,12 +133,11 @@ createGroupConversation lusr conn newConv = do
   conv <- E.createConversation lcnv nc
 
   -- set creator client for MLS conversations
-  case (convProtocol conv, newConvCreatorClient newConv) of
+  case (convProtocol conv, mCreatorClient) of
     (ProtocolProteus, _) -> pure ()
     (ProtocolMLS mlsMeta, Just c) ->
       E.addMLSClients (cnvmlsGroupId mlsMeta) (tUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
-    (ProtocolMLS _mlsMeta, Nothing) ->
-      throw (InvalidPayload "Missing creator_client field when creating an MLS conversation")
+    (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
 
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation
