@@ -107,7 +107,8 @@ tests m db b n o = do
           test m "read:feature_configs" $ testReadFeatureConfigsSuccessNginz b n,
           test m "write:conversations_code" $ testWriteConversationCodeSuccessNginz b n
         ],
-      testGroup "refresh tokens" $
+      testGroup
+        "refresh tokens"
         [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b,
           test m "refresh access token - success" $ testRefreshTokenRetrieveAccessToken b n,
           test m "wrong signature - fail" $ testRefreshTokenWrongSignature o b,
@@ -119,7 +120,8 @@ tests m db b n o = do
           test m "expired token - fail" $ testRefreshTokenExpiredToken o b,
           test m "revoked token - fail" $ testRefreshTokenRevokedToken b
         ],
-      testGroup "oauth applications" $
+      testGroup
+        "oauth applications"
         [ test m "list applications with account access" $ testListApplicationsWithAccountAccess b,
           test m "revoke application account access" $ testRevokeApplicationAccountAccess b
         ]
