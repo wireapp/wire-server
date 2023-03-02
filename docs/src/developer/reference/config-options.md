@@ -635,6 +635,8 @@ This options determines whether development versions should be enabled. If set t
 
 ### OAuth
 
+For more information on OAuth please refer to <https://docs.wire.com/developer/reference/oauth.html>.
+
 En-/Disable OAuth as follows (if not set the default is disabled):
 
 ```yaml
@@ -646,7 +648,7 @@ optSettings:
 
 #### JWK
 
-The JSON Web Keys in `test/resources/oauth/` are used to sign and verify OAuth access tokens in the integration tests.
+The JSON Web Keys in `test/resources/oauth/` are used to sign and verify OAuth access tokens in the local integration tests.
 The path to the JWK can be configured in `brig.integration.yaml` as follows:
 
 ```yaml
@@ -660,7 +662,7 @@ A JWK can be generated with `didkit` e.g. Run `cargo install didkit-cli` to inst
 
 #### Expiration time
 
-Optionally, configure the OAuth authorization code, access token, and refresh token expiration time in seconds.  Built-in defaults:
+Optionally, configure the OAuth authorization code, access token, and refresh token expiration time in seconds with the following settings:
 
 ```yaml
 # [brig.yaml]
@@ -670,6 +672,8 @@ optSettings:
   setOAuthAccessTokenExpirationTimeSecs: 300 # 5 minutes
   setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
 ```
+
+For more information on what these settings mean in particular, please refer to <https://docs.wire.com/developer/reference/oauth.html>.
 
 #### Max number of active refresh tokens
 

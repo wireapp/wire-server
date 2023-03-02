@@ -69,7 +69,7 @@ The authorization server does the authentication of the user and establishes whe
 
 ### Registering an OAuth client
 
-A new OAuth client can be register _only_ via the internal API of `brig` by providing an application name and a redirect URL:
+A new OAuth client can be register *only* via the internal API of `brig` by providing an application name and a redirect URL:
 
 ```curl
   curl -s -X POST server-internal.example.com/i/oauth/clients \
@@ -102,7 +102,11 @@ These credentials have to be stored in a safe place and cannot be recovered if t
 
 When the user wants to use the 3rd party app for the first time, they need to authorize it to access Wire resources on their behalf.
 
-To do so the user is redirected to a login screen for authentication. Once authenticated, the user can either grant or deny the client's access request and the corresponding scope (a list of permissions to give to the 3rd party app).
+They first need to click on the "Login" (or similar) button (1. in OAuth 2.0 authorization code flow diagram above) which will redirect them to a Wire login page to authenticate (2.-3. in diagram above). Once authenticated, they are redirected to the consent page.
+
+If the user is already logged in the authentication will be skipped and they are directly shown the consent page.
+
+On the consent page, the user is asked to authorize the client's access request. They can either grant or deny the request and the corresponding scope, a list of permissions to give to the 3rd party app, (4. in diagram above).
 
 Example request:
 
@@ -123,9 +127,9 @@ Url encoded query parameters:
 | `response_type` | Required. Value MUST be set to  `code`.                                                                                                                                                                                                                                           |
 | `client_id`     | Required. The client identifier.                                                                                                                                                                                                                                                  |
 | `redirect_url`  | Required. MUST match the URL that was provided during client registration                                                                                                                                                                                                         |
-| `state`         | Required. An opaque value used by the client to maintain state between the request and callback.</br>The authorization server includes this value when redirecting the user-agent back to the client.</br>The parameter SHOULD be used for preventing cross-site request forgery. |
+| `state`         | Required. An opaque value used by the client to maintain state between the request and callback.</br>The authorization server includes this value when redirecting the user-agent back to the client.</br>The parameter is used for preventing cross-site request forgery. |
 
-Once the user consents the user agent will be redirected back to the 3rd party app, using the redirect URI provided during client registration, with an authorization code and the state value as query parameters. The code can be used to retrieve an access token and a refresh token and is good for one use.
+Once the user consents, the browser will be redirected back to the 3rd party app, using the redirect URI provided during client registration, with an authorization code and the state value as query parameters (5. in diagram above). The authorization code can now be used by the 3rd party app to retrieve an access token and a refresh token and is good for one use.
 
 Example response:
 
@@ -140,7 +144,7 @@ Vary: Accept-Encoding
 
 ### Retrieve access and refresh token
 
-The 3rd party app sends the authorization code together with the client credentials and the parameters shown below using the `application/x-www-form-urlencoded` format with character encoding of UTF-8 to the authorization server to retrieve an access token and a refresh token:
+The 3rd party app sends the authorization code together with the client credentials and the parameters shown below using the `application/x-www-form-urlencoded` format with character encoding of UTF-8 to the authorization server (6. in diagram above) to retrieve an access token and a refresh token (7.-8. in diagram above):
 
 ```curl
 curl -s -X POST server.example.com/oauth/token \
@@ -171,7 +175,7 @@ Example response:
 
 ### Accessing a resource
 
-The access token, presented as `Bearer <token>` in the `Authorization` header, can now be used by the 3rd party app to access resources on behalf of the user.
+The access token, presented as `Bearer <token>` in the `Authorization` header, can now be used by the 3rd party app to access resources on behalf of the user (9.-11. in diagram above).
 
 ### Refresh access token
 

@@ -13,7 +13,7 @@ Futher reading:
 - https://github.com/wireapp/wire-server/blob/develop/libs/wire-api/src/Wire/API/Routes/Public.hs (search for HasSwagger instances)
 - `curl https://staging-nginz-https.zinfra.io/v4/api/swagger.json | jq '.security, .securityDefinitions`
 
-## SSO Endpoints
+### SSO Endpoints
 
 #### Overview
 
