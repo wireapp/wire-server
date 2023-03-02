@@ -274,7 +274,6 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
           Nothing
           roleNameWireAdmin
           ProtocolProteusTag
-          Nothing
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< post
