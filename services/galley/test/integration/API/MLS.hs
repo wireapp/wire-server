@@ -220,8 +220,9 @@ tests s =
               test s "fail to add another client to a subconversation via internal commit" testAddClientSubConvFailure,
               test s "remove another client from a subconversation" testRemoveClientSubConv,
               test s "send an application message in a subconversation" testSendMessageSubConv,
-              test s "reset a subconversation as a member" (testDeleteSubConv True),
-              test s "reset a subconversation as a non-member" (testDeleteSubConv False),
+              test s "reset a subconversation as a creator" (testDeleteSubConv SubConvMember),
+              test s "reset a subconversation as a conversation member" (testDeleteSubConv ConvMember),
+              test s "reset a subconversation as a random user" (testDeleteSubConv RandomUser),
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
               test s "leave a subconversation as a creator" (testLeaveSubConv True),
               test s "leave a subconversation as a non-creator" (testLeaveSubConv False),
@@ -2745,18 +2746,23 @@ testRemoteMemberDeleteSubConv isAMember = do
     expectFailure errExpected (DeleteSubConversationResponseError err) =
       liftIO $ err @?= errExpected
 
-testDeleteSubConv :: Bool -> TestM ()
-testDeleteSubConv isAMember = do
-  alice <- randomQualifiedUser
+-- | A choice on who is deleting a subconversation
+data SubConvDeleterType
+  = ConvMember
+  | SubConvMember
+  | RandomUser
+  deriving (Eq)
+
+testDeleteSubConv :: SubConvDeleterType -> TestM ()
+testDeleteSubConv deleterType = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
   randUser <- randomId
-  let (deleter, expectedCode) =
-        if isAMember
-          then (qUnqualified alice, 200)
-          else (randUser, 403)
   let sconv = SubConvId "conference"
   qcnv <- runMLSTest $ do
-    alice1 <- createMLSClient alice
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
     (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
     void $ createSubConv qcnv alice1 sconv
     pure qcnv
 
@@ -2765,6 +2771,10 @@ testDeleteSubConv isAMember = do
       =<< getSubConv (qUnqualified alice) qcnv sconv
         <!! const 200 === statusCode
   let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
+  let (deleter, expectedCode) = case deleterType of
+        ConvMember -> (qUnqualified bob, 200)
+        SubConvMember -> (qUnqualified alice, 200)
+        RandomUser -> (randUser, 403)
   deleteSubConv deleter qcnv sconv dsc !!! const expectedCode === statusCode
 
   newSub <-
@@ -2773,7 +2783,7 @@ testDeleteSubConv isAMember = do
         <!! do const 200 === statusCode
 
   liftIO $
-    if isAMember
+    if deleterType == ConvMember || deleterType == SubConvMember
       then
         assertBool
           "Old and new subconversation are equal"
