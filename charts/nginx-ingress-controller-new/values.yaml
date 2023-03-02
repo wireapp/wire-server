@@ -1,0 +1,36 @@
+# the following defaults apply to an on-prem bare-metal setup in the same spirit as the
+# older similarly named wrapper chart 'nginx-ingress-controller' (note the swapped words
+# 'nginx' and 'ingress') We assume no load balancer support and instead expose NodePorts
+# on ports 31773 and 31772, assuming traffic gets to these ports in another way.
+#
+# See https://github.com/kubernetes/ingress-nginx/blob/main/charts/ingress-nginx/values.yaml for all possible values to override.
+ingress-nginx:
+  service:
+    type: NodePort  # or LoadBalancer
+    externalTrafficPolicy: Local
+    nodePorts:
+      # The nginx instance is exposed on ports 31773 (https) and 31772 (http)
+      # on the node on which it runs. You should add a port-forwarding rule
+      # on the node or on the loadbalancer that forwards ports 443 and 80 to
+      # these respective ports.
+      https: 31773
+      http: 31772
+
+  controller:
+    watchIngressWithoutClass: true
+    enableTopologyAwareRouting: true
+    # -- Use a `DaemonSet` or `Deployment`
+    kind: DaemonSet
+    config:
+      # NOTE: These are some sane defaults (compliant to TR-02102-2), you may want to overrride them on your own installation
+      # For TR-02102-2 see https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
+      # As a Wire employee, for Wire-internal discussions and context see
+      # * https://wearezeta.atlassian.net/browse/FS-33
+      # * https://wearezeta.atlassian.net/browse/FS-444
+      ssl-ciphers: "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+      ssl-protocols: "TLSv1.2 TLSv1.3"
+      # used to be called http2-max-(header|field)-size, removed in controller v1.3
+      large-client-header-buffers: "16 32k"
+      proxy-buffer-size: "16k"
+      proxy-body-size: "1024m"
+      hsts-max-age: "31536000"
