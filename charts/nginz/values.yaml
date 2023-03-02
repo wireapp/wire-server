@@ -381,7 +381,7 @@ nginx_conf:
     - path: /oauth/clients/([^/]*)$
       envs:
       - all
-    - path: i/oauth/clients$
+    - path: /i/oauth/clients$
       envs:
       - staging
       disable_zauth: true

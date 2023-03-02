@@ -110,16 +110,7 @@ servantSitemap ::
     Member (UserPendingActivationStore p) r
   ) =>
   ServerT BrigIRoutes.API (Handler r)
-servantSitemap = brigInternalAPI
-
-brigInternalAPI ::
-  forall r p.
-  ( Member BlacklistStore r,
-    Member GalleyProvider r,
-    Member (UserPendingActivationStore p) r
-  ) =>
-  ServerT BrigIRoutes.API (Handler r)
-brigInternalAPI =
+servantSitemap =
   ejpdAPI
     :<|> accountAPI
     :<|> mlsAPI
