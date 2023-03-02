@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V76_AddOAuthRefreshToken
+module V74_AddOAuthTables
   ( migration,
   )
 where
@@ -28,7 +28,26 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 76 "Add tables for OAuth refresh tokens" $ do
+  Migration 74 "Add table for OAuth clients" $ do
+    schema'
+      [r|
+        CREATE TABLE IF NOT EXISTS oauth_client
+          ( id uuid PRIMARY KEY
+          , name text
+          , redirect_uri blob
+          , secret blob
+          )
+     |]
+    schema'
+      [r|
+        CREATE TABLE IF NOT EXISTS oauth_auth_code
+          ( code ascii PRIMARY KEY
+          , client uuid
+          , user uuid
+          , scope set<text>
+          , redirect_uri blob
+          ) WITH default_time_to_live = 300;
+     |]
     schema'
       [r|
         CREATE TABLE IF NOT EXISTS oauth_refresh_token

@@ -657,9 +657,7 @@ executable brig-schema
     V71_AddTableVCodesThrottle
     V72_AddNonceTable
     V73_ReplaceNonceTable
-    V74_AddOAuthClientTable
-    V75_AddOAuthCodeTable
-    V76_AddOAuthRefreshToken
+    V74_AddOAuthTables
     V_FUTUREWORK
 
   hs-source-dirs:     schema/src
