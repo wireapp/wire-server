@@ -104,22 +104,20 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r =>
+  forall r p.
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r
+  ) =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap = brigInternalAPI
 
 brigInternalAPI ::
-  Members
-    '[ BlacklistStore,
-       GalleyProvider,
-       UserPendingActivationStore p
-     ]
-    r =>
+  forall r p.
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r
+  ) =>
   ServerT BrigIRoutes.API (Handler r)
 brigInternalAPI =
   ejpdAPI

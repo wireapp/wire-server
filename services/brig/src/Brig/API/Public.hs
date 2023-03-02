@@ -207,21 +207,18 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
 
 servantSitemap ::
   forall r p.
-  Members
-    '[ BlacklistPhonePrefixStore,
-       BlacklistStore,
-       CodeStore,
-       Concurrency 'Unsafe,
-       Concurrency 'Unsafe,
-       GalleyProvider,
-       JwtTools,
-       Now,
-       PasswordResetStore,
-       PublicKeyBundle,
-       UserPendingActivationStore p,
-       Jwk
-     ]
-    r =>
+  ( Member BlacklistPhonePrefixStore r,
+    Member BlacklistStore r,
+    Member CodeStore r,
+    Member (Concurrency 'Unsafe) r,
+    Member GalleyProvider r,
+    Member JwtTools r,
+    Member Now r,
+    Member PasswordResetStore r,
+    Member PublicKeyBundle r,
+    Member (UserPendingActivationStore p) r,
+    Member Jwk r
+  ) =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
   userAPI
