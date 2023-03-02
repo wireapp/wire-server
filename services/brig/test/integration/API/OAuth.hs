@@ -94,18 +94,18 @@ tests m db b n o = do
         ],
       testGroup
         "accessing a resource"
-        [ test m "success (nginz)" $ testAccessResourceSuccessNginz b n,
-          test m "insufficient scope" $ testAccessResourceInsufficientScope b n,
-          test m "expired token" $ testAccessResourceExpiredToken b n,
-          test m "nonsense token" $ testAccessResourceNonsenseToken n,
-          test m "no token" $ testAccessResourceNoToken n,
-          test m "invalid signature" $ testAccessResourceInvalidSignature o b n
+        [ test m "success" $ testAccessResourceSuccessNginz b n,
+          test m "failure - insufficient scope" $ testAccessResourceInsufficientScope b n,
+          test m "failure - expired token" $ testAccessResourceExpiredToken b n,
+          test m "failure - nonsense token" $ testAccessResourceNonsenseToken n,
+          test m "failure - no token" $ testAccessResourceNoToken n,
+          test m "failure - invalid signature" $ testAccessResourceInvalidSignature o b n
         ],
       testGroup
-        "accessing resources"
-        [ test m "write:conversation" $ testWriteConversationSuccessNginz b n,
+        "accessing resources (only testing happy path to ensure scopes are valid)"
+        [ test m "write:conversations" $ testWriteConversationSuccessNginz b n,
           test m "read:feature_configs" $ testReadFeatureConfigsSuccessNginz b n,
-          test m "write:conversation_code" $ testWriteConversationCodeSuccessNginz b n
+          test m "write:conversations_code" $ testWriteConversationCodeSuccessNginz b n
         ],
       testGroup "refresh tokens" $
         [ test m "max active tokens" $ testRefreshTokenMaxActiveTokens o db b,
