@@ -80,7 +80,6 @@
 , mmorph
 , MonadRandom
 , mtl
-, multihash
 , mwc-random
 , network
 , network-conduit-tls
@@ -233,7 +232,6 @@ mkDerivation {
     mmorph
     MonadRandom
     mtl
-    multihash
     mwc-random
     network
     network-conduit-tls

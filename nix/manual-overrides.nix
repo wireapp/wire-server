@@ -9,11 +9,10 @@ hself: hsuper: {
   hashtables = hsuper.hashtables_1_3;
   invertible = hlib.markUnbroken hsuper.invertible;
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
-  multihash = hlib.markUnbroken (hlib.doJailbreak hsuper.multihash);
   network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
   one-liner = hlib.doJailbreak hsuper.one-liner;
   polysemy = hlib.doJailbreak hsuper.polysemy;
-  polysemy-check = hlib.doJailbreak hsuper.polysemy-check;
+  polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
   polysemy-plugin = hlib.doJailbreak hsuper.polysemy-plugin;
   quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
   servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
