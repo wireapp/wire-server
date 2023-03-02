@@ -19,7 +19,7 @@
 module Wire.API.OAuth where
 
 import Cassandra hiding (Set)
-import Control.Lens (preview, view, (.~), (?~), (^.))
+import Control.Lens (preview, view, (%~), (?~))
 import Control.Monad.Except
 import Crypto.JWT hiding (Context, params, uri, verify)
 import qualified Data.Aeson.KeyMap as M
@@ -56,7 +56,7 @@ newtype RedirectUrl = RedirectUrl {unRedirectUrl :: URIRef Absolute}
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RedirectUrl)
 
 addParams :: [(ByteString, ByteString)] -> RedirectUrl -> RedirectUrl
-addParams ps (RedirectUrl uri) = uri & (queryL . queryPairsL) .~ (ps ++ (uri ^. (queryL . queryPairsL))) & RedirectUrl
+addParams ps (RedirectUrl uri) = uri & (queryL . queryPairsL) %~ (ps <>) & RedirectUrl
 
 instance ToParamSchema RedirectUrl where
   toParamSchema _ = toParamSchema (Proxy @Text)
@@ -80,7 +80,7 @@ instance FromHttpApiData RedirectUrl where
   parseUrlPiece = parseHeader . TE.encodeUtf8
   parseHeader = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
 
-newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: Range 1 256 Text}
+newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: Range 6 256 Text}
   deriving (Eq, Show, Generic, Ord)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthApplicationName)
 
@@ -101,7 +101,7 @@ instance ToSchema NewOAuthClient where
         <$> nocApplicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
         <*> nocRedirectUrl .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
     where
-      applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application."
+      applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application. The name must be between 6 and 256 characters long."
       redirectUrlDescription = description ?~ "The URL to redirect to after the user has authorized the application."
 
 newtype OAuthClientPlainTextSecret = OAuthClientPlainTextSecret {unOAuthClientPlainTextSecret :: AsciiBase16}
