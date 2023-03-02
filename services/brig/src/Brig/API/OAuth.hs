@@ -69,7 +69,7 @@ internalOauthAPI =
 oauthAPI :: (Member Now r, Member Jwk r) => ServerT OAuthAPI (Handler r)
 oauthAPI =
   Named @"get-oauth-client" getOAuthClient
-    :<|> Named @"create-oauth-auth-code" createNewOAuthAuthCode
+    :<|> Named @"create-oauth-auth-code" createNewOAuthAuthorizationCode
     :<|> Named @"create-oauth-access-token" createAccessTokenWith
     :<|> Named @"revoke-oauth-refresh-token" revokeRefreshToken
     :<|> Named @"get-oauth-applications" getOAuthApplications
@@ -99,9 +99,9 @@ getOAuthClient _ cid = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   lift $ wrapClient $ lookupOauthClient cid
 
-createNewOAuthAuthCode :: UserId -> NewOAuthAuthCode -> (Handler r) CreateOAuthCodeResponse
-createNewOAuthAuthCode uid code@(NewOAuthAuthCode _cid _scope _responseType redirectUrl state) = do
-  runExceptT (validateAndCreateAuthCode uid code) >>= \case
+createNewOAuthAuthorizationCode :: UserId -> NewOAuthAuthorizationCode -> (Handler r) CreateOAuthCodeResponse
+createNewOAuthAuthorizationCode uid code@(NewOAuthAuthorizationCode _cid _scope _responseType redirectUrl state) = do
+  runExceptT (validateAndCreateAuthorizationCode uid code) >>= \case
     Right oauthCode ->
       pure $ CreateOAuthCodeSuccess $ redirectUrl & addParams [("code", toByteString' oauthCode), ("state", cs state)]
     Left CreateNewOAuthCodeErrorFeatureDisabled ->
@@ -119,19 +119,19 @@ data CreateNewOAuthCodeError
   | CreateNewOAuthCodeErrorUnsupportedResponseType
   | CreateNewOAuthCodeErrorRedirectUrlMissMatch
 
-validateAndCreateAuthCode :: UserId -> NewOAuthAuthCode -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthCode
-validateAndCreateAuthCode uid (NewOAuthAuthCode cid scope responseType redirectUrl _state) = do
+validateAndCreateAuthorizationCode :: UserId -> NewOAuthAuthorizationCode -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
+validateAndCreateAuthorizationCode uid (NewOAuthAuthorizationCode cid scope responseType redirectUrl _state) = do
   failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
   OAuthClient _ _ uri <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
   failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
   failWith CreateNewOAuthCodeErrorRedirectUrlMissMatch (assertMay $ uri == redirectUrl)
-  lift mkAuthCode
+  lift mkAuthorizationCode
   where
-    mkAuthCode :: (Handler r) OAuthAuthCode
-    mkAuthCode = do
-      oauthCode <- OAuthAuthCode <$> rand32Bytes
-      ttl <- Opt.setOAuthAuthCodeExpirationTimeSecs <$> view settings
-      lift $ wrapClient $ insertOAuthAuthCode ttl oauthCode cid uid scope redirectUrl
+    mkAuthorizationCode :: (Handler r) OAuthAuthorizationCode
+    mkAuthorizationCode = do
+      oauthCode <- OAuthAuthorizationCode <$> rand32Bytes
+      ttl <- Opt.setOAuthAuthorizationCodeExpirationTimeSecs <$> view settings
+      lift $ wrapClient $ insertOAuthAuthorizationCode ttl oauthCode cid uid scope redirectUrl
       pure oauthCode
 
 --------------------------------------------------------------------------------
@@ -140,7 +140,7 @@ createAccessTokenWith :: (Member Now r, Member Jwk r) => Either OAuthAccessToken
 createAccessTokenWith req = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   case req of
-    Left reqAC -> createAccessTokenWithAuthCode reqAC
+    Left reqAC -> createAccessTokenWithAuthorizationCode reqAC
     Right reqRT -> createAccessTokenWithRefreshToken reqRT
 
 createAccessTokenWithRefreshToken :: (Member Now r, Member Jwk r) => OAuthRefreshAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
@@ -171,12 +171,12 @@ verifyRefreshToken key rt = do
     Left _ -> throwStd $ errorToWai @'OAuthInvalidRefreshToken
     Right claims -> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure $ hcsSub claims
 
-createAccessTokenWithAuthCode :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
-createAccessTokenWithAuthCode req = do
+createAccessTokenWithAuthorizationCode :: (Member Now r, Member Jwk r) => OAuthAccessTokenRequest -> (Handler r) OAuthAccessTokenResponse
+createAccessTokenWithAuthorizationCode req = do
   unless (oatGrantType req == OAuthGrantTypeAuthorizationCode) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   (cid, uid, scope, uri) <-
-    lift (wrapClient $ lookupAndDeleteOAuthAuthCode (oatCode req))
-      >>= maybe (throwStd $ errorToWai @'OAuthAuthCodeNotFound) pure
+    lift (wrapClient $ lookupAndDeleteOAuthAuthorizationCode (oatCode req))
+      >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
   oauthClient <- getOAuthClient uid (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
   unless (uri == oatRedirectUri req) $ throwStd $ errorToWai @'OAuthRedirectUrlMissMatch
@@ -318,30 +318,30 @@ lookupOAuthClientSecret cid = do
     q :: PrepQuery R (Identity OAuthClientId) (Identity Password)
     q = "SELECT secret FROM oauth_client WHERE id = ?"
 
-insertOAuthAuthCode :: (MonadClient m) => Word64 -> OAuthAuthCode -> OAuthClientId -> UserId -> OAuthScopes -> RedirectUrl -> m ()
-insertOAuthAuthCode ttl code cid uid scope uri = do
+insertOAuthAuthorizationCode :: (MonadClient m) => Word64 -> OAuthAuthorizationCode -> OAuthClientId -> UserId -> OAuthScopes -> RedirectUrl -> m ()
+insertOAuthAuthorizationCode ttl code cid uid scope uri = do
   let cqlScope = C.Set (Set.toList (unOAuthScopes scope))
   retry x5 . write q $ params LocalQuorum (code, cid, uid, cqlScope, uri)
   where
-    q :: PrepQuery W (OAuthAuthCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl) ()
+    q :: PrepQuery W (OAuthAuthorizationCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl) ()
     q = fromString $ "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri) VALUES (?, ?, ?, ?, ?) USING TTL " <> show ttl
 
-lookupOAuthAuthCode :: (MonadClient m) => OAuthAuthCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
-lookupOAuthAuthCode code = do
+lookupOAuthAuthorizationCode :: (MonadClient m) => OAuthAuthorizationCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
+lookupOAuthAuthorizationCode code = do
   mTuple <- retry x5 . query1 q $ params LocalQuorum (Identity code)
   pure $ mTuple <&> \(cid, uid, C.Set scope, uri) -> (cid, uid, OAuthScopes (Set.fromList scope), uri)
   where
-    q :: PrepQuery R (Identity OAuthAuthCode) (OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl)
+    q :: PrepQuery R (Identity OAuthAuthorizationCode) (OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl)
     q = "SELECT client, user, scope, redirect_uri FROM oauth_auth_code WHERE code = ?"
 
-deleteOAuthAuthCode :: (MonadClient m) => OAuthAuthCode -> m ()
-deleteOAuthAuthCode code = retry x5 . write q $ params LocalQuorum (Identity code)
+deleteOAuthAuthorizationCode :: (MonadClient m) => OAuthAuthorizationCode -> m ()
+deleteOAuthAuthorizationCode code = retry x5 . write q $ params LocalQuorum (Identity code)
   where
-    q :: PrepQuery W (Identity OAuthAuthCode) ()
+    q :: PrepQuery W (Identity OAuthAuthorizationCode) ()
     q = "DELETE FROM oauth_auth_code WHERE code = ?"
 
-lookupAndDeleteOAuthAuthCode :: (MonadClient m) => OAuthAuthCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
-lookupAndDeleteOAuthAuthCode code = lookupOAuthAuthCode code <* deleteOAuthAuthCode code
+lookupAndDeleteOAuthAuthorizationCode :: (MonadClient m) => OAuthAuthorizationCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
+lookupAndDeleteOAuthAuthorizationCode code = lookupOAuthAuthorizationCode code <* deleteOAuthAuthorizationCode code
 
 insertOAuthRefreshToken :: (MonadClient m) => Word32 -> Word64 -> OAuthRefreshTokenInfo -> m ()
 insertOAuthRefreshToken maxActiveTokens ttl info = do

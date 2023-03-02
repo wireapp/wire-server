@@ -57,11 +57,11 @@ type OAuthAPI =
                :> "oauth"
                :> "authorization"
                :> "codes"
-               :> ReqBody '[JSON] NewOAuthAuthCode
+               :> ReqBody '[JSON] NewOAuthAuthorizationCode
                :> MultiVerb
                     'POST
                     '[JSON]
-                    CreateOAuthAuthCodeResponses
+                    CreateOAuthAuthorizationCodeResponses
                     CreateOAuthCodeResponse
            )
     :<|> Named
@@ -69,7 +69,7 @@ type OAuthAPI =
            ( Summary "Create an OAuth access token"
                :> Description "Obtain a new access token from an authorization code or a refresh token."
                :> CanThrow 'OAuthJwtError
-               :> CanThrow 'OAuthAuthCodeNotFound
+               :> CanThrow 'OAuthAuthorizationCodeNotFound
                :> CanThrow 'OAuthClientNotFound
                :> CanThrow 'OAuthFeatureDisabled
                :> CanThrow 'OAuthInvalidRefreshToken
@@ -119,17 +119,17 @@ type OAuthAPI =
                     ()
            )
 
-type CreateOAuthAuthCodeHeaders = '[Header "Location" RedirectUrl]
+type CreateOAuthAuthorizationCodeHeaders = '[Header "Location" RedirectUrl]
 
-type CreateOAuthAuthCodeResponses =
+type CreateOAuthAuthorizationCodeResponses =
   '[ -- success
-     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 302 "Found"),
+     WithHeaders CreateOAuthAuthorizationCodeHeaders RedirectUrl (RespondEmpty 302 "Found"),
      -- feature disabled
-     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 403 "Forbidden"),
+     WithHeaders CreateOAuthAuthorizationCodeHeaders RedirectUrl (RespondEmpty 403 "Forbidden"),
      -- unsupported response type
-     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 400 "Bad Request"),
+     WithHeaders CreateOAuthAuthorizationCodeHeaders RedirectUrl (RespondEmpty 400 "Bad Request"),
      -- client not found
-     WithHeaders CreateOAuthAuthCodeHeaders RedirectUrl (RespondEmpty 404 "Not Found"),
+     WithHeaders CreateOAuthAuthorizationCodeHeaders RedirectUrl (RespondEmpty 404 "Not Found"),
      -- redirect url mismatch
      ErrorResponse 'OAuthRedirectUrlMissMatch
    ]
@@ -141,14 +141,14 @@ data CreateOAuthCodeResponse
   | CreateOAuthCodeClientNotFound RedirectUrl
   | CreateOAuthCodeRedirectUrlMissMatch
 
-instance AsUnion CreateOAuthAuthCodeResponses CreateOAuthCodeResponse where
-  toUnion :: CreateOAuthCodeResponse -> Union (ResponseTypes CreateOAuthAuthCodeResponses)
+instance AsUnion CreateOAuthAuthorizationCodeResponses CreateOAuthCodeResponse where
+  toUnion :: CreateOAuthCodeResponse -> Union (ResponseTypes CreateOAuthAuthorizationCodeResponses)
   toUnion (CreateOAuthCodeSuccess url) = Z (I url)
   toUnion (CreateOAuthCodeFeatureDisabled url) = S (Z (I url))
   toUnion (CreateOAuthCodeUnsupportedResponseType url) = S (S (Z (I url)))
   toUnion (CreateOAuthCodeClientNotFound url) = S (S (S (Z (I url))))
   toUnion CreateOAuthCodeRedirectUrlMissMatch = S (S (S (S (Z (I (dynError @(MapError 'OAuthRedirectUrlMissMatch)))))))
-  fromUnion :: Union (ResponseTypes CreateOAuthAuthCodeResponses) -> CreateOAuthCodeResponse
+  fromUnion :: Union (ResponseTypes CreateOAuthAuthorizationCodeResponses) -> CreateOAuthCodeResponse
   fromUnion (Z (I url)) = CreateOAuthCodeSuccess url
   fromUnion (S (Z (I url))) = CreateOAuthCodeFeatureDisabled url
   fromUnion (S (S (Z (I url)))) = CreateOAuthCodeUnsupportedResponseType url

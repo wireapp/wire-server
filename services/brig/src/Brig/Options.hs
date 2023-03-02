@@ -616,8 +616,8 @@ data Settings = Settings
     -- use `setOAuthAccessTokenExpirationTimeSecs` as the getter function which always provides a default value
     setOAuthAccessTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | The expiration time of an OAuth authorization code in seconds.
-    -- use `setOAuthAuthCodeExpirationTimeSecs` as the getter function which always provides a default value
-    setOAuthAuthCodeExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- use `setOAuthAuthorizationCodeExpirationTimeSecs` as the getter function which always provides a default value
+    setOAuthAuthorizationCodeExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | En-/Disable OAuth
     -- use `setOAuthEnabled` as the getter function which always provides a default value
     setOAuthEnabledInternal :: !(Maybe Bool),
@@ -678,11 +678,11 @@ defaultOAuthAccessTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 3 -- 3 weeks
 setOAuthAccessTokenExpirationTimeSecs :: Settings -> Word64
 setOAuthAccessTokenExpirationTimeSecs = fromMaybe defaultOAuthAccessTokenExpirationTimeSecs . setOAuthAccessTokenExpirationTimeSecsInternal
 
-defaultOAuthAuthCodeExpirationTimeSecs :: Word64
-defaultOAuthAuthCodeExpirationTimeSecs = 300 -- 5 minutes
+defaultOAuthAuthorizationCodeExpirationTimeSecs :: Word64
+defaultOAuthAuthorizationCodeExpirationTimeSecs = 300 -- 5 minutes
 
-setOAuthAuthCodeExpirationTimeSecs :: Settings -> Word64
-setOAuthAuthCodeExpirationTimeSecs = fromMaybe defaultOAuthAuthCodeExpirationTimeSecs . setOAuthAuthCodeExpirationTimeSecsInternal
+setOAuthAuthorizationCodeExpirationTimeSecs :: Settings -> Word64
+setOAuthAuthorizationCodeExpirationTimeSecs = fromMaybe defaultOAuthAuthorizationCodeExpirationTimeSecs . setOAuthAuthorizationCodeExpirationTimeSecsInternal
 
 defaultOAuthEnabled :: Bool
 defaultOAuthEnabled = False
@@ -885,7 +885,7 @@ instance FromJSON Settings where
               "setNonceTtlSecsInternal" -> "setNonceTtlSecs"
               "setDpopMaxSkewSecsInternal" -> "setDpopMaxSkewSecs"
               "setDpopTokenExpirationTimeSecsInternal" -> "setDpopTokenExpirationTimeSecs"
-              "setOAuthAuthCodeExpirationTimeSecsInternal" -> "setOAuthAuthCodeExpirationTimeSecs"
+              "setOAuthAuthorizationCodeExpirationTimeSecsInternal" -> "setOAuthAuthorizationCodeExpirationTimeSecs"
               "setOAuthAccessTokenExpirationTimeSecsInternal" -> "setOAuthAccessTokenExpirationTimeSecs"
               "setOAuthEnabledInternal" -> "setOAuthEnabled"
               "setOAuthRefreshTokenExpirationTimeSecsInternal" -> "setOAuthRefreshTokenExpirationTimeSecs"
@@ -919,7 +919,7 @@ Lens.makeLensesFor
     ("setRestrictUserCreation", "restrictUserCreation"),
     ("setEnableMLS", "enableMLS"),
     ("setOAuthEnabledInternal", "oauthEnabledInternal"),
-    ("setOAuthAuthCodeExpirationTimeSecsInternal", "oauthAuthCodeExpirationTimeSecsInternal"),
+    ("setOAuthAuthorizationCodeExpirationTimeSecsInternal", "oauthAuthorizationCodeExpirationTimeSecsInternal"),
     ("setOAuthAccessTokenExpirationTimeSecsInternal", "oauthAccessTokenExpirationTimeSecsInternal"),
     ("setDisabledAPIVersions", "disabledAPIVersions"),
     ("setOAuthRefreshTokenExpirationTimeSecsInternal", "oauthRefreshTokenExpirationTimeSecsInternal"),

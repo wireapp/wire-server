@@ -210,7 +210,7 @@ instance ToSchema OAuthScopes where
       oauthScopeParser scope =
         pure $ (not . T.null) `filter` T.splitOn " " scope & maybe Set.empty Set.fromList . mapM (fromByteString' . cs)
 
-data NewOAuthAuthCode = NewOAuthAuthCode
+data NewOAuthAuthorizationCode = NewOAuthAuthorizationCode
   { noacClientId :: OAuthClientId,
     noacScope :: OAuthScopes,
     noacResponseType :: OAuthResponseType,
@@ -218,12 +218,12 @@ data NewOAuthAuthCode = NewOAuthAuthCode
     noacState :: Text
   }
   deriving (Eq, Show, Generic)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOAuthAuthCode)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOAuthAuthorizationCode)
 
-instance ToSchema NewOAuthAuthCode where
+instance ToSchema NewOAuthAuthorizationCode where
   schema =
-    object "NewOAuthAuthCode" $
-      NewOAuthAuthCode
+    object "NewOAuthAuthorizationCode" $
+      NewOAuthAuthorizationCode
         <$> noacClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
         <*> noacScope .= fieldWithDocModifier "scope" scopeDescription schema
         <*> noacResponseType .= fieldWithDocModifier "response_type" responseTypeDescription schema
@@ -236,26 +236,26 @@ instance ToSchema NewOAuthAuthCode where
       redirectUriDescription = description ?~ "The URL to which to redirect the browser after authorization has been granted by the user."
       stateDescription = description ?~ "An opaque value used by the client to maintain state between the request and callback. The authorization server includes this value when redirecting the user-agent back to the client.  The parameter SHOULD be used for preventing cross-site request forgery"
 
-newtype OAuthAuthCode = OAuthAuthCode {unOAuthAuthCode :: AsciiBase16}
+newtype OAuthAuthorizationCode = OAuthAuthorizationCode {unOAuthAuthorizationCode :: AsciiBase16}
   deriving (Eq, Generic)
 
-instance Show OAuthAuthCode where
-  show _ = "<OAuthAuthCode>"
+instance Show OAuthAuthorizationCode where
+  show _ = "<OAuthAuthorizationCode>"
 
-instance ToSchema OAuthAuthCode where
-  schema = (toText . unOAuthAuthCode) .= parsedText "OAuthAuthCode" (fmap OAuthAuthCode . validateBase16)
+instance ToSchema OAuthAuthorizationCode where
+  schema = (toText . unOAuthAuthorizationCode) .= parsedText "OAuthAuthorizationCode" (fmap OAuthAuthorizationCode . validateBase16)
 
-instance ToByteString OAuthAuthCode where
-  builder = builder . unOAuthAuthCode
+instance ToByteString OAuthAuthorizationCode where
+  builder = builder . unOAuthAuthorizationCode
 
-instance FromByteString OAuthAuthCode where
-  parser = OAuthAuthCode <$> parser
+instance FromByteString OAuthAuthorizationCode where
+  parser = OAuthAuthorizationCode <$> parser
 
-instance FromHttpApiData OAuthAuthCode where
-  parseQueryParam = bimap cs OAuthAuthCode . validateBase16 . cs
+instance FromHttpApiData OAuthAuthorizationCode where
+  parseQueryParam = bimap cs OAuthAuthorizationCode . validateBase16 . cs
 
-instance ToHttpApiData OAuthAuthCode where
-  toQueryParam = toText . unOAuthAuthCode
+instance ToHttpApiData OAuthAuthorizationCode where
+  toQueryParam = toText . unOAuthAuthorizationCode
 
 data OAuthGrantType = OAuthGrantTypeAuthorizationCode | OAuthGrantTypeRefreshToken
   deriving (Eq, Show, Generic)
@@ -292,7 +292,7 @@ data OAuthAccessTokenRequest = OAuthAccessTokenRequest
   { oatGrantType :: OAuthGrantType,
     oatClientId :: OAuthClientId,
     oatClientSecret :: OAuthClientPlainTextSecret,
-    oatCode :: OAuthAuthCode,
+    oatCode :: OAuthAuthorizationCode,
     oatRedirectUri :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
@@ -541,7 +541,7 @@ data OAuthError
   | OAuthRedirectUrlMissMatch
   | OAuthUnsupportedResponseType
   | OAuthJwtError
-  | OAuthAuthCodeNotFound
+  | OAuthAuthorizationCodeNotFound
   | OAuthFeatureDisabled
   | OAuthInvalidClientCredentials
   | OAuthInvalidGrantType
@@ -558,7 +558,7 @@ type instance MapError 'OAuthUnsupportedResponseType = 'StaticError 400 "unsuppo
 
 type instance MapError 'OAuthJwtError = 'StaticError 500 "jwt-error" "Internal error while handling JWT token"
 
-type instance MapError 'OAuthAuthCodeNotFound = 'StaticError 404 "not-found" "OAuth authorization code not found"
+type instance MapError 'OAuthAuthorizationCodeNotFound = 'StaticError 404 "not-found" "OAuth authorization code not found"
 
 type instance MapError 'OAuthFeatureDisabled = 'StaticError 403 "forbidden" "OAuth is disabled"
 
@@ -583,11 +583,11 @@ instance Cql RedirectUrl where
   fromCql (CqlBlob t) = runParser parser (toStrict t)
   fromCql _ = Left "RedirectUrl: Blob expected"
 
-instance Cql OAuthAuthCode where
+instance Cql OAuthAuthorizationCode where
   ctype = Tagged AsciiColumn
-  toCql = CqlAscii . toText . unOAuthAuthCode
-  fromCql (CqlAscii t) = OAuthAuthCode <$> validateBase16 t
-  fromCql _ = Left "OAuthAuthCode: Ascii expected"
+  toCql = CqlAscii . toText . unOAuthAuthorizationCode
+  fromCql (CqlAscii t) = OAuthAuthorizationCode <$> validateBase16 t
+  fromCql _ = Left "OAuthAuthorizationCode: Ascii expected"
 
 instance Cql OAuthScope where
   ctype = Tagged TextColumn
