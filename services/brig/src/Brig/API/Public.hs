@@ -740,6 +740,8 @@ listUsersByIdsOrHandles self q = do
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
     byIds lself uids = API.lookupProfiles lself uids !>> fedError
 
+-- Similar to listUsersByIdsOrHandles, except that it allows partial successes
+-- using a new return type
 listUsersByIdsOrHandlesV3 ::
   forall r.
   ( Member GalleyProvider r,
