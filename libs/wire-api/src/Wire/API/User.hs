@@ -20,7 +20,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.User
-  ( UserIdList (..),
+  ( ListUsersById (..),
+    UserIdList (..),
     QualifiedUserIdList (..),
     LimitedQualifiedUserIdList (..),
     ScimUserInfo (..),
@@ -165,6 +166,20 @@ import Wire.API.User.Identity
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+
+
+------- Paritial Successes
+data ListUsersById = ListUsersById
+  { listUsersByIdFound :: [UserProfile]
+  , listUsersByIdFailed :: Maybe [Qualified UserId]
+  } deriving (Eq, Show)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema ListUsersById
+
+instance ToSchema ListUsersById where
+  schema = object "ListUsersById" $
+    ListUsersById
+      <$> listUsersByIdFound .= field "found" (array schema)
+      <*> listUsersByIdFailed .= maybe_ (optField "failed" $ array schema)
 
 --------------------------------------------------------------------------------
 -- UserIdList

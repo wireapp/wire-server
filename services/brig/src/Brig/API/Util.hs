@@ -22,6 +22,7 @@ module Brig.API.Util
     logInvitationCode,
     validateHandle,
     logEmail,
+    traverseConcurrently,
     traverseConcurrentlyWithErrors,
     traverseConcurrentlyWithErrorsSem,
     traverseConcurrentlyWithErrorsAppT,
@@ -65,6 +66,7 @@ import Wire.API.Federation.Error
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 import qualified Wire.Sem.Concurrency as C
+import Data.Bifunctor
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
@@ -95,6 +97,20 @@ logEmail email =
 
 logInvitationCode :: InvitationCode -> (Msg -> Msg)
 logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCode code)
+
+
+-- | Traverse concurrently and collect errors.
+traverseConcurrently ::
+  (Traversable t, Member (C.Concurrency 'C.Unsafe) r) =>
+  (a -> ExceptT e (AppT r) b) ->
+  t a ->
+  AppT r [Either (a, e) b]
+traverseConcurrently f t = do
+  env <- temporaryGetEnv
+  AppT $ lift $ C.unsafePooledMapConcurrentlyN
+    8
+    (\a -> first (a,) <$> lowerAppT env (runExceptT $ f a))
+    t
 
 -- | Traverse concurrently and fail on first error.
 traverseConcurrentlyWithErrors ::

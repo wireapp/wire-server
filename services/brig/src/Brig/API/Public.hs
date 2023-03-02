@@ -143,6 +143,7 @@ import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
+import Wire.API.Federation.Error
 
 -- User API -----------------------------------------------------------
 
@@ -241,6 +242,7 @@ servantSitemap =
         :<|> Named @"get-user-by-handle-qualified" (callsFed (exposeAnnotations Handle.getHandleInfo))
         :<|> Named @"list-users-by-unqualified-ids-or-handles" (callsFed (exposeAnnotations listUsersByUnqualifiedIdsOrHandles))
         :<|> Named @"list-users-by-ids-or-handles" (callsFed (exposeAnnotations listUsersByIdsOrHandles))
+        :<|> Named @"list-users-by-ids-or-handles@V3" (callsFed (exposeAnnotations listUsersByIdsOrHandlesV3))
         :<|> Named @"send-verification-code" sendVerificationCode
         :<|> Named @"get-rich-info" getRichInfo
 
@@ -737,6 +739,39 @@ listUsersByIdsOrHandles self q = do
       pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
     byIds lself uids = API.lookupProfiles lself uids !>> fedError
+
+listUsersByIdsOrHandlesV3 ::
+  forall r.
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
+  ) =>
+  UserId ->
+  Public.ListUsersQuery ->
+  Handler r ListUsersById
+listUsersByIdsOrHandlesV3 self q = do
+  lself <- qualifyLocal self
+  (errors, foundUsers) <- case q of
+    Public.ListUsersByIds us ->
+      byIds lself us
+    Public.ListUsersByHandles hs -> do
+      let (localHandles, _) = partitionQualified lself (fromRange hs)
+      us <- getIds localHandles
+      (l, r) <- byIds lself us
+      r' <- Handle.filterHandleResults lself r
+      pure (l, r')
+  pure $ ListUsersById foundUsers $ if null errors then Nothing else pure $ fst <$> errors
+  where
+    getIds :: [Handle] -> Handler r [Qualified UserId]
+    getIds localHandles = do
+      localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
+      domain <- viewFederationDomain
+      pure $ map (`Qualified` domain) localUsers
+    byIds
+      :: Local UserId
+      -> [Qualified UserId]
+      -> Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
+    byIds lself uids = lift (API.lookupProfilesV3 lself uids) !>> fedError
+
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)

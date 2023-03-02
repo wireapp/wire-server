@@ -98,6 +98,7 @@ import Wire.API.User.Activation
 import Wire.API.User.Auth
 import qualified Wire.API.User.Auth as Auth
 import Wire.API.User.Client
+import Data.LegalHold
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
 tests _ at opts p b c ch g aws userJournalWatcher =
@@ -131,6 +132,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "head /users/:domain/:uid - 200" $ testUserExists b,
       test p "head /users/:domain/:uid - 404" $ testUserDoesNotExist b,
       test p "post /list-users - 200" $ testMultipleUsers b,
+      test p "post /list-users@v3 - 200" $ testMultipleUsersV3 opts b,
       test p "put /self - 200" $ testUserUpdate b c userJournalWatcher,
       test p "put /access/self/email - 2xx" $ testEmailUpdate b userJournalWatcher,
       test p "put /self/phone - 202" $ testPhoneUpdate b,
@@ -773,7 +775,8 @@ testMultipleUsers brig = do
             (Just $ userDisplayName u3, Nothing)
           ]
   post
-    ( brig
+    ( apiVersion "v2"
+        . brig
         . zUser (userId u1)
         . contentJson
         . path "list-users"
@@ -789,6 +792,72 @@ testMultipleUsers brig = do
         <$> responseJsonMaybe r
     field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
+
+testMultipleUsersV3 :: Opt.Opts -> Brig -> Http ()
+testMultipleUsersV3 opts brig = do
+  u1 <- randomUser brig
+  u2 <- randomUser brig
+  u3 <- createAnonUser "a" brig
+  -- A remote user that can't be listed
+  u4 <- Qualified <$> randomId <*> pure (Domain "far-away.example.com")
+  -- A remote user that can be listed
+  let evenFurtherAway = Domain "even-further-away.example.com"
+  u5 <- Qualified <$> randomId <*> pure evenFurtherAway
+  let u5Profile = UserProfile
+        { profileQualifiedId = u5
+        , profileName = Name "u5"
+        , profilePict = Pict []
+        , profileAssets = []
+        , profileAccentId = ColourId 0
+        , profileDeleted = False
+        , profileService = Nothing
+        , profileHandle = Nothing
+        , profileExpire = Nothing
+        , profileTeam = Nothing
+        , profileEmail = Nothing
+        , profileLegalholdStatus = UserLegalHoldDisabled
+        }
+      users = [u1, u2, u3]
+      q = ListUsersByIds $ u5 : u4 : map userQualifiedId users
+      expected =
+        Set.fromList
+          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+            (Just $ userDisplayName u2, Nothing),
+            (Just $ userDisplayName u3, Nothing),
+            (Just $ profileName u5Profile, profileEmail u5Profile)
+          ]
+      expectedFailed = Set.fromList [u4]
+
+  let fedMockResponse req = do
+        -- Check that our allowed remote user is being asked for
+        if frTargetDomain req == evenFurtherAway
+        -- Return the data for u5
+        then pure $ encode [u5Profile]
+        -- Otherwise mock an unavailable federation server
+        else throw $ MockErrorResponse Http.status500 "Down for maintenance"
+      -- Galley isn't needed, but this is what mock federators are available.
+      galleyHandler _ = error "not mocked"
+  (response, _rpcCalls, _galleyCalls) <- liftIO $
+    withMockedFederatorAndGalley opts (Domain "example.com") fedMockResponse galleyHandler $ do
+      post
+        ( brig
+            . zUser (userId u1)
+            . contentJson
+            . path "list-users"
+            . body (RequestBodyLBS (Aeson.encode q))
+        )
+  
+  pure response !!! do
+     const 200 === statusCode
+     const (Just expected) === result
+     const (pure $ pure expectedFailed) === resultFailed
+  where
+    result r =
+      Set.fromList
+        . map (\u -> (pure $ profileName u, profileEmail u))
+        . listUsersByIdFound
+        <$> responseJsonMaybe r
+    resultFailed r = fmap Set.fromList . listUsersByIdFailed <$> responseJsonMaybe r
 
 testCreateUserAnonExpiry :: Brig -> Http ()
 testCreateUserAnonExpiry b = do
