@@ -1238,16 +1238,9 @@ postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients =
                 ]
             )
           ]
-        expectedRedundant = QualifiedUserClients . Map.fromList $
-          [ ( remoteDomain,
-              Map.fromList
-                [ (deeId, Set.singleton deeClient)
-                ]
-            )
-          ]
     pure resp2 !!! do
       const 201 === statusCode
-      assertMismatchQualified expectedFailedToSend mempty expectedRedundant mempty
+      assertMismatchQualified expectedFailedToSend mempty mempty mempty
 
     liftIO $ do
       let encodedTextForBob = toBase64Text "text-for-bob"

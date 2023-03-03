@@ -486,14 +486,16 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           -- should be listed in the failedToSend field however, as tracking these clients is an
           -- important part of the proteus protocol.
           predicate (d, (u, _)) = any (\(d', (u', _)) -> d == d' && u == u') failed'
-          redundantFailed = filter predicate redundant'
+          -- Failed users/clients aren't redundant
+          (failed, redundant) = partition predicate redundant'
       pure
         otrResult
           { mssFailedToSend = QualifiedUserClients $ collectFailedToSend
             [ qualifiedUserClients failedToSend,
               qualifiedUserClients failedToSendFetchingClients,
-              fromDomUserClient redundantFailed
+              fromDomUserClient failed
             ]
+          , mssRedundantClients = QualifiedUserClients $ fromDomUserClient redundant
           }
   where
     -- Get the triples for domains, users, and clients so we can easily filter
