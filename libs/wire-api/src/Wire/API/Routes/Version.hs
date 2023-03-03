@@ -100,7 +100,7 @@ supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
 
 developmentVersions :: [Version]
-developmentVersions = [V3]
+developmentVersions = [V4]
 
 -- | Information related to the public API version.
 --
