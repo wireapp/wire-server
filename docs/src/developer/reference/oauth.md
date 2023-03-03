@@ -57,8 +57,8 @@ The authorization server does the authentication of the user and establishes whe
        A->>U: Redirect to login/authorization prompt
        U->>A: Authenticate and consent
        A->>C: Authorization code
-       C->>A: Authentication code + client credentials
-       A->>A: Validate authentication code + client credentials
+       C->>A: Authorization code + client credentials
+       A->>A: Validate authorization code + client credentials
        A->>C: Access token
        C->>R: Request a resource with access token (e.g. POST /conversations)
        R->>R: Validate access token with public key from auth server
