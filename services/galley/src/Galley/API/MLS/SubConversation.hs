@@ -51,6 +51,7 @@ import Galley.Effects
 import Galley.Effects.FederatorAccess
 import qualified Galley.Effects.FederatorAccess as Eff
 import qualified Galley.Effects.MemberStore as Eff
+import qualified Galley.Effects.ProposalStore as Eff
 import qualified Galley.Effects.SubConversationStore as Eff
 import Galley.Effects.SubConversationSupply (SubConversationSupply)
 import qualified Galley.Effects.SubConversationSupply as Eff
@@ -236,6 +237,7 @@ deleteSubConversation ::
          FederatorAccess,
          Input Env,
          MemberStore,
+         ProposalStore,
          Resource,
          SubConversationStore,
          SubConversationSupply
@@ -264,6 +266,7 @@ deleteLocalSubConversation ::
          FederatorAccess,
          Input Env,
          MemberStore,
+         ProposalStore,
          Resource,
          SubConversationStore,
          SubConversationSupply,
@@ -288,7 +291,9 @@ deleteLocalSubConversation qusr lcnvId scnvId dsc = do
     let (gid, epoch) = (cnvmlsGroupId &&& cnvmlsEpoch) (scMLSData sconv)
     unless (dscGroupId dsc == gid) $ throwS @'ConvNotFound
     unless (dscEpoch dsc == epoch) $ throwS @'MLSStaleMessage
+
     Eff.removeAllMLSClients gid
+    Eff.deleteAllProposals gid
 
     newGid <- Eff.makeFreshGroupId
 

@@ -30,6 +30,7 @@ import Galley.API.MLS.Types (SubConversation (..))
 import Galley.Cassandra.Conversation.MLS (lookupMLSClients)
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store (embedClient)
+import Galley.Effects.ProposalStore
 import Galley.Effects.SubConversationStore (SubConversationStore (..))
 import Imports
 import Polysemy
@@ -103,7 +104,10 @@ listSubConversations cid = do
       )
 
 interpretSubConversationStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member ProposalStore r
+  ) =>
   Sem (SubConversationStore ': r) a ->
   Sem r a
 interpretSubConversationStoreToCassandra = interpret $ \case
@@ -115,7 +119,10 @@ interpretSubConversationStoreToCassandra = interpret $ \case
   SetSubConversationEpoch cid sconv epoch -> embedClient $ setEpochForSubConversation cid sconv epoch
   DeleteGroupIdForSubConversation groupId -> embedClient $ deleteGroupId groupId
   ListSubConversations cid -> embedClient $ listSubConversations cid
-  DeleteSubConversation convId subConvId -> embedClient $ deleteSubConversation convId subConvId
+  DeleteSubConversation convId subConvId -> do
+    msub <- embedClient (selectSubConversation convId subConvId)
+    for_ msub $ deleteAllProposals . cnvmlsGroupId . scMLSData
+    embedClient $ deleteSubConversation convId subConvId
 
 --------------------------------------------------------------------------------
 -- Utilities

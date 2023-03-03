@@ -261,10 +261,10 @@ evalGalley e =
     . interpretLegalHoldStoreToCassandra lh
     . interpretCustomBackendStoreToCassandra
     . randomToIO
+    . interpretProposalStoreToCassandra
     . interpretSubConversationSupplyToRandom
     . interpretSubConversationStoreToCassandra
     . interpretConversationStoreToCassandra
-    . interpretProposalStoreToCassandra
     . interpretCodeStoreToCassandra
     . interpretClientStoreToCassandra
     . interpretFireAndForget
