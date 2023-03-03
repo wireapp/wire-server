@@ -188,7 +188,7 @@ instance ToByteString OAuthScope where
 instance FromByteString OAuthScope where
   parser = do
     s <- parser
-    case s & T.toLower of
+    case T.toLower s of
       "write:conversations" -> pure WriteConversation
       "write:conversations_code" -> pure WriteConversationCode
       "read:self" -> pure ReadSelf
@@ -272,7 +272,7 @@ instance ToSchema OAuthGrantType where
 instance FromByteString OAuthGrantType where
   parser = do
     s <- parser
-    case s & T.toLower of
+    case T.toLower s of
       "authorization_code" -> pure OAuthGrantTypeAuthorizationCode
       "refresh_token" -> pure OAuthGrantTypeRefreshToken
       _ -> fail "invalid OAuthGrantType"
