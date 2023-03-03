@@ -364,38 +364,33 @@ brig:
 
 #### Access token
 
-Access tokens are self-encoded.
+Access tokens are self-contained JSON Web Tokens (JWT) that contain the following claims:
 
-Payload
+- `iss`: The issuer, e.g. `wire-server`
+- `aud`: The resource server (in our case the same as `iss`)
+- `iat`: The time at which the token was issued
+- `sub`: Identifier of the resource owner, the Wire user ID
+- `exp`: The expiration time of the token
+- `scope`: A whitespace separated list of permissions
 
+Example token payload:
+
+```json
 {
-  "iss": "https://prod-nginz-https.wire.com",
-  "sub": "7cf24b6c-8c7e-4788-a532-2c998d20ce4a",
-  "aud": "https://prod-nginz-https.wire.com",
-  "exp": 1311281970,
+  "iss": "server.example.com",
+  "aud": "server.example.com",
   "iat": 1311280970,
-  "scope": "write:conversations write:conversations.code"
+  "sub": "7cf24b6c-8c7e-4788-a532-2c998d20ce4a",
+  "exp": 1311281970,
+  "scope": "write:conversations write:conversations_code"
 }
+```
 
-iss: Wire server
-
-sub: User ID
-
-aud: The resource server
-
-exp: expiration time
-
-iat: issued at time
-
-scope: scopes
-
-Access tokens
-
-Verification:
-
-- Signature
-- Scope
-- Expiration
+- The access tokens are created and signed by `brig`.
+- When accessing a resource `nginz` validates the token and forwards the request to `wire-server` with the `Z-User` header containing the user ID taken from the `sub` claim.
+- Token validation includes signature, expiration, and scope validation.
+- Access tokens are short lived.
+- Access tokens are bearer tokens and cannot be revoked directly, therefore 3rd party access revocation will entail the token expiration.
 
 #### Refresh token
 
@@ -414,6 +409,8 @@ for now, we will not yet implement re-use detection, but in the future this shou
 the refresh token is given to the client/app as a signed JWT containing only the refresh token ID
 
 refresh tokens are long-lived, and the expiration should be configurable on the server level (default 3-6 months?)
+
+### Scopes
 
 ### Public/private keys
 
