@@ -1207,10 +1207,8 @@ postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients =
               guardRPC "get-user-clients"
               d <- frTargetDomain <$> getRequest
               if d == remoteDomain
-              then
-                throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
-              else
-                mockReply $ UserMap (Map.singleton (qUnqualified emilyRemote) (Set.singleton (PubClient emilyClient Nothing)))
+                then throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
+                else mockReply $ UserMap (Map.singleton (qUnqualified emilyRemote) (Set.singleton (PubClient emilyClient Nothing)))
           )
             <|> ( guardRPC "on-message-sent"
                     *> throw (MockErrorResponse HTTP.status503 "Down for maintenance.")
@@ -1226,18 +1224,19 @@ postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients =
           "data"
           Message.MismatchReportAll
 
-    let expectedFailedToSend = QualifiedUserClients . Map.fromList $
-          [ ( remoteDomain,
-              Map.fromList
-                [ (deeId, Set.singleton deeClient)
-                ]
-            )
-          , ( remoteDomain2,
-              Map.fromList
-                [ (emilyId, Set.singleton emilyClient)
-                ]
-            )
-          ]
+    let expectedFailedToSend =
+          QualifiedUserClients . Map.fromList $
+            [ ( remoteDomain,
+                Map.fromList
+                  [ (deeId, Set.singleton deeClient)
+                  ]
+              ),
+              ( remoteDomain2,
+                Map.fromList
+                  [ (emilyId, Set.singleton emilyClient)
+                  ]
+              )
+            ]
     pure resp2 !!! do
       const 201 === statusCode
       assertMismatchQualified expectedFailedToSend mempty mempty mempty
@@ -1251,37 +1250,46 @@ postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients =
 
 testBuildFailedToSend :: TestM ()
 testBuildFailedToSend = liftIO $ do
-  assertEqual "Empty case - trivial"
+  assertEqual
+    "Empty case - trivial"
     (collectFailedToSend [])
     mempty
-  assertEqual "Empty case - single empty map"
+  assertEqual
+    "Empty case - single empty map"
     (collectFailedToSend [mempty])
     mempty
-  assertEqual "Empty case - multiple empty maps"
+  assertEqual
+    "Empty case - multiple empty maps"
     (collectFailedToSend [mempty, mempty])
     mempty
-  assertEqual "Single domain"
+  assertEqual
+    "Single domain"
     (collectFailedToSend [Map.singleton (Domain "foo") mempty])
     (Map.singleton (Domain "foo") mempty)
-  assertEqual "Single domain duplicated"
+  assertEqual
+    "Single domain duplicated"
     (collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "foo") mempty])
     (Map.singleton (Domain "foo") mempty)
-  assertEqual "Mutliple domains in multiple maps"
+  assertEqual
+    "Mutliple domains in multiple maps"
     (collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "bar") mempty])
     (Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)])
-  assertEqual "Mutliple domains in single map"
+  assertEqual
+    "Mutliple domains in single map"
     (collectFailedToSend [Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)]])
     (Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)])
-  assertEqual "Single domain duplicated with unique sub-maps"
-    (collectFailedToSend
-      [ Map.singleton (Domain "foo") $ Map.singleton idA mempty
-      , Map.singleton (Domain "foo") $ Map.singleton idB mempty
-      ]
+  assertEqual
+    "Single domain duplicated with unique sub-maps"
+    ( collectFailedToSend
+        [ Map.singleton (Domain "foo") $ Map.singleton idA mempty,
+          Map.singleton (Domain "foo") $ Map.singleton idB mempty
+        ]
     )
-    (Map.singleton (Domain "foo") $ Map.fromList
-      [ (idA, mempty)
-      , (idB, mempty)
-      ]
+    ( Map.singleton (Domain "foo") $
+        Map.fromList
+          [ (idA, mempty),
+            (idB, mempty)
+          ]
     )
   where
     idA = Id $ fromJust $ Data.UUID.Types.fromString "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"

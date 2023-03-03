@@ -31,7 +31,7 @@ module Galley.API.Message
     QualifiedMismatch (..),
     mkQualifiedUserClients,
     clientMismatchStrategyApply,
-    collectFailedToSend
+    collectFailedToSend,
   )
 where
 
@@ -490,12 +490,14 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           (failed, redundant) = partition predicate redundant'
       pure
         otrResult
-          { mssFailedToSend = QualifiedUserClients $ collectFailedToSend
-            [ qualifiedUserClients failedToSend,
-              qualifiedUserClients failedToSendFetchingClients,
-              fromDomUserClient failed
-            ]
-          , mssRedundantClients = QualifiedUserClients $ fromDomUserClient redundant
+          { mssFailedToSend =
+              QualifiedUserClients $
+                collectFailedToSend
+                  [ qualifiedUserClients failedToSend,
+                    qualifiedUserClients failedToSendFetchingClients,
+                    fromDomUserClient failed
+                  ],
+            mssRedundantClients = QualifiedUserClients $ fromDomUserClient redundant
           }
   where
     -- Get the triples for domains, users, and clients so we can easily filter
@@ -511,10 +513,10 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
         buildUserClientMap :: (Domain, (UserId, Set ClientId)) -> Map Domain (Map UserId (Set ClientId)) -> Map Domain (Map UserId (Set ClientId))
         buildUserClientMap (d, (u, c)) m = Map.alter (pure . Map.alter (pure . Set.union c . fromMaybe mempty) u . fromMaybe mempty) d m
 
-collectFailedToSend
-  :: Foldable f
-  => f (Map Domain (Map UserId (Set ClientId)))
-  -> Map Domain (Map UserId (Set ClientId))
+collectFailedToSend ::
+  Foldable f =>
+  f (Map Domain (Map UserId (Set ClientId))) ->
+  Map Domain (Map UserId (Set ClientId))
 collectFailedToSend = foldr (Map.unionWith (Map.unionWith Set.union)) mempty
 
 makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
