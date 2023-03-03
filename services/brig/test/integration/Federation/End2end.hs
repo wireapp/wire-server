@@ -978,22 +978,22 @@ testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
   let checkEvent ws u s =
         WS.assertMatch_ (5 # Second) ws $ \n -> do
           let e = List1.head (WS.unpackPayload n)
-          ntfTransient n @?= False
+          ntfTransient n @?= True
           evtConv e @?= cnvQualifiedId cnv
           evtType e @?= Typing
           evtFrom e @?= userQualifiedId u
           evtData e @?= EdTyping s
 
-  -- alice is typing, bob gets events
-  WS.bracketR cannon2 (userId bob) $ \ws -> do
+  -- -- alice is typing, bob gets events
+  WS.bracketR cannon2 (userId bob) $ \wsBob -> do
     isTyping galley1 alice StartedTyping
-    checkEvent ws alice StartedTyping
+    checkEvent wsBob alice StartedTyping
     isTyping galley1 alice StoppedTyping
-    checkEvent ws alice StoppedTyping
+    checkEvent wsBob alice StoppedTyping
 
   -- bob is typing, alice gets events
-  WS.bracketR cannon1 (userId alice) $ \ws -> do
+  WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
     isTyping galley2 bob StartedTyping
-    checkEvent ws bob StartedTyping
+    checkEvent wsAlice bob StartedTyping
     isTyping galley2 bob StoppedTyping
-    checkEvent ws bob StoppedTyping
+    checkEvent wsAlice bob StoppedTyping
