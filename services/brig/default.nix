@@ -80,7 +80,6 @@
 , mmorph
 , MonadRandom
 , mtl
-, multihash
 , mwc-random
 , network
 , network-conduit-tls
@@ -137,6 +136,7 @@
 , time-units
 , tinylog
 , transformers
+, transitive-anns
 , types-common
 , types-common-aws
 , types-common-journal
@@ -232,7 +232,6 @@ mkDerivation {
     mmorph
     MonadRandom
     mtl
-    multihash
     mwc-random
     network
     network-conduit-tls
@@ -276,6 +275,7 @@ mkDerivation {
     time-units
     tinylog
     transformers
+    transitive-anns
     types-common
     types-common-aws
     types-common-journal

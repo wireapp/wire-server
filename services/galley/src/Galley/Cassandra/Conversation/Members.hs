@@ -364,7 +364,9 @@ lookupMLSClients groupId =
       (query Cql.lookupMLSClients (params LocalQuorum (Identity groupId)))
 
 interpretMemberStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   Sem (MemberStore ': r) a ->
   Sem r a
 interpretMemberStoreToCassandra = interpret $ \case

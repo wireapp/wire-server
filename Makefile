@@ -18,7 +18,7 @@ fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
 nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn		\
-inbucket k8ssandra-test-cluster
+inbucket k8ssandra-test-cluster postgresql
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 
@@ -90,6 +90,15 @@ endif
 .PHONY: ci
 ci: c db-migrate
 	./hack/bin/cabal-run-integration.sh $(package)
+
+.PHONY: sanitize-pr
+sanitize-pr:
+	./hack/bin/generate-local-nix-packages.sh
+	make formatf-all
+	make hlint-inplace-all
+	make git-add-cassandra-schema
+	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
+	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
 
 .PHONY: cabal-fmt
 cabal-fmt:

@@ -23,19 +23,19 @@ docs.
 
 ### Public endpoints
 - Version `v0`:
-    - [new staging swagger page - **public**
-    endpoints](https://staging-nginz-https.zinfra.io/v0/api/swagger-ui/)
+    - [**public**
+      endpoints](https://staging-nginz-https.zinfra.io/v0/api/swagger-ui/)
 - Version `v1`:
-    - [new staging swagger page - **public**
+    - [**public**
     endpoints](https://staging-nginz-https.zinfra.io/v1/api/swagger-ui/)
 - Version `v2`:
-    - [new staging swagger page - **public**
+    - [**public**
     endpoints](https://staging-nginz-https.zinfra.io/v2/api/swagger-ui/)
 - Version `v3`:
-    - [new staging swagger page - **public**
+    - [**public**
     endpoints](https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/)
-- Unversioned
-    - [new staging swagger page - **public**
+- Unversioned:
+    - [**public**
     endpoints](https://staging-nginz-https.zinfra.io/api/swagger-ui/)
 
 The first part of the URL's path is the version. No specified version means
@@ -65,12 +65,37 @@ The URL to open in your browser for the development version `3` is
 `https://staging-nginz-https.zinfra.io/v3/api/swagger-ui/`.
 
 ### Internal endpoints
+
+Swagger docs for internal endpoints are served per service. I.e. there's one for
+`brig`, one for `cannon`, etc.. This is because Swagger doesn't play well with
+multiple actions having the same combination of HTTP method and URL path.
+
 - Version `v3`:
-    - [new staging swagger page - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/)
-- Unversioned
-    - [new staging swagger page - **internal** (private)
-    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/)
+    - [`brig` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/brig)
+    - [`cannon` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/cannon)
+    - [`cargohold` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/cargohold)
+    - [`galley` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/galley)
+    - [`legalhold` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/legalhold)
+    - [`spar` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/v3/api-internal/swagger-ui/spar)
+- Unversioned:
+    - [`brig` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/brig)
+    - [`cannon` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/cannon)
+    - [`cargohold` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/cargohold)
+    - [`galley` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/galley)
+    - [`legalhold` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/legalhold)
+    - [`spar` - **internal** (private)
+    endpoints](https://staging-nginz-https.zinfra.io/api-internal/swagger-ui/spar)
 
 The URL pattern is similar to that of public endpoints:
 `https://<nginz-host>/v<version>/api-internal/swagger-ui/`. No specified version

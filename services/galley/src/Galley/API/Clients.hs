@@ -54,19 +54,25 @@ import qualified Polysemy.TinyLog as P
 import qualified System.Logger as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Federation.API
+import Wire.API.Federation.API.Common (EmptyResponse)
 import Wire.API.Federation.API.Galley (ClientRemovedRequest (ClientRemovedRequest))
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Routes.MultiTablePaging
 import Wire.Sem.Paging.Cassandra (CassandraPaging)
 
 getClientsH ::
-  Members '[BrigAccess, ClientStore] r =>
+  ( Member BrigAccess r,
+    Member ClientStore r
+  ) =>
   UserId ->
   Sem r Response
 getClientsH usr = do
   json <$> getClients usr
 
 getClients ::
-  Members '[BrigAccess, ClientStore] r =>
+  ( Member BrigAccess r,
+    Member ClientStore r
+  ) =>
   UserId ->
   Sem r [ClientId]
 getClients usr = do
@@ -88,25 +94,21 @@ addClientH (usr ::: clt) = do
 rmClientH ::
   forall p1 r.
   ( p1 ~ CassandraPaging,
-    Members
-      '[ ClientStore,
-         ConversationStore,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input (Local ()),
-         Input UTCTime,
-         ListItems p1 ConvId,
-         ListItems p1 (Remote ConvId),
-         MemberStore,
-         Error InternalError,
-         ProposalStore,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-client-removed",
-    CallsFed 'Galley "on-mls-message-sent"
+    ( Member ClientStore r,
+      Member ConversationStore r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Input Env) r,
+      Member (Input (Local ())) r,
+      Member (Input UTCTime) r,
+      Member (ListItems p1 ConvId) r,
+      Member (ListItems p1 (Remote ConvId)) r,
+      Member MemberStore r,
+      Member (Error InternalError) r,
+      Member ProposalStore r,
+      Member P.TinyLog r
+    )
   ) =>
   UserId ::: ClientId ->
   Sem r Response
@@ -119,7 +121,9 @@ rmClientH (usr ::: cid) = do
   E.deleteClient usr cid
   pure empty
   where
+    rpc :: ClientRemovedRequest -> FederatorClient 'Galley EmptyResponse
     rpc = fedClient @'Galley @"on-client-removed"
+
     goConvs :: Range 1 1000 Int32 -> ConvIdsPage -> Local UserId -> Sem r ()
     goConvs range page lusr = do
       let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)

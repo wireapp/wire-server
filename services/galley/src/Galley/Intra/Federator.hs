@@ -33,7 +33,9 @@ import Wire.API.Federation.Client
 import Wire.API.Federation.Error
 
 interpretFederatorAccess ::
-  Members '[Embed IO, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input Env) r
+  ) =>
   Sem (FederatorAccess ': r) a ->
   Sem r a
 interpretFederatorAccess = interpret $ \case

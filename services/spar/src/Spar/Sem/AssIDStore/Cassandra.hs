@@ -41,7 +41,14 @@ import qualified Wire.Sem.Now as Now
 
 assIDStoreToCassandra ::
   forall m r a.
-  (MonadClient m, Members '[Embed m, Now, Error TTLError, Embed IO, Input Opts] r) =>
+  ( MonadClient m,
+    ( Member (Embed m) r,
+      Member Now r,
+      Member (Error TTLError) r,
+      Member (Embed IO) r,
+      Member (Input Opts) r
+    )
+  ) =>
   Sem (AssIDStore ': r) a ->
   Sem r a
 assIDStoreToCassandra =

@@ -29,7 +29,9 @@ import Polysemy.Input
 import Wire.API.Team.SearchVisibility
 
 interpretSearchVisibilityStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r
+  ) =>
   Sem (SearchVisibilityStore ': r) a ->
   Sem r a
 interpretSearchVisibilityStoreToCassandra = interpret $ \case

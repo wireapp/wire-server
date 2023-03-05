@@ -23,11 +23,9 @@ import Imports
 import Servant
 import Servant.Swagger
 import Wire.API.Routes.MultiVerb
-import Wire.API.SwaggerServant
 
 type InternalAPI =
-  SwaggerTag "cargohold"
-    :> "i"
+  "i"
     :> "status"
     :> MultiVerb 'GET '() '[RespondEmpty 200 "OK"] ()
 

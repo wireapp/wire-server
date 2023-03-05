@@ -21,7 +21,6 @@
 , imports
 , lens
 , lib
-, multihash
 , optparse-applicative
 , saml2-web-sso
 , string-conversions
@@ -57,7 +56,6 @@ mkDerivation {
     http-client
     imports
     lens
-    multihash
     optparse-applicative
     saml2-web-sso
     string-conversions

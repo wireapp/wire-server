@@ -139,12 +139,10 @@ listTeams ::
 listTeams = listItems
 
 lookupBindingTeam ::
-  Members
-    '[ ErrorS 'TeamNotFound,
-       ErrorS 'NonBindingTeam,
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NonBindingTeam) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   Sem r TeamId
 lookupBindingTeam zusr = do

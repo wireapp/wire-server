@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V17
+module V79_TeamFeatureMlsE2EId
   ( migration,
   )
 where
@@ -25,10 +25,11 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 17 "Drop user_push column family" $ do
-  -- 'user_push' has been moved to gundeck
-  void $
-    schema'
-      [r|
-       drop columnfamily if exists user_push;
-       |]
+migration = Migration 79 "Add feature config for team feature MLS MlsE2EId" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          mls_e2eid_status int,
+          mls_e2eid_lock_status int,
+          mls_e2eid_ver_exp timestamp
+        )
+     |]

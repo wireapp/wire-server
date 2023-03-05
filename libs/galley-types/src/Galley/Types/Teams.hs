@@ -40,6 +40,7 @@ module Galley.Types.Teams
     flagTeamFeatureSearchVisibilityInbound,
     flagOutlookCalIntegration,
     flagMLS,
+    flagMlsE2EId,
     Defaults (..),
     ImplicitLockStatus (..),
     unImplicitLockStatus,
@@ -152,7 +153,8 @@ data FeatureFlags = FeatureFlags
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
     _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
     _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig)),
-    _flagOutlookCalIntegration :: !(Defaults (WithStatus OutlookCalIntegrationConfig))
+    _flagOutlookCalIntegration :: !(Defaults (WithStatus OutlookCalIntegrationConfig)),
+    _flagMlsE2EId :: !(Defaults (WithStatus MlsE2EIdConfig))
   }
   deriving (Eq, Show, Generic)
 
@@ -203,6 +205,7 @@ instance FromJSON FeatureFlags where
       <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
       <*> withImplicitLockStatusOrDefault obj "mls"
       <*> (fromMaybe (Defaults (defFeatureStatus @OutlookCalIntegrationConfig)) <$> (obj .:? "outlookCalIntegration"))
+      <*> (fromMaybe (Defaults (defFeatureStatus @MlsE2EIdConfig)) <$> (obj .:? "mlsE2EId"))
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
@@ -224,6 +227,7 @@ instance ToJSON FeatureFlags where
         searchVisibilityInbound
         mls
         outlookCalIntegration
+        mlsE2EId
       ) =
       object
         [ "sso" .= sso,
@@ -239,7 +243,8 @@ instance ToJSON FeatureFlags where
           "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
           "searchVisibilityInbound" .= searchVisibilityInbound,
           "mls" .= mls,
-          "outlookCalIntegration" .= outlookCalIntegration
+          "outlookCalIntegration" .= outlookCalIntegration,
+          "mlsE2EId" .= mlsE2EId
         ]
 
 instance FromJSON FeatureSSO where

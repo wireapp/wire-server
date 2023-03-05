@@ -11,7 +11,7 @@ import Control.Monad.Catch
 import Imports
 import Polysemy
 
-interpretRpcToIO :: Members '[Final IO] r => Manager -> RequestId -> Sem (RPC ': r) a -> Sem r a
+interpretRpcToIO :: Member (Final IO) r => Manager -> RequestId -> Sem (RPC ': r) a -> Sem r a
 interpretRpcToIO mgr rid = interpret $ \case
   ServiceRequest txt f sm g ->
     embedFinal @IO $ viaHttpIO mgr rid $ RPC.serviceRequestImpl txt f sm g
