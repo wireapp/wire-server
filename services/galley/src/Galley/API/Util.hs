@@ -70,7 +70,6 @@ import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
-import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -912,28 +911,3 @@ instance
     if err' == demote @e
       then throwS @e
       else rethrowErrors @effs @r err'
-
---------------------------------------------------------------------------------
--- Send typing indicator events
-isTyping ::
-  ( Member (ErrorS 'ConvNotFound) r,
-    Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    Member MemberStore r
-  ) =>
-  Qualified UserId ->
-  Maybe ConnId ->
-  Local ConvId ->
-  TypingStatus ->
-  Sem r ()
-isTyping qusr mcon lcnv ts = do
-  mm <- getLocalMembers (tUnqualified lcnv)
-  unless (qUnqualified qusr `isMember` mm) $ throwS @'ConvNotFound
-  now <- input
-  let e = Event (tUntagged lcnv) Nothing qusr now (EdTyping ts)
-  for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (recipient <$> mm)) $ \p ->
-    push1 $
-      p
-        & pushConn .~ mcon
-        & pushRoute .~ RouteDirect
-        & pushTransient .~ True

@@ -28,6 +28,8 @@ module Galley.API.Action
     updateLocalConversationUnchecked,
     NoChanges (..),
     LocalConversationUpdate (..),
+    notifyTypingIndicator,
+    pushTypingIndicatorEvents,
 
     -- * Utilities
     ensureConversationActionAllowed,
@@ -43,6 +45,7 @@ import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Kind
+import qualified Data.List as List
 import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map as Map
 import Data.Misc
@@ -65,9 +68,11 @@ import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.FireAndForget as E
+import Galley.Effects.GundeckAccess
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
 import qualified Galley.Effects.TeamStore as E
+import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
@@ -83,6 +88,7 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -816,3 +822,54 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     lconv
     (targets <> extraTargets)
     (pure victim)
+
+notifyTypingIndicator ::
+  ( Member (Input UTCTime) r,
+    Member (Input (Local ())) r,
+    Member GundeckAccess r,
+    Member FederatorAccess r
+  ) =>
+  Conversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  TypingStatus ->
+  Sem r TypingDataUpdated
+notifyTypingIndicator conv qusr mcon ts = do
+  let origDomain = qDomain qusr
+  now <- input
+  lconv <- qualifyLocal (Data.convId conv)
+
+  pushTypingIndicatorEvents qusr now (fmap lmId (Data.convLocalMembers conv)) mcon (tUntagged lconv) ts
+
+  let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
+  let tdu users =
+        TypingDataUpdated
+          { tudTime = now,
+            tudOrigUserId = qusr,
+            tudConvId = Data.convId conv,
+            tudUsersInConv = users,
+            tudTypingStatus = ts
+          }
+
+  void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do
+    fedClient @'Galley @"on-typing-indicator-updated" (tdu (tUnqualified rmems))
+
+  pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))
+
+pushTypingIndicatorEvents ::
+  (Member GundeckAccess r) =>
+  Qualified UserId ->
+  UTCTime ->
+  [UserId] ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  TypingStatus ->
+  Sem r ()
+pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
+  let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
+  for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (userRecipient <$> users)) $ \p ->
+    push1 $
+      p
+        & pushConn .~ mcon
+        & pushRoute .~ RouteDirect
+        & pushTransient .~ True
