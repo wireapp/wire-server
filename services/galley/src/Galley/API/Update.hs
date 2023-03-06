@@ -136,6 +136,7 @@ import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.Member
 import Wire.API.User.Client
+import System.Logger (Msg)
 
 acceptConvH ::
   ( Member ConversationStore r,
@@ -401,7 +402,8 @@ updateConversationMessageTimer ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -433,7 +435,8 @@ updateConversationMessageTimerUnqualified ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -454,7 +457,8 @@ deleteLocalConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -653,6 +657,7 @@ joinConversationByReusableCode ::
     Member MemberStore r,
     Member TeamStore r,
     Member (TeamFeatureStore db) r,
+    Member (Logger (Msg -> Msg)) r,
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
@@ -680,7 +685,8 @@ joinConversationById ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -703,7 +709,8 @@ joinConversation ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -725,6 +732,7 @@ joinConversation lusr zcon conv access = do
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
     lcuEvent
       <$> notifyConversationAction
+        False
         (sing @'ConversationJoinTag)
         (tUntagged lusr)
         False
@@ -917,7 +925,8 @@ updateOtherMemberLocalConv ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -942,7 +951,8 @@ updateOtherMemberUnqualified ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -967,7 +977,8 @@ updateOtherMember ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1276,7 +1287,8 @@ updateConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1300,7 +1312,8 @@ updateUnqualifiedConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1320,7 +1333,8 @@ updateLocalConversationName ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->

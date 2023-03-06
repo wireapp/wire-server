@@ -563,6 +563,7 @@ updateLocalConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r,
     SingI tag
   ) =>
@@ -601,6 +602,7 @@ updateLocalConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r
   ) =>
   Local Conversation ->
@@ -620,9 +622,10 @@ updateLocalConversationUnchecked lconv qusr con action = do
   ensureConversationActionAllowed (sing @tag) lcnv action conv self
 
   -- perform action
-  (extraTargets, action') <- performAction tag qusr lconv action
+  (extraTargets, action') <- performAction  tag qusr lconv action
 
   notifyConversationAction
+    True
     (sing @tag)
     qusr
     False
@@ -680,8 +683,10 @@ notifyConversationAction ::
   ( Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
+  Bool ->
   Sing tag ->
   Qualified UserId ->
   Bool ->
@@ -690,7 +695,7 @@ notifyConversationAction ::
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
+notifyConversationAction failEarly tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
       conv = tUnqualified lconv
@@ -715,19 +720,43 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           { nrcConvId = convId conv,
             nrcProtocol = convProtocol conv
           }
-  E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
-    void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+  let errorIntolerant = do
+        E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
+          void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+        fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
+          . E.runFederatedConcurrently (toList (bmRemotes targets))
+          $ \ruids -> do
+            let update = mkUpdate (tUnqualified ruids)
+            -- if notifyOrigDomain is false, filter out user from quid's domain,
+            -- because quid's backend will update local state and notify its users
+            -- itself using the ConversationUpdate returned by this function
+            if notifyOrigDomain || tDomain ruids /= qDomain quid
+              then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+              else pure (Just update)
+      errorTolerant = do
+        fedEithers <- E.runFederatedConcurrentlyEither (toList newDomains) $ \_ -> do
+          void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+        for_ fedEithers $ either
+          (logError "on-new-remote-conversation" "An error occurred while communicating with federated server: ")
+          (pure . tUnqualified)
+        updates <-
+          E.runFederatedConcurrentlyEither (toList (bmRemotes targets))
+          $ \ruids -> do
+            let update = mkUpdate (tUnqualified ruids)
+            -- if notifyOrigDomain is false, filter out user from quid's domain,
+            -- because quid's backend will update local state and notify its users
+            -- itself using the ConversationUpdate returned by this function
+            if notifyOrigDomain || tDomain ruids /= qDomain quid
+              then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+              else pure (Just update)
+        let f = fromMaybe (mkUpdate []) . asum . map tUnqualified . rights
+            update = f updates
+        for_ (lefts updates) $ logError
+          "on-conversation-update"
+          "An error occurred while communicating with federated server: "
+        pure update
 
-  update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
-    . E.runFederatedConcurrently (toList (bmRemotes targets))
-    $ \ruids -> do
-      let update = mkUpdate (tUnqualified ruids)
-      -- if notifyOrigDomain is false, filter out user from quid's domain,
-      -- because quid's backend will update local state and notify its users
-      -- itself using the ConversationUpdate returned by this function
-      if notifyOrigDomain || tDomain ruids /= qDomain quid
-        then fedClient @'Galley @"on-conversation-updated" update $> Nothing
-        else pure (Just update)
+  update <- if failEarly then errorIntolerant else errorTolerant
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
@@ -735,6 +764,10 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
   pure $ LocalConversationUpdate e update
+  where
+    logError :: Show a => String -> String -> (a, FederationError) -> Sem r ()
+    logError field msg e = P.warn $
+      Log.field "federation call" field . Log.msg (msg <> show e)
 
 -- | Notify all local members about a remote conversation update that originated
 -- from a local user
@@ -809,6 +842,7 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
       lconv
       ()
   notifyConversationAction
+    False
     (sing @'ConversationRemoveMembersTag)
     qusr
     True

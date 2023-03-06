@@ -150,6 +150,7 @@ import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 import qualified Wire.Sem.Paging as E
 import Wire.Sem.Paging.Cassandra
+import System.Logger (Msg)
 
 getTeamH ::
   forall r.
@@ -1098,7 +1099,8 @@ deleteTeamConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (P.Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
