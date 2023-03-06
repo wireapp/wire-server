@@ -32,6 +32,7 @@ module Wire.API.Routes.Version
     developmentVersions,
     readVersionNumber,
     mkVersion,
+    toPathComponent,
 
     -- * Servant combinators
     Until,
@@ -43,6 +44,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
+import Data.ByteString.Conversion (ToByteString (builder))
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Schema
@@ -57,7 +59,7 @@ import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
 -- | Version of the public API.
-data Version = V0 | V1 | V2 | V3
+data Version = V0 | V1 | V2 | V3 | V4
   deriving stock (Eq, Ord, Bounded, Enum, Show)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
@@ -67,7 +69,8 @@ instance ToSchema Version where
       [ element 0 V0,
         element 1 V1,
         element 2 V2,
-        element 3 V3
+        element 3 V3,
+        element 4 V4
       ]
 
 mkVersion :: Integer -> Maybe Version
@@ -83,11 +86,21 @@ instance ToHttpApiData Version where
   toHeader = LBS.toStrict . Aeson.encode
   toUrlPiece = Text.decodeUtf8 . toHeader
 
+instance ToByteString Version where
+  builder = toEncodedUrlPiece
+
+-- | `Version` as it appears in an URL path
+--
+-- >>> toPathComponent V1
+-- "v1"
+toPathComponent :: Version -> ByteString
+toPathComponent v = "v" <> toHeader v
+
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
 
 developmentVersions :: [Version]
-developmentVersions = [V3]
+developmentVersions = [V4]
 
 -- | Information related to the public API version.
 --

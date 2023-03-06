@@ -54,13 +54,11 @@ import Wire.API.Team.Permission
 -- is started without journaling arguments
 
 teamActivate ::
-  Members
-    '[ Input Opts.Opts,
-       Input UTCTime,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member (Input Opts.Opts) r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   TeamId ->
   Natural ->
   Maybe Currency.Alpha ->
@@ -71,7 +69,9 @@ teamActivate tid teamSize cur time = do
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize billingUserIds cur) time
 
 teamUpdate ::
-  Members '[TeamStore, Input UTCTime] r =>
+  ( Member TeamStore r,
+    Member (Input UTCTime) r
+  ) =>
   TeamId ->
   Natural ->
   [UserId] ->
@@ -80,19 +80,25 @@ teamUpdate tid teamSize billingUserIds =
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
 teamDelete ::
-  Members '[TeamStore, Input UTCTime] r =>
+  ( Member TeamStore r,
+    Member (Input UTCTime) r
+  ) =>
   TeamId ->
   Sem r ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
 teamSuspend ::
-  Members '[TeamStore, Input UTCTime] r =>
+  ( Member TeamStore r,
+    Member (Input UTCTime) r
+  ) =>
   TeamId ->
   Sem r ()
 teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
 journalEvent ::
-  Members '[TeamStore, Input UTCTime] r =>
+  ( Member TeamStore r,
+    Member (Input UTCTime) r
+  ) =>
   TeamEvent'EventType ->
   TeamId ->
   Maybe TeamEvent'EventData ->
@@ -124,7 +130,10 @@ evData memberCount billingUserIds cur =
 -- 'getBillingTeamMembers'. This is required only until data is backfilled in the
 -- 'billing_team_user' table.
 getBillingUserIds ::
-  Members '[Input Opts.Opts, TeamStore, P.TinyLog] r =>
+  ( Member (Input Opts.Opts) r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   TeamId ->
   Maybe TeamMemberList ->
   Sem r [UserId]
@@ -153,7 +162,13 @@ getBillingUserIds tid maybeMemberList = do
     filterFromMembers list =
       pure $ map (view userId) $ filter (`hasPermission` SetBilling) (list ^. teamMembers)
 
-    handleList :: Members '[TeamStore, P.TinyLog] r => Bool -> TeamMemberList -> Sem r [UserId]
+    handleList ::
+      ( Member TeamStore r,
+        Member P.TinyLog r
+      ) =>
+      Bool ->
+      TeamMemberList ->
+      Sem r [UserId]
     handleList enableIndexedBillingTeamMembers list =
       case list ^. teamMemberListType of
         ListTruncated ->

@@ -335,6 +335,21 @@ mls:
 
 This default configuration can be overriden on a per-team basis through the [feature config API](../developer/features.md)
 
+### MLS End-to-End Identity
+
+The MLS end-to-end identity team feature adds an extra level of security and practicability. If turned on, automatic device authentication ensures that team members know they are communicating with people using authenticated devices. Team members get a certificate on all their devices.
+
+A timer can be set to configure until when team members need to get the verification certificate. When the timer goes off, they will be logged out and get the certificate automatically on their devices. The timer is set as a unix timestamp (number of seconds that have passed since 00:00:00 UTC on Thursday, 1 January 1970) after which the period for clients to verify their identity expires.
+
+```yaml
+# galley.yaml
+mlsE2EId:
+  defaults:
+    status: disabled
+    config:
+      verificationExpiration: 1676377048
+    lockStatus: unlocked
+```
 
 ### Federation Domain
 
@@ -461,6 +476,20 @@ federator:
     useSystemCAStore: false
     clientCertificate: client.pem
     clientPrivateKey: client-key.pem
+```
+
+## Outlook calalendar integration
+
+This feature setting only applies to the Outlook Calendar extension for Wire. As it is an external service, it should only be configured through this feature flag and otherwise ignored by the backend.
+
+Example default configuration:
+
+```yaml
+# galley.yaml
+outlookCalIntegration:
+  defaults:
+    status: disabled
+    lockStatus: locked
 ```
 
 ## Settings in brig

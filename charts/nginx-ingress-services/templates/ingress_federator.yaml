@@ -25,7 +25,11 @@ spec:
     - host: {{ .Values.config.dns.federator }}
       http:
         paths:
-          - backend:
+          - path: /
+            {{- if $ingressSupportsPathType }}
+            pathType: Prefix
+            {{- end }}
+            backend:
               {{- if $apiIsStable }}
               service:
                 name: federator

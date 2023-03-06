@@ -43,7 +43,7 @@ app = do
       (nt storage)
 
 spec :: Spec
-spec = beforeAll app $ do
+spec = with app $ do
   describe "GET & POST /Groups" $ do
     it "responds with [] in empty environment" $ do
       get "/" `shouldRespondWith` emptyList
@@ -54,17 +54,21 @@ spec = beforeAll app $ do
     it "responds with 404 for unknown group" $ do
       get "/9999" `shouldRespondWith` 404
     it "retrieves stored group" $ do
+      post "/" adminGroup `shouldRespondWith` 201
       -- the test implementation stores groups with uid [0,1..n-1]
       get "/0" `shouldRespondWith` admins
   describe "PUT /Groups/:id" $ do
     it "adds member to existing group" $ do
+      post "/" adminGroup `shouldRespondWith` 201
       put "/0" adminUpdate0 `shouldRespondWith` updatedAdmins0
     it "does not create new group" $ do
       put "/9999" adminGroup `shouldRespondWith` 404
   describe "DELETE /Groups/:id" $ do
     it "responds with 404 for unknown group" $ do
+      post "/" adminGroup `shouldRespondWith` 201
       delete "/Users/unknown" `shouldRespondWith` 404
     it "deletes a stored group" $ do
+      post "/" adminGroup `shouldRespondWith` 201
       delete "/0" `shouldRespondWith` 204
       -- group should be gone
       get "/0" `shouldRespondWith` 404

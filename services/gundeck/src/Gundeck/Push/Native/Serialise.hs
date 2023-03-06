@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -32,11 +35,11 @@ import Gundeck.Push.Native.Types
 import Gundeck.Types
 import Imports
 
-serialise :: HasCallStack => NativePush -> UserId -> Transport -> IO (Either Failure LT.Text)
+serialise :: HasCallStack => NativePush -> UserId -> Transport -> Either Failure LT.Text
 serialise (NativePush nid prio _aps) uid transport = do
   case renderText transport prio o of
-    Nothing -> pure $ Left PayloadTooLarge
-    Just txt -> pure $ Right txt
+    Nothing -> Left PayloadTooLarge
+    Just txt -> Right txt
   where
     o =
       object

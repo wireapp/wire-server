@@ -35,15 +35,14 @@ import Control.Error.Util ((??))
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Data.Id as Id
 import Data.Qualified
-import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Imports
 import Network.Wai.Utilities.Error
 import Wire.API.Connection
-import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),
   )
+import Wire.API.Routes.Internal.Galley.ConversationsIntra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 data LocalConnectionAction
@@ -188,7 +187,6 @@ pushEvent self mzcon connection = do
   Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
-  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -253,7 +251,6 @@ performRemoteAction self other mconnection action = do
     reaction _ = Nothing
 
 createConnectionToRemoteUser ::
-  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   ConnId ->
   Remote UserId ->
@@ -263,7 +260,6 @@ createConnectionToRemoteUser self zcon other = do
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
-  CallsFed 'Brig "send-connection-action" =>
   Local UserId ->
   Remote UserId ->
   Relation ->

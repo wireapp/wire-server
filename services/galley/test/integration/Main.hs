@@ -35,6 +35,7 @@ import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Galley.API (sitemap)
+import qualified Galley.Aws as Aws
 import Galley.Options
 import Imports hiding (local)
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -50,6 +51,7 @@ import TestSetup
 import Util.Options
 import Util.Options.Common
 import Util.Test
+import qualified Util.Test.SQS as SQS
 
 newtype ServiceConfigFile = ServiceConfigFile String
   deriving (Eq, Ord, Typeable)
@@ -111,14 +113,14 @@ main = withOpenSSL $ runTests go
       e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
       convMaxSize <- optOrEnv maxSize gConf read "CONV_MAX_SIZE"
       awsEnv <- initAwsEnv e q
-      SQS.ensureQueueEmptyIO awsEnv
       -- Initialize cassandra
       let ch = fromJust gConf ^. optCassandra . casEndpoint . epHost
       let cp = fromJust gConf ^. optCassandra . casEndpoint . epPort
       let ck = fromJust gConf ^. optCassandra . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
-      pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint)
+      teamEventWatcher <- sequence $ SQS.watchSQSQueue <$> ((^. Aws.awsEnv) <$> awsEnv) <*> q
+      pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint) teamEventWatcher
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
     maxSize = view (optSettings . setMaxConvSize)

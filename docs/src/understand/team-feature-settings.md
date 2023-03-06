@@ -83,3 +83,26 @@ brig:
       # ...
       setNonceTtlSecs: 360 # 6 minutes
 ```
+
+## MLS End-to-End Identity
+
+The MLS end-to-end identity team feature adds an extra level of security and practicability. If turned on, automatic device authentication ensures that team members know they are communicating with people using authenticated devices. Team members get a certificate on all their devices.
+
+A timer can be set to configure until when team members need to get the verification certificate. When the timer goes off, they will be logged out and get the certificate automatically on their devices. The timer is set as a unix timestamp (number of seconds that have passed since 00:00:00 UTC on Thursday, 1 January 1970) after which the period for clients to verify their identity expires.
+
+```yaml
+galley:
+  # ...
+  config:
+    # ...
+    settings:
+      # ...
+      featureFlags:
+        # ...
+        mlsE2EId:
+          defaults:
+            status: disabled
+            config:
+              verificationExpiration: 1676377048
+            lockStatus: unlocked
+```   

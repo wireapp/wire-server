@@ -24,20 +24,14 @@ module Federator.Env where
 import Bilge (RequestId)
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
-import Data.X509.CertificateStore
 import Federator.Options (RunSettings)
 import Imports
 import Network.DNS.Resolver (Resolver)
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.TLS as TLS
+import OpenSSL.Session (SSLContext)
 import qualified System.Logger.Class as LC
 import Util.Options
 import Wire.API.Federation.Component
-
-data TLSSettings = TLSSettings
-  { _caStore :: CertificateStore,
-    _creds :: TLS.Credential
-  }
 
 data Env = Env
   { _metrics :: Metrics,
@@ -47,8 +41,7 @@ data Env = Env
     _runSettings :: RunSettings,
     _service :: Component -> Endpoint,
     _httpManager :: HTTP.Manager,
-    _tls :: IORef TLSSettings
+    _sslContext :: IORef SSLContext
   }
 
-makeLenses ''TLSSettings
 makeLenses ''Env

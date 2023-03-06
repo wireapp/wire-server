@@ -44,17 +44,15 @@ import Wire.API.Federation.Domain
 
 -- FUTUREWORK(federation): Versioning of the federation API.
 callInward ::
-  Members
-    '[ ServiceStreaming,
-       Embed IO,
-       TinyLog,
-       DiscoverFederator,
-       Error ValidationError,
-       Error DiscoveryFailure,
-       Error ServerError,
-       Input RunSettings
-     ]
-    r =>
+  ( Member ServiceStreaming r,
+    Member (Embed IO) r,
+    Member TinyLog r,
+    Member DiscoverFederator r,
+    Member (Error ValidationError) r,
+    Member (Error DiscoveryFailure) r,
+    Member (Error ServerError) r,
+    Member (Input RunSettings) r
+  ) =>
   Wai.Request ->
   Sem r Wai.Response
 callInward wreq = do
@@ -99,7 +97,9 @@ data RequestData = RequestData
 --
 -- FUTUREWORK: use higher-level effects
 parseRequestData ::
-  Members '[Error ServerError, Embed IO] r =>
+  ( Member (Error ServerError) r,
+    Member (Embed IO) r
+  ) =>
   Wai.Request ->
   Sem r RequestData
 parseRequestData req = do

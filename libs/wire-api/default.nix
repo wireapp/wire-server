@@ -79,9 +79,10 @@
 , servant-swagger
 , servant-swagger-ui
 , singletons
+, singletons-base
+, singletons-th
 , sop-core
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -90,6 +91,7 @@
 , tasty-quickcheck
 , text
 , time
+, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -177,13 +179,15 @@ mkDerivation {
     servant-swagger
     servant-swagger-ui
     singletons
+    singletons-base
+    singletons-th
     sop-core
     string-conversions
-    swagger
     swagger2
     tagged
     text
     time
+    transitive-anns
     types-common
     unordered-containers
     uri-bytestring

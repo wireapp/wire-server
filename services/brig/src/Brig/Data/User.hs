@@ -160,7 +160,7 @@ newAccount u inv tid mbHandle = do
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy
 
-newAccountInviteViaScim :: (MonadClient m, MonadReader Env m) => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
+newAccountInviteViaScim :: MonadReader Env m => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
 newAccountInviteViaScim uid tid locale name email = do
   defLoc <- setDefaultUserLocale <$> view settings
   let loc = fromMaybe defLoc locale

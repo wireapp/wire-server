@@ -27,6 +27,7 @@ where
 import Control.Lens
 import Control.Monad.Codensity
 import Data.ByteString.Builder
+import Data.Kind
 import Federator.Discovery
 import Federator.Env
 import Federator.Error
@@ -41,6 +42,7 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
+import OpenSSL.Session (SSLContext)
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
@@ -55,7 +57,7 @@ import Wire.Sem.Logger.TinyLog
 defaultHeaders :: [HTTP.Header]
 defaultHeaders = [("Content-Type", "application/json")]
 
-class ErrorEffects (ee :: [*]) r where
+class ErrorEffects (ee :: [Type]) r where
   type Row ee :: EffectRow
   runWaiErrors ::
     Sem (Append (Row ee) r) Wai.Response ->
@@ -86,7 +88,12 @@ runWaiError =
     . mapError toWai
     . raiseUnder
   where
-    logError :: Members '[Error Wai.Error, TinyLog] r => Wai.Error -> Sem r a
+    logError ::
+      ( Member (Error Wai.Error) r,
+        Member TinyLog r
+      ) =>
+      Wai.Error ->
+      Sem r a
     logError e = do
       err $ Wai.logErrorMsg e
       throw e
@@ -111,7 +118,7 @@ type AllEffects =
      DNSLookup, -- needed by DiscoverFederator
      ServiceStreaming,
      Input RunSettings,
-     Input TLSSettings, -- needed by Remote
+     Input SSLContext, -- needed by Remote
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,
@@ -136,7 +143,7 @@ runFederator env =
           DiscoveryFailure
         ]
     . runInputConst env
-    . runInputSem (embed @IO (readIORef (view tls env)))
+    . runInputSem (embed @IO (readIORef (view sslContext env)))
     . runInputConst (view runSettings env)
     . interpretServiceHTTP
     . runDNSLookupWithResolver (view dnsResolver env)

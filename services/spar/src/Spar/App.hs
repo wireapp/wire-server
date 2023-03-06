@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
@@ -127,12 +129,23 @@ data Env = Env
 -- https://github.com/wireapp/wire-server/pull/1418)
 --
 -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQSERVICES-1655
-getUserByUrefUnsafe :: Members '[BrigAccess, SAMLUserStore] r => SAML.UserRef -> Sem r (Maybe User)
+getUserByUrefUnsafe ::
+  ( Member BrigAccess r,
+    Member SAMLUserStore r
+  ) =>
+  SAML.UserRef ->
+  Sem r (Maybe User)
 getUserByUrefUnsafe uref = do
   maybe (pure Nothing) (Intra.getBrigUser Intra.WithPendingInvitations) =<< SAMLUserStore.get uref
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
-getUserIdByScimExternalId :: Members '[BrigAccess, ScimExternalIdStore] r => TeamId -> Email -> Sem r (Maybe UserId)
+getUserIdByScimExternalId ::
+  ( Member BrigAccess r,
+    Member ScimExternalIdStore r
+  ) =>
+  TeamId ->
+  Email ->
+  Sem r (Maybe UserId)
 getUserIdByScimExternalId tid email = do
   muid <- ScimExternalIdStore.lookup tid email
   case muid of
@@ -159,12 +172,10 @@ getUserIdByScimExternalId tid email = do
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
 createSamlUserWithId ::
-  Members
-    '[ Error SparError,
-       BrigAccess,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member (Error SparError) r,
+    Member BrigAccess r,
+    Member SAMLUserStore r
+  ) =>
   TeamId ->
   UserId ->
   SAML.UserRef ->
@@ -181,15 +192,13 @@ createSamlUserWithId teamid buid suid role = do
 -- https://wearezeta.atlassian.net/browse/SQSERVICES-1655)
 autoprovisionSamlUser ::
   forall r.
-  Members
-    '[ GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       IdPConfigStore,
-       Error SparError,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r,
+    Member SAMLUserStore r
+  ) =>
   IdP ->
   UserId ->
   SAML.UserRef ->
@@ -215,14 +224,29 @@ autoprovisionSamlUser idp buid suid = do
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
-validateEmailIfExists :: forall r. Members '[GalleyAccess, BrigAccess] r => UserId -> SAML.UserRef -> Sem r ()
+validateEmailIfExists ::
+  forall r.
+  ( Member GalleyAccess r,
+    Member BrigAccess r
+  ) =>
+  UserId ->
+  SAML.UserRef ->
+  Sem r ()
 validateEmailIfExists uid = \case
   (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> do
     mbTid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
     validateEmail mbTid uid . Intra.emailFromSAML . CI.original $ email
   _ -> pure ()
 
-validateEmail :: forall r. Members '[GalleyAccess, BrigAccess] r => Maybe TeamId -> UserId -> Email -> Sem r ()
+validateEmail ::
+  forall r.
+  ( Member GalleyAccess r,
+    Member BrigAccess r
+  ) =>
+  Maybe TeamId ->
+  UserId ->
+  Email ->
+  Sem r ()
 validateEmail mbTid uid email = do
   enabled <- maybe (pure False) GalleyAccess.isEmailValidationEnabledTeam mbTid
   when enabled $ do
@@ -239,20 +263,18 @@ validateEmail mbTid uid email = do
 -- latter.
 verdictHandler ::
   HasCallStack =>
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       AReqIDStore,
-       VerdictFormatStore,
-       ScimTokenStore,
-       IdPConfigStore,
-       Error SparError,
-       Reporter,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member AReqIDStore r,
+    Member VerdictFormatStore r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r,
+    Member Reporter r,
+    Member SAMLUserStore r
+  ) =>
   SAML.AuthnResponse ->
   SAML.AccessVerdict ->
   IdP ->
@@ -283,18 +305,16 @@ data VerdictHandlerResult
 
 verdictHandlerResult ::
   HasCallStack =>
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       IdPConfigStore,
-       Error SparError,
-       Reporter,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r,
+    Member Reporter r,
+    Member SAMLUserStore r
+  ) =>
   SAML.AccessVerdict ->
   IdP ->
   Sem r VerdictHandlerResult
@@ -306,11 +326,9 @@ verdictHandlerResult verdict idp = do
 
 catchVerdictErrors ::
   forall r.
-  Members
-    '[ Reporter,
-       Error SparError
-     ]
-    r =>
+  ( Member Reporter r,
+    Member (Error SparError) r
+  ) =>
   Sem r VerdictHandlerResult ->
   Sem r VerdictHandlerResult
 catchVerdictErrors = (`catch` hndlr)
@@ -329,13 +347,11 @@ catchVerdictErrors = (`catch` hndlr)
 -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQSERVICES-1655
 getUserByUrefViaOldIssuerUnsafe ::
   forall r.
-  Members
-    '[ BrigAccess,
-       IdPConfigStore,
-       SAMLUserStore,
-       Error SparError
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member IdPConfigStore r,
+    Member SAMLUserStore r,
+    Member (Error SparError) r
+  ) =>
   IdP ->
   SAML.UserRef ->
   Sem r (Maybe (SAML.UserRef, User))
@@ -350,7 +366,14 @@ getUserByUrefViaOldIssuerUnsafe idp (SAML.UserRef _ subject) = do
 
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
-moveUserToNewIssuer :: Members '[BrigAccess, SAMLUserStore] r => SAML.UserRef -> SAML.UserRef -> UserId -> Sem r ()
+moveUserToNewIssuer ::
+  ( Member BrigAccess r,
+    Member SAMLUserStore r
+  ) =>
+  SAML.UserRef ->
+  SAML.UserRef ->
+  UserId ->
+  Sem r ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   SAMLUserStore.insert newUserRef uid
   BrigAccess.setVeid uid (UrefOnly newUserRef)
@@ -358,17 +381,15 @@ moveUserToNewIssuer oldUserRef newUserRef uid = do
 
 verdictHandlerResultCore ::
   HasCallStack =>
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       IdPConfigStore,
-       Error SparError,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r,
+    Member SAMLUserStore r
+  ) =>
   IdP ->
   SAML.AccessVerdict ->
   Sem r VerdictHandlerResult
@@ -544,7 +565,12 @@ errorPage err mpInputs =
 
 -- | Delete all tokens belonging to a team.
 deleteTeam ::
-  (HasCallStack, Members '[ScimTokenStore, SAMLUserStore, IdPConfigStore] r) =>
+  ( HasCallStack,
+    ( Member ScimTokenStore r,
+      Member SAMLUserStore r,
+      Member IdPConfigStore r
+    )
+  ) =>
   TeamId ->
   Sem r ()
 deleteTeam team = do

@@ -77,6 +77,7 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley.Messaging
@@ -214,7 +215,7 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
       )
 
 getRemoteClients ::
-  (Member FederatorAccess r, CallsFed 'Brig "get-user-clients") =>
+  (Member FederatorAccess r) =>
   [RemoteMember] ->
   Sem r (Map (Domain, UserId) (Set ClientId))
 getRemoteClients remoteMembers =
@@ -222,13 +223,14 @@ getRemoteClients remoteMembers =
   mconcat . map tUnqualified
     <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
   where
+    getRemoteClientsFromDomain :: Remote [UserId] -> FederatorClient 'Brig (Map (Domain, UserId) (Set ClientId))
     getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =
       Map.mapKeys (domain,) . fmap (Set.map pubClientId) . userMap
         <$> fedClient @'Brig @"get-user-clients" (GetUserClients uids)
 
 -- FUTUREWORK: sender should be Local UserId
 postRemoteOtrMessage ::
-  (Members '[FederatorAccess] r, CallsFed 'Galley "send-message") =>
+  (Member FederatorAccess r) =>
   Qualified UserId ->
   Remote ConvId ->
   ByteString ->
@@ -244,19 +246,17 @@ postRemoteOtrMessage sender conv rawMsg = do
   msResponse <$> runFederated conv rpc
 
 postBroadcast ::
-  Members
-    '[ BrigAccess,
-       ClientStore,
-       ErrorS 'TeamNotFound,
-       ErrorS 'NonBindingTeam,
-       ErrorS 'BroadcastLimitExceeded,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member ClientStore r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NonBindingTeam) r,
+    Member (ErrorS 'BroadcastLimitExceeded) r,
+    Member GundeckAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Maybe ConnId ->
   QualifiedNewOtrMessage ->
@@ -334,7 +334,9 @@ postBroadcast lusr con msg = runError $ do
   pure otrResult {mssFailedToSend = failedToSend}
   where
     maybeFetchLimitedTeamMemberList ::
-      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
+      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+        Member TeamStore r
+      ) =>
       Int ->
       TeamId ->
       [UserId] ->
@@ -347,7 +349,9 @@ postBroadcast lusr con msg = runError $ do
         throwS @'BroadcastLimitExceeded
       selectTeamMembers tid localUserIdsToLookup
     maybeFetchAllMembersInTeam ::
-      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
+      ( Member (ErrorS 'BroadcastLimitExceeded) r,
+        Member TeamStore r
+      ) =>
       TeamId ->
       Sem r [TeamMember]
     maybeFetchAllMembersInTeam tid = do
@@ -357,23 +361,16 @@ postBroadcast lusr con msg = runError $ do
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
-  ( Members
-      '[ BrigAccess,
-         ClientStore,
-         ConversationStore,
-         FederatorAccess,
-         GundeckAccess,
-         ExternalAccess,
-         Input (Local ()), -- FUTUREWORK: remove this
-         Input Opts,
-         Input UTCTime,
-         MemberStore,
-         TeamStore,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "on-message-sent",
-    CallsFed 'Brig "get-user-clients"
+  ( Member BrigAccess r,
+    Member ClientStore r,
+    Member ConversationStore r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member TeamStore r,
+    Member P.TinyLog r
   ) =>
   UserType ->
   Qualified UserId ->
@@ -476,8 +473,11 @@ makeUserMap keys = (<> Map.fromSet (const mempty) keys)
 sendMessages ::
   forall t r.
   ( t ~ 'NormalMessage,
-    Members '[GundeckAccess, ExternalAccess, FederatorAccess, P.TinyLog] r,
-    CallsFed 'Galley "on-message-sent"
+    ( Member GundeckAccess r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member P.TinyLog r
+    )
   ) =>
   UTCTime ->
   Qualified UserId ->
@@ -499,7 +499,7 @@ sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
 
 sendBroadcastMessages ::
-  Members '[GundeckAccess, P.TinyLog] r =>
+  Member GundeckAccess r =>
   Local x ->
   UTCTime ->
   Qualified UserId ->
@@ -553,9 +553,14 @@ sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMe
   runMessagePush @t loc qcnv (pushes ^. traversed)
   pure mempty
 
+-- | Send remote messages to the backend given by the domain argument, and
+-- return the set of clients for which sending has failed. In case there was no
+-- failure, the empty set is returned.
 sendRemoteMessages ::
   forall r x.
-  (Members '[FederatorAccess, P.TinyLog] r, CallsFed 'Galley "on-message-sent") =>
+  ( Member FederatorAccess r,
+    Member P.TinyLog r
+  ) =>
   Remote x ->
   UTCTime ->
   Qualified UserId ->

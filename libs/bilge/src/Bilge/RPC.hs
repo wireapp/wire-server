@@ -105,7 +105,7 @@ rpcExceptionMsg (RPCException sys req ex) =
     hdr (k, v) x = x ~~ original k .= v
 
 statusCheck ::
-  (MonadError e m, MonadIO m) =>
+  (MonadError e m) =>
   Int ->
   (LText -> e) ->
   Response (Maybe LByteString) ->
@@ -116,7 +116,7 @@ statusCheck c f r =
       f ("unexpected status code: " <> pack (show $ statusCode r))
 
 parseResponse ::
-  (Exception e, MonadThrow m, Monad m, FromJSON a) =>
+  (Exception e, MonadThrow m, FromJSON a) =>
   (LText -> e) ->
   Response (Maybe LByteString) ->
   m a

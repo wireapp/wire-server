@@ -116,20 +116,18 @@ import qualified Wire.Sem.Random as Random
 -- UserDB instance
 
 instance
-  Members
-    '[ Logger (Msg -> Msg),
-       Logger String,
-       Random,
-       Input Opts,
-       Now,
-       GalleyAccess,
-       BrigAccess,
-       ScimExternalIdStore,
-       ScimUserTimesStore,
-       IdPConfigStore,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member (Logger (Msg -> Msg)) r,
+    Member (Logger String) r,
+    Member Random r,
+    Member (Input Opts) r,
+    Member Now r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member ScimUserTimesStore r,
+    Member IdPConfigStore r,
+    Member SAMLUserStore r
+  ) =>
   Scim.UserDB ST.SparTag (Sem r)
   where
   getUsers ::
@@ -200,7 +198,9 @@ instance
 validateScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Sem r)) =>
-  Members '[Input Opts, IdPConfigStore] r =>
+  ( Member (Input Opts) r,
+    Member IdPConfigStore r
+  ) =>
   Text ->
   -- | Used to decide what IdP to assign the user to
   ScimTokenInfo ->
@@ -427,19 +427,17 @@ veidEmail (ST.EmailOnly email) = Just email
 createValidScimUser ::
   forall m r.
   (m ~ Scim.ScimHandler (Sem r)) =>
-  Members
-    '[ Random,
-       Now,
-       Input Opts,
-       Logger (Msg -> Msg),
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       ScimExternalIdStore,
-       ScimUserTimesStore,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member Random r,
+    Member Now r,
+    Member (Input Opts) r,
+    Member (Logger (Msg -> Msg)) r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member ScimUserTimesStore r,
+    Member SAMLUserStore r
+  ) =>
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
@@ -542,20 +540,18 @@ createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
   forall m r.
-  Members
-    '[ Random,
-       Input Opts,
-       Logger (Msg -> Msg),
-       Logger String,
-       Now,
-       GalleyAccess,
-       BrigAccess,
-       ScimExternalIdStore,
-       ScimUserTimesStore,
-       IdPConfigStore,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member Random r,
+    Member (Input Opts) r,
+    Member (Logger (Msg -> Msg)) r,
+    Member (Logger String) r,
+    Member Now r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member ScimUserTimesStore r,
+    Member IdPConfigStore r,
+    Member SAMLUserStore r
+  ) =>
   (m ~ Scim.ScimHandler (Sem r)) =>
   ScimTokenInfo ->
   UserId ->
@@ -620,13 +616,11 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
           Scim.getUser tokinfo uid
 
 updateVsuUref ::
-  Members
-    '[ GalleyAccess,
-       BrigAccess,
-       ScimExternalIdStore,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member SAMLUserStore r
+  ) =>
   TeamId ->
   UserId ->
   ST.ValidExternalId ->
@@ -697,15 +691,13 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
         }
 
 deleteScimUser ::
-  Members
-    '[ Logger (Msg -> Msg),
-       BrigAccess,
-       ScimExternalIdStore,
-       ScimUserTimesStore,
-       SAMLUserStore,
-       IdPConfigStore
-     ]
-    r =>
+  ( Member (Logger (Msg -> Msg)) r,
+    Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member ScimUserTimesStore r,
+    Member SAMLUserStore r,
+    Member IdPConfigStore r
+  ) =>
   ScimTokenInfo ->
   UserId ->
   Scim.ScimHandler (Sem r) ()
@@ -759,13 +751,11 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           pure ()
   where
     deleteUserInSpar ::
-      Members
-        '[ IdPConfigStore,
-           SAMLUserStore,
-           ScimExternalIdStore,
-           ScimUserTimesStore
-         ]
-        r =>
+      ( Member IdPConfigStore r,
+        Member SAMLUserStore r,
+        Member ScimExternalIdStore r,
+        Member ScimUserTimesStore r
+      ) =>
       User ->
       Scim.ScimHandler (Sem r) ()
     deleteUserInSpar brigUser = do
@@ -810,7 +800,10 @@ calculateVersion uid usr = Scim.Weak (Text.pack (show h))
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
 assertExternalIdUnused ::
-  Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r =>
+  ( Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member SAMLUserStore r
+  ) =>
   TeamId ->
   ST.ValidExternalId ->
   Scim.ScimHandler (Sem r) ()
@@ -823,7 +816,15 @@ assertExternalIdUnused =
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
-assertExternalIdNotUsedElsewhere :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => TeamId -> ST.ValidExternalId -> UserId -> Scim.ScimHandler (Sem r) ()
+assertExternalIdNotUsedElsewhere ::
+  ( Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member SAMLUserStore r
+  ) =>
+  TeamId ->
+  ST.ValidExternalId ->
+  UserId ->
+  Scim.ScimHandler (Sem r) ()
 assertExternalIdNotUsedElsewhere tid veid wireUserId =
   assertExternalIdInAllowedValues
     [Nothing, Just wireUserId]
@@ -831,7 +832,16 @@ assertExternalIdNotUsedElsewhere tid veid wireUserId =
     tid
     veid
 
-assertExternalIdInAllowedValues :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => [Maybe UserId] -> Text -> TeamId -> ST.ValidExternalId -> Scim.ScimHandler (Sem r) ()
+assertExternalIdInAllowedValues ::
+  ( Member BrigAccess r,
+    Member ScimExternalIdStore r,
+    Member SAMLUserStore r
+  ) =>
+  [Maybe UserId] ->
+  Text ->
+  TeamId ->
+  ST.ValidExternalId ->
+  Scim.ScimHandler (Sem r) ()
 assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   isGood <-
     lift $
@@ -863,15 +873,13 @@ assertHandleNotUsedElsewhere uid hndl = do
 -- stamps.
 synthesizeStoredUser ::
   forall r.
-  Members
-    '[ Input Opts,
-       Now,
-       Logger (Msg -> Msg),
-       BrigAccess,
-       GalleyAccess,
-       ScimUserTimesStore
-     ]
-    r =>
+  ( Member (Input Opts) r,
+    Member Now r,
+    Member (Logger (Msg -> Msg)) r,
+    Member BrigAccess r,
+    Member GalleyAccess r,
+    Member ScimUserTimesStore r
+  ) =>
   UserAccount ->
   ST.ValidExternalId ->
   Scim.ScimHandler (Sem r) (Scim.StoredUser ST.SparTag)

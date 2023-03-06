@@ -20,6 +20,7 @@
 module Test.Wire.API.Golden.Generated.WithStatus_team where
 
 import Data.Domain
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Imports
 import Wire.API.Team.Feature hiding (withStatus)
 import qualified Wire.API.Team.Feature as F
@@ -74,6 +75,9 @@ testObject_WithStatus_team_16 = withStatus FeatureStatusDisabled LockStatusUnloc
 
 testObject_WithStatus_team_17 :: WithStatus SearchVisibilityInboundConfig
 testObject_WithStatus_team_17 = withStatus FeatureStatusEnabled LockStatusUnlocked SearchVisibilityInboundConfig
+
+testObject_WithStatus_team_18 :: WithStatus MlsE2EIdConfig
+testObject_WithStatus_team_18 = withStatus FeatureStatusEnabled LockStatusLocked (MlsE2EIdConfig (Just (posixSecondsToUTCTime 1676377048)))
 
 withStatus :: FeatureStatus -> LockStatus -> cfg -> WithStatus cfg
 withStatus fs ls cfg = F.withStatus fs ls cfg FeatureTTLUnlimited

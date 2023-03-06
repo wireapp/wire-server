@@ -161,7 +161,6 @@ import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
 import Polysemy
@@ -172,9 +171,9 @@ import UnliftIO.Async
 import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
-import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (forgetLock)
 import Wire.API.Team.Invitation
@@ -228,12 +227,7 @@ verifyUniquenessAndCheckBlacklist uk = do
 
 createUserSpar ::
   forall r.
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   NewUserSpar ->
   ExceptT CreateUserSparError (AppT r) CreateUserResult
 createUserSpar new = do
@@ -296,13 +290,9 @@ createUserSpar new = do
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
   forall r p.
-  ( Members
-      '[ BlacklistStore,
-         GalleyProvider,
-         UserPendingActivationStore p
-       ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
+  ( Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member (UserPendingActivationStore p) r
   ) =>
   NewUser ->
   ExceptT RegisterError (AppT r) CreateUserResult
@@ -541,12 +531,9 @@ initAccountFeatureConfig uid = do
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim ::
-  Members
-    '[ BlacklistStore,
-       UserPendingActivationStore p,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member (UserPendingActivationStore p) r
+  ) =>
   UserId ->
   NewUserScimInvitation ->
   ExceptT Error.Error (AppT r) UserAccount
@@ -587,7 +574,7 @@ checkRestrictedUserCreation new = do
 -------------------------------------------------------------------------------
 -- Update Profile
 
-updateUser :: CallsFed 'Brig "on-user-deleted-connections" => UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError (AppT r) ()
+updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError (AppT r) ()
 updateUser uid mconn uu allowScim = do
   for_ (uupName uu) $ \newName -> do
     mbUser <- lift . wrapClient $ Data.lookupUser WithPendingInvitations uid
@@ -605,7 +592,7 @@ updateUser uid mconn uu allowScim = do
 -------------------------------------------------------------------------------
 -- Update Locale
 
-changeLocale :: CallsFed 'Brig "on-user-deleted-connections" => UserId -> ConnId -> LocaleUpdate -> (AppT r) ()
+changeLocale :: UserId -> ConnId -> LocaleUpdate -> (AppT r) ()
 changeLocale uid conn (LocaleUpdate loc) = do
   wrapClient $ Data.updateLocale uid loc
   wrapHttpClient $ Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
@@ -613,7 +600,7 @@ changeLocale uid conn (LocaleUpdate loc) = do
 -------------------------------------------------------------------------------
 -- Update ManagedBy
 
-changeManagedBy :: CallsFed 'Brig "on-user-deleted-connections" => UserId -> ConnId -> ManagedByUpdate -> (AppT r) ()
+changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> (AppT r) ()
 changeManagedBy uid conn (ManagedByUpdate mb) = do
   wrapClient $ Data.updateManagedBy uid mb
   wrapHttpClient $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
@@ -621,7 +608,7 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 --------------------------------------------------------------------------------
 -- Change Handle
 
-changeHandle :: CallsFed 'Brig "on-user-deleted-connections" => UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT ChangeHandleError (AppT r) ()
+changeHandle :: UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT ChangeHandleError (AppT r) ()
 changeHandle uid mconn hdl allowScim = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
@@ -747,11 +734,9 @@ changeEmail u email allowScim = do
 -- Change Phone
 
 changePhone ::
-  Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member BlacklistPhonePrefixStore r
+  ) =>
   UserId ->
   Phone ->
   ExceptT ChangePhoneError (AppT r) (Activation, Phone)
@@ -779,7 +764,7 @@ changePhone u phone = do
 -------------------------------------------------------------------------------
 -- Remove Email
 
-removeEmail :: CallsFed 'Brig "on-user-deleted-connections" => UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
+removeEmail :: UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
 removeEmail uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
@@ -793,7 +778,7 @@ removeEmail uid conn = do
 -------------------------------------------------------------------------------
 -- Remove Phone
 
-removePhone :: CallsFed 'Brig "on-user-deleted-connections" => UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
+removePhone :: UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
 removePhone uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
@@ -811,7 +796,7 @@ removePhone uid conn = do
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
 
-revokeIdentity :: CallsFed 'Brig "on-user-deleted-connections" => Either Email Phone -> AppT r ()
+revokeIdentity :: Either Email Phone -> AppT r ()
 revokeIdentity key = do
   let uk = either userEmailKey userPhoneKey key
   mu <- wrapClient $ Data.lookupKey uk
@@ -855,8 +840,7 @@ changeAccountStatus ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadUnliftIO m
   ) =>
   List1 UserId ->
   AccountStatus ->
@@ -882,8 +866,7 @@ changeSingleAccountStatus ::
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
-    MonadUnliftIO m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadUnliftIO m
   ) =>
   UserId ->
   AccountStatus ->
@@ -908,7 +891,7 @@ mkUserEvent usrs status =
 -- Activation
 
 activate ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
@@ -917,7 +900,7 @@ activate ::
 activate tgt code usr = activateWithCurrency tgt code usr Nothing
 
 activateWithCurrency ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "on-user-deleted-connections") =>
+  (Member GalleyProvider r) =>
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
@@ -948,8 +931,7 @@ activateWithCurrency tgt code usr cur = do
 
 preverify ::
   ( MonadClient m,
-    MonadReader Env m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadReader Env m
   ) =>
   ActivationTarget ->
   ActivationCode ->
@@ -958,7 +940,7 @@ preverify tgt code = do
   key <- mkActivationKey tgt
   void $ Data.verifyCode key code
 
-onActivated :: CallsFed 'Brig "on-user-deleted-connections" => ActivationEvent -> (AppT r) (UserId, Maybe UserIdentity, Bool)
+onActivated :: ActivationEvent -> (AppT r) (UserId, Maybe UserIdentity, Bool)
 onActivated (AccountActivated account) = do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.onActivated")
@@ -975,12 +957,10 @@ onActivated (PhoneActivated uid phone) = do
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode ::
-  Members
-    '[ BlacklistStore,
-       BlacklistPhonePrefixStore,
-       GalleyProvider
-     ]
-    r =>
+  ( Member BlacklistStore r,
+    Member BlacklistPhonePrefixStore r,
+    Member GalleyProvider r
+  ) =>
   Either Email Phone ->
   Maybe Locale ->
   Bool ->
@@ -1104,7 +1084,7 @@ changePassword uid cp = do
       lift $ wrapClient (Data.updatePassword uid newpw) >> wrapClient (revokeAllCookies uid)
 
 beginPasswordReset ::
-  Members '[PasswordResetStore] r =>
+  Member PasswordResetStore r =>
   Either Email Phone ->
   ExceptT PasswordResetError (AppT r) (UserId, PasswordResetPair)
 beginPasswordReset target = do
@@ -1120,7 +1100,9 @@ beginPasswordReset target = do
   (user,) <$> lift (liftSem $ E.createPasswordResetCode user target)
 
 completePasswordReset ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  ( Member CodeStore r,
+    Member PasswordResetStore r
+  ) =>
   PasswordResetIdentity ->
   PasswordResetCode ->
   PlainTextPassword ->
@@ -1148,7 +1130,7 @@ checkNewIsDifferent uid pw = do
     _ -> pure ()
 
 mkPasswordResetKey ::
-  Members '[CodeStore] r =>
+  Member CodeStore r =>
   PasswordResetIdentity ->
   ExceptT PasswordResetError (AppT r) PasswordResetKey
 mkPasswordResetKey ident = case ident of
@@ -1175,12 +1157,7 @@ mkPasswordResetKey ident = case ident of
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteSelfUser ::
   forall r.
-  ( Members
-      '[ GalleyProvider
-       ]
-      r,
-    CallsFed 'Brig "on-user-deleted-connections"
-  ) =>
+  (Member GalleyProvider r) =>
   UserId ->
   Maybe PlainTextPassword ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
@@ -1256,7 +1233,7 @@ deleteSelfUser uid pwd = do
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
 -- 'deleteUser'.  Called via @post /delete@.
-verifyDeleteUser :: CallsFed 'Brig "on-user-deleted-connections" => VerifyDeleteUser -> ExceptT DeleteUserError (AppT r) ()
+verifyDeleteUser :: VerifyDeleteUser -> ExceptT DeleteUserError (AppT r) ()
 verifyDeleteUser d = do
   let key = verifyDeleteUserKey d
   let code = verifyDeleteUserCode d
@@ -1270,18 +1247,13 @@ verifyDeleteUser d = do
 -- Called via @delete /i/user/:uid@.
 ensureAccountDeleted ::
   ( MonadLogger m,
-    MonadCatch m,
-    MonadThrow m,
     MonadIndexIO m,
-    MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
     MonadClient m,
-    MonadReader Env m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadReader Env m
   ) =>
   UserId ->
   m DeleteUserResult
@@ -1326,8 +1298,7 @@ deleteAccount ::
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadClient m
   ) =>
   UserAccount ->
   m ()
@@ -1372,7 +1343,7 @@ deleteAccount account@(accountUser -> user) = do
 -- Lookups
 
 lookupActivationCode ::
-  (MonadIO m, MonadClient m) =>
+  MonadClient m =>
   Either Email Phone ->
   m (Maybe ActivationPair)
 lookupActivationCode emailOrPhone = do
@@ -1382,7 +1353,9 @@ lookupActivationCode emailOrPhone = do
   pure $ (k,) <$> c
 
 lookupPasswordResetCode ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  ( Member CodeStore r,
+    Member PasswordResetStore r
+  ) =>
   Either Email Phone ->
   (AppT r) (Maybe PasswordResetPair)
 lookupPasswordResetCode emailOrPhone = do
@@ -1434,7 +1407,7 @@ userGC u = case userExpire u of
     pure u
 
 lookupProfile ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "get-users-by-ids") =>
+  (Member GalleyProvider r) =>
   Local UserId ->
   Qualified UserId ->
   ExceptT FederationError (AppT r) (Maybe UserProfile)
@@ -1450,12 +1423,8 @@ lookupProfile self other =
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
-  ( Members
-      '[ GalleyProvider,
-         Concurrency 'Unsafe
-       ]
-      r,
-    CallsFed 'Brig "get-users-by-ids"
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
   ) =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
@@ -1469,7 +1438,7 @@ lookupProfiles self others =
       (bucketQualified others)
 
 lookupProfilesFromDomain ::
-  (Members '[GalleyProvider] r, CallsFed 'Brig "get-users-by-ids") =>
+  (Member GalleyProvider r) =>
   Local UserId ->
   Qualified [UserId] ->
   ExceptT FederationError (AppT r) [UserProfile]
@@ -1482,8 +1451,7 @@ lookupProfilesFromDomain self =
 lookupRemoteProfiles ::
   ( MonadIO m,
     MonadReader Env m,
-    MonadLogger m,
-    CallsFed 'Brig "get-users-by-ids"
+    MonadLogger m
   ) =>
   Remote [UserId] ->
   ExceptT FederationError m [UserProfile]
@@ -1495,7 +1463,7 @@ lookupRemoteProfiles (tUntagged -> Qualified uids domain) =
 -- pure function and writing tests for that.
 lookupLocalProfiles ::
   forall r.
-  Members '[GalleyProvider] r =>
+  Member GalleyProvider r =>
   -- | This is present only when an authenticated user is requesting access.
   Maybe UserId ->
   -- | The users ('others') for which to obtain the profiles.
@@ -1540,13 +1508,13 @@ lookupLocalProfiles requestingUser others = do
        in baseProfile {profileEmail = profileEmail'}
 
 getLegalHoldStatus ::
-  Members '[GalleyProvider] r =>
+  Member GalleyProvider r =>
   UserId ->
   AppT r (Maybe UserLegalHoldStatus)
 getLegalHoldStatus uid = traverse (liftSem . getLegalHoldStatus' . accountUser) =<< wrapHttpClient (lookupAccount uid)
 
 getLegalHoldStatus' ::
-  Members '[GalleyProvider] r =>
+  Member GalleyProvider r =>
   User ->
   Sem r UserLegalHoldStatus
 getLegalHoldStatus' user =

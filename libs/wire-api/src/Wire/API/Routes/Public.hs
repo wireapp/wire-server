@@ -30,9 +30,6 @@ module Wire.API.Routes.Public
     ZBot,
     ZConversation,
     ZProvider,
-
-    -- * Swagger combinators
-    OmitDocs,
   )
 where
 
@@ -40,6 +37,7 @@ import Control.Lens ((<>~))
 import Data.Domain
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
 import Data.Swagger
@@ -87,8 +85,8 @@ class
   IsZType (ztype :: ZType) ctx
   where
   type ZHeader ztype :: Symbol
-  type ZParam ztype :: *
-  type ZQualifiedParam ztype :: *
+  type ZParam ztype :: Type
+  type ZQualifiedParam ztype :: Type
 
   qualifyZParam :: Context ctx -> ZParam ztype -> ZQualifiedParam ztype
 
@@ -154,7 +152,7 @@ instance IsZType 'ZAuthProvider ctx where
 instance HasTokenType 'ZAuthProvider where
   tokenType = Just "provider"
 
-data ZAuthServant (ztype :: ZType) (opts :: [*])
+data ZAuthServant (ztype :: ZType) (opts :: [Type])
 
 type InternalAuthDefOpts = '[Servant.Required, Servant.Strict]
 
@@ -253,25 +251,3 @@ instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) whe
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
-
--- | A type-level tag that lets us omit any branch from Swagger docs.
---
--- Those are likely to be:
---
---   * Endpoints for which we can't generate Swagger docs.
---   * The endpoint that serves Swagger docs.
---   * Internal endpoints.
-data OmitDocs
-
-instance HasSwagger (OmitDocs :> a) where
-  toSwagger _ = mempty
-
-instance HasServer api ctx => HasServer (OmitDocs :> api) ctx where
-  type ServerT (OmitDocs :> api) m = ServerT api m
-
-  route _ = route (Proxy :: Proxy api)
-  hoistServerWithContext _ pc nt s =
-    hoistServerWithContext (Proxy :: Proxy api) pc nt s
-
-instance RoutesToPaths api => RoutesToPaths (OmitDocs :> api) where
-  getRoutes = getRoutes @api

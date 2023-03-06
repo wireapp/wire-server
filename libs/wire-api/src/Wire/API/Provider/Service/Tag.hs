@@ -44,10 +44,11 @@ import qualified Data.Aeson as JSON
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import Data.Range (LTE, Range, fromRange)
+import Data.Range (Range, fromRange)
 import qualified Data.Range as Range
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
+import Data.Type.Ord
 import GHC.TypeLits (KnownNat, Nat)
 import Imports
 import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
@@ -180,10 +181,10 @@ newtype QueryAnyTags (m :: Nat) (n :: Nat) = QueryAnyTags
   {queryAnyTagsRange :: Range m n (Set (QueryAllTags m n))}
   deriving stock (Eq, Show, Ord)
 
-instance (KnownNat m, KnownNat n, LTE m n) => Arbitrary (QueryAnyTags m n) where
+instance (KnownNat m, KnownNat n, m <= n) => Arbitrary (QueryAnyTags m n) where
   arbitrary = QueryAnyTags <$> arbitrary
 
-queryAnyTags :: LTE m n => MatchAny -> Maybe (QueryAnyTags m n)
+queryAnyTags :: (KnownNat m, KnownNat n, m <= n) => MatchAny -> Maybe (QueryAnyTags m n)
 queryAnyTags t = do
   x <- mapM queryAllTags (Set.toList (matchAnySet t))
   QueryAnyTags <$> Range.checked (Set.fromList x)
@@ -199,7 +200,7 @@ instance ToByteString (QueryAnyTags m n) where
       . queryAnyTagsRange
 
 -- | QueryAny ::= QueryAll { "," QueryAll }
-instance LTE m n => FromByteString (QueryAnyTags m n) where
+instance (KnownNat n, KnownNat m, m <= n) => FromByteString (QueryAnyTags m n) where
   parser = do
     bs <- C8.split ',' <$> parser
     ts <- mapM (either fail pure . runParser parser) bs
@@ -211,10 +212,10 @@ newtype QueryAllTags (m :: Nat) (n :: Nat) = QueryAllTags
   {queryAllTagsRange :: Range m n (Set ServiceTag)}
   deriving stock (Eq, Show, Ord)
 
-instance (KnownNat m, KnownNat n, LTE m n) => Arbitrary (QueryAllTags m n) where
+instance (KnownNat m, KnownNat n, m <= n) => Arbitrary (QueryAllTags m n) where
   arbitrary = QueryAllTags <$> arbitrary
 
-queryAllTags :: LTE m n => MatchAll -> Maybe (QueryAllTags m n)
+queryAllTags :: (KnownNat m, KnownNat n, m <= n) => MatchAll -> Maybe (QueryAllTags m n)
 queryAllTags = fmap QueryAllTags . Range.checked . matchAllSet
 
 -- | QueryAll ::= tag { "." tag }
@@ -228,7 +229,7 @@ instance ToByteString (QueryAllTags m n) where
       . queryAllTagsRange
 
 -- | QueryAll ::= tag { "." tag }
-instance LTE m n => FromByteString (QueryAllTags m n) where
+instance (KnownNat m, KnownNat n, m <= n) => FromByteString (QueryAllTags m n) where
   parser = do
     bs <- C8.split '.' <$> parser
     ts <- mapM (either fail pure . runParser parser) bs

@@ -17,6 +17,7 @@
 
 module Wire.API.Routes.Cookies where
 
+import Data.Kind
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as M
 import Data.Metrics.Servant
@@ -42,12 +43,12 @@ data (:::) a b
 -- @@
 -- results in a cookie with name "foo" containing a 64-bit integer, and a
 -- cookie with name "bar" containing an arbitrary text value.
-data Cookies (cs :: [*])
+data Cookies (cs :: [Type])
 
 type CookieHeader cs = Header "Cookie" (CookieTuple cs)
 
 -- CookieTypes = map snd
-type family CookieTypes (cs :: [*]) :: [*]
+type family CookieTypes (cs :: [Type]) :: [Type]
 
 type instance CookieTypes '[] = '[]
 
@@ -60,9 +61,9 @@ type CookieMap = Map ByteString (NonEmpty ByteString)
 instance HasSwagger api => HasSwagger (Cookies cs :> api) where
   toSwagger _ = toSwagger (Proxy @api)
 
-class CookieArgs (cs :: [*]) where
+class CookieArgs (cs :: [Type]) where
   -- example: AddArgs ["foo" :: Foo, "bar" :: Bar] a = Foo -> Bar -> a
-  type AddArgs cs a :: *
+  type AddArgs cs a :: Type
 
   uncurryArgs :: AddArgs cs a -> CookieTuple cs -> a
   mapArgs :: (a -> b) -> AddArgs cs a -> AddArgs cs b
@@ -81,7 +82,7 @@ instance
     KnownSymbol label,
     FromHttpApiData x
   ) =>
-  CookieArgs ((label ::: (x :: *)) ': cs)
+  CookieArgs ((label ::: (x :: Type)) ': cs)
   where
   type AddArgs ((label ::: x) ': cs) a = [Either Text x] -> AddArgs cs a
   uncurryArgs f (CookieTuple (I x :* xs)) = uncurryArgs @cs (f x) (CookieTuple xs)

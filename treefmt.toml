@@ -33,7 +33,7 @@ excludes = [
   "services/spar/test-scim-suite/runsuite.sh",
   "services/spar/test-scim-suite/run.sh",
   "services/brig/federation-tests.sh",
-  "services/integration.sh",
+  "services/run-services",
   "hack/bin/create_test_team_members.sh",
   "hack/bin/create_test_team_scim.sh",
   "hack/bin/create_test_user.sh",

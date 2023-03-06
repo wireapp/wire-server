@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -369,7 +370,7 @@ assertMatchN_ t wss f = void $ assertMatchN t wss f
 assertSuccess :: (HasCallStack, MonadIO m, MonadThrow m) => Either MatchTimeout a -> m a
 assertSuccess = either throwM pure
 
-assertNoEvent :: (HasCallStack, MonadIO m, MonadCatch m) => Timeout -> [WebSocket] -> m ()
+assertNoEvent :: (HasCallStack, MonadIO m) => Timeout -> [WebSocket] -> m ()
 assertNoEvent t ww = do
   results <- awaitMatchN' t (zip [(0 :: Int) ..] ww) pure
   for_ results $ \(ix, result) ->

@@ -48,7 +48,7 @@ import Wire.API.Federation.Error
 -- is streamed back through our outward federator, as well as the remote one.
 
 downloadRemoteAsset ::
-  (CallsFed 'Cargohold "get-asset", CallsFed 'Cargohold "stream-asset") =>
+  () =>
   Local UserId ->
   Remote AssetKey ->
   Maybe AssetToken ->

@@ -22,7 +22,6 @@ import Control.Lens ((?~))
 import Data.Aeson hiding (constructorTagModifier)
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Test.QuickCheck
 
@@ -49,16 +48,6 @@ instance ToSchema UserLegalHoldStatus where
 
 defUserLegalHoldStatus :: UserLegalHoldStatus
 defUserLegalHoldStatus = UserLegalHoldNoConsent
-
-typeUserLegalHoldStatus :: Doc.DataType
-typeUserLegalHoldStatus =
-  Doc.string $
-    Doc.enum
-      [ "enabled",
-        "pending",
-        "disabled",
-        "no_consent"
-      ]
 
 instance Cql UserLegalHoldStatus where
   ctype = Tagged IntColumn

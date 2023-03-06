@@ -1,0 +1,5 @@
+# Configure the parent postgresql chart
+postgresql:
+  fullnameOverride: postgresql
+  volumePermissions:
+    enabled: true

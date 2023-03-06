@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,9 +17,12 @@
 
 module Wire.API.Internal.BulkPush where
 
+import Control.Lens
 import Data.Aeson
-import Data.Aeson.TH (deriveJSON)
 import Data.Id
+import Data.Schema (ValueSchema)
+import qualified Data.Schema as S
+import qualified Data.Swagger as Swagger
 import Imports
 import Wire.API.Internal.Notification
 
@@ -35,13 +36,14 @@ data PushTarget = PushTarget
       Show,
       Generic
     )
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via S.Schema PushTarget
 
-instance FromJSON PushTarget where
-  parseJSON = withObject "push target object" $ \hm ->
-    PushTarget <$> (hm .: "user_id") <*> (hm .: "conn_id")
-
-instance ToJSON PushTarget where
-  toJSON (PushTarget u c) = object ["user_id" .= u, "conn_id" .= c]
+instance S.ToSchema PushTarget where
+  schema =
+    S.object "PushTarget" $
+      PushTarget
+        <$> ptUserId S..= S.field "user_id" S.schema
+        <*> ptConnId S..= S.field "conn_id" S.schema
 
 newtype BulkPushRequest = BulkPushRequest
   { fromBulkPushRequest :: [(Notification, [PushTarget])]
@@ -51,23 +53,32 @@ newtype BulkPushRequest = BulkPushRequest
       Show,
       Generic
     )
+  deriving (ToJSON, FromJSON, Swagger.ToSchema) via S.Schema BulkPushRequest
 
-instance FromJSON BulkPushRequest where
-  parseJSON = withObject "bulkpush request body" $ \hm ->
-    BulkPushRequest <$> (mapM run =<< (hm .: "bulkpush_req"))
+instance S.ToSchema BulkPushRequest where
+  schema =
+    S.object "BulkPushRequest" $
+      BulkPushRequest
+        <$> fromBulkPushRequest S..= S.field "bulkpush_req" (S.array bulkpushReqItemSchema)
     where
-      run = withObject "object with notifcation, targets" $ \hm ->
-        (,) <$> (hm .: "notification") <*> (hm .: "targets")
-
-instance ToJSON BulkPushRequest where
-  toJSON (BulkPushRequest ns) = object ["bulkpush_req" .= (run <$> ns)]
-    where
-      run (n, ps) = object ["notification" .= n, "targets" .= ps]
+      bulkpushReqItemSchema :: ValueSchema S.NamedSwaggerDoc (Notification, [PushTarget])
+      bulkpushReqItemSchema =
+        S.object "(Notification, [PushTarget])" $
+          (,)
+            <$> fst S..= S.field "notification" S.schema
+            <*> snd S..= S.field "targets" (S.array S.schema)
 
 data PushStatus = PushStatusOk | PushStatusGone
   deriving (Eq, Show, Bounded, Enum, Generic)
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via S.Schema PushStatus
 
-$(deriveJSON (defaultOptions {constructorTagModifier = camelTo2 '_'}) ''PushStatus)
+instance S.ToSchema PushStatus where
+  schema =
+    S.enum @Text "PushStatus" $
+      mconcat
+        [ S.element "push_status_ok" PushStatusOk,
+          S.element "push_status_gone" PushStatusGone
+        ]
 
 newtype BulkPushResponse = BulkPushResponse
   { fromBulkPushResponse :: [(NotificationId, PushTarget, PushStatus)]
@@ -77,15 +88,18 @@ newtype BulkPushResponse = BulkPushResponse
       Show,
       Generic
     )
+  deriving (FromJSON, ToJSON, Swagger.ToSchema) via S.Schema BulkPushResponse
 
-instance FromJSON BulkPushResponse where
-  parseJSON = withObject "bulkpush response body" $ \hm ->
-    BulkPushResponse <$> (mapM run =<< (hm .: "bulkpush_resp"))
+instance S.ToSchema BulkPushResponse where
+  schema =
+    S.object "BulkPushResponse" $
+      BulkPushResponse
+        <$> fromBulkPushResponse S..= S.field "bulkpush_resp" (S.array bulkPushResponseSchema)
     where
-      run = withObject "object with notifId, target, status" $ \hm ->
-        (,,) <$> (hm .: "notif_id") <*> (hm .: "target") <*> (hm .: "status")
-
-instance ToJSON BulkPushResponse where
-  toJSON (BulkPushResponse ns) = object ["bulkpush_resp" .= (run <$> ns)]
-    where
-      run (n, p, s) = object ["notif_id" .= n, "target" .= p, "status" .= s]
+      bulkPushResponseSchema :: ValueSchema S.NamedSwaggerDoc (NotificationId, PushTarget, PushStatus)
+      bulkPushResponseSchema =
+        S.object "(NotificationId, PushTarget, PushStatus)" $
+          (,,)
+            <$> view _1 S..= S.field "notif_id" S.schema
+            <*> view _2 S..= S.field "target" S.schema
+            <*> view _3 S..= S.field "status" S.schema

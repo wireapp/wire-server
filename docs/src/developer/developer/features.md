@@ -73,5 +73,6 @@ The Team features API preceedes the notion of the feature configuration API. The
 endpoints of the form `GET /teams/:tid/features/:feature-name` and `PUT
 /teams/:tid/features/:feature-name` can be used to get and set the feature
 configuration on a per-team level. Features that cannot be get and set on a
-per-team level may be missing from the Team Features API. See the Swagger
-documentation on what endpoints are available.
+per-team level may be missing from the Team Features API. See the [Swagger
+documentation](../../understand/api-client-perspective/swagger.md) on what
+endpoints are available.

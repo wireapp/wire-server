@@ -40,9 +40,6 @@ module Wire.API.Team.Permission
     intToPerms,
     permToInt,
     intToPerm,
-
-    -- * Swagger
-    modelPermissions,
   )
 where
 
@@ -53,9 +50,8 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits (testBit, (.|.))
 import Data.Schema
 import qualified Data.Set as Set
-import Data.Singletons.TH
+import Data.Singletons.Base.TH
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Util.Aeson (CustomEncoded (..))
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -82,17 +78,6 @@ instance ToSchema Permissions where
     case newPermissions s d of
       Nothing -> fail "invalid permissions"
       Just ps -> pure ps
-
-modelPermissions :: Doc.Model
-modelPermissions = Doc.defineModel "Permissions" $ do
-  Doc.description
-    "Permissions constrain possible member actions.\
-    \ The currently defined permissions can be found in: \
-    \ https://github.com/wireapp/wire-server/blob/develop/libs/galley-types/src/Galley/Types/Teams.hs#L247"
-  Doc.property "self" (Doc.int64 $ Doc.min 0 . Doc.max 0x7FFFFFFFFFFFFFFF) $
-    Doc.description "The permissions bitmask which applies to this user"
-  Doc.property "copy" (Doc.int64 $ Doc.min 0 . Doc.max 0x7FFFFFFFFFFFFFFF) $
-    Doc.description "The permissions bitmask which this user can assign to others"
 
 instance Arbitrary Permissions where
   arbitrary =
@@ -211,4 +196,5 @@ instance Cql.Cql Permissions where
   fromCql _ = Left "permissions: udt expected"
 
 $(genSingletons [''Perm])
+
 $(promoteShowInstances [''Perm])

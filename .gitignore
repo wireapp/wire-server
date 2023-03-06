@@ -59,9 +59,6 @@ spar.integration-aws.yaml
 integration-aws.yaml
 DOCKER_ID*
 swagger-ui
-!charts/nginz/static/swagger-ui
-
-services/nginz/integration-test/conf/nginz/zwagger-ui/*
 
 deploy/dockerephemeral/build/airdock_base-all/
 deploy/dockerephemeral/build/airdock_base/
@@ -112,3 +109,6 @@ result-*
 
 /integration-ca-key.pem
 /integration-ca.pem
+
+services/nginz/third_party/headers-more-nginx-module
+services/nginz/third_party/nginx-module-vts

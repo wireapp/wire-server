@@ -1,3 +1,5 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
@@ -124,7 +126,14 @@ getBrigUserTeam ifpend = fmap (userTeam =<<) . getBrigUser ifpend
 -- permission check fails or the user is not in status 'Active'.
 getZUsrCheckPerm ::
   forall r perm.
-  (HasCallStack, Members '[BrigAccess, GalleyAccess, Error SparError] r, IsPerm perm, Show perm) =>
+  ( HasCallStack,
+    ( Member BrigAccess r,
+      Member GalleyAccess r,
+      Member (Error SparError) r
+    ),
+    IsPerm perm,
+    Show perm
+  ) =>
   Maybe UserId ->
   perm ->
   Sem r TeamId
@@ -137,7 +146,12 @@ getZUsrCheckPerm (Just uid) perm = do
 
 authorizeScimTokenManagement ::
   forall r.
-  (HasCallStack, Members '[BrigAccess, GalleyAccess, Error SparError] r) =>
+  ( HasCallStack,
+    ( Member BrigAccess r,
+      Member GalleyAccess r,
+      Member (Error SparError) r
+    )
+  ) =>
   Maybe UserId ->
   Sem r TeamId
 authorizeScimTokenManagement Nothing = throw $ SAML.CustomError SparMissingZUsr

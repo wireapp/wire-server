@@ -18,8 +18,9 @@ fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
 nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn		\
-inbucket k8ssandra-test-cluster
+inbucket k8ssandra-test-cluster postgresql
 KIND_CLUSTER_NAME     := wire-server
+HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
 
 package ?= all
 EXE_SCHEMA := ./dist/$(package)-schema
@@ -89,6 +90,15 @@ endif
 .PHONY: ci
 ci: c db-migrate
 	./hack/bin/cabal-run-integration.sh $(package)
+
+.PHONY: sanitize-pr
+sanitize-pr:
+	./hack/bin/generate-local-nix-packages.sh
+	make formatf-all
+	make hlint-inplace-all
+	make git-add-cassandra-schema
+	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
+	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
 
 .PHONY: cabal-fmt
 cabal-fmt:
@@ -235,11 +245,11 @@ db-migrate-package:
 
 # Usage:
 #
-# Reset all keyspaces
-# make db-reset
+# Migrate all keyspaces and reset the ES index
+# make db-migrate
 #
-# Reset keyspace for only one service, say galley:
-# make db-reset package=galley
+# Migrate keyspace for only one service, say galley:
+# make db-migrate package=galley
 .PHONY: db-reset
 db-reset: c
 	@echo "Make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
@@ -248,31 +258,42 @@ ifeq ($(package), all)
 	./dist/galley-schema --keyspace galley_test --replication-factor 1 --reset
 	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 --reset
 	./dist/spar-schema --keyspace spar_test --replication-factor 1 --reset
+ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
+	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 --reset
+	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 --reset
+	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 --reset
+	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 --reset
+endif
 else
 	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1 --reset
+ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
+	$(EXE_SCHEMA) --keyspace $(package)_test2 --replication-factor 1 --reset
 endif
+endif
+	./dist/brig-index reset --elasticsearch-index directory_test --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index directory_test2 --elasticsearch-server http://localhost:9200 > /dev/null
 
 # Usage:
 #
-# Migrate all keyspaces
+# Migrate all keyspaces and reset the ES index
 # make db-migrate
 #
 # Migrate keyspace for only one service, say galley:
 # make db-migrate package=galley
 .PHONY: db-migrate
 db-migrate: c
-ifeq ($(package), all)
-	./dist/brig-schema --keyspace brig_test --replication-factor 1
-	./dist/galley-schema --keyspace galley_test --replication-factor 1
-	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1
-	./dist/spar-schema --keyspace spar_test --replication-factor 1
-# How this check works: https://stackoverflow.com/a/9802777
-else ifeq ($(package), $(filter $(package),brig galley gundeck spar))
-	$(EXE_SCHEMA) --keyspace $(package)_test --replication-factor 1
-else
-	@echo No schema migrations for $(package)
+	./dist/brig-schema --keyspace brig_test --replication-factor 1 > /dev/null
+	./dist/galley-schema --keyspace galley_test --replication-factor 1 > /dev/null
+	./dist/gundeck-schema --keyspace gundeck_test --replication-factor 1 > /dev/null
+	./dist/spar-schema --keyspace spar_test --replication-factor 1 > /dev/null
+ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
+	./dist/brig-schema --keyspace brig_test2 --replication-factor 1 > /dev/null
+	./dist/galley-schema --keyspace galley_test2 --replication-factor 1 > /dev/null
+	./dist/gundeck-schema --keyspace gundeck_test2 --replication-factor 1 > /dev/null
+	./dist/spar-schema --keyspace spar_test2 --replication-factor 1 > /dev/null
 endif
-
+	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
 
 #################################
 ## dependencies
@@ -315,15 +336,15 @@ kube-integration:  kube-integration-setup kube-integration-test
 
 .PHONY: kube-integration-setup
 kube-integration-setup: charts-integration
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
+	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-test
 kube-integration-test:
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-test.sh
+	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown-federation.sh
+	export NAMESPACE=$(NAMESPACE); export HELM_PARALLELISM=$(HELM_PARALLELISM); ./hack/bin/integration-teardown-federation.sh
 
 .PHONY: kube-integration-e2e-telepresence
 kube-integration-e2e-telepresence:

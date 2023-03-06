@@ -299,18 +299,21 @@ compilePushResps notifIdMap (Map.fromList -> deliveries) =
 -- | Is 'PushTarget' the origin of the 'Push', or is missing in a non-empty whitelist?  (Whitelists
 -- reside both in 'Push' itself and in each 'Recipient').
 shouldActuallyPush :: Push -> Recipient -> Presence -> Bool
-shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecipientWhitelist
+shouldActuallyPush psh rcp pres = not isOrigin && okByPushAllowlist && okByRecipientAllowlist
   where
     isOrigin =
       psh ^. pushOrigin == Just (userId pres)
         && psh ^. pushOriginConnection == Just (connId pres)
-    okByPushWhitelist = not whitelistExists || isWhitelisted
+
+    okByPushAllowlist :: Bool
+    okByPushAllowlist = not allowlistExists || isAllowlisted
       where
-        whitelist = psh ^. pushConnections
-        whitelistExists = not $ Set.null whitelist
-        isWhitelisted = connId pres `Set.member` whitelist
-    okByRecipientWhitelist :: Bool
-    okByRecipientWhitelist =
+        allowlist = psh ^. pushConnections
+        allowlistExists = not $ Set.null allowlist
+        isAllowlisted = connId pres `Set.member` allowlist
+
+    okByRecipientAllowlist :: Bool
+    okByRecipientAllowlist =
       case (rcp ^. recipientClients, clientId pres) of
         (RecipientClientsSome cs, Just c) -> c `elem` cs
         _ -> True

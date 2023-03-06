@@ -77,7 +77,7 @@ activateKey (ActivationKey key) (ActivationCode code) = do
 -------------------------------------------------------------------------------
 -- Authenticated
 
-getSelfProfile :: (MonadSession m, MonadUnliftIO m, MonadMask m) => m User
+getSelfProfile :: MonadSession m => m User
 getSelfProfile = sessionRequest req rsc readBody
   where
     req =
@@ -87,7 +87,7 @@ getSelfProfile = sessionRequest req rsc readBody
         $ empty
     rsc = status200 :| []
 
-getProfile :: (MonadSession m, MonadUnliftIO m, MonadMask m) => UserId -> m UserProfile
+getProfile :: MonadSession m => UserId -> m UserProfile
 getProfile uid = sessionRequest req rsc readBody
   where
     req =
@@ -97,7 +97,7 @@ getProfile uid = sessionRequest req rsc readBody
         $ empty
     rsc = status200 :| []
 
-connectTo :: (MonadSession m, MonadUnliftIO m, MonadMask m) => ConnectionRequest -> m UserConnection
+connectTo :: MonadSession m => ConnectionRequest -> m UserConnection
 connectTo cr = sessionRequest req rsc readBody
   where
     req =
@@ -108,7 +108,7 @@ connectTo cr = sessionRequest req rsc readBody
         $ empty
     rsc = status201 :| [status200]
 
-updateConnection :: (MonadSession m, MonadUnliftIO m, MonadMask m) => UserId -> ConnectionUpdate -> m UserConnection
+updateConnection :: MonadSession m => UserId -> ConnectionUpdate -> m UserConnection
 updateConnection u cu = sessionRequest req rsc readBody
   where
     req =
@@ -119,7 +119,7 @@ updateConnection u cu = sessionRequest req rsc readBody
         $ empty
     rsc = status200 :| []
 
-getConnection :: (MonadSession m, MonadUnliftIO m, MonadMask m) => UserId -> m (Maybe UserConnection)
+getConnection :: (MonadSession m, MonadMask m) => UserId -> m (Maybe UserConnection)
 getConnection u = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of

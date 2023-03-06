@@ -18,7 +18,7 @@
 module Gundeck.Push.Data
   ( insert,
     delete,
-    Gundeck.Push.Data.lookup,
+    lookup,
     erase,
     Consistency (..),
   )
@@ -30,7 +30,7 @@ import Data.Id (ClientId, ConnId, UserId)
 import Gundeck.Instances ()
 import Gundeck.Push.Native.Types
 import Gundeck.Types
-import Imports
+import Imports hiding (lookup)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 
