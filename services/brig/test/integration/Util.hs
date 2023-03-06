@@ -736,12 +736,12 @@ createMLSConversation galley zusr c = do
           Nothing
           roleNameWireAdmin
           ProtocolMLSTag
-          (Just c)
   post $
     galley
       . path "/conversations"
       . zUser zusr
       . zConn "conn"
+      . zClient c
       . json conv
 
 createMLSSubConversation ::
@@ -777,7 +777,6 @@ createConversation galley zusr usersToAdd = do
           Nothing
           roleNameWireAdmin
           ProtocolProteusTag
-          Nothing
   post $
     galley
       . path "/conversations"

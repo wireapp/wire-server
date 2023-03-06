@@ -58,6 +58,7 @@ import Wire.API.Asset
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification (ntfTransient)
 import Wire.API.MLS.Credential
@@ -121,7 +122,9 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "send an MLS message to a remote user" $
           testSendMLSMessage brig brigTwo galley galleyTwo cannon cannonTwo,
         test mg "send an MLS subconversation message to a federated user" $
-          testSendMLSMessageToSubConversation brig brigTwo galley galleyTwo cannon cannonTwo
+          testSendMLSMessageToSubConversation brig brigTwo galley galleyTwo cannon cannonTwo,
+        test mg "remote typing indicator" $
+          testRemoteTypingIndicator brig brigTwo galley galleyTwo cannon cannonTwo
       ]
 
 -- | Path covered by this test:
@@ -277,7 +280,6 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
           Nothing
           roleNameWireAdmin
           ProtocolProteusTag
-          Nothing
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< post
@@ -882,9 +884,9 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
         !!! const 201 === statusCode
 
       post
-        ( galley2
-            . paths
-              ["mls", "welcome"]
+        ( unversioned
+            . galley2
+            . paths ["v2", "mls", "welcome"]
             . zUser (userId bob)
             . zClient bobClient
             . zConn "conn"
@@ -1114,9 +1116,10 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
         !!! const 201 === statusCode
 
       post
-        ( galley2
+        ( unversioned
+            . galley2
             . paths
-              ["mls", "welcome"]
+              ["v2", "mls", "welcome"]
             . zUser (userId bob)
             . zClient bobClient
             . zConn "conn"
@@ -1299,3 +1302,51 @@ testSendMLSMessageToSubConversation brig1 brig2 galley1 galley2 cannon1 cannon2 
         evtType e @?= MLSMessageAdd
         evtFrom e @?= userQualifiedId alice
         evtData e @?= EdMLSMessage reply
+
+testRemoteTypingIndicator :: Brig -> Brig -> Galley -> Galley -> Cannon -> Cannon -> Http ()
+testRemoteTypingIndicator brig1 brig2 galley1 galley2 cannon1 cannon2 = do
+  alice <- randomUser brig1
+  bob <- randomUser brig2
+
+  connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
+
+  cnv <-
+    responseJsonError
+      =<< createConversation galley1 (userId alice) [userQualifiedId bob]
+        <!! const 201 === statusCode
+  let isTyping g u s =
+        post
+          ( g
+              . paths
+                [ "conversations",
+                  toByteString' (qDomain (cnvQualifiedId cnv)),
+                  toByteString' (qUnqualified (cnvQualifiedId cnv)),
+                  "typing"
+                ]
+              . zUser (userId u)
+              . zConn "conn"
+              . json s
+          )
+          !!! const 200 === statusCode
+  let checkEvent ws u s =
+        WS.assertMatch_ (5 # Second) ws $ \n -> do
+          let e = List1.head (WS.unpackPayload n)
+          ntfTransient n @?= True
+          evtConv e @?= cnvQualifiedId cnv
+          evtType e @?= Typing
+          evtFrom e @?= userQualifiedId u
+          evtData e @?= EdTyping s
+
+  -- -- alice is typing, bob gets events
+  WS.bracketR cannon2 (userId bob) $ \wsBob -> do
+    isTyping galley1 alice StartedTyping
+    checkEvent wsBob alice StartedTyping
+    isTyping galley1 alice StoppedTyping
+    checkEvent wsBob alice StoppedTyping
+
+  -- bob is typing, alice gets events
+  WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
+    isTyping galley2 bob StartedTyping
+    checkEvent wsAlice bob StartedTyping
+    isTyping galley2 bob StoppedTyping
+    checkEvent wsAlice bob StoppedTyping

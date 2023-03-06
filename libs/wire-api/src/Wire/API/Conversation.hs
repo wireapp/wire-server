@@ -609,10 +609,7 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    newConvProtocol :: ProtocolTag,
-    -- | ID of the client creating the conversation. Only needed for MLS
-    -- conversations.
-    newConvCreatorClient :: Maybe ClientId
+    newConvProtocol :: ProtocolTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -672,7 +669,6 @@ newConvSchema sch =
                <|> pure roleNameWireAdmin
            )
       <*> newConvProtocol .= protocolTagSchema
-      <*> newConvCreatorClient .= maybe_ (optField "creator_client" schema)
   where
     usersDesc =
       "List of user IDs (excluding the requestor) to be \

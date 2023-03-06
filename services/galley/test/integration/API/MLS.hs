@@ -263,7 +263,8 @@ postMLSConvFail = do
   connectUsers alice (list1 bob [])
   postConvQualified
     alice
-    (defNewMLSConv aliceClient)
+    (Just aliceClient)
+    defNewMLSConv
       { newConvQualifiedUsers = [Qualified bob (qDomain qalice)]
       }
     !!! do
@@ -278,7 +279,11 @@ postMLSConvOk = do
   let aliceClient = newClientId 0
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR c alice $ \wsA -> do
-    rsp <- postConvQualified alice (defNewMLSConv aliceClient) {newConvName = checked nameMaxSize}
+    rsp <-
+      postConvQualified
+        alice
+        (Just aliceClient)
+        defNewMLSConv {newConvName = checked nameMaxSize}
     pure rsp !!! do
       const 201 === statusCode
       const Nothing === fmap Wai.label . responseJsonError
@@ -572,7 +577,7 @@ testSendAnotherUsersCommit = do
 testAddUsersToProteus :: TestM ()
 testAddUsersToProteus = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
-  void $ postConvQualified (qUnqualified alice) defNewProteusConv
+  void $ postConvQualified (qUnqualified alice) Nothing defNewProteusConv
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
     void $ uploadNewKeyPackage bob1
@@ -2207,7 +2212,8 @@ postMLSConvDisabled = do
   withMLSDisabled $
     postConvQualified
       (qUnqualified alice)
-      (defNewMLSConv (newClientId 0))
+      (Just (newClientId 0))
+      defNewMLSConv
       !!! assertMLSNotEnabled
 
 postMLSMessageDisabled :: TestM ()
@@ -2272,7 +2278,10 @@ testCreateSubConv parentIsMLSConv = do
           pure qcnv
         else
           cnvQualifiedId
-            <$> liftTest (postConvQualified (qUnqualified alice) defNewProteusConv >>= responseJsonError)
+            <$> liftTest
+              ( postConvQualified (qUnqualified alice) Nothing defNewProteusConv
+                  >>= responseJsonError
+              )
     let sconv = SubConvId "conference"
     if parentIsMLSConv
       then do

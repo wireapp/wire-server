@@ -19,3 +19,4 @@ testToPathComponent = do
   "v1" @=? toPathComponent V1
   "v2" @=? toPathComponent V2
   "v3" @=? toPathComponent V3
+  "v4" @=? toPathComponent V4

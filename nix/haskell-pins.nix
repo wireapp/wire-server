@@ -64,40 +64,6 @@ let
         sha256 = "sha256-mWBZ2uY0shlxNRceyC2Zu1f3Kr4IDtT/rOL7CKWgilA=";
       };
     };
-    HaskellNet-SSL = {
-      src = fetchgit {
-        url = "https://github.com/dpwright/HaskellNet-SSL";
-        rev = "ca84ef29a93eaef7673fa58056cdd8dae1568d2d";
-        sha256 = "1w23xgjdq22px90p12yw30psagc668n7l183bqvf8x075s77wckr";
-      };
-    };
-    prometheus-haskell = {
-      src = fetchgit {
-        url = "https://github.com/fimad/prometheus-haskell";
-        rev = "2e3282e5fb27ba8d989c271a0a989823fad7ec43";
-        sha256 = "0vfzysn9sgpxymfvpahxrp74fczgjnw3kgknj6zk0473qk85488f";
-      };
-      packages = {
-        wai-middleware-prometheus = "wai-middleware-prometheus";
-      };
-    };
-    hs-collectd = {
-      src = fetchgit {
-        url = "https://github.com/kim/hs-collectd";
-        rev = "885da222be2375f78c7be36127620ed772b677c9";
-        sha256 = "1a3jwj0h2vzgjvzaa4jghmxkjwbzisq4qc7dldc42zi4jaq7lix7";
-      };
-    };
-    hs-certificate = {
-      src = fetchgit {
-        url = "https://github.com/vincenthz/hs-certificate";
-        rev = "a899bda3d7666d25143be7be8f3105fc076703d9";
-        sha256 = "0ivc4l3c272i7w37rfgsbwnxa3fzfmghwddlqvzj5jj3zx5lyqlk";
-      };
-      packages = {
-        x509-store = "x509-store";
-      };
-    };
     amazonka = {
       src = fetchgit {
         url = "https://github.com/brendanhay/amazonka";
@@ -131,25 +97,11 @@ let
         sha256 = "0dgizj1kc135yzzqdf5l7f5ax0qpvrr8mxvg7s1dbm01cf11aqzn";
       };
     };
-    multihash = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/haskell-multihash.git";
-        rev = "300a6f46384bfca33e545c8bab52ef3717452d12";
-        sha256 = "0lcm6argp49fin4va7c50l1lj84xcm3cqzijzssfdgplimpmllma";
-      };
-    };
     hsaml2 = {
       src = fetchgit {
         url = "https://github.com/wireapp/hsaml2";
         rev = "d43818aac56678f0be02d0101d224fe0f6cdf131";
         sha256 = "16hj3i4h5rwhr8kqrs7345wg7v10ahwjd3fdp2qx3c5z4qls6prr";
-      };
-    };
-    hspec-wai = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/hspec-wai";
-        rev = "6984a06b0c6294677c49d59382d48f975a8733d4";
-        sha256 = "sha256-6FLTMMqvL0xFa5zsMnjVAmdpghmdeBl813bWcOyQo5E=";
       };
     };
     http-client = {
@@ -165,11 +117,11 @@ let
         http-conduit = "http-conduit";
       };
     };
-    http2 = {
+    hspec-wai = {
       src = fetchgit {
-        url = "https://github.com/wireapp/http2";
-        rev = "aa3501ad58e1abbd196781fac25a84f41ec2a787";
-        sha256 = "09h86fkk8p7szq08x0iszaq16mhbylxivfc0apvj58d98wl8l6lq";
+        url = "https://github.com/wireapp/hspec-wai";
+        rev = "6984a06b0c6294677c49d59382d48f975a8733d4";
+        sha256 = "sha256-6FLTMMqvL0xFa5zsMnjVAmdpghmdeBl813bWcOyQo5E=";
       };
     };
     saml2-web-sso = {
@@ -181,11 +133,12 @@ let
     };
     swagger2 = {
       src = fetchgit {
-        url = "https://github.com/wireapp/swagger2";
-        rev = "ba916df2775bb38ec603b726bbebfb65a908317a";
-        sha256 = "sha256-IcsrJ5ur8Zm7Xp1PQBOb+2N7T8WMI8jJ6YuDv8ypsPQ=";
+        url = "https://github.com/GetShopTV/swagger2";
+        rev = "d79deca03b714cdd4531217831a8305068b2e8f9";
+        sha256 = "sha256-R3p0L0TgM0Bspe5z6vauwdPq9TmEWpMC53DBkMtCEoE=";
       };
     };
+    # MR: https://gitlab.com/twittner/cql-io/-/merge_requests/20
     cql-io = {
       src = fetchgit {
         url = "https://gitlab.com/wireapp/forks/cql-io";
@@ -207,6 +160,7 @@ let
         sha256 = "18icwks9jc6sy42vcvj2ysaip2s0dsrpvm9sy608b6nq6kk1ahlk";
       };
     };
+    # PR: https://github.com/UnkindPartition/tasty/pull/351
     tasty = {
       src = fetchgit {
         url = "https://github.com/wireapp/tasty";
@@ -241,59 +195,25 @@ let
         sha256 = "sha256-htEIJY+LmIMACVZrflU60+X42/g14NxUyFM7VJs4E6w=";
       };
     };
-    # PR: https://github.com/haskell-cryptography/HsOpenSSL/pull/76
-    HsOpenSSL = {
-      src = fetchgit {
-        url = "https://github.com/wireapp/HsOpenSSL";
-        rev = "b36c063d44b8b8732f0e6334ad58d2235fedd92e";
-        sha256 = "sha256-NdWzTqWDQvCwyp3la3RGN9D1lGaLHHrxQuFxpk9R+lQ=";
-      };
-    };
   };
   hackagePins = {
+    # Major re-write upstream, we should get rid of this dependency rather than
+    # adapt to upstream.
     wai-route = {
       version = "0.4.0";
       sha256 = "sha256-DSMckKIeVE/buSMg8Mq+mUm1bYPYB7veA11Ns7vTBbc=";
-    };
-    kind-generics = {
-      version = "0.4.1.4";
-      sha256 = "sha256-vH4YO/2NtaLDn1pyAQYK9vC5dD0bpdk26aH5sA9+UT8=";
-    };
-    kind-generics-th = {
-      version = "0.2.2.3";
-      sha256 = "sha256-LH2Wpo0v+RQSsvVbosuB99ekSzqsqMNjrd+w/B0SOUs=";
     };
     polysemy = {
       version = "1.8.0.0";
       sha256 = "sha256-AdxxKWXdUjZiHLDj6iswMWpycs7mFB8eKhBR4ljF6kk=";
     };
-    polysemy-check = {
-      version = "0.9.0.1";
-      sha256 = "sha256-CsL2vMxAmpvVVR/iUnZAkbcRLiy/a8ulJQ6QwtCYmRM=";
+    HsOpenSSL = {
+      version = "0.11.7.5";
+      sha256 = "sha256-CfH1YJSGuF4O1aUfdJwUZKRrVzv5nSPhwoI7mf9ewEg=";
     };
-    polysemy-plugin = {
-      version = "0.4.3.1";
-      sha256 = "sha256-0vkLYNZISr3fmmQvD8qdLkn2GHc80l1GzJuOmqjqXE4=";
-    };
-    one-liner = {
-      version = "1.0";
-      sha256 = "sha256-dv/W8hIPoHVevxiiCb6OfeP53O/9HPgUiqOHGSNb/pk=";
-    };
-    singletons = {
-      version = "3.0.1";
-      sha256 = "sha256-ixHWZae6AxjRUldMgpYolXBGsOUT5ZVIw9HZkxrhHQ0=";
-    };
-    singletons-base = {
-      version = "3.1";
-      sha256 = "sha256-SjpkQofdDMrUMi9cHNF5eyqic7WMAhWNqrKr4ip1RNs=";
-    };
-    singletons-th = {
-      version = "3.1";
-      sha256 = "sha256-34nyestxt8KNTSlmr1Y8nElNXa/wZ1+fuLEUVjZX8dk=";
-    };
-    th-desugar = {
-      version = "1.13";
-      sha256 = "sha256-xiAeSM2umcfsz5+mcW+oGKf/EmzvH0ch0lHoKBGzW9I=";
+    http2 = {
+      version = "4.0.0";
+      sha256 = "sha256-9rBhklwuuKZXWH4yV4tb7Sp5chR9AmBAMRBztDjx0uI=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
