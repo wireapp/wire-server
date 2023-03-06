@@ -645,6 +645,8 @@ type ConversationAPI =
            "member-typing-unqualified"
            ( Summary "Sending typing notifications"
                :> Until 'V3
+               :> MakesFederatedCall 'Galley "update-typing-indicator"
+               :> MakesFederatedCall 'Galley "on-typing-indicator-updated"
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
                :> ZConn
@@ -657,6 +659,7 @@ type ConversationAPI =
     :<|> Named
            "member-typing-qualified"
            ( Summary "Sending typing notifications"
+               :> MakesFederatedCall 'Galley "update-typing-indicator"
                :> MakesFederatedCall 'Galley "on-typing-indicator-updated"
                :> CanThrow 'ConvNotFound
                :> ZLocalUser
