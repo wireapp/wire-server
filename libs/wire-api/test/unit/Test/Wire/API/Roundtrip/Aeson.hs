@@ -149,6 +149,7 @@ tests =
       testRoundTrip @OAuth.OAuthClient,
       testRoundTrip @OAuth.NewOAuthAuthorizationCode,
       testRoundTrip @OAuth.OAuthAccessTokenRequest,
+      testRoundTrip @OAuth.OAuthApplication,
       testRoundTrip @Properties.PropertyKey,
       testRoundTrip @Provider.Provider,
       testRoundTrip @Provider.ProviderProfile,

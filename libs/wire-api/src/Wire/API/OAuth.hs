@@ -539,7 +539,8 @@ data OAuthApplication = OAuthApplication
   { oaId :: OAuthClientId,
     oaName :: OAuthApplicationName
   }
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthApplication)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthApplication)
 
 instance ToSchema OAuthApplication where
