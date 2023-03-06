@@ -160,7 +160,7 @@ docsAPI =
 --
 -- Dual to `internalEndpointsSwaggerDocsAPI`.
 versionedSwaggerDocsAPI :: Servant.Server VersionedSwaggerDocsAPI
-versionedSwaggerDocsAPI (Just V3) =
+versionedSwaggerDocsAPI (Just V4) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -177,6 +177,7 @@ versionedSwaggerDocsAPI (Just V3) =
 versionedSwaggerDocsAPI (Just V0) = swaggerPregenUIServer $(pregenSwagger V0)
 versionedSwaggerDocsAPI (Just V1) = swaggerPregenUIServer $(pregenSwagger V1)
 versionedSwaggerDocsAPI (Just V2) = swaggerPregenUIServer $(pregenSwagger V2)
+versionedSwaggerDocsAPI (Just V3) = swaggerPregenUIServer $(pregenSwagger V3)
 versionedSwaggerDocsAPI Nothing = versionedSwaggerDocsAPI (Just maxBound)
 
 -- | Serves Swagger docs for internal endpoints
@@ -190,7 +191,7 @@ internalEndpointsSwaggerDocsAPI ::
   PortNumber ->
   S.Swagger ->
   Servant.Server (VersionedSwaggerDocsAPIBase service)
-internalEndpointsSwaggerDocsAPI service examplePort swagger (Just V3) =
+internalEndpointsSwaggerDocsAPI service examplePort swagger (Just V4) =
   swaggerSchemaUIServer $
     swagger
       & adjustSwaggerForInternalEndpoint service examplePort
@@ -198,6 +199,7 @@ internalEndpointsSwaggerDocsAPI service examplePort swagger (Just V3) =
 internalEndpointsSwaggerDocsAPI _ _ _ (Just V0) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just V1) = emptySwagger
 internalEndpointsSwaggerDocsAPI _ _ _ (Just V2) = emptySwagger
+internalEndpointsSwaggerDocsAPI _ _ _ (Just V3) = emptySwagger
 internalEndpointsSwaggerDocsAPI service examplePort swagger Nothing =
   internalEndpointsSwaggerDocsAPI service examplePort swagger (Just maxBound)
 

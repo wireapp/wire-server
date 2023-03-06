@@ -59,7 +59,7 @@ import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
 -- | Version of the public API.
-data Version = V0 | V1 | V2 | V3
+data Version = V0 | V1 | V2 | V3 | V4
   deriving stock (Eq, Ord, Bounded, Enum, Show)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
@@ -69,7 +69,8 @@ instance ToSchema Version where
       [ element 0 V0,
         element 1 V1,
         element 2 V2,
-        element 3 V3
+        element 3 V3,
+        element 4 V4
       ]
 
 mkVersion :: Integer -> Maybe Version
@@ -99,7 +100,7 @@ supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
 
 developmentVersions :: [Version]
-developmentVersions = [V3]
+developmentVersions = [V4]
 
 -- | Information related to the public API version.
 --
