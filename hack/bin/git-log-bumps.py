@@ -117,10 +117,10 @@ Author: {commit["author_name"]}
 
             bump = env_bumps.get(commit['chart_version'])
             if bump:
-                bump_time = humanize_time(bump['t'])
+                bump_time = humanize_time(bump['t']) + f' ({bump["hash"]})'
             else:
                 bump_time = Colors.RED + '<not deployed>' + Colors.RESET
-            s += f'Environment Bump: ' + Colors.GREEN + f'{bump_time}\n' + Colors.RESET
+            s += Colors.GREEN + f'{args.env}' + Colors.RESET + ' bump: ' + Colors.GREEN + f'{bump_time}\n' + Colors.RESET
         s += '\n'
         output += s
     return less(output.encode('utf8'))
