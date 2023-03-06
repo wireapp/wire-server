@@ -24,5 +24,8 @@ spec:
       mountPath: "/etc/wire/integration"
     - name: "spar-config"
       mountPath: "/etc/wire/spar/conf"
-
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "2"
   restartPolicy: Never

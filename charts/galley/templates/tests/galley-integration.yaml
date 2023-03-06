@@ -61,4 +61,8 @@ spec:
       value: "dummy"
     - name: AWS_REGION
       value: "eu-west-1"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "2"
   restartPolicy: Never
