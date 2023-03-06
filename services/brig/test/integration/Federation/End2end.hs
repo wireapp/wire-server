@@ -277,7 +277,6 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
           Nothing
           roleNameWireAdmin
           ProtocolProteusTag
-          Nothing
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< post
@@ -878,9 +877,9 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
         !!! const 201 === statusCode
 
       post
-        ( galley2
-            . paths
-              ["mls", "welcome"]
+        ( unversioned
+            . galley2
+            . paths ["v2", "mls", "welcome"]
             . zUser (userId bob)
             . zConn "conn"
             . header "Z-Type" "access"
