@@ -1,3 +1,122 @@
+# [2023-03-06] (Chart Release 4.34.0)
+
+## Release notes
+
+
+* In (the unlikely) case your server config file contains `setWhitelist:`, you need to change this before the upgrade!  It used to refer to a whitelisting service, which is now replaced with a local list of allowed domains and phone numbers.  See [docs](https://docs.wire.com/developer/reference/user/activation.html?highlight=whitelist#phone-email-whitelist) for details.  Migration path: add new config fields; upgrade, remove old config fields. (#3043)
+
+* The coturn Helm chart has been promoted to *beta* level stability. (#3078)
+
+
+## API changes
+
+
+* API v3 is now supported. The new MLS endpoints introduced in API v3 have been removed, and are now only available under v4. (#3122)
+
+
+## Features
+
+
+* Add internal endpoints of `cargohold`, `galley`, `legalhold` and `spar` to the Swagger docs for internal endpoints. (#3007)
+
+* The coturn container image included in the coturn Helm chart was updated to
+  version `4.6.0-wireapp.4`.
+
+  With this version of coturn, the Prometheus metrics endpoint has been
+  updated, and the `turn_active_allocations` metric label has been *renamed* to
+  `turn_total_allocations`. (#3078)
+
+* Better error message for invalid ID in a credential when uploading MLS key packages (#3102)
+
+* Add Swagger documentation for internal endpoints. It's reachable at the path `/v<n>/api-internal/swagger{-ui,.json}`. (#3003)
+
+* Render one Swagger page per internal endpoint. This superseeds the previous Swagger docs page for all internal endpoints. (#3094)
+
+* Feature flag for Outlook calendar integration (#3025)
+
+* Team feature setting for MLS end-to-end identity was added and server setting `setEnableMls` is exposed via new authorized endpoint `GET /system/settings` (#3082)
+
+
+## Bug fixes and other updates
+
+
+* The container image used for handling online TLS certificate updates in the
+  coturn Helm chart was updated to a version with metadata compatible with
+  containerd. (#3078)
+
+* Fix a bug in the helm chart's nginx-ingress-services / federator Ingress resource introduced in the last release. (#3034)
+
+* Remove overly restricte api check (#3131)
+
+* Typing indicators not working accross federated backends (#3118)
+
+
+## Documentation
+
+
+* Extend the docs on the federation error type (#3045)
+
+* Update SAML/SCIM docs (#3038)
+
+
+## Internal changes
+
+
+* - use exponential backoff for retrying requests to Amazon
+  - also retry in case of server-side rate limiting by Amazon (#3121)
+
+* Also run the 'backoffice' pod in CI (to test it can successfully start) (#3130)
+
+* Make brig-schema a little faster by merging the first 34 schema migrations on fresh installations. (#3099)
+
+* Deflake integration test: metrics (#3053)
+
+* Document in code a function that sends remote Proteus messages (#PR_NOT_FOUND)
+
+* Lower the log level of federator inotify (#3056)
+
+* use Wai's settings for graceful shutdown (#3069)
+
+* CI integration setup time should be reduced: tweak the way cassandra-ephemeral is started (#3052)
+
+* charts: Mark all service/secret/configmap test resources to be re-created by defining them as helm hooks (#3037, #3049)
+
+* New integration test script with support for running end2end tests locally (#3062)
+
+* Bump nixpkgs to latest commit on nixpkgs-unstable branch (#3084)
+
+* Add config to allow to run helm tests for different services in parallel; improve integration test output logs (#3040)
+
+*  Run brig and galley integration tests concurrently (#2825)
+
+* Add wrapper for bitnami/postgresql chart. (#3012)
+
+* Branch on performAction tags for finer-grained CallsFed constraints (#3030)
+
+* Fixed broken stern endpoint `POST i/user/meta-info` (#3035)
+
+* Make stern fail on startup if supported backend api version needs bumping (#3035)
+
+* Automatically track CallsFed constraints via a GHC plugin (#3083)
+
+* Rust library `rusty-jwt-tools` upgraded to latest version (#3112)
+
+* Fixed test of jwt-tools Rust FFI (#3125)
+
+* Enabling warnings for redundant constraints and removing the redundant
+  constraints. (#3009)
+
+* Migrate `/teams/notifications` to use the Servant library. (#3020)
+
+* Split polysemy `Members` constraints into multiple `Member` constraints (#3093)
+
+
+## Federation changes
+
+
+* Use `HsOpenSSL` instead of `tls` for federation communication. (#3051)
+
+
 # [2023-01-26] (Chart Release 4.31.0)
 
 ## Release notes

@@ -1,1 +1,0 @@
-charts: Mark all service/secret/configmap test resources to be re-created by defining them as helm hooks (#3037, #3049)
