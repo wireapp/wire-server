@@ -44,8 +44,9 @@ import Imports hiding (exp, head)
 import Prelude.Singletons (Show_)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
-import Test.QuickCheck (Arbitrary)
+import Test.QuickCheck (Arbitrary (..))
 import URI.ByteString
+import qualified URI.ByteString.QQ as URI.QQ
 import Web.FormUrlEncoded (Form (..), FromForm (..), ToForm (..), parseUnique)
 import Wire.API.Error
 import Wire.Arbitrary (GenericUniform (..))
@@ -82,12 +83,15 @@ instance FromHttpApiData RedirectUrl where
   parseUrlPiece = parseHeader . TE.encodeUtf8
   parseHeader = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
 
+instance Arbitrary RedirectUrl where
+  arbitrary = pure $ RedirectUrl [URI.QQ.uri|https://example.com|]
+
 type OAuthApplicationNameMinLength = (6 :: Nat)
 
 type OAuthApplicationNameMaxLength = (256 :: Nat)
 
 newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: Range OAuthApplicationNameMinLength OAuthApplicationNameMaxLength Text}
-  deriving (Eq, Show, Generic, Ord)
+  deriving (Eq, Show, Generic, Ord, Arbitrary)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthApplicationName)
 
 instance ToSchema OAuthApplicationName where
@@ -98,6 +102,7 @@ data NewOAuthClient = NewOAuthClient
     nocRedirectUrl :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewOAuthClient)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOAuthClient)
 
 instance ToSchema NewOAuthClient where
@@ -113,7 +118,7 @@ instance ToSchema NewOAuthClient where
       maxL = cs @String @Text $ symbolVal $ Proxy @(Show_ OAuthApplicationNameMaxLength)
 
 newtype OAuthClientPlainTextSecret = OAuthClientPlainTextSecret {unOAuthClientPlainTextSecret :: AsciiBase16}
-  deriving (Eq, Generic)
+  deriving (Eq, Generic, Arbitrary)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClientPlainTextSecret)
 
 instance Show OAuthClientPlainTextSecret where
@@ -133,6 +138,7 @@ data OAuthClientCredentials = OAuthClientCredentials
     occClientSecret :: OAuthClientPlainTextSecret
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthClientCredentials)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClientCredentials)
 
 instance ToSchema OAuthClientCredentials where
@@ -151,6 +157,7 @@ data OAuthClient = OAuthClient
     ocRedirectUrl :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthClient)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthClient)
 
 instance ToSchema OAuthClient where
@@ -163,6 +170,7 @@ instance ToSchema OAuthClient where
 
 data OAuthResponseType = OAuthResponseTypeCode
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthResponseType)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthResponseType)
 
 instance ToSchema OAuthResponseType where
@@ -204,7 +212,7 @@ instance FromByteString OAuthScope where
       _ -> fail "invalid scope"
 
 newtype OAuthScopes = OAuthScopes {unOAuthScopes :: Set OAuthScope}
-  deriving (Eq, Show, Generic, Monoid, Semigroup)
+  deriving (Eq, Show, Generic, Monoid, Semigroup, Arbitrary)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthScopes)
 
 instance ToSchema OAuthScopes where
@@ -225,6 +233,7 @@ data NewOAuthAuthorizationCode = NewOAuthAuthorizationCode
     noacState :: Text
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewOAuthAuthorizationCode)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOAuthAuthorizationCode)
 
 instance ToSchema NewOAuthAuthorizationCode where
@@ -244,7 +253,7 @@ instance ToSchema NewOAuthAuthorizationCode where
       stateDescription = description ?~ "An opaque value used by the client to maintain state between the request and callback. The authorization server includes this value when redirecting the user-agent back to the client.  The parameter SHOULD be used for preventing cross-site request forgery"
 
 newtype OAuthAuthorizationCode = OAuthAuthorizationCode {unOAuthAuthorizationCode :: AsciiBase16}
-  deriving (Eq, Generic)
+  deriving (Eq, Generic, Arbitrary)
 
 instance Show OAuthAuthorizationCode where
   show _ = "<OAuthAuthorizationCode>"
