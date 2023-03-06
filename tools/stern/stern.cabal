@@ -178,3 +178,17 @@ executable stern
     ld-options: -static
 
   default-language:   Haskell2010
+
+test-suite stern-tests
+  type:           exitcode-stdio-1.0
+  main-is:        Main.hs
+
+  -- cabal-fmt: expand test/unit
+  other-modules:  Main
+  hs-source-dirs: test/unit
+  build-depends:
+      base
+    , stern
+    , tasty
+    , tasty-hunit
+    , wire-api

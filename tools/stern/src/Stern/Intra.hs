@@ -22,7 +22,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Stern.Intra
-  ( assertBackendApiVersion,
+  ( backendApiVersion,
     putUser,
     putUserStatus,
     getContacts,
@@ -67,7 +67,6 @@ import qualified Bilge
 import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
-import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Data.Aeson hiding (Error)
@@ -95,7 +94,6 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
-import UnliftIO.Retry (constantDelay, limitRetries, recoverAll)
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Internal.Notification
@@ -120,17 +118,6 @@ import Wire.API.User.Search
 
 backendApiVersion :: Version
 backendApiVersion = V2
-
--- | Make sure the backend supports `backendApiVersion`.  Crash if it doesn't.  (This is called
--- in `Stern.API` so problems make `./services/run-service` crash.)
-assertBackendApiVersion :: App ()
-assertBackendApiVersion = recoverAll (constantDelay 1000000 <> limitRetries 5) $ \_retryStatus -> do
-  b <- view brig
-  vinfo :: VersionInfo <-
-    responseJsonError
-      =<< rpc' "brig" b (method GET . Bilge.path "/api-version" . contentJson . expect2xx)
-  unless (maximum (vinfoSupported vinfo) == backendApiVersion) $ do
-    throwIO . ErrorCall $ "newest supported backend api version must be " <> show backendApiVersion
 
 path :: ByteString -> Request -> Request
 path = Bilge.path . ((toPathComponent backendApiVersion <> "/") <>)
