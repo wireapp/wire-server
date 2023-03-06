@@ -3,6 +3,7 @@
 module Wire.API.Federation.HTTP2 where
 
 import Control.Concurrent.Async
+import Control.Concurrent.STM.TVar
 import Control.Exception
 import qualified Data.Map as Map
 import Data.Streaming.Network
@@ -20,39 +21,60 @@ data HTTP2Conn = HTTP2Conn
   }
 
 data HTTP2Manager = HTTP2Manager
-  { -- TODO: Look into some STM based map to avoid contention
-    connections :: MVar (Map (ByteString, Int) HTTP2Conn),
+  { connections :: TVar (Map (ByteString, Int) HTTP2Conn),
     cacheLimit :: Int
   }
 
 withHTTP2Request :: HTTP2Manager -> ByteString -> Int -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr host port req f = do
-  sendReq <- modifyMVar (connections mgr) $ \conns -> do
-    case Map.lookup (host, port) conns of
-      Nothing -> newConn conns
-      Just conn ->
-        -- If there is a connection for the (host,port), ensure that it is alive
-        -- before using it.
-        poll (backgroundThread conn) >>= \case
-          Nothing -> pure (conns, sendRequest conn)
-          Just (Left (SomeException _err)) ->
-            -- TODO: Log the error, maybe by adding a generic logger function to Http2Manager
-            newConn (Map.delete (host, port) conns)
-          Just (Right ()) ->
-            -- NOTE: or maybe just create a new connection?
-            error "impossible: http2 client ended successfully"
-  result <- newEmptyMVar
-  sendReq req (putMVar result <=< f)
-  -- The reqeust can only exit with an exception or after writing
-  -- the 'result' MVar, so the `Nothing` case _should_ never happen.
-  maybe (throw FailedToGetResponse) pure =<< tryTakeMVar result
+  mConn <- atomically getConnection
+  conn <- maybe connect pure mConn
+  -- Better than a null pointer
+  result <- newIORef (error "impossible")
+  sendRequest conn req (writeIORef result <=< f)
+  readIORef result
   where
-    newConn conns = do
+    -- Removes connection from map if it is not alive anymore
+    getConnection :: STM (Maybe HTTP2Conn)
+    getConnection = do
+      conns <- readTVar (connections mgr)
+      case Map.lookup (host, port) conns of
+        Nothing -> pure Nothing
+        Just conn ->
+          -- If there is a connection for the (host,port), ensure that it is alive
+          -- before using it.
+          pollSTM (backgroundThread conn) >>= \case
+            Nothing -> pure (Just conn)
+            Just (Left (SomeException _err)) -> do
+              -- TODO: Log the error, maybe by adding a generic logger function to Http2Manager
+              writeTVar (connections mgr) $ Map.delete (host, port) conns
+              pure Nothing
+            Just (Right ()) -> do
+              writeTVar (connections mgr) $ Map.delete (host, port) conns
+              pure Nothing
+
+    -- Ensures that any old connection is preserved. This is required to ensure
+    -- that concurrent calls to this function don't cause the connections to
+    -- leak. It is possible that the connection won't leak because it is waiting
+    -- on an MVar and as soon as it gets removed from the map and GC collects
+    -- the 'HTTP2Conn', the connection thread _should_ in theory get
+    -- 'BlockedIndefinitelyOnMVar' exception. So perhaps this is useless?
+    insertNewConn :: HTTP2Conn -> STM (Bool, HTTP2Conn)
+    insertNewConn newConn = do
+      stateTVar (connections mgr) $ \conns ->
+        case Map.lookup (host, port) conns of
+          Nothing -> ((True, newConn), Map.insert (host, port) newConn conns)
+          Just alreadyEstablishedConn -> ((False, alreadyEstablishedConn), conns)
+
+    connect :: IO HTTP2Conn
+    connect = do
       sendReqMVar <- newEmptyMVar
       stopMVar <- newEmptyMVar
-      thread <- async $ startPersistentHTTP2Connection host port (cacheLimit mgr) sendReqMVar stopMVar
-      sr <- takeMVar sendReqMVar
-      pure (Map.insert (host, port) (HTTP2Conn thread (putMVar stopMVar ()) sr) conns, sr)
+      thread <- liftIO . async $ startPersistentHTTP2Connection host port (cacheLimit mgr) sendReqMVar stopMVar
+      conn <- HTTP2Conn thread (putMVar stopMVar ()) <$> takeMVar sendReqMVar
+      (inserted, finalConn) <- atomically $ insertNewConn conn
+      unless inserted $ putMVar stopMVar ()
+      pure finalConn
 
 data Http2ManagerError = FailedToGetResponse
   deriving (Show)
