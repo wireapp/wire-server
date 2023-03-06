@@ -275,6 +275,7 @@ instance ToHttpApiData OAuthAuthorizationCode where
 
 data OAuthGrantType = OAuthGrantTypeAuthorizationCode | OAuthGrantTypeRefreshToken
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthGrantType)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthGrantType)
 
 instance ToSchema OAuthGrantType where
@@ -312,6 +313,7 @@ data OAuthAccessTokenRequest = OAuthAccessTokenRequest
     oatRedirectUri :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthAccessTokenRequest)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthAccessTokenRequest)
 
 instance ToSchema OAuthAccessTokenRequest where
@@ -351,6 +353,7 @@ instance ToForm OAuthAccessTokenRequest where
 
 data OAuthAccessTokenType = OAuthAccessTokenTypeBearer
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthAccessTokenType)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthAccessTokenType)
 
 instance ToSchema OAuthAccessTokenType where
