@@ -126,7 +126,13 @@ type GalleyApi =
            "on-client-removed"
            ClientRemovedRequest
            EmptyResponse
-    :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdateRequest EmptyResponse
+    :<|> FedEndpointWithMods
+           '[ MakesFederatedCall 'Galley "on-typing-indicator-updated"
+            ]
+           "update-typing-indicator"
+           TypingDataUpdateRequest
+           TypingDataUpdateResponse
+    :<|> FedEndpoint "on-typing-indicator-updated" TypingDataUpdated EmptyResponse
 
 data TypingDataUpdateRequest = TypingDataUpdateRequest
   { tdurTypingStatus :: TypingStatus,
@@ -135,6 +141,24 @@ data TypingDataUpdateRequest = TypingDataUpdateRequest
   }
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded TypingDataUpdateRequest)
+
+data TypingDataUpdateResponse
+  = TypingDataUpdateSuccess TypingDataUpdated
+  | TypingDataUpdateError GalleyError
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via (CustomEncoded TypingDataUpdateResponse)
+
+data TypingDataUpdated = TypingDataUpdated
+  { tudTime :: UTCTime,
+    tudOrigUserId :: Qualified UserId,
+    -- | Implicitely qualified by sender's domain
+    tudConvId :: ConvId,
+    -- | Implicitely qualified by receiver's domain
+    tudUsersInConv :: [UserId],
+    tudTypingStatus :: TypingStatus
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON) via (CustomEncoded TypingDataUpdated)
 
 data ClientRemovedRequest = ClientRemovedRequest
   { crrUser :: UserId,

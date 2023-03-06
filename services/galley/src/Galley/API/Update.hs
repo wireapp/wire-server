@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Update
   ( -- * Managing Conversations
@@ -55,8 +56,8 @@ module Galley.API.Update
     postOtrMessageUnqualified,
     postProteusBroadcast,
     postOtrBroadcastUnqualified,
-    isTypingUnqualified,
-    isTypingQualified,
+    memberTypingUnqualified,
+    memberTyping,
 
     -- * External Services
     addServiceH,
@@ -1331,11 +1332,12 @@ updateLocalConversationName lusr zcon lcnv rename =
   getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationRenameTag lcnv (tUntagged lusr) (Just zcon) rename
 
-isTypingQualified ::
+memberTyping ::
   ( Member GundeckAccess r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member ConversationStore r,
     Member MemberStore r,
     Member FederatorAccess r
   ) =>
@@ -1344,39 +1346,47 @@ isTypingQualified ::
   Qualified ConvId ->
   TypingStatus ->
   Sem r ()
-isTypingQualified lusr zcon qcnv ts = do
+memberTyping lusr zcon qcnv ts = do
   foldQualified
     lusr
-    (\lcnv -> isTypingUnqualified lusr zcon (tUnqualified lcnv) ts)
-    (\rcnv -> isTypingRemote rcnv)
+    ( \lcnv -> do
+        (conv, _) <- getConversationAndMemberWithError @'ConvNotFound (tUntagged lusr) lcnv
+        void $ notifyTypingIndicator conv (tUntagged lusr) (Just zcon) ts
+    )
+    ( \rcnv -> do
+        isMemberRemoteConv <- E.checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
+        unless isMemberRemoteConv $ throwS @'ConvNotFound
+        let rpc =
+              TypingDataUpdateRequest
+                { tdurTypingStatus = ts,
+                  tdurUserId = tUnqualified lusr,
+                  tdurConvId = tUnqualified rcnv
+                }
+        res <- E.runFederated rcnv (fedClient @'Galley @"update-typing-indicator" rpc)
+        case res of
+          TypingDataUpdateSuccess (TypingDataUpdated {..}) -> do
+            pushTypingIndicatorEvents tudOrigUserId tudTime tudUsersInConv (Just zcon) qcnv tudTypingStatus
+          TypingDataUpdateError _ -> pure ()
+    )
     qcnv
-  where
-    isTypingRemote rcnv = do
-      isMemberRemoteConv <- E.checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
-      unless isMemberRemoteConv $ throwS @'ConvNotFound
-      let rpc =
-            TypingDataUpdateRequest
-              { tdurTypingStatus = ts,
-                tdurUserId = tUnqualified lusr,
-                tdurConvId = tUnqualified rcnv
-              }
-      void $ E.runFederated rcnv (fedClient @'Galley @"on-typing-indicator-updated" rpc)
 
-isTypingUnqualified ::
+memberTypingUnqualified ::
   ( Member GundeckAccess r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
-    Member MemberStore r
+    Member MemberStore r,
+    Member ConversationStore r,
+    Member FederatorAccess r
   ) =>
   Local UserId ->
   ConnId ->
   ConvId ->
   TypingStatus ->
   Sem r ()
-isTypingUnqualified lusr zcon cnv ts = do
+memberTypingUnqualified lusr zcon cnv ts = do
   lcnv <- qualifyLocal cnv
-  isTyping (tUntagged lusr) (Just zcon) lcnv ts
+  memberTyping lusr zcon (tUntagged lcnv) ts
 
 addServiceH ::
   ( Member ServiceStore r,

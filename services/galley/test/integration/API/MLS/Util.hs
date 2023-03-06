@@ -144,12 +144,21 @@ postCommitBundle sender bundle = do
         . bytes bundle
     )
 
-postWelcome :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ByteString -> m ResponseLBS
+-- FUTUREWORK: remove this and start using commit bundles everywhere in tests
+postWelcome ::
+  ( MonadIO m,
+    MonadHttp m,
+    MonadReader TestSetup m,
+    HasCallStack
+  ) =>
+  UserId ->
+  ByteString ->
+  m ResponseLBS
 postWelcome uid welcome = do
-  galley <- viewGalley
+  galley <- view tsUnversionedGalley
   post
     ( galley
-        . paths ["mls", "welcome"]
+        . paths ["v2", "mls", "welcome"]
         . zUser uid
         . zConn "conn"
         . content "message/mls"
@@ -420,7 +429,8 @@ setupMLSGroup creator = setupMLSGroupWithConv action creator
         =<< liftTest
           ( postConvQualified
               (ciUser creator)
-              (defNewMLSConv (ciClient creator))
+              (Just (ciClient creator))
+              defNewMLSConv
           )
           <!! const 201 === statusCode
 

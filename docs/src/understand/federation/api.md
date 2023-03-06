@@ -200,6 +200,7 @@ to synchronize the state of the conversations of their members.
     remote user in a conversation (see end-to-end flows).
 - `on-mls-message-sent`: Receive a MLS message that originates in the calling backend
 - `on-new-remote-conversation`: Inform the called backend about a conversation that exists on the calling backend. This request is made before the first time the backend might learn about this conversation, e.g. when its first user is added to the conversation.
+- `update-typing-indicator`: Used by the calling backend (that does not own the conversation ) to inform the backend about a change of the typing indicator status of one of its users
 - `on-typing-indicator-updated`: Used by the calling backend (that owns a conversation) to inform the called backend about a change of the typing indicator status of remote user
 - `on-user-deleted-conversations`: When a user on calling backend this request is made for all conversations on the called backend was part of
 - `query-group-info`: Query the MLS public group state
