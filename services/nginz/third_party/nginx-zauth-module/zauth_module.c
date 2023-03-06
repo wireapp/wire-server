@@ -18,7 +18,6 @@ typedef struct {
 } ZauthLocationConf;
 
 enum {
-        CONTEXT_NONE = 0,
         CONTEXT_ZAUTH,
         CONTEXT_OAUTH
 };
@@ -180,7 +179,7 @@ static char * merge_srv_conf (ngx_conf_t * c, void * pc, void * cc) {
 
         if (child->oauth_key == NULL) {
                 child->oauth_key = parent->oauth_key;
-        }         
+        }
 
         if (child->keystore == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, c, 0, "missing 'zauth_keystore'");
@@ -195,7 +194,7 @@ static char * merge_srv_conf (ngx_conf_t * c, void * pc, void * cc) {
         if (child->oauth_key == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, c, 0, "missing 'oauth_key'");
                 return NGX_CONF_ERROR;
-        }        
+        }
 
         return NGX_CONF_OK;
 }
@@ -280,7 +279,7 @@ static char * load_oauth_key (ngx_conf_t * conf, ngx_command_t * cmd, void * dat
         if (status != OAUTH_OK || sc->oauth_key == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, conf, 0, "failed to load oauth key [%d]", status);
                 return NGX_CONF_ERROR;
-        }        
+        }
 
         return NGX_CONF_OK;
 }
@@ -630,7 +629,7 @@ static ngx_int_t zauth_token_var (ngx_http_request_t * r, ngx_http_variable_valu
                 if (t == NULL) {
                         return false;
                 }
-                
+
                 if (zauth_token_verification(t) != ZAUTH_TOKEN_VERIFICATION_SUCCESS) {
                         return false;
                 }
@@ -643,15 +642,15 @@ static ngx_int_t zauth_token_var (ngx_http_request_t * r, ngx_http_variable_valu
                 }
 
                 uint8_t is_allowed = 0;
-                
+
                 ngx_int_t res = zauth_token_allowed(t, sc->acl, r->uri.data, r->uri.len, &is_allowed);
-                
+
                 if (res != NGX_OK) {
                         return false;
                 }
 
                 return is_allowed == 1;
-        }        
+        }
 
         // in this function client, provider, and bot ID is retrieved from the ZAuth token
         // and assigned to variables that are used in the nginx config to set the corresponding headers (e.g. Z-Client, Z-Provider, ...).
