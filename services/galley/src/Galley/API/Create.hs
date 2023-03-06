@@ -106,10 +106,10 @@ createGroupConversation ::
     Member P.TinyLog r
   ) =>
   Local UserId ->
-  Maybe ConnId ->
+  ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversation lusr mConn newConv = do
+createGroupConversation lusr conn newConv = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
   checkCreateConvPermissions lusr newConv tinfo allUsers
@@ -140,7 +140,7 @@ createGroupConversation lusr mConn newConv = do
 
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation
-  notifyCreatedConversation (Just now) lusr mConn conv
+  notifyCreatedConversation (Just now) lusr (Just conn) conv
   conversationCreated lusr conv
 
 ensureNoLegalholdConflicts ::

@@ -339,7 +339,7 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZOptConn
+               :> ZConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationV2Verb
@@ -358,7 +358,7 @@ type ConversationAPI =
                :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
-               :> ZOptConn
+               :> ZConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
                :> ConversationVerb
