@@ -22,8 +22,10 @@ import Cassandra hiding (Set)
 import Control.Lens (preview, view, (%~), (?~))
 import Control.Monad.Except
 import Crypto.JWT hiding (Context, params, uri, verify)
+import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as M
 import qualified Data.Aeson.Types as A
+import Data.ByteArray (empty)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import qualified Data.HashMap.Strict as HM
@@ -369,6 +371,37 @@ newtype OAuthToken a = OAuthToken {unOAuthToken :: SignedJWT}
   deriving (Show, Eq, Generic)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema (OAuthToken a)
 
+{-
+
+doesn't work, the deserialized signature is different from the original one:
+
+OAuthAccessTokenResponse {oatAccessToken = OAuthToken {unOAuthToken = JWS Base64Octets "{}" Identity (Signature Nothing (JWSHeader {_jwsHeaderAlg = HeaderParam () EdDSA, _jwsHeaderJku = Nothing, _jwsHeaderJwk = Nothing, _jwsHeaderKid = Nothing, _jwsHeaderX5u = Nothing, _jwsHeaderX5c = Nothing, _jwsHeaderX5t = Nothing, _jwsHeaderX5tS256 = Nothing, _jwsHeaderTyp = Nothing, _jwsHeaderCty = Nothing, _jwsHeaderCrit = Nothing}) (Base64Octets "\234ty\DC3^\196W};\DC1\EM{\138(\250\130Y#\185\\\159\DEL\195\211\246\246\147\160QH\182\178\174\ETX\177\130\b\FS\253\231\NAK\ENQ\151\STX\157L\NULp\209~\175\142\204\156\173\&7\185#\r\CAN\177\154\215\v"))}, oatTokenType = OAuthAccessTokenTypeBearer, oatExpiresIn = 0.00025s, oatRefreshToken = OAuthToken {unOAuthToken = JWS Base64Octets "{}" Identity (Signature Nothing (JWSHeader {_jwsHeaderAlg = HeaderParam () EdDSA, _jwsHeaderJku = Nothing, _jwsHeaderJwk = Nothing, _jwsHeaderKid = Nothing, _jwsHeaderX5u = Nothing, _jwsHeaderX5c = Nothing, _jwsHeaderX5t = Nothing, _jwsHeaderX5tS256 = Nothing, _jwsHeaderTyp = Nothing, _jwsHeaderCty = Nothing, _jwsHeaderCrit = Nothing}) (Base64Octets "\234ty\DC3^\196W};\DC1\EM{\138(\250\130Y#\185\\\159\DEL\195\211\246\246\147\160QH\182\178\174\ETX\177\130\b\FS\253\231\NAK\ENQ\151\STX\157L\NULp\209~\175\142\204\156\173\&7\185#\r\CAN\177\154\215\v"))}}
+/=
+OAuthAccessTokenResponse {oatAccessToken = OAuthToken {unOAuthToken = JWS Base64Octets "{}" Identity (Signature (Just "eyJhbGciOiJFZERTQSJ9") (JWSHeader {_jwsHeaderAlg = HeaderParam () EdDSA, _jwsHeaderJku = Nothing, _jwsHeaderJwk = Nothing, _jwsHeaderKid = Nothing, _jwsHeaderX5u = Nothing, _jwsHeaderX5c = Nothing, _jwsHeaderX5t = Nothing, _jwsHeaderX5tS256 = Nothing, _jwsHeaderTyp = Nothing, _jwsHeaderCty = Nothing, _jwsHeaderCrit = Nothing}) (Base64Octets "\234ty\DC3^\196W};\DC1\EM{\138(\250\130Y#\185\\\159\DEL\195\211\246\246\147\160QH\182\178\174\ETX\177\130\b\FS\253\231\NAK\ENQ\151\STX\157L\NULp\209~\175\142\204\156\173\&7\185#\r\CAN\177\154\215\v"))}, oatTokenType = OAuthAccessTokenTypeBearer, oatExpiresIn = 0s, oatRefreshToken = OAuthToken {unOAuthToken = JWS Base64Octets "{}" Identity (Signature (Just "eyJhbGciOiJFZERTQSJ9") (JWSHeader {_jwsHeaderAlg = HeaderParam () EdDSA, _jwsHeaderJku = Nothing, _jwsHeaderJwk = Nothing, _jwsHeaderKid = Nothing, _jwsHeaderX5u = Nothing, _jwsHeaderX5c = Nothing, _jwsHeaderX5t = Nothing, _jwsHeaderX5tS256 = Nothing, _jwsHeaderTyp = Nothing, _jwsHeaderCty = Nothing, _jwsHeaderCrit = Nothing}) (Base64Octets "\234ty\DC3^\196W};\DC1\EM{\138(\250\130Y#\185\\\159\DEL\195\211\246\246\147\160QH\182\178\174\ETX\177\130\b\FS\253\231\NAK\ENQ\151\STX\157L\NULp\209~\175\142\204\156\173\&7\185#\r\CAN\177\154\215\v"))}}
+
+JSON:
+Object (fromList [("access_token",String "eyJhbGciOiJFZERTQSJ9.e30.6nR5E17EV307ERl7iij6glkjuVyff8PT9vaToFFItrKuA7GCCBz95xUFlwKdTABw0X6vjsycrTe5Iw0YsZrXCw"),("expires_in",Number 0.0),("refresh_token",String "eyJhbGciOiJFZERTQSJ9.e30.6nR5E17EV307ERl7iij6glkjuVyff8PT9vaToFFItrKuA7GCCBz95xUFlwKdTABw0X6vjsycrTe5Iw0YsZrXCw"),("token_type",String "Bearer")])
+-}
+instance Arbitrary (OAuthToken a) where
+  arbitrary = pure $ OAuthToken (fromRight (error "") (runDummy bar))
+    where
+      bar :: Dummy (Either JWTError SignedJWT)
+      bar = runJOSE $ do
+        algo <- bestJWSAlg key
+        signClaims key (newJWSHeader ((), algo)) emptyClaimsSet
+      key =
+        fromMaybe (error "invalid jwk") . A.decode $
+          "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"VWWycQ0yCoKAwN-DjjyQVWMRan1VOFUGlZpSTaLw1OA\",\"d\":\"kH9sO4hDmRQi31IncBvwiaRB9xo9UHVaSvfV7RWiQOg\"}"
+
+runDummy :: Dummy a -> a
+runDummy (Dummy a) = runIdentity a
+
+newtype Dummy a = Dummy (Identity a)
+  deriving (Functor, Applicative, Monad)
+
+instance Crypto.JWT.MonadRandom Dummy where
+  getRandomBytes _ = pure empty
+
 instance ToByteString (OAuthToken a) where
   builder = builder . encodeCompact . unOAuthToken
 
@@ -401,6 +434,7 @@ data OAuthAccessTokenResponse = OAuthAccessTokenResponse
     oatRefreshToken :: OAuthRefreshToken
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OAuthAccessTokenResponse)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthAccessTokenResponse)
 
 instance ToSchema OAuthAccessTokenResponse where
