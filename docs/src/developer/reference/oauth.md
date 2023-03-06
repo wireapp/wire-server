@@ -173,6 +173,8 @@ Example response:
 }
 ```
 
+The expiration time the response (`expires_in`) refers to the expiration time of the access token.
+
 ### Accessing a resource
 
 The access token, presented as `Bearer <token>` in the `Authorization` header, can now be used by the 3rd party app to access resources on behalf of the user (9.-11. in diagram above).
@@ -307,6 +309,14 @@ brig:
 
 To use the OAuth functionality, you will need to set up a public and private JSON web key pair (JWK) in the wire-server Helm chart. This key pair will be used to sign and verify OAuth access tokens.
 
+Key can be generated e.g. with [jwx](https://github.com/lestrrat-go/jwx/tree/develop/v2/cmd/jwx) like this:
+
+```shell
+jwx jwk generate --type OKP --curve Ed25519 | jq -c
+```
+
+`jwx` is available via nix: `nix-shell -p jwx`.
+
 To configure the JWK, go to the wire-server Helm chart and provide the JWK information, as shown in the example below:
 
 ```yaml
@@ -401,6 +411,7 @@ a user can have more than one active refresh token for the same 3rd party app (e
 the maximum number of active refresh tokens per user and app should be limited (what is a sensitive number, 10?)
 
 once a new token is requested and the limit is exceeded, the oldest refresh token will be deleted/invalidated
+if the bearer of the invalidated token is not identical to the requester, it could mean that the bearer of the invalidated token needs to re-authorize
 
 once a refresh token is used, it will be invalidated and a new refresh token will be generated and returned as part of the response (token rotation)
 

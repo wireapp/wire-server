@@ -39,7 +39,9 @@ import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
 import Data.Text.Encoding.Error as TErr
 import Data.Time
+import GHC.TypeLits (Nat, symbolVal)
 import Imports hiding (exp, head)
+import Prelude.Singletons (Show_)
 import Servant hiding (Handler, JSON, Tagged, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Test.QuickCheck (Arbitrary)
@@ -80,7 +82,11 @@ instance FromHttpApiData RedirectUrl where
   parseUrlPiece = parseHeader . TE.encodeUtf8
   parseHeader = bimap (T.pack . show) RedirectUrl . parseURI strictURIParserOptions
 
-newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: Range 6 256 Text}
+type OAuthApplicationNameMinLength = (6 :: Nat)
+
+type OAuthApplicationNameMaxLength = (256 :: Nat)
+
+newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: Range OAuthApplicationNameMinLength OAuthApplicationNameMaxLength Text}
   deriving (Eq, Show, Generic, Ord)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema OAuthApplicationName)
 
@@ -101,8 +107,10 @@ instance ToSchema NewOAuthClient where
         <$> nocApplicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
         <*> nocRedirectUrl .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
     where
-      applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application. The name must be between 6 and 256 characters long."
+      applicationNameDescription = description ?~ "The name of the application. This will be shown to the user when they are asked to authorize the application. The name must be between " <> minL <> " and " <> maxL <> " characters long."
       redirectUrlDescription = description ?~ "The URL to redirect to after the user has authorized the application."
+      minL = cs @String @Text $ symbolVal $ Proxy @(Show_ OAuthApplicationNameMinLength)
+      maxL = cs @String @Text $ symbolVal $ Proxy @(Show_ OAuthApplicationNameMaxLength)
 
 newtype OAuthClientPlainTextSecret = OAuthClientPlainTextSecret {unOAuthClientPlainTextSecret :: AsciiBase16}
   deriving (Eq, Generic)
@@ -173,15 +181,15 @@ instance ToSchema OAuthResponseType where
 data OAuthScope
   = ReadFeatureConfigs
   | ReadSelf
-  | WriteConversation
-  | WriteConversationCode
+  | WriteConversations
+  | WriteConversationsCode
   deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
 instance ToByteString OAuthScope where
   builder = \case
-    WriteConversation -> "write:conversations"
-    WriteConversationCode -> "write:conversations_code"
+    WriteConversations -> "write:conversations"
+    WriteConversationsCode -> "write:conversations_code"
     ReadSelf -> "read:self"
     ReadFeatureConfigs -> "read:feature_configs"
 
@@ -189,8 +197,8 @@ instance FromByteString OAuthScope where
   parser = do
     s <- parser
     case T.toLower s of
-      "write:conversations" -> pure WriteConversation
-      "write:conversations_code" -> pure WriteConversationCode
+      "write:conversations" -> pure WriteConversations
+      "write:conversations_code" -> pure WriteConversationsCode
       "read:self" -> pure ReadSelf
       "read:feature_configs" -> pure ReadFeatureConfigs
       _ -> fail "invalid scope"
@@ -206,7 +214,6 @@ instance ToSchema OAuthScopes where
       oauthScopesToText = T.intercalate " " . fmap (cs . toByteString') . Set.toList
 
       oauthScopeParser :: Text -> A.Parser (Set OAuthScope)
-      oauthScopeParser "" = pure Set.empty
       oauthScopeParser scope =
         pure $ (not . T.null) `filter` T.splitOn " " scope & maybe Set.empty Set.fromList . mapM (fromByteString' . cs)
 
