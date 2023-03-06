@@ -46,6 +46,7 @@ where
 import Control.Lens (at, (%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.SOP
@@ -57,7 +58,6 @@ import GHC.TypeLits
 import Imports hiding (All)
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
-import Numeric.Natural
 import Polysemy
 import Polysemy.Error
 import Servant
@@ -204,8 +204,12 @@ errorResponseSwagger =
 
 addStaticErrorToSwagger :: forall e. KnownError e => S.Swagger -> S.Swagger
 addStaticErrorToSwagger =
-  S.allOperations . S.responses . S.responses . at (fromIntegral (eCode err))
-    %~ Just . addRef
+  S.allOperations
+    . S.responses
+    . S.responses
+    . at (fromIntegral (eCode err))
+    %~ Just
+    . addRef
   where
     err = dynError @e
     resp = errorResponseSwagger @e
@@ -261,13 +265,13 @@ instance APIError Wai.Error where
 instance APIError DynError where
   toWai (DynError c l m) = Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
 
-instance KnownError e => APIError (SStaticError e) where
+instance APIError (SStaticError e) where
   toWai = toWai . dynError'
 
 --------------------------------------------------------------------------------
 -- MultiVerb support
 
-type family RespondWithStaticError (s :: StaticError) :: * where
+type family RespondWithStaticError (s :: StaticError) :: Type where
   RespondWithStaticError ('StaticError s l m) = RespondAs JSON s m DynError
 
 type family StaticErrorStatus (s :: StaticError) :: Nat where

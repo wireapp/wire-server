@@ -18,6 +18,7 @@
 module Wire.API.Routes.Versioned where
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Kind
 import Data.Metrics.Servant
 import Data.Schema
 import Data.Singletons
@@ -34,7 +35,7 @@ import Wire.API.Routes.Version
 --------------------------------------
 -- Versioned requests
 
-data VersionedReqBody' v (mods :: [*]) (ct :: [*]) (a :: *)
+data VersionedReqBody' v (mods :: [Type]) (ct :: [Type]) (a :: Type)
 
 type VersionedReqBody v = VersionedReqBody' v '[Required, Strict]
 
@@ -57,8 +58,7 @@ instance
   route _p ctx d = route (Proxy :: Proxy (ReqBody cts (Versioned v a) :> api)) ctx (fmap (. unVersioned) d)
 
 instance
-  ( HasSwagger (ReqBody' '[Required, Strict] cts a :> api),
-    S.ToSchema (Versioned v a),
+  ( S.ToSchema (Versioned v a),
     HasSwagger api,
     AllAccept cts
   ) =>
@@ -69,7 +69,7 @@ instance
 --------------------------------------------------------------------------------
 -- Versioned responses
 
-data VersionedRespond v (s :: Nat) (desc :: Symbol) (a :: *)
+data VersionedRespond v (s :: Nat) (desc :: Symbol) (a :: Type)
 
 type instance ResponseType (VersionedRespond v s desc a) = a
 

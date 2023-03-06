@@ -30,7 +30,6 @@ module Galley.API.Teams
     deleteTeam,
     uncheckedDeleteTeam,
     addTeamMember,
-    getTeamNotificationsH,
     getTeamConversationRoles,
     getTeamMembers,
     getTeamMembersCSV,
@@ -83,8 +82,6 @@ import Data.Qualified
 import Data.Range as Range
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime)
-import qualified Data.UUID as UUID
-import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import qualified Galley.API.Teams.Notifications as APITeamQueue
@@ -112,11 +109,9 @@ import Galley.Intra.Push
 import Galley.Options
 import qualified Galley.Types.Conversations.Members as Conv
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.Wai
-import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
@@ -132,10 +127,9 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Conversation as Conv
 import Wire.API.Event.Team
-import Wire.API.Federation.API
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Conv
-import qualified Wire.API.Notification as Public
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (MultiTablePage (MultiTablePage), MultiTablePagingState (mtpsState))
 import Wire.API.Routes.Public.Galley.TeamMember
 import Wire.API.Team
@@ -167,14 +161,18 @@ getTeamH zusr tid =
   maybe (throwS @'TeamNotFound) pure =<< lookupTeam zusr tid
 
 getTeamInternalH ::
-  Members '[ErrorS 'TeamNotFound, TeamStore] r =>
+  ( Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r
+  ) =>
   TeamId ->
   Sem r TeamData
 getTeamInternalH tid =
   E.getTeam tid >>= noteS @'TeamNotFound
 
 getTeamNameInternalH ::
-  Members '[ErrorS 'TeamNotFound, TeamStore] r =>
+  ( Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r
+  ) =>
   TeamId ->
   Sem r TeamName
 getTeamNameInternalH tid =
@@ -197,7 +195,10 @@ getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 -- between 1 and 100, and that will always be an upper bound of the result set of size 0 or
 -- one.)
 getManyTeams ::
-  (Members '[TeamStore, Queue DeleteItem, ListItems LegacyPaging TeamId] r) =>
+  ( Member TeamStore r,
+    Member (Queue DeleteItem) r,
+    Member (ListItems LegacyPaging TeamId) r
+  ) =>
   UserId ->
   Sem r Public.TeamList
 getManyTeams zusr =
@@ -206,7 +207,9 @@ getManyTeams zusr =
     pure (Public.newTeamList (catMaybes teams) more)
 
 lookupTeam ::
-  Members '[TeamStore, Queue DeleteItem] r =>
+  ( Member TeamStore r,
+    Member (Queue DeleteItem) r
+  ) =>
   UserId ->
   TeamId ->
   Sem r (Maybe Public.Team)
@@ -228,8 +231,7 @@ createNonBindingTeamH ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
-    Member TeamStore r,
-    Member WaiRoutes r
+    Member TeamStore r
   ) =>
   UserId ->
   ConnId ->
@@ -259,7 +261,10 @@ createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
   pure (team ^. teamId)
 
 createBindingTeam ::
-  Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
+  ( Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member TeamStore r
+  ) =>
   TeamId ->
   UserId ->
   BindingNewTeam ->
@@ -272,16 +277,14 @@ createBindingTeam tid zusr (BindingNewTeam body) = do
   pure tid
 
 updateTeamStatus ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'InvalidTeamStatusUpdate,
-       ErrorS 'TeamNotFound,
-       Input Opts,
-       Input UTCTime,
-       P.TinyLog,
-       TeamStore
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'InvalidTeamStatusUpdate) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r,
+    Member TeamStore r
+  ) =>
   TeamId ->
   TeamStatusUpdate ->
   Sem r ()
@@ -315,14 +318,12 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       (_, _) -> throwS @'InvalidTeamStatusUpdate
 
 updateTeamH ::
-  Members
-    '[ ErrorS 'NotATeamMember,
-       ErrorS ('MissingPermission ('Just 'SetTeamData)),
-       GundeckAccess,
-       Input UTCTime,
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS ('MissingPermission ('Just 'SetTeamData))) r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   ConnId ->
   TeamId ->
@@ -346,7 +347,6 @@ deleteTeam ::
   forall r.
   ( Member BrigAccess r,
     Member (Error AuthenticationError) r,
-    Member (Error InvalidInput) r,
     Member (ErrorS 'DeleteQueueFull) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS OperationDenied) r,
@@ -376,15 +376,13 @@ deleteTeam zusr zcon tid body = do
 
 -- This can be called by stern
 internalDeleteBindingTeam ::
-  Members
-    '[ ErrorS 'NoBindingTeam,
-       ErrorS 'TeamNotFound,
-       ErrorS 'NotAOneMemberTeam,
-       ErrorS 'DeleteQueueFull,
-       Queue DeleteItem,
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'NoBindingTeam) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NotAOneMemberTeam) r,
+    Member (ErrorS 'DeleteQueueFull) r,
+    Member (Queue DeleteItem) r,
+    Member TeamStore r
+  ) =>
   TeamId ->
   Bool ->
   Sem r ()
@@ -404,18 +402,16 @@ internalDeleteBindingTeam tid force = do
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::
   forall r.
-  Members
-    '[ BrigAccess,
-       ExternalAccess,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       LegalHoldStore,
-       MemberStore,
-       SparAccess,
-       TeamStore
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member MemberStore r,
+    Member SparAccess r,
+    Member TeamStore r
+  ) =>
   Local UserId ->
   Maybe ConnId ->
   TeamId ->
@@ -480,7 +476,9 @@ uncheckedDeleteTeam lusr zcon tid = do
       pure (pp', ee' ++ ee)
 
 getTeamConversationRoles ::
-  Members '[ErrorS 'NotATeamMember, TeamStore] r =>
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   TeamId ->
   Sem r Public.ConversationRolesList
@@ -491,7 +489,10 @@ getTeamConversationRoles zusr tid = do
   pure $ Public.ConversationRolesList wireConvRoles
 
 getTeamMembers ::
-  Members '[ErrorS 'NotATeamMember, TeamStore, TeamMemberStore CassandraPaging] r =>
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member TeamStore r,
+    Member (TeamMemberStore CassandraPaging) r
+  ) =>
   Local UserId ->
   TeamId ->
   Maybe (Range 1 Public.HardTruncationLimit Int32) ->
@@ -521,7 +522,13 @@ outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
     void . weave . (<$ state) $ runOutputSem writeChunk action
 
 getTeamMembersCSV ::
-  (Members '[BrigAccess, ErrorS 'AccessDenied, TeamMemberStore InternalPaging, TeamStore, Final IO, SparAccess] r) =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'AccessDenied) r,
+    Member (TeamMemberStore InternalPaging) r,
+    Member TeamStore r,
+    Member (Final IO) r,
+    Member SparAccess r
+  ) =>
   Local UserId ->
   TeamId ->
   Sem r StreamingBody
@@ -632,7 +639,10 @@ getTeamMembersCSV lusr tid = do
 
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers ::
-  Members '[ErrorS 'BulkGetMemberLimitExceeded, ErrorS 'NotATeamMember, TeamStore] r =>
+  ( Member (ErrorS 'BulkGetMemberLimitExceeded) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member TeamStore r
+  ) =>
   Local UserId ->
   TeamId ->
   Maybe (Range 1 HardTruncationLimit Int32) ->
@@ -648,7 +658,10 @@ bulkGetTeamMembers lzusr tid mbMaxResults uids = do
   pure $ setOptionalPermsMany withPerms (newTeamMemberList mems hasMore)
 
 getTeamMember ::
-  Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>
+  ( Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member TeamStore r
+  ) =>
   Local UserId ->
   TeamId ->
   UserId ->
@@ -662,7 +675,9 @@ getTeamMember lzusr tid uid = do
   pure $ setOptionalPerms withPerms member
 
 uncheckedGetTeamMember ::
-  Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
+  ( Member (ErrorS 'TeamMemberNotFound) r,
+    Member TeamStore r
+  ) =>
   TeamId ->
   UserId ->
   Sem r TeamMember
@@ -686,29 +701,24 @@ uncheckedGetTeamMembers = E.getTeamMembersWithLimit
 
 addTeamMember ::
   forall db r.
-  ( Members
-      '[ BrigAccess,
-         GundeckAccess,
-         ErrorS 'InvalidPermissions,
-         ErrorS 'NoAddToBinding,
-         ErrorS 'NotATeamMember,
-         ErrorS 'NotConnected,
-         ErrorS OperationDenied,
-         ErrorS 'TeamNotFound,
-         ErrorS 'TooManyTeamMembers,
-         ErrorS 'UserBindingExists,
-         ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
-         Input (Local ()),
-         Input Opts,
-         Input UTCTime,
-         LegalHoldStore,
-         MemberStore,
-         TeamFeatureStore db,
-         TeamNotificationStore,
-         TeamStore,
-         P.TinyLog
-       ]
-      r,
+  ( Member BrigAccess r,
+    Member GundeckAccess r,
+    Member (ErrorS 'InvalidPermissions) r,
+    Member (ErrorS 'NoAddToBinding) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'UserBindingExists) r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member (TeamFeatureStore db) r,
+    Member TeamNotificationStore r,
+    Member TeamStore r,
+    Member P.TinyLog r,
     FeaturePersistentConstraint db LegalholdConfig
   ) =>
   Local UserId ->
@@ -739,22 +749,17 @@ addTeamMember lzusr zcon tid nmem = do
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
   forall db r.
-  ( Members
-      '[ BrigAccess,
-         GundeckAccess,
-         ErrorS 'TooManyTeamMembers,
-         Input (Local ()),
-         ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
-         Input Opts,
-         Input UTCTime,
-         MemberStore,
-         LegalHoldStore,
-         P.TinyLog,
-         TeamFeatureStore db,
-         TeamNotificationStore,
-         TeamStore
-       ]
-      r,
+  ( Member BrigAccess r,
+    Member GundeckAccess r,
+    Member (ErrorS 'TooManyTeamMembers) r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member P.TinyLog r,
+    Member (TeamFeatureStore db) r,
+    Member TeamNotificationStore r,
+    Member TeamStore r,
     FeaturePersistentConstraint db LegalholdConfig
   ) =>
   TeamId ->
@@ -770,21 +775,15 @@ uncheckedAddTeamMember tid nmem = do
 
 uncheckedUpdateTeamMember ::
   forall r.
-  Members
-    '[ BrigAccess,
-       ErrorS 'AccessDenied,
-       ErrorS 'InvalidPermissions,
-       ErrorS 'TeamNotFound,
-       ErrorS 'TeamMemberNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       P.TinyLog,
-       TeamStore
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'TeamMemberNotFound) r,
+    Member GundeckAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r,
+    Member TeamStore r
+  ) =>
   Maybe (Local UserId) ->
   Maybe ConnId ->
   TeamId ->
@@ -834,21 +833,19 @@ uncheckedUpdateTeamMember mlzusr mZcon tid newMember = do
 
 updateTeamMember ::
   forall r.
-  Members
-    '[ BrigAccess,
-       ErrorS 'AccessDenied,
-       ErrorS 'InvalidPermissions,
-       ErrorS 'TeamNotFound,
-       ErrorS 'TeamMemberNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       P.TinyLog,
-       TeamStore
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'AccessDenied) r,
+    Member (ErrorS 'InvalidPermissions) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member GundeckAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r,
+    Member TeamStore r
+  ) =>
   Local UserId ->
   ConnId ->
   TeamId ->
@@ -888,25 +885,23 @@ updateTeamMember lzusr zcon tid newMember = do
         && permissionsRole targetPermissions /= Just RoleOwner
 
 deleteTeamMember ::
-  Members
-    '[ BrigAccess,
-       ConversationStore,
-       Error AuthenticationError,
-       Error InvalidInput,
-       ErrorS 'AccessDenied,
-       ErrorS 'TeamMemberNotFound,
-       ErrorS 'TeamNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ExternalAccess,
-       Input Opts,
-       Input UTCTime,
-       GundeckAccess,
-       MemberStore,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Error AuthenticationError) r,
+    Member (Error InvalidInput) r,
+    Member (ErrorS 'AccessDenied) r,
+    Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member ExternalAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   ConnId ->
   TeamId ->
@@ -916,25 +911,23 @@ deleteTeamMember ::
 deleteTeamMember lusr zcon tid remove body = deleteTeamMember' lusr zcon tid remove (Just body)
 
 deleteNonBindingTeamMember ::
-  Members
-    '[ BrigAccess,
-       ConversationStore,
-       Error AuthenticationError,
-       Error InvalidInput,
-       ErrorS 'AccessDenied,
-       ErrorS 'TeamMemberNotFound,
-       ErrorS 'TeamNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ExternalAccess,
-       Input Opts,
-       Input UTCTime,
-       GundeckAccess,
-       MemberStore,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Error AuthenticationError) r,
+    Member (Error InvalidInput) r,
+    Member (ErrorS 'AccessDenied) r,
+    Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member ExternalAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   ConnId ->
   TeamId ->
@@ -944,25 +937,23 @@ deleteNonBindingTeamMember lusr zcon tid remove = deleteTeamMember' lusr zcon ti
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
 deleteTeamMember' ::
-  Members
-    '[ BrigAccess,
-       ConversationStore,
-       Error AuthenticationError,
-       Error InvalidInput,
-       ErrorS 'AccessDenied,
-       ErrorS 'TeamMemberNotFound,
-       ErrorS 'TeamNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ExternalAccess,
-       Input Opts,
-       Input UTCTime,
-       GundeckAccess,
-       MemberStore,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member (Error AuthenticationError) r,
+    Member (Error InvalidInput) r,
+    Member (ErrorS 'AccessDenied) r,
+    Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member ExternalAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   ConnId ->
   TeamId ->
@@ -1005,15 +996,13 @@ deleteTeamMember' lusr zcon tid remove mBody = do
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
 uncheckedDeleteTeamMember ::
   forall r.
-  Members
-    '[ ConversationStore,
-       GundeckAccess,
-       ExternalAccess,
-       Input UTCTime,
-       MemberStore,
-       TeamStore
-     ]
-    r =>
+  ( Member ConversationStore r,
+    Member GundeckAccess r,
+    Member ExternalAccess r,
+    Member (Input UTCTime) r,
+    Member MemberStore r,
+    Member TeamStore r
+  ) =>
   Local UserId ->
   Maybe ConnId ->
   TeamId ->
@@ -1063,12 +1052,10 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       E.deliverAsync (bots `zip` repeat y)
 
 getTeamConversations ::
-  Members
-    '[ ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   TeamId ->
   Sem r Public.TeamConversationList
@@ -1081,13 +1068,11 @@ getTeamConversations zusr tid = do
   Public.newTeamConversationList <$> E.getTeamConversations tid
 
 getTeamConversation ::
-  Members
-    '[ ErrorS 'ConvNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   TeamId ->
   ConvId ->
@@ -1102,26 +1087,18 @@ getTeamConversation zusr tid cid = do
     >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
-  ( Members
-      '[ CodeStore,
-         ConversationStore,
-         Error FederationError,
-         Error InvalidInput,
-         ErrorS 'ConvNotFound,
-         ErrorS 'InvalidOperation,
-         ErrorS 'NotATeamMember,
-         ErrorS ('ActionDenied 'DeleteConversation),
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input UTCTime,
-         TeamStore
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
+  ( Member CodeStore r,
+    Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS ('ActionDenied 'DeleteConversation)) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member TeamStore r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1133,13 +1110,11 @@ deleteTeamConversation lusr zcon _tid cid = do
   void $ API.deleteLocalConversation lusr zcon lconv
 
 getSearchVisibility ::
-  Members
-    '[ ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       SearchVisibilityStore,
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member SearchVisibilityStore r,
+    Member TeamStore r
+  ) =>
   Local UserId ->
   TeamId ->
   Sem r TeamSearchVisibilityView
@@ -1149,19 +1124,12 @@ getSearchVisibility luid tid = do
   getSearchVisibilityInternal tid
 
 setSearchVisibility ::
-  forall db r.
-  ( Members
-      '[ ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
-         ErrorS 'TeamSearchVisibilityNotEnabled,
-         Input Opts,
-         SearchVisibilityStore,
-         TeamStore,
-         TeamFeatureStore db,
-         WaiRoutes
-       ]
-      r,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig
+  forall r.
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'TeamSearchVisibilityNotEnabled) r,
+    Member SearchVisibilityStore r,
+    Member TeamStore r
   ) =>
   (TeamId -> Sem r Bool) ->
   Local UserId ->
@@ -1171,7 +1139,7 @@ setSearchVisibility ::
 setSearchVisibility availableForTeam luid tid req = do
   zusrMembership <- E.getTeamMember tid (tUnqualified luid)
   void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
-  setSearchVisibilityInternal @db availableForTeam tid req
+  setSearchVisibilityInternal availableForTeam tid req
 
 -- Internal -----------------------------------------------------------------
 
@@ -1206,7 +1174,12 @@ withTeamIds usr range size k = case range of
     k False ids
 {-# INLINE withTeamIds #-}
 
-ensureUnboundUsers :: Members '[ErrorS 'UserBindingExists, TeamStore] r => [UserId] -> Sem r ()
+ensureUnboundUsers ::
+  ( Member (ErrorS 'UserBindingExists) r,
+    Member TeamStore r
+  ) =>
+  [UserId] ->
+  Sem r ()
 ensureUnboundUsers uids = do
   -- We check only 1 team because, by definition, users in binding teams
   -- can only be part of one team.
@@ -1216,7 +1189,10 @@ ensureUnboundUsers uids = do
     throwS @'UserBindingExists
 
 ensureNonBindingTeam ::
-  Members '[ErrorS 'TeamNotFound, ErrorS 'NoAddToBinding, TeamStore] r =>
+  ( Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NoAddToBinding) r,
+    Member TeamStore r
+  ) =>
   TeamId ->
   Sem r ()
 ensureNonBindingTeam tid = do
@@ -1235,7 +1211,10 @@ ensureNotElevated targetPermissions member =
     $ throwS @'InvalidPermissions
 
 ensureNotTooLarge ::
-  Members '[BrigAccess, ErrorS 'TooManyTeamMembers, Input Opts] r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'TooManyTeamMembers) r,
+    Member (Input Opts) r
+  ) =>
   TeamId ->
   Sem r TeamSize
 ensureNotTooLarge tid = do
@@ -1256,13 +1235,10 @@ ensureNotTooLarge tid = do
 --  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold ::
   forall db r.
-  ( Members
-      '[ LegalHoldStore,
-         TeamStore,
-         TeamFeatureStore db,
-         ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
-       ]
-      r,
+  ( Member LegalHoldStore r,
+    Member TeamStore r,
+    Member (TeamFeatureStore db) r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     FeaturePersistentConstraint db LegalholdConfig
   ) =>
   TeamId ->
@@ -1274,7 +1250,10 @@ ensureNotTooLargeForLegalHold tid teamSize =
       throwS @'TooManyTeamMembersOnTeamWithLegalhold
 
 ensureNotTooLargeToActivateLegalHold ::
-  Members '[BrigAccess, ErrorS 'CannotEnableLegalHoldServiceLargeTeam, TeamStore] r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,
+    Member TeamStore r
+  ) =>
   TeamId ->
   Sem r ()
 ensureNotTooLargeToActivateLegalHold tid = do
@@ -1294,19 +1273,15 @@ teamSizeBelowLimit teamSize = do
       pure True
 
 addTeamMemberInternal ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'TooManyTeamMembers,
-       GundeckAccess,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       TeamNotificationStore,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'TooManyTeamMembers) r,
+    Member GundeckAccess r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member TeamNotificationStore r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   TeamId ->
   Maybe UserId ->
   Maybe ConnId ->
@@ -1335,42 +1310,11 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
         (userRecipient (n ^. userId))
         (membersToRecipients Nothing (memList ^. teamMembers))
 
--- | See also: 'Gundeck.API.Public.paginateH', but the semantics of this end-point is slightly
--- less warped.  This is a work-around because we cannot send events to all of a large team.
--- See haddocks of module "Galley.API.TeamNotifications" for details.
-getTeamNotificationsH ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'TeamNotFound,
-       Error InvalidInput,
-       TeamNotificationStore
-     ]
-    r =>
-  UserId
-    ::: Maybe ByteString {- NotificationId -}
-    ::: Range 1 10000 Int32
-    ::: JSON ->
-  Sem r Response
-getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
-  since <- parseSince
-  json @Public.QueuedNotificationList
-    <$> APITeamQueue.getTeamNotifications zusr since size
-  where
-    parseSince :: Member (Error InvalidInput) r => Sem r (Maybe Public.NotificationId)
-    parseSince = maybe (pure Nothing) (fmap Just . parseUUID) sinceRaw
-
-    parseUUID :: Member (Error InvalidInput) r => ByteString -> Sem r Public.NotificationId
-    parseUUID raw =
-      maybe
-        (throw InvalidTeamNotificationId)
-        (pure . Id)
-        ((UUID.fromASCIIBytes >=> isV1UUID) raw)
-
-    isV1UUID :: UUID.UUID -> Maybe UUID.UUID
-    isV1UUID u = if UUID.version u == 1 then Just u else Nothing
-
 finishCreateTeam ::
-  Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
+  ( Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member TeamStore r
+  ) =>
   Team ->
   TeamMember ->
   [TeamMember] ->
@@ -1386,24 +1330,28 @@ finishCreateTeam team owner others zcon = do
   E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
 getBindingTeamIdH ::
-  Members '[ErrorS 'TeamNotFound, ErrorS 'NonBindingTeam, TeamStore] r =>
+  ( Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NonBindingTeam) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   Sem r Response
 getBindingTeamIdH = fmap json . E.lookupBindingTeam
 
 getBindingTeamMembersH ::
-  Members '[ErrorS 'TeamNotFound, ErrorS 'NonBindingTeam, TeamStore] r =>
+  ( Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NonBindingTeam) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   Sem r Response
 getBindingTeamMembersH = fmap json . getBindingTeamMembers
 
 getBindingTeamMembers ::
-  Members
-    '[ ErrorS 'TeamNotFound,
-       ErrorS 'NonBindingTeam,
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS 'NonBindingTeam) r,
+    Member TeamStore r
+  ) =>
   UserId ->
   Sem r TeamMemberList
 getBindingTeamMembers zusr = do
@@ -1425,14 +1373,11 @@ getBindingTeamMembers zusr = do
 -- RegisterError`.
 canUserJoinTeam ::
   forall db r.
-  ( Members
-      '[ BrigAccess,
-         LegalHoldStore,
-         TeamStore,
-         TeamFeatureStore db,
-         ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
-       ]
-      r,
+  ( Member BrigAccess r,
+    Member LegalHoldStore r,
+    Member TeamStore r,
+    Member (TeamFeatureStore db) r,
+    Member (ErrorS 'TooManyTeamMembersOnTeamWithLegalhold) r,
     FeaturePersistentConstraint db LegalholdConfig
   ) =>
   TeamId ->
@@ -1453,15 +1398,9 @@ getSearchVisibilityInternal =
     . SearchVisibilityData.getSearchVisibility
 
 setSearchVisibilityInternal ::
-  forall db r.
-  ( Members
-      '[ ErrorS 'TeamSearchVisibilityNotEnabled,
-         Input Opts,
-         SearchVisibilityStore,
-         TeamFeatureStore db
-       ]
-      r,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig
+  forall r.
+  ( Member (ErrorS 'TeamSearchVisibilityNotEnabled) r,
+    Member SearchVisibilityStore r
   ) =>
   (TeamId -> Sem r Bool) ->
   TeamId ->
@@ -1473,14 +1412,12 @@ setSearchVisibilityInternal availableForTeam tid (TeamSearchVisibilityView searc
   SearchVisibilityData.setSearchVisibility tid searchVisibility
 
 userIsTeamOwner ::
-  Members
-    '[ ErrorS 'TeamMemberNotFound,
-       ErrorS 'AccessDenied,
-       ErrorS 'NotATeamMember,
-       Input (Local ()),
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'TeamMemberNotFound) r,
+    Member (ErrorS 'AccessDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (Input (Local ())) r,
+    Member TeamStore r
+  ) =>
   TeamId ->
   UserId ->
   Sem r ()
@@ -1491,7 +1428,9 @@ userIsTeamOwner tid uid = do
 
 -- Queues a team for async deletion
 queueTeamDeletion ::
-  Members '[ErrorS 'DeleteQueueFull, Queue DeleteItem] r =>
+  ( Member (ErrorS 'DeleteQueueFull) r,
+    Member (Queue DeleteItem) r
+  ) =>
   TeamId ->
   UserId ->
   Maybe ConnId ->

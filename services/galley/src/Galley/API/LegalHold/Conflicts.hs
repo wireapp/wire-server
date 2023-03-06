@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 
 module Galley.API.LegalHold.Conflicts where
 
@@ -46,15 +47,13 @@ import Wire.API.User.Client as Client
 data LegalholdConflicts = LegalholdConflicts
 
 guardQualifiedLegalholdPolicyConflicts ::
-  Members
-    '[ BrigAccess,
-       Error LegalholdConflicts,
-       Input (Local ()),
-       Input Opts,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (Error LegalholdConflicts) r,
+    Member (Input (Local ())) r,
+    Member (Input Opts) r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   LegalholdProtectee ->
   QualifiedUserClients ->
   Sem r ()
@@ -73,14 +72,12 @@ guardQualifiedLegalholdPolicyConflicts protectee qclients = do
 -- This is a fallback safeguard that shouldn't get triggered if backend and clients work as
 -- intended.
 guardLegalholdPolicyConflicts ::
-  Members
-    '[ BrigAccess,
-       Error LegalholdConflicts,
-       Input Opts,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (Error LegalholdConflicts) r,
+    Member (Input Opts) r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   LegalholdProtectee ->
   UserClients ->
   Sem r ()
@@ -96,13 +93,11 @@ guardLegalholdPolicyConflicts (ProtectedUser self) otherClients = do
 
 guardLegalholdPolicyConflictsUid ::
   forall r.
-  Members
-    '[ BrigAccess,
-       Error LegalholdConflicts,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (Error LegalholdConflicts) r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   UserId ->
   UserClients ->
   Sem r ()

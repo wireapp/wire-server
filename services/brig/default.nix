@@ -80,7 +80,6 @@
 , mmorph
 , MonadRandom
 , mtl
-, multihash
 , mwc-random
 , network
 , network-conduit-tls
@@ -121,7 +120,6 @@
 , stomp-queue
 , streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -138,6 +136,7 @@
 , time-units
 , tinylog
 , transformers
+, transitive-anns
 , types-common
 , types-common-aws
 , types-common-journal
@@ -233,7 +232,6 @@ mkDerivation {
     mmorph
     MonadRandom
     mtl
-    multihash
     mwc-random
     network
     network-conduit-tls
@@ -266,7 +264,6 @@ mkDerivation {
     statistics
     stomp-queue
     string-conversions
-    swagger
     swagger2
     tagged
     template
@@ -278,6 +275,7 @@ mkDerivation {
     time-units
     tinylog
     transformers
+    transitive-anns
     types-common
     types-common-aws
     types-common-journal

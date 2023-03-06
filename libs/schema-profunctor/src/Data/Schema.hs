@@ -102,6 +102,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Swagger.Internal as S
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.Vector as V
 import Imports hiding (Product)
 import Numeric.Natural
@@ -307,7 +308,7 @@ optField = fieldF
 
 -- | A schema for a JSON object with a single optional field.
 fieldF ::
-  (HasOpt doc, HasField doc' doc, FieldFunctor doc f) =>
+  (HasField doc' doc, FieldFunctor doc f) =>
   Text ->
   SchemaP doc' A.Value A.Value a b ->
   SchemaP doc A.Object [A.Pair] a (f b)
@@ -375,7 +376,7 @@ optFieldWithDocModifier name modify sch = optField name (over doc modify sch)
 -- | Like 'fieldF', but apply an arbitrary function to the
 -- documentation of the field.
 fieldWithDocModifierF ::
-  (HasOpt doc, HasField doc' doc, FieldFunctor doc f) =>
+  (HasField doc' doc, FieldFunctor doc f) =>
   Text ->
   (doc' -> doc') ->
   SchemaP doc' A.Value A.Value a b ->
@@ -544,11 +545,11 @@ enum name sch = SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)
 --
 -- This is most commonly used for optional fields, and it will cause the field
 -- to be omitted from the output of the serialiser.
-maybe_ :: HasOpt d => Monoid w => SchemaP d v w a b -> SchemaP d v w (Maybe a) b
+maybe_ :: Monoid w => SchemaP d v w a b -> SchemaP d v w (Maybe a) b
 maybe_ = maybeWithDefault mempty
 
 -- | A schema for 'Maybe', producing the given default value on serialisation.
-maybeWithDefault :: HasOpt d => w -> SchemaP d v w a b -> SchemaP d v w (Maybe a) b
+maybeWithDefault :: w -> SchemaP d v w a b -> SchemaP d v w (Maybe a) b
 maybeWithDefault w0 (SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut o)) =
   SchemaP (SchemaDoc d) (SchemaIn i) (SchemaOut (maybe (pure w0) o))
 
@@ -632,7 +633,7 @@ null_ = mkSchema mempty i o
 --
 -- The serialiser behaves similarly, but in the other direction.
 nullable ::
-  (Monoid d, HasOpt d) =>
+  Monoid d =>
   ValueSchema d a ->
   ValueSchema d (Maybe a)
 nullable s =
@@ -836,6 +837,8 @@ instance ToSchema a => A.FromJSON (Schema a) where
   parseJSON = fmap Schema . schemaParseJSON
 
 instance ToSchema Text where schema = genericToSchema
+
+instance ToSchema TL.Text where schema = genericToSchema
 
 instance ToSchema Int where schema = genericToSchema
 

@@ -30,11 +30,12 @@ import Polysemy
 import Polysemy.Input
 import UnliftIO
 import Wire.API.Federation.Client
-import Wire.API.Federation.Component
 import Wire.API.Federation.Error
 
 interpretFederatorAccess ::
-  Members '[Embed IO, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input Env) r
+  ) =>
   Sem (FederatorAccess ': r) a ->
   Sem r a
 interpretFederatorAccess = interpret $ \case
@@ -47,7 +48,6 @@ interpretFederatorAccess = interpret $ \case
   IsFederationConfigured -> embedApp $ isJust <$> view federator
 
 runFederatedEither ::
-  KnownComponent c =>
   Remote x ->
   FederatorClient c a ->
   App (Either FederationError a)
@@ -66,7 +66,6 @@ runFederatedEither (tDomain -> remoteDomain) rpc = do
       liftIO . fmap (first FederationCallFailure) $ runFederatorClient ce rpc
 
 runFederated ::
-  KnownComponent c =>
   Remote x ->
   FederatorClient c a ->
   App a
@@ -76,8 +75,7 @@ runFederated dom rpc =
 
 runFederatedConcurrently ::
   ( Foldable f,
-    Functor f,
-    KnownComponent c
+    Functor f
   ) =>
   f (Remote a) ->
   (Remote [a] -> FederatorClient c b) ->
@@ -87,7 +85,7 @@ runFederatedConcurrently xs rpc =
     qualifyAs r <$> runFederated r (rpc r)
 
 runFederatedConcurrentlyEither ::
-  (Foldable f, Functor f, KnownComponent c) =>
+  (Foldable f, Functor f) =>
   f (Remote a) ->
   (Remote [a] -> FederatorClient c b) ->
   App [Either (Remote [a], FederationError) (Remote b)]

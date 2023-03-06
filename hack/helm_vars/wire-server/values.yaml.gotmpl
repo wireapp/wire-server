@@ -7,6 +7,7 @@ tags:
   cargohold: true
   spar: true
   federator: true # also see galley.config.enableFederator and brig.config.enableFederator
+  backoffice: true
   proxy: false
   webapp: false
   team-settings: false
@@ -34,7 +35,6 @@ brig:
     requests: {}
     limits:
       memory: 512Mi
-      cpu: 500m
   config:
     externalUrls:
       nginz: https://kube-staging-nginz-https.zinfra.io
@@ -53,8 +53,8 @@ brig:
       providerTokenTimeout: 60
     enableFederator: true # keep in sync with galley.config.enableFederator, cargohold.config.enableFederator and tags.federator!
     optSettings:
-      setActivationTimeout: 5
-      setVerificationTimeout: 5
+      setActivationTimeout: 10
+      setVerificationTimeout: 10
       # keep this in sync with brigSettingsTeamInvitationTimeout in spar/templates/tests/configmap.yaml
       setTeamInvitationTimeout: 10
       setExpiredUserCleanupTimeout: 1
@@ -130,7 +130,6 @@ cannon:
     requests: {}
     limits:
       memory: 512Mi
-      cpu: 500m
   drainTimeout: 0
 cargohold:
   replicaCount: 1
@@ -139,7 +138,6 @@ cargohold:
     requests: {}
     limits:
       memory: 512Mi
-      cpu: 500m
   config:
     aws:
       s3Bucket: dummy-bucket
@@ -192,7 +190,6 @@ gundeck:
     requests: {}
     limits:
       memory: 1024Mi
-      cpu: 1000m
   config:
     cassandra:
       host: cassandra-ephemeral
@@ -249,7 +246,6 @@ spar:
     requests: {}
     limits:
       memory: 1024Mi
-      cpu: 1000m
   config:
     tlsDisableCertValidation: true
     cassandra:

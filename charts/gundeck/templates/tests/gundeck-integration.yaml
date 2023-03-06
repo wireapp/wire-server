@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: "{{ .Release.Name }}-gundeck-integration"
   annotations:
-    "helm.sh/hook": test-success
+    "helm.sh/hook": test
 spec:
   volumes:
     - name: "gundeck-integration"

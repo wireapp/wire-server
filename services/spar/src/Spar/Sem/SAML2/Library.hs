@@ -46,7 +46,12 @@ import Wire.API.User.IdentityProvider (WireIdP)
 import Wire.Sem.Logger (Logger)
 import qualified Wire.Sem.Logger as Logger
 
-wrapMonadClientSPImpl :: Members '[Error SparError, Final IO] r => Sem r a -> SPImpl r a
+wrapMonadClientSPImpl ::
+  ( Member (Error SparError) r,
+    Member (Final IO) r
+  ) =>
+  Sem r a ->
+  SPImpl r a
 wrapMonadClientSPImpl action =
   SPImpl action
     `Catch.catch` (SPImpl . throw . SAML.CustomError . SparCassandraError . cs . show @SomeException)
@@ -68,7 +73,10 @@ newtype SPImpl r a = SPImpl {unSPImpl :: Sem r a}
 instance Member (Input Opts) r => HasConfig (SPImpl r) where
   getConfig = SPImpl $ inputs saml
 
-instance Members '[Input Opts, Logger String] r => HasLogger (SPImpl r) where
+instance
+  Member (Logger String) r =>
+  HasLogger (SPImpl r)
+  where
   logger lvl = SPImpl . Logger.log (Logger.samlFromLevel lvl)
 
 instance Member (Embed IO) r => MonadIO (SPImpl r) where
@@ -78,17 +86,35 @@ instance Member (Embed IO) r => HasCreateUUID (SPImpl r)
 
 instance Member (Embed IO) r => HasNow (SPImpl r)
 
-instance Members '[Error SparError, Final IO, AReqIDStore] r => SPStoreID AuthnRequest (SPImpl r) where
+instance
+  ( Member (Error SparError) r,
+    Member (Final IO) r,
+    Member AReqIDStore r
+  ) =>
+  SPStoreID AuthnRequest (SPImpl r)
+  where
   storeID = (wrapMonadClientSPImpl .) . AReqIDStore.store
   unStoreID = wrapMonadClientSPImpl . AReqIDStore.unStore
   isAliveID = wrapMonadClientSPImpl . AReqIDStore.isAlive
 
-instance Members '[Error SparError, Final IO, AssIDStore] r => SPStoreID Assertion (SPImpl r) where
+instance
+  ( Member (Error SparError) r,
+    Member (Final IO) r,
+    Member AssIDStore r
+  ) =>
+  SPStoreID Assertion (SPImpl r)
+  where
   storeID = (wrapMonadClientSPImpl .) . AssIDStore.store
   unStoreID = wrapMonadClientSPImpl . AssIDStore.unStore
   isAliveID = wrapMonadClientSPImpl . AssIDStore.isAlive
 
-instance Members '[Error SparError, IdPConfigStore, Final IO] r => SPStoreIdP SparError (SPImpl r) where
+instance
+  ( Member (Error SparError) r,
+    Member IdPConfigStore r,
+    Member (Final IO) r
+  ) =>
+  SPStoreIdP SparError (SPImpl r)
+  where
   type IdPConfigExtra (SPImpl r) = WireIdP
   type IdPConfigSPId (SPImpl r) = TeamId
 
@@ -107,17 +133,15 @@ instance Member (Error SparError) r => MonadError SparError (SPImpl r) where
 --   * https://reasonablypolymorphic.com/blog/tactics/
 saml2ToSaml2WebSso ::
   forall r a.
-  Members
-    '[ AReqIDStore,
-       AssIDStore,
-       Error SparError,
-       IdPConfigStore,
-       Input Opts,
-       Logger String,
-       Embed IO,
-       Final IO
-     ]
-    r =>
+  ( Member AReqIDStore r,
+    Member AssIDStore r,
+    Member (Error SparError) r,
+    Member IdPConfigStore r,
+    Member (Input Opts) r,
+    Member (Logger String) r,
+    Member (Embed IO) r,
+    Member (Final IO) r
+  ) =>
   Sem (SAML2 ': r) a ->
   Sem r a
 saml2ToSaml2WebSso =
@@ -147,17 +171,15 @@ saml2ToSaml2WebSso =
       liftT $ unSPImpl $ SAML.toggleCookie sbs mp
 
 inspectOrBomb ::
-  Members
-    '[ AReqIDStore,
-       AssIDStore,
-       Error SparError,
-       IdPConfigStore,
-       Logger String,
-       Input Opts,
-       Embed IO,
-       Final IO
-     ]
-    r =>
+  ( Member AReqIDStore r,
+    Member AssIDStore r,
+    Member (Error SparError) r,
+    Member IdPConfigStore r,
+    Member (Logger String) r,
+    Member (Input Opts) r,
+    Member (Embed IO) r,
+    Member (Final IO) r
+  ) =>
   Inspector f ->
   Sem (SAML2 : r) (f b) ->
   SPImpl r b

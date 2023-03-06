@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
 
 -- This file is part of the Wire Server implementation.
@@ -32,6 +34,7 @@ module TestSetup
     tsMaxConvSize,
     tsCass,
     tsFedGalleyClient,
+    tsTeamEventWatcher,
     TestM (..),
     TestSetup (..),
     FedClient (..),
@@ -56,10 +59,12 @@ import qualified Galley.Aws as Aws
 import Galley.Options (Opts)
 import Imports
 import qualified Network.HTTP.Client as HTTP
+import Proto.TeamEvents (TeamEvent)
 import qualified Servant.Client as Servant
 import qualified Servant.Client.Core as Servant
 import Test.Tasty.HUnit
 import Util.Options
+import qualified Util.Test.SQS as SQS
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 
@@ -85,8 +90,7 @@ data LegalHoldConfig = LegalHoldConfig
   { privateKey :: FilePath,
     publicKey :: FilePath,
     cert :: FilePath,
-    botHost :: Text,
-    botPort :: Int
+    botHost :: Text
   }
   deriving (Show, Generic)
 
@@ -118,7 +122,8 @@ data TestSetup = TestSetup
     _tsAwsEnv :: Maybe Aws.Env,
     _tsMaxConvSize :: Word16,
     _tsCass :: Cql.ClientState,
-    _tsFedGalleyClient :: FedClient 'Galley
+    _tsFedGalleyClient :: FedClient 'Galley,
+    _tsTeamEventWatcher :: Maybe (SQS.SQSWatcher TeamEvent)
   }
 
 makeLenses ''TestSetup

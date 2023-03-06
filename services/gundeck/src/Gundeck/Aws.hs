@@ -66,10 +66,10 @@ import Control.Error hiding (err, isRight)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
-import Control.Retry (limitRetries, retrying)
+import Control.Retry
 import Data.Aeson (decodeStrict)
 import Data.Attoparsec.Text
-import Data.ByteString.Builder (toLazyByteString)
+import Data.ByteString.Builder
 import qualified Data.HashMap.Strict as Map
 import Data.Id
 import qualified Data.Set as Set
@@ -77,13 +77,13 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LT
 import Gundeck.Aws.Arn
-import Gundeck.Aws.Sns (Event, evEndpoint, evType)
+import Gundeck.Aws.Sns
 import Gundeck.Instances ()
 import Gundeck.Options
-import Gundeck.Types.Push (AppName (..), Token, Transport (..))
+import Gundeck.Types.Push hiding (token)
 import qualified Gundeck.Types.Push as Push
 import Imports
-import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
+import Network.HTTP.Client
 import Network.HTTP.Types
 import qualified Network.TLS as TLS
 import qualified System.Logger as Logger
@@ -236,7 +236,7 @@ updateEndpoint :: Set UserId -> Token -> EndpointArn -> Amazon ()
 updateEndpoint us tk arn = do
   let req = over SNS.setEndpointAttributes_attributes fun (SNS.newSetEndpointAttributes (toText arn))
   env <- ask
-  res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch (env ^. awsEnv) req))
+  res <- retry 1 (const (sendCatch (env ^. awsEnv) req))
   case res of
     Right _ -> pure ()
     Left x@(AWS.ServiceError e)
@@ -265,7 +265,7 @@ updateEndpoint us tk arn = do
 deleteEndpoint :: EndpointArn -> Amazon ()
 deleteEndpoint arn = do
   e <- view awsEnv
-  res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch e req))
+  res <- retry 1 (const (sendCatch e req))
   either (throwM . GeneralError) (const (pure ())) res
   where
     req = SNS.newDeleteEndpoint (toText arn)
@@ -273,7 +273,7 @@ deleteEndpoint arn = do
 lookupEndpoint :: EndpointArn -> Amazon (Maybe SNSEndpoint)
 lookupEndpoint arn = do
   e <- view awsEnv
-  res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch e req))
+  res <- retry 1 (const (sendCatch e req))
   let attrs = fromMaybe mempty . view SNS.getEndpointAttributesResponse_attributes <$> res
   case attrs of
     Right a -> Just <$> mkEndpoint a
@@ -297,7 +297,7 @@ createEndpoint u tr arnEnv app token = do
         SNS.newCreatePlatformEndpoint (toText arn) tkn
           & set SNS.createPlatformEndpoint_customUserData (Just (toText u))
           & set SNS.createPlatformEndpoint_attributes (Just $ Map.insert "Enabled" "true" Map.empty)
-  res <- retrying (limitRetries 2) (const isTimeout) (const (sendCatch (env ^. awsEnv) req))
+  res <- retry 2 (const (sendCatch (env ^. awsEnv) req))
   case res of
     Right r ->
       case view SNS.createPlatformEndpointResponse_endpointArn r of
@@ -406,7 +406,7 @@ publish arn txt attrs = do
           & SNS.publish_messageStructure ?~ "json"
           & SNS.publish_messageAttributes ?~ appEndo (setAttributes attrs) Map.empty
   env <- ask
-  res <- retrying (limitRetries 3) (const isTimeout) (const (sendCatch (env ^. awsEnv) req))
+  res <- retry 3 (const (sendCatch (env ^. awsEnv) req))
   case res of
     Right _ -> pure (Right ())
     Left x@(AWS.ServiceError e)
@@ -492,8 +492,15 @@ is :: AWS.Abbrev -> Int -> AWS.Error -> Bool
 is srv s (AWS.ServiceError e) = srv == e ^. serviceError_abbrev && s == statusCode (e ^. serviceError_status)
 is _ _ _ = False
 
-isTimeout :: MonadIO m => Either AWS.Error a -> m Bool
-isTimeout (Right _) = pure False
-isTimeout (Left e) = case e of
-  AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
-  _ -> pure False
+retry :: Int -> (RetryStatus -> Amazon (Either AWS.Error a)) -> Amazon (Either AWS.Error a)
+retry n =
+  retrying
+    (exponentialBackoff 50000 <> limitRetries n)
+    (const $ \x -> pure $ isTimeout x || isRateLimited x)
+  where
+    isTimeout :: Either AWS.Error a -> Bool
+    isTimeout (Left (AWS.TransportError (HttpExceptionRequest _ ResponseTimeout))) = True
+    isTimeout _ = False
+    isRateLimited :: Either AWS.Error a -> Bool
+    isRateLimited (Left (AWS.TransportError (HttpExceptionRequest _ (StatusCodeException r _)))) = responseStatus r == status429
+    isRateLimited _ = False

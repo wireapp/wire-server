@@ -31,8 +31,7 @@ where
 
 import Control.Lens ((%~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.Singletons.CustomStar (genSingletons)
-import Data.Singletons.Prelude (Show_)
+import Data.Singletons.TH (genSingletons)
 import qualified Data.Swagger as S
 import Data.Tagged
 import GHC.TypeLits
@@ -40,6 +39,7 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
+import Prelude.Singletons (Show_)
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
@@ -117,6 +117,8 @@ data GalleyError
   | UserLegalHoldNotPending
   | -- Team Member errors
     BulkGetMemberLimitExceeded
+  | -- Team Notification errors
+    InvalidTeamNotificationId
   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
@@ -177,6 +179,8 @@ type instance MapError 'InvalidTarget = 'StaticError 403 "invalid-op" "Invalid t
 type instance MapError 'ConvNotFound = 'StaticError 404 "no-conversation" "Conversation not found"
 
 type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Conversation access denied"
+
+type instance MapError 'InvalidTeamNotificationId = 'StaticError 400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
 
 type instance
   MapError 'MLSNotEnabled =

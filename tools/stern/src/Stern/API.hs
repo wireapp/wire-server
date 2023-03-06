@@ -44,7 +44,6 @@ import Data.String.Conversions (cs)
 import Data.Text (unpack)
 import qualified Data.Text as T
 import GHC.TypeLits (KnownSymbol)
-import qualified Galley.Types.Teams.Intra as Team
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
@@ -63,6 +62,7 @@ import Util.Options
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection (ConnectionStatus)
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Routes.Named (Named (Named))
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.SearchVisibility
@@ -156,6 +156,8 @@ sitemap' =
     :<|> Named @"put-route-mls-config" (mkFeaturePutRoute @MLSConfig)
     :<|> Named @"get-search-visibility" getSearchVisibility
     :<|> Named @"put-search-visibility" setSearchVisibility
+    :<|> Named @"get-route-outlook-cal-config" (mkFeatureGetRoute @OutlookCalIntegrationConfig)
+    :<|> Named @"put-route-outlook-cal-config" (mkFeaturePutRouteTrivialConfigNoTTL @OutlookCalIntegrationConfig)
     :<|> Named @"get-team-invoice" getTeamInvoice
     :<|> Named @"get-team-billing-info" getTeamBillingInfo
     :<|> Named @"put-team-billing-info" updateTeamBillingInfo
@@ -207,7 +209,7 @@ searchOnBehalf :: UserId -> Maybe T.Text -> Maybe Int32 -> Handler (SearchResult
 searchOnBehalf
   uid
   (fromMaybe "" -> q)
-  (fromMaybe (unsafeRange 10) . checked @Int32 @1 @100 . fromMaybe 10 -> s) =
+  (fromMaybe (unsafeRange 10) . checked @1 @100 @Int32 . fromMaybe 10 -> s) =
     Intra.getContacts uid q (fromRange s)
 
 revokeIdentity :: Maybe Email -> Maybe Phone -> Handler NoContent
@@ -296,8 +298,6 @@ mkFeatureGetRoute ::
   ( IsFeatureConfig cfg,
     ToSchema cfg,
     KnownSymbol (FeatureSymbol cfg),
-    FromJSON (WithStatusNoLock cfg),
-    ToJSON (WithStatusNoLock cfg),
     Typeable cfg
   ) =>
   TeamId ->
@@ -306,12 +306,8 @@ mkFeatureGetRoute = Intra.getTeamFeatureFlag @cfg
 
 mkFeaturePutRoute ::
   forall cfg.
-  ( IsFeatureConfig cfg,
-    ToSchema cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    FromJSON (WithStatusNoLock cfg),
-    ToJSON (WithStatusNoLock cfg),
-    Typeable cfg
+  ( KnownSymbol (FeatureSymbol cfg),
+    ToJSON (WithStatusNoLock cfg)
   ) =>
   TeamId ->
   WithStatusNoLock cfg ->
@@ -402,15 +398,15 @@ getUserData uid = do
   convs <- Intra.getUserConversations uid
   clts <- Intra.getUserClients uid
   notfs <- Intra.getUserNotifications uid
-  consent <- Intra.getUserConsentValue uid
-  consentLog <- Intra.getUserConsentLog uid
+  consent <- (Intra.getUserConsentValue uid <&> toJSON @ConsentValue) `catchE` (pure . String . cs . show)
+  consentLog <- (Intra.getUserConsentLog uid <&> toJSON @ConsentLog) `catchE` (pure . String . cs . show)
   cookies <- Intra.getUserCookies uid
   properties <- Intra.getUserProperties uid
   -- Get all info from Marketo too
   let em = userEmail $ accountUser account
   marketo <- do
     let noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
-    maybe (pure noEmail) Intra.getMarketoResult em
+    maybe (pure $ toJSON noEmail) (\e -> (Intra.getMarketoResult e <&> toJSON) `catchE` (pure . String . cs . show)) em
   pure . UserMetaInfo . KeyMap.fromList $
     [ "account" .= account,
       "cookies" .= cookies,

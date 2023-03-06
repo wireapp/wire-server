@@ -28,7 +28,6 @@ import qualified Data.List as List
 import Data.Text (Text)
 import Network.Wai.Test (SResponse (..))
 import Servant
-import Servant.API.Generic
 import Test.Hspec hiding (shouldSatisfy)
 import qualified Test.Hspec.Expectations as Expect
 import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
@@ -44,9 +43,9 @@ app = do
 
 shouldSatisfy ::
   (Show a, FromJSON a) =>
-  WaiSession SResponse ->
+  WaiSession st SResponse ->
   (a -> Bool) ->
-  WaiExpectation
+  WaiExpectation st
 shouldSatisfy resp predicate = do
   maybeDecoded <- eitherDecode . simpleBody <$> resp
   case maybeDecoded of
@@ -69,7 +68,7 @@ coreSchemas =
   ]
 
 spec :: Spec
-spec = beforeAll app $ do
+spec = with app $ do
   describe "GET /Schemas" $ do
     it "lists schemas" $ do
       get "/Schemas" `shouldRespondWith` 200

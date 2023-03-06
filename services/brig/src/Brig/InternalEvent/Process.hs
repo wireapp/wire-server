@@ -39,22 +39,19 @@ import Imports
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (timeout)
-import Wire.API.Federation.API
 
 -- | Handle an internal event.
 --
 -- Has a one-minute timeout that should be enough for anything that it does.
 onEvent ::
   ( Log.MonadLogger m,
-    MonadCatch m,
     MonadIndexIO m,
     MonadReader Env m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
-    MonadClient m,
-    CallsFed 'Brig "on-user-deleted-connections"
+    MonadClient m
   ) =>
   InternalNotification ->
   m ()

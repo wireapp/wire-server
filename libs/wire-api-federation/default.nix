@@ -15,6 +15,7 @@
 , errors
 , exceptions
 , gitignoreSource
+, HsOpenSSL
 , hspec
 , hspec-discover
 , http-media
@@ -37,6 +38,7 @@
 , servant-client-core
 , servant-server
 , singletons
+, singletons-th
 , sop-core
 , streaming-commons
 , swagger2
@@ -66,6 +68,7 @@ mkDerivation {
     either
     errors
     exceptions
+    HsOpenSSL
     http-media
     http-types
     http2
@@ -83,6 +86,7 @@ mkDerivation {
     servant-client-core
     servant-server
     singletons
+    singletons-th
     sop-core
     streaming-commons
     swagger2
@@ -128,6 +132,7 @@ mkDerivation {
     servant-client-core
     servant-server
     singletons
+    singletons-th
     sop-core
     streaming-commons
     swagger2

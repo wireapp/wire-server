@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -118,7 +120,7 @@ randomScimUserWithSubject = do
 
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
 randomScimUserWithSubjectAndRichInfo ::
-  (HasCallStack, MonadRandom m, MonadIO m) =>
+  (HasCallStack, MonadRandom m) =>
   RichInfo ->
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do

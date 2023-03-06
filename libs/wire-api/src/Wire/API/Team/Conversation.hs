@@ -29,10 +29,6 @@ module Wire.API.Team.Conversation
     TeamConversationList,
     newTeamConversationList,
     teamConversations,
-
-    -- * Swagger
-    modelTeamConversation,
-    modelTeamConversationList,
   )
 where
 
@@ -41,7 +37,6 @@ import qualified Data.Aeson as A
 import Data.Id (ConvId)
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -79,14 +74,6 @@ instance ToSchema TeamConversation where
 newTeamConversation :: ConvId -> TeamConversation
 newTeamConversation = TeamConversation
 
-modelTeamConversation :: Doc.Model
-modelTeamConversation = Doc.defineModel "TeamConversation" $ do
-  Doc.description "team conversation data"
-  Doc.property "conversation" Doc.bytes' $
-    Doc.description "conversation ID"
-  Doc.property "managed" Doc.bytes' $
-    Doc.description managedDesc
-
 --------------------------------------------------------------------------------
 -- TeamConversationList
 
@@ -108,12 +95,6 @@ instance ToSchema TeamConversationList where
 
 newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
-
-modelTeamConversationList :: Doc.Model
-modelTeamConversationList = Doc.defineModel "TeamConversationListList" $ do
-  Doc.description "list of team conversations"
-  Doc.property "conversations" (Doc.unique $ Doc.array (Doc.ref modelTeamConversation)) $
-    Doc.description "the array of team conversations"
 
 makeLenses ''TeamConversation
 makeLenses ''TeamConversationList

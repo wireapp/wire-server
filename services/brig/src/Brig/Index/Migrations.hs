@@ -148,7 +148,7 @@ persistVersion v =
                 . Log.field "migrationVersion" v
           else throwM $ PersistVersionFailed v $ show persistResponse
 
-latestMigrationVersion :: (Monad m, MonadThrow m, MonadIO m) => MigrationActionT m MigrationVersion
+latestMigrationVersion :: (MonadThrow m, MonadIO m) => MigrationActionT m MigrationVersion
 latestMigrationVersion = do
   resp <- ES.parseEsResponse =<< ES.searchByIndex indexName (ES.mkSearch Nothing Nothing)
   result <- either (throwM . FetchMigrationVersionsFailed . show) pure resp

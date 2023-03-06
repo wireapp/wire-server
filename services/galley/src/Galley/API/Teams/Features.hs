@@ -40,7 +40,7 @@ import Control.Lens
 import Data.Bifunctor (second)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Data.Kind (Constraint)
+import Data.Kind
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified (Local, tUnqualified)
 import Data.Schema
@@ -76,7 +76,6 @@ import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.FeatureConfig as Event
-import Wire.API.Federation.API
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
@@ -86,36 +85,48 @@ import Wire.Sem.Paging.Cassandra
 data DoAuth = DoAuth UserId | DontDoAuth
 
 -- | Don't export methods of this typeclass
-class GetFeatureConfig (db :: *) cfg where
+class GetFeatureConfig (db :: Type) cfg where
   type GetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
-  type GetConfigForTeamConstraints db cfg (r :: EffectRow) = (FeaturePersistentConstraint db cfg, Members '[Input Opts, TeamFeatureStore db] r)
+  type
+    GetConfigForTeamConstraints db cfg (r :: EffectRow) =
+      ( FeaturePersistentConstraint db cfg,
+        ( Member (Input Opts) r,
+          Member (TeamFeatureStore db) r
+        )
+      )
 
   type GetConfigForUserConstraints db cfg (r :: EffectRow) :: Constraint
   type
     GetConfigForUserConstraints db cfg (r :: EffectRow) =
       ( FeaturePersistentConstraint db cfg,
-        Members
-          '[ Input Opts,
-             ErrorS OperationDenied,
-             ErrorS 'NotATeamMember,
-             ErrorS 'TeamNotFound,
-             TeamStore,
-             TeamFeatureStore db
-           ]
-          r
+        ( Member (Input Opts) r,
+          Member (ErrorS OperationDenied) r,
+          Member (ErrorS 'NotATeamMember) r,
+          Member (ErrorS 'TeamNotFound) r,
+          Member TeamStore r,
+          Member (TeamFeatureStore db) r
+        )
       )
 
   getConfigForServer ::
-    Members '[Input Opts] r =>
+    Member (Input Opts) r =>
     Sem r (WithStatus cfg)
+  -- only override if there is additional business logic for getting the feature config
+  -- and/or if the feature flag is configured for the backend in 'FeatureFlags' for galley in 'Galley.Types.Teams'
+  -- otherwise this will return the default config from wire-api
+  default getConfigForServer :: (IsFeatureConfig cfg) => Sem r (WithStatus cfg)
+  getConfigForServer = pure defFeatureStatus
 
   getConfigForTeam ::
     GetConfigForTeamConstraints db cfg r =>
     TeamId ->
     Sem r (WithStatus cfg)
   default getConfigForTeam ::
-    GetConfigForTeamConstraints db cfg r =>
-    (FeaturePersistentConstraint db cfg, Members '[Input Opts, TeamFeatureStore db] r) =>
+    ( FeaturePersistentConstraint db cfg,
+      ( Member (Input Opts) r,
+        Member (TeamFeatureStore db) r
+      )
+    ) =>
     TeamId ->
     Sem r (WithStatus cfg)
   getConfigForTeam = genericGetConfigForTeam @db
@@ -125,25 +136,21 @@ class GetFeatureConfig (db :: *) cfg where
     UserId ->
     Sem r (WithStatus cfg)
   default getConfigForUser ::
-    GetConfigForUserConstraints db cfg r =>
-    GetConfigForTeamConstraints db cfg r =>
     ( FeaturePersistentConstraint db cfg,
-      Members
-        '[ Input Opts,
-           ErrorS OperationDenied,
-           ErrorS 'NotATeamMember,
-           ErrorS 'TeamNotFound,
-           TeamStore,
-           TeamFeatureStore db
-         ]
-        r
+      ( Member (Input Opts) r,
+        Member (ErrorS OperationDenied) r,
+        Member (ErrorS 'NotATeamMember) r,
+        Member (ErrorS 'TeamNotFound) r,
+        Member TeamStore r,
+        Member (TeamFeatureStore db) r
+      )
     ) =>
     UserId ->
     Sem r (WithStatus cfg)
   getConfigForUser = genericGetConfigForUser @db
 
 -- | Don't export methods of this typeclass
-class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
+class GetFeatureConfig (db :: Type) cfg => SetFeatureConfig (db :: Type) cfg where
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) = ()
 
@@ -154,6 +161,21 @@ class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
     ( SetConfigForTeamConstraints db cfg r,
       GetConfigForTeamConstraints db cfg r,
       FeaturePersistentConstraint db cfg,
+      ( Member (TeamFeatureStore db) r,
+        Member (P.Logger (Log.Msg -> Log.Msg)) r,
+        Member GundeckAccess r,
+        Member TeamStore r
+      )
+    ) =>
+    TeamId ->
+    WithStatusNoLock cfg ->
+    Sem r (WithStatus cfg)
+  default setConfigForTeam ::
+    ( GetConfigForTeamConstraints db cfg r,
+      FeaturePersistentConstraint db cfg,
+      IsFeatureConfig cfg,
+      KnownSymbol (FeatureSymbol cfg),
+      ToSchema cfg,
       Members
         '[ TeamFeatureStore db,
            P.Logger (Log.Msg -> Log.Msg),
@@ -165,6 +187,7 @@ class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
     TeamId ->
     WithStatusNoLock cfg ->
     Sem r (WithStatus cfg)
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 type FeaturePersistentAllFeatures db =
   ( FeaturePersistentConstraint db LegalholdConfig,
@@ -181,20 +204,20 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db SndFactorPasswordChallengeConfig,
     FeaturePersistentConstraint db MLSConfig,
     FeaturePersistentConstraint db SearchVisibilityInboundConfig,
-    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig
+    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig,
+    FeaturePersistentConstraint db OutlookCalIntegrationConfig,
+    FeaturePersistentConstraint db MlsE2EIdConfig
   )
 
 getFeatureStatus ::
   forall db cfg r.
   ( GetFeatureConfig db cfg,
     GetConfigForTeamConstraints db cfg r,
-    Members
-      '[ ErrorS OperationDenied,
-         ErrorS 'NotATeamMember,
-         ErrorS 'TeamNotFound,
-         TeamStore
-       ]
-      r
+    ( Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS 'TeamNotFound) r,
+      Member TeamStore r
+    )
   ) =>
   DoAuth ->
   TeamId ->
@@ -210,13 +233,10 @@ getFeatureStatus doauth tid = do
 getFeatureStatusMulti ::
   forall db cfg r.
   ( GetFeatureConfig db cfg,
-    GetConfigForTeamConstraints db cfg r,
     FeaturePersistentConstraint db cfg,
-    Members
-      '[ Input Opts,
-         TeamFeatureStore db
-       ]
-      r
+    ( Member (Input Opts) r,
+      Member (TeamFeatureStore db) r
+    )
   ) =>
   Multi.TeamFeatureNoConfigMultiRequest ->
   Sem r (Multi.TeamFeatureNoConfigMultiResponse cfg)
@@ -234,17 +254,15 @@ patchFeatureStatusInternal ::
     GetConfigForTeamConstraints db cfg r,
     SetConfigForTeamConstraints db cfg r,
     FeaturePersistentConstraint db cfg,
-    Members
-      '[ ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
-         ErrorS 'TeamNotFound,
-         Error TeamFeatureError,
-         TeamStore,
-         TeamFeatureStore db,
-         P.Logger (Log.Msg -> Log.Msg),
-         GundeckAccess
-       ]
-      r
+    ( Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'TeamNotFound) r,
+      Member (Error TeamFeatureError) r,
+      Member TeamStore r,
+      Member (TeamFeatureStore db) r,
+      Member (P.Logger (Log.Msg -> Log.Msg)) r,
+      Member GundeckAccess r
+    )
   ) =>
   TeamId ->
   WithStatusPatch cfg ->
@@ -269,17 +287,15 @@ setFeatureStatus ::
     GetConfigForTeamConstraints db cfg r,
     SetConfigForTeamConstraints db cfg r,
     FeaturePersistentConstraint db cfg,
-    Members
-      '[ ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
-         ErrorS 'TeamNotFound,
-         Error TeamFeatureError,
-         TeamStore,
-         TeamFeatureStore db,
-         P.Logger (Log.Msg -> Log.Msg),
-         GundeckAccess
-       ]
-      r
+    ( Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'TeamNotFound) r,
+      Member (Error TeamFeatureError) r,
+      Member TeamStore r,
+      Member (TeamFeatureStore db) r,
+      Member (P.Logger (Log.Msg -> Log.Msg)) r,
+      Member GundeckAccess r
+    )
   ) =>
   DoAuth ->
   TeamId ->
@@ -301,17 +317,15 @@ setFeatureStatusInternal ::
     GetConfigForTeamConstraints db cfg r,
     SetConfigForTeamConstraints db cfg r,
     FeaturePersistentConstraint db cfg,
-    Members
-      '[ ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
-         ErrorS 'TeamNotFound,
-         Error TeamFeatureError,
-         TeamStore,
-         TeamFeatureStore db,
-         P.Logger (Log.Msg -> Log.Msg),
-         GundeckAccess
-       ]
-      r
+    ( Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'TeamNotFound) r,
+      Member (Error TeamFeatureError) r,
+      Member TeamStore r,
+      Member (TeamFeatureStore db) r,
+      Member (P.Logger (Log.Msg -> Log.Msg)) r,
+      Member GundeckAccess r
+    )
   ) =>
   TeamId ->
   WithStatusNoLock cfg ->
@@ -338,14 +352,10 @@ updateLockStatus tid lockStatus = do
 -- Here we explicitly return the team setting if the user is a team member.
 -- In `getConfigForUser` this is mostly also the case. But there are exceptions, e.g. `ConferenceCallingConfig`
 getFeatureStatusForUser ::
-  forall (db :: *) cfg r.
-  ( Members
-      '[ ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
-         ErrorS 'TeamNotFound,
-         TeamStore
-       ]
-      r,
+  forall (db :: Type) cfg r.
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r,
     GetConfigForTeamConstraints db cfg r,
     GetConfigForUserConstraints db cfg r,
     GetFeatureConfig db cfg
@@ -365,17 +375,15 @@ getFeatureStatusForUser zusr = do
 
 getAllFeatureConfigsForUser ::
   forall db r.
-  Members
-    '[ BrigAccess,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ErrorS 'TeamNotFound,
-       Input Opts,
-       LegalHoldStore,
-       TeamFeatureStore db,
-       TeamStore
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (Input Opts) r,
+    Member LegalHoldStore r,
+    Member (TeamFeatureStore db) r,
+    Member TeamStore r
+  ) =>
   FeaturePersistentAllFeatures db =>
   UserId ->
   Sem r AllFeatureConfigs
@@ -392,16 +400,12 @@ getAllFeatureConfigsForUser zusr = do
 
 getAllFeatureConfigsForTeam ::
   forall db r.
-  Members
-    '[ BrigAccess,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       Input Opts,
-       LegalHoldStore,
-       TeamFeatureStore db,
-       TeamStore
-     ]
-    r =>
+  ( Member (ErrorS 'NotATeamMember) r,
+    Member (Input Opts) r,
+    Member LegalHoldStore r,
+    Member (TeamFeatureStore db) r,
+    Member TeamStore r
+  ) =>
   FeaturePersistentAllFeatures db =>
   Local UserId ->
   TeamId ->
@@ -412,51 +416,40 @@ getAllFeatureConfigsForTeam luid tid = do
   getAllFeatureConfigsTeam @db tid
 
 getAllFeatureConfigsForServer ::
-  forall db r.
-  Members
-    '[ BrigAccess,
-       ErrorS 'NotATeamMember,
-       ErrorS 'TeamNotFound,
-       ErrorS OperationDenied,
-       Input Opts,
-       LegalHoldStore,
-       TeamFeatureStore db,
-       TeamStore
-     ]
-    r =>
-  FeaturePersistentAllFeatures db =>
+  forall r.
+  Member (Input Opts) r =>
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForServer =
   AllFeatureConfigs
-    <$> getConfigForServer @db @LegalholdConfig
-    <*> getConfigForServer @db @SSOConfig
-    <*> getConfigForServer @db @SearchVisibilityAvailableConfig
-    <*> getConfigForServer @db @SearchVisibilityInboundConfig
-    <*> getConfigForServer @db @ValidateSAMLEmailsConfig
-    <*> getConfigForServer @db @DigitalSignaturesConfig
-    <*> getConfigForServer @db @AppLockConfig
-    <*> getConfigForServer @db @FileSharingConfig
-    <*> getConfigForServer @db @ClassifiedDomainsConfig
-    <*> getConfigForServer @db @ConferenceCallingConfig
-    <*> getConfigForServer @db @SelfDeletingMessagesConfig
-    <*> getConfigForServer @db @GuestLinksConfig
-    <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
-    <*> getConfigForServer @db @MLSConfig
-    <*> getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
+    <$> getConfigForServer @LegalholdConfig
+    <*> getConfigForServer @SSOConfig
+    <*> getConfigForServer @SearchVisibilityAvailableConfig
+    <*> getConfigForServer @SearchVisibilityInboundConfig
+    <*> getConfigForServer @ValidateSAMLEmailsConfig
+    <*> getConfigForServer @DigitalSignaturesConfig
+    <*> getConfigForServer @AppLockConfig
+    <*> getConfigForServer @FileSharingConfig
+    <*> getConfigForServer @ClassifiedDomainsConfig
+    <*> getConfigForServer @ConferenceCallingConfig
+    <*> getConfigForServer @SelfDeletingMessagesConfig
+    <*> getConfigForServer @GuestLinksConfig
+    <*> getConfigForServer @SndFactorPasswordChallengeConfig
+    <*> getConfigForServer @MLSConfig
+    <*> getConfigForServer @ExposeInvitationURLsToTeamAdminConfig
+    <*> getConfigForServer @OutlookCalIntegrationConfig
+    <*> getConfigForServer @MlsE2EIdConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
-  Members
-    '[ BrigAccess,
-       ErrorS 'NotATeamMember,
-       ErrorS 'TeamNotFound,
-       ErrorS OperationDenied,
-       Input Opts,
-       LegalHoldStore,
-       TeamFeatureStore db,
-       TeamStore
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member (ErrorS OperationDenied) r,
+    Member (Input Opts) r,
+    Member LegalHoldStore r,
+    Member (TeamFeatureStore db) r,
+    Member TeamStore r
+  ) =>
   FeaturePersistentAllFeatures db =>
   UserId ->
   Sem r AllFeatureConfigs
@@ -477,19 +470,16 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @SndFactorPasswordChallengeConfig uid
     <*> getConfigForUser @db @MLSConfig uid
     <*> getConfigForUser @db @ExposeInvitationURLsToTeamAdminConfig uid
+    <*> getConfigForUser @db @OutlookCalIntegrationConfig uid
+    <*> getConfigForUser @db @MlsE2EIdConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
-  Members
-    '[ BrigAccess,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       Input Opts,
-       LegalHoldStore,
-       TeamFeatureStore db,
-       TeamStore
-     ]
-    r =>
+  ( Member (Input Opts) r,
+    Member LegalHoldStore r,
+    Member (TeamFeatureStore db) r,
+    Member TeamStore r
+  ) =>
   FeaturePersistentAllFeatures db =>
   TeamId ->
   Sem r AllFeatureConfigs
@@ -510,15 +500,16 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @SndFactorPasswordChallengeConfig tid
     <*> getConfigForTeam @db @MLSConfig tid
     <*> getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid
+    <*> getConfigForTeam @db @OutlookCalIntegrationConfig tid
+    <*> getConfigForTeam @db @MlsE2EIdConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
   forall db cfg r.
   GetFeatureConfig db cfg =>
   FeaturePersistentConstraint db cfg =>
-  Members '[TeamFeatureStore db] r =>
-  GetConfigForTeamConstraints db cfg r =>
-  Members '[Input Opts] r =>
+  Member (TeamFeatureStore db) r =>
+  Member (Input Opts) r =>
   TeamId ->
   Sem r (WithStatus cfg)
 genericGetConfigForTeam tid = do
@@ -532,9 +523,8 @@ genericGetConfigForMultiTeam ::
   forall db cfg r.
   GetFeatureConfig db cfg =>
   FeaturePersistentConstraint db cfg =>
-  Members '[TeamFeatureStore db] r =>
-  GetConfigForTeamConstraints db cfg r =>
-  Members '[Input Opts] r =>
+  Member (TeamFeatureStore db) r =>
+  Member (Input Opts) r =>
   [TeamId] ->
   Sem r [(TeamId, WithStatus cfg)]
 genericGetConfigForMultiTeam tids = do
@@ -546,16 +536,11 @@ genericGetConfigForMultiTeam tids = do
 genericGetConfigForUser ::
   forall db cfg r.
   FeaturePersistentConstraint db cfg =>
-  GetConfigForTeamConstraints db cfg r =>
-  ( Members
-      '[ Input Opts,
-         TeamFeatureStore db,
-         ErrorS OperationDenied,
-         ErrorS 'NotATeamMember,
-         ErrorS 'TeamNotFound,
-         TeamStore
-       ]
-      r,
+  ( Member (Input Opts) r,
+    Member (TeamFeatureStore db) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r,
     GetFeatureConfig db cfg
   ) =>
   UserId ->
@@ -572,21 +557,18 @@ genericGetConfigForUser uid = do
       genericGetConfigForTeam @db tid
 
 persistAndPushEvent ::
-  forall (db :: *) cfg r.
+  forall (db :: Type) cfg r.
   ( IsFeatureConfig cfg,
     KnownSymbol (FeatureSymbol cfg),
     ToSchema cfg,
     GetFeatureConfig db cfg,
     FeaturePersistentConstraint db cfg,
     GetConfigForTeamConstraints db cfg r,
-    Show cfg,
-    Members
-      '[ TeamFeatureStore db,
-         P.Logger (Log.Msg -> Log.Msg),
-         GundeckAccess,
-         TeamStore
-       ]
-      r
+    ( Member (TeamFeatureStore db) r,
+      Member (P.Logger (Log.Msg -> Log.Msg)) r,
+      Member GundeckAccess r,
+      Member TeamStore r
+    )
   ) =>
   TeamId ->
   WithStatusNoLock cfg ->
@@ -598,7 +580,10 @@ persistAndPushEvent tid wsnl = do
   pure fs
 
 pushFeatureConfigEvent ::
-  Members '[GundeckAccess, TeamStore, P.TinyLog] r =>
+  ( Member GundeckAccess r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
   TeamId ->
   Event.Event ->
   Sem r ()
@@ -638,7 +623,7 @@ instance GetFeatureConfig db SSOConfig where
   getConfigForUser = genericGetConfigForUser @db
 
 instance SetFeatureConfig db SSOConfig where
-  type SetConfigForTeamConstraints db SSOConfig (r :: EffectRow) = (Members '[Error TeamFeatureError] r)
+  type SetConfigForTeamConstraints db SSOConfig (r :: EffectRow) = (Member (Error TeamFeatureError) r)
 
   setConfigForTeam tid wsnl = do
     case wssStatus wsnl of
@@ -655,7 +640,7 @@ instance GetFeatureConfig db SearchVisibilityAvailableConfig where
     pure $ setStatus status defFeatureStatus
 
 instance SetFeatureConfig db SearchVisibilityAvailableConfig where
-  type SetConfigForTeamConstraints db SearchVisibilityAvailableConfig (r :: EffectRow) = (Members '[SearchVisibilityStore] r)
+  type SetConfigForTeamConstraints db SearchVisibilityAvailableConfig (r :: EffectRow) = (Member SearchVisibilityStore r)
 
   setConfigForTeam tid wsnl = do
     case wssStatus wsnl of
@@ -667,39 +652,34 @@ instance GetFeatureConfig db ValidateSAMLEmailsConfig where
   getConfigForServer =
     inputs (view (optSettings . setFeatureFlags . flagsTeamFeatureValidateSAMLEmailsStatus . unDefaults . unImplicitLockStatus))
 
-instance SetFeatureConfig db ValidateSAMLEmailsConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db ValidateSAMLEmailsConfig
 
-instance GetFeatureConfig db DigitalSignaturesConfig where
-  -- FUTUREWORK: we may also want to get a default from the server config file here, like for
-  -- sso, and team search visibility.
-  getConfigForServer = pure defFeatureStatus
+instance GetFeatureConfig db DigitalSignaturesConfig
 
-instance SetFeatureConfig db DigitalSignaturesConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db DigitalSignaturesConfig
 
 instance GetFeatureConfig db LegalholdConfig where
   type
     GetConfigForTeamConstraints db LegalholdConfig (r :: EffectRow) =
       ( FeaturePersistentConstraint db LegalholdConfig,
-        Members '[Input Opts, TeamFeatureStore db, LegalHoldStore, TeamStore] r
+        ( Member (Input Opts) r,
+          Member (TeamFeatureStore db) r,
+          Member LegalHoldStore r,
+          Member TeamStore r
+        )
       )
   type
     GetConfigForUserConstraints db LegalholdConfig (r :: EffectRow) =
       ( FeaturePersistentConstraint db LegalholdConfig,
-        Members
-          '[ Input Opts,
-             TeamFeatureStore db,
-             LegalHoldStore,
-             TeamStore,
-             ErrorS OperationDenied,
-             ErrorS 'NotATeamMember,
-             ErrorS 'TeamNotFound
-           ]
-          r
+        ( Member (Input Opts) r,
+          Member (TeamFeatureStore db) r,
+          Member LegalHoldStore r,
+          Member TeamStore r,
+          Member (ErrorS OperationDenied) r,
+          Member (ErrorS 'NotATeamMember) r,
+          Member (ErrorS 'TeamNotFound) r
+        )
       )
-
-  getConfigForServer = pure defFeatureStatus
 
   getConfigForTeam tid = do
     status <-
@@ -708,49 +688,41 @@ instance GetFeatureConfig db LegalholdConfig where
         False -> FeatureStatusDisabled
     pure $ setStatus status defFeatureStatus
 
-instance
-  ( CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-new-remote-conversation"
-  ) =>
-  SetFeatureConfig db LegalholdConfig
-  where
+instance SetFeatureConfig db LegalholdConfig where
   type
     SetConfigForTeamConstraints db LegalholdConfig (r :: EffectRow) =
       ( Bounded (PagingBounds InternalPaging TeamMember),
-        Members
-          '[ BotAccess,
-             BrigAccess,
-             CodeStore,
-             ConversationStore,
-             Error AuthenticationError,
-             Error InternalError,
-             ErrorS ('ActionDenied 'RemoveConversationMember),
-             ErrorS 'CannotEnableLegalHoldServiceLargeTeam,
-             ErrorS 'NotATeamMember,
-             Error TeamFeatureError,
-             ErrorS 'LegalHoldNotEnabled,
-             ErrorS 'LegalHoldDisableUnimplemented,
-             ErrorS 'LegalHoldServiceNotRegistered,
-             ErrorS 'UserLegalHoldIllegalOperation,
-             ErrorS 'LegalHoldCouldNotBlockConnections,
-             ExternalAccess,
-             FederatorAccess,
-             FireAndForget,
-             GundeckAccess,
-             Input (Local ()),
-             Input Env,
-             Input UTCTime,
-             LegalHoldStore,
-             ListItems LegacyPaging ConvId,
-             MemberStore,
-             ProposalStore,
-             TeamFeatureStore db,
-             TeamStore,
-             TeamMemberStore InternalPaging,
-             P.TinyLog
-           ]
-          r,
+        ( Member BotAccess r,
+          Member BrigAccess r,
+          Member CodeStore r,
+          Member ConversationStore r,
+          Member (Error AuthenticationError) r,
+          Member (Error InternalError) r,
+          Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+          Member (ErrorS 'CannotEnableLegalHoldServiceLargeTeam) r,
+          Member (ErrorS 'NotATeamMember) r,
+          Member (Error TeamFeatureError) r,
+          Member (ErrorS 'LegalHoldNotEnabled) r,
+          Member (ErrorS 'LegalHoldDisableUnimplemented) r,
+          Member (ErrorS 'LegalHoldServiceNotRegistered) r,
+          Member (ErrorS 'UserLegalHoldIllegalOperation) r,
+          Member (ErrorS 'LegalHoldCouldNotBlockConnections) r,
+          Member ExternalAccess r,
+          Member FederatorAccess r,
+          Member FireAndForget r,
+          Member GundeckAccess r,
+          Member (Input (Local ())) r,
+          Member (Input Env) r,
+          Member (Input UTCTime) r,
+          Member LegalHoldStore r,
+          Member (ListItems LegacyPaging ConvId) r,
+          Member MemberStore r,
+          Member ProposalStore r,
+          Member (TeamFeatureStore db) r,
+          Member TeamStore r,
+          Member (TeamMemberStore InternalPaging) r,
+          Member P.TinyLog r
+        ),
         FeaturePersistentConstraint db LegalholdConfig
       )
 
@@ -777,15 +749,14 @@ instance GetFeatureConfig db FileSharingConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagFileSharing . unDefaults)
 
-instance SetFeatureConfig db FileSharingConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db FileSharingConfig
 
 instance GetFeatureConfig db AppLockConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagAppLockDefaults . unDefaults . unImplicitLockStatus)
 
 instance SetFeatureConfig db AppLockConfig where
-  type SetConfigForTeamConstraints db AppLockConfig r = Members '[Error TeamFeatureError] r
+  type SetConfigForTeamConstraints db AppLockConfig r = Member (Error TeamFeatureError) r
 
   setConfigForTeam tid wsnl = do
     when ((applockInactivityTimeoutSecs . wssConfig $ wsnl) < 30) $
@@ -800,16 +771,14 @@ instance GetFeatureConfig db ConferenceCallingConfig where
   type
     GetConfigForUserConstraints db ConferenceCallingConfig r =
       ( FeaturePersistentConstraint db ConferenceCallingConfig,
-        Members
-          '[ Input Opts,
-             ErrorS OperationDenied,
-             ErrorS 'NotATeamMember,
-             ErrorS 'TeamNotFound,
-             TeamStore,
-             TeamFeatureStore db,
-             BrigAccess
-           ]
-          r
+        ( Member (Input Opts) r,
+          Member (ErrorS OperationDenied) r,
+          Member (ErrorS 'NotATeamMember) r,
+          Member (ErrorS 'TeamNotFound) r,
+          Member TeamStore r,
+          Member (TeamFeatureStore db) r,
+          Member BrigAccess r
+        )
       )
 
   getConfigForServer =
@@ -819,32 +788,28 @@ instance GetFeatureConfig db ConferenceCallingConfig where
     wsnl <- getAccountConferenceCallingConfigClient uid
     pure $ withLockStatus (wsLockStatus (defFeatureStatus @ConferenceCallingConfig)) wsnl
 
-instance SetFeatureConfig db ConferenceCallingConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db ConferenceCallingConfig
 
 instance GetFeatureConfig db SelfDeletingMessagesConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
 
-instance SetFeatureConfig db SelfDeletingMessagesConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db SelfDeletingMessagesConfig
 
-instance SetFeatureConfig db GuestLinksConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db GuestLinksConfig
 
 instance GetFeatureConfig db GuestLinksConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
 
-instance SetFeatureConfig db SndFactorPasswordChallengeConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db SndFactorPasswordChallengeConfig
 
 instance GetFeatureConfig db SndFactorPasswordChallengeConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
 
 instance SetFeatureConfig db SearchVisibilityInboundConfig where
-  type SetConfigForTeamConstraints db SearchVisibilityInboundConfig (r :: EffectRow) = (Members '[BrigAccess] r)
+  type SetConfigForTeamConstraints db SearchVisibilityInboundConfig (r :: EffectRow) = (Member BrigAccess r)
   setConfigForTeam tid wsnl = do
     updateSearchVisibilityInbound $ toTeamStatus tid wsnl
     persistAndPushEvent @db tid wsnl
@@ -857,20 +822,9 @@ instance GetFeatureConfig db MLSConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagMLS . unDefaults . unImplicitLockStatus)
 
-instance SetFeatureConfig db MLSConfig where
-  setConfigForTeam tid wsnl = do
-    persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db MLSConfig
 
 instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
-  getConfigForServer =
-    -- we could look at the galley settings, but we don't have a team here, so there is not much else we can say.
-    pure $
-      withStatus
-        FeatureStatusDisabled
-        LockStatusLocked
-        ExposeInvitationURLsToTeamAdminConfig
-        FeatureTTLUnlimited
-
   getConfigForTeam tid = do
     allowList <- input <&> view (optSettings . setExposeInvitationURLsTeamAllowlist . to (fromMaybe []))
     mbOldStatus <- TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus
@@ -891,13 +845,19 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
           ExposeInvitationURLsToTeamAdminConfig
           FeatureTTLUnlimited
 
-instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
-  type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
-  setConfigForTeam tid wsnl = do
-    lockStatus <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsLockStatus
-    case lockStatus of
-      LockStatusLocked -> throwS @OperationDenied
-      LockStatusUnlocked -> persistAndPushEvent @db tid wsnl
+instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig
+
+instance SetFeatureConfig db OutlookCalIntegrationConfig
+
+instance GetFeatureConfig db OutlookCalIntegrationConfig where
+  getConfigForServer =
+    input <&> view (optSettings . setFeatureFlags . flagOutlookCalIntegration . unDefaults)
+
+instance SetFeatureConfig db MlsE2EIdConfig
+
+instance GetFeatureConfig db MlsE2EIdConfig where
+  getConfigForServer =
+    input <&> view (optSettings . setFeatureFlags . flagMlsE2EId . unDefaults)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --
@@ -935,13 +895,11 @@ featureEnabledForTeam ::
   forall db cfg r.
   ( GetFeatureConfig db cfg,
     GetConfigForTeamConstraints db cfg r,
-    Members
-      '[ ErrorS OperationDenied,
-         ErrorS 'NotATeamMember,
-         ErrorS 'TeamNotFound,
-         TeamStore
-       ]
-      r
+    ( Member (ErrorS OperationDenied) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS 'TeamNotFound) r,
+      Member TeamStore r
+    )
   ) =>
   TeamId ->
   Sem r Bool

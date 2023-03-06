@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
@@ -80,7 +81,7 @@ import Wire.API.User.Client
 -- with this are failing then assumption that
 -- 'whitelist-teams-and-implicit-consent' is set in all test environments is no
 -- longer correct.
-onlyIfLhWhitelisted :: (MonadIO m, Monad m) => m () -> m ()
+onlyIfLhWhitelisted :: MonadIO m => m () -> m ()
 onlyIfLhWhitelisted action = do
   let isGalleyLegalholdFeatureWhitelist = True
   if isGalleyLegalholdFeatureWhitelist
@@ -134,7 +135,7 @@ tests conf m z db b g n =
             [ test m "test-login-verify6-digit-email-code-success" $ testLoginVerify6DigitEmailCodeSuccess b g db,
               test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
               test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g,
-              test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails b g db,
+              test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails conf b g db,
               test m "test-login-verify6-digit-resend-code-success-and-rate-limiting" $ testLoginVerify6DigitResendCodeSuccessAndRateLimiting b g conf db,
               test m "test-login-verify6-digit-limit-retries" $ testLoginVerify6DigitLimitRetries b g conf db
             ]
@@ -151,7 +152,11 @@ tests conf m z db b g n =
           test m "token mismatch" (onlyIfLhWhitelisted (testTokenMismatchLegalhold z b g)),
           test m "new-persistent-cookie" (testNewPersistentCookie conf b),
           test m "new-session-cookie" (testNewSessionCookie conf b),
-          test m "suspend-inactive" (testSuspendInactiveUsers conf b),
+          testGroup "suspend-inactive" $ do
+            cookieType <- [SessionCookie, PersistentCookie]
+            endPoint <- ["/access", "/login"]
+            let testName = "cookieType=" <> show cookieType <> ",endPoint=" <> show endPoint
+            pure $ test m testName $ testSuspendInactiveUsers conf b cookieType endPoint,
           test m "client access" (testAccessWithClientId b),
           test m "client access with old token" (testAccessWithClientIdAndOldToken b),
           test m "client access incorrect" (testAccessWithIncorrectClientId b),
@@ -529,8 +534,8 @@ testLoginVerify6DigitMissingCodeFails brig galley = do
 -- @SF.Channel @TSFI.RESTfulAPI @S2
 --
 -- Test that login fails with expired second factor email verification code
-testLoginVerify6DigitExpiredCodeFails :: Brig -> Galley -> DB.ClientState -> Http ()
-testLoginVerify6DigitExpiredCodeFails brig galley db = do
+testLoginVerify6DigitExpiredCodeFails :: Opts.Opts -> Brig -> Galley -> DB.ClientState -> Http ()
+testLoginVerify6DigitExpiredCodeFails opts brig galley db = do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
   Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
@@ -538,8 +543,8 @@ testLoginVerify6DigitExpiredCodeFails brig galley db = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   key <- Code.mkKey (Code.ForEmail email)
   Just vcode <- Util.lookupCode db key Code.AccountLogin
-  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
-  threadDelay $ (5 * 1000000) + 600000
+  let verificationTimeout = round (Opts.setVerificationTimeout (Opts.optSettings opts))
+  threadDelay $ ((verificationTimeout + 1) * 1000_000)
   checkLoginFails brig $
     PasswordLogin $
       PasswordLoginData
@@ -940,7 +945,7 @@ getAndTestDBSupersededCookieAndItsValidSuccessor :: Opts.Opts -> Brig -> Nginz -
 getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   u <- randomUser b
   let renewAge = Opts.setUserCookieRenewAge $ Opts.optSettings config
-  let minAge = fromIntegral $ renewAge * 1000000 + 1
+  let minAge = fromIntegral $ (renewAge + 1) * 1000000
       Just email = userEmail u
   _rs <-
     login n (emailLogin email defPassword (Just "nexus1")) PersistentCookie
@@ -1199,51 +1204,46 @@ testNewSessionCookie config b = do
     const 200 === statusCode
     const Nothing === getHeader "Set-Cookie"
 
-testSuspendInactiveUsers :: HasCallStack => Opts.Opts -> Brig -> Http ()
-testSuspendInactiveUsers config brig = do
-  -- (context information: cookies are stored by user, not be device; so if there if the
-  -- cookie is old it means none of the devices of a user has used it for a request.)
+testSuspendInactiveUsers :: HasCallStack => Opts.Opts -> Brig -> CookieType -> String -> Http ()
+testSuspendInactiveUsers config brig cookieType endPoint = do
+  -- (context information: cookies are stored by user, not by device; so if there is a
+  -- cookie that is old, it means none of the devices of the user has used it for a request.)
 
   let Just suspendAge = Opts.suspendTimeout <$> Opts.setSuspendInactiveUsers (Opts.optSettings config)
   unless (suspendAge <= 30) $
     error "`suspendCookiesOlderThanSecs` is the number of seconds this test is running.  Please pick a value < 30."
-  let check :: HasCallStack => CookieType -> String -> Http ()
-      check cookieType endPoint = do
-        user <- randomUser brig
-        let Just email = userEmail user
-        rs <-
-          login brig (emailLogin email defPassword Nothing) cookieType
-            <!! const 200 === statusCode
-        let cky = decodeCookie rs
-        -- wait slightly longer than required for being marked as inactive.
-        let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
-        liftIO $ threadDelay (1000000 * waitTime)
-        case endPoint of
-          "/access" -> do
-            post (unversioned . brig . path "/access" . cookie cky) !!! do
-              const 403 === statusCode
-              const Nothing === getHeader "Set-Cookie"
-          "/login" -> do
-            login brig (emailLogin email defPassword Nothing) cookieType !!! do
-              const 403 === statusCode
-              const Nothing === getHeader "Set-Cookie"
-        let assertStatus want = do
-              have <-
-                retrying
-                  (exponentialBackoff 200000 <> limitRetries 6)
-                  (\_ have -> pure $ have == Suspended)
-                  (\_ -> getStatus brig (userId user))
-              let errmsg = "testSuspendInactiveUsers: " <> show (want, cookieType, endPoint, waitTime, suspendAge)
-              liftIO $ HUnit.assertEqual errmsg want have
-        assertStatus Suspended
-        setStatus brig (userId user) Active
-        assertStatus Active
-        login brig (emailLogin email defPassword Nothing) cookieType
-          !!! const 200 === statusCode
-  check SessionCookie "/access"
-  check SessionCookie "/login"
-  check PersistentCookie "/access"
-  check PersistentCookie "/login"
+
+  user <- randomUser brig
+  let Just email = userEmail user
+  rs <-
+    login brig (emailLogin email defPassword Nothing) cookieType
+      <!! const 200 === statusCode
+  let cky = decodeCookie rs
+  -- wait slightly longer than required for being marked as inactive.
+  let waitTime :: Int = floor (Opts.timeoutDiff suspendAge) + 5 -- adding 1 *should* be enough, but it's not.
+  liftIO $ threadDelay (1000000 * waitTime)
+  case endPoint of
+    "/access" -> do
+      post (unversioned . brig . path "/access" . cookie cky) !!! do
+        const 403 === statusCode
+        const Nothing === getHeader "Set-Cookie"
+    "/login" -> do
+      login brig (emailLogin email defPassword Nothing) cookieType !!! do
+        const 403 === statusCode
+        const Nothing === getHeader "Set-Cookie"
+  let assertStatus want = do
+        have <-
+          retrying
+            (exponentialBackoff 200000 <> limitRetries 6)
+            (\_ have -> pure $ have == Suspended)
+            (\_ -> getStatus brig (userId user))
+        let errmsg = "testSuspendInactiveUsers: " <> show (want, cookieType, endPoint, waitTime, suspendAge)
+        liftIO $ HUnit.assertEqual errmsg want have
+  assertStatus Suspended
+  setStatus brig (userId user) Active
+  assertStatus Active
+  login brig (emailLogin email defPassword Nothing) cookieType
+    !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Cookie Management

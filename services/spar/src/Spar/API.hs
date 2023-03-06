@@ -1,8 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# HLINT ignore "Use $>" #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-
-{-# HLINT ignore "Use $>" #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -100,6 +101,7 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
+import Wire.API.Routes.Internal.Spar
 import Wire.API.Routes.Public.Spar
 import Wire.API.User
 import Wire.API.User.IdentityProvider
@@ -116,32 +118,33 @@ app ctx =
     serve (Proxy @API) (hoistServer (Proxy @API) (runSparToHandler ctx) (api $ sparCtxOpts ctx) :: Server API)
 
 api ::
-  Members
-    '[ GalleyAccess,
-       BrigAccess,
-       Input Opts,
-       AssIDStore,
-       AReqIDStore,
-       VerdictFormatStore,
-       ScimExternalIdStore,
-       ScimUserTimesStore,
-       ScimTokenStore,
-       DefaultSsoCode,
-       IdPConfigStore,
-       IdPRawMetadataStore,
-       SAMLUserStore,
-       Random,
-       Error SparError,
-       SAML2,
-       Now,
-       SamlProtocolSettings,
-       Logger String,
-       Reporter,
-       -- TODO(sandy): Only necessary for 'fromExceptionSem' in 'apiScim'
-       Final IO,
-       Logger (Msg -> Msg)
-     ]
-    r =>
+  ( Member GalleyAccess r,
+    Member BrigAccess r,
+    Member (Input Opts) r,
+    Member AssIDStore r,
+    Member AReqIDStore r,
+    Member VerdictFormatStore r,
+    Member ScimExternalIdStore r,
+    Member ScimUserTimesStore r,
+    Member ScimTokenStore r,
+    Member DefaultSsoCode r,
+    Member IdPConfigStore r,
+    Member IdPRawMetadataStore r,
+    Member SAMLUserStore r,
+    Member Random r,
+    Member (Error SparError) r,
+    Member SAML2 r,
+    Member Now r,
+    Member SamlProtocolSettings r,
+    Member (Logger String) r,
+    Member Reporter r,
+    Member
+      ( -- TODO(sandy): Only necessary for 'fromExceptionSem' in 'apiScim'
+        Final IO
+      )
+      r,
+    Member (Logger (Msg -> Msg)) r
+  ) =>
   Opts ->
   ServerT API (Sem r)
 api opts =
@@ -151,25 +154,23 @@ api opts =
     :<|> apiINTERNAL
 
 apiSSO ::
-  Members
-    '[ GalleyAccess,
-       Logger String,
-       Input Opts,
-       BrigAccess,
-       AssIDStore,
-       VerdictFormatStore,
-       AReqIDStore,
-       ScimTokenStore,
-       DefaultSsoCode,
-       IdPConfigStore,
-       Random,
-       Error SparError,
-       SAML2,
-       SamlProtocolSettings,
-       Reporter,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member GalleyAccess r,
+    Member (Logger String) r,
+    Member (Input Opts) r,
+    Member BrigAccess r,
+    Member AssIDStore r,
+    Member VerdictFormatStore r,
+    Member AReqIDStore r,
+    Member ScimTokenStore r,
+    Member DefaultSsoCode r,
+    Member IdPConfigStore r,
+    Member Random r,
+    Member (Error SparError) r,
+    Member SAML2 r,
+    Member SamlProtocolSettings r,
+    Member Reporter r,
+    Member SAMLUserStore r
+  ) =>
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
@@ -182,18 +183,16 @@ apiSSO opts =
     :<|> ssoSettings
 
 apiIDP ::
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       IdPConfigStore,
-       IdPRawMetadataStore,
-       SAMLUserStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member IdPRawMetadataStore r,
+    Member SAMLUserStore r,
+    Member (Error SparError) r
+  ) =>
   ServerT APIIDP (Sem r)
 apiIDP =
   idpGet
@@ -204,16 +203,14 @@ apiIDP =
     :<|> idpDelete
 
 apiINTERNAL ::
-  Members
-    '[ ScimTokenStore,
-       DefaultSsoCode,
-       IdPConfigStore,
-       Error SparError,
-       SAMLUserStore,
-       ScimUserTimesStore
-     ]
-    r =>
-  ServerT APIINTERNAL (Sem r)
+  ( Member ScimTokenStore r,
+    Member DefaultSsoCode r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r,
+    Member SAMLUserStore r,
+    Member ScimUserTimesStore r
+  ) =>
+  ServerT InternalAPI (Sem r)
 apiINTERNAL =
   internalStatus
     :<|> internalDeleteTeam
@@ -227,11 +224,9 @@ appName = "spar"
 -- SSO API
 
 authreqPrecheck ::
-  Members
-    '[ IdPConfigStore,
-       Error SparError
-     ]
-    r =>
+  ( Member IdPConfigStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
@@ -242,19 +237,17 @@ authreqPrecheck msucc merr idpid =
     $> NoContent
 
 authreq ::
-  Members
-    '[ Random,
-       Input Opts,
-       Logger String,
-       AssIDStore,
-       VerdictFormatStore,
-       AReqIDStore,
-       SAML2,
-       SamlProtocolSettings,
-       Error SparError,
-       IdPConfigStore
-     ]
-    r =>
+  ( Member Random r,
+    Member (Input Opts) r,
+    Member (Logger String) r,
+    Member AssIDStore r,
+    Member VerdictFormatStore r,
+    Member AReqIDStore r,
+    Member SAML2 r,
+    Member SamlProtocolSettings r,
+    Member (Error SparError) r,
+    Member IdPConfigStore r
+  ) =>
   NominalDiffTime ->
   Maybe URI.URI ->
   Maybe URI.URI ->
@@ -292,24 +285,22 @@ validateRedirectURL uri = do
 
 authresp ::
   forall r.
-  Members
-    '[ Random,
-       Logger String,
-       Input Opts,
-       GalleyAccess,
-       BrigAccess,
-       AssIDStore,
-       VerdictFormatStore,
-       AReqIDStore,
-       ScimTokenStore,
-       IdPConfigStore,
-       SAML2,
-       SamlProtocolSettings,
-       Error SparError,
-       Reporter,
-       SAMLUserStore
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member (Input Opts) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member AssIDStore r,
+    Member VerdictFormatStore r,
+    Member AReqIDStore r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member SAML2 r,
+    Member SamlProtocolSettings r,
+    Member (Error SparError) r,
+    Member Reporter r,
+    Member SAMLUserStore r
+  ) =>
   Maybe TeamId ->
   SAML.AuthnResponseBody ->
   Sem r Void
@@ -337,15 +328,13 @@ ssoSettings =
 -- IdPConfigStore API
 
 idpGet ::
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       IdPConfigStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe UserId ->
   SAML.IdPId ->
   Sem r IdP
@@ -355,14 +344,12 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   pure idp
 
 idpGetRaw ::
-  Members
-    '[ GalleyAccess,
-       BrigAccess,
-       IdPConfigStore,
-       IdPRawMetadataStore,
-       Error SparError
-     ]
-    r =>
+  ( Member GalleyAccess r,
+    Member BrigAccess r,
+    Member IdPConfigStore r,
+    Member IdPRawMetadataStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe UserId ->
   SAML.IdPId ->
   Sem r RawIdPMetadata
@@ -374,15 +361,13 @@ idpGetRaw zusr idpid = do
     Nothing -> throwSparSem $ SparIdPNotFound (cs $ show idpid)
 
 idpGetAll ::
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       IdPConfigStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe UserId ->
   Sem r IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
@@ -400,18 +385,16 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 -- https://github.com/zinfra/backend-issues/issues/1314
 idpDelete ::
   forall r.
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       SAMLUserStore,
-       IdPConfigStore,
-       IdPRawMetadataStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member SAMLUserStore r,
+    Member IdPConfigStore r,
+    Member IdPRawMetadataStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe UserId ->
   SAML.IdPId ->
   Maybe Bool ->
@@ -477,17 +460,15 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
 idpCreate ::
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       IdPRawMetadataStore,
-       IdPConfigStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPRawMetadataStore r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe UserId ->
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
@@ -498,17 +479,15 @@ idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML ::
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       IdPConfigStore,
-       IdPRawMetadataStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member IdPRawMetadataStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe UserId ->
   Text ->
   SAML.IdPMetadata ->
@@ -533,12 +512,10 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
 -- credentials can be created.  To fix this, we need to implement a way to associate scim
 -- tokens with IdPs.  https://wearezeta.atlassian.net/browse/SQSERVICES-165
 assertNoScimOrNoIdP ::
-  Members
-    '[ ScimTokenStore,
-       Error SparError,
-       IdPConfigStore
-     ]
-    r =>
+  ( Member ScimTokenStore r,
+    Member (Error SparError) r,
+    Member IdPConfigStore r
+  ) =>
   TeamId ->
   Sem r ()
 assertNoScimOrNoIdP teamid = do
@@ -572,13 +549,11 @@ assertNoScimOrNoIdP teamid = do
 validateNewIdP ::
   forall m r.
   (HasCallStack, m ~ Sem r) =>
-  Members
-    '[ Random,
-       Logger String,
-       IdPConfigStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r
+  ) =>
   WireIdPAPIVersion ->
   SAML.IdPMetadata ->
   TeamId ->
@@ -617,16 +592,14 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces handle = withDebugLog "v
 -- 'idpCreate', which is not a good reason.  make this one function and pass around
 -- 'IdPMetadataInfo' directly where convenient.
 idpUpdate ::
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       IdPConfigStore,
-       IdPRawMetadataStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member IdPConfigStore r,
+    Member IdPRawMetadataStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe UserId ->
   IdPMetadataInfo ->
   SAML.IdPId ->
@@ -635,16 +608,14 @@ idpUpdate ::
 idpUpdate zusr (IdPMetadataValue raw xml) = idpUpdateXML zusr raw xml
 
 idpUpdateXML ::
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       IdPConfigStore,
-       IdPRawMetadataStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member IdPConfigStore r,
+    Member IdPRawMetadataStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe UserId ->
   Text ->
   SAML.IdPMetadata ->
@@ -677,15 +648,13 @@ idpUpdateXML zusr raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just 
 validateIdPUpdate ::
   forall m r.
   (HasCallStack, m ~ Sem r) =>
-  Members
-    '[ Random,
-       Logger String,
-       GalleyAccess,
-       BrigAccess,
-       IdPConfigStore,
-       Error SparError
-     ]
-    r =>
+  ( Member Random r,
+    Member (Logger String) r,
+    Member GalleyAccess r,
+    Member BrigAccess r,
+    Member IdPConfigStore r,
+    Member (Error SparError) r
+  ) =>
   Maybe UserId ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
@@ -734,7 +703,12 @@ withDebugLog msg showval action = do
   pure val
 
 authorizeIdP ::
-  (HasCallStack, Members '[GalleyAccess, BrigAccess, Error SparError] r) =>
+  ( HasCallStack,
+    ( Member GalleyAccess r,
+      Member BrigAccess r,
+      Member (Error SparError) r
+    )
+  ) =>
   Maybe UserId ->
   IdP ->
   Sem r (UserId, TeamId)
@@ -757,18 +731,22 @@ internalStatus = pure NoContent
 
 -- | Cleanup handler that is called by Galley whenever a team is about to
 -- get deleted.
-internalDeleteTeam :: Members '[ScimTokenStore, IdPConfigStore, SAMLUserStore] r => TeamId -> Sem r NoContent
+internalDeleteTeam ::
+  ( Member ScimTokenStore r,
+    Member IdPConfigStore r,
+    Member SAMLUserStore r
+  ) =>
+  TeamId ->
+  Sem r NoContent
 internalDeleteTeam team = do
   deleteTeam team
   pure NoContent
 
 internalPutSsoSettings ::
-  Members
-    '[ DefaultSsoCode,
-       Error SparError,
-       IdPConfigStore
-     ]
-    r =>
+  ( Member DefaultSsoCode r,
+    Member (Error SparError) r,
+    Member IdPConfigStore r
+  ) =>
   SsoSettings ->
   Sem r NoContent
 internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
@@ -782,7 +760,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
     *> DefaultSsoCode.store code
     $> NoContent
 
-internalGetScimUserInfo :: Members '[ScimUserTimesStore] r => UserSet -> Sem r ScimUserInfos
+internalGetScimUserInfo :: Member ScimUserTimesStore r => UserSet -> Sem r ScimUserInfos
 internalGetScimUserInfo (UserSet uids) = do
   results <- ScimUserTimesStore.readMulti (Set.toList uids)
   let scimUserInfos = results <&> (\(uid, t, _) -> ScimUserInfo uid (Just t))

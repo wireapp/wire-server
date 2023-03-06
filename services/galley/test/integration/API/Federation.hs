@@ -41,7 +41,6 @@ import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer
-import Galley.Types.Conversations.Intra
 import Imports
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
@@ -59,6 +58,7 @@ import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification
 import Wire.API.Message
+import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
 
@@ -106,6 +106,7 @@ getConversationsAllFound = do
     responseJsonError
       =<< postConvWithRemoteUsers
         bob
+        Nothing
         defNewProteusConv {newConvQualifiedUsers = [aliceQ, carlQ]}
 
   -- create a one-to-one conversation between bob and alice
@@ -657,6 +658,7 @@ leaveConversationSuccess = do
       decodeConvId
         <$> postConvQualified
           alice
+          Nothing
           defNewProteusConv
             { newConvQualifiedUsers = [qBob, qChad, qDee, qEve]
             }
@@ -844,6 +846,7 @@ sendMessage = do
       fmap decodeConvId $
         postConvQualified
           aliceId
+          Nothing
           defNewProteusConv
             { newConvQualifiedUsers = [bob, chad]
             }
@@ -959,6 +962,7 @@ onUserDeleted = do
     decodeQualifiedConvId
       <$> ( postConvWithRemoteUsers
               (tUnqualified alice)
+              Nothing
               defNewProteusConv {newConvQualifiedUsers = [tUntagged bob, alex, bart, carl]}
               <!! const 201 === statusCode
           )
@@ -969,7 +973,10 @@ onUserDeleted = do
   -- conversation without bob
   noBobConvId <-
     fmap decodeQualifiedConvId $
-      postConvQualified (tUnqualified alice) defNewProteusConv {newConvQualifiedUsers = [alex]}
+      postConvQualified
+        (tUnqualified alice)
+        Nothing
+        defNewProteusConv {newConvQualifiedUsers = [alex]}
         <!! const 201 === statusCode
 
   WS.bracketR2 cannon (tUnqualified alice) (qUnqualified alex) $ \(wsAlice, wsAlex) -> do
@@ -1052,7 +1059,7 @@ updateConversationByRemoteAdmin = do
   WS.bracketR c alice $ \wsAlice -> do
     (rsp, _federatedRequests) <-
       withTempMockFederator' (mockReply ()) $ do
-        postConvQualified alice defNewProteusConv {newConvName = checked convName, newConvQualifiedUsers = [qbob, qcharlie]}
+        postConvQualified alice Nothing defNewProteusConv {newConvName = checked convName, newConvQualifiedUsers = [qbob, qcharlie]}
           <!! const 201 === statusCode
 
     cnv <- assertConv rsp RegularConv alice qalice [qbob, qcharlie] (Just convName) Nothing

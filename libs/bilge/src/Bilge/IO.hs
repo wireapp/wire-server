@@ -117,6 +117,7 @@ handleRequest :: MonadHttp m => Request -> m (Response (Maybe LByteString))
 handleRequest req = handleRequestWithCont req consumeBody
 
 instance MonadIO m => MonadHttp (HttpT m) where
+  handleRequestWithCont :: Request -> (Response BodyReader -> IO a) -> HttpT m a
   handleRequestWithCont req h = do
     m <- ask
     liftIO $ withResponse req m h
@@ -210,7 +211,7 @@ instance MonadUnliftIO m => MonadUnliftIO (HttpT m) where
       withRunInIO $ \run ->
         inner (run . runHttpT r)
 
-runHttpT :: Monad m => Manager -> HttpT m a -> m a
+runHttpT :: Manager -> HttpT m a -> m a
 runHttpT m h = runReaderT (unwrap h) m
 
 -- | Given a 'Request' builder function, perform an actual HTTP request using the
@@ -224,7 +225,7 @@ get,
   options,
   trace,
   patch ::
-    (MonadIO m, MonadHttp m) =>
+    MonadHttp m =>
     (Request -> Request) ->
     m (Response (Maybe LByteString))
 get f = httpLbs empty (method GET . f)
@@ -244,7 +245,7 @@ get',
   options',
   trace',
   patch' ::
-    (MonadIO m, MonadHttp m) =>
+    MonadHttp m =>
     Request ->
     (Request -> Request) ->
     m (Response (Maybe LByteString))
@@ -258,14 +259,14 @@ trace' r f = httpLbs r (method TRACE . f)
 patch' r f = httpLbs r (method PATCH . f)
 
 httpLbs ::
-  (MonadIO m, MonadHttp m) =>
+  MonadHttp m =>
   Request ->
   (Request -> Request) ->
   m (Response (Maybe LByteString))
 httpLbs r f = http r f consumeBody
 
 http ::
-  (MonadIO m, MonadHttp m) =>
+  MonadHttp m =>
   Request ->
   (Request -> Request) ->
   (Response BodyReader -> IO a) ->

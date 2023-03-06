@@ -52,8 +52,7 @@ propagateMessage ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-mls-message-sent"
+    Member TinyLog r
   ) =>
   Qualified UserId ->
   Local Data.Conversation ->

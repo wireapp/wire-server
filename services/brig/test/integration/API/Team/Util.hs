@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,7 +25,7 @@ import API.User.Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import Control.Lens ((^?))
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -32,7 +34,6 @@ import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as T
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
@@ -41,6 +42,7 @@ import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import qualified Wire.API.Team.Feature as Public
@@ -128,7 +130,7 @@ createTeam u galley = do
 -- | Create user and binding team.
 --
 -- NB: the created user is the team owner.
-createUserWithTeam :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) => Brig -> m (UserId, TeamId)
+createUserWithTeam :: (MonadIO m, MonadHttp m, MonadCatch m) => Brig -> m (UserId, TeamId)
 createUserWithTeam brig = do
   (user, tid) <- createUserWithTeam' brig
   pure (userId user, tid)
@@ -136,7 +138,7 @@ createUserWithTeam brig = do
 -- | Create user and binding team.
 --
 -- NB: the created user is the team owner.
-createUserWithTeam' :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m, HasCallStack) => Brig -> m (User, TeamId)
+createUserWithTeam' :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> m (User, TeamId)
 createUserWithTeam' brig = do
   e <- randomEmail
   n <- randomName
@@ -148,7 +150,10 @@ createUserWithTeam' brig = do
               "password" .= defPassword,
               "team" .= newTeam
             ]
-  user <- responseJsonError =<< post (brig . path "/i/users" . contentJson . body p)
+  user <-
+    responseJsonError
+      =<< post (brig . path "/i/users" . contentJson . body p)
+        <!! const 201 === statusCode
   let Just tid = userTeam user
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId user)
   liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
@@ -231,7 +236,6 @@ createTeamConvWithRole role g tid u us mtimer = do
           Nothing
           role
           ProtocolProteusTag
-          Nothing
   r <-
     post
       ( g
@@ -382,7 +386,7 @@ deleteInvitation brig tid iid uid =
   delete (brig . paths ["teams", toByteString' tid, "invitations", toByteString' iid] . zUser uid) !!! const 200 === statusCode
 
 postInvitation ::
-  (MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   Brig ->
   TeamId ->
   UserId ->

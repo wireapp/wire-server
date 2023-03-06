@@ -17,19 +17,28 @@
 
 module Wire.API.Routes.Internal.LegalHold where
 
+import Control.Lens
 import Data.Id
+import Data.Proxy
+import Data.Swagger
+import Imports
 import Servant.API hiding (Header, WithStatus)
+import Servant.Swagger
 import Wire.API.Team.Feature
 
 type InternalLegalHoldAPI =
   "i"
     :> "teams"
-    :> Capture "tid" TeamId
-    :> "legalhold"
-    :> Get '[JSON] (WithStatus LegalholdConfig)
-    :<|> "i"
-      :> "teams"
-      :> Capture "tid" TeamId
-      :> "legalhold"
-      :> ReqBody '[JSON] (WithStatusNoLock LegalholdConfig)
-      :> Put '[] NoContent
+    :> ( Capture "tid" TeamId
+           :> "legalhold"
+           :> Get '[JSON] (WithStatus LegalholdConfig)
+           :<|> Capture "tid" TeamId
+             :> "legalhold"
+             :> ReqBody '[JSON] (WithStatusNoLock LegalholdConfig)
+             :> Put '[] NoContent
+       )
+
+swaggerDoc :: Swagger
+swaggerDoc =
+  toSwagger (Proxy @InternalLegalHoldAPI)
+    & info . title .~ "Wire-Server internal legalhold API"

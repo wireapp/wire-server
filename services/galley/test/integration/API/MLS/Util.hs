@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -103,8 +105,6 @@ mapRemoteKeyPackageRef brig bundle =
 postMessage ::
   ( HasCallStack,
     MonadIO m,
-    MonadCatch m,
-    MonadThrow m,
     MonadHttp m,
     HasGalley m
   ) =>
@@ -126,8 +126,6 @@ postMessage sender msg = do
 postCommitBundle ::
   ( HasCallStack,
     MonadIO m,
-    MonadCatch m,
-    MonadThrow m,
     MonadHttp m,
     HasGalley m
   ) =>
@@ -146,12 +144,21 @@ postCommitBundle sender bundle = do
         . bytes bundle
     )
 
-postWelcome :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ByteString -> m ResponseLBS
+-- FUTUREWORK: remove this and start using commit bundles everywhere in tests
+postWelcome ::
+  ( MonadIO m,
+    MonadHttp m,
+    MonadReader TestSetup m,
+    HasCallStack
+  ) =>
+  UserId ->
+  ByteString ->
+  m ResponseLBS
 postWelcome uid welcome = do
-  galley <- viewGalley
+  galley <- view tsUnversionedGalley
   post
     ( galley
-        . paths ["mls", "welcome"]
+        . paths ["v2", "mls", "welcome"]
         . zUser uid
         . zConn "conn"
         . content "message/mls"
@@ -422,7 +429,8 @@ setupMLSGroup creator = setupMLSGroupWithConv action creator
         =<< liftTest
           ( postConvQualified
               (ciUser creator)
-              (defNewMLSConv (ciClient creator))
+              (Just (ciClient creator))
+              defNewMLSConv
           )
           <!! const 201 === statusCode
 
@@ -1002,8 +1010,6 @@ receiveOnConvUpdated conv origUser joiner = do
 getGroupInfo ::
   ( HasCallStack,
     MonadIO m,
-    MonadCatch m,
-    MonadThrow m,
     MonadHttp m,
     HasGalley m
   ) =>

@@ -124,7 +124,7 @@ assertUserExist msg db' uid shouldExist = liftIO $ do
   exists <- aFewTimes 12 (runClient db' (userExists uid)) (== shouldExist)
   assertEqual msg shouldExist exists
 
-waitUserExpiration :: (MonadIO m, MonadUnliftIO m) => Opts -> m ()
+waitUserExpiration :: MonadUnliftIO m => Opts -> m ()
 waitUserExpiration opts' = do
   let timeoutSecs = round @Double . realToFrac . setTeamInvitationTimeout . optSettings $ opts'
   Control.Exception.assert (timeoutSecs < 30) $ do
@@ -189,7 +189,7 @@ randomScimUserWithSubject = do
 
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
 randomScimUserWithSubjectAndRichInfo ::
-  (HasCallStack, MonadRandom m, MonadIO m) =>
+  (HasCallStack, MonadRandom m) =>
   RichInfo ->
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do

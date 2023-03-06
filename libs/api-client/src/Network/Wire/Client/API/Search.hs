@@ -27,7 +27,6 @@ module Network.Wire.Client.API.Search
 where
 
 import Bilge
-import Control.Monad.Catch (MonadMask)
 import qualified Data.ByteString.Char8 as C
 import Data.Default.Class
 import Data.List.NonEmpty
@@ -51,7 +50,7 @@ instance Default SearchParams where
   def = SearchParams "" 2 10 True
 
 -- | Search for already connected and/or potential contacts.
-search :: (MonadSession m, MonadUnliftIO m, MonadMask m) => SearchParams -> m (SearchResult Contact)
+search :: MonadSession m => SearchParams -> m (SearchResult Contact)
 search SearchParams {..} = sessionRequest req rsc readBody
   where
     req =

@@ -18,15 +18,21 @@ Then the following Makefile targets can be used to compile and test wire-server 
 
     # to compile all binaries to ./dist run
     make
-    
+
     # to build and install all of galley's executables
     make c package=galley
-    
+
     # also run galley's unit tests
     make c package=galley test=1
 
 
 ## Troubleshooting
+
+### If the PR doesn't pass the CI (read check marks on github)
+
+```
+make sanitize-pr
+```
 
 ### Linker errors while compiling
 
@@ -73,10 +79,31 @@ deploy/dockerephemeral/run.sh
 
 After all containers are up you can use these Makefile targets to run the tests locally:
 
-```
-# build and run galley's integration tests
-make ci package=galley
+1. Build and run all integration tests
+   ```bash
+   make ci
+   ```
 
-# run galley's integration tests that match a pattern
-TASTY_PATTERN="/MLS/" make ci package=galley
-```
+2. Build and run integration tests for a service (say galley)
+   ```bash
+   make ci package=galley
+   ```
+
+3. Run integration tests written using `tasty` for a service (say galley) that match a pattern
+   ```bash
+   TASTY_PATTERN="/MLS/" make ci package=galley
+   ```
+   For more details on pattern formats, see tasty docs: https://github.com/UnkindPartition/tasty#patterns
+
+4. Run integration tests written using `hspec` for a service (say spar) that match a pattern
+   ```bash
+   HSPEC_MATCH='Scim' make ci package=spar
+   ```
+   For more details on match formats, see hspec docs: https://hspec.github.io/match.html
+
+5. Run integration tests without any parallelism
+   ```bash
+   TASTY_NUM_THREADS=1 make ci package=brig
+   ```
+
+   `TASTY_NUM_THREADS` can also be set to other values, it defaults to number of cores available.

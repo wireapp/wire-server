@@ -27,7 +27,6 @@ import Data.Misc
 import qualified Data.Text.Lazy as LT
 import Galley.Cassandra.Instances ()
 import Galley.Data.Scope
-import Galley.Types.Teams.Intra
 import Imports
 import Text.RawString.QQ
 import Wire.API.Conversation
@@ -39,6 +38,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.PublicGroupState
 import Wire.API.Provider
 import Wire.API.Provider.Service
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Team
 import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility

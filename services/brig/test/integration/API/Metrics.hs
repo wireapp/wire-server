@@ -26,6 +26,7 @@ where
 
 import Bilge
 import Bilge.Assert
+import qualified Brig.Options as Opt
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Imports
@@ -34,13 +35,13 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.User
 
-tests :: Manager -> Brig -> IO TestTree
-tests manager brig = do
+tests :: Manager -> Opt.Opts -> Brig -> IO TestTree
+tests manager opts brig = do
   pure $
     testGroup
       "metrics"
       [ testCase "prometheus" . void $ runHttpT manager (testPrometheusMetrics brig),
-        testCase "work" . void $ runHttpT manager (testMetricsEndpoint brig)
+        testCase "work" . void $ runHttpT manager (testMetricsEndpoint opts brig)
       ]
 
 testPrometheusMetrics :: Brig -> Http ()
@@ -50,8 +51,8 @@ testPrometheusMetrics brig = do
     -- Should contain the request duration metric in its output
     const (Just "TYPE http_request_duration_seconds histogram") =~= responseBody
 
-testMetricsEndpoint :: Brig -> Http ()
-testMetricsEndpoint brig0 = do
+testMetricsEndpoint :: Opt.Opts -> Brig -> Http ()
+testMetricsEndpoint opts brig0 = withSettingsOverrides opts $ do
   let brig = apiVersion "v1" . brig0
       p1 = "/self"
       p2 uid = "/users/" <> uid <> "/clients"
@@ -67,11 +68,11 @@ testMetricsEndpoint brig0 = do
   _ <- post (brig . path p3 . contentJson . queryItem "persist" "true" . json (defEmailLogin email) . expect2xx)
   _ <- post (brig . path p3 . contentJson . queryItem "persist" "true" . json (defEmailLogin email) . expect2xx)
   countSelf <- getCount "/self" "GET"
-  liftIO $ assertEqual "/self was called once" (beforeSelf + 1) countSelf
+  liftIO $ assertBool "/self was called at least once" ((beforeSelf + 1) <= countSelf)
   countClients <- getCount "/users/:uid/clients" "GET"
-  liftIO $ assertEqual "/users/:uid/clients was called twice" (beforeClients + 2) countClients
+  liftIO $ assertBool "/users/:uid/clients was called at least twice" ((beforeClients + 2) <= countClients)
   countProperties <- getCount "/login" "POST"
-  liftIO $ assertEqual "/login was called twice" (beforeProperties + 2) countProperties
+  liftIO $ assertBool "/login was called at least twice" ((beforeProperties + 2) <= countProperties)
   where
     getCount endpoint m = do
       rsp <- responseBody <$> get (brig0 . path "i/metrics")

@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.SystemSettings (tests) where
 
 import Bilge
@@ -5,6 +22,7 @@ import Bilge.Assert
 import Brig.Options
 import Control.Lens
 import qualified Data.ByteString.Char8 as BS
+import Data.Id
 import Imports
 import Network.Wai.Test as WaiTest
 import Test.Tasty
@@ -17,7 +35,8 @@ tests :: Opts -> Manager -> IO TestTree
 tests opts m = pure $ do
   testGroup
     "settings"
-    [ test m "GET /system/settings/unauthorized" $ testGetSettings opts
+    [ test m "GET /system/settings/unauthorized" $ testGetSettings opts,
+      test m "GET /system/settings" $ testGetSettingsInternal opts
     ]
 
 testGetSettings :: Opts -> Http ()
@@ -35,14 +54,34 @@ testGetSettings opts = liftIO $ do
       -- made. This happens due to the `MonadHttp WaiTest.Session` instance.
       queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings
       liftIO $
-        queriedSettings @?= SystemSettings expectedRes
+        queriedSettings @?= SystemSettingsPublic expectedRes
 
-getSystemSettings :: WaiTest.Session SystemSettings
-getSystemSettings =
-  responseJsonError
-    =<< get (path (BS.pack ("/" ++ latestVersion ++ "/system/settings/unauthorized")))
-      <!! statusCode
-        Bilge.Assert.=== const 200
+    getSystemSettings :: WaiTest.Session SystemSettingsPublic
+    getSystemSettings =
+      responseJsonError
+        =<< get (path (BS.pack ("/" ++ latestVersion ++ "/system/settings/unauthorized")))
+          <!! statusCode === const 200
+      where
+        latestVersion :: String
+        latestVersion = map toLower $ show (maxBound :: Version)
+
+testGetSettingsInternal :: Opts -> Http ()
+testGetSettingsInternal opts = liftIO $ do
+  uid <- randomId
+  expectResultForEnableMls uid Nothing False
+  expectResultForEnableMls uid (Just False) False
+  expectResultForEnableMls uid (Just True) True
   where
-    latestVersion :: String
-    latestVersion = map toLower $ show (maxBound :: Version)
+    expectResultForEnableMls :: UserId -> Maybe Bool -> Bool -> IO ()
+    expectResultForEnableMls uid setEnableMlsValue expectedRes = do
+      let newOpts = opts & (optionSettings . enableMLS) .~ setEnableMlsValue
+      -- Run call in `WaiTest.Session` with an adjusted brig `Application`. I.e.
+      -- the response is created by running the brig `Application` (with
+      -- modified options) directly on the `Request`. No real HTTP request is
+      -- made. This happens due to the `MonadHttp WaiTest.Session` instance.
+      queriedSettings <- withSettingsOverrides newOpts $ getSystemSettings uid
+      liftIO $ ssInternal queriedSettings @?= SystemSettingsInternal expectedRes
+
+    getSystemSettings :: UserId -> WaiTest.Session SystemSettings
+    getSystemSettings uid =
+      responseJsonError =<< get (paths ["system", "settings"] . zUser uid) <!! statusCode === const 200

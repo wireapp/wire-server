@@ -91,6 +91,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Client (FederatorClient)
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
@@ -98,7 +99,10 @@ import Wire.API.Team.Feature as Public hiding (setStatus)
 import Wire.Sem.Paging.Cassandra
 
 getBotConversationH ::
-  Members '[ConversationStore, ErrorS 'ConvNotFound, Input (Local ())] r =>
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (Input (Local ())) r
+  ) =>
   BotId ::: ConvId ::: JSON ->
   Sem r Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
@@ -106,7 +110,9 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
   json <$> getBotConversation zbot lcnv
 
 getBotConversation ::
-  Members '[ConversationStore, ErrorS 'ConvNotFound] r =>
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r
+  ) =>
   BotId ->
   Local ConvId ->
   Sem r Public.BotConvView
@@ -124,14 +130,12 @@ getBotConversation zbot lcnv = do
           Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
 getUnqualifiedConversation ::
-  Members
-    '[ ConversationStore,
-       ErrorS 'ConvNotFound,
-       ErrorS 'ConvAccessDenied,
-       Error InternalError,
-       P.TinyLog
-     ]
-    r =>
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error InternalError) r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   ConvId ->
   Sem r Public.Conversation
@@ -141,17 +145,13 @@ getUnqualifiedConversation lusr cnv = do
 
 getConversation ::
   forall r.
-  ( Members
-      '[ ConversationStore,
-         ErrorS 'ConvNotFound,
-         ErrorS 'ConvAccessDenied,
-         Error FederationError,
-         Error InternalError,
-         FederatorAccess,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "get-conversations"
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member FederatorAccess r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   Qualified ConvId ->
@@ -173,15 +173,11 @@ getConversation lusr cnv = do
         _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
 
 getRemoteConversations ::
-  ( Members
-      '[ ConversationStore,
-         Error FederationError,
-         ErrorS 'ConvNotFound,
-         FederatorAccess,
-         P.TinyLog
-       ]
-      r,
-    CallsFed 'Galley "get-conversations"
+  ( Member ConversationStore r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member FederatorAccess r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -197,7 +193,11 @@ data FailedGetConversationReason
   | FailedGetConversationRemotely FederationError
 
 throwFgcrError ::
-  Members '[ErrorS 'ConvNotFound, Error FederationError] r => FailedGetConversationReason -> Sem r a
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (Error FederationError) r
+  ) =>
+  FailedGetConversationReason ->
+  Sem r a
 throwFgcrError FailedGetConversationLocally = throwS @'ConvNotFound
 throwFgcrError (FailedGetConversationRemotely e) = throw e
 
@@ -207,7 +207,11 @@ data FailedGetConversation
       FailedGetConversationReason
 
 throwFgcError ::
-  Members '[ErrorS 'ConvNotFound, Error FederationError] r => FailedGetConversation -> Sem r a
+  ( Member (ErrorS 'ConvNotFound) r,
+    Member (Error FederationError) r
+  ) =>
+  FailedGetConversation ->
+  Sem r a
 throwFgcError (FailedGetConversation _ r) = throwFgcrError r
 
 failedGetConversationRemotely ::
@@ -228,8 +232,9 @@ partitionGetConversationFailures = bimap concat concat . partitionEithers . map 
     split (FailedGetConversation convs (FailedGetConversationRemotely _)) = Right convs
 
 getRemoteConversationsWithFailures ::
-  ( Members '[ConversationStore, FederatorAccess, P.TinyLog] r,
-    CallsFed 'Galley "get-conversations"
+  ( Member ConversationStore r,
+    Member FederatorAccess r,
+    Member P.TinyLog r
   ) =>
   Local UserId ->
   [Remote ConvId] ->
@@ -253,7 +258,8 @@ getRemoteConversationsWithFailures lusr convs = do
         | otherwise = [failedGetConversationLocally (map tUntagged locallyNotFound)]
 
   -- request conversations from remote backends
-  let rpc = fedClient @'Galley @"get-conversations"
+  let rpc :: GetConversationsRequest -> FederatorClient 'Galley GetConversationsResponse
+      rpc = fedClient @'Galley @"get-conversations"
   resp <-
     E.runFederatedConcurrentlyEither locallyFound $ \someConvs ->
       rpc $ GetConversationsRequest (tUnqualified lusr) (tUnqualified someConvs)
@@ -262,7 +268,7 @@ getRemoteConversationsWithFailures lusr convs = do
     <$> traverse handleFailure resp
   where
     handleFailure ::
-      Members '[P.TinyLog] r =>
+      Member P.TinyLog r =>
       Either (Remote [ConvId], FederationError) (Remote GetConversationsResponse) ->
       Sem r (Either FailedGetConversation [Remote RemoteConversation])
     handleFailure (Left (rcids, e)) = do
@@ -273,7 +279,10 @@ getRemoteConversationsWithFailures lusr convs = do
     handleFailure (Right c) = pure . Right . traverse gcresConvs $ c
 
 getConversationRoles ::
-  Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied] r =>
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r
+  ) =>
   Local UserId ->
   ConvId ->
   Sem r Public.ConversationRolesList
@@ -311,15 +320,13 @@ conversationIdsPageFromUnqualified lusr start msize = do
 conversationIdsPageFromV2 ::
   forall p r.
   ( p ~ CassandraPaging,
-    Members
-      '[ ConversationStore,
-         Error InternalError,
-         Input Env,
-         ListItems p ConvId,
-         ListItems p (Remote ConvId),
-         P.TinyLog
-       ]
-      r
+    ( Member ConversationStore r,
+      Member (Error InternalError) r,
+      Member (Input Env) r,
+      Member (ListItems p ConvId) r,
+      Member (ListItems p (Remote ConvId)) r,
+      Member P.TinyLog r
+    )
   ) =>
   ListGlobalSelfConvs ->
   Local UserId ->
@@ -402,15 +409,13 @@ conversationIdsPageFromV2 listGlobalSelf lusr Public.GetMultiTablePageRequest {.
 conversationIdsPageFrom ::
   forall p r.
   ( p ~ CassandraPaging,
-    Members
-      '[ ConversationStore,
-         Error InternalError,
-         Input Env,
-         ListItems p ConvId,
-         ListItems p (Remote ConvId),
-         P.TinyLog
-       ]
-      r
+    ( Member ConversationStore r,
+      Member (Error InternalError) r,
+      Member (Input Env) r,
+      Member (ListItems p ConvId) r,
+      Member (ListItems p (Remote ConvId)) r,
+      Member P.TinyLog r
+    )
   ) =>
   Local UserId ->
   Public.GetPaginatedConversationIds ->
@@ -430,7 +435,11 @@ conversationIdsPageFrom lusr state = do
   conversationIdsPageFromV2 ListGlobalSelf lusr state
 
 getConversations ::
-  Members '[Error InternalError, ListItems LegacyPaging ConvId, ConversationStore, P.TinyLog] r =>
+  ( Member (Error InternalError) r,
+    Member (ListItems LegacyPaging ConvId) r,
+    Member ConversationStore r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -441,7 +450,9 @@ getConversations luser mids mstart msize = do
   flip ConversationList more <$> mapM (Mapping.conversationView luser) cs
 
 getConversationsInternal ::
-  Members '[ConversationStore, ListItems LegacyPaging ConvId] r =>
+  ( Member ConversationStore r,
+    Member (ListItems LegacyPaging ConvId) r
+  ) =>
   Local UserId ->
   Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
   Maybe ConvId ->
@@ -460,7 +471,9 @@ getConversationsInternal luser mids mstart msize = do
 
     -- get ids and has_more flag
     getIds ::
-      Members '[ConversationStore, ListItems LegacyPaging ConvId] r =>
+      ( Member ConversationStore r,
+        Member (ListItems LegacyPaging ConvId) r
+      ) =>
       Maybe (Range 1 32 (CommaSeparatedList ConvId)) ->
       Sem r (Bool, [ConvId])
     getIds (Just ids) =
@@ -482,7 +495,11 @@ getConversationsInternal luser mids mstart msize = do
       | otherwise = pure True
 
 listConversations ::
-  (Members '[ConversationStore, Error InternalError, FederatorAccess, P.TinyLog] r, CallsFed 'Galley "get-conversations") =>
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member FederatorAccess r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Public.ListConversations ->
   Sem r Public.ConversationsResponse
@@ -535,7 +552,9 @@ listConversations luser (Public.ListConversations ids) = do
       pure (founds, notFounds)
 
 iterateConversations ::
-  Members '[ListItems LegacyPaging ConvId, ConversationStore] r =>
+  ( Member (ListItems LegacyPaging ConvId) r,
+    Member ConversationStore r
+  ) =>
   Local UserId ->
   Range 1 500 Int32 ->
   ([Data.Conversation] -> Sem r a) ->
@@ -554,7 +573,10 @@ iterateConversations luid pageSize handleConvs = go Nothing
       pure $ resultHead : resultTail
 
 internalGetMemberH ::
-  Members '[ConversationStore, Input (Local ()), MemberStore] r =>
+  ( Member ConversationStore r,
+    Member (Input (Local ())) r,
+    Member MemberStore r
+  ) =>
   ConvId ::: UserId ->
   Sem r Response
 internalGetMemberH (cnv ::: usr) = do
@@ -562,7 +584,9 @@ internalGetMemberH (cnv ::: usr) = do
   json <$> getLocalSelf lusr cnv
 
 getLocalSelf ::
-  Members '[ConversationStore, MemberStore] r =>
+  ( Member ConversationStore r,
+    Member MemberStore r
+  ) =>
   Local UserId ->
   ConvId ->
   Sem r (Maybe Public.Member)
@@ -680,14 +704,12 @@ getConversationGuestLinksFeatureStatus mbTid = do
 -- the backend removal key).
 getMLSSelfConversationWithError ::
   forall r.
-  Members
-    '[ ConversationStore,
-       Error InternalError,
-       ErrorS 'MLSNotEnabled,
-       Input Env,
-       P.TinyLog
-     ]
-    r =>
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (Input Env) r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Sem r Conversation
 getMLSSelfConversationWithError lusr = do
@@ -702,13 +724,10 @@ getMLSSelfConversationWithError lusr = do
 -- number.
 getMLSSelfConversation ::
   forall r.
-  Members
-    '[ ConversationStore,
-       Error InternalError,
-       Input Env,
-       P.TinyLog
-     ]
-    r =>
+  ( Member ConversationStore r,
+    Member (Error InternalError) r,
+    Member P.TinyLog r
+  ) =>
   Local UserId ->
   Sem r Conversation
 getMLSSelfConversation lusr = do
@@ -720,7 +739,13 @@ getMLSSelfConversation lusr = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-ensureConvAdmin :: Members '[ErrorS 'ConvAccessDenied, ErrorS 'ConvNotFound] r => [LocalMember] -> UserId -> Sem r ()
+ensureConvAdmin ::
+  ( Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r
+  ) =>
+  [LocalMember] ->
+  UserId ->
+  Sem r ()
 ensureConvAdmin users uid =
   case find ((== uid) . lmId) users of
     Nothing -> throwS @'ConvNotFound

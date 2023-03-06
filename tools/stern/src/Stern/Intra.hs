@@ -22,7 +22,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Stern.Intra
-  ( putUser,
+  ( backendApiVersion,
+    putUser,
     putUserStatus,
     getContacts,
     getUserConnections,
@@ -61,7 +62,8 @@ module Stern.Intra
   )
 where
 
-import Bilge hiding (head, options, requestId)
+import Bilge hiding (head, options, path, paths, requestId)
+import qualified Bilge
 import Bilge.RPC
 import Brig.Types.Intra
 import Control.Error
@@ -83,8 +85,6 @@ import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
 import GHC.TypeLits (KnownSymbol)
-import Galley.Types.Teams.Intra
-import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
@@ -100,6 +100,10 @@ import Wire.API.Internal.Notification
 import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Galley.TeamsIntra
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
+import Wire.API.Routes.Version
+import Wire.API.Routes.Versioned
 import Wire.API.Team
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
@@ -109,6 +113,17 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client
 import Wire.API.User.Search
+
+-------------------------------------------------------------------------------
+
+backendApiVersion :: Version
+backendApiVersion = V2
+
+path :: ByteString -> Request -> Request
+path = Bilge.path . ((toPathComponent backendApiVersion <> "/") <>)
+
+paths :: [ByteString] -> Request -> Request
+paths = Bilge.paths . (toPathComponent backendApiVersion :)
 
 -------------------------------------------------------------------------------
 
@@ -495,7 +510,6 @@ getTeamFeatureFlag ::
   forall cfg.
   ( Typeable (Public.WithStatus cfg),
     FromJSON (Public.WithStatus cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
@@ -515,7 +529,6 @@ getTeamFeatureFlag tid = do
 setTeamFeatureFlag ::
   forall cfg.
   ( ToJSON (Public.WithStatusNoLock cfg),
-    Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
@@ -744,12 +757,12 @@ getUserConversations uid = do
             b
             ( method GET
                 . header "Z-User" (toByteString' uid)
-                . path "/conversations"
+                . path "conversations"
                 . queryItem "size" (toByteString' batchSize)
                 . maybe id (queryItem "start" . toByteString') start
                 . expect2xx
             )
-      parseResponse (mkError status502 "bad-upstream") r
+      unVersioned @'V2 <$> parseResponse (mkError status502 "bad-upstream") r
     batchSize = 100 :: Int
 
 getUserClients :: UserId -> Handler [Client]

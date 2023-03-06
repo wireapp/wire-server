@@ -23,11 +23,14 @@ import Test.Hspec
 
 main :: IO ()
 main = hspec $ do
-  describe "generateDpopToken FFI" $ do
-    it "should return a value" $ do
-      actual <- callFFIWithConstValues
-      let expected = Right $ cs token
-      actual `shouldBe` expected
+  describe "generateDpopToken FFI when passing valid inputs" $ do
+    it "should return an access token" $ do
+      actual <- callFFIWithValidValuesValidUntil2038
+      isRight actual `shouldBe` True
+  describe "generateDpopToken FFI when passing nonsense values" $ do
+    it "should return an error" $ do
+      actual <- callFFIWithNonsenseValues
+      isRight actual `shouldBe` False
   describe "toResult" $ do
     it "should convert to correct error" $ do
       toResult Nothing (Just token) `shouldBe` Right (cs token)
@@ -68,28 +71,52 @@ main = hspec $ do
       toResult (Just 18) Nothing `shouldBe` Left ExpError
       toResult (Just 18) (Just token) `shouldBe` Left ExpError
       toResult Nothing Nothing `shouldBe` Left UnknownError
+  where
+    token :: String
+    token = "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
 
-token :: String
-token = "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-
-callFFIWithConstValues :: IO (Either DPoPTokenGenerationError ByteString)
-callFFIWithConstValues = do
-  let proof = Proof "xxxx.yyyy.zzzz"
-  let uid = UserId "8a6e8a6e-8a6e-8a6e-8a6e-8a6e8a6e8a6e"
-  let cid = ClientId 8899
-  let domain = Domain "example.com"
-  let nonce = Nonce "123"
-  let uri = Uri "/foo"
-  let method = POST
-  let maxSkewSecs = MaxSkewSecs 1
-  let now = NowEpoch 5435234232
-  let expires = ExpiryEpoch $ 5435234232 + 360
-  let pem =
-        PemBundle $
-          "-----BEGIN PRIVATE KEY-----\n\
-          \MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n\
-          \-----END PRIVATE KEY-----\n\
-          \-----BEGIN PUBLIC KEY-----\n\
-          \MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=\n\
-          \-----END PUBLIC KEY-----\n"
+callFFIWithNonsenseValues :: IO (Either DPoPTokenGenerationError ByteString)
+callFFIWithNonsenseValues =
   runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem
+  where
+    proof = Proof "xxxx.yyyy.zzzz"
+    uid = UserId "8a6e8a6e-8a6e-8a6e-8a6e-8a6e8a6e8a6e"
+    cid = ClientId 8899
+    domain = Domain "example.com"
+    nonce = Nonce "123"
+    uri = Uri "/foo"
+    method = POST
+    maxSkewSecs = MaxSkewSecs 1
+    now = NowEpoch 5435234232
+    expires = ExpiryEpoch $ 5435234232 + 360
+    pem =
+      PemBundle $
+        "-----BEGIN PRIVATE KEY-----\n\
+        \MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n\
+        \-----END PRIVATE KEY-----\n\
+        \-----BEGIN PUBLIC KEY-----\n\
+        \MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=\n\
+        \-----END PUBLIC KEY-----\n"
+
+callFFIWithValidValuesValidUntil2038 :: IO (Either DPoPTokenGenerationError ByteString)
+callFFIWithValidValuesValidUntil2038 =
+  runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem
+  where
+    proof = Proof "eyJhbGciOiJFZERTQSIsInR5cCI6ImRwb3Arand0IiwiandrIjp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoiZ0tYSHpIV3QtRUh1N2ZQbmlWMXFXWGV2Rmk1eFNKd3RNcHJlSjBjdTZ3SSJ9fQ.eyJpYXQiOjE2NzgxMDcwMDksImV4cCI6MjA4ODA3NTAwOSwibmJmIjoxNjc4MTA3MDA5LCJzdWIiOiJpbXBwOndpcmVhcHA9WXpWbE1qRTVNelpqTTJKak5EQXdOMkpsWTJJd1lXTm1OVGszTW1FMVlqTS9lYWZhMDI1NzMwM2Q0MDYwQHdpcmUuY29tIiwianRpIjoiMmQzNzAzYTItNTc4Yi00MmRjLWE2MGUtYmM0NzA3OWVkODk5Iiwibm9uY2UiOiJRV1J4T1VaUVpYVnNTMlJZYjBGS05sWkhXbGgwYUV4amJUUmpTM2M1U2xnIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vd2lyZS5leGFtcGxlLmNvbS9jbGllbnRzLzE2OTMxODQ4MzIyNTQ3NTMxODcyL2FjY2Vzcy10b2tlbiIsImNoYWwiOiJZVE5HTkRSNlRqZHFabGRRZUVGYWVrMTZWMmhqYXpCVmJ6UlFWVXRWUlZJIn0.0J2sx5y0ubZ4NwmQhbKXDj6i5UWTx3cvuTPKbeXXOJFDamr-iFtE6sOnAQT90kfTx1cEoIyDfoUkj3h5GEanAA"
+    uid = UserId "c5e21936-c3bc-4007-becb-0acf5972a5b3"
+    cid = ClientId 16931848322547531872
+    domain = Domain "wire.com"
+    nonce = Nonce "QWRxOUZQZXVsS2RYb0FKNlZHWlh0aExjbTRjS3c5Slg"
+    uri = Uri "https://wire.example.com/clients/16931848322547531872/access-token"
+    method = POST
+    maxSkewSecs = MaxSkewSecs 5
+    now = NowEpoch 5435234232
+    expires = ExpiryEpoch $ 2136351646
+    pem =
+      PemBundle $
+        "-----BEGIN PRIVATE KEY-----\n\
+        \MC4CAQAwBQYDK2VwBCIEIMROyHqEinw8EvFSNXp0X0suu6gMQvd9i/l9v9R9UnhH\n\
+        \-----END PRIVATE KEY-----\n\
+        \-----BEGIN PUBLIC KEY-----\n\
+        \MCowBQYDK2VwAyEA5pDR/Yo4pkKUIxIody2fEQ56eIOW7UqeDeF7FG7WudA=\n\
+        \-----END PUBLIC KEY-----\n"

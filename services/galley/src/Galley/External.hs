@@ -47,7 +47,9 @@ import Wire.API.Event.Conversation (Event)
 import Wire.API.Provider.Service (serviceRefId, serviceRefProvider)
 
 interpretExternalAccess ::
-  Members '[Embed IO, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input Env) r
+  ) =>
   Sem (ExternalAccess ': r) a ->
   Sem r a
 interpretExternalAccess = interpret $ \case

@@ -104,7 +104,7 @@ connectRobust l retryStrategy connectLowLevel = do
 --
 -- Blocks on connection errors as long as the connection is not reestablished.
 -- Without externally enforcing timeouts, this may lead to leaking threads.
-runRobust :: (MonadIO m, MonadUnliftIO m, MonadLogger m) => RobustConnection -> Redis a -> m a
+runRobust :: (MonadUnliftIO m, MonadLogger m) => RobustConnection -> Redis a -> m a
 runRobust mvar action = do
   robustConnection <- readMVar mvar
   catches

@@ -2,6 +2,9 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "gundeck-integration"
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation
 data:
   integration.yaml: |
     gundeck:
@@ -16,7 +19,7 @@ data:
       # some gundeck integration tests make use of two different
       # cannon instances to test the distributed case.  when running
       # the integration tests locally, the two instances will be spun
-      # up separately (see `wire-server/services/integration.sh`).
+      # up separately (see `wire-server/services/run-services`).
       #
       # here, we spin up two replicas, provide the integration tests
       # with the same service coordinates, and rely on the k8s load

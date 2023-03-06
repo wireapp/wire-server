@@ -33,7 +33,6 @@ import Data.Range
 import Data.Singletons
 import Data.String.Conversions (cs)
 import Data.Time
-import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
@@ -68,9 +67,7 @@ import Galley.Options
 import qualified Galley.Queue as Q
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
-import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Galley.Types.Conversations.Members (RemoteMember (rmId))
-import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports hiding (head)
 import Network.Wai.Predicate hiding (Error, err)
@@ -83,13 +80,10 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Servant hiding (JSON, WithStatus)
-import qualified Servant hiding (WithStatus)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
-import Wire.API.ApplyMods
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Role
 import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -99,381 +93,20 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
+import Wire.API.Routes.Internal.Galley
+import Wire.API.Routes.Internal.Galley.TeamsIntra
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
-import Wire.API.Routes.MultiVerb
-import Wire.API.Routes.Named
-import Wire.API.Routes.Public
-import Wire.API.Routes.Public.Galley.Conversation
-import Wire.API.Routes.Public.Galley.Feature
-import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
-import Wire.API.Team.SearchVisibility
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
-
-type LegalHoldFeatureStatusChangeErrors =
-  '( 'ActionDenied 'RemoveConversationMember,
-     '( AuthenticationError,
-        '( 'CannotEnableLegalHoldServiceLargeTeam,
-           '( 'LegalHoldNotEnabled,
-              '( 'LegalHoldDisableUnimplemented,
-                 '( 'LegalHoldServiceNotRegistered,
-                    '( 'UserLegalHoldIllegalOperation,
-                       '( 'LegalHoldCouldNotBlockConnections, '())
-                     )
-                  )
-               )
-            )
-         )
-      )
-   )
-
-type LegalHoldFeaturesStatusChangeFederatedCalls =
-  '[ MakesFederatedCall 'Galley "on-conversation-updated",
-     MakesFederatedCall 'Galley "on-mls-message-sent",
-     MakesFederatedCall 'Galley "on-new-remote-conversation"
-   ]
-
-type IFeatureAPI =
-  -- SSOConfig
-  IFeatureStatusGet SSOConfig
-    :<|> IFeatureStatusPut '[] '() SSOConfig
-    :<|> IFeatureStatusPatch '[] '() SSOConfig
-    -- LegalholdConfig
-    :<|> IFeatureStatusGet LegalholdConfig
-    :<|> IFeatureStatusPut
-           LegalHoldFeaturesStatusChangeFederatedCalls
-           LegalHoldFeatureStatusChangeErrors
-           LegalholdConfig
-    :<|> IFeatureStatusPatch
-           LegalHoldFeaturesStatusChangeFederatedCalls
-           LegalHoldFeatureStatusChangeErrors
-           LegalholdConfig
-    -- SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusGet SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusPut '[] '() SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusPatch '[] '() SearchVisibilityAvailableConfig
-    -- ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusGet ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusPut '[] '() ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusPatch '[] '() ValidateSAMLEmailsConfig
-    -- DigitalSignaturesConfig
-    :<|> IFeatureStatusGet DigitalSignaturesConfig
-    :<|> IFeatureStatusPut '[] '() DigitalSignaturesConfig
-    :<|> IFeatureStatusPatch '[] '() DigitalSignaturesConfig
-    -- AppLockConfig
-    :<|> IFeatureStatusGet AppLockConfig
-    :<|> IFeatureStatusPut '[] '() AppLockConfig
-    :<|> IFeatureStatusPatch '[] '() AppLockConfig
-    -- FileSharingConfig
-    :<|> IFeatureStatusGet FileSharingConfig
-    :<|> IFeatureStatusPut '[] '() FileSharingConfig
-    :<|> IFeatureStatusLockStatusPut FileSharingConfig
-    :<|> IFeatureStatusPatch '[] '() FileSharingConfig
-    -- ConferenceCallingConfig
-    :<|> IFeatureStatusGet ConferenceCallingConfig
-    :<|> IFeatureStatusPut '[] '() ConferenceCallingConfig
-    :<|> IFeatureStatusPatch '[] '() ConferenceCallingConfig
-    -- SelfDeletingMessagesConfig
-    :<|> IFeatureStatusGet SelfDeletingMessagesConfig
-    :<|> IFeatureStatusPut '[] '() SelfDeletingMessagesConfig
-    :<|> IFeatureStatusLockStatusPut SelfDeletingMessagesConfig
-    :<|> IFeatureStatusPatch '[] '() SelfDeletingMessagesConfig
-    -- GuestLinksConfig
-    :<|> IFeatureStatusGet GuestLinksConfig
-    :<|> IFeatureStatusPut '[] '() GuestLinksConfig
-    :<|> IFeatureStatusLockStatusPut GuestLinksConfig
-    :<|> IFeatureStatusPatch '[] '() GuestLinksConfig
-    --  SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusGet SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusPut '[] '() SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusLockStatusPut SndFactorPasswordChallengeConfig
-    :<|> IFeatureStatusPatch '[] '() SndFactorPasswordChallengeConfig
-    -- SearchVisibilityInboundConfig
-    :<|> IFeatureStatusGet SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPut '[] '() SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPatch '[] '() SearchVisibilityInboundConfig
-    :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
-    -- ClassifiedDomainsConfig
-    :<|> IFeatureStatusGet ClassifiedDomainsConfig
-    -- MLSConfig
-    :<|> IFeatureStatusGet MLSConfig
-    :<|> IFeatureStatusPut '[] '() MLSConfig
-    :<|> IFeatureStatusPatch '[] '() MLSConfig
-    -- ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusPut '[] '() ExposeInvitationURLsToTeamAdminConfig
-    :<|> IFeatureStatusPatch '[] '() ExposeInvitationURLsToTeamAdminConfig
-    -- SearchVisibilityInboundConfig
-    :<|> IFeatureStatusGet SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPut '[] '() SearchVisibilityInboundConfig
-    :<|> IFeatureStatusPatch '[] '() SearchVisibilityInboundConfig
-    -- all feature configs
-    :<|> Named
-           "feature-configs-internal"
-           ( Summary "Get all feature configs (for user/team; if n/a fall back to site config)."
-               :> "feature-configs"
-               :> CanThrow OperationDenied
-               :> CanThrow 'NotATeamMember
-               :> CanThrow 'TeamNotFound
-               :> QueryParam'
-                    [ Optional,
-                      Strict,
-                      Description "Optional user id"
-                    ]
-                    "user_id"
-                    UserId
-               :> Get '[Servant.JSON] AllFeatureConfigs
-           )
-
-type InternalAPI = "i" :> InternalAPIBase
-
-type InternalAPIBase =
-  Named
-    "status"
-    ( "status" :> MultiVerb 'GET '[Servant.JSON] '[RespondEmpty 200 "OK"] ()
-    )
-    -- This endpoint can lead to the following events being sent:
-    -- - MemberLeave event to members for all conversations the user was in
-    :<|> Named
-           "delete-user"
-           ( Summary
-               "Remove a user from their teams and conversations and erase their clients"
-               :> MakesFederatedCall 'Galley "on-conversation-updated"
-               :> MakesFederatedCall 'Galley "on-user-deleted-conversations"
-               :> MakesFederatedCall 'Galley "on-mls-message-sent"
-               :> ZLocalUser
-               :> ZOptConn
-               :> "user"
-               :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] ()
-           )
-    -- This endpoint can lead to the following events being sent:
-    -- - ConvCreate event to self, if conversation did not exist before
-    -- - ConvConnect event to self, if other didn't join the connect conversation before
-    :<|> Named
-           "connect"
-           ( Summary "Create a connect conversation (deprecated)"
-               :> MakesFederatedCall 'Galley "on-conversation-created"
-               :> CanThrow 'ConvNotFound
-               :> CanThrow 'InvalidOperation
-               :> CanThrow 'NotConnected
-               :> ZLocalUser
-               :> ZOptConn
-               :> "conversations"
-               :> "connect"
-               :> ReqBody '[Servant.JSON] Connect
-               :> ConversationVerb
-           )
-    :<|> Named
-           "guard-legalhold-policy-conflicts"
-           ( "guard-legalhold-policy-conflicts"
-               :> CanThrow 'MissingLegalholdConsent
-               :> ReqBody '[Servant.JSON] GuardLegalholdPolicyConflicts
-               :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Guard Legalhold Policy")
-           )
-    :<|> ILegalholdWhitelistedTeamsAPI
-    :<|> ITeamsAPI
-    :<|> Named
-           "upsert-one2one"
-           ( Summary "Create or Update a connect or one2one conversation."
-               :> "conversations"
-               :> "one2one"
-               :> "upsert"
-               :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
-               :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
-           )
-    :<|> IFeatureAPI
-
-type ILegalholdWhitelistedTeamsAPI =
-  "legalhold"
-    :> "whitelisted-teams"
-    :> Capture "tid" TeamId
-    :> ILegalholdWhitelistedTeamsAPIBase
-
-type ILegalholdWhitelistedTeamsAPIBase =
-  Named
-    "set-team-legalhold-whitelisted"
-    (MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Team Legalhold Whitelisted"))
-    :<|> Named
-           "unset-team-legalhold-whitelisted"
-           (MultiVerb1 'DELETE '[Servant.JSON] (RespondEmpty 204 "Team Legalhold un-Whitelisted"))
-    :<|> Named
-           "get-team-legalhold-whitelisted"
-           ( MultiVerb
-               'GET
-               '[Servant.JSON]
-               '[ RespondEmpty 404 "Team not Legalhold Whitelisted",
-                  RespondEmpty 200 "Team Legalhold Whitelisted"
-                ]
-               Bool
-           )
-
-type ITeamsAPI = "teams" :> Capture "tid" TeamId :> ITeamsAPIBase
-
-type ITeamsAPIBase =
-  Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
-    :<|> Named
-           "create-binding-team"
-           ( ZUser
-               :> ReqBody '[Servant.JSON] BindingNewTeam
-               :> MultiVerb1
-                    'PUT
-                    '[Servant.JSON]
-                    ( WithHeaders
-                        '[Header "Location" TeamId]
-                        TeamId
-                        (RespondEmpty 201 "OK")
-                    )
-           )
-    :<|> Named
-           "delete-binding-team"
-           ( CanThrow 'NoBindingTeam
-               :> CanThrow 'NotAOneMemberTeam
-               :> CanThrow 'DeleteQueueFull
-               :> CanThrow 'TeamNotFound
-               :> QueryFlag "force"
-               :> MultiVerb1 'DELETE '[Servant.JSON] (RespondEmpty 202 "OK")
-           )
-    :<|> Named "get-team-name" ("name" :> CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamName)
-    :<|> Named
-           "update-team-status"
-           ( "status"
-               :> CanThrow 'TeamNotFound
-               :> CanThrow 'InvalidTeamStatusUpdate
-               :> ReqBody '[Servant.JSON] TeamStatusUpdate
-               :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "OK")
-           )
-    :<|> "members"
-      :> ( Named
-             "unchecked-add-team-member"
-             ( CanThrow 'TooManyTeamMembers
-                 :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
-                 :> ReqBody '[Servant.JSON] NewTeamMember
-                 :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
-             )
-             :<|> Named
-                    "unchecked-get-team-members"
-                    ( QueryParam' '[Strict] "maxResults" (Range 1 HardTruncationLimit Int32)
-                        :> Get '[Servant.JSON] TeamMemberList
-                    )
-             :<|> Named
-                    "unchecked-get-team-member"
-                    ( Capture "uid" UserId
-                        :> CanThrow 'TeamMemberNotFound
-                        :> Get '[Servant.JSON] TeamMember
-                    )
-             :<|> Named
-                    "can-user-join-team"
-                    ( "check"
-                        :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
-                        :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User can join")
-                    )
-             :<|> Named
-                    "unchecked-update-team-member"
-                    ( CanThrow 'AccessDenied
-                        :> CanThrow 'InvalidPermissions
-                        :> CanThrow 'TeamNotFound
-                        :> CanThrow 'TeamMemberNotFound
-                        :> CanThrow 'NotATeamMember
-                        :> CanThrow OperationDenied
-                        :> ReqBody '[Servant.JSON] NewTeamMember
-                        :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "")
-                    )
-         )
-    :<|> Named
-           "user-is-team-owner"
-           ( "is-team-owner"
-               :> Capture "uid" UserId
-               :> CanThrow 'AccessDenied
-               :> CanThrow 'TeamMemberNotFound
-               :> CanThrow 'NotATeamMember
-               :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User is team owner")
-           )
-    :<|> "search-visibility"
-      :> ( Named "get-search-visibility-internal" (Get '[Servant.JSON] TeamSearchVisibilityView)
-             :<|> Named
-                    "set-search-visibility-internal"
-                    ( CanThrow 'TeamSearchVisibilityNotEnabled
-                        :> CanThrow OperationDenied
-                        :> CanThrow 'NotATeamMember
-                        :> CanThrow 'TeamNotFound
-                        :> ReqBody '[Servant.JSON] TeamSearchVisibilityView
-                        :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 204 "OK")
-                    )
-         )
-
-type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
-
-type IFeatureStatusPut calls errs f = Named '("iput", f) (ApplyMods calls (FeatureStatusBasePutInternal errs f))
-
-type IFeatureStatusPatch calls errs f = Named '("ipatch", f) (ApplyMods calls (FeatureStatusBasePatchInternal errs f))
-
-type FeatureStatusBasePutInternal errs featureConfig =
-  FeatureStatusBaseInternal
-    (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
-    errs
-    featureConfig
-    ( ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-        :> Put '[Servant.JSON] (WithStatus featureConfig)
-    )
-
-type FeatureStatusBasePatchInternal errs featureConfig =
-  FeatureStatusBaseInternal
-    (AppendSymbol "Patch config for " (FeatureSymbol featureConfig))
-    errs
-    featureConfig
-    ( ReqBody '[Servant.JSON] (WithStatusPatch featureConfig)
-        :> Patch '[Servant.JSON] (WithStatus featureConfig)
-    )
-
-type FeatureStatusBaseInternal desc errs featureConfig a =
-  Summary desc
-    :> CanThrow OperationDenied
-    :> CanThrow 'NotATeamMember
-    :> CanThrow 'TeamNotFound
-    :> CanThrow TeamFeatureError
-    :> CanThrowMany errs
-    :> "teams"
-    :> Capture "tid" TeamId
-    :> "features"
-    :> FeatureSymbol featureConfig
-    :> a
-
-type IFeatureStatusLockStatusPut featureName =
-  Named
-    '("ilock", featureName)
-    ( Summary (AppendSymbol "(Un-)lock " (FeatureSymbol featureName))
-        :> CanThrow 'NotATeamMember
-        :> CanThrow 'TeamNotFound
-        :> "teams"
-        :> Capture "tid" TeamId
-        :> "features"
-        :> FeatureSymbol featureName
-        :> Capture "lockStatus" LockStatus
-        :> Put '[Servant.JSON] LockStatusResponse
-    )
-
-type FeatureNoConfigMultiGetBase featureName =
-  Summary
-    (AppendSymbol "Get team feature status in bulk for feature " (FeatureSymbol featureName))
-    :> "features-multi-teams"
-    :> FeatureSymbol featureName
-    :> ReqBody '[Servant.JSON] TeamFeatureNoConfigMultiRequest
-    :> Post '[Servant.JSON] (TeamFeatureNoConfigMultiResponse featureName)
-
-type IFeatureNoConfigMultiGet f =
-  Named
-    '("igetmulti", f)
-    (FeatureNoConfigMultiGetBase f)
 
 internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
   hoistAPI @InternalAPIBase id $
     mkNamedAPI @"status" (pure ())
-      <@> mkNamedAPI @"delete-user" (callsFed rmUser)
-      <@> mkNamedAPI @"connect" (callsFed Create.createConnectConversation)
+      <@> mkNamedAPI @"delete-user" (callsFed (exposeAnnotations rmUser))
+      <@> mkNamedAPI @"connect" (callsFed (exposeAnnotations Create.createConnectConversation))
       <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
@@ -515,7 +148,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
-              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal @Cassandra (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig) tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig) tid)
           )
 
 featureAPI :: API IFeatureAPI GalleyEffects
@@ -524,8 +157,8 @@ featureAPI =
     <@> mkNamedAPI @'("iput", SSOConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SSOConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", LegalholdConfig) (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (setFeatureStatusInternal @Cassandra))
-    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (patchFeatureStatusInternal @Cassandra))
+    <@> mkNamedAPI @'("iput", LegalholdConfig) (callsFed (exposeAnnotations (setFeatureStatusInternal @Cassandra)))
+    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (callsFed (exposeAnnotations (patchFeatureStatusInternal @Cassandra)))
     <@> mkNamedAPI @'("iget", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SearchVisibilityAvailableConfig) (patchFeatureStatusInternal @Cassandra)
@@ -571,7 +204,15 @@ featureAPI =
     <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal @Cassandra)
-    <@> mkNamedAPI @"feature-configs-internal" (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
+    <@> mkNamedAPI @'("iget", OutlookCalIntegrationConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", OutlookCalIntegrationConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", OutlookCalIntegrationConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ilock", OutlookCalIntegrationConfig) (updateLockStatus @Cassandra @OutlookCalIntegrationConfig)
+    <@> mkNamedAPI @'("iget", MlsE2EIdConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", MlsE2EIdConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", MlsE2EIdConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ilock", MlsE2EIdConfig) (updateLockStatus @Cassandra @MlsE2EIdConfig)
+    <@> mkNamedAPI @"feature-configs-internal" (maybe getAllFeatureConfigsForServer (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = unsafeCallsFed @'Galley @"on-client-removed" $ unsafeCallsFed @'Galley @"on-mls-message-sent" $ do
@@ -662,29 +303,24 @@ rmUser ::
   forall p1 p2 r.
   ( p1 ~ CassandraPaging,
     p2 ~ InternalPaging,
-    Members
-      '[ BrigAccess,
-         ClientStore,
-         ConversationStore,
-         Error InternalError,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input (Local ()),
-         Input UTCTime,
-         ListItems p1 ConvId,
-         ListItems p1 (Remote ConvId),
-         ListItems p2 TeamId,
-         MemberStore,
-         ProposalStore,
-         P.TinyLog,
-         TeamStore
-       ]
-      r,
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-user-deleted-conversations",
-    CallsFed 'Galley "on-mls-message-sent"
+    ( Member BrigAccess r,
+      Member ClientStore r,
+      Member ConversationStore r,
+      Member (Error InternalError) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Input Env) r,
+      Member (Input (Local ())) r,
+      Member (Input UTCTime) r,
+      Member (ListItems p1 ConvId) r,
+      Member (ListItems p1 (Remote ConvId)) r,
+      Member (ListItems p2 TeamId) r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member P.TinyLog r,
+      Member TeamStore r
+    )
   ) =>
   Local UserId ->
   Maybe ConnId ->
@@ -819,15 +455,12 @@ safeForever funName action =
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
 
 guardLegalholdPolicyConflictsH ::
-  Members
-    '[ BrigAccess,
-       Input Opts,
-       TeamStore,
-       P.TinyLog,
-       WaiRoutes,
-       ErrorS 'MissingLegalholdConsent
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (Input Opts) r,
+    Member TeamStore r,
+    Member P.TinyLog r,
+    Member (ErrorS 'MissingLegalholdConsent) r
+  ) =>
   GuardLegalholdPolicyConflicts ->
   Sem r ()
 guardLegalholdPolicyConflictsH glh = do

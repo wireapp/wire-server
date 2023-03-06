@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -306,7 +307,7 @@ getIdPConfigsByTeam team =
   getIdPIdsByTeam team >>= mapM getIdPConfig
 
 getIdPIdsByTeam ::
-  (HasCallStack, MonadClient m, MonadError IdpDbError m) =>
+  (HasCallStack, MonadClient m) =>
   TeamId ->
   m [SAML.IdPId]
 getIdPIdsByTeam team = do
