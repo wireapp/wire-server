@@ -67,7 +67,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 -- If you add or remove versions from this type, make sure 'versionInt', 'supportedVersions',
 -- and 'developmentVersions' stay in sync; everything else here should keep working without
 -- change.
-data Version = V0 | V1 | V2 | V3
+data Version = V0 | V1 | V2 | V3 | V4
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
   deriving (Arbitrary) via (GenericUniform Version)
@@ -83,12 +83,13 @@ versionInt V0 = 0
 versionInt V1 = 1
 versionInt V2 = 2
 versionInt V3 = 3
+versionInt V4 = 4
 
 supportedVersions :: [Version]
-supportedVersions = [minBound ..]
+supportedVersions = [minBound .. V4]
 
 developmentVersions :: [Version]
-developmentVersions = [V3]
+developmentVersions = [V4]
 
 ----------------------------------------------------------------------
 

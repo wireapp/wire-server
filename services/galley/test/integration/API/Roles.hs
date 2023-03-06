@@ -170,6 +170,7 @@ roleUpdateRemoteMember = do
   resp <-
     postConvWithRemoteUsers
       bob
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
@@ -239,6 +240,7 @@ roleUpdateWithRemotes = do
   resp <-
     postConvWithRemoteUsers
       bob
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
@@ -297,6 +299,7 @@ accessUpdateWithRemotes = do
   resp <-
     postConvWithRemoteUsers
       bob
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
@@ -434,7 +437,7 @@ testConversationAccessRole = do
           }
   conv <-
     responseJsonError
-      =<< postConvQualified (qUnqualified alice) nc
+      =<< postConvQualified (qUnqualified alice) Nothing nc
         <!! const 201 === statusCode
   liftIO $
     cnvAccessRoles conv @?= Set.singleton TeamMemberAccessRole
@@ -447,6 +450,7 @@ testAccessRoleUpdateV2 = do
     responseJsonError
       =<< postConvQualified
         (qUnqualified alice)
+        Nothing
         defNewProteusConv
           { newConvQualifiedUsers = [bob]
           }
