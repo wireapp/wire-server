@@ -711,7 +711,7 @@ createTeamConv ::
   Http ResponseLBS
 createTeamConv svc mkHeader token tid name = do
   let tinfo = Conv.ConvTeamInfo tid
-  let conv = Conv.NewConv [] [] (checked name) (Set.fromList [CodeAccess]) Nothing (Just tinfo) Nothing Nothing Role.roleNameWireAdmin ProtocolProteusTag Nothing
+  let conv = Conv.NewConv [] [] (checked name) (Set.fromList [CodeAccess]) Nothing (Just tinfo) Nothing Nothing Role.roleNameWireAdmin ProtocolProteusTag
   post $
     svc
       . path "conversations"

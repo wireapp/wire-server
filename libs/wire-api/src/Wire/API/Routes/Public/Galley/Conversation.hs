@@ -342,7 +342,7 @@ type ConversationAPI =
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptClient
-               :> ZConn
+               :> ZOptConn
                :> "conversations"
                :> VersionedReqBody 'V2 '[Servant.JSON] NewConv
                :> ConversationV2Verb
@@ -363,7 +363,7 @@ type ConversationAPI =
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptClient
-               :> ZConn
+               :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
                :> ConversationVerb
