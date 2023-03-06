@@ -21,10 +21,12 @@ module Network.Wai.Utilities.MockServer where
 
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
+import qualified Control.Exception as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Data.Streaming.Network (bindRandomPortTCP)
 import Imports
+import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
@@ -43,6 +45,11 @@ withMockServer app = Codensity $ \k ->
     (liftIO $ startMockServer Nothing app)
     (liftIO . fst)
     (k . fromIntegral . snd)
+
+ignoreHTTP2NonError :: Maybe Wai.Request -> SomeException -> IO ()
+ignoreHTTP2NonError mr e
+  | Just HTTP2.ConnectionIsClosed <- E.fromException e = pure ()
+  | otherwise = Warp.defaultOnException mr e
 
 -- | Start a mock warp server on a random port, serving the given Wai application.
 --
@@ -66,6 +73,7 @@ startMockServer mtlsSettings app = do
           & Warp.setPort port
           & Warp.setGracefulCloseTimeout2 0 -- Defaults to 2 seconds, causes server stop to take very long
           & Warp.setBeforeMainLoop (putMVar serverStarted ())
+          & Warp.setOnException ignoreHTTP2NonError
 
   serverThread <- Async.async $ case mtlsSettings of
     Just tlsSettings -> Warp.runTLSSocket tlsSettings wsettings sock app
