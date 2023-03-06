@@ -78,6 +78,7 @@ library
     , errors                 >=2.0
     , exceptions             >=0.6
     , http-types             >=0.8
+    , http2
     , imports
     , kan-extensions
     , metrics-core           >=0.1
