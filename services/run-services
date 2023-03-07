@@ -10,17 +10,17 @@ import shutil
 import socket
 import subprocess
 import yaml
-import urllib.request
-import urllib.error
 import sys
 import tempfile
 import time
 import traceback
 import threading
+import requests
 
 @dataclass
 class SpawnFailException(Exception):
     failed_instances: object
+    failing_status_responses: object
 
 class Colors:
     GREEN = "\x1b[38;5;10m"
@@ -107,6 +107,18 @@ class Nginz:
         if shutil.which("nginx") is None:
             raise Exception("nginx not found")
 
+@dataclass
+class StatusResponse:
+    http_response: object = None
+    good_status: list[int] = None
+
+    def __bool__(self):
+        if self.http_response is None:
+            return False
+        else:
+            return self.http_response.status_code in self.good_status
+
+
 @dataclass(frozen=True)
 class Instance:
     service: Service
@@ -122,9 +134,9 @@ class Instance:
         if not self.service.check_status:
             return True
         try:
-            with urllib.request.urlopen(f"http://localhost:{self.port}/i/status") as resp:
-                return resp.status in [200, 204]
-        except urllib.error.URLError:
+            resp = requests.get(f"http://localhost:{self.port}/i/status")
+            return StatusResponse(resp, [200, 204])
+        except Exception as e:
             return False
 
     def spawn(self, service_map, environment, suffix, domain, backend_name):
@@ -323,6 +335,9 @@ def start_backend(services, suffix, domain, backend_name):
     # check instances
     to_be_checked = [instance for instance in instances
                      if instance.exception is None]
+
+    failing_status_responses = {}
+
     start_time = time.time()
     while to_be_checked:
         if time.time() - start_time >= 5:
@@ -333,8 +348,10 @@ def start_backend(services, suffix, domain, backend_name):
         to_be_checked_again = set()
         for instance in to_be_checked:
             try:
-                if not instance.check_status():
+                status = instance.check_status()
+                if not status:
                     to_be_checked_again.add(instance)
+                    failing_status_responses[instance] = status
             except Exception as e:
                 failed_instances.append(replace(instance, exception=e))
 
@@ -346,7 +363,7 @@ def start_backend(services, suffix, domain, backend_name):
 
     if failed_instances:
         cleanup_instances(instances)
-        raise SpawnFailException(failed_instances)
+        raise SpawnFailException(failed_instances, failing_status_responses)
 
     return instances
 
@@ -439,5 +456,10 @@ if __name__ == '__main__':
         for instance in e.failed_instances:
             print(f"{instance.service.name} at port {instance.port}" +
                  (f" ({instance.exception})" if instance.exception else ""))
+
+        for instance, status in e.failing_status_responses.items():
+            if isinstance(status, StatusResponse):
+                print(f"{instance.service.name} responded with status " +
+                      "{status.http_response.status_code} and body:\n " + status.http_response.text)
     finally:
         cleanup_instances(instances)

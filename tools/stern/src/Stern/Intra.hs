@@ -89,6 +89,7 @@ import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wai.Utilities (Error (..), mkError)
+import Servant.API (toUrlPiece)
 import Stern.App
 import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
@@ -120,10 +121,10 @@ backendApiVersion :: Version
 backendApiVersion = V2
 
 path :: ByteString -> Request -> Request
-path = Bilge.path . ((toPathComponent backendApiVersion <> "/") <>)
+path = Bilge.path . ((cs (toUrlPiece backendApiVersion) <> "/") <>)
 
 paths :: [ByteString] -> Request -> Request
-paths = Bilge.paths . (toPathComponent backendApiVersion :)
+paths = Bilge.paths . (cs (toUrlPiece backendApiVersion) :)
 
 -------------------------------------------------------------------------------
 

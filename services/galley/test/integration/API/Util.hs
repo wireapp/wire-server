@@ -150,7 +150,7 @@ addPrefix :: Request -> Request
 addPrefix = addPrefixAtVersion maxBound
 
 addPrefixAtVersion :: Version -> Request -> Request
-addPrefixAtVersion v r = r {HTTP.path = "v" <> toHeader v <> "/" <> removeSlash (HTTP.path r)}
+addPrefixAtVersion v r = r {HTTP.path = toHeader v <> "/" <> removeSlash (HTTP.path r)}
   where
     removeSlash s = case B8.uncons s of
       Just ('/', s') -> s'

@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 -- This file is part of the Wire Server implementation.
@@ -28,11 +29,9 @@ module Wire.API.Routes.Version
 
     -- * Version
     Version (..),
+    VersionNumber (..),
     supportedVersions,
     developmentVersions,
-    readVersionNumber,
-    mkVersion,
-    toPathComponent,
 
     -- * Servant combinators
     Until,
@@ -40,11 +39,13 @@ module Wire.API.Routes.Version
   )
 where
 
+import Control.Error (note)
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
-import Data.ByteString.Conversion (ToByteString (builder))
+import qualified Data.Binary.Builder as Builder
+import Data.ByteString.Conversion (ToByteString (builder), toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Schema
@@ -57,52 +58,87 @@ import Servant
 import Servant.Swagger
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
+import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
--- | Version of the public API. Check the documentation in the *docs* directory
--- for a checklist when adding a new version.
+-- | Version of the public API.  Serializes to `"v<n>"`.  See 'VersionNumber' below for one
+-- that serializes to `<n>`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs`
+-- for serialization rules.
+--
+-- If you add or remove versions from this type, make sure 'versionInt', 'supportedVersions',
+-- and 'developmentVersions' stay in sync; everything else here should keep working without
+-- change.  See also documentation in the *docs* directory.
 -- https://docs.wire.com/developer/developer/api-versioning.html#version-bump-checklist
 data Version = V0 | V1 | V2 | V3 | V4
-  deriving stock (Eq, Ord, Bounded, Enum, Show)
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
+  deriving (Arbitrary) via (GenericUniform Version)
 
-instance ToSchema Version where
-  schema =
-    enum @Integer "Version" . mconcat $
-      [ element 0 V0,
-        element 1 V1,
-        element 2 V2,
-        element 3 V3,
-        element 4 V4
-      ]
-
-mkVersion :: Integer -> Maybe Version
-mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
-  Aeson.Error _ -> Nothing
-  Aeson.Success v -> pure v
-
-instance FromHttpApiData Version where
-  parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
-  parseUrlPiece = parseHeader . Text.encodeUtf8
-
-instance ToHttpApiData Version where
-  toHeader = LBS.toStrict . Aeson.encode
-  toUrlPiece = Text.decodeUtf8 . toHeader
-
-instance ToByteString Version where
-  builder = toEncodedUrlPiece
-
--- | `Version` as it appears in an URL path
+-- | Manual enumeration of version integrals (the `<n>` in the constructor `V<n>`).
 --
--- >>> toPathComponent V1
--- "v1"
-toPathComponent :: Version -> ByteString
-toPathComponent v = "v" <> toHeader v
+-- This is not the same as 'fromEnum': we will remove unsupported versions in the future,
+-- which will cause `<n>` and `fromEnum V<n>` to diverge.  `Enum` should not be understood as
+-- a bijection between meaningful integers and versions, but merely as a convenient way to say
+-- `allVersions = [minBound..]`.
+versionInt :: Integral i => Version -> i
+versionInt V0 = 0
+versionInt V1 = 1
+versionInt V2 = 2
+versionInt V3 = 3
+versionInt V4 = 4
 
 supportedVersions :: [Version]
-supportedVersions = [minBound .. maxBound]
+supportedVersions = [minBound .. V4]
 
 developmentVersions :: [Version]
 developmentVersions = [V4]
+
+----------------------------------------------------------------------
+
+versionText :: Version -> Text
+versionText = ("v" <>) . toUrlPiece . versionInt @Int
+
+versionByteString :: Version -> ByteString
+versionByteString = ("v" <>) . toByteString' . versionInt @Int
+
+instance ToSchema Version where
+  schema = enum @Text "Version" . mconcat $ (\v -> element (versionText v) v) <$> [minBound ..]
+
+instance FromHttpApiData Version where
+  parseQueryParam v = note ("Unknown version: " <> v) $
+    getAlt $
+      flip foldMap [minBound ..] $ \s ->
+        guard (versionText s == v) $> s
+
+instance ToHttpApiData Version where
+  toHeader = versionByteString
+  toUrlPiece = versionText
+
+instance ToByteString Version where
+  builder = Builder.fromByteString . versionByteString
+
+-- | Wrapper around 'Version' that serializes to integers `<n>`, as needed in
+-- eg. `VersionInfo`.  See `/libs/wire-api/test/unit/Test/Wire/API/Routes/Version.hs` for
+-- serialization rules.
+newtype VersionNumber = VersionNumber {fromVersionNumber :: Version}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Bounded, Enum)
+  deriving (FromJSON, ToJSON) via (Schema VersionNumber)
+  deriving (Arbitrary) via (GenericUniform Version)
+
+instance ToSchema VersionNumber where
+  schema =
+    enum @Integer "VersionNumber" . mconcat $ (\v -> element (versionInt v) (VersionNumber v)) <$> [minBound ..]
+
+instance FromHttpApiData VersionNumber where
+  parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
+  parseUrlPiece = parseHeader . Text.encodeUtf8
+
+instance ToHttpApiData VersionNumber where
+  toHeader = LBS.toStrict . Aeson.encode
+  toUrlPiece = Text.decodeUtf8 . toHeader
+
+instance ToByteString VersionNumber where
+  builder = toEncodedUrlPiece
 
 -- | Information related to the public API version.
 --
@@ -111,8 +147,8 @@ developmentVersions = [V4]
 -- backend, in order to decide how to form request paths, and how to deal with
 -- federated backends and qualified user IDs.
 data VersionInfo = VersionInfo
-  { vinfoSupported :: [Version],
-    vinfoDevelopment :: [Version],
+  { vinfoSupported :: [VersionNumber],
+    vinfoDevelopment :: [VersionNumber],
     vinfoFederation :: Bool,
     vinfoDomain :: Domain
   }
@@ -130,7 +166,7 @@ instance ToSchema VersionInfo where
       example :: VersionInfo
       example =
         VersionInfo
-          { vinfoSupported = supportedVersions,
+          { vinfoSupported = VersionNumber <$> supportedVersions,
             vinfoDevelopment = [maxBound],
             vinfoFederation = False,
             vinfoDomain = Domain "example.com"

@@ -43,6 +43,8 @@
 , hex
 , hostname-validate
 , hscim
+, hspec
+, hspec-wai
 , http-api-data
 , http-media
 , http-types
@@ -87,6 +89,7 @@
 , tagged
 , tasty
 , tasty-expected-failure
+, tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
 , text
@@ -223,6 +226,9 @@ mkDerivation {
     filepath
     hex
     hscim
+    hspec
+    hspec-wai
+    http-types
     imports
     iso3166-country-codes
     iso639
@@ -238,11 +244,13 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     servant
+    servant-server
     servant-swagger-ui
     string-conversions
     swagger2
     tasty
     tasty-expected-failure
+    tasty-hspec
     tasty-hunit
     tasty-quickcheck
     text
@@ -253,6 +261,7 @@ mkDerivation {
     uri-bytestring
     uuid
     vector
+    wai
     wire-message-proto-lens
   ];
   license = lib.licenses.agpl3Only;

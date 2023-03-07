@@ -660,6 +660,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
     Test.Wire.API.Routes.Version
+    Test.Wire.API.Routes.Version.Wai
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
     Test.Wire.API.Team.Member
@@ -734,6 +735,9 @@ test-suite wire-api-tests
     , filepath
     , hex
     , hscim
+    , hspec
+    , hspec-wai
+    , http-types
     , imports
     , iso3166-country-codes
     , iso639
@@ -749,11 +753,13 @@ test-suite wire-api-tests
     , saml2-web-sso
     , schema-profunctor
     , servant
+    , servant-server
     , servant-swagger-ui
     , string-conversions
     , swagger2
     , tasty
     , tasty-expected-failure
+    , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
     , text
@@ -764,6 +770,7 @@ test-suite wire-api-tests
     , uri-bytestring
     , uuid
     , vector
+    , wai
     , wire-api
     , wire-message-proto-lens
 
