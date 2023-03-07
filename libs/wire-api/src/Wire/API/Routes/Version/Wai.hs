@@ -54,8 +54,8 @@ parseVersion req = do
     [] -> throwError NoVersion
     (x : xs) -> pure (x, xs)
   unless ("v" `T.isPrefixOf` version) $
-    throwError (BadVersion version)
-  n <- fmapL (const NoVersion) $ parseUrlPiece version
+    throwError NoVersion
+  n <- fmapL (BadVersion . ((version <> ": ") <>)) $ parseUrlPiece version
   pure (rewriteRequestPure (\(_, q) _ -> (pinfo, q)) req, n)
 
 removeVersionHeader :: Request -> Request
