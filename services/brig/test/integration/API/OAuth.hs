@@ -602,19 +602,25 @@ testRefreshTokenRevokedToken brig = do
 
 testListApplicationsWithAccountAccess :: Brig -> Http ()
 testListApplicationsWithAccountAccess brig = do
-  uid <- userId <$> createUser "alice" brig
+  alice <- userId <$> createUser "alice" brig
+  bob <- userId <$> createUser "bob" brig
   do
-    apps <- listOAuthApplications brig uid
+    apps <- listOAuthApplications brig alice
     liftIO $ assertEqual "apps" 0 (length apps)
-  void $ createOAuthApplicationWithAccountAccess brig uid
-  void $ createOAuthApplicationWithAccountAccess brig uid
+  void $ createOAuthApplicationWithAccountAccess brig alice
+  void $ createOAuthApplicationWithAccountAccess brig alice
   do
-    apps <- listOAuthApplications brig uid
-    liftIO $ assertEqual "apps" 2 (length apps)
-  void $ createOAuthApplicationWithAccountAccess brig uid
+    alicesApps <- listOAuthApplications brig alice
+    liftIO $ assertEqual "apps" 2 (length alicesApps)
+    bobsApps <- listOAuthApplications brig bob
+    liftIO $ assertEqual "apps" 0 (length bobsApps)
+  void $ createOAuthApplicationWithAccountAccess brig alice
+  void $ createOAuthApplicationWithAccountAccess brig bob
   do
-    apps <- listOAuthApplications brig uid
-    liftIO $ assertEqual "apps" 3 (length apps)
+    alicesApps <- listOAuthApplications brig alice
+    liftIO $ assertEqual "apps" 3 (length alicesApps)
+    bobsApps <- listOAuthApplications brig bob
+    liftIO $ assertEqual "apps" 1 (length bobsApps)
 
 testRevokeApplicationAccountAccess :: Brig -> Http ()
 testRevokeApplicationAccountAccess brig = do
