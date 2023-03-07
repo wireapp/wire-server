@@ -194,6 +194,21 @@ data OAuthScope
   deriving (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform OAuthScope)
 
+class IsOAuthScope scope where
+  toOAuthScope :: OAuthScope
+
+instance IsOAuthScope 'WriteConversations where
+  toOAuthScope = WriteConversations
+
+instance IsOAuthScope 'WriteConversationsCode where
+  toOAuthScope = WriteConversationsCode
+
+instance IsOAuthScope 'ReadSelf where
+  toOAuthScope = ReadSelf
+
+instance IsOAuthScope 'ReadFeatureConfigs where
+  toOAuthScope = ReadFeatureConfigs
+
 instance ToByteString OAuthScope where
   builder = \case
     WriteConversations -> "write:conversations"

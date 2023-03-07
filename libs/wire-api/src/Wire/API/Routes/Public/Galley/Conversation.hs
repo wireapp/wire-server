@@ -33,6 +33,7 @@ import Wire.API.Event.Conversation
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
+import Wire.API.OAuth
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -329,7 +330,7 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation@v2"
            ( Summary "Create a new conversation"
-               :> Description "OAuth scope: `write:conversations`"
+               :> DescriptionOAuthScope 'WriteConversations
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
@@ -351,7 +352,7 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
-               :> Description "OAuth scope: `write:conversations`"
+               :> DescriptionOAuthScope 'WriteConversations
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> From 'V3
                :> CanThrow 'ConvAccessDenied
@@ -590,7 +591,7 @@ type ConversationAPI =
     :<|> Named
            "create-conversation-code-unqualified"
            ( Summary "Create or recreate a conversation code"
-               :> Description "OAuth scope: `write:conversations_code`"
+               :> DescriptionOAuthScope 'WriteConversationsCode
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
