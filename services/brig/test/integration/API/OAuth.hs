@@ -306,8 +306,8 @@ testCreateAccessTokenAccessDeniedWhenDisabled opts brig =
     cid <- randomId
     let secret = OAuthClientPlainTextSecret $ encodeBase16 "ee2316e304f5c318e4607d86748018eb9c66dc4f391c31bcccd9291d24b4c7e"
     let code = OAuthAuthorizationCode $ encodeBase16 "eb32eb9e2aa36c081c89067dddf81bce83c1c57e0b74cfb14c9f026f145f2b1f"
-    let wrongUrl = mkUrl "https://example.com"
-    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code wrongUrl
+    let url = mkUrl "https://example.com"
+    let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code url
     createOAuthAccessToken' brig accessTokenRequest !!! assertAccessDenied
 
 testRefreshAccessTokenAccessDeniedWhenDisabled :: Opt.Opts -> Brig -> Http ()
