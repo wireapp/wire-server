@@ -6,7 +6,7 @@ import Control.Concurrent.STM.TVar
 import Control.Exception
 import qualified Data.Map as Map
 import Data.Streaming.Network
-import Imports
+import Imports hiding (newTVarIO)
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
 
@@ -14,15 +14,21 @@ data HTTP2Conn = HTTP2Conn
   { backgroundThread :: Async (),
     -- Maybe the 'disconect' action can also take care of cleaning up the thread
     disconnect :: IO (),
-    -- See comment in 'startPersistentHTTP2Connection' about what this 'Chan'
-    -- contains
+    -- See comment in 'startPersistentHTTP2Connection' about why this returns
+    -- '()'
     sendRequest :: HTTP2.Request -> (HTTP2.Response -> IO ()) -> IO ()
   }
 
+type Target = (ByteString, Int)
+
 data HTTP2Manager = HTTP2Manager
-  { connections :: TVar (Map (ByteString, Int) HTTP2Conn),
+  { connections :: TVar (Map Target HTTP2Conn),
     cacheLimit :: Int
   }
+
+defaultHTTP2Manager :: IO HTTP2Manager
+defaultHTTP2Manager =
+  HTTP2Manager <$> newTVarIO mempty <*> pure 20
 
 withHTTP2Request :: HTTP2Manager -> ByteString -> Int -> HTTP2.Request -> (HTTP2.Response -> IO a) -> IO a
 withHTTP2Request mgr host port req f = do
