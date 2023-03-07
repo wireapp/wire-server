@@ -59,9 +59,7 @@ parseVersion req = do
   pure (rewriteRequestPure (\(_, q) _ -> (pinfo, q)) req, n)
 
 looksLikeVersion :: Text -> Bool
-looksLikeVersion version = case T.splitAt 1 version of
-  ("v", T.all isDigit -> True) -> True
-  _ -> False
+looksLikeVersion version = case T.splitAt 1 version of (h, t) -> h == "v" && T.all isDigit t
 
 removeVersionHeader :: Request -> Request
 removeVersionHeader req =
