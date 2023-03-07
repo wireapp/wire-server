@@ -330,18 +330,18 @@ insertOAuthAuthorizationCode ttl code cid uid scope uri = do
     q = fromString $ "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri) VALUES (?, ?, ?, ?, ?) USING TTL " <> show ttl
 
 lookupAndDeleteOAuthAuthorizationCode :: (MonadClient m) => OAuthAuthorizationCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
-lookupAndDeleteOAuthAuthorizationCode code = lookupOAuthAuthorizationCode code <* deleteOAuthAuthorizationCode code
+lookupAndDeleteOAuthAuthorizationCode code = lookupOAuthAuthorizationCode <* deleteOAuthAuthorizationCode
   where
-    lookupOAuthAuthorizationCode :: (MonadClient m) => OAuthAuthorizationCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
-    lookupOAuthAuthorizationCode code = do
+    lookupOAuthAuthorizationCode :: (MonadClient m) => m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
+    lookupOAuthAuthorizationCode = do
       mTuple <- retry x5 . query1 q $ params LocalQuorum (Identity code)
       pure $ mTuple <&> \(cid, uid, C.Set scope, uri) -> (cid, uid, OAuthScopes (Set.fromList scope), uri)
       where
         q :: PrepQuery R (Identity OAuthAuthorizationCode) (OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl)
         q = "SELECT client, user, scope, redirect_uri FROM oauth_auth_code WHERE code = ?"
 
-    deleteOAuthAuthorizationCode :: (MonadClient m) => OAuthAuthorizationCode -> m ()
-    deleteOAuthAuthorizationCode code = retry x5 . write q $ params LocalQuorum (Identity code)
+    deleteOAuthAuthorizationCode :: (MonadClient m) => m ()
+    deleteOAuthAuthorizationCode = retry x5 . write q $ params LocalQuorum (Identity code)
       where
         q :: PrepQuery W (Identity OAuthAuthorizationCode) ()
         q = "DELETE FROM oauth_auth_code WHERE code = ?"
