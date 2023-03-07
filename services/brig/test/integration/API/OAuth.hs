@@ -129,7 +129,7 @@ tests m db b n o = do
 
 testRegisterNewOAuthClient :: Brig -> Http ()
 testRegisterNewOAuthClient brig = do
-  let newOAuthClient@(NewOAuthClient expectedAppName expectedUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
+  let newOAuthClient@(RegisterOAuthClientRequest expectedAppName expectedUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   cid <- occClientId <$> registerNewOAuthClient brig newOAuthClient
   uid <- randomId
   oauthClientInfo <- getOAuthClientInfo brig uid cid
@@ -139,12 +139,12 @@ testRegisterNewOAuthClient brig = do
 
 testCreateOAuthCodeSuccess :: Brig -> Http ()
 testCreateOAuthCodeSuccess brig = do
-  let newOAuthClient@(NewOAuthClient _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
+  let newOAuthClient@(RegisterOAuthClientRequest _ redirectUrl) = newOAuthClientRequestBody "E Corp" "https://example.com"
   cid <- occClientId <$> registerNewOAuthClient brig newOAuthClient
   uid <- randomId
   let scope = OAuthScopes $ Set.fromList [WriteConversations, WriteConversationsCode]
   state <- UUID.toText <$> liftIO nextRandom
-  createOAuthCode brig uid (NewOAuthAuthorizationCode cid scope OAuthResponseTypeCode redirectUrl state) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid scope OAuthResponseTypeCode redirectUrl state) !!! do
     const 302 === statusCode
     const (Just $ unRedirectUrl redirectUrl ^. pathL) === (fmap getPath . getLocation)
     const (Just $ ["code", "state"]) === (fmap (fmap fst . getQueryParams) . getLocation)
@@ -161,7 +161,7 @@ testCreateOAuthCodeRedirectUrlMismatch brig = do
   uid <- randomId
   state <- UUID.toText <$> liftIO nextRandom
   let differentUrl = mkUrl "https://wire.com"
-  createOAuthCode brig uid (NewOAuthAuthorizationCode cid mempty OAuthResponseTypeCode differentUrl state) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode differentUrl state) !!! do
     const 400 === statusCode
     const Nothing === (fmap getPath . getLocation)
     const (Just "redirect-url-miss-match") === fmap Error.label . responseJsonMaybe
@@ -172,7 +172,7 @@ testCreateOAuthCodeClientNotFound brig = do
   uid <- randomId
   let redirectUrl = mkUrl "https://example.com"
   state <- UUID.toText <$> liftIO nextRandom
-  createOAuthCode brig uid (NewOAuthAuthorizationCode cid mempty OAuthResponseTypeCode redirectUrl state) !!! do
+  createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state) !!! do
     const 404 === statusCode
     const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
     const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -293,7 +293,7 @@ testCreateCodeOAuthClientAccessDeniedWhenDisabled opts brig =
     uid <- randomId
     state <- UUID.toText <$> liftIO nextRandom
     let redirectUrl = mkUrl "https://example.com"
-    createOAuthCode brig uid (NewOAuthAuthorizationCode cid mempty OAuthResponseTypeCode redirectUrl state) !!! do
+    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid mempty OAuthResponseTypeCode redirectUrl state) !!! do
       const 403 === statusCode
       const (Just $ "access_denied") === (getLocation >=> getQueryParamValue "error")
       const (Just $ cs state) === (getLocation >=> getQueryParamValue "state")
@@ -747,17 +747,17 @@ authHeader = bearer "Authorization"
 bearer :: ToHttpApiData a => HeaderName -> a -> Request -> Request
 bearer name = header name . toHeader . Bearer
 
-newOAuthClientRequestBody :: Text -> Text -> NewOAuthClient
+newOAuthClientRequestBody :: Text -> Text -> RegisterOAuthClientRequest
 newOAuthClientRequestBody name url =
   let redirectUrl = mkUrl (cs url)
       applicationName = OAuthApplicationName (unsafeRange name)
-   in NewOAuthClient applicationName redirectUrl
+   in RegisterOAuthClientRequest applicationName redirectUrl
 
-registerNewOAuthClient :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> NewOAuthClient -> m OAuthClientCredentials
+registerNewOAuthClient :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> RegisterOAuthClientRequest -> m OAuthClientCredentials
 registerNewOAuthClient brig reqBody =
   responseJsonError =<< registerNewOAuthClient' brig reqBody <!! const 200 === statusCode
 
-registerNewOAuthClient' :: (MonadHttp m) => Brig -> NewOAuthClient -> m ResponseLBS
+registerNewOAuthClient' :: (MonadHttp m) => Brig -> RegisterOAuthClientRequest -> m ResponseLBS
 registerNewOAuthClient' brig reqBody =
   post (brig . paths ["i", "oauth", "clients"] . json reqBody)
 
@@ -769,7 +769,7 @@ getOAuthClientInfo' :: (MonadHttp m) => Brig -> UserId -> OAuthClientId -> m Res
 getOAuthClientInfo' brig uid cid =
   get (brig . paths ["oauth", "clients", toByteString' cid] . zUser uid)
 
-createOAuthCode :: (MonadHttp m) => Brig -> UserId -> NewOAuthAuthorizationCode -> m ResponseLBS
+createOAuthCode :: (MonadHttp m) => Brig -> UserId -> CreateOAuthAuthorizationCodeRequest -> m ResponseLBS
 createOAuthCode brig uid reqBody = post (brig . paths ["oauth", "authorization", "codes"] . zUser uid . json reqBody . noRedirect)
 
 createOAuthAccessToken :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> OAuthAccessTokenRequest -> m OAuthAccessTokenResponse
@@ -805,7 +805,7 @@ revokeOAuthApplicationAccess brig uid cid =
 
 generateOAuthClientAndAuthorizationCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> OAuthScopes -> RedirectUrl -> m (OAuthClientId, OAuthClientPlainTextSecret, OAuthAuthorizationCode)
 generateOAuthClientAndAuthorizationCode brig uid scope url = do
-  let newOAuthClient = NewOAuthClient (OAuthApplicationName (unsafeRange "E Corp")) url
+  let newOAuthClient = RegisterOAuthClientRequest (OAuthApplicationName (unsafeRange "E Corp")) url
   OAuthClientCredentials cid secret <- registerNewOAuthClient brig newOAuthClient
   (cid,secret,) <$> generateOAuthAuthorizationCode brig uid cid scope url
 
@@ -813,7 +813,7 @@ generateOAuthAuthorizationCode :: (MonadIO m, MonadHttp m, MonadCatch m, HasCall
 generateOAuthAuthorizationCode brig uid cid scope url = do
   state <- UUID.toText <$> liftIO nextRandom
   response <-
-    createOAuthCode brig uid (NewOAuthAuthorizationCode cid scope OAuthResponseTypeCode url state) <!! do
+    createOAuthCode brig uid (CreateOAuthAuthorizationCodeRequest cid scope OAuthResponseTypeCode url state) <!! do
       const 302 === statusCode
   pure $ fromMaybe (error "oauth auth code generation failed") $ (getHeader "Location" >=> fromByteString >=> getQueryParamValue "code" >=> fromByteString) response
 

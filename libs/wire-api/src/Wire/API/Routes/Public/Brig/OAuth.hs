@@ -57,7 +57,7 @@ type OAuthAPI =
                :> "oauth"
                :> "authorization"
                :> "codes"
-               :> ReqBody '[JSON] NewOAuthAuthorizationCode
+               :> ReqBody '[JSON] CreateOAuthAuthorizationCodeRequest
                :> MultiVerb
                     'POST
                     '[JSON]

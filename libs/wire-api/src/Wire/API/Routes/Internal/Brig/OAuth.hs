@@ -34,6 +34,6 @@ type OAuthAPI =
         :> CanThrow 'OAuthFeatureDisabled
         :> "oauth"
         :> "clients"
-        :> ReqBody '[JSON] NewOAuthClient
+        :> ReqBody '[JSON] RegisterOAuthClientRequest
         :> Post '[JSON] OAuthClientCredentials
     )

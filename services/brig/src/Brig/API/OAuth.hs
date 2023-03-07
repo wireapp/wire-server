@@ -61,7 +61,7 @@ import qualified Wire.Sem.Now as Now
 
 internalOauthAPI :: ServerT I.OAuthAPI (Handler r)
 internalOauthAPI =
-  Named @"create-oauth-client" createNewOAuthClient
+  Named @"create-oauth-client" registerOAuthClient
 
 --------------------------------------------------------------------------------
 -- API Public
@@ -78,8 +78,8 @@ oauthAPI =
 --------------------------------------------------------------------------------
 -- Handlers
 
-createNewOAuthClient :: NewOAuthClient -> (Handler r) OAuthClientCredentials
-createNewOAuthClient (NewOAuthClient name uri) = do
+registerOAuthClient :: RegisterOAuthClientRequest -> (Handler r) OAuthClientCredentials
+registerOAuthClient (RegisterOAuthClientRequest name uri) = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   credentials@(OAuthClientCredentials cid secret) <- OAuthClientCredentials <$> randomId <*> createSecret
   safeSecret <- liftIO $ hashClientSecret secret
@@ -102,10 +102,8 @@ getOAuthClient _ cid = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   lift $ wrapClient $ lookupOauthClient cid
 
---------------------------------------------------------------------------------
-
-createNewOAuthAuthorizationCode :: UserId -> NewOAuthAuthorizationCode -> (Handler r) CreateOAuthCodeResponse
-createNewOAuthAuthorizationCode uid code@(NewOAuthAuthorizationCode _cid _scope _responseType redirectUrl state) = do
+createNewOAuthAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> (Handler r) CreateOAuthCodeResponse
+createNewOAuthAuthorizationCode uid code@(CreateOAuthAuthorizationCodeRequest _cid _scope _responseType redirectUrl state) = do
   runExceptT (validateAndCreateAuthorizationCode uid code) >>= \case
     Right oauthCode ->
       pure $ CreateOAuthCodeSuccess $ redirectUrl & addParams [("code", toByteString' oauthCode), ("state", cs state)]
@@ -124,8 +122,8 @@ data CreateNewOAuthCodeError
   | CreateNewOAuthCodeErrorUnsupportedResponseType
   | CreateNewOAuthCodeErrorRedirectUrlMissMatch
 
-validateAndCreateAuthorizationCode :: UserId -> NewOAuthAuthorizationCode -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
-validateAndCreateAuthorizationCode uid (NewOAuthAuthorizationCode cid scope responseType redirectUrl _state) = do
+validateAndCreateAuthorizationCode :: UserId -> CreateOAuthAuthorizationCodeRequest -> ExceptT CreateNewOAuthCodeError (Handler r) OAuthAuthorizationCode
+validateAndCreateAuthorizationCode uid (CreateOAuthAuthorizationCodeRequest cid scope responseType redirectUrl _state) = do
   failWithM CreateNewOAuthCodeErrorFeatureDisabled (assertMay . Opt.setOAuthEnabled <$> view settings)
   OAuthClient _ _ uri <- failWithM CreateNewOAuthCodeErrorClientNotFound $ getOAuthClient uid cid
   failWith CreateNewOAuthCodeErrorUnsupportedResponseType (assertMay $ responseType == OAuthResponseTypeCode)
@@ -152,10 +150,7 @@ createAccessTokenWithRefreshToken :: (Member Now r, Member Jwk r) => OAuthRefres
 createAccessTokenWithRefreshToken req = do
   unless (oartGrantType req == OAuthGrantTypeRefreshToken) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   key <- signingKey
-  info <- verifyTokenAndGetInfo key (oartRefreshToken req)
-  let uid = oriUserId info
-      cid = oriClientId info
-      scope = oriScopes info
+  (OAuthRefreshTokenInfo _ cid uid scope _) <- lookupVerifyAndDeleteToken key (oartRefreshToken req)
   void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
   unless (cid == oartClientId req) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
@@ -163,8 +158,8 @@ createAccessTokenWithRefreshToken req = do
 
   createAccessToken key uid cid scope
 
-verifyTokenAndGetInfo :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
-verifyTokenAndGetInfo key =
+lookupVerifyAndDeleteToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
+lookupVerifyAndDeleteToken key =
   verifyRefreshToken key
     >=> lift . wrapClient . lookupAndDeleteOAuthRefreshToken
     >=> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure
@@ -271,13 +266,19 @@ verifyClientSecret secret cid = do
 revokeRefreshToken :: Member Jwk r => OAuthRevokeRefreshTokenRequest -> (Handler r) ()
 revokeRefreshToken req = do
   key <- signingKey
-  info <- verifyTokenAndGetInfo key (ortrRefreshToken req)
+  info <- lookupAndVerifyToken key (ortrRefreshToken req)
   let uid = oriUserId info
       cid = oriClientId info
   void $ getOAuthClient uid cid >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
   unlessM (verifyClientSecret (ortrClientSecret req) cid) $ throwStd $ errorToWai @'OAuthInvalidClientCredentials
   lift $ wrapClient $ deleteOAuthRefreshToken info
+
+lookupAndVerifyToken :: JWK -> OAuthRefreshToken -> (Handler r) OAuthRefreshTokenInfo
+lookupAndVerifyToken key =
+  verifyRefreshToken key
+    >=> lift . wrapClient . lookupOAuthRefreshTokenInfo
+    >=> maybe (throwStd $ errorToWai @'OAuthInvalidRefreshToken) pure
 
 --------------------------------------------------------------------------------
 

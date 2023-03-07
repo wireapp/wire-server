@@ -97,18 +97,18 @@ newtype OAuthApplicationName = OAuthApplicationName {unOAuthApplicationName :: R
 instance ToSchema OAuthApplicationName where
   schema = OAuthApplicationName <$> unOAuthApplicationName .= schema
 
-data NewOAuthClient = NewOAuthClient
+data RegisterOAuthClientRequest = RegisterOAuthClientRequest
   { nocApplicationName :: OAuthApplicationName,
     nocRedirectUrl :: RedirectUrl
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform NewOAuthClient)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOAuthClient)
+  deriving (Arbitrary) via (GenericUniform RegisterOAuthClientRequest)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RegisterOAuthClientRequest)
 
-instance ToSchema NewOAuthClient where
+instance ToSchema RegisterOAuthClientRequest where
   schema =
-    object "NewOAuthClient" $
-      NewOAuthClient
+    object "RegisterOAuthClientRequest" $
+      RegisterOAuthClientRequest
         <$> nocApplicationName .= fieldWithDocModifier "application_name" applicationNameDescription schema
         <*> nocRedirectUrl .= fieldWithDocModifier "redirect_url" redirectUrlDescription schema
     where
@@ -225,7 +225,7 @@ instance ToSchema OAuthScopes where
       oauthScopeParser scope =
         pure $ (not . T.null) `filter` T.splitOn " " scope & maybe Set.empty Set.fromList . mapM (fromByteString' . cs)
 
-data NewOAuthAuthorizationCode = NewOAuthAuthorizationCode
+data CreateOAuthAuthorizationCodeRequest = CreateOAuthAuthorizationCodeRequest
   { noacClientId :: OAuthClientId,
     noacScope :: OAuthScopes,
     noacResponseType :: OAuthResponseType,
@@ -233,13 +233,13 @@ data NewOAuthAuthorizationCode = NewOAuthAuthorizationCode
     noacState :: Text
   }
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform NewOAuthAuthorizationCode)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOAuthAuthorizationCode)
+  deriving (Arbitrary) via (GenericUniform CreateOAuthAuthorizationCodeRequest)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema CreateOAuthAuthorizationCodeRequest)
 
-instance ToSchema NewOAuthAuthorizationCode where
+instance ToSchema CreateOAuthAuthorizationCodeRequest where
   schema =
-    object "NewOAuthAuthorizationCode" $
-      NewOAuthAuthorizationCode
+    object "CreateOAuthAuthorizationCodeRequest" $
+      CreateOAuthAuthorizationCodeRequest
         <$> noacClientId .= fieldWithDocModifier "client_id" clientIdDescription schema
         <*> noacScope .= fieldWithDocModifier "scope" scopeDescription schema
         <*> noacResponseType .= fieldWithDocModifier "response_type" responseTypeDescription schema
