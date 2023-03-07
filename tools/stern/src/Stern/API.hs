@@ -74,7 +74,6 @@ default (ByteString)
 start :: Opts -> IO ()
 start o = do
   e <- newEnv o
-  runAppT e $ Intra.assertBackendApiVersion
   s <- Server.newSettings (server e)
   Server.runSettingsWithShutdown s (servantApp e) Nothing
   where

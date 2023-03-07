@@ -66,7 +66,8 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 --
 -- If you add or remove versions from this type, make sure 'versionInt', 'supportedVersions',
 -- and 'developmentVersions' stay in sync; everything else here should keep working without
--- change.
+-- change.  See also documentation in the *docs* directory.
+-- https://docs.wire.com/developer/developer/api-versioning.html#version-bump-checklist
 data Version = V0 | V1 | V2 | V3 | V4
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (FromJSON, ToJSON) via (Schema Version)
