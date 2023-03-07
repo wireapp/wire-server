@@ -59,7 +59,7 @@ import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import qualified Wire.API.Conversation.Role as Role
 import Wire.API.OAuth
 import Wire.API.Routes.Bearer (Bearer (Bearer, unBearer))
-import Wire.API.User (User (userId), userEmail)
+import Wire.API.User
 import Wire.API.User.Auth (CookieType (PersistentCookie))
 import Wire.Sem.Jwk (readJwk)
 
@@ -339,7 +339,9 @@ testAccessResourceSuccessNginz brig nginz = do
   user <- createUser "alice" brig
   let email = fromMaybe (error "no email") $ userEmail user
   zauthToken <- decodeToken <$> (login nginz (defEmailLogin email) PersistentCookie <!! const 200 === statusCode)
-  get (nginz . path "/self" . header "Authorization" ("Bearer " <> toByteString' zauthToken)) !!! const 200 === statusCode
+  self :: SelfProfile <-
+    responseJsonError
+      =<< get (nginz . path "/self" . header "Authorization" ("Bearer " <> toByteString' zauthToken)) <!! const 200 === statusCode
 
   -- with Authorization header containing an OAuth bearer token
   let redirectUrl = mkUrl "https://example.com"
@@ -347,7 +349,8 @@ testAccessResourceSuccessNginz brig nginz = do
   (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig (userId user) scopes redirectUrl
   let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
   oauthToken <- oatAccessToken <$> createOAuthAccessToken brig accessTokenRequest
-  get (nginz . paths ["self"] . authHeader oauthToken) !!! const 200 === statusCode
+  self' <- responseJsonError =<< get (nginz . paths ["self"] . authHeader oauthToken) <!! const 200 === statusCode
+  liftIO $ self @?= self'
 
 testAccessResourceInsufficientScope :: Brig -> Nginz -> Http ()
 testAccessResourceInsufficientScope brig nginz = do
