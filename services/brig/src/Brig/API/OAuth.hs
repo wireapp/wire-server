@@ -92,6 +92,9 @@ createNewOAuthClient (NewOAuthClient name uri) = do
     hashClientSecret :: MonadIO m => OAuthClientPlainTextSecret -> m Password
     hashClientSecret = mkSafePassword . PlainTextPassword . toText . unOAuthClientPlainTextSecret
 
+rand32Bytes :: MonadIO m => m AsciiBase16
+rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
+
 --------------------------------------------------------------------------------
 
 getOAuthClient :: UserId -> OAuthClientId -> (Handler r) (Maybe OAuthClient)
@@ -260,9 +263,6 @@ verifyClientSecret secret cid = do
       lookupOAuthClientSecret cid <&> \case
         Nothing -> False
         Just pw -> verifyPassword plainTextPw pw
-
-rand32Bytes :: MonadIO m => m AsciiBase16
-rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
 
 --------------------------------------------------------------------------------
 
