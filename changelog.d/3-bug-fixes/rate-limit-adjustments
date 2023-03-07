@@ -1,0 +1,1 @@
+Fix a rate-limit exemption whereby authenticated endpoints did not get the unlimited_requests, if set, applied. Also increase default rate limits.
