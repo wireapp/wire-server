@@ -1,7 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NumDecimals         #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TypeApplications    #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -22,16 +23,12 @@
 
 module Gundeck.Redis
   ( RobustConnection,
-    rrConnection,
-    rrReconnect,
     connectRobust,
     runRobust,
     PingException,
   )
 where
 
-import Control.Concurrent.Extra (once)
-import Control.Lens
 import qualified Control.Monad.Catch as Catch
 import Control.Retry
 import Database.Redis
@@ -39,21 +36,12 @@ import Gundeck.Redis.HedisExtensions
 import Imports
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger)
-import qualified System.Logger.Class as LogClass
 import System.Logger.Extended
 import UnliftIO.Exception
+import Control.Concurrent.Async (async)
 
 -- | Connection to Redis which allows reconnecting.
-type RobustConnection = MVar ReConnection
-
-data ReConnection = ReConnection
-  { -- | established (and potentially breaking) connection to Redis
-    _rrConnection :: Connection,
-    -- | action which can be called to reconnect to Redis
-    _rrReconnect :: IO ()
-  }
-
-makeLenses ''ReConnection
+type RobustConnection = MVar Connection
 
 -- | Connection to Redis which can be reestablished on connection errors.
 --
@@ -71,8 +59,18 @@ connectRobust ::
   IO Connection ->
   IO RobustConnection
 connectRobust l retryStrategy connectLowLevel = do
-  robustConnection <- newEmptyMVar @IO @ReConnection
-  retry $ reconnectRedis robustConnection
+  robustConnection <- newEmptyMVar @IO @Connection
+  _ <-
+    async $ safeForever $ do
+      Log.info l $ Log.msg (Log.val "connecting to Redis")
+      conn <- retry connectLowLevel
+      Log.info l $ Log.msg (Log.val "successfully connected to Redis")
+      putMVar robustConnection conn
+      catch
+        ( forever $ do
+            _ <- runRedis conn ping
+            threadDelay 1e6
+        ) $ \(_ :: SomeException) -> void $ takeMVar robustConnection
   pure robustConnection
   where
     retry =
@@ -86,16 +84,6 @@ connectRobust l retryStrategy connectLowLevel = do
           const $ Catch.Handler (\(e :: IOException) -> logEx (Log.err l) e "network error when connecting to Redis" >> pure True)
         ]
         . const -- ignore RetryStatus
-    reconnectRedis robustConnection = do
-      Log.info l $ Log.msg (Log.val "connecting to Redis")
-      conn <- connectLowLevel
-      Log.info l $ Log.msg (Log.val "successfully connected to Redis")
-
-      reconnectOnce <- once . retry $ reconnectRedis robustConnection -- avoid concurrent attempts to reconnect
-      let newReConnection = ReConnection {_rrConnection = conn, _rrReconnect = reconnectOnce}
-      unlessM (tryPutMVar robustConnection newReConnection) $
-        void $
-          swapMVar robustConnection newReConnection
 
     logEx :: Show e => ((Msg -> Msg) -> IO ()) -> e -> ByteString -> IO ()
     logEx lLevel e description = lLevel $ Log.msg (Log.val description) . Log.field "error" (show e)
@@ -106,22 +94,25 @@ connectRobust l retryStrategy connectLowLevel = do
 -- Without externally enforcing timeouts, this may lead to leaking threads.
 runRobust :: (MonadUnliftIO m, MonadLogger m) => RobustConnection -> Redis a -> m a
 runRobust mvar action = do
+  -- catches
+  --   (liftIO $ runRedis (_rrConnection robustConnection) action)
+  --   [ logAndHandle $ Handler (\(_ :: ConnectionLostException) -> reconnectRetry robustConnection), -- Redis connection lost during request
+  --     logAndHandle $ Handler (\(_ :: IOException) -> reconnectRetry robustConnection) -- Redis unreachable
+  --   ]
   robustConnection <- readMVar mvar
-  catches
-    (liftIO $ runRedis (_rrConnection robustConnection) action)
-    [ logAndHandle $ Handler (\(_ :: ConnectionLostException) -> reconnectRetry robustConnection), -- Redis connection lost during request
-      logAndHandle $ Handler (\(_ :: IOException) -> reconnectRetry robustConnection) -- Redis unreachable
-    ]
-  where
-    reconnectRetry robustConnection = do
-      liftIO $ _rrReconnect robustConnection
-      runRobust mvar action
-
-    logAndHandle (Handler handler) =
-      Handler $ \e -> do
-        LogClass.err $ Log.msg (Log.val "Redis connection failed") . Log.field "error" (show e)
-        handler e
+  liftIO $ runRedis (robustConnection) action
 
 data PingException = PingException Reply deriving (Show)
 
 instance Exception PingException
+
+safeForever ::
+  forall m.
+  (MonadUnliftIO m) =>
+  m () ->
+  m ()
+safeForever action =
+  forever $
+    action `catchAny` \_ -> do
+      threadDelay 1e6 -- pause to keep worst-case noise in logs manageable
+

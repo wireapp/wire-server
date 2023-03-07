@@ -74,8 +74,8 @@ run o = do
     Async.cancel lst
     Async.cancel wCollectAuth
     forM_ wtbs Async.cancel
-    Redis.disconnect . (^. Redis.rrConnection) =<< takeMVar (e ^. rstate)
-    whenJust (e ^. rstateAdditionalWrite) $ (=<<) (Redis.disconnect . (^. Redis.rrConnection)) . takeMVar
+    Redis.disconnect =<< takeMVar (e ^. rstate)
+    whenJust (e ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
     Log.close (e ^. applog)
   where
     middleware :: Env -> Wai.Middleware
