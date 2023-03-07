@@ -261,6 +261,7 @@ type SelfAPI =
   Named
     "get-self"
     ( Summary "Get your own profile"
+        :> Description "OAuth scope: `read:self`"
         :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile

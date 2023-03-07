@@ -215,7 +215,8 @@ type AllFeatureConfigsUserGet =
         "Gets feature configs for a user"
         :> Description
              "Gets feature configs for a user. If the user is a member of a team and has the required permissions, this will return the team's feature configs.\
-             \If the user is not a member of a team, this will return the personal feature configs (the server defaults)."
+             \If the user is not a member of a team, this will return the personal feature configs (the server defaults).\n\
+             \OAuth scope: `read:feature_configs`"
         :> ZUser
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied

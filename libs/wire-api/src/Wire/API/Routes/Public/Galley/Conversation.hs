@@ -329,6 +329,7 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation@v2"
            ( Summary "Create a new conversation"
+               :> Description "OAuth scope: `write:conversations`"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> Until 'V3
                :> CanThrow 'ConvAccessDenied
@@ -350,6 +351,7 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
+               :> Description "OAuth scope: `write:conversations`"
                :> MakesFederatedCall 'Galley "on-conversation-created"
                :> From 'V3
                :> CanThrow 'ConvAccessDenied
@@ -588,6 +590,7 @@ type ConversationAPI =
     :<|> Named
            "create-conversation-code-unqualified"
            ( Summary "Create or recreate a conversation code"
+               :> Description "OAuth scope: `write:conversations_code`"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
