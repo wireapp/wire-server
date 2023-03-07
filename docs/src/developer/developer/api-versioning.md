@@ -114,7 +114,7 @@ the version:
    `ToSchema` instance,
  - In the same `Version` module update the `developmentVersions` value to list
    only the new version,
- - Should it be desired, update the `backendApiVersion` value in Stern, which is
+ - Consider updating the `backendApiVersion` value in Stern, which is
    unit-tested by checking if it is listed as supported in the response to `GET
    /api-version`.
 
