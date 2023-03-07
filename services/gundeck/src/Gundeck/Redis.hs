@@ -1,8 +1,8 @@
-{-# LANGUAGE NumDecimals         #-}
-{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE NumDecimals #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,6 +29,7 @@ module Gundeck.Redis
   )
 where
 
+import Control.Concurrent.Async (async)
 import qualified Control.Monad.Catch as Catch
 import Control.Retry
 import Database.Redis
@@ -38,7 +39,6 @@ import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger)
 import System.Logger.Extended
 import UnliftIO.Exception
-import Control.Concurrent.Async (async)
 
 -- | Connection to Redis which allows reconnecting.
 type RobustConnection = MVar Connection
@@ -70,7 +70,8 @@ connectRobust l retryStrategy connectLowLevel = do
         ( forever $ do
             _ <- runRedis conn ping
             threadDelay 1e6
-        ) $ \(_ :: SomeException) -> void $ takeMVar robustConnection
+        )
+        $ \(_ :: SomeException) -> void $ takeMVar robustConnection
   pure robustConnection
   where
     retry =
@@ -84,7 +85,6 @@ connectRobust l retryStrategy connectLowLevel = do
           const $ Catch.Handler (\(e :: IOException) -> logEx (Log.err l) e "network error when connecting to Redis" >> pure True)
         ]
         . const -- ignore RetryStatus
-
     logEx :: Show e => ((Msg -> Msg) -> IO ()) -> e -> ByteString -> IO ()
     logEx lLevel e description = lLevel $ Log.msg (Log.val description) . Log.field "error" (show e)
 
@@ -115,4 +115,3 @@ safeForever action =
   forever $
     action `catchAny` \_ -> do
       threadDelay 1e6 -- pause to keep worst-case noise in logs manageable
-
