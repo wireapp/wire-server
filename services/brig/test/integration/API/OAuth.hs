@@ -647,13 +647,6 @@ testRevokeApplicationAccountAccess brig = do
         liftIO $ assertEqual "apps" 0 (length apps)
     _ -> liftIO $ assertFailure "unexpected number of apps"
 
-testWriteConversationsSuccessInternal :: Brig -> Nginz -> Http ()
-testWriteConversationsSuccessInternal brig nginz = do
-  (uid, tid) <- Team.createUserWithTeam brig
-  accessToken <- getAccessTokenForScope brig uid [WriteConversations]
-  createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
-    const 201 === statusCode
-
 testWriteConversationsSuccessNginz :: Brig -> Nginz -> Http ()
 testWriteConversationsSuccessNginz brig nginz = do
   (uid, tid) <- Team.createUserWithTeam brig
@@ -661,30 +654,12 @@ testWriteConversationsSuccessNginz brig nginz = do
   createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" !!! do
     const 201 === statusCode
 
-testReadFeatureConfigsSuccessInternal :: Brig -> Nginz -> Http ()
-testReadFeatureConfigsSuccessInternal brig nginz = do
-  (uid, _) <- Team.createUserWithTeam brig
-  accessToken <- getAccessTokenForScope brig uid [ReadFeatureConfigs]
-  getFeatureConfigs nginz authHeader (oatAccessToken accessToken) !!! do
-    const 200 === statusCode
-
 testReadFeatureConfigsSuccessNginz :: Brig -> Nginz -> Http ()
 testReadFeatureConfigsSuccessNginz brig nginz = do
   (uid, _) <- Team.createUserWithTeam brig
   accessToken <- getAccessTokenForScope brig uid [ReadFeatureConfigs]
   getFeatureConfigs nginz authHeader (oatAccessToken accessToken) !!! do
     const 200 === statusCode
-
-testWriteConversationsCodeSuccessInternal :: Brig -> Nginz -> Http ()
-testWriteConversationsCodeSuccessInternal brig nginz = do
-  (uid, tid) <- Team.createUserWithTeam brig
-  accessToken <- getAccessTokenForScope brig uid [WriteConversations, WriteConversationsCode]
-  conv <-
-    responseJsonError
-      =<< createTeamConv nginz authHeader (oatAccessToken accessToken) tid "oauth test group" <!! do
-        const 201 === statusCode
-  postConvCode nginz authHeader (oatAccessToken accessToken) (qUnqualified . cnvQualifiedId $ conv) !!! do
-    const 201 === statusCode
 
 testWriteConversationsCodeSuccessNginz :: Brig -> Nginz -> Http ()
 testWriteConversationsCodeSuccessNginz brig nginz = do
