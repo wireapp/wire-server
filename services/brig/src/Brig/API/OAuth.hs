@@ -175,7 +175,7 @@ createAccessTokenWithAuthorizationCode :: (Member Now r, Member Jwk r) => OAuthA
 createAccessTokenWithAuthorizationCode req = do
   unless (oatGrantType req == OAuthGrantTypeAuthorizationCode) $ throwStd $ errorToWai @'OAuthInvalidGrantType
   (cid, uid, scope, uri) <-
-    lift (wrapClient $ lookupAndDeleteOAuthAuthorizationCode (oatCode req))
+    lift (wrapClient $ lookupAndDeleteByOAuthAuthorizationCode (oatCode req))
       >>= maybe (throwStd $ errorToWai @'OAuthAuthorizationCodeNotFound) pure
   oauthClient <- getOAuthClient uid (oatClientId req) >>= maybe (throwStd $ errorToWai @'OAuthClientNotFound) pure
 
@@ -329,8 +329,8 @@ insertOAuthAuthorizationCode ttl code cid uid scope uri = do
     q :: PrepQuery W (OAuthAuthorizationCode, OAuthClientId, UserId, C.Set OAuthScope, RedirectUrl) ()
     q = fromString $ "INSERT INTO oauth_auth_code (code, client, user, scope, redirect_uri) VALUES (?, ?, ?, ?, ?) USING TTL " <> show ttl
 
-lookupAndDeleteOAuthAuthorizationCode :: (MonadClient m) => OAuthAuthorizationCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
-lookupAndDeleteOAuthAuthorizationCode code = lookupOAuthAuthorizationCode <* deleteOAuthAuthorizationCode
+lookupAndDeleteByOAuthAuthorizationCode :: (MonadClient m) => OAuthAuthorizationCode -> m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
+lookupAndDeleteByOAuthAuthorizationCode code = lookupOAuthAuthorizationCode <* deleteOAuthAuthorizationCode
   where
     lookupOAuthAuthorizationCode :: (MonadClient m) => m (Maybe (OAuthClientId, UserId, OAuthScopes, RedirectUrl))
     lookupOAuthAuthorizationCode = do
