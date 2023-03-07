@@ -37,6 +37,7 @@ import Gundeck.Redis.HedisExtensions
 import Imports
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger)
+import qualified System.Logger.Class as LogClass
 import System.Logger.Extended
 import UnliftIO.Exception
 
@@ -92,15 +93,24 @@ connectRobust l retryStrategy connectLowLevel = do
 --
 -- Blocks on connection errors as long as the connection is not reestablished.
 -- Without externally enforcing timeouts, this may lead to leaking threads.
-runRobust :: (MonadUnliftIO m, MonadLogger m) => RobustConnection -> Redis a -> m a
-runRobust mvar action = do
-  -- catches
-  --   (liftIO $ runRedis (_rrConnection robustConnection) action)
-  --   [ logAndHandle $ Handler (\(_ :: ConnectionLostException) -> reconnectRetry robustConnection), -- Redis connection lost during request
-  --     logAndHandle $ Handler (\(_ :: IOException) -> reconnectRetry robustConnection) -- Redis unreachable
-  --   ]
-  robustConnection <- readMVar mvar
-  liftIO $ runRedis (robustConnection) action
+runRobust :: (MonadUnliftIO m, MonadLogger m, Catch.MonadMask m) => RobustConnection -> Redis a -> m a
+runRobust mvar action = retry $ do
+    robustConnection <- readMVar mvar
+    liftIO $ runRedis (robustConnection) action
+  where
+    retryStrategy = capDelay 1000000 (exponentialBackoff 50000)
+    retry =
+      recovering -- retry connecting, e. g., with exponential back-off
+        retryStrategy
+        [
+          logAndHandle $ Catch.Handler (\(_ :: ConnectionLostException) -> pure True),
+          logAndHandle $ Catch.Handler (\(_ :: IOException) -> pure True)
+        ]
+        . const -- ignore RetryStatus
+    logAndHandle (Handler handler) _ =
+      Handler $ \e -> do
+        LogClass.err $ Log.msg (Log.val "Redis connection failed") . Log.field "error" (show e)
+        handler e
 
 data PingException = PingException Reply deriving (Show)
 
