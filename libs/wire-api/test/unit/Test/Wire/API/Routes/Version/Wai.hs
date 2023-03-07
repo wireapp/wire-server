@@ -48,7 +48,7 @@ tests =
 mkTest :: Maybe Text -> Maybe Text -> (LByteString, Int) -> SpecWith (st, Application)
 mkTest mv1 mv2 (msg, status) =
   it ("GET " <> cs path <> " => " <> show (msg, status)) $ do
-    get path `shouldRespondWith` (ResponseMatcher status [] (bodyEquals msg))
+    get path `shouldRespondWith` ResponseMatcher status [] (bodyEquals msg)
   where
     path :: ByteString
     path = cs $ maybe "" ("/v" <>) mv1 <> "/check-version" <> maybe "" ("?version=" <>) mv2
