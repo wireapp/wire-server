@@ -372,6 +372,10 @@ brig:
 
 ### Token handling
 
+#### Authorization code
+
+The authorization code is stored as plain text rather than a "scrypted" hash because it is the key to look up the associated information like the client ID, the user ID, the scope and the redirect URL. An authorization code can only be used once and has a very short time to live.
+
 #### Access token
 
 Access tokens are self-contained JSON Web Tokens (JWT) that contain the following claims:
