@@ -598,40 +598,40 @@ testListApplicationsWithAccountAccess :: Brig -> Http ()
 testListApplicationsWithAccountAccess brig = do
   uid <- userId <$> createUser "alice" brig
   do
-    apps <- listOauthApplications brig uid
+    apps <- listOAuthApplications brig uid
     liftIO $ assertEqual "apps" 0 (length apps)
   void $ createOAuthApplicationWithAccountAccess brig uid
   void $ createOAuthApplicationWithAccountAccess brig uid
   do
-    apps <- listOauthApplications brig uid
+    apps <- listOAuthApplications brig uid
     liftIO $ assertEqual "apps" 2 (length apps)
   void $ createOAuthApplicationWithAccountAccess brig uid
   do
-    apps <- listOauthApplications brig uid
+    apps <- listOAuthApplications brig uid
     liftIO $ assertEqual "apps" 3 (length apps)
 
 testRevokeApplicationAccountAccess :: Brig -> Http ()
 testRevokeApplicationAccountAccess brig = do
   uid <- userId <$> createUser "alice" brig
   do
-    apps <- listOauthApplications brig uid
+    apps <- listOAuthApplications brig uid
     liftIO $ assertEqual "apps" 0 (length apps)
   for_ [1 .. 3 :: Int] $ const $ createOAuthApplicationWithAccountAccess brig uid
-  cids <- fmap oaId <$> listOauthApplications brig uid
+  cids <- fmap oaId <$> listOAuthApplications brig uid
   liftIO $ assertEqual "apps" 3 (length cids)
   case cids of
     [cid1, cid2, cid3] -> do
       revokeOAuthApplicationAccess brig uid cid1
       do
-        apps <- listOauthApplications brig uid
+        apps <- listOAuthApplications brig uid
         liftIO $ assertEqual "apps" 2 (length apps)
       revokeOAuthApplicationAccess brig uid cid2
       do
-        apps <- listOauthApplications brig uid
+        apps <- listOAuthApplications brig uid
         liftIO $ assertEqual "apps" 1 (length apps)
       revokeOAuthApplicationAccess brig uid cid3
       do
-        apps <- listOauthApplications brig uid
+        apps <- listOAuthApplications brig uid
         liftIO $ assertEqual "apps" 0 (length apps)
     _ -> liftIO $ assertFailure "unexpected number of apps"
 
@@ -787,13 +787,13 @@ refreshOAuthAccessToken' :: (MonadHttp m) => Brig -> OAuthRefreshAccessTokenRequ
 refreshOAuthAccessToken' brig reqBody =
   post (brig . paths ["oauth", "token"] . content "application/x-www-form-urlencoded" . body (RequestBodyLBS $ urlEncodeAsForm reqBody))
 
-listOauthApplications' :: (MonadHttp m) => Brig -> UserId -> m ResponseLBS
-listOauthApplications' brig uid =
+listOAuthApplications' :: (MonadHttp m) => Brig -> UserId -> m ResponseLBS
+listOAuthApplications' brig uid =
   get (brig . paths ["oauth", "applications"] . zUser uid)
 
-listOauthApplications :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> m [OAuthApplication]
-listOauthApplications brig uid =
-  responseJsonError =<< listOauthApplications' brig uid <!! const 200 === statusCode
+listOAuthApplications :: (MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) => Brig -> UserId -> m [OAuthApplication]
+listOAuthApplications brig uid =
+  responseJsonError =<< listOAuthApplications' brig uid <!! const 200 === statusCode
 
 revokeOAuthApplicationAccess' :: (MonadHttp m) => Brig -> UserId -> OAuthClientId -> m ResponseLBS
 revokeOAuthApplicationAccess' brig uid cid =
