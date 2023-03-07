@@ -58,7 +58,9 @@ import Servant.Swagger
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
--- | Version of the public API.
+-- | Version of the public API. Check the documentation in the *docs* directory
+-- for a checklist when adding a new version.
+-- https://docs.wire.com/developer/developer/api-versioning.html#version-bump-checklist
 data Version = V0 | V1 | V2 | V3 | V4
   deriving stock (Eq, Ord, Bounded, Enum, Show)
   deriving (FromJSON, ToJSON) via (Schema Version)
