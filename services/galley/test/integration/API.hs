@@ -2486,7 +2486,7 @@ testDeleteTeamConversationWithUnavailableRemoteMembers = do
 
   let mock =
         ("on-new-remote-conversation" ~> EmptyResponse)
-        -- Mock an unavailable federation server for the deletion call
+          -- Mock an unavailable federation server for the deletion call
           <|> (guardRPC "on-conversation-updated" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
           <|> (guardRPC "delete-team-conversation" *> throw (MockErrorResponse HTTP.status503 "Down for maintenance."))
   (_, received) <- withTempMockFederator' mock $ do
@@ -3011,8 +3011,6 @@ deleteRemoteMemberConvLocalQualifiedOk = do
     const 204 === statusCode
     const Nothing === responseBody
 
-
-
 -- Creates a conversation with five users. Alice and Bob are on the local
 -- domain. Chad and Dee are on far-away-1.example.com. Eve is on
 -- far-away-2.example.com. It uses a qualified endpoint to remove Chad from the
@@ -3046,10 +3044,11 @@ deleteUnavailableRemoteMemberConvLocalQualifiedOk = do
         asum
           [ guard (d == remoteDomain1)
               *> mockReply (),
-            guard (d == remoteDomain2) *> asum
-              [ guardRPC "on-conversation-created" *> mockReply ()
-              , throw $ MockErrorResponse HTTP.status503 "Down for maintenance."
-              ]
+            guard (d == remoteDomain2)
+              *> asum
+                [ guardRPC "on-conversation-created" *> mockReply (),
+                  throw $ MockErrorResponse HTTP.status503 "Down for maintenance."
+                ]
           ]
   (convId, _) <-
     withTempMockFederator' (mockedGetUsers <|> mockedOther) $

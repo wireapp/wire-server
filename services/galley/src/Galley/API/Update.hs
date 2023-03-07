@@ -118,6 +118,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import System.Logger (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
@@ -137,7 +138,6 @@ import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.Member
 import Wire.API.User.Client
-import System.Logger (Msg)
 
 acceptConvH ::
   ( Member ConversationStore r,

@@ -120,6 +120,7 @@ import Polysemy.Input
 import Polysemy.Output
 import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
+import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation.Role (Action (DeleteConversation), wireConvRoles)
 import qualified Wire.API.Conversation.Role as Public
@@ -150,7 +151,6 @@ import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
 import qualified Wire.Sem.Paging as E
 import Wire.Sem.Paging.Cassandra
-import System.Logger (Msg)
 
 getTeamH ::
   forall r.
