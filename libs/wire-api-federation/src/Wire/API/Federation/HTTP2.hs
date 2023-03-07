@@ -1,5 +1,4 @@
 -- TODO: Move this to some other package, perhaps even upstream?
--- TODO: Chan is perhaps not the best choice, either TChan, TQueue or Chan from unagi-chan would be better
 module Wire.API.Federation.HTTP2 where
 
 import Control.Concurrent.Async
@@ -76,11 +75,6 @@ withHTTP2Request mgr host port req f = do
       unless inserted $ putMVar stopMVar ()
       pure finalConn
 
-data Http2ManagerError = FailedToGetResponse
-  deriving (Show)
-
-instance Exception Http2ManagerError
-
 startPersistentHTTP2Connection ::
   -- hostname
   ByteString ->
@@ -90,6 +84,12 @@ startPersistentHTTP2Connection ::
   Int ->
   -- empty mvar, written when connection is established and request can be sent,
   -- the MVar will contain a continuation to be used for each request
+  --
+  -- The response consumer has to return 'IO ()' because we want to processes
+  -- different requests on this and 'HTTP2.run' ties the return type of response
+  -- consumer to the return type of itself. Even if the response consumer
+  -- returned something else we would need another empty MVar to write the
+  -- result, this is being done in 'withHTTP2Request'.
   MVar (HTTP2.Request -> (HTTP2.Response -> IO ()) -> IO ()) ->
   -- empty mvar, the connection will wait for this MVar to be written. The
   -- connection will close immediately, any pending requests might get
@@ -98,16 +98,6 @@ startPersistentHTTP2Connection ::
   -- Another way to terminate the connection would be to cancel the thread which
   -- runs this function
   MVar () ->
-  -- Channel for recieveing requests to be executed, contains a request, a
-  -- response consumer and an empty mvar for the handle to thread actually
-  -- running the request.
-  --
-  -- The response consumer has to return 'IO ()' because we want to processes
-  -- different requests on this and 'HTTP2.run' ties the return type of response
-  -- consumer to the return type of itself. Even if the response consumer
-  -- returned something else we would need another empty MVar to write the
-  -- result, this is being done in 'withHTTP2Request'.
-  -- Chan (HTTP2.Request, HTTP2.Response -> IO (), MVar (Async ())) ->
   IO ()
 startPersistentHTTP2Connection hostname port cacheLimit sendReqMVar gracefulStop = do
   let clientConfig =
