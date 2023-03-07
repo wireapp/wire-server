@@ -631,7 +631,11 @@ updateLocalConversationUnchecked lconv qusr con action = do
   (extraTargets, action') <- performAction  tag qusr lconv action
 
   notifyConversationAction
-    True
+    -- Removing members should be fault tolerant.
+    (case tag of
+      SConversationRemoveMembersTag -> False
+      _ -> True
+    )
     (sing @tag)
     qusr
     False
