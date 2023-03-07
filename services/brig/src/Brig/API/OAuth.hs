@@ -102,6 +102,8 @@ getOAuthClient _ cid = do
   unlessM (Opt.setOAuthEnabled <$> view settings) $ throwStd $ errorToWai @'OAuthFeatureDisabled
   lift $ wrapClient $ lookupOauthClient cid
 
+--------------------------------------------------------------------------------
+
 createNewOAuthAuthorizationCode :: UserId -> NewOAuthAuthorizationCode -> (Handler r) CreateOAuthCodeResponse
 createNewOAuthAuthorizationCode uid code@(NewOAuthAuthorizationCode _cid _scope _responseType redirectUrl state) = do
   runExceptT (validateAndCreateAuthorizationCode uid code) >>= \case
