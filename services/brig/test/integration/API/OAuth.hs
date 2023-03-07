@@ -459,8 +459,8 @@ testRefreshTokenMaxActiveTokens opts db brig =
     extractRefreshTokenId jwk rt = do
       fromMaybe (error "invalid sub") . hcsSub <$> liftIO (verifyRefreshToken jwk (unOAuthToken rt))
 
-    hasSameElems :: (Eq a) => [a] -> [a] -> Bool
-    hasSameElems x y = null (x \\ y) && null (y \\ x)
+    hasSameElems :: (Ord a) => [a] -> [a] -> Bool
+    hasSameElems (Set.fromList -> x) (Set.fromList -> y) = x == y
 
 testRefreshTokenRetrieveAccessToken :: Brig -> Nginz -> Http ()
 testRefreshTokenRetrieveAccessToken brig nginz = do
@@ -512,15 +512,18 @@ testRefreshTokenNonExistingId opts brig = do
   uid <- userId <$> createUser "alice" brig
   let redirectUrl = mkUrl "https://example.com"
   let scopes = OAuthScopes $ Set.fromList [ReadSelf]
-  (cid, secret, _) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+  (cid, secret, code) <- generateOAuthClientAndAuthorizationCode brig uid scopes redirectUrl
+  let accessTokenRequest = OAuthAccessTokenRequest OAuthGrantTypeAuthorizationCode cid secret code redirectUrl
+  accessToken <- createOAuthAccessToken brig accessTokenRequest
   key <- liftIO $ readJwk (fromMaybe "path to jwk not set" (Opt.setOAuthJwkKeyPair $ Opt.optSettings opts)) <&> fromMaybe (error "invalid key")
   badRefreshToken <-
     liftIO $
       OAuthToken <$> do
+        claims <- verifyRefreshToken key (unOAuthToken $ oatRefreshToken accessToken)
         rid :: OAuthRefreshTokenId <- randomId
         sub <- maybe (error "creating sub claim failed") pure $ idToText rid ^? stringOrUri
-        let claims = emptyClaimsSet & claimSub ?~ sub
-        signRefreshToken key claims
+        let invalidClaims = claims & claimSub ?~ sub
+        signRefreshToken key invalidClaims
   let refreshAccessTokenRequest = OAuthRefreshAccessTokenRequest OAuthGrantTypeRefreshToken cid secret badRefreshToken
   refreshOAuthAccessToken' brig refreshAccessTokenRequest !!! do
     const 403 === statusCode
