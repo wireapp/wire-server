@@ -53,10 +53,15 @@ parseVersion req = do
   (version, pinfo) <- case pathInfo req of
     [] -> throwError NoVersion
     (x : xs) -> pure (x, xs)
-  unless ("v" `T.isPrefixOf` version) $
+  unless (looksLikeVersion version) $
     throwError NoVersion
   n <- fmapL (const $ BadVersion version) $ parseUrlPiece version
   pure (rewriteRequestPure (\(_, q) _ -> (pinfo, q)) req, n)
+
+looksLikeVersion :: Text -> Bool
+looksLikeVersion version = case T.splitAt 1 version of
+  ("v", T.all isDigit -> True) -> True
+  _ -> False
 
 removeVersionHeader :: Request -> Request
 removeVersionHeader req =
