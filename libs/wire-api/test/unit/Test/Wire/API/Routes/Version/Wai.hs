@@ -43,7 +43,7 @@ tests =
     mkTest (Just disabledVersion) (Just disabledVersion) (errmsg disabledVersion, 404)
     mkTest (Just unknownVersion) (Just unknownVersion) (errmsg unknownVersion, 404)
   where
-    errmsg v = "{\"code\":404,\"label\":\"unsupported-version\",\"message\":\"Version " <> cs v <> " is not supported\"}"
+    errmsg v = "{\"code\":404,\"label\":\"unsupported-version\",\"message\":\"Version v" <> cs v <> " is not supported\"}"
 
 mkTest :: Maybe Text -> Maybe Text -> (LByteString, Int) -> SpecWith (st, Application)
 mkTest mv1 mv2 (msg, status) =
