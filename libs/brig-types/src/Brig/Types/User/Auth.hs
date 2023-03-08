@@ -25,7 +25,7 @@ where
 
 import Data.Aeson
 import Data.Id (UserId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Imports
 import Wire.API.User.Auth
 

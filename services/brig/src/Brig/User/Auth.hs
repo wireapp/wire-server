@@ -71,7 +71,7 @@ import Data.Id
 import qualified Data.List.NonEmpty as NE
 import Data.List1 (List1)
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))

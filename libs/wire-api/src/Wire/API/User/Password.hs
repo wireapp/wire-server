@@ -35,7 +35,7 @@ import Control.Lens ((?~))
 import qualified Data.Aeson as A
 import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Proxy (Proxy (Proxy))
 import Data.Range (Ranged (..))
 import Data.Schema as Schema

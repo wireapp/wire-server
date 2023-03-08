@@ -58,7 +58,7 @@ import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.Proxy
 import Data.Qualified hiding (isLocal)
 import Data.Range
@@ -974,13 +974,13 @@ someLastPrekeys =
   ]
 
 defPassword :: PlainTextPassword
-defPassword = PlainTextPassword defPasswordText
+defPassword = plainTextPasswordLegacyUnsafe defPasswordText
 
 defPasswordText :: Text
 defPasswordText = "secret"
 
 defWrongPassword :: PlainTextPassword
-defWrongPassword = PlainTextPassword "not secret"
+defWrongPassword = plainTextPasswordLegacyUnsafe "not secret"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"

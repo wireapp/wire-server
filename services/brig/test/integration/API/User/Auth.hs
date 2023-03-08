@@ -45,7 +45,7 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword, plainTextPasswordLegacy, plainTextPasswordLegacyUnsafe)
 import Data.Proxy
 import Data.Qualified
 import Data.Range (unsafeRange)
@@ -563,7 +563,7 @@ testLoginFailure :: Brig -> Http ()
 testLoginFailure brig = do
   Just email <- userEmail <$> randomUser brig
   -- login with wrong password
-  let badpw = PlainTextPassword "wrongpassword"
+  let badpw = plainTextPasswordLegacyUnsafe "wrongpassword"
   login
     brig
     (PasswordLogin (PasswordLoginData (LoginByEmail email) badpw Nothing Nothing))
@@ -724,7 +724,7 @@ testWrongPasswordLegalHoldLogin :: Brig -> Galley -> Http ()
 testWrongPasswordLegalHoldLogin brig galley = do
   alice <- prepareLegalHoldUser brig galley
   -- attempt a legalhold login with a wrong password
-  legalHoldLogin brig (LegalHoldLogin alice (Just (PlainTextPassword "wrong-password")) Nothing) PersistentCookie !!! do
+  legalHoldLogin brig (LegalHoldLogin alice (plainTextPasswordLegacy "wrong-password") Nothing) PersistentCookie !!! do
     const 403 === statusCode
     const (Just "invalid-credentials") === errorLabel
   -- attempt a legalhold login with a no password
@@ -1392,7 +1392,7 @@ testReauthentication b = do
   -- it's ok to not give a password in the request body, but if the user has a password set,
   -- response will be `forbidden`.
 
-  get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just $ PlainTextPassword "123456")) !!! do
+  get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (plainTextPasswordLegacy "123456")) !!! do
     const 403 === statusCode
     const (Just "invalid-credentials") === errorLabel
   get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do

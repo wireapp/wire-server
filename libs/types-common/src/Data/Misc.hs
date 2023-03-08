@@ -49,12 +49,15 @@ module Data.Misc
     Fingerprint (..),
     Rsa,
 
-    -- * PlainTextPassword'
+    -- * PlainTextPassword
+    PlainTextPassword' (..),
     PlainTextPassword,
+    PlainTextPasswordMinLength8,
     plainTextPasswordLegacy,
     plainTextPassword,
     fromPlainTextPassword,
     plainTextPasswordUnsafe,
+    plainTextPasswordLegacyUnsafe,
 
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
@@ -343,30 +346,27 @@ instance Arbitrary (Fingerprint Rsa) where
 --------------------------------------------------------------------------------
 -- Password
 
-type PasswordMaxLength = (1024 :: Nat)
+type PlainTextPassword = PlainTextPassword' (6 :: Nat)
 
-type PasswordMinLengthLegacy = (6 :: Nat)
+type PlainTextPasswordMinLength8 = PlainTextPassword' (8 :: Nat)
 
-type PasswordMinLength = (8 :: Nat)
-
-type PlainTextPasswordLegacy = PlainTextPassword' PasswordMinLengthLegacy
-
-type PlainTextPassword = PlainTextPassword' PasswordMinLength
-
-plainTextPasswordLegacy :: Text -> Maybe PlainTextPasswordLegacy
+plainTextPasswordLegacy :: Text -> Maybe PlainTextPassword
 plainTextPasswordLegacy = fmap PlainTextPassword' . checked
 
-plainTextPassword :: Text -> Maybe PlainTextPassword
+plainTextPasswordLegacyUnsafe :: Text -> PlainTextPassword
+plainTextPasswordLegacyUnsafe = PlainTextPassword' . unsafeRange
+
+plainTextPassword :: Text -> Maybe PlainTextPasswordMinLength8
 plainTextPassword = fmap PlainTextPassword' . checked
 
-plainTextPasswordUnsafe :: Text -> PlainTextPassword
+plainTextPasswordUnsafe :: Text -> PlainTextPasswordMinLength8
 plainTextPasswordUnsafe = PlainTextPassword' . unsafeRange
 
 fromPlainTextPassword :: PlainTextPassword' t -> Text
 fromPlainTextPassword = fromRange . fromPlainTextPassword'
 
 newtype PlainTextPassword' (minLen :: Nat) = PlainTextPassword'
-  {fromPlainTextPassword' :: Range minLen PasswordMaxLength Text}
+  {fromPlainTextPassword' :: Range minLen (1024 :: Nat) Text}
   deriving stock (Eq, Generic)
 
 deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassword' tag) => FromJSON (PlainTextPassword' tag)
@@ -378,16 +378,16 @@ deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassw
 instance Show (PlainTextPassword' minLen) where
   show _ = "PlainTextPassword' <hidden>"
 
-instance ToSchema (PlainTextPassword' PasswordMinLengthLegacy) where
+instance ToSchema (PlainTextPassword' (6 :: Nat)) where
   schema = PlainTextPassword' <$> fromPlainTextPassword' .= schema
 
-instance ToSchema (PlainTextPassword' PasswordMinLength) where
+instance ToSchema (PlainTextPassword' (8 :: Nat)) where
   schema = PlainTextPassword' <$> fromPlainTextPassword' .= schema
 
-instance Arbitrary (PlainTextPassword' PasswordMinLengthLegacy) where
+instance Arbitrary (PlainTextPassword' (6 :: Nat)) where
   arbitrary = PlainTextPassword' <$> arbitrary
 
-instance Arbitrary (PlainTextPassword' PasswordMinLength) where
+instance Arbitrary (PlainTextPassword' (8 :: Nat)) where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
   arbitrary = PlainTextPassword' <$> arbitrary
 

@@ -60,7 +60,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List1 (List1)
-import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
+import Data.Misc (HttpsUrl (..), PlainTextPassword)
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Proxy
 import Data.Range (Range)

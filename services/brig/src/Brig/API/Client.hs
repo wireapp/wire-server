@@ -82,7 +82,7 @@ import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import Data.Map.Strict (traverseWithKey)
 import qualified Data.Map.Strict as Map
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)

@@ -156,7 +156,7 @@ import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)

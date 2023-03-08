@@ -130,7 +130,7 @@ import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Qualified
 import Data.Range
 import Data.SOP

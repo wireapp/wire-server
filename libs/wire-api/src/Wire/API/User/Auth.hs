@@ -70,7 +70,7 @@ import Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.SOP
 import Data.Schema
 import qualified Data.Swagger as S

@@ -27,7 +27,7 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Options as Opt
 import qualified Cassandra as DB
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (plainTextPasswordLegacyUnsafe)
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
@@ -57,7 +57,7 @@ testPasswordReset brig cs = do
   let Just email = userEmail u
   let uid = userId u
   -- initiate reset
-  let newpw = PlainTextPassword "newsecret"
+  let newpw = plainTextPasswordLegacyUnsafe "newsecret"
   do
     initiatePasswordReset brig email !!! const 201 === statusCode
     passwordResetData <- preparePasswordReset brig cs email uid newpw
@@ -84,7 +84,7 @@ testPasswordResetAfterEmailUpdate brig cs = do
   eml <- randomEmail
   initiateEmailUpdateLogin brig eml (emailLogin email defPassword Nothing) uid !!! const 202 === statusCode
   initiatePasswordReset brig email !!! const 201 === statusCode
-  passwordResetData <- preparePasswordReset brig cs email uid (PlainTextPassword "newsecret")
+  passwordResetData <- preparePasswordReset brig cs email uid (plainTextPasswordLegacyUnsafe "newsecret")
   -- activate new email
   activateEmail brig eml
   checkEmail brig uid eml

@@ -89,7 +89,7 @@ import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)

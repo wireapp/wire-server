@@ -104,7 +104,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Metrics (Metrics)
 import qualified Data.Metrics as Metrics
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword, plainTextPasswordLegacyUnsafe)
 import Data.Qualified (Local, toLocalUnsafe)
 import Data.Text (pack, unpack)
 import Data.Time.Clock
@@ -983,7 +983,7 @@ randUser (Email loc dom) (BotTag tag) = do
   uuid <- nextRandom
   pwdUuid <- nextRandom
   let email = Email (loc <> "+" <> tag <> "-" <> pack (toString uuid)) dom
-  let passw = PlainTextPassword (pack (toString pwdUuid))
+  let passw = plainTextPasswordLegacyUnsafe (pack (toString pwdUuid))
   pure
     ( NewUser
         { newUserDisplayName = Name (tag <> "-Wirebot-" <> pack (toString uuid)),

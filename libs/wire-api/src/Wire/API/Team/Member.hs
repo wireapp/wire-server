@@ -73,7 +73,7 @@ import Data.Id (UserId)
 import Data.Json.Util
 import Data.Kind
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Proxy
 import Data.Schema
 import Data.Swagger (ToParamSchema (..))

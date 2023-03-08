@@ -49,7 +49,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 hiding (head)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
-import Data.Misc (HttpsUrl, PlainTextPassword (..), mkHttpsUrl)
+import Data.Misc (HttpsUrl, PlainTextPassword, mkHttpsUrl, plainTextPasswordLegacy)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -638,7 +638,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
         . paths ["teams", toByteString' tid, "members", toByteString' (mem1 ^. userId)]
         . zUser owner
         . zConn "conn"
-        . json (newTeamMemberDeleteData (Just $ PlainTextPassword "wrong passwd"))
+        . json (newTeamMemberDeleteData (plainTextPasswordLegacy "wrong passwd"))
     )
     !!! do
       const 403 === statusCode
@@ -1180,7 +1180,7 @@ testDeleteBindingTeam ownerHasPassword = do
         . paths ["teams", toByteString' tid]
         . zUser owner
         . zConn "conn"
-        . json (newTeamDeleteData (Just $ PlainTextPassword "wrong passwd"))
+        . json (newTeamDeleteData (plainTextPasswordLegacy "wrong passwd"))
     )
     !!! do
       const 403 === statusCode

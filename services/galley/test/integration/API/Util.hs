@@ -2309,7 +2309,7 @@ genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
 
 defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword = plainTextPasswordLegacyUnsafe "secret"
 
 randomEmail :: MonadIO m => m Email
 randomEmail = do

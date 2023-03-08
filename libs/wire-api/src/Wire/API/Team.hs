@@ -75,7 +75,7 @@ import Data.Attoparsec.Combinator (choice)
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import Data.Id (TeamId, UserId)
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S

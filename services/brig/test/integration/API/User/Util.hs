@@ -44,7 +44,7 @@ import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Kind
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword)
 import Data.Qualified
 import Data.Range (unsafeRange)
 import qualified Data.Text.Ascii as Ascii

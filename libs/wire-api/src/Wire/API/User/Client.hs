@@ -80,7 +80,7 @@ import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
-import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude)
+import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword, latitude, location, longitude)
 import Data.Qualified
 import Data.Schema
 import qualified Data.Set as Set
