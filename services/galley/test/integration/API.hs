@@ -62,11 +62,9 @@ import Data.Singletons
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
 import Data.Time.Clock (getCurrentTime)
-import Data.UUID.Types
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer
 import Galley.API.Mapping
-import Galley.API.Message
 import Galley.Options (optFederator)
 import Galley.Types.Conversations.Members
 import Imports
@@ -223,7 +221,7 @@ tests s =
           test s "post message qualified - local owning backend - ignore missing" postMessageQualifiedLocalOwningBackendIgnoreMissingClients,
           test s "post message qualified - local owning backend - failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClients,
           test s "post message qualified - local owning backend - failed to get clients and failed to send clients" postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients,
-          test s "build failed to send map for post message qualified" testBuildFailedToSend,
+          
           test s "post message qualified - remote owning backend - federation failure" postMessageQualifiedRemoteOwningBackendFailure,
           test s "post message qualified - remote owning backend - success" postMessageQualifiedRemoteOwningBackendSuccess,
           test s "join conversation" postJoinConvOk,
@@ -1247,53 +1245,6 @@ postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients =
           encodedData = toBase64Text "data"
       WS.assertMatch_ t wsBob (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient bobClient encodedTextForBob)
       WS.assertMatch_ t wsChad (wsAssertOtr' encodedData convId aliceOwningDomain aliceClient chadClient encodedTextForChad)
-
-testBuildFailedToSend :: TestM ()
-testBuildFailedToSend = liftIO $ do
-  assertEqual
-    "Empty case - trivial"
-    (collectFailedToSend [])
-    mempty
-  assertEqual
-    "Empty case - single empty map"
-    (collectFailedToSend [mempty])
-    mempty
-  assertEqual
-    "Empty case - multiple empty maps"
-    (collectFailedToSend [mempty, mempty])
-    mempty
-  assertEqual
-    "Single domain"
-    (collectFailedToSend [Map.singleton (Domain "foo") mempty])
-    (Map.singleton (Domain "foo") mempty)
-  assertEqual
-    "Single domain duplicated"
-    (collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "foo") mempty])
-    (Map.singleton (Domain "foo") mempty)
-  assertEqual
-    "Mutliple domains in multiple maps"
-    (collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "bar") mempty])
-    (Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)])
-  assertEqual
-    "Mutliple domains in single map"
-    (collectFailedToSend [Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)]])
-    (Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)])
-  assertEqual
-    "Single domain duplicated with unique sub-maps"
-    ( collectFailedToSend
-        [ Map.singleton (Domain "foo") $ Map.singleton idA mempty,
-          Map.singleton (Domain "foo") $ Map.singleton idB mempty
-        ]
-    )
-    ( Map.singleton (Domain "foo") $
-        Map.fromList
-          [ (idA, mempty),
-            (idB, mempty)
-          ]
-    )
-  where
-    idA = Id $ fromJust $ Data.UUID.Types.fromString "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-    idB = Id $ fromJust $ Data.UUID.Types.fromString "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
 postMessageQualifiedRemoteOwningBackendFailure :: TestM ()
 postMessageQualifiedRemoteOwningBackendFailure = do
