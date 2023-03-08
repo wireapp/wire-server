@@ -95,15 +95,14 @@ connectRobust l retryStrategy connectLowLevel = do
 -- Without externally enforcing timeouts, this may lead to leaking threads.
 runRobust :: (MonadUnliftIO m, MonadLogger m, Catch.MonadMask m) => RobustConnection -> Redis a -> m a
 runRobust mvar action = retry $ do
-    robustConnection <- readMVar mvar
-    liftIO $ runRedis (robustConnection) action
+  robustConnection <- readMVar mvar
+  liftIO $ runRedis (robustConnection) action
   where
     retryStrategy = capDelay 1000000 (exponentialBackoff 50000)
     retry =
       recovering -- retry connecting, e. g., with exponential back-off
         retryStrategy
-        [
-          logAndHandle $ Catch.Handler (\(_ :: ConnectionLostException) -> pure True),
+        [ logAndHandle $ Catch.Handler (\(_ :: ConnectionLostException) -> pure True),
           logAndHandle $ Catch.Handler (\(_ :: IOException) -> pure True)
         ]
         . const -- ignore RetryStatus
