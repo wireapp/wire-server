@@ -41,8 +41,8 @@ tests =
           checkMessageClientEverythingReported,
           checkMessageClientRedundantSender,
           checkMessageClientMissingSubsetOfStrategy
-        ]
-    , testBuildFailedToSend
+        ],
+      testBuildFailedToSend
     ]
 
 flatten :: Map Domain (Map UserId (Set ClientId)) -> Set (Domain, UserId, ClientId)
@@ -104,49 +104,51 @@ checkMessageClientMissingSubsetOfStrategy = testProperty "missing clients should
      in Set.isSubsetOf missing stratClients
 
 testBuildFailedToSend :: TestTree
-testBuildFailedToSend = testGroup
-        "build failed to send map for post message qualified"
-  [testProperty
-    "Empty case - trivial" $
-    collectFailedToSend [] ===
-    mempty
-  ,testProperty
-    "Empty case - single empty map" $
-    collectFailedToSend [mempty] ===
-    mempty
-  ,testProperty
-    "Empty case - multiple empty maps" $
-    collectFailedToSend [mempty, mempty] ===
-    mempty
-  ,testProperty
-    "Single domain" $
-    collectFailedToSend [Map.singleton (Domain "foo") mempty] ===
-    Map.singleton (Domain "foo") mempty
-  ,testProperty
-    "Single domain duplicated" $
-    collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "foo") mempty] ===
-    Map.singleton (Domain "foo") mempty
-  ,testProperty
-    "Mutliple domains in multiple maps" $
-    collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "bar") mempty] ===
-    Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)]
-  ,testProperty
-    "Mutliple domains in single map" $
-    collectFailedToSend [Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)]] ===
-    Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)]
-  ,testProperty
-    "Single domain duplicated with unique sub-maps" $
-    collectFailedToSend
-      [ Map.singleton (Domain "foo") $ Map.singleton idA mempty,
-        Map.singleton (Domain "foo") $ Map.singleton idB mempty
-      ] ===
-    Map.singleton (Domain "foo") (
-      Map.fromList
-        [ (idA, mempty),
-          (idB, mempty)
-        ]
-    )
-  ]
+testBuildFailedToSend =
+  testGroup
+    "build failed to send map for post message qualified"
+    [ testProperty
+        "Empty case - trivial"
+        $ collectFailedToSend []
+          === mempty,
+      testProperty
+        "Empty case - single empty map"
+        $ collectFailedToSend [mempty]
+          === mempty,
+      testProperty
+        "Empty case - multiple empty maps"
+        $ collectFailedToSend [mempty, mempty]
+          === mempty,
+      testProperty
+        "Single domain"
+        $ collectFailedToSend [Map.singleton (Domain "foo") mempty]
+          === Map.singleton (Domain "foo") mempty,
+      testProperty
+        "Single domain duplicated"
+        $ collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "foo") mempty]
+          === Map.singleton (Domain "foo") mempty,
+      testProperty
+        "Mutliple domains in multiple maps"
+        $ collectFailedToSend [Map.singleton (Domain "foo") mempty, Map.singleton (Domain "bar") mempty]
+          === Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)],
+      testProperty
+        "Mutliple domains in single map"
+        $ collectFailedToSend [Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)]]
+          === Map.fromList [(Domain "foo", mempty), (Domain "bar", mempty)],
+      testProperty
+        "Single domain duplicated with unique sub-maps"
+        $ collectFailedToSend
+          [ Map.singleton (Domain "foo") $ Map.singleton idA mempty,
+            Map.singleton (Domain "foo") $ Map.singleton idB mempty
+          ]
+          === Map.singleton
+            (Domain "foo")
+            ( Map.fromList
+                [ (idA, mempty),
+                  (idB, mempty)
+                ]
+            )
+    ]
   where
     idA = Id $ fromJust $ Data.UUID.Types.fromString "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     idB = Id $ fromJust $ Data.UUID.Types.fromString "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
