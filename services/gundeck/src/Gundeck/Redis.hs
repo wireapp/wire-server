@@ -1,7 +1,7 @@
 {-# LANGUAGE NumDecimals #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
+
 {-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
@@ -96,7 +96,7 @@ connectRobust l retryStrategy connectLowLevel = do
 runRobust :: (MonadUnliftIO m, MonadLogger m, Catch.MonadMask m) => RobustConnection -> Redis a -> m a
 runRobust mvar action = retry $ do
   robustConnection <- readMVar mvar
-  liftIO $ runRedis (robustConnection) action
+  liftIO $ runRedis robustConnection action
   where
     retryStrategy = capDelay 1000000 (exponentialBackoff 50000)
     retry =
