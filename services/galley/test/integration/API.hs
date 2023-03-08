@@ -246,10 +246,7 @@ tests s =
             "Typing indicators"
             [ test s "send typing indicators" postTypingIndicators,
               test s "send typing indicators without domain" postTypingIndicatorsV2,
-              test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense,
-              test s "POST /federation/on-typing-indicator-updated : Update typing indicator by remote user" updateTypingIndicatorFromRemoteUser,
-              test s "POST /federation/on-typing-indicator-updated : Update typing indicator to remote user" updateTypingIndicatorToRemoteUser,
-              test s "send typing indicator update from local to remote on remote conv" updateTypingIndicatorToRemoteUserRemoteConv
+              test s "send typing indicators with invalid pyaload" postTypingIndicatorsHandlesNonsense
             ]
         ]
 
@@ -281,6 +278,7 @@ testGetConvQualifiedV2 = do
     responseJsonError
       =<< postConvQualified
         alice
+        Nothing
         defNewProteusConv
           { newConvUsers = [bob]
           }
@@ -340,7 +338,7 @@ postConvWithRemoteUsersOk = do
   WS.bracketR3 c alice alex amy $ \(wsAlice, wsAlex, wsAmy) -> do
     (rsp, federatedRequests) <-
       withTempMockFederator' (mockReply ()) $
-        postConvQualified alice defNewProteusConv {newConvName = checked nameMaxSize, newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
+        postConvQualified alice Nothing defNewProteusConv {newConvName = checked nameMaxSize, newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
           <!! const 201 === statusCode
     qcid <- assertConv rsp RegularConv alice qAlice [qAlex, qAmy, qChad, qCharlie, qDee] (Just nameMaxSize) Nothing
     let cid = qUnqualified qcid
@@ -701,6 +699,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
   resp <-
     postConvWithRemoteUsers
       aliceU
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [alex, amy, bob, bart, carl]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
@@ -834,6 +833,7 @@ postMessageQualifiedLocalOwningBackendMissingClients = do
   resp <-
     postConvWithRemoteUsers
       aliceUnqualified
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
@@ -900,6 +900,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
   resp <-
     postConvWithRemoteUsers
       aliceUnqualified
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
@@ -988,6 +989,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   resp <-
     postConvWithRemoteUsers
       aliceUnqualified
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
@@ -1110,6 +1112,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
   resp <-
     postConvWithRemoteUsers
       aliceUnqualified
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
@@ -1636,6 +1639,7 @@ testAccessUpdateGuestRemoved = do
     responseJsonError
       =<< postConvWithRemoteUsers
         (qUnqualified alice)
+        Nothing
         defNewProteusConv
           { newConvQualifiedUsers = [bob, charlie, dee],
             newConvTeam = Just (ConvTeamInfo tid)
@@ -2117,7 +2121,7 @@ postConvQualifiedFailNotConnected = do
   alice <- randomUser
   bob <- randomQualifiedUser
   jane <- randomQualifiedUser
-  postConvQualified alice defNewProteusConv {newConvQualifiedUsers = [bob, jane]} !!! do
+  postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob, jane]} !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
 
@@ -2146,7 +2150,7 @@ postConvQualifiedFailNumMembers = do
   alice <- randomUser
   bob : others <- replicateM n randomQualifiedUser
   connectLocalQualifiedUsers alice (list1 bob others)
-  postConvQualified alice defNewProteusConv {newConvQualifiedUsers = bob : others} !!! do
+  postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = bob : others} !!! do
     const 400 === statusCode
     const (Just "client-error") === fmap label . responseJsonUnsafe
 
@@ -2174,7 +2178,7 @@ postConvQualifiedFailBlocked = do
   connectLocalQualifiedUsers alice (list1 bob [jane])
   putConnectionQualified jane alice Blocked
     !!! const 200 === statusCode
-  postConvQualified alice defNewProteusConv {newConvQualifiedUsers = [bob, jane]} !!! do
+  postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob, jane]} !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
 
@@ -2182,7 +2186,7 @@ postConvQualifiedNoConnection :: TestM ()
 postConvQualifiedNoConnection = do
   alice <- randomUser
   bob <- flip Qualified (Domain "far-away.example.com") <$> randomId
-  postConvQualified alice defNewProteusConv {newConvQualifiedUsers = [bob]}
+  postConvQualified alice Nothing defNewProteusConv {newConvQualifiedUsers = [bob]}
     !!! const 403 === statusCode
 
 postTeamConvQualifiedNoConnection :: TestM ()
@@ -2192,6 +2196,7 @@ postTeamConvQualifiedNoConnection = do
   charlie <- randomQualifiedUser
   postConvQualified
     (qUnqualified alice)
+    Nothing
     defNewProteusConv
       { newConvQualifiedUsers = [bob],
         newConvTeam = Just (ConvTeamInfo tid)
@@ -2199,6 +2204,7 @@ postTeamConvQualifiedNoConnection = do
     !!! const 403 === statusCode
   postConvQualified
     (qUnqualified alice)
+    Nothing
     defNewProteusConv
       { newConvQualifiedUsers = [charlie],
         newConvTeam = Just (ConvTeamInfo tid)
@@ -2212,6 +2218,7 @@ postConvQualifiedNonExistentDomain = do
   connectWithRemoteUser alice bob
   postConvQualified
     alice
+    Nothing
     defNewProteusConv {newConvQualifiedUsers = [bob]}
     !!! do
       const 422 === statusCode
@@ -2232,7 +2239,7 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: MonadHttp m => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -2260,7 +2267,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- viewGalley
   alice <- randomUser
-  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -2439,6 +2446,7 @@ getConvQualifiedOk = do
     decodeConvId
       <$> postConvQualified
         alice
+        Nothing
         defNewProteusConv
           { newConvQualifiedUsers = [bob, chuck],
             newConvName = checked "gossip"
@@ -2949,6 +2957,7 @@ deleteMembersConvLocalQualifiedOk = do
     decodeConvId
       <$> postConvQualified
         alice
+        Nothing
         defNewProteusConv
           { newConvQualifiedUsers = [qBob, qEve],
             newConvName = checked "federated gossip"
@@ -2983,6 +2992,7 @@ deleteLocalMemberConvLocalQualifiedOk = do
     decodeConvId
       <$> postConvWithRemoteUsers
         alice
+        Nothing
         defNewProteusConv {newConvQualifiedUsers = [qBob, qEve]}
   let qconvId = Qualified convId localDomain
 
@@ -3039,6 +3049,7 @@ deleteRemoteMemberConvLocalQualifiedOk = do
       fmap decodeConvId $
         postConvQualified
           alice
+          Nothing
           defNewProteusConv {newConvQualifiedUsers = [qBob, qChad, qDee, qEve]}
           <!! const 201 === statusCode
   let qconvId = Qualified convId localDomain
@@ -3240,6 +3251,7 @@ putQualifiedConvRenameWithRemotesOk = do
   resp <-
     postConvWithRemoteUsers
       bob
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [qalice]}
       <!! const 201 === statusCode
   let qconv = decodeQualifiedConvId resp
@@ -3725,6 +3737,7 @@ putReceiptModeWithRemotesOk = do
   resp <-
     postConvWithRemoteUsers
       bob
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [qalice]}
   let qconv = decodeQualifiedConvId resp
 
@@ -3927,9 +3940,9 @@ removeUser = do
   connectWithRemoteUser alexDel' dory
 
   qconvA1 <- decodeQualifiedConvId <$> postConv alice' [alexDel'] (Just "gossip") [] Nothing Nothing
-  qconvA2 <- decodeQualifiedConvId <$> postConvWithRemoteUsers alice' defNewProteusConv {newConvQualifiedUsers = [alexDel, amy, berta, dwight]}
+  qconvA2 <- decodeQualifiedConvId <$> postConvWithRemoteUsers alice' Nothing defNewProteusConv {newConvQualifiedUsers = [alexDel, amy, berta, dwight]}
   qconvA3 <- decodeQualifiedConvId <$> postConv alice' [amy'] (Just "gossip3") [] Nothing Nothing
-  qconvA4 <- decodeQualifiedConvId <$> postConvWithRemoteUsers alice' defNewProteusConv {newConvQualifiedUsers = [alexDel, bart, carl]}
+  qconvA4 <- decodeQualifiedConvId <$> postConvWithRemoteUsers alice' Nothing defNewProteusConv {newConvQualifiedUsers = [alexDel, bart, carl]}
   convB1 <- randomId -- a remote conversation at 'bDomain' that Alice, AlexDel and Bart will be in
   convB2 <- randomId -- a remote conversation at 'bDomain' that AlexDel and Bart will be in
   convC1 <- randomId -- a remote conversation at 'cDomain' that AlexDel and Carl will be in
@@ -4114,196 +4127,3 @@ testOne2OneConversationRequest shouldBeLocal actor desired = do
             pure $ statusCode resp == 200
           liftIO $ found @?= ((actor, desired) == (LocalActor, Included))
       )
-
-updateTypingIndicatorToRemoteUserRemoteConv :: TestM ()
-updateTypingIndicatorToRemoteUserRemoteConv = do
-  c <- view tsCannon
-  qalice <- randomQualifiedUser
-  let alice = qUnqualified qalice
-
-  -- create a remote conversation with alice
-  let remoteDomain = Domain "bobland.example.com"
-  qbob <- Qualified <$> randomId <*> pure remoteDomain
-  qconv <- Qualified <$> randomId <*> pure remoteDomain
-  connectWithRemoteUser alice qbob
-
-  fedGalleyClient <- view tsFedGalleyClient
-  now <- liftIO getCurrentTime
-  let cu =
-        F.ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = qbob,
-            cuConvId = qUnqualified qconv,
-            cuAlreadyPresentUsers = [],
-            cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
-          }
-  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
-
-  -- Fetch remote conversation
-  let bobAsLocal =
-        LocalMember
-          (qUnqualified qbob)
-          defMemberStatus
-          Nothing
-          roleNameWireAdmin
-  let mockConversation =
-        mkProteusConv
-          (qUnqualified qconv)
-          (qUnqualified qbob)
-          roleNameWireMember
-          [localMemberToOther remoteDomain bobAsLocal]
-      remoteConversationResponse = GetConversationsResponse [mockConversation]
-  void
-    $ withTempMockFederator'
-      (mockReply remoteConversationResponse)
-    $ getConvQualified alice qconv
-      <!! const 200 === statusCode
-
-  WS.bracketR c alice $ \wsAlice -> do
-    -- Started
-    void $
-      withTempMockFederator' (mockReply ()) $ do
-        -- post typing indicator from bob to alice
-        let tcReq =
-              TypingDataUpdateRequest
-                { tdurTypingStatus = StartedTyping,
-                  tdurUserId = qUnqualified qbob,
-                  tdurConvId = qUnqualified qconv
-                }
-
-        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qalice) tcReq
-
-    -- backend A generates a notification for alice
-    void $
-      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
-        liftIO $ wsAssertTyping qconv qalice StartedTyping n
-
-    -- stopped
-    void $
-      withTempMockFederator' (mockReply ()) $ do
-        -- post typing indicator from bob to alice
-        let tcReq =
-              TypingDataUpdateRequest
-                { tdurTypingStatus = StoppedTyping,
-                  tdurUserId = qUnqualified qbob,
-                  tdurConvId = qUnqualified qconv
-                }
-
-        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qalice) tcReq
-
-    -- backend A generates a notification for alice
-    void $
-      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
-        liftIO $ wsAssertTyping qconv qalice StoppedTyping n
-
-updateTypingIndicatorFromRemoteUser :: TestM ()
-updateTypingIndicatorFromRemoteUser = do
-  localDomain <- viewFederationDomain
-  [alice, bob] <- randomUsers 2
-  let qAlice = Qualified alice localDomain
-      remoteDomain = Domain "far-away.example.com"
-      qBob = Qualified bob remoteDomain
-
-  connectWithRemoteUser alice qBob
-  convId <-
-    decodeConvId
-      <$> postConvWithRemoteUsers
-        alice
-        defNewProteusConv {newConvQualifiedUsers = [qBob]}
-  let qconvId = Qualified convId localDomain
-
-  c <- view tsCannon
-  WS.bracketR c alice $ \wsAlice -> do
-    -- Started
-    void $
-      withTempMockFederator' (mockReply ()) $ do
-        -- post typing indicator from bob to alice
-        let tcReq =
-              TypingDataUpdateRequest
-                { tdurTypingStatus = StartedTyping,
-                  tdurUserId = bob,
-                  tdurConvId = convId
-                }
-
-        fedGalleyClient <- view tsFedGalleyClient
-        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qAlice) tcReq
-
-    -- backend A generates a notification for alice
-    void $
-      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
-        liftIO $ wsAssertTyping qconvId qAlice StartedTyping n
-
-    -- stopped
-    void $
-      withTempMockFederator' (mockReply ()) $ do
-        -- post typing indicator from bob to alice
-        let tcReq =
-              TypingDataUpdateRequest
-                { tdurTypingStatus = StoppedTyping,
-                  tdurUserId = bob,
-                  tdurConvId = convId
-                }
-
-        fedGalleyClient <- view tsFedGalleyClient
-        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qAlice) tcReq
-
-    -- backend A generates a notification for alice
-    void $
-      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
-        liftIO $ wsAssertTyping qconvId qAlice StoppedTyping n
-
-updateTypingIndicatorToRemoteUser :: TestM ()
-updateTypingIndicatorToRemoteUser = do
-  localDomain <- viewFederationDomain
-  [alice, bob] <- randomUsers 2
-  let remoteDomain = Domain "far-away.example.com"
-      qBob = Qualified bob remoteDomain
-
-  connectWithRemoteUser alice qBob
-  convId <-
-    decodeConvId
-      <$> postConvWithRemoteUsers
-        alice
-        defNewProteusConv {newConvQualifiedUsers = [qBob]}
-  let qconvId = Qualified convId localDomain
-
-  c <- view tsCannon
-  WS.bracketR c bob $ \wsBob -> do
-    -- started
-    void $
-      withTempMockFederator' (mockReply ()) $ do
-        -- post typing indicator from alice to bob
-        let tcReq =
-              TypingDataUpdateRequest
-                { tdurTypingStatus = StartedTyping,
-                  tdurUserId = alice,
-                  tdurConvId = convId
-                }
-
-        fedGalleyClient <- view tsFedGalleyClient
-        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qBob) tcReq
-
-    -- backend A generates a notification for bob
-    void $
-      WS.awaitMatch (5 # Second) wsBob $ \n -> do
-        liftIO $ wsAssertTyping qconvId qBob StartedTyping n
-
-    -- stopped
-    void $
-      withTempMockFederator' (mockReply ()) $ do
-        -- post typing indicator from alice to bob
-        let tcReq =
-              TypingDataUpdateRequest
-                { tdurTypingStatus = StoppedTyping,
-                  tdurUserId = alice,
-                  tdurConvId = convId
-                }
-
-        fedGalleyClient <- view tsFedGalleyClient
-        runFedClient @"on-typing-indicator-updated" fedGalleyClient (qDomain qBob) tcReq
-
-    -- backend A generates a notification for bob
-    void $
-      WS.awaitMatch (5 # Second) wsBob $ \n -> do
-        liftIO $ wsAssertTyping qconvId qBob StoppedTyping n

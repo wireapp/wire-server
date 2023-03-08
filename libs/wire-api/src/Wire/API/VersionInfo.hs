@@ -20,7 +20,6 @@ module Wire.API.VersionInfo
     vinfoObjectSchema,
 
     -- * Version utilities
-    readVersionNumber,
     versionHeader,
     VersionHeader,
 
@@ -36,8 +35,6 @@ import qualified Data.CaseInsensitive as CI
 import Data.Metrics.Servant
 import Data.Schema
 import Data.Singletons
-import qualified Data.Text as Text
-import qualified Data.Text.Read as Text
 import GHC.TypeLits
 import Imports
 import qualified Network.Wai as Wai
@@ -50,13 +47,6 @@ import Wire.API.Routes.ClientAlgebra
 
 vinfoObjectSchema :: ValueSchema NamedSwaggerDoc v -> ObjectSchema SwaggerDoc [v]
 vinfoObjectSchema sch = field "supported" (array sch)
-
-readVersionNumber :: Text -> Maybe Integer
-readVersionNumber v = do
-  ('v', rest) <- Text.uncons v
-  case Text.decimal rest of
-    Right (n, "") -> pure n
-    _ -> Nothing
 
 type VersionHeader = "X-Wire-API-Version"
 

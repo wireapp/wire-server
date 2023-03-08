@@ -154,7 +154,7 @@ Here is a critique of XML/DSig security (which SAML relies on): <https://www.cs.
 
 ### Terminology and concepts
 
-- End
+- Transport:
   The browser carrries out all the redirections from the SP to the IdP and vice versa.
 - Service Provider (SP): The entity (here Wire software) that provides its protected resource when an end user tries to access this resource. To accomplish the SAML based SSO authentication, the Service Provider
   must have the Identity Provider's metadata.
@@ -305,7 +305,7 @@ Tokens are now listed in this {term}`SCIM`-related area of the screen, you can g
 
 ### Using SCIM via Curl
 
-You can use the term:`Curl` command line HTTP tool to access tho wire backend (in particular the `spar` service) through the {term}`SCIM` API.
+You can use the {term}`Curl` command line HTTP tool to access the wire backend (in particular the `spar` service) through the {term}`SCIM` API.
 
 This can be helpful to write your own tooling to interface with wire.
 

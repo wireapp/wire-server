@@ -150,7 +150,10 @@ createUserWithTeam' brig = do
               "password" .= defPassword,
               "team" .= newTeam
             ]
-  user <- responseJsonError =<< post (brig . path "/i/users" . contentJson . body p)
+  user <-
+    responseJsonError
+      =<< post (brig . path "/i/users" . contentJson . body p)
+        <!! const 201 === statusCode
   let Just tid = userTeam user
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId user)
   liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
@@ -233,7 +236,6 @@ createTeamConvWithRole role g tid u us mtimer = do
           Nothing
           role
           ProtocolProteusTag
-          Nothing
   r <-
     post
       ( g
