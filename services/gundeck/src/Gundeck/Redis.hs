@@ -1,7 +1,6 @@
 {-# LANGUAGE NumDecimals #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
 {-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
