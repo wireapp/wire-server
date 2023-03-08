@@ -1188,6 +1188,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClientsFailingGetUserClients =
   resp <-
     postConvWithRemoteUsers
       aliceUnqualified
+      Nothing
       defNewProteusConv {newConvQualifiedUsers = [bobOwningDomain, chadOwningDomain, deeRemote, emilyRemote]}
   let convId = (`Qualified` owningDomain) . decodeConvId $ resp
 
