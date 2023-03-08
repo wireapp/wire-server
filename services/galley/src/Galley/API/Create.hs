@@ -23,7 +23,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Create
-  ( createGroupConversation,
+  ( createGroupConversationV3,
+    createGroupConversation,
     createProteusSelfConversation,
     createOne2OneConversation,
     createConnectConversation,
@@ -82,8 +83,9 @@ import Wire.API.Team.Permission hiding (self)
 ----------------------------------------------------------------------------
 -- Group conversations
 
--- | The public-facing endpoint for creating group conversations.
-createGroupConversation ::
+-- | The public-facing endpoint for creating group conversations in the client
+-- API up to and including version 3.
+createGroupConversationV3 ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member MemberStore r,
@@ -111,7 +113,85 @@ createGroupConversation ::
   Maybe ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversation lusr mCreatorClient mConn newConv = do
+createGroupConversationV3 lusr mCreatorClient conn newConv =
+  createGroupConversationGeneric
+    lusr
+    mCreatorClient
+    conn
+    newConv
+    (const conversationCreated)
+
+-- | The public-facing endpoint for creating group conversations in the client
+-- API in version 4 and above.
+createGroupConversation ::
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member MemberStore r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Maybe ClientId ->
+  Maybe ConnId ->
+  NewConv ->
+  Sem r CreateGroupConversationResponse
+createGroupConversation lusr mCreatorClient conn newConv =
+  createGroupConversationGeneric
+    lusr
+    mCreatorClient
+    conn
+    newConv
+    groupConversationCreated
+
+createGroupConversationGeneric ::
+  ( Member BrigAccess r,
+    Member ConversationStore r,
+    Member MemberStore r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Error InternalError) r,
+    Member (Error InvalidInput) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotConnected) r,
+    Member (ErrorS 'MLSNotEnabled) r,
+    Member (ErrorS 'MLSNonEmptyMemberList) r,
+    Member (ErrorS 'MLSMissingSenderClient) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member LegalHoldStore r,
+    Member TeamStore r,
+    Member P.TinyLog r
+  ) =>
+  Local UserId ->
+  Maybe ClientId ->
+  Maybe ConnId ->
+  NewConv ->
+  -- | The function that incorporates the failed to add remote users in the
+  -- response. In the client API up to and including V3 this function simply
+  -- ignores the first argument.
+  (Set (Qualified (Set UserId)) -> Local UserId -> Conversation -> Sem r resp) ->
+  Sem r resp
+createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
   checkCreateConvPermissions lusr newConv tinfo allUsers
@@ -141,8 +221,8 @@ createGroupConversation lusr mCreatorClient mConn newConv = do
 
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation
-  notifyCreatedConversation (Just now) lusr mConn conv
-  conversationCreated lusr conv
+  failedToAdd <- notifyCreatedConversation (Just now) lusr (Just conn) conv
+  convCreated failedToAdd lusr conv
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -321,7 +401,7 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
     Just c -> conversationExisted self c
     Nothing -> do
       c <- E.createConversation lcnv nc
-      notifyCreatedConversation Nothing self (Just zcon) c
+      void $ notifyCreatedConversation Nothing self (Just zcon) c
       conversationCreated self c
 
 createOne2OneConversationUnchecked ::
@@ -380,7 +460,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
                 ncProtocol = ProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
-      notifyCreatedConversation Nothing self (Just zcon) c
+      void $ notifyCreatedConversation Nothing self (Just zcon) c
       conversationCreated self c
 
 createOne2OneConversationRemotely ::
@@ -436,7 +516,7 @@ createConnectConversation lusr conn j = do
       c <- E.createConversation lcnv nc
       now <- input
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
-      notifyCreatedConversation Nothing lusr conn c
+      void $ notifyCreatedConversation Nothing lusr conn c
       for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         E.push1 $
           p
@@ -534,6 +614,22 @@ conversationCreated ::
   Sem r ConversationResponse
 conversationCreated lusr cnv = Created <$> conversationView lusr cnv
 
+groupConversationCreated ::
+  ( Member (Error InternalError) r,
+    Member P.TinyLog r
+  ) =>
+  Set (Qualified (Set UserId)) ->
+  Local UserId ->
+  Data.Conversation ->
+  Sem r CreateGroupConversationResponse
+groupConversationCreated failedToAdd lusr cnv = do
+  conv <- conversationView lusr cnv
+  pure . GroupConversationCreated $ CreateGroupConversation conv failedToAdd
+
+-- | The return set contains all the remote users that could not be contacted.
+-- Consequently, they are not added to the member list. This behavior might be
+-- changed later on when a message/event queue per remote backend is
+-- implemented.
 notifyCreatedConversation ::
   ( Member (Error InternalError) r,
     Member FederatorAccess r,
@@ -545,7 +641,7 @@ notifyCreatedConversation ::
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
-  Sem r ()
+  Sem r (Set (Qualified (Set UserId)))
 notifyCreatedConversation dtime lusr conn c = do
   now <- maybe input pure dtime
   -- FUTUREWORK: Handle failures in notifying so it does not abort half way
@@ -558,6 +654,8 @@ notifyCreatedConversation dtime lusr conn c = do
   let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers c
       localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
   E.push =<< mapM (toPush now remoteOthers localOthers) (Data.convLocalMembers c)
+  -- TODO(md): Return something meaningful here
+  pure Set.empty
   where
     route
       | Data.convType c == RegularConv = RouteAny

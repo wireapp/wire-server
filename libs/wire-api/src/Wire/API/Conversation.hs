@@ -34,6 +34,7 @@ module Wire.API.Conversation
     cnvMessageTimer,
     cnvReceiptMode,
     cnvAccessRoles,
+    CreateGroupConversation (..),
     ConversationCoverView (..),
     ConversationList (..),
     ListConversations (..),
@@ -93,7 +94,7 @@ import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
 import Data.Misc
-import Data.Qualified (Qualified (qUnqualified), deprecatedSchema)
+import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
 import Data.SOP
 import Data.Schema
@@ -278,6 +279,29 @@ conversationSchema v =
       <*> cnvMetadata .= conversationMetadataObjectSchema (accessRolesVersionedSchema v)
       <*> cnvMembers .= field "members" schema
       <*> cnvProtocol .= protocolSchema
+
+-- | The public-facing conversation type extended with information on which
+-- remote users could not be added when creating the conversation.
+data CreateGroupConversation = CreateGroupConversation
+  { cgcConversation :: Conversation,
+    -- | Remote users that could not be added to the created group conversation
+    -- because their backend was not reachable.
+    cgcFailedToAdd :: Set (Qualified (Set UserId))
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CreateGroupConversation)
+  deriving (ToJSON, S.ToSchema) via Schema CreateGroupConversation
+
+instance ToSchema CreateGroupConversation where
+  -- TODO(md): Define the instance and write golden tests for derived JSON
+  -- instances.
+  schema =
+    objectWithDocModifier
+      "CreateGroupConversation"
+      (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
+      $ CreateGroupConversation
+        <$> cgcConversation .= conversationSchema V4
+        <*> cgcFailedToAdd .= set (qualifiedObjectSchema "ids" (set schema))
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
@@ -885,4 +909,9 @@ namespaceMLSSelfConv =
 
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
+  fromHeaders = snd
+
+instance AsHeaders '[ConvId] CreateGroupConversation CreateGroupConversation where
+  toHeaders c =
+    ((I . qUnqualified . cnvQualifiedId . cgcConversation $ c) :* Nil, c)
   fromHeaders = snd

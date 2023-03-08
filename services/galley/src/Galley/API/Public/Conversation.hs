@@ -44,7 +44,8 @@ conversationAPI =
     <@> mkNamedAPI @"list-conversations@v2" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"list-conversations" (callsFed (exposeAnnotations listConversations))
     <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
-    <@> mkNamedAPI @"create-group-conversation@v2" (callsFed (exposeAnnotations createGroupConversation))
+    <@> mkNamedAPI @"create-group-conversation@v2" (callsFed (exposeAnnotations createGroupConversationV3))
+    <@> mkNamedAPI @"create-group-conversation@v3" (callsFed (exposeAnnotations createGroupConversationV3))
     <@> mkNamedAPI @"create-group-conversation" (callsFed (exposeAnnotations createGroupConversation))
     <@> mkNamedAPI @"create-self-conversation@v2" createProteusSelfConversation
     <@> mkNamedAPI @"create-self-conversation" createProteusSelfConversation
