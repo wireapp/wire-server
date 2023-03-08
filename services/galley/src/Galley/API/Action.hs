@@ -569,6 +569,7 @@ updateLocalConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r,
     SingI tag
   ) =>
@@ -607,6 +608,7 @@ updateLocalConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r,
     HasConversationActionEffects tag r
   ) =>
   Local Conversation ->
@@ -686,7 +688,8 @@ notifyConversationAction ::
   ( Member FederatorAccess r,
     Member ExternalAccess r,
     Member GundeckAccess r,
-    Member (Input UTCTime) r
+    Member (Input UTCTime) r,
+    Member (Logger (Log.Msg -> Log.Msg)) r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -721,19 +724,51 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
           { nrcConvId = convId conv,
             nrcProtocol = convProtocol conv
           }
-  E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
-    void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+  let faultIntolerant :: Sem r ConversationUpdate
+      faultIntolerant = do
+        E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
+          void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+        fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
+          . E.runFederatedConcurrently (toList (bmRemotes targets))
+          $ \ruids -> do
+            let update = mkUpdate (tUnqualified ruids)
+            -- if notifyOrigDomain is false, filter out user from quid's domain,
+            -- because quid's backend will update local state and notify its users
+            -- itself using the ConversationUpdate returned by this function
+            if notifyOrigDomain || tDomain ruids /= qDomain quid
+              then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+              else pure (Just update)
+      -- Same as above, but rather than failing on a federation error, log it and carry on.
+      faultTolerant :: Sem r ConversationUpdate
+      faultTolerant = do
+        es <- E.runFederatedConcurrentlyEither (toList newDomains) $
+          const $ void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+        let logErrors f e' = P.warn $ Log.field f $ "Error occured while communicating with federation member: " <> show e'
+        for_ (lefts es) $ logErrors "on-new-remote-conversation"
+        updates <- E.runFederatedConcurrentlyEither (toList (bmRemotes targets)) $ \ruids -> do
+          let update = mkUpdate (tUnqualified ruids)
+          -- if notifyOrigDomain is false, filter out user from quid's domain,
+          -- because quid's backend will update local state and notify its users
+          -- itself using the ConversationUpdate returned by this function
+          if notifyOrigDomain || tDomain ruids /= qDomain quid
+            then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+            else pure (Just update)
+        for_ (lefts updates) $ logErrors "on-conversation-updated"
+        let f = fromMaybe (mkUpdate []) . asum . map tUnqualified
+        pure $ f $ rights updates
 
-  update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
-    . E.runFederatedConcurrently (toList (bmRemotes targets))
-    $ \ruids -> do
-      let update = mkUpdate (tUnqualified ruids)
-      -- if notifyOrigDomain is false, filter out user from quid's domain,
-      -- because quid's backend will update local state and notify its users
-      -- itself using the ConversationUpdate returned by this function
-      if notifyOrigDomain || tDomain ruids /= qDomain quid
-        then fedClient @'Galley @"on-conversation-updated" update $> Nothing
-        else pure (Just update)
+  -- These singleton tags don't have an Eq instance, so pattern matching it is!
+  update <- case tag of
+    -- Tags indicating a metadata update of some sort.
+    SConversationRenameTag -> faultTolerant
+    SConversationMessageTimerUpdateTag -> faultTolerant
+    SConversationReceiptModeUpdateTag -> faultTolerant
+    SConversationAccessDataTag -> faultTolerant
+    SConversationMemberUpdateTag -> faultTolerant
+    -- Needed as part of updating access roles. If users are kicked we have to be tolerant.
+    SConversationRemoveMembersTag -> faultTolerant
+    -- Everything else works as it did before.
+    _ -> faultIntolerant
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)

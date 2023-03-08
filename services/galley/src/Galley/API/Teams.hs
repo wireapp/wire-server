@@ -1098,7 +1098,8 @@ deleteTeamConversation ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (P.Logger (Log.Msg -> Log.Msg)) r
   ) =>
   Local UserId ->
   ConnId ->

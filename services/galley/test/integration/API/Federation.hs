@@ -61,7 +61,8 @@ import Wire.API.Message
 import Wire.API.Routes.Internal.Galley.ConversationsIntra
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
-
+import qualified Network.HTTP.Types as Http
+import Control.Exception
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
@@ -473,6 +474,50 @@ notifyUpdate extras action etype edata = do
         evtData e @?= edata
       WS.assertNoEvent (1 # Second) [wsC]
 
+notifyUpdateUnavailable :: [Qualified UserId] -> SomeConversationAction -> EventType -> EventData -> TestM ()
+notifyUpdateUnavailable extras action etype edata = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+  bob <- randomId
+  charlie <- randomUser
+  conv <- randomId
+  let bdom = Domain "bob.example.com"
+      qbob = Qualified bob bdom
+      qconv = Qualified conv bdom
+      mkMember quid = OtherMember quid Nothing roleNameWireMember
+  fedGalleyClient <- view tsFedGalleyClient
+
+  mapM_ (`connectWithRemoteUser` qbob) [alice]
+  registerRemoteConv
+    qconv
+    bob
+    (Just "gossip")
+    (Set.fromList (map mkMember (qalice : extras)))
+
+  now <- liftIO getCurrentTime
+  let cu =
+        FedGalley.ConversationUpdate
+          { FedGalley.cuTime = now,
+            FedGalley.cuOrigUserId = qbob,
+            FedGalley.cuConvId = conv,
+            FedGalley.cuAlreadyPresentUsers = [alice, charlie],
+            FedGalley.cuAction = action
+          }
+  WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
+    ((), _fedRequests) <- withTempMockFederator' (throw $ MockErrorResponse Http.status500 "Down for maintenance") $
+      runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+    putStrLn $ "on-conversation-updated: " <> show _fedRequests
+    liftIO $ do
+      WS.assertMatch_ (5 # Second) wsA $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= qconv
+        evtType e @?= etype
+        evtFrom e @?= qbob
+        evtData e @?= edata
+      WS.assertNoEvent (1 # Second) [wsC]
+
 notifyConvRename :: TestM ()
 notifyConvRename = do
   let d = ConversationRename "gossip++"
@@ -500,6 +545,38 @@ notifyAccess :: TestM ()
 notifyAccess = do
   let d = ConversationAccessData (Set.fromList [InviteAccess, LinkAccess]) (Set.fromList [TeamMemberAccessRole])
   notifyUpdate
+    []
+    (SomeConversationAction (sing @'ConversationAccessDataTag) d)
+    ConvAccessUpdate
+    (EdConvAccessUpdate d)
+
+notifyConvRenameUnavailable :: TestM ()
+notifyConvRenameUnavailable = do
+  let d = ConversationRename "gossip++"
+  notifyUpdateUnavailable [] (SomeConversationAction (sing @'ConversationRenameTag) d) ConvRename (EdConvRename d)
+
+notifyMessageTimerUnavailable :: TestM ()
+notifyMessageTimerUnavailable = do
+  let d = ConversationMessageTimerUpdate (Just 5000)
+  notifyUpdateUnavailable
+    []
+    (SomeConversationAction (sing @'ConversationMessageTimerUpdateTag) d)
+    ConvMessageTimerUpdate
+    (EdConvMessageTimerUpdate d)
+
+notifyReceiptModeUnavailable :: TestM ()
+notifyReceiptModeUnavailable = do
+  let d = ConversationReceiptModeUpdate (ReceiptMode 42)
+  notifyUpdateUnavailable
+    []
+    (SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) d)
+    ConvReceiptModeUpdate
+    (EdConvReceiptModeUpdate d)
+
+notifyAccessUnavailable :: TestM ()
+notifyAccessUnavailable = do
+  let d = ConversationAccessData (Set.fromList [InviteAccess, LinkAccess]) (Set.fromList [TeamMemberAccessRole])
+  notifyUpdateUnavailable
     []
     (SomeConversationAction (sing @'ConversationAccessDataTag) d)
     ConvAccessUpdate

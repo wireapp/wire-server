@@ -46,6 +46,8 @@ import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
+import qualified Network.HTTP.Types as Http
+import Control.Exception
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -54,6 +56,7 @@ tests s =
     [ test s "conversation roles admin (and downgrade)" handleConversationRoleAdmin,
       test s "conversation roles member (and upgrade)" handleConversationRoleMember,
       test s "conversation role update with remote users present" roleUpdateWithRemotes,
+      test s "conversation role update with remote users present remotes unavailable" roleUpdateWithRemotesUnavailable,
       test s "conversation access update with remote users present" accessUpdateWithRemotes,
       test s "conversation role update of remote member" roleUpdateRemoteMember,
       test s "get all conversation roles" testAllConversationRoles,
@@ -247,6 +250,65 @@ roleUpdateWithRemotes = do
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
     (_, requests) <-
       withTempMockFederator' (mockReply ()) $
+        putOtherMemberQualified
+          bob
+          qcharlie
+          (OtherMemberUpdate (Just roleNameWireAdmin))
+          qconv
+          !!! const 200 === statusCode
+
+    req <- assertOne requests
+    let mu =
+          MemberUpdateData
+            { misTarget = qcharlie,
+              misOtrMutedStatus = Nothing,
+              misOtrMutedRef = Nothing,
+              misOtrArchived = Nothing,
+              misOtrArchivedRef = Nothing,
+              misHidden = Nothing,
+              misHiddenRef = Nothing,
+              misConvRoleName = Just roleNameWireAdmin
+            }
+    liftIO $ do
+      frTargetDomain req @?= remoteDomain
+      frComponent req @?= Galley
+      frRPC req @?= "on-conversation-updated"
+      Right cu <- pure . eitherDecode . frBody $ req
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu
+        @?= SomeConversationAction (sing @'ConversationMemberUpdateTag) (ConversationMemberUpdate qcharlie (OtherMemberUpdate (Just roleNameWireAdmin)))
+      F.cuAlreadyPresentUsers cu @?= [qUnqualified qalice]
+
+    liftIO . WS.assertMatchN_ (5 # Second) [wsB, wsC] $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= MemberStateUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdMemberUpdate mu
+
+roleUpdateWithRemotesUnavailable :: TestM ()
+roleUpdateWithRemotesUnavailable = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  qcharlie <- randomQualifiedUser
+  let bob = qUnqualified qbob
+      charlie = qUnqualified qcharlie
+
+  connectUsers bob (singleton charlie)
+  connectWithRemoteUser bob qalice
+  resp <-
+    postConvWithRemoteUsers
+      bob
+      Nothing
+      defNewProteusConv {newConvQualifiedUsers = [qalice, qcharlie]}
+  let qconv = decodeQualifiedConvId resp
+
+  WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
+    (_, requests) <-
+      withTempMockFederator' (throw $ MockErrorResponse Http.status503 "Down for maintenance") $
         putOtherMemberQualified
           bob
           qcharlie

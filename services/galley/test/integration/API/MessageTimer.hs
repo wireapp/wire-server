@@ -48,6 +48,8 @@ import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
+import Control.Exception
+import qualified Network.HTTP.Types as Http
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -61,6 +63,7 @@ tests s =
       test s "timer can be changed" messageTimerChange,
       test s "timer can be changed with the qualified endpoint" messageTimerChangeQualified,
       test s "timer changes are propagated to remote users" messageTimerChangeWithRemotes,
+      test s "timer changes unavailable remotes" messageTimerUnavailableRemotes,
       test s "timer can't be set by conv member without allowed action" messageTimerChangeWithoutAllowedAction,
       test s "timer can't be set in 1:1 conversations" messageTimerChangeO2O,
       test s "setting the timer generates an event" messageTimerEvent
@@ -158,6 +161,46 @@ messageTimerChangeWithRemotes = do
   WS.bracketR c bob $ \wsB -> do
     (_, requests) <-
       withTempMockFederator' (mockReply ()) $
+        putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
+          !!! const 200 === statusCode
+
+    req <- assertOne requests
+    liftIO $ do
+      frTargetDomain req @?= remoteDomain
+      frComponent req @?= Galley
+      frRPC req @?= "on-conversation-updated"
+      Right cu <- pure . eitherDecode . frBody $ req
+      F.cuConvId cu @?= qUnqualified qconv
+      F.cuAction cu
+        @?= SomeConversationAction (sing @'ConversationMessageTimerUpdateTag) (ConversationMessageTimerUpdate timer1sec)
+
+    void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
+      let e = List1.head (WS.unpackPayload n)
+      ntfTransient n @?= False
+      evtConv e @?= qconv
+      evtType e @?= ConvMessageTimerUpdate
+      evtFrom e @?= qbob
+      evtData e @?= EdConvMessageTimerUpdate (ConversationMessageTimerUpdate timer1sec)
+
+messageTimerUnavailableRemotes :: TestM ()
+messageTimerUnavailableRemotes = do
+  c <- view tsCannon
+  let remoteDomain = Domain "alice.example.com"
+  qalice <- Qualified <$> randomId <*> pure remoteDomain
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+  connectWithRemoteUser bob qalice
+
+  resp <-
+    postConvWithRemoteUsers
+      bob
+      Nothing
+      defNewProteusConv {newConvQualifiedUsers = [qalice]}
+  let qconv = decodeQualifiedConvId resp
+
+  WS.bracketR c bob $ \wsB -> do
+    (_, requests) <-
+      withTempMockFederator' (throw $ MockErrorResponse Http.status503 "Down for maintenance") $
         putMessageTimerUpdateQualified bob qconv (ConversationMessageTimerUpdate timer1sec)
           !!! const 200 === statusCode
 
