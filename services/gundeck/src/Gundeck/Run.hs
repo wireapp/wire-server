@@ -58,7 +58,7 @@ import Wire.API.Routes.Version.Wai
 run :: Opts -> IO ()
 run o = do
   m <- metrics
-  e <- createEnv m o
+  (rThreads, e) <- createEnv m o
   runClient (e ^. cstate) $
     versionCheck schemaVersion
   let l = e ^. applog
@@ -73,6 +73,7 @@ run o = do
     Async.cancel lst
     Async.cancel wCollectAuth
     forM_ wtbs Async.cancel
+    forM_ rThreads Async.cancel
     Redis.disconnect =<< takeMVar (e ^. rstate)
     whenJust (e ^. rstateAdditionalWrite) $ (=<<) Redis.disconnect . takeMVar
     Log.close (e ^. applog)

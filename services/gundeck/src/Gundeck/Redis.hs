@@ -28,7 +28,7 @@ module Gundeck.Redis
   )
 where
 
-import Control.Concurrent.Async (async)
+import Control.Concurrent.Async (Async, async)
 import qualified Control.Monad.Catch as Catch
 import Control.Retry
 import Database.Redis
@@ -57,10 +57,10 @@ connectRobust ::
   RetryPolicy ->
   -- | action returning a fresh initial 'Connection', e. g., @(checkedConnect connInfo)@ or @(checkedConnectCluster connInfo)@
   IO Connection ->
-  IO RobustConnection
+  IO (Async (), RobustConnection)
 connectRobust l retryStrategy connectLowLevel = do
   robustConnection <- newEmptyMVar @IO @Connection
-  _ <-
+  thread <-
     async $ safeForever $ do
       Log.info l $ Log.msg (Log.val "connecting to Redis")
       conn <- retry connectLowLevel
@@ -72,7 +72,7 @@ connectRobust l retryStrategy connectLowLevel = do
             threadDelay 1e6
         )
         $ \(_ :: SomeException) -> void $ takeMVar robustConnection
-  pure robustConnection
+  pure (thread, robustConnection)
   where
     retry =
       recovering -- retry connecting, e. g., with exponential back-off
