@@ -40,29 +40,7 @@ The authorization server does the authentication of the user and establishes whe
 
 `wire-server` currently only supports the [authorization code flow](https://www.rfc-editor.org/rfc/rfc6749#section-4.1) which is optimized for confidential clients such as Outlook Calendar Extension.
 
-```{eval-rst}
-.. kroki::
-   :type: mermaid
-   :caption: OAuth 2.0 authorization code flow
-
-   sequenceDiagram
-       autonumber
-       actor U as User
-       participant C as Outlook Calendar Extension
-       participant A as Authorization Server (wire-server)
-       participant R as Resource Server (wire-server)
-
-       U->>C: Click login
-       C->>A: Authorization code request /authorize
-       A->>U: Redirect to login/authorization prompt
-       U->>A: Authenticate and consent
-       A->>C: Authorization code
-       C->>A: Authorization code + client credentials
-       A->>A: Validate authorization code + client credentials
-       A->>C: Access token
-       C->>R: Request a resource with access token (e.g. POST /conversations)
-       R->>R: Validate access token with public key from auth server
-       R->>C: Response
+```{image} oauth.svg
 ```
 
 ## OAuth client developer reference
@@ -71,7 +49,7 @@ The authorization server does the authentication of the user and establishes whe
 
 A new OAuth client can be register *only* via the internal API of `brig` by providing an application name and a redirect URL:
 
-```curl
+```shell
   curl -s -X POST server-internal.example.com/i/oauth/clients \
     -H "Content-Type: application/json" \
     -d '{
@@ -116,7 +94,7 @@ GET /authorize?
   response_type=code&
   client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&
   redirect_uri=https%3A%2F%2Fclient.example.com&
-  state=foobar
+  state=foobar HTTP/1.1
 ```
 
 Url encoded query parameters:
@@ -146,7 +124,7 @@ Vary: Accept-Encoding
 
 The 3rd party app sends the authorization code together with the client credentials and the parameters shown below using the `application/x-www-form-urlencoded` format with character encoding of UTF-8 to the authorization server (6. in diagram above) to retrieve an access token and a refresh token (7.-8. in diagram above):
 
-```curl
+```shell
 curl -s -X POST server.example.com/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d 'code=1395a1a44b72e0b81ec8fe6c791d2d3f22bc1c4df96857a88c3e2914bb687b7b&client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&grant_type=authorization_code&redirect_uri=https%3A%2F%2Fclient.example.com&client_secret=3f6fbd62835859b2bac411b2a2a2a54699ec56504ee32099748de3a762d41a2d'
@@ -185,7 +163,7 @@ Access tokens are short lived and need to be refreshed regularly. To do so, the 
 
 Example request:
 
-```curl
+```shell
 curl -s -X POST server.example.com/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d 'refresh_token=eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiI4NzI1ZTRkNC01Njc5LTQwZGEtOTI3My03YTBkMmIwYjUwMGYifQ.59IICzGoli5nfwJ1ZwRH_b3T-lRgBrralE1EZZRtadI2eKrta0kaLIZpuMWPC2Icj6-LSEBsyYLXpxOm3cNaDw&client_id=b9e65569-aa61-462d-915d-94c8d6ef17a7&grant_type=refresh_token&client_secret=3f6fbd62835859b2bac411b2a2a2a54699ec56504ee32099748de3a762d41a2d'
@@ -215,7 +193,7 @@ Example response:
 
 A refresh token can be revoked as follows:
 
-```curl
+```shell
 curl -i -s -X POST localhost:8080/oauth/revoke \
   -H "Content-Type: application/json" \
   -d '{
@@ -235,7 +213,7 @@ Parameters:
 
 Example response:
 
-```http
+```
 HTTP/1.1 200 OK
 (empty-response-body)
 ```
@@ -246,50 +224,19 @@ HTTP/1.1 200 OK
 
 Authenticated endpoint to retrieve client information, necessary to display authorization prompt/user consent page.
 
-  ```http
-GET /oauth/client/:id HTTP/1.1
-```
-
-Example response:
-
-```json
-{
-  "client_id": "922fcc9c-07a5-4306-86ce-7b6838442372",
-  "application_name": "Outlook Calendar Extension",
-  "redirect_url": "https://example.com"
-}
-```
+See [swagger docs](https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/get_oauth_clients__OAuthClientId_).
 
 ### Retrieve a list of 3rd party apps with account access
 
 Authenticated endpoint to retrieve a list of all applications that have account access via OAuth.
 
-```http
-GET /oauth/applications HTTP/1.1
-```
-
-Example response:
-
-```json
-[
-  {
-    "id": "31a605c5-b033-405a-ab05-f8307cf22d3f",
-    "name": "Outlook Calendar Extension"
-  },
-  {
-    "id": "c3a76a50-42a0-49d2-99df-87f0fcc12d20",
-    "name": "Secure Alert"
-  }
-]
-```
+See [swagger docs](https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/get_oauth_applications).
 
 ### Revoke account access
 
 3rd party app access can be revoked, by invalidating all active refresh tokens, as follows:
 
-```http
-DELETE /oauth/applications/{cid} HTTP/1.1
-```
+See [swagger docs](https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/delete_oauth_applications__OAuthClientId_).
 
 ## Site admin reference (Configuration)
 
@@ -408,37 +355,78 @@ Example token payload:
 
 #### Refresh token
 
-refresh tokens are assigned to a user and a 3rd party app (OAuth client)
-
-a user can have more than one active refresh token for the same 3rd party app (e.g. they might use multiple devices, replace devices, or run multiple instances of the app somehow)
-
-the maximum number of active refresh tokens per user and app should be limited (what is a sensitive number, 10?)
-
-once a new token is requested and the limit is exceeded, the oldest refresh token will be deleted/invalidated
-if the bearer of the invalidated token is not identical to the requester, it could mean that the bearer of the invalidated token needs to re-authorize
-
-once a refresh token is used, it will be invalidated and a new refresh token will be generated and returned as part of the response (token rotation)
-
-for now, we will not yet implement re-use detection, but in the future this should be possible
-
-the refresh token is given to the client/app as a signed JWT containing only the refresh token ID
-
-refresh tokens are long-lived, and the expiration should be configurable on the server level (default 3-6 months?)
+- A refresh token is always associated with
+  - a user
+  - a 3rd party app (the OAuth client)
+  - and a scope (list of permissions given to the app)
+- A user can have more than one active refresh token for the same 3rd party app (e.g. they might use multiple devices, replace devices, or run multiple instances of the app somehow)
+- The maximum number of active refresh tokens per user and app is limited (see `values.yaml` for default settings)
+- Once a new refresh token is requested and the limit is exceeded, the oldest refresh token will be deleted/invalidated
+  - If the bearer of the invalidated token is not identical to the requester, it could mean that the bearer of the invalidated token needs to re-authorize
+- Once a refresh token is used, it will be invalidated and a new refresh token will be generated and returned as part of the response (token rotation)
+- For now, we will not yet implement re-use detection, but in the future this should be possible
+- The refresh token is given to the client/app as a signed JWT containing only the refresh token ID which is used internally to look up the refresh token info
+- Refresh tokens are long-lived, and the expiration is configurable on the server level
 
 ### Scopes
 
+Endpoints that support OAuth have the required scope listed in the swagger documentation.
+
+#### Scope implementation details
+
+To enable OAuth access for a resource a scope has to be defined in the nginx location config that matches the endpoint's path.
+
+The current convention is that scope names should match the resource's paths separated by an underscore. E.g. `/conversations/:cid/code` becomes `conversations_code` (path parameters are omitted).
+
+Furthermore, the scope must be prefixed (separated by a colon) with
+
+- `admin`, `write`, or `read` for endpoints with HTTP method `GET`
+- `admin`, or `write` for endpoints with HTTP methods `POST` or `PUT`
+- and `admin` for endpoints with HTTP method `DELETE`
+
+E.g. the required scope for `POST /conversations/:cid/code` is `write:conversations_code`.
+
+### Steps for adding a new scope (making an endpoint accessible via OAuth)
+
+- Add a new constructor to the type `OAuthScope` in `/home/leif/Repositories/wire-server/libs/wire-api/src/Wire/API/OAuth.hs`
+- Implement `IsOAuthScope`
+- Update `ToByteString` and `FromByteString` instances and verify that the roundtrip tests run successfully
+- Add the servant combinator `DescriptionOAuthScope` to the endpoint in question which will render the correct swagger description
+- Finally assign the scope name (without the prefix) to the location config via the `charts/nginz/values.yaml` file to the `oauth_scope` as shown in the example below
+
+Example:
+
+```haskell
+type SelfAPI =
+  Named
+    "get-self"
+    ( Summary "Get your own profile"
+        :> DescriptionOAuthScope 'ReadSelf
+        :> ZUser
+        :> "self"
+        :> Get '[JSON] SelfProfile
+    )
+```
+
+```nginx
+    - path: /self$ # Matches exactly /self
+      oauth_scope: self
+      envs:
+```
+
+For local development and integration tests, add the scope to `services/nginz/integration-test/conf/nginz/nginx.conf` as follows
+
+```nginx
+    location ~* ^(/v[0-9]+)?/self$ {
+      include common_response_with_zauth.conf;
+      oauth_scope self;
+      proxy_pass http://brig;
+    }
+```
+
 ### Public/private keys
 
-New OAuth JWK keys have to be provided.
-
-Acceptance criteria:
-
-A secure JWK key has been generated
-
-JWK key including the private key has been set in brig secrets for prod and staging
-
-Public JWK key has been set in galley options
-
-OAuth end-to-end test works with new JWK key
-
-### Default configs
+- Public and private keys are provided as JSON Web Keys (JWK) or key sets
+- The keys can be generated using [jwx](https://github.com/lestrrat-go/jwx/tree/develop/v2/cmd/jwx#jwx-jwk-generate)
+- Keys are provided as secrets. Details depend on the type of deployment.
+- `brig` needs to be in possession of the public and private key and `nginz` needs to be provided with the public key only
