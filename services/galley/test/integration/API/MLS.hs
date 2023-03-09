@@ -2798,11 +2798,9 @@ testDeleteSubConv deleterType = do
 -- leaves. The leaving causes the backend to generate an external remove
 -- proposal for the client by Alice. Next, Bob does not commit (simulating his
 -- client crashing), and then deleting the subconversation after coming back up.
--- This should make the state of the subconversation completely clean, including
--- any leftover proposals removed. Then Bob creates a subconversation with the
--- same subconversation ID and the test asserts that both Alice and Bob get no
--- events, which means the backend does not resubmit the pending remove proposal
--- for Alice's client.
+-- Then Bob creates a subconversation with the same subconversation ID and the
+-- test asserts that both Alice and Bob get no events, which means the backend
+-- does not resubmit the pending remove proposal for Alice's client.
 testJoinDeletedSubConvWithRemoval :: TestM ()
 testJoinDeletedSubConvWithRemoval = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
