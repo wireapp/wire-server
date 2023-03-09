@@ -223,6 +223,7 @@ tests s =
               test s "reset a subconversation as a creator" (testDeleteSubConv SubConvMember),
               test s "reset a subconversation as a conversation member" (testDeleteSubConv ConvMember),
               test s "reset a subconversation as a random user" (testDeleteSubConv RandomUser),
+              test s "reset a subconversation and assert no leftover proposals" testJoinDeletedSubConvWithRemoval,
               test s "fail to reset a subconversation with wrong epoch" testDeleteSubConvStale,
               test s "leave a subconversation as a creator" (testLeaveSubConv True),
               test s "leave a subconversation as a non-creator" (testLeaveSubConv False),
@@ -2792,6 +2793,47 @@ testDeleteSubConv deleterType = do
         assertBool
           "Old and new subconversation are not equal"
           (sub == newSub)
+
+-- In this test case, Alice creates a subconversation, Bob joins and Alice
+-- leaves. The leaving causes the backend to generate an external remove
+-- proposal for the client by Alice. Next, Bob does not commit (simulating his
+-- client crashing), and then deleting the subconversation after coming back up.
+-- Then Bob creates a subconversation with the same subconversation ID and the
+-- test asserts that both Alice and Bob get no events, which means the backend
+-- does not resubmit the pending remove proposal for Alice's client.
+testJoinDeletedSubConvWithRemoval :: TestM ()
+testJoinDeletedSubConvWithRemoval = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+    let subConvId = SubConvId "conference"
+    qsconvId <- createSubConv qcnv alice1 subConvId
+    void $
+      createExternalCommit bob1 Nothing qsconvId
+        >>= sendAndConsumeCommitBundle
+    liftTest $
+      leaveSubConv (ciUser alice1) (ciClient alice1) qcnv subConvId
+        !!! const 200 === statusCode
+    -- no committing by Bob of the backend-generated remove proposal for alice1
+    -- (simulating his client crashing)
+
+    do
+      sub <-
+        liftTest $
+          responseJsonError
+            =<< getSubConv (qUnqualified bob) qcnv subConvId
+              <!! const 200 === statusCode
+      let dsc = DeleteSubConversationRequest (pscGroupId sub) (pscEpoch sub)
+      liftTest $
+        deleteSubConv (qUnqualified bob) qcnv subConvId dsc
+          !!! const 200 === statusCode
+
+    mlsBracket [alice1, bob1] $ \wss -> do
+      void $ createSubConv qcnv bob1 subConvId
+      void . liftIO $ WS.assertNoEvent (3 # WS.Second) wss
 
 testDeleteSubConvStale :: TestM ()
 testDeleteSubConvStale = do
