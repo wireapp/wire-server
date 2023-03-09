@@ -915,7 +915,6 @@ deleteSubConversationForRemoteUser ::
          Input (Local ()),
          Input Env,
          MemberStore,
-         ProposalStore,
          Resource,
          SubConversationStore,
          SubConversationSupply
