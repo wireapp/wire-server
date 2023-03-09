@@ -692,7 +692,7 @@ postUser name haveEmail ssoid teamid brig_ = do
   post (brig_ . path "/i/users" . contentJson . body p)
 
 defPassword :: PlainTextPassword
-defPassword = plainTextPasswordLegacyUnsafe "secret"
+defPassword = plainTextPasswordLegacyUnsafe "topsecretdefaultpassword"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"

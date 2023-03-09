@@ -977,7 +977,7 @@ defPassword :: PlainTextPassword
 defPassword = plainTextPasswordLegacyUnsafe defPasswordText
 
 defPasswordText :: Text
-defPasswordText = "secret"
+defPasswordText = "topsecretdefaultpassword"
 
 defWrongPassword :: PlainTextPassword
 defWrongPassword = plainTextPasswordLegacyUnsafe "not secret"

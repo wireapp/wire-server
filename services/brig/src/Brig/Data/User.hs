@@ -89,7 +89,7 @@ import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.Misc (PlainTextPassword)
+import Data.Misc
 import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
@@ -313,7 +313,7 @@ updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (
 updateHandle :: MonadClient m => UserId -> Handle -> m ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
 
-updatePassword :: MonadClient m => UserId -> PlainTextPassword -> m ()
+updatePassword :: MonadClient m => UserId -> PlainTextPasswordMinLength8 -> m ()
 updatePassword u t = do
   p <- liftIO $ mkSafePassword t
   retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))

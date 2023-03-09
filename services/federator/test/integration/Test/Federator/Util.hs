@@ -312,7 +312,7 @@ randomPhone = liftIO $ do
   pure $ fromMaybe (error "Invalid random phone#") phone
 
 defPassword :: PlainTextPassword
-defPassword = plainTextPasswordLegacyUnsafe "secret"
+defPassword = plainTextPasswordLegacyUnsafe "topsecretdefaultpassword"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"

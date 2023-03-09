@@ -137,6 +137,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
       test p "put /self/phone - 409" $ testPhoneUpdateConflict b,
       test p "head /self/password - 200/404" $ testPasswordSet b,
+      test p "put /self/password - 400" $ testPasswordSetInvalidPasswordLength b,
       test p "put /self/password - 200" $ testPasswordChange b,
       test p "put /self/locale - 200" $ testUserLocaleUpdate b userJournalWatcher,
       test p "post /activate/send - 200" $ testSendActivationCode opts b,
@@ -1094,6 +1095,28 @@ testPasswordSet brig = do
       RequestBodyLBS . encode $
         object
           [ "new_password" .= ("a_very_long_password" :: Text)
+          ]
+
+testPasswordSetInvalidPasswordLength :: Brig -> Http ()
+testPasswordSetInvalidPasswordLength brig = do
+  p <- randomPhone
+  let newUser =
+        RequestBodyLBS . encode $
+          object
+            [ "name" .= ("Alice" :: Text),
+              "phone" .= fromPhone p
+            ]
+  rs <-
+    post (brig . path "/i/users" . contentJson . body newUser)
+      <!! const 201 === statusCode
+  let Just uid = userId <$> responseJsonMaybe rs
+  put (brig . path "/self/password" . contentJson . zUser uid . body shortPassword)
+    !!! const 400 === statusCode
+  where
+    shortPassword =
+      RequestBodyLBS . encode $
+        object
+          [ "new_password" .= ("secret" :: Text)
           ]
 
 testPasswordChange :: Brig -> Http ()

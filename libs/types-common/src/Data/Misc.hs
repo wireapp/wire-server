@@ -58,6 +58,7 @@ module Data.Misc
     fromPlainTextPassword,
     plainTextPasswordUnsafe,
     plainTextPasswordLegacyUnsafe,
+    toLegacy,
 
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
@@ -364,6 +365,10 @@ plainTextPasswordUnsafe = PlainTextPassword' . unsafeRange
 
 fromPlainTextPassword :: PlainTextPassword' t -> Text
 fromPlainTextPassword = fromRange . fromPlainTextPassword'
+
+-- | Convert a 'PlainTextPasswordMinLength8' to a legacy 'PlainTextPassword'.
+toLegacy :: PlainTextPasswordMinLength8 -> PlainTextPassword
+toLegacy = PlainTextPassword' . unsafeRange . fromPlainTextPassword
 
 newtype PlainTextPassword' (minLen :: Nat) = PlainTextPassword'
   {fromPlainTextPassword' :: Range minLen (1024 :: Nat) Text}

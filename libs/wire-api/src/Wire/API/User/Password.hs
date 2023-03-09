@@ -35,7 +35,7 @@ import Control.Lens ((?~))
 import qualified Data.Aeson as A
 import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
-import Data.Misc (PlainTextPassword)
+import Data.Misc (PlainTextPasswordMinLength8)
 import Data.Proxy (Proxy (Proxy))
 import Data.Range (Ranged (..))
 import Data.Schema as Schema
@@ -103,7 +103,7 @@ instance ToSchema NewPasswordReset where
 data CompletePasswordReset = CompletePasswordReset
   { cpwrIdent :: PasswordResetIdentity,
     cpwrCode :: PasswordResetCode,
-    cpwrPassword :: PlainTextPassword
+    cpwrPassword :: PlainTextPasswordMinLength8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CompletePasswordReset)
@@ -195,7 +195,7 @@ newtype PasswordResetCode = PasswordResetCode
 
 data PasswordReset = PasswordReset
   { pwrCode :: PasswordResetCode,
-    pwrPassword :: PlainTextPassword
+    pwrPassword :: PlainTextPasswordMinLength8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordReset)

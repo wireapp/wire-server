@@ -130,7 +130,7 @@ import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.LegalHold (UserLegalHoldStatus)
-import Data.Misc (PlainTextPassword)
+import Data.Misc (PlainTextPassword, PlainTextPasswordMinLength8)
 import Data.Qualified
 import Data.Range
 import Data.SOP
@@ -711,7 +711,7 @@ data NewUser = NewUser
     newUserOrigin :: Maybe NewUserOrigin,
     newUserLabel :: Maybe CookieLabel,
     newUserLocale :: Maybe Locale,
-    newUserPassword :: Maybe PlainTextPassword,
+    newUserPassword :: Maybe PlainTextPasswordMinLength8,
     newUserExpiresIn :: Maybe ExpiresIn,
     newUserManagedBy :: Maybe ManagedBy
   }
@@ -759,7 +759,7 @@ data NewUserRaw = NewUserRaw
     newUserRawTeamId :: Maybe TeamId,
     newUserRawLabel :: Maybe CookieLabel,
     newUserRawLocale :: Maybe Locale,
-    newUserRawPassword :: Maybe PlainTextPassword,
+    newUserRawPassword :: Maybe PlainTextPasswordMinLength8,
     newUserRawExpiresIn :: Maybe ExpiresIn,
     newUserRawManagedBy :: Maybe ManagedBy
   }
@@ -1131,7 +1131,7 @@ instance (res ~ PutSelfResponses) => AsUnion res (Maybe UpdateProfileError) wher
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
   { cpOldPassword :: Maybe PlainTextPassword,
-    cpNewPassword :: PlainTextPassword
+    cpNewPassword :: PlainTextPasswordMinLength8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)

@@ -382,7 +382,7 @@ testSendLoginCode brig = do
           object
             [ "name" .= ("Alice" :: Text),
               "phone" .= fromPhone p,
-              "password" .= ("secret" :: Text)
+              "password" .= ("topsecretdefaultpassword" :: Text)
             ]
   post (brig . path "/i/users" . contentJson . Http.body newUser)
     !!! const 201 === statusCode
