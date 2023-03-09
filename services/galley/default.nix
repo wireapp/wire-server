@@ -95,7 +95,6 @@
 , stm
 , streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
@@ -109,6 +108,7 @@
 , tinylog
 , tls
 , transformers
+, transitive-anns
 , types-common
 , types-common-aws
 , types-common-journal
@@ -216,7 +216,6 @@ mkDerivation {
     ssl-util
     stm
     string-conversions
-    swagger
     swagger2
     tagged
     text
@@ -224,6 +223,7 @@ mkDerivation {
     tinylog
     tls
     transformers
+    transitive-anns
     types-common
     types-common-aws
     types-common-journal

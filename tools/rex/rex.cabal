@@ -36,7 +36,8 @@ executable rex
     , wai
     , warp
 
-  ghc-options:      -Wall -O1 -funbox-small-strict-fields
+  ghc-options:
+    -Wall -O1 -funbox-small-strict-fields -Wredundant-constraints
 
   if flag(static)
     ld-options: -static

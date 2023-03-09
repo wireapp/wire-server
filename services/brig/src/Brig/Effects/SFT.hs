@@ -66,7 +66,7 @@ interpretSFT httpManager = interpret $ \(SFTGetAllServers url) -> do
     debug $ Log.field "URLs" (show res) . Log.msg ("Fetched the following server URLs" :: ByteString)
     pure res
 
-runSftError :: Members '[TinyLog] r => HttpsUrl -> Sem (Error SFTError : r) a -> Sem r (Either SFTError a)
+runSftError :: Member TinyLog r => HttpsUrl -> Sem (Error SFTError : r) a -> Sem r (Either SFTError a)
 runSftError urlWithPath act =
   runError $
     act

@@ -991,7 +991,7 @@ testInternalGetConnStatusesAll brig opts fedBrigClient = do
     let ordFn x = (csv2From x, csv2To x)
     sortOn ordFn acceptedRemoteDomain1Only @?= sortOn ordFn (map (\u -> ConnectionStatusV2 u remoteDomain1User1 Accepted) uids)
 
-getConnStatusInternal :: (MonadIO m, MonadHttp m) => (Request -> Request) -> ConnectionsStatusRequestV2 -> m (Response (Maybe LByteString))
+getConnStatusInternal :: MonadHttp m => (Request -> Request) -> ConnectionsStatusRequestV2 -> m (Response (Maybe LByteString))
 getConnStatusInternal brig req =
   post $
     brig

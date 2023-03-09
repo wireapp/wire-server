@@ -29,10 +29,13 @@ module Wire.API.Team.LegalHold
   )
 where
 
+import Control.Lens (at, (?~))
+import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import Data.Id
 import Data.LegalHold
 import Data.Misc
+import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S hiding (info)
 import Deriving.Aeson
@@ -226,3 +229,31 @@ instance ToJSON LegalholdProtectee
 -- {"tag":"UnprotectedBot"}
 -- {"tag":"LegalholdPlusFederationNotImplemented"}
 instance FromJSON LegalholdProtectee
+
+instance ToSchema LegalholdProtectee where
+  -- Generated mixed-sums are hard to cover: Just use their existing JSON
+  -- representation and add handwritten Swagger docs
+  schema = mkSchema docs A.parseJSON (pure . A.toJSON)
+    where
+      docs :: NamedSwaggerDoc
+      docs =
+        pure $
+          S.NamedSchema (Just "LegalholdProtectee") $
+            mempty
+              & S.type_ ?~ S.SwaggerObject
+              & S.properties . at "tag"
+                ?~ S.Inline
+                  ( mempty
+                      & S.type_ ?~ S.SwaggerString
+                      & S.enum_
+                        ?~ [ A.toJSON ("ProtectedUser" :: String),
+                             A.toJSON ("UnprotectedBot" :: String),
+                             A.toJSON ("LegalholdPlusFederationNotImplemented" :: String)
+                           ]
+                  )
+              & S.properties . at "contents"
+                ?~ S.Inline
+                  ( S.toSchema (Proxy @UserId)
+                      & S.description
+                        ?~ "A UserId for ProtectedUser, otherwise empty / null."
+                  )

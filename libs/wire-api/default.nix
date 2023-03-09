@@ -43,6 +43,8 @@
 , hex
 , hostname-validate
 , hscim
+, hspec
+, hspec-wai
 , http-api-data
 , http-media
 , http-types
@@ -83,15 +85,16 @@
 , singletons-th
 , sop-core
 , string-conversions
-, swagger
 , swagger2
 , tagged
 , tasty
 , tasty-expected-failure
+, tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
 , text
 , time
+, transitive-anns
 , types-common
 , unliftio
 , unordered-containers
@@ -183,11 +186,11 @@ mkDerivation {
     singletons-th
     sop-core
     string-conversions
-    swagger
     swagger2
     tagged
     text
     time
+    transitive-anns
     types-common
     unordered-containers
     uri-bytestring
@@ -223,6 +226,9 @@ mkDerivation {
     filepath
     hex
     hscim
+    hspec
+    hspec-wai
+    http-types
     imports
     iso3166-country-codes
     iso639
@@ -238,11 +244,13 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     servant
+    servant-server
     servant-swagger-ui
     string-conversions
     swagger2
     tasty
     tasty-expected-failure
+    tasty-hspec
     tasty-hunit
     tasty-quickcheck
     text
@@ -253,6 +261,7 @@ mkDerivation {
     uri-bytestring
     uuid
     vector
+    wai
     wire-message-proto-lens
   ];
   license = lib.licenses.agpl3Only;

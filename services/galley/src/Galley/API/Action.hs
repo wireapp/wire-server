@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE StandaloneKindSignatures #-}
 
 module Galley.API.Action
   ( -- * Conversation action types
@@ -29,6 +28,8 @@ module Galley.API.Action
     updateLocalConversationUnchecked,
     NoChanges (..),
     LocalConversationUpdate (..),
+    notifyTypingIndicator,
+    pushTypingIndicatorEvents,
 
     -- * Utilities
     ensureConversationActionAllowed,
@@ -44,6 +45,7 @@ import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Kind
+import qualified Data.List as List
 import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map as Map
 import Data.Misc
@@ -66,9 +68,11 @@ import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.FireAndForget as E
+import Galley.Effects.GundeckAccess
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore
 import qualified Galley.Effects.TeamStore as E
+import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
@@ -84,10 +88,11 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.Federation.API (CallsFed, Component (Galley), fedClient)
+import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Team.LegalHold
@@ -98,84 +103,92 @@ data NoChanges = NoChanges
 
 type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Constraint where
   HasConversationActionEffects 'ConversationJoinTag r =
-    Members
-      '[ BrigAccess,
-         Error FederationError,
-         Error InternalError,
-         ErrorS 'NotATeamMember,
-         ErrorS 'NotConnected,
-         ErrorS ('ActionDenied 'LeaveConversation),
-         ErrorS ('ActionDenied 'AddConversationMember),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvNotFound,
-         ErrorS 'TooManyMembers,
-         ErrorS 'MissingLegalholdConsent,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input Opts,
-         Input UTCTime,
-         LegalHoldStore,
-         MemberStore,
-         ProposalStore,
-         TeamStore,
-         TinyLog,
-         ConversationStore,
-         Error NoChanges
-       ]
-      r
+    ( Member BrigAccess r,
+      Member (Error FederationError) r,
+      Member (Error InternalError) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member (ErrorS 'NotConnected) r,
+      Member (ErrorS ('ActionDenied 'LeaveConversation)) r,
+      Member (ErrorS ('ActionDenied 'AddConversationMember)) r,
+      Member (ErrorS 'InvalidOperation) r,
+      Member (ErrorS 'ConvAccessDenied) r,
+      Member (ErrorS 'ConvNotFound) r,
+      Member (ErrorS 'TooManyMembers) r,
+      Member (ErrorS 'MissingLegalholdConsent) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Input Env) r,
+      Member (Input Opts) r,
+      Member (Input UTCTime) r,
+      Member LegalHoldStore r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member TeamStore r,
+      Member TinyLog r,
+      Member ConversationStore r,
+      Member (Error NoChanges) r
+    )
   HasConversationActionEffects 'ConversationLeaveTag r =
-    ( Members
-        '[ MemberStore,
-           Error InternalError,
-           Error NoChanges,
-           ExternalAccess,
-           FederatorAccess,
-           GundeckAccess,
-           Input UTCTime,
-           Input Env,
-           ProposalStore,
-           TinyLog
-         ]
-        r
+    ( Member MemberStore r,
+      Member (Error InternalError) r,
+      Member (Error NoChanges) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member GundeckAccess r,
+      Member (Input UTCTime) r,
+      Member (Input Env) r,
+      Member ProposalStore r,
+      Member TinyLog r
     )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
-    (Members '[MemberStore, Error NoChanges] r)
+    ( Member MemberStore r,
+      Member (Error NoChanges) r
+    )
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
-    (Members '[MemberStore, ErrorS 'ConvMemberNotFound] r)
+    ( Member MemberStore r,
+      Member (ErrorS 'ConvMemberNotFound) r
+    )
   HasConversationActionEffects 'ConversationDeleteTag r =
-    Members '[Error FederationError, ErrorS 'NotATeamMember, CodeStore, TeamStore, ConversationStore] r
+    ( Member (Error FederationError) r,
+      Member (ErrorS 'NotATeamMember) r,
+      Member CodeStore r,
+      Member TeamStore r,
+      Member ConversationStore r
+    )
   HasConversationActionEffects 'ConversationRenameTag r =
-    Members '[Error InvalidInput, ConversationStore] r
+    ( Member (Error InvalidInput) r,
+      Member ConversationStore r
+    )
   HasConversationActionEffects 'ConversationAccessDataTag r =
-    Members
-      '[ BotAccess,
-         BrigAccess,
-         CodeStore,
-         Error InternalError,
-         Error InvalidInput,
-         Error NoChanges,
-         ErrorS 'InvalidTargetAccess,
-         ErrorS ('ActionDenied 'RemoveConversationMember),
-         ExternalAccess,
-         FederatorAccess,
-         FireAndForget,
-         GundeckAccess,
-         Input Env,
-         MemberStore,
-         ProposalStore,
-         TeamStore,
-         TinyLog,
-         Input UTCTime,
-         ConversationStore
-       ]
-      r
+    ( Member BotAccess r,
+      Member BrigAccess r,
+      Member CodeStore r,
+      Member (Error InternalError) r,
+      Member (Error InvalidInput) r,
+      Member (Error NoChanges) r,
+      Member (ErrorS 'InvalidTargetAccess) r,
+      Member (ErrorS ('ActionDenied 'RemoveConversationMember)) r,
+      Member ExternalAccess r,
+      Member FederatorAccess r,
+      Member FireAndForget r,
+      Member GundeckAccess r,
+      Member (Input Env) r,
+      Member MemberStore r,
+      Member ProposalStore r,
+      Member TeamStore r,
+      Member TinyLog r,
+      Member (Input UTCTime) r,
+      Member ConversationStore r
+    )
   HasConversationActionEffects 'ConversationMessageTimerUpdateTag r =
-    Members '[ConversationStore, Error NoChanges] r
+    ( Member ConversationStore r,
+      Member (Error NoChanges) r
+    )
   HasConversationActionEffects 'ConversationReceiptModeUpdateTag r =
-    Members '[ConversationStore, Error NoChanges] r
+    ( Member ConversationStore r,
+      Member (Error NoChanges) r
+    )
 
 type family HasConversationActionGalleyErrors (tag :: ConversationActionTag) :: EffectRow where
   HasConversationActionGalleyErrors 'ConversationJoinTag =
@@ -273,29 +286,11 @@ ensureAllowed tag loc action conv origUser = do
             throwS @'InvalidTargetAccess
     _ -> pure ()
 
-type PerformActionCalls :: ConversationActionTag -> Constraint
-type family PerformActionCalls tag where
-  PerformActionCalls 'ConversationAccessDataTag =
-    ( CallsFed 'Galley "on-conversation-updated",
-      CallsFed 'Galley "on-mls-message-sent",
-      CallsFed 'Galley "on-new-remote-conversation"
-    )
-  PerformActionCalls 'ConversationJoinTag =
-    ( CallsFed 'Galley "on-conversation-updated",
-      CallsFed 'Galley "on-mls-message-sent",
-      CallsFed 'Galley "on-new-remote-conversation"
-    )
-  PerformActionCalls 'ConversationLeaveTag =
-    ( CallsFed 'Galley "on-mls-message-sent"
-    )
-  PerformActionCalls tag = ()
-
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
 -- and also returns the (possible modified) action that was performed
 performAction ::
   forall tag r.
-  ( HasConversationActionEffects tag r,
-    PerformActionCalls tag
+  ( HasConversationActionEffects tag r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -364,10 +359,7 @@ performAction tag origUser lconv action = do
       pure (bm, act)
 
 performConversationJoin ::
-  ( HasConversationActionEffects 'ConversationJoinTag r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+  ( HasConversationActionEffects 'ConversationJoinTag r
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -390,14 +382,12 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     conv = tUnqualified lconv
 
     checkLocals ::
-      Members
-        '[ BrigAccess,
-           ErrorS 'NotATeamMember,
-           ErrorS 'NotConnected,
-           ErrorS 'ConvAccessDenied,
-           TeamStore
-         ]
-        r =>
+      ( Member BrigAccess r,
+        Member (ErrorS 'NotATeamMember) r,
+        Member (ErrorS 'NotConnected) r,
+        Member (ErrorS 'ConvAccessDenied) r,
+        Member TeamStore r
+      ) =>
       Local UserId ->
       Maybe TeamId ->
       [UserId] ->
@@ -414,13 +404,11 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedOrSameTeam lusr newUsers
 
     checkRemotes ::
-      Members
-        '[ BrigAccess,
-           Error FederationError,
-           ErrorS 'NotConnected,
-           FederatorAccess
-         ]
-        r =>
+      ( Member BrigAccess r,
+        Member (Error FederationError) r,
+        Member (ErrorS 'NotConnected) r,
+        Member FederatorAccess r
+      ) =>
       Local UserId ->
       [Remote UserId] ->
       Sem r ()
@@ -433,26 +421,20 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
       ensureConnectedToRemotes lusr remotes
 
     checkLHPolicyConflictsLocal ::
-      Members
-        '[ ConversationStore,
-           Error InternalError,
-           ErrorS ('ActionDenied 'LeaveConversation),
-           ErrorS 'InvalidOperation,
-           ErrorS 'ConvNotFound,
-           ErrorS 'MissingLegalholdConsent,
-           ExternalAccess,
-           FederatorAccess,
-           GundeckAccess,
-           Input Env,
-           Input Opts,
-           Input UTCTime,
-           LegalHoldStore,
-           MemberStore,
-           ProposalStore,
-           TeamStore,
-           TinyLog
-         ]
-        r =>
+      ( Member (Error InternalError) r,
+        Member (ErrorS 'MissingLegalholdConsent) r,
+        Member ExternalAccess r,
+        Member FederatorAccess r,
+        Member GundeckAccess r,
+        Member (Input Env) r,
+        Member (Input Opts) r,
+        Member (Input UTCTime) r,
+        Member LegalHoldStore r,
+        Member MemberStore r,
+        Member ProposalStore r,
+        Member TeamStore r,
+        Member TinyLog r
+      ) =>
       [UserId] ->
       Sem r ()
     checkLHPolicyConflictsLocal newUsers = do
@@ -494,10 +476,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkLHPolicyConflictsRemote _remotes = pure ()
 
 performConversationAccessData ::
-  ( HasConversationActionEffects 'ConversationAccessDataTag r,
-    CallsFed 'Galley "on-mls-message-sent",
-    CallsFed 'Galley "on-conversation-updated",
-    CallsFed 'Galley "on-new-remote-conversation"
+  ( HasConversationActionEffects 'ConversationAccessDataTag r
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -540,7 +519,7 @@ performConversationAccessData qusr lconv action = do
     lcnv = fmap convId lconv
     conv = tUnqualified lconv
 
-    maybeRemoveBots :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
+    maybeRemoveBots :: BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveBots bm =
       if Set.member ServiceAccessRole (cupAccessRoles action)
         then pure bm
@@ -582,24 +561,16 @@ data LocalConversationUpdate = LocalConversationUpdate
 
 updateLocalConversation ::
   forall tag r.
-  ( Members
-      '[ ConversationStore,
-         Error NoChanges,
-         ErrorS ('ActionDenied (ConversationActionPermission tag)),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input Env,
-         Input UTCTime
-       ]
-      r,
+  ( Member ConversationStore r,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
     HasConversationActionEffects tag r,
-    SingI tag,
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    PerformActionCalls tag
+    SingI tag
   ) =>
   Local ConvId ->
   Qualified UserId ->
@@ -636,10 +607,7 @@ updateLocalConversationUnchecked ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    HasConversationActionEffects tag r,
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    PerformActionCalls tag
+    HasConversationActionEffects tag r
   ) =>
   Local Conversation ->
   Qualified UserId ->
@@ -676,11 +644,9 @@ ensureConversationActionAllowed ::
   forall tag mem x r.
   ( IsConvMember mem,
     HasConversationActionEffects tag r,
-    Members
-      '[ ErrorS ('ActionDenied (ConversationActionPermission tag)),
-         ErrorS 'InvalidOperation
-       ]
-      r
+    ( Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
+      Member (ErrorS 'InvalidOperation) r
+    )
   ) =>
   Sing tag ->
   Local x ->
@@ -702,7 +668,9 @@ ensureConversationActionAllowed tag loc action conv self = do
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.
 addMembersToLocalConversation ::
-  Members '[MemberStore, Error NoChanges] r =>
+  ( Member MemberStore r,
+    Member (Error NoChanges) r
+  ) =>
   Local ConvId ->
   UserList UserId ->
   RoleName ->
@@ -715,9 +683,10 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  ( Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r,
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated"
+  ( Member FederatorAccess r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r
   ) =>
   Sing tag ->
   Qualified UserId ->
@@ -776,14 +745,11 @@ notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
 -- | Notify all local members about a remote conversation update that originated
 -- from a local user
 notifyRemoteConversationAction ::
-  Members
-    '[ FederatorAccess,
-       ExternalAccess,
-       GundeckAccess,
-       MemberStore,
-       P.TinyLog
-     ]
-    r =>
+  ( Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member MemberStore r,
+    Member P.TinyLog r
+  ) =>
   Local x ->
   Remote ConversationUpdate ->
   Maybe ConnId ->
@@ -834,10 +800,7 @@ kickMember ::
     Member (Input UTCTime) r,
     Member (Input Env) r,
     Member MemberStore r,
-    Member TinyLog r,
-    CallsFed 'Galley "on-new-remote-conversation",
-    CallsFed 'Galley "on-conversation-updated",
-    PerformActionCalls 'ConversationLeaveTag
+    Member TinyLog r
   ) =>
   Qualified UserId ->
   Local Conversation ->
@@ -859,3 +822,54 @@ kickMember qusr lconv targets victim = void . runError @NoChanges $ do
     lconv
     (targets <> extraTargets)
     (pure victim)
+
+notifyTypingIndicator ::
+  ( Member (Input UTCTime) r,
+    Member (Input (Local ())) r,
+    Member GundeckAccess r,
+    Member FederatorAccess r
+  ) =>
+  Conversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  TypingStatus ->
+  Sem r TypingDataUpdated
+notifyTypingIndicator conv qusr mcon ts = do
+  let origDomain = qDomain qusr
+  now <- input
+  lconv <- qualifyLocal (Data.convId conv)
+
+  pushTypingIndicatorEvents qusr now (fmap lmId (Data.convLocalMembers conv)) mcon (tUntagged lconv) ts
+
+  let (remoteMemsOrig, remoteMemsOther) = List.partition ((origDomain ==) . tDomain . rmId) (Data.convRemoteMembers conv)
+  let tdu users =
+        TypingDataUpdated
+          { tudTime = now,
+            tudOrigUserId = qusr,
+            tudConvId = Data.convId conv,
+            tudUsersInConv = users,
+            tudTypingStatus = ts
+          }
+
+  void $ E.runFederatedConcurrentlyEither (fmap rmId remoteMemsOther) $ \rmems -> do
+    fedClient @'Galley @"on-typing-indicator-updated" (tdu (tUnqualified rmems))
+
+  pure (tdu (fmap (tUnqualified . rmId) remoteMemsOrig))
+
+pushTypingIndicatorEvents ::
+  (Member GundeckAccess r) =>
+  Qualified UserId ->
+  UTCTime ->
+  [UserId] ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  TypingStatus ->
+  Sem r ()
+pushTypingIndicatorEvents qusr tEvent users mcon qcnv ts = do
+  let e = Event qcnv Nothing qusr tEvent (EdTyping ts)
+  for_ (newPushLocal ListComplete (qUnqualified qusr) (ConvEvent e) (userRecipient <$> users)) $ \p ->
+    push1 $
+      p
+        & pushConn .~ mcon
+        & pushRoute .~ RouteDirect
+        & pushTransient .~ True

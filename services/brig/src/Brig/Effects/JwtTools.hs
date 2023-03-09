@@ -46,9 +46,9 @@ data JwtTools m a where
 
 makeSem ''JwtTools
 
-interpretJwtTools :: Members '[Embed IO] r => Sem (JwtTools ': r) a -> Sem r a
+interpretJwtTools :: Member (Embed IO) r => Sem (JwtTools ': r) a -> Sem r a
 interpretJwtTools = interpret $ \(GenerateDPoPAccessToken pr ci n uri method skew ex now pem) -> do
-  case readHex @Word16 (cs $ client $ ciClient ci) of
+  case readHex @Word64 (cs $ client $ ciClient ci) of
     [(parsedClientId, "")] ->
       mapLeft RustError
         <$> runExceptT

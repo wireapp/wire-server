@@ -12,6 +12,7 @@
 , exceptions
 , gitignoreSource
 , http-types
+, http2
 , imports
 , kan-extensions
 , lib
@@ -22,7 +23,6 @@
 , servant-server
 , streaming-commons
 , string-conversions
-, swagger
 , swagger2
 , text
 , tinylog
@@ -47,6 +47,7 @@ mkDerivation {
     errors
     exceptions
     http-types
+    http2
     imports
     kan-extensions
     metrics-core
@@ -56,7 +57,6 @@ mkDerivation {
     servant-server
     streaming-commons
     string-conversions
-    swagger
     swagger2
     text
     tinylog

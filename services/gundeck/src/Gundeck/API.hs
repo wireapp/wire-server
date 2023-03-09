@@ -20,11 +20,10 @@ module Gundeck.API
   )
 where
 
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Gundeck.API.Internal as Internal
 import Gundeck.Monad (Gundeck)
 import Network.Wai.Routing (Routes)
 
-sitemap :: Routes Doc.ApiBuilder Gundeck ()
+sitemap :: Routes () Gundeck ()
 sitemap = do
   Internal.sitemap

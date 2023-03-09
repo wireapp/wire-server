@@ -1,0 +1,465 @@
+#!/usr/bin/env python3
+
+from dataclasses import dataclass, replace
+import logging
+import os
+import re
+import select
+import signal
+import shutil
+import socket
+import subprocess
+import yaml
+import sys
+import tempfile
+import time
+import traceback
+import threading
+import requests
+
+@dataclass
+class SpawnFailException(Exception):
+    failed_instances: object
+    failing_status_responses: object
+
+class Colors:
+    GREEN = "\x1b[38;5;10m"
+    YELLOW = "\x1b[38;5;11m"
+    BLUE = "\x1b[38;5;6m"
+    PURPLEISH = "\x1b[38;5;13m"
+    ORANGE = "\x1b[38;5;3m"
+    RED = "\x1b[38;5;1m"
+    RESET = "\x1b[0m"
+
+@dataclass(frozen=True)
+class Service:
+    name: str
+    color: str
+    _internal_name: str = None
+    check_status: bool = True
+    level: str = None
+    config: str = None
+
+    def with_level(self, level=None):
+        if level is None:
+            level = os.environ.get("INTEGRATION_{self.name.capitalize()}_LEVEL")
+        return replace(self, level=level)
+
+    @property
+    def internal_name(self):
+        if self._internal_name is None:
+            return self.name
+        else:
+            return self._internal_name
+    
+    def path(self):
+        return os.path.join(ROOT, "dist", self.name)
+
+    def config_file(self):
+        if self.config is None:
+            base = self.name
+        else:
+            base = self.config
+        return os.path.join(ROOT, "services", self.name,
+                            base + ".integration.yaml")
+
+
+    def spawn(self, config_file, environment):
+        return subprocess.Popen([self.path(), "-c", config_file],
+                               encoding='utf-8',
+                               cwd=os.path.join(ROOT, "services", self.name),
+                               env=environment,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
+
+    def check_exists(self):
+        if not os.path.exists(self.path()):
+            raise Exception(f"{self.name} not found")
+
+@dataclass(frozen=True)
+class Nginz:
+    color: str
+    level: str = None
+
+    @property
+    def name(self): return "nginz"
+
+    @property
+    def internal_name(self): return self.name
+
+    @property
+    def check_status(self): return True
+
+    def config_file(self):
+        return os.path.join(ROOT, "services", "nginz", "integration-test",
+                            "conf", "nginz","nginx.conf")
+
+    def spawn(self, config_file, environment):
+        cwd = os.path.join(ROOT, "services", "nginz", "integration-test")
+        return subprocess.Popen([shutil.which("nginx"), "-p", cwd, "-c",
+                                config_file,
+                                "-g", "daemon off;"],
+                                encoding='utf-8', cwd=cwd, env=environment,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+
+    def check_exists(self):
+        if shutil.which("nginx") is None:
+            raise Exception("nginx not found")
+
+@dataclass
+class StatusResponse:
+    http_response: object = None
+    good_status: list[int] = None
+
+    def __bool__(self):
+        if self.http_response is None:
+            return False
+        else:
+            return self.http_response.status_code in self.good_status
+
+
+@dataclass(frozen=True)
+class Instance:
+    service: Service
+    port: int
+    thread: threading.Thread = None
+    process: subprocess.Popen = None
+    exception: Exception = None
+
+    def check_status(self):
+        self.process.poll()
+        if self.process.returncode is not None:
+            raise Exception(f"{self.service.name} has terminated")
+        if not self.service.check_status:
+            return True
+        try:
+            resp = requests.get(f"http://localhost:{self.port}/i/status")
+            return StatusResponse(resp, [200, 204])
+        except Exception as e:
+            return False
+
+    def spawn(self, service_map, environment, suffix, domain, backend_name):
+        try:
+            config_file = self.modified_config_file(service_map, suffix, domain)
+            sub = self.service.spawn(config_file, environment)
+            t = threading.Thread(target=lambda: color_output(sub, self.service, backend_name))
+            t.start()
+            return Instance(self.service, self.port, t, sub)
+        except Exception as e:
+            return Instance(self.service, self.port, exception=e)
+
+    def modified_config_file(self, service_map, suffix, domain):
+        """Overwrite port configuration on this service using the provided
+        service_map.
+
+        This works by creating an unnamed pipe, writing the modified config
+        file to it, and returning a path to the read end of the pipe (in
+        /proc)."""
+
+        with open(self.service.config_file()) as f:
+            data = yaml.safe_load(f)
+
+        # set ports of other services
+        for service in service_map:
+            if service.internal_name in data:
+                data[service.internal_name]['port'] = service_map[service]
+
+        # set cassandra keyspace
+        if 'cassandra' in data:
+            data['cassandra']['keyspace'] = f"{self.service.name}_test{suffix}"
+
+        # set elasticseach index
+        if 'elasticsearch' in data:
+            data['elasticsearch']['index'] = f"directory{suffix}_test"
+
+        # set federation domain
+        if 'optSettings' in data:
+            data['optSettings']['setFederationDomain'] = domain
+        elif 'settings' in data:
+            data['settings']['federationDomain'] = domain
+
+        # set log level
+        if self.service.level is not None:
+            if 'logLevel' in data:
+                data['logLevel'] = self.service.level
+            elif 'saml' in data:
+                data['saml']['logLevel'] = self.service.level
+
+        self.set_own_port(data)
+
+        # write modified config file to pipe
+        return make_pipe(yaml.dump(data).encode('utf-8'))
+
+    def set_own_port(self, data):
+        # spar's own port is in a different place
+        if self.service.name == 'spar':
+            data['saml']['spPort'] = self.port
+        elif self.service.name in data:
+            data[self.service.name]['port'] = self.port
+
+class DummyInstance(Instance):
+    def spawn(self, service_map, environment, suffix, domain, backend_name):
+        return self
+
+    def modified_config_file(self, service_map, suffix, domain):
+        return ""
+
+    def check_status(self):
+        return True
+
+class FederatorInstance(Instance):
+    def __init__(self, internal_port, external_port):
+        self.external_port = external_port
+        super().__init__(FEDERATOR, internal_port)
+
+    def set_own_port(self, data):
+        # set external port only, as the internal one is part of the service
+        # map and is set by the general config logic
+        data['federatorExternal']['port'] = self.external_port
+
+class NginzInstance(Instance):
+    def __init__(self, local_port, http2_port, ssl_port, fed_port):
+        self.http2_port = http2_port
+        self.ssl_port = ssl_port
+        self.fed_port = fed_port
+        super().__init__(NGINZ, local_port)
+
+    def modified_config_file(self, service_map, suffix, domain):
+        # Create a whole temporary directory and copy all nginx's config files.
+        # This is necessary because nginx assumes local imports are relative to
+        # the location of the main configuration file.
+        self.tmpdir = tempfile.TemporaryDirectory()
+        shutil.copytree(os.path.dirname(self.service.config_file()),
+                        self.tmpdir.name,
+                        dirs_exist_ok=True)
+
+        # override port configuration
+        with open(os.path.join(self.tmpdir.name, "integration.conf"), 'w') as f:
+            override = f"""
+                listen {self.port};
+                listen {self.http2_port} http2;
+                listen {self.ssl_port} ssl http2;
+                listen [::]:{self.ssl_port} ssl http2;"""
+            print(override, file=f)
+
+        # override upstreams
+        with open(os.path.join(self.tmpdir.name, "upstreams"), 'w') as f:
+            for service, port in service_map.items():
+                print(f"upstream {service.internal_name} {{", file=f)
+                print(f"  least_conn;", file=f)
+                print(f"  keepalive 32;", file=f)
+                print(f"  server 127.0.0.1:{port} max_fails=3 weight=1;", file=f)
+                print("}", file=f)
+            print("upstream federator_external {", file=f)
+            print(f"  server 127.0.0.1:{self.fed_port} max_fails=3 weight=1;", file=f)
+            print("}", file=f)
+
+        # override pid configuration
+        with open(os.path.join(self.tmpdir.name, "pid.conf"), 'w') as f:
+            pid = os.path.join(self.tmpdir.name, "nginz.pid")
+            print(f"pid {pid};", file=f)
+
+        return os.path.join(self.tmpdir.name, "nginx.conf")
+
+def check_prerequisites(services):
+    try:
+        for port in (9042, 9200, 6379):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect(("127.0.0.1", port))
+    except Exception as e:
+        logging.error(f"{Colors.RED}Databases not up. Try running 'deploy/dockerephemeral/run.sh'. {Colors.RESET}")
+        sys.exit(1)
+
+    try:
+        for service in services:
+            service.check_exists()
+    except Exception as e:
+        logging.error(Colors.RED + str(e) + Colors.RESET)
+        sys.exit(1)
+
+def color_output(sub, service, backend_name):
+    if backend_name is not None:
+        backend_name = "@" + backend_name
+    try:
+        for line in sub.stdout:
+            logging.info(f"{service.color}[{service.name}{backend_name}] {line.rstrip()}{Colors.RESET}")
+    finally:
+        sub.terminate()
+        sub.wait()
+
+def find_root(base):
+    # find git repository
+    root = os.path.realpath(base)
+    while not os.path.exists(os.path.join(root, ".git")):
+        p = os.path.dirname(root)
+        if p == root: raise Exception("Could not find wire-server root")
+        root = p
+    return root
+
+def make_pipe(data):
+    (r, w) = os.pipe()
+    os.write(w, data)
+    os.close(w)
+    return f"/proc/{os.getpid()}/fd/{r}"
+
+def cleanup_instances(instances):
+    for instance in instances:
+        if instance.process is None: continue
+        instance.process.terminate()
+
+    for instance in instances:
+        if instance.thread is None: continue
+        instance.thread.join(timeout=0.1)
+        # some services don't react promptly to SIGTERM, so we give them a
+        # nudge if they don't terminate within a few milliseconds
+        if instance.thread.is_alive():
+            instance.process.terminate()
+            instance.thread.join(timeout=0.1)
+        if instance.thread.is_alive():
+            print("force-killing", instance.service.name)
+            instance.process.send_signal(signal.SIGKILl)
+            instance.thread.join()
+
+def start_backend(services, suffix, domain, backend_name):
+    # build a service map by choosing an arbitrary instance of each service
+    service_map = dict((s.service, s.port) for s in services)
+
+    instances = set()
+    for blueprint in services:
+        instances.add(blueprint.spawn(service_map, environment, suffix, domain, backend_name))
+
+    failed_instances = [instance for instance in instances
+                        if instance.exception is not None]
+
+    # check instances
+    to_be_checked = [instance for instance in instances
+                     if instance.exception is None]
+
+    failing_status_responses = {}
+
+    start_time = time.time()
+    while to_be_checked:
+        if time.time() - start_time >= 5:
+            print(f"{Colors.RED}Timeout while spawing services{Colors.RESET}")
+            failed_instances.extend(to_be_checked)
+            break
+
+        to_be_checked_again = set()
+        for instance in to_be_checked:
+            try:
+                status = instance.check_status()
+                if not status:
+                    to_be_checked_again.add(instance)
+                    failing_status_responses[instance] = status
+            except Exception as e:
+                failed_instances.append(replace(instance, exception=e))
+
+        to_be_checked = to_be_checked_again
+        time.sleep(0.05)
+
+    # TODO: elapse timeout so that the timeout thread doesn't hold up the
+    # process
+
+    if failed_instances:
+        cleanup_instances(instances)
+        raise SpawnFailException(failed_instances, failing_status_responses)
+
+    return instances
+
+ENABLE_FEDERATION = os.environ.get("INTEGRATION_FEDERATION_TESTS") == "1"
+LEVEL = os.environ.get("INTEGRATION_LEVEL")
+BRIG = Service("brig", Colors.GREEN).with_level(LEVEL)
+GALLEY = Service("galley", Colors.YELLOW).with_level(LEVEL)
+GUNDECK = Service("gundeck", Colors.BLUE).with_level(LEVEL)
+CANNON = Service("cannon", Colors.ORANGE).with_level(LEVEL)
+CANNON2 = Service("cannon", Colors.ORANGE,
+                  "cannon2", config="cannon2").with_level(LEVEL)
+CARGOHOLD = Service("cargohold", Colors.PURPLEISH).with_level(LEVEL)
+SPAR = Service("spar", Colors.ORANGE).with_level(LEVEL)
+FEDERATOR = Service("federator", Colors.BLUE,
+                    "federatorInternal",
+                    check_status=False).with_level(LEVEL)
+STERN = Service("stern", Colors.YELLOW).with_level(LEVEL)
+PROXY = Service("proxy", Colors.RED).with_level(LEVEL)
+NGINZ = Nginz(Colors.PURPLEISH)
+
+if __name__ == '__main__':
+    logging.basicConfig(encoding='utf-8', level=logging.INFO,
+                        format='%(message)s')
+    ROOT = find_root(os.getcwd())
+    if ROOT is None:
+        error("This script needs to be run within the wire-server direnv")
+
+    environment = {
+        'AWS_REGION': "eu-west-1",
+        'AWS_ACCESS_KEY_ID': "dummykey",
+        'AWS_SECRET_ACCESS_KEY': "dummysecret"
+    }
+
+    backend_a = [
+        Instance(BRIG, 8082),
+        Instance(GALLEY, 8085),
+        Instance(GUNDECK, 8086),
+        Instance(CANNON, 8083),
+        Instance(CANNON2, 8183),
+        Instance(CARGOHOLD, 8084),
+        Instance(SPAR, 8088),
+        DummyInstance(PROXY, 8087),
+        FederatorInstance(8097, 8098),
+        NginzInstance(
+            local_port=8080,
+            http2_port=8090,
+            ssl_port=8443,
+            fed_port=8098)
+    ]
+
+    backend_b = [
+        Instance(BRIG, 9082),
+        Instance(GALLEY, 9085),
+        Instance(GUNDECK, 9086),
+        Instance(CANNON, 9083),
+        Instance(CANNON2, 9183),
+        Instance(CARGOHOLD, 9084),
+        Instance(SPAR, 9088),
+        DummyInstance(PROXY, 9087),
+        FederatorInstance(9097, 9098),
+        NginzInstance(
+            local_port=9080,
+            http2_port=9090,
+            ssl_port=9443,
+            fed_port=9098)
+    ]
+
+    check_prerequisites(set(s.service for s in backend_a))
+
+    try:
+        instances = set()
+        instances |= start_backend(backend_a, "", "example.com", "A")
+        if ENABLE_FEDERATION:
+            instances |= start_backend(backend_b, "2", "b.example.com", "B")
+
+        # run main script or just wait forever
+        if len(sys.argv) == 1:
+            print("(This will hang, Control+C to close.)")
+            print("Now you can manually curl them or start an integration test executable manually with e.g. \n(first cd to a service dir for correct working directory)\n  cd services/brig && ../../dist/brig-integration -s brig.integration.yaml -i ../integration.yaml")
+            signal.pause()
+        else:
+            ret = subprocess.run(sys.argv[1:],
+                                 env=dict(list(os.environ.items()) +
+                                          list(environment.items())))
+            sys.exit(ret.returncode)
+    except KeyboardInterrupt:
+        pass
+    except SpawnFailException as e:
+        print(f"{Colors.RED}The following services failed to start:{Colors.RESET}")
+        for instance in e.failed_instances:
+            print(f"{instance.service.name} at port {instance.port}" +
+                 (f" ({instance.exception})" if instance.exception else ""))
+
+        for instance, status in e.failing_status_responses.items():
+            if isinstance(status, StatusResponse):
+                print(f"{instance.service.name} responded with status " +
+                      "{status.http_response.status_code} and body:\n " + status.http_response.text)
+    finally:
+        cleanup_instances(instances)

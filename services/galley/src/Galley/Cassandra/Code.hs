@@ -35,7 +35,10 @@ import Polysemy
 import Polysemy.Input
 
 interpretCodeStoreToCassandra ::
-  Members '[Embed IO, Input ClientState, Input Env] r =>
+  ( Member (Embed IO) r,
+    Member (Input ClientState) r,
+    Member (Input Env) r
+  ) =>
   Sem (CodeStore ': r) a ->
   Sem r a
 interpretCodeStoreToCassandra = interpret $ \case

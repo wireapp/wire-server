@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -60,7 +63,7 @@ changeEmailBrig brig usr newEmail = do
       Auth.PasswordLogin $
         Auth.PasswordLoginData (Auth.LoginByEmail e) pw cl Nothing
 
-    login :: Auth.Login -> Auth.CookieType -> (MonadIO m, MonadHttp m) => m ResponseLBS
+    login :: Auth.Login -> Auth.CookieType -> MonadHttp m => m ResponseLBS
     login l t =
       post $
         brig
@@ -78,7 +81,7 @@ changeEmailBrig brig usr newEmail = do
       fromByteString (encodeUtf8 t)
 
 changeEmailBrigCreds ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   BrigReq ->
   Cookie ->
   ZAuth.Token ZAuth.Access ->
@@ -100,7 +103,7 @@ forceCookie :: Cookie -> Request -> Request
 forceCookie cky = header "Cookie" $ cookie_name cky <> "=" <> cookie_value cky
 
 activateEmail ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadCatch m, MonadIO m, HasCallStack) =>
   BrigReq ->
   Email ->
   MonadHttp m => m ()
@@ -114,7 +117,7 @@ activateEmail brig email = do
         const (Just False) === fmap activatedFirst . responseJsonMaybe
 
 failActivatingEmail ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadCatch m, MonadIO m, HasCallStack) =>
   BrigReq ->
   Email ->
   MonadHttp m => m ()
@@ -135,7 +138,7 @@ checkEmail uid expectedEmail = do
       const expectedEmail === (userEmail <=< responseJsonMaybe)
 
 activate ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadHttp m, HasCallStack) =>
   BrigReq ->
   ActivationPair ->
   m ResponseLBS
@@ -147,7 +150,7 @@ activate brig (k, c) =
       . queryItem "code" (toByteString' c)
 
 getActivationCode ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  (MonadCatch m, MonadHttp m, HasCallStack) =>
   BrigReq ->
   Either Email Phone ->
   m (Maybe (ActivationKey, ActivationCode))

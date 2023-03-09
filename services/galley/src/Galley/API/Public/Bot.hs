@@ -24,4 +24,4 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Bot
 
 botAPI :: API BotAPI GalleyEffects
-botAPI = mkNamedAPI @"post-bot-message-unqualified" (callsFed (callsFed postBotMessageUnqualified))
+botAPI = mkNamedAPI @"post-bot-message-unqualified" (callsFed (exposeAnnotations postBotMessageUnqualified))

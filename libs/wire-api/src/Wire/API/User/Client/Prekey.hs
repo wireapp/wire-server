@@ -29,9 +29,6 @@ module Wire.API.User.Client.Prekey
     lastPrekeyId,
     PrekeyBundle (..),
     ClientPrekey (..),
-
-    -- * Swagger
-    modelPrekey,
   )
 where
 
@@ -40,7 +37,6 @@ import Data.Hashable (hash)
 import Data.Id
 import Data.Schema
 import qualified Data.Swagger as S
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -58,15 +54,6 @@ data Prekey = Prekey
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Prekey)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema Prekey
-
--- FUTUREWORK: Remove when 'NewClient' has ToSchema
-modelPrekey :: Doc.Model
-modelPrekey = Doc.defineModel "Prekey" $ do
-  Doc.description "Prekey"
-  Doc.property "id" Doc.int32' $
-    Doc.description "Prekey ID"
-  Doc.property "key" Doc.bytes' $
-    Doc.description "Prekey data"
 
 instance ToSchema Prekey where
   schema =

@@ -51,13 +51,13 @@
 , servant-client
 , servant-client-core
 , servant-server
-, swagger
 , tagged
 , tasty
 , tasty-hunit
 , text
 , time
 , tinylog
+, transitive-anns
 , types-common
 , types-common-aws
 , unliftio
@@ -116,10 +116,10 @@ mkDerivation {
     safe
     servant
     servant-server
-    swagger
     text
     time
     tinylog
+    transitive-anns
     types-common
     types-common-aws
     unliftio

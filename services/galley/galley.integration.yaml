@@ -72,8 +72,14 @@ settings:
       defaults:
         status: disabled
         lockStatus: locked
+    mlsE2EId:
+      defaults:
+        status: disabled
+        config:
+          verificationExpiration: null
+        lockStatus: unlocked
 
-logLevel: Info
+logLevel: Warn
 logNetStrings: false
 
 journal: # if set, journals; if not set, disables journaling

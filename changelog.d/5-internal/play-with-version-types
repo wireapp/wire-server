@@ -1,0 +1,1 @@
+Introduce VersionNumber newtype (see `/libs/wire-api/src/Wire/API/Routes/Version.hs` for explanation)

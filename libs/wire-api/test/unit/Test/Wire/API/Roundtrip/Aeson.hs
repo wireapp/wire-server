@@ -46,6 +46,9 @@ import qualified Wire.API.Provider.External as Provider.External
 import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Provider.Service.Tag as Provider.Service.Tag
 import qualified Wire.API.Push.Token as Push.Token
+import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as TeamsIntra
+import qualified Wire.API.Routes.Version as Routes.Version
+import qualified Wire.API.SystemSettings as SystemSettings
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
 import qualified Wire.API.Team.Feature as Team.Feature
@@ -179,6 +182,9 @@ tests =
       testRoundTrip @Push.Token.PushToken,
       testRoundTrip @Push.Token.PushTokenList,
       testRoundTrip @Scim.CreateScimToken,
+      testRoundTrip @SystemSettings.SystemSettings,
+      testRoundTrip @SystemSettings.SystemSettingsPublic,
+      testRoundTrip @SystemSettings.SystemSettingsInternal,
       testRoundTrip @Team.BindingNewTeam,
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
@@ -310,7 +316,14 @@ tests =
       testRoundTrip @User.Search.PagingState,
       testRoundTrip @User.Search.TeamContact,
       testRoundTrip @(Wrapped.Wrapped "some_int" Int),
-      testRoundTrip @Conversation.Action.SomeConversationAction
+      testRoundTrip @Conversation.Action.SomeConversationAction,
+      testRoundTrip @Routes.Version.Version,
+      testRoundTrip @Routes.Version.VersionNumber,
+      testRoundTrip @TeamsIntra.GuardLegalholdPolicyConflicts,
+      testRoundTrip @TeamsIntra.TeamStatus,
+      testRoundTrip @TeamsIntra.TeamStatusUpdate,
+      testRoundTrip @TeamsIntra.TeamData,
+      testRoundTrip @TeamsIntra.TeamName
     ]
 
 testRoundTrip ::

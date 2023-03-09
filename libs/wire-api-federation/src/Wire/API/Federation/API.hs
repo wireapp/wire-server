@@ -1,3 +1,6 @@
+-- Disabling to stop warnings on HasCallStack
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -52,7 +55,7 @@ type instance FedApi 'Brig = BrigApi
 
 type instance FedApi 'Cargohold = CargoholdApi
 
-type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name, CallsFed comp name)
+type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name)
 
 -- | Like 'HasFedEndpoint', but doesn't propagate a 'CallsFed' constraint.
 -- Useful for tests, but unsafe in the sense that incorrect usage will allow
@@ -60,9 +63,15 @@ type HasFedEndpoint comp api name = (HasUnsafeFedEndpoint comp api name, CallsFe
 type HasUnsafeFedEndpoint comp api name = 'Just api ~ LookupEndpoint (FedApi comp) name
 
 -- | Return a client for a named endpoint.
+--
+-- This function introduces an 'AddAnnotation' constraint, which is
+-- automatically solved by the @transitive-anns@ plugin, and pushes the
+-- resulting information around in a side-channel. See the documentation at
+-- 'Wire.API.MakesFederatedCall.exposeAnnotations' for a better understanding
+-- of the information flow here.
 fedClient ::
-  forall (comp :: Component) (name :: Symbol) m api.
-  (CallsFed comp name, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
+  forall (comp :: Component) (name :: Symbol) m (showcomp :: Symbol) api x.
+  (AddAnnotation 'Remote showcomp name x, showcomp ~ ShowComponent comp, HasFedEndpoint comp api name, HasClient m api, m ~ FederatorClient comp) =>
   Client m api
 fedClient = clientIn (Proxy @api) (Proxy @m)
 
@@ -72,7 +81,7 @@ fedClientIn ::
   Client m api
 fedClientIn = clientIn (Proxy @api) (Proxy @m)
 
--- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Inteded
+-- | Like 'fedClientIn', but doesn't propagate a 'CallsFed' constraint. Intended
 -- to be used in test situations only.
 unsafeFedClientIn ::
   forall (comp :: Component) (name :: Symbol) m api.

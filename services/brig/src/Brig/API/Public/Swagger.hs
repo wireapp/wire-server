@@ -1,9 +1,15 @@
 module Brig.API.Public.Swagger
   ( VersionedSwaggerDocsAPI,
+    InternalEndpointsSwaggerDocsAPI,
+    VersionedSwaggerDocsAPIBase,
+    SwaggerDocsAPIBase,
+    ServiceSwaggerDocsAPIBase,
     DocsAPI,
     pregenSwagger,
     swaggerPregenUIServer,
     eventNotificationSchemas,
+    adjustSwaggerForInternalEndpoint,
+    emptySwagger,
   )
 where
 
@@ -11,12 +17,15 @@ import Control.Lens
 import qualified Data.Aeson as A
 import Data.FileEmbed
 import qualified Data.HashMap.Strict.InsOrd as HM
+import qualified Data.HashSet.InsOrd as InsOrdSet
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Declare as S
 import qualified Data.Text as T
 import FileEmbedLzma
+import GHC.TypeLits
 import Imports hiding (head)
 import Language.Haskell.TH
+import Network.Socket
 import Servant
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
@@ -25,25 +34,77 @@ import qualified Wire.API.Event.FeatureConfig
 import qualified Wire.API.Event.Team
 import Wire.API.Routes.Version
 
-type VersionedSwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
+type SwaggerDocsAPIBase = SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> VersionedSwaggerDocsAPIBase
+type VersionedSwaggerDocsAPI = "api" :> Header VersionHeader Version :> SwaggerDocsAPIBase
+
+type ServiceSwaggerDocsAPIBase service = SwaggerSchemaUI service (AppendSymbol service "-swagger.json")
+
+type VersionedSwaggerDocsAPIBase service = Header VersionHeader Version :> ServiceSwaggerDocsAPIBase service
+
+type InternalEndpointsSwaggerDocsAPI =
+  "api-internal"
+    :> "swagger-ui"
+    :> ( VersionedSwaggerDocsAPIBase "brig"
+           :<|> VersionedSwaggerDocsAPIBase "cannon"
+           :<|> VersionedSwaggerDocsAPIBase "cargohold"
+           :<|> VersionedSwaggerDocsAPIBase "galley"
+           :<|> VersionedSwaggerDocsAPIBase "spar"
+       )
 
 type NotificationSchemasAPI = "api" :> "event-notification-schemas" :> Get '[JSON] [S.Definitions S.Schema]
 
-type DocsAPI = VersionedSwaggerDocsAPI :<|> NotificationSchemasAPI
+type DocsAPI = VersionedSwaggerDocsAPI :<|> NotificationSchemasAPI :<|> InternalEndpointsSwaggerDocsAPI
 
 pregenSwagger :: Version -> Q Exp
 pregenSwagger v =
   embedLazyByteString
     =<< makeRelativeToProject
-      ("docs/swagger-v" <> T.unpack (toUrlPiece v) <> ".json")
+      ("docs/swagger-v" <> T.unpack (toUrlPiece (VersionNumber v)) <> ".json")
 
-swaggerPregenUIServer :: LByteString -> Server VersionedSwaggerDocsAPIBase
+swaggerPregenUIServer :: LByteString -> Server SwaggerDocsAPIBase
 swaggerPregenUIServer =
   swaggerSchemaUIServer
     . fromMaybe A.Null
     . A.decode
+
+adjustSwaggerForInternalEndpoint :: String -> PortNumber -> S.Swagger -> S.Swagger
+adjustSwaggerForInternalEndpoint service examplePort swagger =
+  swagger
+    & S.info . S.title .~ T.pack ("Wire-Server internal API (" ++ service ++ ")")
+    & S.info . S.description ?~ renderedDescription
+    & S.host ?~ S.Host "localhost" (Just examplePort)
+    & S.allOperations . S.tags <>~ tag
+    -- Enforce HTTP as the services themselves don't understand HTTPS
+    & S.schemes ?~ [S.Http]
+    & S.allOperations . S.schemes ?~ [S.Http]
+  where
+    tag :: InsOrdSet.InsOrdHashSet S.TagName
+    tag = InsOrdSet.singleton @S.TagName (T.pack service)
+
+    renderedDescription :: Text
+    renderedDescription =
+      T.pack . Imports.unlines $
+        [ "To have access to this *internal* endpoint, create a port forwarding to `"
+            ++ service
+            ++ "` into the Kubernetes cluster. E.g.:",
+          "```",
+          "kubectl port-forward -n wire service/"
+            ++ service
+            ++ " "
+            ++ show examplePort
+            ++ ":8080",
+          "```",
+          "**N.B.:** Execution via this UI won't work due to CORS issues."
+            ++ " But, the proposed `curl` commands will."
+        ]
+
+emptySwagger :: Servant.Server (ServiceSwaggerDocsAPIBase a)
+emptySwagger =
+  swaggerSchemaUIServer $
+    mempty @S.Swagger
+      & S.info . S.description
+        ?~ "There is no Swagger documentation for this version. Please refer to v3 or later."
 
 {- FUTUREWORK(fisx): there are a few things that need to be fixed before this schema collection
    is of any practical use!

@@ -30,11 +30,9 @@ nullKeyPackageRef :: KeyPackageRef
 nullKeyPackageRef = KeyPackageRef (BS.replicate 16 0)
 
 derefKeyPackage ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'MLSKeyPackageRefNotFound
-     ]
-    r =>
+  ( Member BrigAccess r,
+    Member (ErrorS 'MLSKeyPackageRefNotFound) r
+  ) =>
   KeyPackageRef ->
   Sem r ClientIdentity
 derefKeyPackage = noteS @'MLSKeyPackageRefNotFound <=< getClientByKeyPackageRef

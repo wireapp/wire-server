@@ -32,8 +32,9 @@
 , servant-swagger-ui
 , split
 , string-conversions
-, swagger
 , swagger2
+, tasty
+, tasty-hunit
 , text
 , tinylog
 , transformers
@@ -84,7 +85,6 @@ mkDerivation {
     servant-swagger-ui
     split
     string-conversions
-    swagger
     swagger2
     text
     tinylog
@@ -109,6 +109,7 @@ mkDerivation {
     types-common
     unliftio
   ];
+  testHaskellDepends = [ base tasty tasty-hunit wire-api ];
   license = lib.licenses.agpl3Only;
   mainProgram = "stern";
 }

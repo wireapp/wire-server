@@ -1415,7 +1415,7 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
 
 postMessage ::
   Galley ->
@@ -1977,7 +1977,7 @@ mkMessage fromc rcps =
     ]
   where
     mk (u, c, m) = (text u, HashMap.singleton (text c) m)
-    text :: (FromByteString a, ToByteString a) => a -> Text
+    text :: ToByteString a => a -> Text
     text = fromJust . fromByteString . toByteString'
 
 -- | A list of 20 services, all having names that begin with the given prefix.

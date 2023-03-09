@@ -58,8 +58,7 @@ instance
   route _p ctx d = route (Proxy :: Proxy (ReqBody cts (Versioned v a) :> api)) ctx (fmap (. unVersioned) d)
 
 instance
-  ( HasSwagger (ReqBody' '[Required, Strict] cts a :> api),
-    S.ToSchema (Versioned v a),
+  ( S.ToSchema (Versioned v a),
     HasSwagger api,
     AllAccept cts
   ) =>

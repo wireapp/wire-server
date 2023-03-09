@@ -192,7 +192,7 @@ runTests iConf brigOpts otherArgs = do
     mkVersionedRequest endpoint = addPrefix . mkRequest endpoint
 
     addPrefix :: Request -> Request
-    addPrefix r = r {HTTP.path = "v" <> toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}
+    addPrefix r = r {HTTP.path = toHeader latestVersion <> "/" <> removeSlash (HTTP.path r)}
       where
         removeSlash s = case B8.uncons s of
           Just ('/', s') -> s'

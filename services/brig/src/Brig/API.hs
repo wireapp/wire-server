@@ -29,26 +29,21 @@ import Brig.Effects.CodeStore
 import Brig.Effects.GalleyProvider (GalleyProvider)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
-import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
 import Wire.Sem.Concurrency
 
 sitemap ::
   forall r p.
-  ( Members
-      '[ BlacklistPhonePrefixStore,
-         BlacklistStore,
-         GalleyProvider,
-         CodeStore,
-         Concurrency 'Unsafe,
-         PasswordResetStore,
-         UserPendingActivationStore p
-       ]
-      r
+  ( Member BlacklistPhonePrefixStore r,
+    Member BlacklistStore r,
+    Member GalleyProvider r,
+    Member CodeStore r,
+    Member (Concurrency 'Unsafe) r,
+    Member PasswordResetStore r,
+    Member (UserPendingActivationStore p) r
   ) =>
-  Routes Doc.ApiBuilder (Handler r) ()
+  Routes () (Handler r) ()
 sitemap = do
   Public.sitemap
-  Public.apiDocs
   Internal.sitemap

@@ -372,7 +372,8 @@ in
       pkgs.kind
       pkgs.netcat
       pkgs.niv
-      pkgs.python3
+      (pkgs.python3.withPackages
+        (ps: with ps; [ pyyaml requests ]))
       pkgs.rsync
       pkgs.wget
       pkgs.yq

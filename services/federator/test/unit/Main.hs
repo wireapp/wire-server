@@ -21,6 +21,7 @@ module Main
 where
 
 import Imports
+import OpenSSL (withOpenSSL)
 import qualified Test.Federator.Client
 import qualified Test.Federator.ExternalServer
 import qualified Test.Federator.InternalServer
@@ -33,15 +34,16 @@ import Test.Tasty
 
 main :: IO ()
 main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Federator.Options.tests,
-        Test.Federator.Validation.tests,
-        Test.Federator.Client.tests,
-        Test.Federator.InternalServer.tests,
-        Test.Federator.ExternalServer.tests,
-        Test.Federator.Monitor.tests,
-        Test.Federator.Remote.tests,
-        Test.Federator.Response.tests
-      ]
+  withOpenSSL $
+    defaultMain $
+      testGroup
+        "Tests"
+        [ Test.Federator.Options.tests,
+          Test.Federator.Validation.tests,
+          Test.Federator.Client.tests,
+          Test.Federator.InternalServer.tests,
+          Test.Federator.ExternalServer.tests,
+          Test.Federator.Monitor.tests,
+          Test.Federator.Remote.tests,
+          Test.Federator.Response.tests
+        ]

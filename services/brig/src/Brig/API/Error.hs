@@ -171,11 +171,14 @@ clientError ClientMissingLegalholdConsent = StdError (errorToWai @'E.MissingLega
 clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
 clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 
+-- Note that UnknownError, FfiError, and ImplementationError semantically should rather be 500s than 400s.
+-- However, the errors returned from the FFI are not always correct,
+-- and we don't want to bombard our environments with 500 log messages, so we treat them as 400s, for now.
 certEnrollmentError :: CertEnrollmentError -> Error
-certEnrollmentError (RustError NoError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation. Unexpected NoError."
-certEnrollmentError (RustError UnknownError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation. Unknown error."
-certEnrollmentError (RustError FfiError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation"
-certEnrollmentError (RustError ImplementationError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation. Unexpected ImplementationError."
+certEnrollmentError (RustError NoError) = StdError $ Wai.mkError status400 "internal-error" "The server experienced an internal error during DPoP token generation. Unexpected NoError."
+certEnrollmentError (RustError UnknownError) = StdError $ Wai.mkError status400 "internal-error" "The server experienced an internal error during DPoP token generation. Unknown error."
+certEnrollmentError (RustError FfiError) = StdError $ Wai.mkError status400 "internal-error" "The server experienced an internal error during DPoP token generation"
+certEnrollmentError (RustError ImplementationError) = StdError $ Wai.mkError status400 "internal-error" "The server experienced an internal error during DPoP token generation. Unexpected ImplementationError."
 certEnrollmentError (RustError DpopSyntaxError) = StdError $ Wai.mkError status400 "client-token-parse-error" "The client JWT DPoP could not be parsed"
 certEnrollmentError (RustError DpopTypError) = StdError $ Wai.mkError status400 "client-token-type-error" "The client JWT DPoP 'typ' must be 'dpop+jwt'"
 certEnrollmentError (RustError DpopUnsupportedAlgorithmError) = StdError $ Wai.mkError status400 "client-token-unsupported-alg" "DPoP signature algorithm (alg) in JWT header is not a supported algorithm (ES256, ES384, Ed25519)"
@@ -295,8 +298,8 @@ activationCodeNotFound = invalidActivationCode "Activation key/code not found or
 deletionCodePending :: Wai.Error
 deletionCodePending = Wai.mkError status403 "pending-delete" "A verification code for account deletion is still pending."
 
-whitelistError :: Wai.Error
-whitelistError = Wai.mkError status403 "unauthorized" "Unauthorized e-mail address or phone number."
+allowlistError :: Wai.Error
+allowlistError = Wai.mkError status403 "unauthorized" "Unauthorized e-mail address or phone number."
 
 blacklistedEmail :: Wai.Error
 blacklistedEmail =
