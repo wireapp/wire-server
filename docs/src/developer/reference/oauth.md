@@ -254,6 +254,8 @@ brig:
       setOAuthEnabled: true
 ```
 
+#### Setting up public and private keys
+
 To use the OAuth functionality, you will need to set up a public and private JSON web key pair (JWK) in the wire-server Helm chart. This key pair will be used to sign and verify OAuth access tokens.
 
 Key can be generated e.g. with [jwx](https://github.com/lestrrat-go/jwx/tree/develop/v2/cmd/jwx) like this:
@@ -264,7 +266,7 @@ jwx jwk generate --type OKP --curve Ed25519 | jq -c
 
 `jwx` is available via nix: `nix-shell -p jwx`.
 
-To configure the JWK, go to the wire-server Helm chart and provide the JWK information, as shown in the example below:
+To configure the JWK, go to the wire-server Helm chart and provide the JWK information, private and public key set for `brig` and the public key for `nginz`, as in the examples below:
 
 ```yaml
 # values.yaml or secrets.yaml
@@ -277,6 +279,19 @@ brig:
         "x": "...",
         "d": "..."
       }
+```
+
+```yaml
+# values.yaml or secrets.yaml
+nginz:
+  secrets:
+    oAuth:
+      publicKeys: |
+        {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "..."
+        }
 ```
 
 Note that the JWK is a sensitive configuration value, so it is recommended to use Helm's support for managing secrets instead of including it in a plaintext `values.yaml` file.
