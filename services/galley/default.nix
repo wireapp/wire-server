@@ -117,6 +117,7 @@
 , unordered-containers
 , uri-bytestring
 , uuid
+, uuid-types
 , vector
 , wai
 , wai-extra
@@ -337,6 +338,7 @@ mkDerivation {
     unordered-containers
     uri-bytestring
     uuid
+    uuid-types
     vector
     wai
     wai-extra
@@ -374,6 +376,7 @@ mkDerivation {
     tasty-quickcheck
     transformers
     types-common
+    uuid-types
     wai
     wai-predicates
     wire-api
