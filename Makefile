@@ -17,7 +17,7 @@ CHARTS_RELEASE := wire-server redis-ephemeral redis-cluster databases-ephemeral	
 fake-aws fake-aws-s3 fake-aws-sqs aws-ingress fluent-bit kibana backoffice		\
 calling-test demo-smtp elasticsearch-curator elasticsearch-external				\
 elasticsearch-ephemeral minio-external cassandra-external						\
-nginx-ingress-controller nginx-ingress-services reaper sftd restund coturn		\
+nginx-ingress-controller ingress-nginx-controller nginx-ingress-services reaper sftd restund coturn		\
 inbucket k8ssandra-test-cluster postgresql
 KIND_CLUSTER_NAME     := wire-server
 HELM_PARALLELISM      ?= 1 # 1 for sequential tests; 6 for all-parallel tests
