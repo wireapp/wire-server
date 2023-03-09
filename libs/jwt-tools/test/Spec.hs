@@ -25,12 +25,12 @@ main :: IO ()
 main = hspec $ do
   describe "generateDpopToken FFI when passing valid inputs" $ do
     it "should return an access token" $ do
-      actual <- callFFIWithValidValuesValidUntil2038
+      actual <- runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem
       isRight actual `shouldBe` True
-  describe "generateDpopToken FFI when passing nonsense values" $ do
-    it "should return an error" $ do
-      actual <- callFFIWithNonsenseValues
-      isRight actual `shouldBe` False
+  describe "generateDpopToken FFI when passing a wrong nonce value" $ do
+    it "should return BackendNonceMismatchError" $ do
+      actual <- runExceptT $ generateDpopToken proof uid cid domain (Nonce "foobar") uri method maxSkewSecs expires now pem
+      actual `shouldBe` Left BackendNonceMismatchError
   describe "toResult" $ do
     it "should convert to correct error" $ do
       toResult Nothing (Just token) `shouldBe` Right (cs token)
@@ -72,36 +72,7 @@ main = hspec $ do
       toResult (Just 18) (Just token) `shouldBe` Left ExpError
       toResult Nothing Nothing `shouldBe` Left UnknownError
   where
-    token :: String
     token = "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-
-callFFIWithNonsenseValues :: IO (Either DPoPTokenGenerationError ByteString)
-callFFIWithNonsenseValues =
-  runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem
-  where
-    proof = Proof "xxxx.yyyy.zzzz"
-    uid = UserId "8a6e8a6e-8a6e-8a6e-8a6e-8a6e8a6e8a6e"
-    cid = ClientId 8899
-    domain = Domain "example.com"
-    nonce = Nonce "123"
-    uri = Uri "/foo"
-    method = POST
-    maxSkewSecs = MaxSkewSecs 1
-    now = NowEpoch 5435234232
-    expires = ExpiryEpoch $ 5435234232 + 360
-    pem =
-      PemBundle $
-        "-----BEGIN PRIVATE KEY-----\n\
-        \MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n\
-        \-----END PRIVATE KEY-----\n\
-        \-----BEGIN PUBLIC KEY-----\n\
-        \MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=\n\
-        \-----END PUBLIC KEY-----\n"
-
-callFFIWithValidValuesValidUntil2038 :: IO (Either DPoPTokenGenerationError ByteString)
-callFFIWithValidValuesValidUntil2038 =
-  runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem
-  where
     proof = Proof "eyJhbGciOiJFZERTQSIsInR5cCI6ImRwb3Arand0IiwiandrIjp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoiZ0tYSHpIV3QtRUh1N2ZQbmlWMXFXWGV2Rmk1eFNKd3RNcHJlSjBjdTZ3SSJ9fQ.eyJpYXQiOjE2NzgxMDcwMDksImV4cCI6MjA4ODA3NTAwOSwibmJmIjoxNjc4MTA3MDA5LCJzdWIiOiJpbXBwOndpcmVhcHA9WXpWbE1qRTVNelpqTTJKak5EQXdOMkpsWTJJd1lXTm1OVGszTW1FMVlqTS9lYWZhMDI1NzMwM2Q0MDYwQHdpcmUuY29tIiwianRpIjoiMmQzNzAzYTItNTc4Yi00MmRjLWE2MGUtYmM0NzA3OWVkODk5Iiwibm9uY2UiOiJRV1J4T1VaUVpYVnNTMlJZYjBGS05sWkhXbGgwYUV4amJUUmpTM2M1U2xnIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vd2lyZS5leGFtcGxlLmNvbS9jbGllbnRzLzE2OTMxODQ4MzIyNTQ3NTMxODcyL2FjY2Vzcy10b2tlbiIsImNoYWwiOiJZVE5HTkRSNlRqZHFabGRRZUVGYWVrMTZWMmhqYXpCVmJ6UlFWVXRWUlZJIn0.0J2sx5y0ubZ4NwmQhbKXDj6i5UWTx3cvuTPKbeXXOJFDamr-iFtE6sOnAQT90kfTx1cEoIyDfoUkj3h5GEanAA"
     uid = UserId "c5e21936-c3bc-4007-becb-0acf5972a5b3"
     cid = ClientId 16931848322547531872

@@ -14,11 +14,11 @@ rustPlatform.buildRustPackage rec {
     owner = "wireapp";
     repo = "rusty-jwt-tools";
     # if you update this, please generate a new Cargo.lock file es described below at `cargoPatches`
-    rev = "a68ed483f7e98613c0d5c3608c684f25225a58d3";
-    sha256 = "sha256-+2fjwtG80l8Vt48QWKm4wevY7MQRAwuo4YFbjB+6w9I=";
+    rev = "c213978cf0552237dc71e255a83110b18ee95972";
+    sha256 = "sha256-7jVKReJEXKui6BOJZ3Cm2ykcAVVaSXgKhsZuu3wJoH0=";
   };
   doCheck = false;
-  cargoSha256 = "sha256-BHq28U3OzYCPNmfnxlmXsz9XYEy1kRiNrFM9OTnAkk0=";
+  cargoSha256 = "sha256-ylvsbpgwPfENz0TP0uM9kYLyx7NjQbUv9cpT5het+xE=";
   cargoDepsHook = ''
     mkdir -p rusty_jwt-tools_ffi-${version}-vendor.tar.gz/ring/.git
   '';
