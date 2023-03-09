@@ -69,19 +69,19 @@ releases:
     values:
       - './helm_vars/redis-cluster/values.yaml.gotmpl'
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-controller'
+  - name: '{{ .Values.namespace }}-ingress-c'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-controller'
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml'
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-controller-2'
+  - name: '{{ .Values.namespace }}-ingress-c-2'
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/nginx-ingress-controller'
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml'
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-services'
+  - name: '{{ .Values.namespace }}-ingresses'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
@@ -94,7 +94,7 @@ releases:
       - name: config.dns.federator
         value: {{ .Values.federationDomain }}
 
-  - name: '{{ .Values.namespace }}-nginx-ingress-services-2'
+  - name: '{{ .Values.namespace }}-ingresses-2'
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/nginx-ingress-services'
     values:
