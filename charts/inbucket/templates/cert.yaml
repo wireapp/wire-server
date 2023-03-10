@@ -1,0 +1,28 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: "letsencrypt-inbucket-csr"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  issuerRef:
+    name: letsencrypt-http01
+    kind: Issuer
+  usages:
+    - server auth
+  duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
+  renewBefore: 360h   # 15d
+  isCA: false
+  secretName: letsencrypt-inbucket-secret
+
+  privateKey:
+    algorithm: ECDSA
+    size: 384         # 521 is not supported by Letsencrypt
+    encoding: PKCS1
+    rotationPolicy: Always
+
+  dnsNames:
+    - {{ .Values.host }}
