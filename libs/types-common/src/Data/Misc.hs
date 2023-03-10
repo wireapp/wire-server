@@ -84,6 +84,7 @@ import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.TypeLits (Nat)
+import GHC.TypeNats (KnownNat)
 import Imports
 import Servant (FromHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), chooseInteger)
@@ -383,17 +384,10 @@ deriving via (Schema (PlainTextPassword' tag)) instance ToSchema (PlainTextPassw
 instance Show (PlainTextPassword' minLen) where
   show _ = "PlainTextPassword' <hidden>"
 
-instance ToSchema (PlainTextPassword' (6 :: Nat)) where
+instance (KnownNat (n :: Nat), Within Text n 1024) => ToSchema (PlainTextPassword' n) where
   schema = PlainTextPassword' <$> fromPlainTextPassword' .= schema
 
-instance ToSchema (PlainTextPassword' (8 :: Nat)) where
-  schema = PlainTextPassword' <$> fromPlainTextPassword' .= schema
-
-instance Arbitrary (PlainTextPassword' (6 :: Nat)) where
-  arbitrary = PlainTextPassword' <$> arbitrary
-
-instance Arbitrary (PlainTextPassword' (8 :: Nat)) where
-  -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
+instance (KnownNat (n :: Nat), Within Text n 1024) => Arbitrary (PlainTextPassword' n) where
   arbitrary = PlainTextPassword' <$> arbitrary
 
 -- | Usage:
