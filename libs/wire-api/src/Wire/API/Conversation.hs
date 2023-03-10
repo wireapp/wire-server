@@ -265,6 +265,16 @@ instance ToSchema Conversation where
 instance ToSchema (Versioned 'V2 Conversation) where
   schema = Versioned <$> unVersioned .= conversationSchema V2
 
+conversationObjectSchema :: Version -> ObjectSchema SwaggerDoc Conversation
+conversationObjectSchema v =
+  Conversation
+    <$> cnvQualifiedId .= field "qualified_id" schema
+    <* (qUnqualified . cnvQualifiedId)
+      .= optional (field "id" (deprecatedSchema "qualified_id" schema))
+    <*> cnvMetadata .= conversationMetadataObjectSchema (accessRolesVersionedSchema v)
+    <*> cnvMembers .= field "members" schema
+    <*> cnvProtocol .= protocolSchema
+
 conversationSchema ::
   Version ->
   ValueSchema NamedSwaggerDoc Conversation
@@ -272,13 +282,7 @@ conversationSchema v =
   objectWithDocModifier
     "Conversation"
     (description ?~ "A conversation object as returned from the server")
-    $ Conversation
-      <$> cnvQualifiedId .= field "qualified_id" schema
-      <* (qUnqualified . cnvQualifiedId)
-        .= optional (field "id" (deprecatedSchema "qualified_id" schema))
-      <*> cnvMetadata .= conversationMetadataObjectSchema (accessRolesVersionedSchema v)
-      <*> cnvMembers .= field "members" schema
-      <*> cnvProtocol .= protocolSchema
+    (conversationObjectSchema v)
 
 -- | The public-facing conversation type extended with information on which
 -- remote users could not be added when creating the conversation.
@@ -290,18 +294,17 @@ data CreateGroupConversation = CreateGroupConversation
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateGroupConversation)
-  deriving (ToJSON, S.ToSchema) via Schema CreateGroupConversation
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema CreateGroupConversation
 
 instance ToSchema CreateGroupConversation where
-  -- TODO(md): Define the instance and write golden tests for derived JSON
-  -- instances.
   schema =
     objectWithDocModifier
       "CreateGroupConversation"
       (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
       $ CreateGroupConversation
-        <$> cgcConversation .= conversationSchema V4
-        <*> cgcFailedToAdd .= set (qualifiedObjectSchema "ids" (set schema))
+        <$> cgcConversation .= conversationObjectSchema V4
+        <*> cgcFailedToAdd
+          .= field "failed_to_add" (set (qualifiedSchema "UserIdSet" "ids" (set schema)))
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
