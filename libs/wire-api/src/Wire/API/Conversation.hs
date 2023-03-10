@@ -303,8 +303,13 @@ instance ToSchema CreateGroupConversation where
       (description ?~ "A created group-conversation object extended with a list of failed-to-add users")
       $ CreateGroupConversation
         <$> cgcConversation .= conversationObjectSchema V4
-        <*> cgcFailedToAdd
-          .= field "failed_to_add" (set (qualifiedSchema "UserIdSet" "ids" (set schema)))
+        <*> (toFlatList . cgcFailedToAdd)
+          .= field "failed_to_add" (fromFlatList <$> array schema)
+    where
+      toFlatList :: Set (Qualified (Set a)) -> [Qualified a]
+      toFlatList = foldMap (traverse Set.toList)
+      fromFlatList :: Ord a => [Qualified a] -> Set (Qualified (Set a))
+      fromFlatList xs = Set.fromList (Set.fromList <$$> bucketQualified xs)
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.
