@@ -35,7 +35,9 @@
 # 1. Determine the new commit ID/SHA of the git repository that you want to pin
 # and update the 'rev' field of the pin under 'gitPins'.
 #
-# 2. Update 'sha256' field under `fetchgit` to be an empty string.
+# 2. Update 'sha256' field under `fetchgit` to be an empty string.  (This step is optional:
+# since the hash has changed, the error will be the same if you remove it or if you leave the
+# old value in place.)
 #
 # 3. Run step 3. from how to add a git pin.
 #
