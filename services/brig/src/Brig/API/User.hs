@@ -1105,7 +1105,7 @@ completePasswordReset ::
   ) =>
   PasswordResetIdentity ->
   PasswordResetCode ->
-  PlainTextPasswordMinLength8 ->
+  PlainTextPassword8 ->
   ExceptT PasswordResetError (AppT r) ()
 completePasswordReset ident code pw = do
   key <- mkPasswordResetKey ident

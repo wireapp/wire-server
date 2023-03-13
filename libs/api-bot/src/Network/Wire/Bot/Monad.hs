@@ -978,7 +978,7 @@ botLogFields u t = field "Bot" (show u) . field "Tag" (unTag t)
 -------------------------------------------------------------------------------
 -- Randomness
 
-randUser :: Email -> BotTag -> IO (NewUser, PlainTextPasswordMinLength8)
+randUser :: Email -> BotTag -> IO (NewUser, PlainTextPassword8)
 randUser (Email loc dom) (BotTag tag) = do
   uuid <- nextRandom
   pwdUuid <- nextRandom

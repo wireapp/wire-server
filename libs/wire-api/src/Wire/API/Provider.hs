@@ -56,7 +56,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Data.Id
 import Data.Json.Util
-import Data.Misc (HttpsUrl (..), PlainTextPassword6, PlainTextPasswordMinLength8)
+import Data.Misc (HttpsUrl (..), PlainTextPassword6, PlainTextPassword8)
 import Data.Range
 import Imports
 import Wire.API.Conversation.Code as Code
@@ -145,7 +145,7 @@ data NewProviderResponse = NewProviderResponse
   { rsNewProviderId :: ProviderId,
     -- | The generated password, if none was provided
     -- in the 'NewProvider' request.
-    rsNewProviderPassword :: Maybe PlainTextPasswordMinLength8
+    rsNewProviderPassword :: Maybe PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewProviderResponse)

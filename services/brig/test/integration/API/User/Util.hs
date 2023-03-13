@@ -210,7 +210,7 @@ preparePasswordReset ::
   DB.ClientState ->
   Email ->
   UserId ->
-  PlainTextPasswordMinLength8 ->
+  PlainTextPassword8 ->
   m CompletePasswordReset
 preparePasswordReset brig cs email uid newpw = do
   let qry = queryItem "email" (toByteString' email)

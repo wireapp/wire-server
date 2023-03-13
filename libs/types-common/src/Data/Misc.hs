@@ -52,7 +52,7 @@ module Data.Misc
     -- * PlainTextPassword6
     PlainTextPassword' (..),
     PlainTextPassword6,
-    PlainTextPasswordMinLength8,
+    PlainTextPassword8,
     plainTextPasswordLegacy,
     plainTextPassword,
     fromPlainTextPassword,
@@ -350,7 +350,7 @@ instance Arbitrary (Fingerprint Rsa) where
 
 type PlainTextPassword6 = PlainTextPassword' (6 :: Nat)
 
-type PlainTextPasswordMinLength8 = PlainTextPassword' (8 :: Nat)
+type PlainTextPassword8 = PlainTextPassword' (8 :: Nat)
 
 plainTextPasswordLegacy :: Text -> Maybe PlainTextPassword6
 plainTextPasswordLegacy = fmap PlainTextPassword' . checked
@@ -358,17 +358,17 @@ plainTextPasswordLegacy = fmap PlainTextPassword' . checked
 plainTextPasswordLegacyUnsafe :: Text -> PlainTextPassword6
 plainTextPasswordLegacyUnsafe = PlainTextPassword' . unsafeRange
 
-plainTextPassword :: Text -> Maybe PlainTextPasswordMinLength8
+plainTextPassword :: Text -> Maybe PlainTextPassword8
 plainTextPassword = fmap PlainTextPassword' . checked
 
-plainTextPasswordUnsafe :: Text -> PlainTextPasswordMinLength8
+plainTextPasswordUnsafe :: Text -> PlainTextPassword8
 plainTextPasswordUnsafe = PlainTextPassword' . unsafeRange
 
 fromPlainTextPassword :: PlainTextPassword' t -> Text
 fromPlainTextPassword = fromRange . fromPlainTextPassword'
 
--- | Convert a 'PlainTextPasswordMinLength8' to a legacy 'PlainTextPassword'.
-toLegacy :: PlainTextPasswordMinLength8 -> PlainTextPassword6
+-- | Convert a 'PlainTextPassword8' to a legacy 'PlainTextPassword'.
+toLegacy :: PlainTextPassword8 -> PlainTextPassword6
 toLegacy = PlainTextPassword' . unsafeRange . fromPlainTextPassword
 
 newtype PlainTextPassword' (minLen :: Nat) = PlainTextPassword'
