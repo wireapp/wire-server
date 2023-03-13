@@ -94,11 +94,16 @@ ci: c db-migrate
 .PHONY: sanitize-pr
 sanitize-pr:
 	./hack/bin/generate-local-nix-packages.sh
-	make formatf-all
-	make hlint-inplace-all
+	make formatf
+	make hlint-inplace-pr
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
+	make list-flaky-tests
+
+list-flaky-tests:
+	@echo -e "\n\nif you want to run these, set RUN_FLAKY_TESTS=1\n\n"
+	@git grep -Hn '\bflakyTestCase \"'
 
 .PHONY: cabal-fmt
 cabal-fmt:
