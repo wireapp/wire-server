@@ -1,0 +1,16 @@
+ingress-nginx:
+  controller:
+    ingressClassResource:
+        name: "nginx-{{ .Release.Namespace }}"
+        # -- Is this ingressClass enabled or not
+        enabled: true
+    ingressClass: "nginx-{{ .Release.Namespace }}"
+    kind: Deployment
+    replicaCount: 1
+    service:
+      type: NodePort
+      externalTrafficPolicy: Local
+      nodePorts:
+        # choose a random free port
+        https: null
+        http: null
