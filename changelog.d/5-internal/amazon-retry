@@ -1,2 +1,0 @@
-- use exponential backoff for retrying requests to Amazon
-- also retry in case of server-side rate limiting by Amazon

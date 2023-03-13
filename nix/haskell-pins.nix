@@ -119,6 +119,13 @@ let
         http-conduit = "http-conduit";
       };
     };
+    http2 = {
+      src = fetchgit {
+        url = "https://github.com/wireapp/http2";
+        rev = "aa3501ad58e1abbd196781fac25a84f41ec2a787";
+        sha256 = "09h86fkk8p7szq08x0iszaq16mhbylxivfc0apvj58d98wl8l6lq";
+      };
+    };
     hspec-wai = {
       src = fetchgit {
         url = "https://github.com/wireapp/hspec-wai";
@@ -212,10 +219,6 @@ let
     HsOpenSSL = {
       version = "0.11.7.5";
       sha256 = "sha256-CfH1YJSGuF4O1aUfdJwUZKRrVzv5nSPhwoI7mf9ewEg=";
-    };
-    http2 = {
-      version = "4.0.0";
-      sha256 = "sha256-9rBhklwuuKZXWH4yV4tb7Sp5chR9AmBAMRBztDjx0uI=";
     };
   };
   # Name -> Source -> Maybe Subpath -> Drv
