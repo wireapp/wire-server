@@ -12,7 +12,7 @@ tempfile=$(mktemp)
 
 function update_chart(){
     chart_file=$1
-    sed -e "s/version: .*/version: $target_version/g" "$chart_file" > "$tempfile" && mv "$tempfile" "$chart_file"
+    sed -e "s/^version: .*/version: $target_version/g" "$chart_file" > "$tempfile" && mv "$tempfile" "$chart_file"
 }
 
 function write_versions() {
