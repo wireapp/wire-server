@@ -192,8 +192,7 @@ static char * merge_srv_conf (ngx_conf_t * c, void * pc, void * cc) {
         }
 
         if (child->oauth_key == NULL) {
-                ngx_conf_log_error(NGX_LOG_EMERG, c, 0, "missing 'oauth_key'");
-                return NGX_CONF_ERROR;
+                ngx_conf_log_error(NGX_LOG_NOTICE, c, 0, "missing 'oauth_key'");
         }
 
         return NGX_CONF_OK;
@@ -277,8 +276,7 @@ static char * load_oauth_key (ngx_conf_t * conf, ngx_command_t * cmd, void * dat
         OAuthResultStatus status = oauth_key_open(fname[1].data, fname[1].len, &sc->oauth_key);
 
         if (status != OAUTH_OK || sc->oauth_key == NULL) {
-                ngx_conf_log_error(NGX_LOG_EMERG, conf, 0, "failed to load oauth key [%d]", status);
-                return NGX_CONF_ERROR;
+                ngx_conf_log_error(NGX_LOG_NOTICE, conf, 0, "failed to load oauth key [%d]", status);
         }
 
         return NGX_CONF_OK;
