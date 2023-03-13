@@ -19,15 +19,17 @@ module Test.Federator.Monitor (tests) where
 
 import Control.Concurrent.Chan
 import Control.Exception (bracket)
+import Control.Lens (view)
 import Control.Monad.Trans.Cont
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Set as Set
+import Data.X509 (CertificateChain (..))
+import Federator.Env (TLSSettings (..), creds)
 import Federator.Monitor
 import Federator.Monitor.Internal
 import Federator.Options
 import Imports
-import OpenSSL.Session (SSLContext)
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
 import System.FilePath
@@ -114,7 +116,7 @@ withKubernetesSettings = do
 withSilentMonitor ::
   Chan (Maybe FederationSetupError) ->
   RunSettings ->
-  ContT r IO (IORef SSLContext)
+  ContT r IO (IORef TLSSettings)
 withSilentMonitor reloads settings = do
   tlsVar <- liftIO $ newIORef (error "TLSSettings not updated before being read")
   void . ContT $
@@ -134,7 +136,7 @@ testMonitorChangeUpdate =
     reloads <- newChan
     evalContT $ do
       settings <- withSettings
-      _ <- withSilentMonitor reloads settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         appendFile (clientCertificate settings) ""
         result <- timeout timeoutMicroseconds (readChan reloads)
@@ -144,6 +146,11 @@ testMonitorChangeUpdate =
             assertFailure
               ("unexpected exception " <> displayException err)
           _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
 
 testMonitorReplacedChangeUpdate :: TestTree
 testMonitorReplacedChangeUpdate =
@@ -151,18 +158,12 @@ testMonitorReplacedChangeUpdate =
     reloads <- newChan
     evalContT $ do
       settings <- withSettings
-      _ <- withSilentMonitor reloads settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         -- first replace file with a different one
         copyFile
           "test/resources/unit/localhost-dot.pem"
           (clientCertificate settings)
-        -- This will always fail because now the certificate doesn't match the
-        -- private key
-        _result0 <- timeout timeoutMicroseconds (readChan reloads)
-        copyFile
-          "test/resources/unit/localhost-dot-key.pem"
-          (clientPrivateKey settings)
         result1 <- timeout timeoutMicroseconds (readChan reloads)
         case result1 of
           Nothing ->
@@ -183,6 +184,11 @@ testMonitorReplacedChangeUpdate =
             assertFailure
               ("unexpected exception " <> displayException err)
           _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
 
 testMonitorOverwriteUpdate :: TestTree
 testMonitorOverwriteUpdate =
@@ -190,24 +196,22 @@ testMonitorOverwriteUpdate =
     reloads <- newChan
     evalContT $ do
       settings <- withSettings
-      _ <- withSilentMonitor reloads settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         copyFile
           "test/resources/unit/localhost-dot.pem"
           (clientCertificate settings)
-        -- This will always fail because now the certificate doesn't match the
-        -- private key
-        _result0 <- timeout timeoutMicroseconds (readChan reloads)
-
-        copyFile
-          "test/resources/unit/localhost-dot-key.pem"
-          (clientPrivateKey settings)
         result <- timeout timeoutMicroseconds (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
           Just (Just err) ->
             assertFailure
               ("unexpected exception " <> displayException err)
+          _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
           _ -> pure ()
 
 testMonitorSymlinkUpdate :: TestTree
@@ -216,28 +220,24 @@ testMonitorSymlinkUpdate =
     reloads <- newChan
     evalContT $ do
       settings <- withSymlinkSettings
-      _ <- withSilentMonitor reloads settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
-        wd <- getWorkingDirectory
-
         removeFile (clientCertificate settings)
+        wd <- getWorkingDirectory
         createSymbolicLink
           (wd </> "test/resources/unit/localhost-dot.pem")
           (clientCertificate settings)
-        -- This will always fail because now the certificate doesn't match the
-        -- private key
-        _result0 <- timeout timeoutMicroseconds (readChan reloads)
-
-        removeFile (clientPrivateKey settings)
-        createSymbolicLink
-          (wd </> "test/resources/unit/localhost-dot-key.pem")
-          (clientPrivateKey settings)
         result <- timeout timeoutMicroseconds (readChan reloads)
         case result of
           Nothing -> assertFailure "certificate not updated within the allotted time"
           Just (Just err) ->
             assertFailure
               ("unexpected exception " <> displayException err)
+          _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
           _ -> pure ()
 
 testMonitorNestedUpdate :: TestTree
@@ -246,7 +246,7 @@ testMonitorNestedUpdate =
     reloads <- newChan
     evalContT $ do
       settings <- withNestedSettings 1
-      _ <- withSilentMonitor reloads settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         -- make a new directory with other credentials
         let parent = takeDirectory (clientCertificate settings)
@@ -268,6 +268,11 @@ testMonitorNestedUpdate =
             assertFailure
               ("unexpected exception " <> displayException err)
           _ -> pure ()
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
 
 testMonitorDeepUpdate :: TestTree
 testMonitorDeepUpdate =
@@ -275,7 +280,7 @@ testMonitorDeepUpdate =
     reloads <- newChan
     evalContT $ do
       settings <- withNestedSettings 2
-      _ <- withSilentMonitor reloads settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         -- make a new directory with other credentials
         let root = takeDirectory (takeDirectory (takeDirectory (clientCertificate settings)))
@@ -306,13 +311,19 @@ testMonitorDeepUpdate =
               ("unexpected exception " <> displayException err)
           _ -> pure ()
 
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
+          _ -> pure ()
+
 testMonitorKubernetesUpdate :: TestTree
 testMonitorKubernetesUpdate = do
   testCase "monitor updates on a kubernetes secret mount" $ do
     reloads <- newChan
     evalContT $ do
       settings <- withKubernetesSettings
-      _ <- withSilentMonitor reloads settings
+      tlsVar <- withSilentMonitor reloads settings
       liftIO $ do
         let root = takeDirectory (clientCertificate settings)
         createDirectory (root </> "..foo2")
@@ -327,6 +338,12 @@ testMonitorKubernetesUpdate = do
           Just (Just err) ->
             assertFailure
               ("unexpected exception " <> displayException err)
+          _ -> pure ()
+
+        tls <- readIORef tlsVar
+        case view creds tls of
+          (CertificateChain [], _) ->
+            assertFailure "expected non-empty certificate chain"
           _ -> pure ()
 
 testMonitorError :: TestTree

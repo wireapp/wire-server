@@ -1,5 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,22 +20,58 @@
 
 module Federator.InternalServer where
 
+import Control.Exception (bracketOnError)
+import qualified Control.Exception as E
+import Control.Lens (view)
 import Data.Binary.Builder
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as LBS
+import Data.Default
+import Data.Domain (domainText)
+import Data.Either.Validation (Validation (..))
 import qualified Data.Text as Text
-import Federator.Env
+import qualified Data.Text.Encoding as Text
+import Data.X509.CertificateStore
+import Federator.App (runAppT)
+import Federator.Discovery (DiscoverFederator, DiscoveryFailure (DiscoveryFailureDNSError, DiscoveryFailureSrvNotAvailable), runFederatorDiscovery)
+import Federator.Env (Env, TLSSettings, applog, caStore, dnsResolver, runSettings, tls)
 import Federator.Error.ServerError
 import Federator.Options (RunSettings)
 import Federator.Remote
 import Federator.Response
 import Federator.Validation
+import Foreign (mallocBytes)
+import Foreign.Marshal (free)
 import Imports
+import Network.HPACK (BufferSize)
+import Network.HTTP.Client.Internal (openSocketConnection)
+import Network.HTTP.Client.OpenSSL (withOpenSSL)
 import qualified Network.HTTP.Types as HTTP
+import qualified Network.HTTP2.Client as HTTP2
+import Network.Socket (Socket)
+import qualified Network.Socket as NS
+import Network.TLS
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra.Cipher as TLS
 import qualified Network.Wai as Wai
+import qualified Network.Wai.Handler.Warp as Warp
 import Polysemy
 import Polysemy.Error
+import qualified Polysemy.Error as Polysemy
+import Polysemy.IO (embedToMonadIO)
 import Polysemy.Input
+import qualified Polysemy.Input as Polysemy
+import qualified Polysemy.Resource as Polysemy
+import Polysemy.TinyLog (TinyLog)
+import qualified Polysemy.TinyLog as Log
+import Servant.Client.Core
+import qualified System.TimeManager as T
+import qualified System.X509 as TLS
 import Wire.API.Federation.Component
+import Wire.Network.DNS.Effect (DNSLookup)
+import qualified Wire.Network.DNS.Effect as Lookup
+import Wire.Network.DNS.SRV (SrvTarget (..))
 
 data RequestData = RequestData
   { rdTargetDomain :: Text,
