@@ -221,8 +221,10 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
 
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation
-  failedToAdd <- notifyCreatedConversation (Just now) lusr (Just conn) conv
-  convCreated failedToAdd lusr conv
+  failedToNotify <- notifyCreatedConversation (Just now) lusr (Just conn) conv
+  -- TODO(md): Either remove the failed-to-add users at this point or avoid
+  -- adding them before trying to notify them.
+  convCreated failedToNotify lusr conv
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -644,18 +646,21 @@ notifyCreatedConversation ::
   Sem r (Set (Qualified (Set UserId)))
 notifyCreatedConversation dtime lusr conn c = do
   now <- maybe input pure dtime
-  -- FUTUREWORK: Handle failures in notifying so it does not abort half way
-  -- through (either when notifying remotes or locals)
-  --
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
-  registerRemoteConversationMemberships now (tDomain lusr) c
+  failedToNotify <- registerRemoteConversationMemberships now (tDomain lusr) c
   -- Notify local users
-  let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers c
+  let remoteOthers = map remoteMemberToOther $ Data.convRemoteMembers c -- TODO(md):
+  -- should
+  -- 'failedToNotify'
+  -- be
+  -- filtered
+  -- out
+  -- from
+  -- 'remoteOthers'?
       localOthers = map (localMemberToOther (tDomain lusr)) $ Data.convLocalMembers c
   E.push =<< mapM (toPush now remoteOthers localOthers) (Data.convLocalMembers c)
-  -- TODO(md): Return something meaningful here
-  pure Set.empty
+  pure failedToNotify
   where
     route
       | Data.convType c == RegularConv = RouteAny

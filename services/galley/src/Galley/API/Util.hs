@@ -747,7 +747,9 @@ fromConversationCreated loc rc@ConversationCreated {..} =
         (ConvMembers this others)
         ProtocolProteus
 
--- | Notify remote users of being added to a new conversation
+-- | Notify remote users of being added to a new conversation. The return value
+-- consists of users that could not be notified; they will not be considered to
+-- be conversation members.
 registerRemoteConversationMemberships ::
   (Member FederatorAccess r) =>
   -- | The time stamp when the conversation was created
@@ -755,12 +757,21 @@ registerRemoteConversationMemberships ::
   -- | The domain of the user that created the conversation
   Domain ->
   Data.Conversation ->
-  Sem r ()
+  Sem r (Set (Qualified (Set UserId)))
 registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toConversationCreated now localDomain c
-  runFederatedConcurrently_ allRemoteMembers $ \_ ->
+  fmap toSet $ runFederatedConcurrentlyEither allRemoteMembers $ \_ ->
     fedClient @'Galley @"on-conversation-created" rc
+  where
+    toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Qualified (Set x))
+    toSet rs =
+      let untagged :: [Either (Qualified [x]) a] = first (\(v, _) -> tUntagged v) <$> rs
+          failuresOnly :: [Qualified [x]] = foldMap (either (pure . id) mempty) untagged
+          indexed :: Map Domain (Set x) = Map.map (Set.fromList . join) $ indexQualified failuresOnly
+          add :: Domain -> Set x -> Set (Qualified (Set x)) -> Set (Qualified (Set x))
+          add dom xs = Set.insert (Qualified xs dom)
+       in Map.foldrWithKey add Set.empty indexed
 
 --------------------------------------------------------------------------------
 -- Legalhold
