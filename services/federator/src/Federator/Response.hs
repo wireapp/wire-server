@@ -42,7 +42,6 @@ import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
-import OpenSSL.Session (SSLContext)
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
@@ -118,7 +117,7 @@ type AllEffects =
      DNSLookup, -- needed by DiscoverFederator
      ServiceStreaming,
      Input RunSettings,
-     Input SSLContext, -- needed by Remote
+     Input TLSSettings, -- needed by Remote
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,
@@ -143,7 +142,7 @@ runFederator env =
           DiscoveryFailure
         ]
     . runInputConst env
-    . runInputSem (embed @IO (readIORef (view sslContext env)))
+    . runInputSem (embed @IO (readIORef (view tls env)))
     . runInputConst (view runSettings env)
     . interpretServiceHTTP
     . runDNSLookupWithResolver (view dnsResolver env)

@@ -18,7 +18,6 @@
 module Test.Federator.IngressSpec where
 
 import Control.Lens (view)
-import Control.Monad.Catch (throwM)
 import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
 import Data.Binary.Builder
@@ -27,13 +26,12 @@ import Data.Handle
 import Data.LegalHold (UserLegalHoldStatus (UserLegalHoldNoConsent))
 import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text
+import qualified Data.X509 as X509
 import Federator.Discovery
-import Federator.Monitor (FederationSetupError)
-import Federator.Monitor.Internal (mkSSLContextWithoutCert)
+import Federator.Env
 import Federator.Remote
 import Imports
 import qualified Network.HTTP.Types as HTTP
-import OpenSSL.Session (SSLContext)
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error
@@ -61,18 +59,17 @@ spec env = do
         _ <- putHandle brig (userId user) hdl
 
         let expectedProfile = (publicProfile user UserLegalHoldNoConsent) {profileHandle = Just (Handle hdl)}
-        runTestSem $ do
-          resp <-
-            liftToCodensity
-              . assertNoError @RemoteError
-              $ inwardBrigCallViaIngress
-                "get-user-by-handle"
-                (Aeson.fromEncoding (Aeson.toEncoding hdl))
-          embed . lift @Codensity $ do
-            bdy <- streamingResponseStrictBody resp
-            let actualProfile = Aeson.decode (toLazyByteString bdy)
-            responseStatusCode resp `shouldBe` HTTP.status200
-            actualProfile `shouldBe` Just expectedProfile
+        resp <-
+          runTestSem
+            . assertNoError @RemoteError
+            $ inwardBrigCallViaIngress
+              "get-user-by-handle"
+              (Aeson.fromEncoding (Aeson.toEncoding hdl))
+        liftIO $ do
+          bdy <- streamingResponseStrictBody resp
+          let actualProfile = Aeson.decode (toLazyByteString bdy)
+          responseStatusCode resp `shouldBe` HTTP.status200
+          actualProfile `shouldBe` Just expectedProfile
 
   -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
   --
@@ -90,37 +87,34 @@ spec env = do
       hdl <- randomHandle
       _ <- putHandle brig (userId user) hdl
 
-      settings <- view teSettings
-      sslCtxWithoutCert <-
-        either (throwM @_ @FederationSetupError) pure
-          <=< runM
-            . runEmbedded (liftIO @(TestFederator IO))
-            . runError
-          $ mkSSLContextWithoutCert settings
-      runTestSem $ do
-        r <-
-          runError @RemoteError $
-            inwardBrigCallViaIngressWithSettings
-              sslCtxWithoutCert
-              "get-user-by-handle"
-              (Aeson.fromEncoding (Aeson.toEncoding hdl))
-        liftToCodensity . embed $ case r of
-          Right _ -> expectationFailure "Expected client certificate error, got response"
-          Left (RemoteError _ _) ->
-            expectationFailure "Expected client certificate error, got remote error"
-          Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
+      -- Remove client certificate from settings
+      tlsSettings0 <- view teTLSSettings
+      let tlsSettings =
+            tlsSettings0
+              { _creds = case _creds tlsSettings0 of
+                  (_, privkey) -> (X509.CertificateChain [], privkey)
+              }
+      r <-
+        runTestSem
+          . runError @RemoteError
+          $ inwardBrigCallViaIngressWithSettings
+            tlsSettings
+            "get-user-by-handle"
+            (Aeson.fromEncoding (Aeson.toEncoding hdl))
+      liftIO $ case r of
+        Right _ -> expectationFailure "Expected client certificate error, got response"
+        Left (RemoteError _ _) ->
+          expectationFailure "Expected client certificate error, got remote error"
+        Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
 
 -- FUTUREWORK: ORMOLU_DISABLE
 -- @END
 -- ORMOLU_ENABLE
 
-liftToCodensity :: Member (Embed (Codensity IO)) r => Sem (Embed IO ': r) a -> Sem r a
-liftToCodensity = runEmbedded @IO @(Codensity IO) lift
-
-runTestSem :: Sem '[Input TestEnv, Embed (Codensity IO)] a -> TestFederator IO a
+runTestSem :: Sem '[Input TestEnv, Embed IO] a -> TestFederator IO a
 runTestSem action = do
   e <- ask
-  liftIO . lowerCodensity . runM . runInputConst e $ action
+  liftIO . runM . runInputConst e $ action
 
 discoverConst :: SrvTarget -> Sem (DiscoverFederator ': r) a -> Sem r a
 discoverConst target = interpret $ \case
@@ -128,29 +122,29 @@ discoverConst target = interpret $ \case
   DiscoverAllFederators _ -> pure (Right (pure target))
 
 inwardBrigCallViaIngress ::
-  Members [Input TestEnv, Embed (Codensity IO), Error RemoteError] r =>
+  Members [Input TestEnv, Embed IO, Error RemoteError] r =>
   Text ->
   Builder ->
   Sem r StreamingResponse
 inwardBrigCallViaIngress path payload = do
-  sslCtx <- inputs (view teSSLContext)
-  inwardBrigCallViaIngressWithSettings sslCtx path payload
+  tlsSettings <- inputs (view teTLSSettings)
+  inwardBrigCallViaIngressWithSettings tlsSettings path payload
 
 inwardBrigCallViaIngressWithSettings ::
-  Members [Input TestEnv, Embed (Codensity IO), Error RemoteError] r =>
-  SSLContext ->
+  Members [Input TestEnv, Embed IO, Error RemoteError] r =>
+  TLSSettings ->
   Text ->
   Builder ->
   Sem r StreamingResponse
-inwardBrigCallViaIngressWithSettings sslCtx requestPath payload =
+inwardBrigCallViaIngressWithSettings tlsSettings requestPath payload =
   do
     Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> input
     originDomain <- cfgOriginDomain . view teTstOpts <$> input
     let target = SrvTarget (cs ingressHost) ingressPort
         headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
-    liftToCodensity
-      . runInputConst sslCtx
+    runInputConst tlsSettings
       . assertNoError @DiscoveryFailure
       . discoverConst target
+      . runEmbedded @(Codensity IO) @IO lowerCodensity
       . interpretRemote
       $ discoverAndCall (Domain "example.com") Brig requestPath headers payload

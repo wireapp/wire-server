@@ -22,6 +22,7 @@
 module Test.Federator.Options where
 
 import Control.Exception (try)
+import Control.Lens
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as B8
@@ -29,6 +30,7 @@ import Data.ByteString.Lazy (toStrict)
 import Data.Domain (Domain (..), mkDomain)
 import Data.String.Interpolate as QQ
 import qualified Data.Yaml as Yaml
+import Federator.Env
 import Federator.Options
 import Federator.Run
 import Imports
@@ -165,8 +167,10 @@ testSettings =
             assertFailure $
               "expected invalid client certificate exception, got: "
                 <> show e
-          Right _ ->
-            assertFailure "expected failure for non-existing client certificate, got success",
+          Right tlsSettings ->
+            assertFailure $
+              "expected failure for non-existing client certificate, got: "
+                <> show (tlsSettings ^. creds),
       -- @SF.Federation @TSFI.Federate @S3 @S7
       testCase "failToStartWithInvalidServerCredentials" $ do
         let settings =
@@ -186,8 +190,10 @@ testSettings =
             assertFailure $
               "expected invalid client certificate exception, got: "
                 <> show e
-          Right _ ->
-            assertFailure "expected failure for invalid client certificate, got success",
+          Right tlsSettings ->
+            assertFailure $
+              "expected failure for invalid client certificate, got: "
+                <> show (tlsSettings ^. creds),
       -- @END
       testCase "fail on invalid private key" $ do
         let settings =
@@ -202,13 +208,15 @@ testSettings =
           clientCertificate: test/resources/unit/localhost.pem
           clientPrivateKey: test/resources/unit/invalid.pem|]
         try @FederationSetupError (mkTLSSettingsOrThrow settings) >>= \case
-          Left (InvalidClientPrivateKey _) -> pure ()
+          Left (InvalidClientCertificate _) -> pure ()
           Left e ->
             assertFailure $
               "expected invalid client certificate exception, got: "
                 <> show e
-          Right _ ->
-            assertFailure "expected failure for invalid private key, got success"
+          Right tlsSettings ->
+            assertFailure $
+              "expected failure for invalid private key, got: "
+                <> show (tlsSettings ^. creds)
     ]
 
 assertParsesAs :: (HasCallStack, Eq a, FromJSON a, Show a) => a -> ByteString -> Assertion
