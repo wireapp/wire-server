@@ -10,6 +10,8 @@ let
     ];
   };
 
+  pkgsCachix = import sources.nixpkgs-cachix {};
+
   profileEnv = pkgs.writeTextFile {
     name = "profile-env";
     destination = "/.profile";
@@ -20,7 +22,7 @@ let
     '';
   };
 
-  wireServer = import ./wire-server.nix pkgs;
+  wireServer = import ./wire-server.nix pkgs pkgsCachix;
   nginz = pkgs.callPackage ./nginz.nix { };
   nginz-disco = pkgs.callPackage ./nginz-disco.nix { };
 
