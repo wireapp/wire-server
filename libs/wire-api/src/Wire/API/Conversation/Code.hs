@@ -44,7 +44,8 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,
     conversationCode :: Code.Value,
-    conversationUri :: Maybe HttpsUrl
+    conversationUri :: Maybe HttpsUrl,
+    conversationHasPassword :: Maybe Bool
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationCode)
@@ -73,13 +74,15 @@ instance ToSchema ConversationCode where
                 (description ?~ "Full URI (containing key/code) to join a conversation")
                 schema
             )
+        <*> conversationHasPassword .= maybe_ (optField "has_password" schema)
 
-mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
-mkConversationCode k v (HttpsUrl prefix) =
+mkConversationCode :: Code.Key -> Code.Value -> Bool -> HttpsUrl -> ConversationCode
+mkConversationCode k v hasPw (HttpsUrl prefix) =
   ConversationCode
     { conversationKey = k,
       conversationCode = v,
-      conversationUri = Just (HttpsUrl link)
+      conversationUri = Just (HttpsUrl link),
+      conversationHasPassword = Just hasPw
     }
   where
     q = [("key", toByteString' k), ("code", toByteString' v)]

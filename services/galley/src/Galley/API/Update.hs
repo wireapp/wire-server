@@ -534,7 +534,7 @@ addCode lusr zcon lcnv = do
   where
     createCode :: Code -> Sem r ConversationCode
     createCode code = do
-      mkConversationCode (codeKey code) (codeValue code) <$> E.getConversationCodeURI
+      mkConversationCode (codeKey code) (codeValue code) False <$> E.getConversationCodeURI
     ensureGuestsOrNonTeamMembersAllowed :: Data.Conversation -> Sem r ()
     ensureGuestsOrNonTeamMembersAllowed conv =
       unless
@@ -614,7 +614,7 @@ getCode lusr cnv = do
 
 returnCode :: Member CodeStore r => Code -> Sem r ConversationCode
 returnCode c = do
-  mkConversationCode (codeKey c) (codeValue c) <$> E.getConversationCodeURI
+  mkConversationCode (codeKey c) (codeValue c) False <$> E.getConversationCodeURI
 
 checkReusableCode ::
   forall db r.
