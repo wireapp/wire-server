@@ -21,12 +21,10 @@ module Network.Wai.Utilities.MockServer where
 
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
-import qualified Control.Exception as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Data.Streaming.Network (bindRandomPortTCP)
 import Imports
-import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
@@ -46,10 +44,10 @@ withMockServer app = Codensity $ \k ->
     (liftIO . fst)
     (k . fromIntegral . snd)
 
+-- FUTUREWORK: Ignore HTTP2.ConnectionIsClosed after upgrading to more recent
+-- http2 library.
 ignoreHTTP2NonError :: Maybe Wai.Request -> SomeException -> IO ()
-ignoreHTTP2NonError mr e
-  | Just HTTP2.ConnectionIsClosed <- E.fromException e = pure ()
-  | otherwise = Warp.defaultOnException mr e
+ignoreHTTP2NonError = Warp.defaultOnException
 
 -- | Start a mock warp server on a random port, serving the given Wai application.
 --
