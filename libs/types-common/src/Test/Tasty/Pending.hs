@@ -24,6 +24,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 flakyTestCase :: TestName -> Assertion -> TestTree
-flakyTestCase name test = unsafePerformIO $ do
-  runthem <- lookupEnv "RUN_FLAKY_TESTS"
-  pure . testCase name $ when (runthem == Just "1") test
+flakyTestCase name test = testCase name test'
+  where
+    test' = when (runthem == Just "1") test
+    runthem = unsafePerformIO $ lookupEnv "RUN_FLAKY_TESTS"
