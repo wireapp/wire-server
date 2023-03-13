@@ -36,6 +36,9 @@ repositories:
   - name: bitnami
     url: 'https://charts.bitnami.com/bitnami'
 
+  - name: ingress
+    url: https://kubernetes.github.io/ingress-nginx
+
 releases:
   - name: '{{ .Values.namespace }}-fake-aws'
     namespace: '{{ .Values.namespace }}'
@@ -71,15 +74,15 @@ releases:
 
   - name: '{{ .Values.namespace }}-ingress-c'
     namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/nginx-ingress-controller'
+    chart: '../.local/charts/ingress-nginx-controller'
     values:
-      - './helm_vars/nginx-ingress-controller/values.yaml'
+      - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
 
   - name: '{{ .Values.namespace }}-ingress-c-2'
     namespace: '{{ .Values.namespaceFed2 }}'
-    chart: '../.local/charts/nginx-ingress-controller'
+    chart: '../.local/charts/ingress-nginx-controller'
     values:
-      - './helm_vars/nginx-ingress-controller/values.yaml'
+      - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
 
   - name: '{{ .Values.namespace }}-ingresses'
     namespace: '{{ .Values.namespace }}'
@@ -107,8 +110,6 @@ releases:
       - name: config.dns.federator
         value: {{ .Values.federationDomainFed2 }}
 
-  #---------------------------------------------
-  #
   # Note that wire-server depends on databases-ephemeral being up; and in some
   # cases on nginx-ingress also being up. If installing helm charts in a
   # parallel way, it's expected to see some wire-server pods (namely the
