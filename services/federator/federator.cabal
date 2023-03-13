@@ -116,7 +116,6 @@ library
     , extended
     , filepath
     , hinotify
-    , HsOpenSSL
     , http-client
     , http-client-openssl
     , http-media
@@ -211,11 +210,63 @@ executable federator
     -Wredundant-constraints
 
   build-depends:
-      base
+      aeson
+    , async
+    , base
+    , bilge
+    , binary
+    , bytestring
+    , bytestring-conversion
+    , constraints
+    , containers
+    , data-default
+    , dns
+    , dns-util
+    , either
+    , exceptions
+    , extended
     , federator
-    , HsOpenSSL
+    , filepath
+    , hinotify
+    , http-client
+    , http-client-openssl
+    , http-media
+    , http-types
+    , http2
     , imports
+    , kan-extensions
+    , lens
+    , metrics-core
+    , metrics-wai
+    , mtl
+    , network
+    , network-uri
+    , pem
+    , polysemy
+    , polysemy-wire-zoo
+    , retry
+    , servant
+    , servant-client-core
+    , streaming-commons
+    , string-conversions
+    , text
+    , time-manager
+    , tinylog
+    , tls
     , types-common
+    , unix
+    , uri-bytestring
+    , uuid
+    , wai
+    , wai-utilities
+    , warp
+    , warp-tls
+    , wire-api
+    , wire-api-federation
+    , x509
+    , x509-store
+    , x509-system
+    , x509-validation
 
   default-language:   Haskell2010
 
@@ -272,7 +323,7 @@ executable federator-integration
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -Wredundant-constraints -threaded -with-rtsopts=-N1
+    -Wredundant-constraints
 
   build-depends:
       aeson
@@ -296,7 +347,6 @@ executable federator-integration
     , federator
     , filepath
     , hinotify
-    , HsOpenSSL
     , hspec
     , http-client
     , http-client-openssl
@@ -428,7 +478,6 @@ test-suite federator-tests
     , federator
     , filepath
     , hinotify
-    , HsOpenSSL
     , http-client
     , http-client-openssl
     , http-media
