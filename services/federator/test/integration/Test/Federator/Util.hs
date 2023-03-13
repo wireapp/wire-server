@@ -43,12 +43,12 @@ import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Data.Yaml as Yaml
+import Federator.Env
 import Federator.Options
 import Federator.Run
 import Imports
 import qualified Network.Connection
 import Network.HTTP.Client.TLS
-import OpenSSL.Session (SSLContext)
 import qualified Options.Applicative as OPA
 import Polysemy
 import Polysemy.Error
@@ -91,15 +91,13 @@ runTestFederator env = flip runReaderT env . unwrapTestFederator
 -- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv
   { _teMgr :: Manager,
-    _teSSLContext :: SSLContext,
+    _teTLSSettings :: TLSSettings,
     _teBrig :: BrigReq,
     _teCargohold :: CargoholdReq,
     -- | federator config
     _teOpts :: Opts,
     -- | integration test config
-    _teTstOpts :: IntegrationConfig,
-    -- | Settings passed to the federator
-    _teSettings :: RunSettings
+    _teTstOpts :: IntegrationConfig
   }
 
 type Select = TestEnv -> (Request -> Request)
@@ -155,9 +153,7 @@ mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager managerSettings
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
       _teCargohold = endpointToReq (cfgCargohold _teTstOpts)
-  -- _teTLSSettings <- mkTLSSettingsOrThrow (optSettings _teOpts)
-  _teSSLContext <- mkTLSSettingsOrThrow (optSettings _teOpts)
-  let _teSettings = optSettings _teOpts
+  _teTLSSettings <- mkTLSSettingsOrThrow (optSettings _teOpts)
   pure TestEnv {..}
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()
