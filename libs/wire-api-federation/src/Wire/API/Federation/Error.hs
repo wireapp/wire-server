@@ -84,7 +84,7 @@ import qualified Data.Text.Lazy as LT
 import Imports
 import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
-import qualified Network.HTTP2.Client as HTTP2
+import qualified Network.HTTP2.Frame as HTTP2
 import qualified Network.Wai.Utilities.Error as Wai
 import OpenSSL.Session (SomeSSLException)
 import Servant.Client
