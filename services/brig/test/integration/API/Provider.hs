@@ -255,7 +255,7 @@ testPasswordResetProvider db brig = do
   loginProvider brig email newPw
     !!! const 200 === statusCode
   where
-    resetPw :: PlainTextPassword -> Email -> Http ResponseLBS
+    resetPw :: PlainTextPassword6 -> Email -> Http ResponseLBS
     resetPw newPw email = do
       -- Get the code directly from the DB
       gen <- Code.mkGen (Code.ForEmail email)
@@ -1069,7 +1069,7 @@ activateProvider brig key val =
 loginProvider ::
   Brig ->
   Email ->
-  PlainTextPassword ->
+  PlainTextPassword6 ->
   Http ResponseLBS
 loginProvider brig email pw =
   post $
@@ -1145,7 +1145,7 @@ completePasswordResetProvider brig e =
 deleteProvider ::
   Brig ->
   ProviderId ->
-  PlainTextPassword ->
+  PlainTextPassword6 ->
   Http ResponseLBS
 deleteProvider brig pid pw =
   delete $
@@ -1268,7 +1268,7 @@ deleteService ::
   Brig ->
   ProviderId ->
   ServiceId ->
-  PlainTextPassword ->
+  PlainTextPassword6 ->
   Http ResponseLBS
 deleteService brig pid sid pw =
   delete $
@@ -1687,7 +1687,7 @@ defProviderSummary = "A short summary of the integration test provider"
 defProviderDescr :: Text
 defProviderDescr = "A long description of an integration test provider"
 
-defProviderPassword :: PlainTextPassword
+defProviderPassword :: PlainTextPassword6
 defProviderPassword = plainTextPasswordLegacyUnsafe "password"
 
 defServiceName :: Name

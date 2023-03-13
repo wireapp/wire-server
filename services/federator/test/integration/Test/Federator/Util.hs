@@ -311,7 +311,7 @@ randomPhone = liftIO $ do
   let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
   pure $ fromMaybe (error "Invalid random phone#") phone
 
-defPassword :: PlainTextPassword
+defPassword :: PlainTextPassword6
 defPassword = plainTextPasswordLegacyUnsafe "topsecretdefaultpassword"
 
 defCookieLabel :: CookieLabel

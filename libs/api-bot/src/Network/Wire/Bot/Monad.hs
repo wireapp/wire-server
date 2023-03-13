@@ -345,7 +345,7 @@ data Bot = Bot
     botMetrics :: BotMetrics,
     -- END TODO
     botClients :: TVar [BotClient], -- TODO: IORef?
-    botPassphrase :: PlainTextPassword
+    botPassphrase :: PlainTextPassword6
   }
 
 instance Show Bot where
@@ -689,7 +689,7 @@ try ma = do
 -------------------------------------------------------------------------------
 -- Internal Bot Lifecycle
 
-mkBot :: BotTag -> User -> PlainTextPassword -> BotNet Bot
+mkBot :: BotTag -> User -> PlainTextPassword6 -> BotNet Bot
 mkBot tag user pw = do
   log Info $ botLogFields (userId user) tag . msg (val "Login")
   let ident = fromMaybe (error "No email") (userEmail user)

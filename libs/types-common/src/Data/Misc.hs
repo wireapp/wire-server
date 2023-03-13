@@ -49,9 +49,9 @@ module Data.Misc
     Fingerprint (..),
     Rsa,
 
-    -- * PlainTextPassword
+    -- * PlainTextPassword6
     PlainTextPassword' (..),
-    PlainTextPassword,
+    PlainTextPassword6,
     PlainTextPasswordMinLength8,
     plainTextPasswordLegacy,
     plainTextPassword,
@@ -348,14 +348,14 @@ instance Arbitrary (Fingerprint Rsa) where
 --------------------------------------------------------------------------------
 -- Password
 
-type PlainTextPassword = PlainTextPassword' (6 :: Nat)
+type PlainTextPassword6 = PlainTextPassword' (6 :: Nat)
 
 type PlainTextPasswordMinLength8 = PlainTextPassword' (8 :: Nat)
 
-plainTextPasswordLegacy :: Text -> Maybe PlainTextPassword
+plainTextPasswordLegacy :: Text -> Maybe PlainTextPassword6
 plainTextPasswordLegacy = fmap PlainTextPassword' . checked
 
-plainTextPasswordLegacyUnsafe :: Text -> PlainTextPassword
+plainTextPasswordLegacyUnsafe :: Text -> PlainTextPassword6
 plainTextPasswordLegacyUnsafe = PlainTextPassword' . unsafeRange
 
 plainTextPassword :: Text -> Maybe PlainTextPasswordMinLength8
@@ -368,7 +368,7 @@ fromPlainTextPassword :: PlainTextPassword' t -> Text
 fromPlainTextPassword = fromRange . fromPlainTextPassword'
 
 -- | Convert a 'PlainTextPasswordMinLength8' to a legacy 'PlainTextPassword'.
-toLegacy :: PlainTextPasswordMinLength8 -> PlainTextPassword
+toLegacy :: PlainTextPasswordMinLength8 -> PlainTextPassword6
 toLegacy = PlainTextPassword' . unsafeRange . fromPlainTextPassword
 
 newtype PlainTextPassword' (minLen :: Nat) = PlainTextPassword'

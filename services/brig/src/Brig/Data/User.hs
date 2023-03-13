@@ -185,7 +185,7 @@ newAccountInviteViaScim uid tid locale name email = do
         ManagedByScim
 
 -- | Mandatory password authentication.
-authenticate :: MonadClient m => UserId -> PlainTextPassword -> ExceptT AuthError m ()
+authenticate :: MonadClient m => UserId -> PlainTextPassword6 -> ExceptT AuthError m ()
 authenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE AuthInvalidUser
@@ -201,7 +201,7 @@ authenticate u pw =
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,
 -- reauthentication is a no-op.
-reauthenticate :: (MonadClient m, MonadReader Env m) => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
+reauthenticate :: (MonadClient m, MonadReader Env m) => UserId -> Maybe PlainTextPassword6 -> ExceptT ReAuthError m ()
 reauthenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE (ReAuthError AuthInvalidUser)

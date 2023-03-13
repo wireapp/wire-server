@@ -49,7 +49,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 hiding (head)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
-import Data.Misc (HttpsUrl, PlainTextPassword, mkHttpsUrl, plainTextPasswordLegacy)
+import Data.Misc (HttpsUrl, PlainTextPassword6, mkHttpsUrl, plainTextPasswordLegacy)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -711,7 +711,7 @@ testRemoveBindingTeamOwner = do
   Util.waitForMemberDeletion ownerB tid ownerWithoutEmail
   assertTeamUpdate "Remove ownerWithoutEmail" tid 2 [ownerB]
   where
-    check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> Maybe LText -> TestM ()
+    check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword6 -> Maybe LText -> TestM ()
     check tid deleter deletee pass maybeError = do
       g <- viewGalley
       delete

@@ -45,7 +45,7 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
-import Data.Misc (PlainTextPassword, plainTextPasswordLegacy, plainTextPasswordLegacyUnsafe)
+import Data.Misc (PlainTextPassword6, plainTextPasswordLegacy, plainTextPasswordLegacyUnsafe)
 import Data.Proxy
 import Data.Qualified
 import Data.Range (unsafeRange)
@@ -1469,7 +1469,7 @@ assertSaneAccessToken now uid tk = do
 errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text
 errorLabel = fmap Error.label . responseJsonMaybe
 
-remJson :: PlainTextPassword -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
+remJson :: PlainTextPassword6 -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
 remJson p l ids =
   object
     [ "password" .= p,

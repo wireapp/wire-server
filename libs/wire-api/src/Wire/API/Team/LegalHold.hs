@@ -165,7 +165,7 @@ instance ToSchema UserLegalHoldStatusResponse where
 -- RemoveLegalHoldSettingsRequest
 
 data RemoveLegalHoldSettingsRequest = RemoveLegalHoldSettingsRequest
-  { rmlhsrPassword :: Maybe PlainTextPassword
+  { rmlhsrPassword :: Maybe PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoveLegalHoldSettingsRequest)
@@ -181,7 +181,7 @@ instance ToSchema RemoveLegalHoldSettingsRequest where
 -- DisableLegalHoldForUserRequest
 
 data DisableLegalHoldForUserRequest = DisableLegalHoldForUserRequest
-  { dlhfuPassword :: Maybe PlainTextPassword
+  { dlhfuPassword :: Maybe PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform DisableLegalHoldForUserRequest)
@@ -197,7 +197,7 @@ instance ToSchema DisableLegalHoldForUserRequest where
 -- ApproveLegalHoldForUserRequest
 
 data ApproveLegalHoldForUserRequest = ApproveLegalHoldForUserRequest
-  { alhfuPassword :: Maybe PlainTextPassword
+  { alhfuPassword :: Maybe PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ApproveLegalHoldForUserRequest)

@@ -45,7 +45,7 @@ import System.Random.MWC.Distributions (uniformShuffle)
 
 newtype Cache = Cache {cache :: IORef [CachedUser]}
 
-data CachedUser = CachedUser !PlainTextPassword !User
+data CachedUser = CachedUser !PlainTextPassword6 !User
 
 -- | Load users out of a file in the following format:
 --

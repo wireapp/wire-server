@@ -1159,7 +1159,7 @@ deleteSelfUser ::
   forall r.
   (Member GalleyProvider r) =>
   UserId ->
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser uid pwd = do
   account <- lift . wrapClient $ Data.lookupAccount uid

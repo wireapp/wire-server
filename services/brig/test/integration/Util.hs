@@ -442,7 +442,7 @@ postUserRegister' :: MonadHttp m => Object -> Brig -> m ResponseLBS
 postUserRegister' payload brig = do
   post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload))
 
-deleteUser :: (MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword -> Brig -> m ResponseLBS
+deleteUser :: (MonadHttp m, HasCallStack) => UserId -> Maybe PlainTextPassword6 -> Brig -> m ResponseLBS
 deleteUser u p brig =
   delete $
     brig
@@ -906,7 +906,7 @@ updatePhone brig uid phn = do
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)
 
-emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login
+emailLogin :: Email -> PlainTextPassword6 -> Maybe CookieLabel -> Login
 emailLogin e pw cl = PasswordLogin (PasswordLoginData (LoginByEmail e) pw cl Nothing)
 
 somePrekeys :: [Prekey]
@@ -973,13 +973,13 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFggQeUPM119c+6zRsEupA8zshTfrZiLpXx1Ji0UMMumq9IDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
 
-defPassword :: PlainTextPassword
+defPassword :: PlainTextPassword6
 defPassword = plainTextPasswordLegacyUnsafe defPasswordText
 
 defPasswordText :: Text
 defPasswordText = "topsecretdefaultpassword"
 
-defWrongPassword :: PlainTextPassword
+defWrongPassword :: PlainTextPassword6
 defWrongPassword = plainTextPasswordLegacyUnsafe "not secret"
 
 defCookieLabel :: CookieLabel
