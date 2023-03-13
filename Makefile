@@ -270,8 +270,8 @@ ifeq ($(INTEGRATION_FEDERATION_TESTS), 1)
 	$(EXE_SCHEMA) --keyspace $(package)_test2 --replication-factor 1 --reset
 endif
 endif
-	./dist/brig-index reset --elasticsearch-index directory_test --elasticsearch-server http://localhost:9200 > /dev/null
-	./dist/brig-index reset --elasticsearch-index directory_test2 --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index-prefix directory --elasticsearch-server http://localhost:9200 > /dev/null
+	./dist/brig-index reset --elasticsearch-index-prefix directory2 --elasticsearch-server http://localhost:9200 > /dev/null
 
 # Usage:
 #
