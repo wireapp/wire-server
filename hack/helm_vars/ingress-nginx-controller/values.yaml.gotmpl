@@ -8,8 +8,6 @@ ingress-nginx:
     kind: Deployment
     replicaCount: 1
     service:
-      type: NodePort
-      externalTrafficPolicy: Local
       nodePorts:
         # choose a random free port
         https: null

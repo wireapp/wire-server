@@ -5,22 +5,21 @@
 #
 # See https://github.com/kubernetes/ingress-nginx/blob/main/charts/ingress-nginx/values.yaml for all possible values to override.
 ingress-nginx:
-  service:
-    type: NodePort  # or LoadBalancer
-    externalTrafficPolicy: Local
-    nodePorts:
-      # The nginx instance is exposed on ports 31773 (https) and 31772 (http)
-      # on the node on which it runs. You should add a port-forwarding rule
-      # on the node or on the loadbalancer that forwards ports 443 and 80 to
-      # these respective ports.
-      https: 31773
-      http: 31772
-
   controller:
     watchIngressWithoutClass: true
     enableTopologyAwareRouting: true
     # -- Use a `DaemonSet` or `Deployment`
     kind: DaemonSet
+    service:
+      type: NodePort  # or LoadBalancer
+      externalTrafficPolicy: Local
+      nodePorts:
+        # The nginx instance is exposed on ports 31773 (https) and 31772 (http)
+        # on the node on which it runs. You should add a port-forwarding rule
+        # on the node or on the loadbalancer that forwards ports 443 and 80 to
+        # these respective ports.
+        https: 31773
+        http: 31772
     config:
       # NOTE: These are some sane defaults (compliant to TR-02102-2), you may want to overrride them on your own installation
       # For TR-02102-2 see https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
