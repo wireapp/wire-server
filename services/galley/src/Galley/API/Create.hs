@@ -219,9 +219,8 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
       E.addMLSClients (cnvmlsGroupId mlsMeta) (tUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
     (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
 
-  now <- input
   -- NOTE: We only send (conversation) events to members of the conversation
-  failedToNotify <- notifyCreatedConversation (Just now) lusr (Just conn) conv
+  failedToNotify <- notifyCreatedConversation lusr (Just conn) conv
   -- TODO(md): Either remove the failed-to-add users at this point or avoid
   -- adding them before trying to notify them.
   convCreated failedToNotify lusr conv
@@ -403,7 +402,7 @@ createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
     Just c -> conversationExisted self c
     Nothing -> do
       c <- E.createConversation lcnv nc
-      void $ notifyCreatedConversation Nothing self (Just zcon) c
+      void $ notifyCreatedConversation self (Just zcon) c
       conversationCreated self c
 
 createOne2OneConversationUnchecked ::
@@ -462,7 +461,7 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
                 ncProtocol = ProtocolProteusTag
               }
       c <- E.createConversation lcnv nc
-      void $ notifyCreatedConversation Nothing self (Just zcon) c
+      void $ notifyCreatedConversation self (Just zcon) c
       conversationCreated self c
 
 createOne2OneConversationRemotely ::
@@ -518,7 +517,7 @@ createConnectConversation lusr conn j = do
       c <- E.createConversation lcnv nc
       now <- input
       let e = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConnect j)
-      void $ notifyCreatedConversation Nothing lusr conn c
+      void $ notifyCreatedConversation lusr conn c
       for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         E.push1 $
           p
@@ -639,13 +638,12 @@ notifyCreatedConversation ::
     Member (Input UTCTime) r,
     Member P.TinyLog r
   ) =>
-  Maybe UTCTime ->
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
   Sem r (Set (Qualified (Set UserId)))
-notifyCreatedConversation dtime lusr conn c = do
-  now <- maybe input pure dtime
+notifyCreatedConversation lusr conn c = do
+  now <- input
   -- Ask remote server to store conversation membership and notify remote users
   -- of being added to a conversation
   failedToNotify <- registerRemoteConversationMemberships now (tDomain lusr) c
