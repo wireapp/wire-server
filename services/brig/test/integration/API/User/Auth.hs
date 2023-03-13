@@ -32,10 +32,14 @@ import qualified Bilge as Http
 import Bilge.Assert hiding (assert)
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opts
+import Brig.Password (Password, mkSafePassword)
 import Brig.Types.Intra
+import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
+import Cassandra hiding (Value)
 import qualified Cassandra as DB
+import Control.Arrow ((&&&))
 import Control.Lens (set, (^.))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry
@@ -108,6 +112,7 @@ tests conf m z db b g n =
           test m "failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
           test m "limit-retry" (testLimitRetries conf b),
+          test m "login with 6 character password" (testLoginWith6CharPassword b db),
           testGroup
             "sso-login"
             [ test m "email" (testEmailSsoLogin b),
@@ -182,6 +187,34 @@ tests conf m z db b g n =
         [ test m "reauthentication" (testReauthentication b)
         ]
     ]
+
+testLoginWith6CharPassword :: Brig -> DB.ClientState -> Http ()
+testLoginWith6CharPassword brig db = do
+  (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
+  checkLogin email defPassword 200
+  let pw6 = plainTextPassword6Unsafe "123456"
+  writeDirectlyToDB uid pw6
+  checkLogin email defPassword 403
+  checkLogin email pw6 200
+  where
+    checkLogin :: Email -> PlainTextPassword6 -> Int -> Http ()
+    checkLogin email pw expectedStatusCode =
+      login
+        brig
+        (PasswordLogin (PasswordLoginData (LoginByEmail email) pw Nothing Nothing))
+        PersistentCookie
+        !!! const expectedStatusCode === statusCode
+    -- Since 8 char passwords are required, when setting a password via the API,
+    -- we need to write this directly to the db, to be able to test this
+    writeDirectlyToDB :: UserId -> PlainTextPassword6 -> Http ()
+    writeDirectlyToDB uid pw =
+      liftIO (runClient db (updatePassword uid pw >> revokeAllCookies uid))
+    updatePassword :: MonadClient m => UserId -> PlainTextPassword6 -> m ()
+    updatePassword u t = do
+      p <- liftIO $ mkSafePassword t
+      retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
+    userPasswordUpdate :: PrepQuery W (Password, UserId) ()
+    userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
