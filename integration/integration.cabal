@@ -10,10 +10,12 @@ license:       AGPL-3.0-only
 license-file:  LICENSE
 build-type:    Simple
 
-executable integration-main
-  main-is:            ../main.hs
-  hs-source-dirs:     test
-  other-modules:      Run
+common common-all
+  default-language:   Haskell2010
+  ghc-options:
+    -Wall -Wpartial-fields -fwarn-tabs
+    -optP-Wno-nonportable-include-path -Wredundant-constraints
+
   default-extensions:
     NoImplicitPrelude
     AllowAmbiguousTypes
@@ -27,17 +29,21 @@ executable integration-main
     DeriveTraversable
     DerivingStrategies
     DerivingVia
+    DuplicateRecordFields
     EmptyCase
     FlexibleContexts
     FlexibleInstances
     FunctionalDependencies
     GADTs
+    GeneralizedNewtypeDeriving
     InstanceSigs
     KindSignatures
     LambdaCase
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedLabels
+    OverloadedRecordDot
     OverloadedStrings
     PackageImports
     PatternSynonyms
@@ -54,13 +60,23 @@ executable integration-main
     UndecidableInstances
     ViewPatterns
 
-  ghc-options:
-    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
-    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -threaded -with-rtsopts=-N -Wredundant-constraints
+executable integration-main
+  import:         common-all
+  main-is:        ../main.hs
+  hs-source-dirs: test
+  other-modules:
+    API
+    App
+    Config
+    Run
 
   build-depends:
+    , aeson
+    , array
     , base
+    , data-default
+    , http-client
+    , http-types
     , imports
-
-  default-language:   Haskell2010
+    , random
+    , transformers
