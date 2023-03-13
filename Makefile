@@ -99,6 +99,11 @@ sanitize-pr:
 	make git-add-cassandra-schema
 	@git diff-files --quiet -- || ( echo "There are unstaged changes, please take a look, consider committing them, and try again."; exit 1 )
 	@git diff-index --quiet --cached HEAD -- || ( echo "There are staged changes, please take a look, consider committing them, and try again."; exit 1 )
+	make list-flaky-tests
+
+list-flaky-tests:
+	@echo -e "\n\nif you want to run these, set RUN_FLAKY_TESTS=1\n\n"
+	@git grep -Hn '\bflakyTestCase \"'
 
 .PHONY: cabal-fmt
 cabal-fmt:

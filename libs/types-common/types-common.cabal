@@ -31,6 +31,7 @@ library
     Data.SizedHashMap
     Data.Text.Ascii
     Data.UUID.Tagged
+    Test.Tasty.Pending
     Util.Attoparsec
     Util.Logging
     Util.Options
@@ -126,6 +127,7 @@ library
     , swagger2
     , tagged                 >=0.8
     , tasty                  >=0.11
+    , tasty-hunit
     , text                   >=0.11
     , time                   >=1.6
     , time-locale-compat     >=0.1
