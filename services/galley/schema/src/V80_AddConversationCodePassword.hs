@@ -15,9 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V80_AddConversationCodePassword
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 80
+migration :: Migration
+migration =
+  Migration 80 "Add optional password to conversation_codes table" $
+    schema'
+      [r|
+        ALTER TABLE conversation_codes ADD (
+          password blob
+        )
+    |]

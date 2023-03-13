@@ -418,6 +418,7 @@ CREATE TABLE galley_test.conversation_codes (
     key ascii,
     scope int,
     conversation uuid,
+    password blob,
     value ascii,
     PRIMARY KEY (key, scope)
 ) WITH CLUSTERING ORDER BY (scope ASC)
