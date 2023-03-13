@@ -2,3 +2,7 @@ apiVersion: v2
 description: A Helm chart for an ingress controller (using nginx) on Kubernetes
 name: ingress-nginx-controller
 version: 0.0.42
+dependencies:
+- name: ingress-nginx
+  version: 4.5.2 # k8s compatibility [1.21 - 1.26]
+  repository: https://kubernetes.github.io/ingress-nginx
