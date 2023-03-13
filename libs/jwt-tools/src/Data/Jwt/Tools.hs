@@ -111,9 +111,9 @@ generateDpopAccessTokenFfi dpopProof user client domain nonce uri method maxSkew
 
 getErrorFfi :: Ptr HsResult -> IO (Maybe Word8)
 getErrorFfi ptr = do
-  let e = get_error ptr
-  if e /= 0
-    then pure $ Just e
+  let err = get_error ptr
+  if err /= 0
+    then pure $ Just err
     else pure Nothing
 
 getTokenFfi :: Ptr HsResult -> IO (Maybe String)
