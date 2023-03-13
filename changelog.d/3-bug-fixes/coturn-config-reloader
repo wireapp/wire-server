@@ -1,3 +1,0 @@
-The container image used for handling online TLS certificate updates in the
-coturn Helm chart was updated to a version with metadata compatible with
-containerd.
