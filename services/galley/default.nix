@@ -54,7 +54,6 @@
 , http-types
 , imports
 , insert-ordered-containers
-, jose
 , kan-extensions
 , lens
 , lens-aeson
@@ -183,7 +182,6 @@ mkDerivation {
     http-types
     imports
     insert-ordered-containers
-    jose
     kan-extensions
     lens
     memory
