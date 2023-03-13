@@ -278,7 +278,7 @@ testCreateTokenRequiresPassword = do
     owner
     CreateScimToken
       { createScimTokenDescr = "testCreateTokenRequiresPassword",
-        createScimTokenPassword = Just (plainTextPasswordLegacyUnsafe "wrong password"),
+        createScimTokenPassword = Just (plainTextPassword6Unsafe "wrong password"),
         createScimTokenCode = Nothing
       }
     (env ^. teSpar)

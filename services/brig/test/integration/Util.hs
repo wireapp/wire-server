@@ -974,13 +974,13 @@ someLastPrekeys =
   ]
 
 defPassword :: PlainTextPassword6
-defPassword = plainTextPasswordLegacyUnsafe defPasswordText
+defPassword = plainTextPassword6Unsafe defPasswordText
 
 defPasswordText :: Text
 defPasswordText = "topsecretdefaultpassword"
 
 defWrongPassword :: PlainTextPassword6
-defWrongPassword = plainTextPasswordLegacyUnsafe "not secret"
+defWrongPassword = plainTextPassword6Unsafe "not secret"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"

@@ -53,12 +53,12 @@ module Data.Misc
     PlainTextPassword' (..),
     PlainTextPassword6,
     PlainTextPassword8,
-    plainTextPasswordLegacy,
-    plainTextPassword,
+    plainTextPassword6,
+    plainTextPassword8,
     fromPlainTextPassword,
-    plainTextPasswordUnsafe,
-    plainTextPasswordLegacyUnsafe,
-    toLegacy,
+    plainTextPassword8Unsafe,
+    plainTextPassword6Unsafe,
+    plainTextPassword8To6,
 
     -- * Typesafe FUTUREWORKS
     FutureWork (..),
@@ -352,24 +352,24 @@ type PlainTextPassword6 = PlainTextPassword' (6 :: Nat)
 
 type PlainTextPassword8 = PlainTextPassword' (8 :: Nat)
 
-plainTextPasswordLegacy :: Text -> Maybe PlainTextPassword6
-plainTextPasswordLegacy = fmap PlainTextPassword' . checked
+plainTextPassword6 :: Text -> Maybe PlainTextPassword6
+plainTextPassword6 = fmap PlainTextPassword' . checked
 
-plainTextPasswordLegacyUnsafe :: Text -> PlainTextPassword6
-plainTextPasswordLegacyUnsafe = PlainTextPassword' . unsafeRange
+plainTextPassword6Unsafe :: Text -> PlainTextPassword6
+plainTextPassword6Unsafe = PlainTextPassword' . unsafeRange
 
-plainTextPassword :: Text -> Maybe PlainTextPassword8
-plainTextPassword = fmap PlainTextPassword' . checked
+plainTextPassword8 :: Text -> Maybe PlainTextPassword8
+plainTextPassword8 = fmap PlainTextPassword' . checked
 
-plainTextPasswordUnsafe :: Text -> PlainTextPassword8
-plainTextPasswordUnsafe = PlainTextPassword' . unsafeRange
+plainTextPassword8Unsafe :: Text -> PlainTextPassword8
+plainTextPassword8Unsafe = PlainTextPassword' . unsafeRange
 
 fromPlainTextPassword :: PlainTextPassword' t -> Text
 fromPlainTextPassword = fromRange . fromPlainTextPassword'
 
 -- | Convert a 'PlainTextPassword8' to a legacy 'PlainTextPassword'.
-toLegacy :: PlainTextPassword8 -> PlainTextPassword6
-toLegacy = PlainTextPassword' . unsafeRange . fromPlainTextPassword
+plainTextPassword8To6 :: PlainTextPassword8 -> PlainTextPassword6
+plainTextPassword8To6 = PlainTextPassword' . unsafeRange . fromPlainTextPassword
 
 newtype PlainTextPassword' (minLen :: Nat) = PlainTextPassword'
   {fromPlainTextPassword' :: Range minLen (1024 :: Nat) Text}

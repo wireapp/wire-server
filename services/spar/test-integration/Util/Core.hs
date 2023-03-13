@@ -156,7 +156,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id
-import Data.Misc (PlainTextPassword6, plainTextPasswordLegacyUnsafe)
+import Data.Misc (PlainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Range
 import Data.String.Conversions
@@ -692,7 +692,7 @@ postUser name haveEmail ssoid teamid brig_ = do
   post (brig_ . path "/i/users" . contentJson . body p)
 
 defPassword :: PlainTextPassword6
-defPassword = plainTextPasswordLegacyUnsafe "topsecretdefaultpassword"
+defPassword = plainTextPassword6Unsafe "topsecretdefaultpassword"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"

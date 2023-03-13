@@ -60,7 +60,7 @@ testPasswordReset brig cs = do
   let Just email = userEmail u
   let uid = userId u
   -- initiate reset
-  let newpw = plainTextPasswordUnsafe "newsecret"
+  let newpw = plainTextPassword8Unsafe "newsecret"
   do
     initiatePasswordReset brig email !!! const 201 === statusCode
     passwordResetData <- preparePasswordReset brig cs email uid newpw
@@ -70,7 +70,7 @@ testPasswordReset brig cs = do
     !!! const 403 === statusCode
   login
     brig
-    (PasswordLogin (PasswordLoginData (LoginByEmail email) (toLegacy newpw) Nothing Nothing))
+    (PasswordLogin (PasswordLoginData (LoginByEmail email) (plainTextPassword8To6 newpw) Nothing Nothing))
     PersistentCookie
     !!! const 200 === statusCode
   -- reset password again to the same new password, get 400 "must be different"
@@ -87,7 +87,7 @@ testPasswordResetAfterEmailUpdate brig cs = do
   eml <- randomEmail
   initiateEmailUpdateLogin brig eml (emailLogin email defPassword Nothing) uid !!! const 202 === statusCode
   initiatePasswordReset brig email !!! const 201 === statusCode
-  passwordResetData <- preparePasswordReset brig cs email uid (plainTextPasswordUnsafe "newsecret")
+  passwordResetData <- preparePasswordReset brig cs email uid (plainTextPassword8Unsafe "newsecret")
   -- activate new email
   activateEmail brig eml
   checkEmail brig uid eml
@@ -100,7 +100,7 @@ testPasswordResetInvalidPasswordLength brig cs = do
   let Just email = userEmail u
   let uid = userId u
   -- for convenience, we create a valid password first that we replace with an invalid one in the JSON later
-  let newpw = plainTextPasswordUnsafe "newsecret"
+  let newpw = plainTextPassword8Unsafe "newsecret"
   initiatePasswordReset brig email !!! const 201 === statusCode
   passwordResetData <- preparePasswordReset brig cs email uid newpw
   let shortPassword = String "123456"

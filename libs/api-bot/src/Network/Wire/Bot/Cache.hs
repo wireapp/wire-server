@@ -77,7 +77,7 @@ put c a = liftIO . atomicModifyIORef (cache c) $ \u -> (a : u, ())
 
 toUser :: HasCallStack => Logger -> Domain -> [CachedUser] -> [LText] -> IO [CachedUser]
 toUser _ domain acc [i, e, p] = do
-  let pw = plainTextPasswordLegacyUnsafe . Text.toStrict $ Text.strip p
+  let pw = plainTextPassword6Unsafe . Text.toStrict $ Text.strip p
   let iu = error "Cache.toUser: invalid user"
   let ie = error "Cache.toUser: invalid email"
   let ui = fromMaybe iu . fromByteString . encodeUtf8 . Text.toStrict . Text.strip $ i

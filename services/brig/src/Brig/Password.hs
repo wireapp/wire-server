@@ -51,7 +51,7 @@ instance Cql Password where
 -- containing only alphanumeric characters, '+' and '/'.
 genPassword :: MonadIO m => m PlainTextPassword8
 genPassword =
-  liftIO . fmap (plainTextPasswordUnsafe . Text.decodeUtf8 . B64.encode) $
+  liftIO . fmap (plainTextPassword8Unsafe . Text.decodeUtf8 . B64.encode) $
     randBytes 12
 
 -- | Stretch a plaintext password so that it can be safely stored.

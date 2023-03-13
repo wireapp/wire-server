@@ -466,8 +466,8 @@ legalHoldLogin ::
   LegalHoldLogin ->
   CookieType ->
   ExceptT LegalHoldLoginError (AppT r) (Access ZAuth.LegalHoldUser)
-legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
-  wrapHttpClientE (Data.reauthenticate uid plainTextPassword) !>> LegalHoldReAuthError
+legalHoldLogin (LegalHoldLogin uid pw label) typ = do
+  wrapHttpClientE (Data.reauthenticate uid pw) !>> LegalHoldReAuthError
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled

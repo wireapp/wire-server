@@ -244,7 +244,7 @@ testPasswordResetProvider :: DB.ClientState -> Brig -> Http ()
 testPasswordResetProvider db brig = do
   prv <- randomProvider db brig
   let email = providerEmail prv
-  let newPw = plainTextPasswordLegacyUnsafe "newsupersecret"
+  let newPw = plainTextPassword6Unsafe "newsupersecret"
   initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
   -- password reset with same password fails.
   resetPw defProviderPassword email !!! const 409 === statusCode
@@ -282,7 +282,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
         CompletePasswordReset
           (Code.codeKey vcodePw)
           (Code.codeValue vcodePw)
-          (plainTextPasswordLegacyUnsafe "doesnotmatter")
+          (plainTextPassword6Unsafe "doesnotmatter")
   -- Activate the new email
   genNew <- Code.mkGen (Code.ForEmail newEmail)
   Just vcodeEm <- lookupCode db genNew Code.IdentityVerification
@@ -296,8 +296,8 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
   loginProvider brig origEmail defProviderPassword !!! const 403 === statusCode
   loginProvider brig newEmail defProviderPassword !!! const 200 === statusCode
   -- exercise the password change endpoint
-  let newPass = plainTextPasswordLegacyUnsafe "newpass"
-  let pwChangeFail = PasswordChange (plainTextPasswordLegacyUnsafe "notcorrect") newPass
+  let newPass = plainTextPassword6Unsafe "newpass"
+  let pwChangeFail = PasswordChange (plainTextPassword6Unsafe "notcorrect") newPass
   updateProviderPassword brig pid pwChangeFail !!! const 403 === statusCode
   let pwChange = PasswordChange defProviderPassword newPass
   updateProviderPassword brig pid pwChange !!! const 200 === statusCode
@@ -1688,7 +1688,7 @@ defProviderDescr :: Text
 defProviderDescr = "A long description of an integration test provider"
 
 defProviderPassword :: PlainTextPassword6
-defProviderPassword = plainTextPasswordLegacyUnsafe "password"
+defProviderPassword = plainTextPassword6Unsafe "password"
 
 defServiceName :: Name
 defServiceName = Name "Test Service"

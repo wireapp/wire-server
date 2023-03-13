@@ -51,7 +51,7 @@ import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
 import qualified Data.List1 as List1
-import Data.Misc (plainTextPasswordLegacyUnsafe)
+import Data.Misc (plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
@@ -1138,7 +1138,7 @@ testPasswordChange brig = do
   put (brig . path "/self/password" . contentJson . zUser uid2 . body pwSet)
     !!! (const 403 === statusCode)
   where
-    newPass = plainTextPasswordLegacyUnsafe "topsecret"
+    newPass = plainTextPassword6Unsafe "topsecret"
     pwChange =
       RequestBodyLBS . encode $
         object
@@ -1577,7 +1577,7 @@ testRestrictedUserCreation opts brig = do
             [ "name" .= Name "Alice",
               "email" .= fromEmail e,
               "email_code" .= ("123456" :: Text),
-              "password" .= plainTextPasswordLegacyUnsafe "123123123"
+              "password" .= plainTextPassword6Unsafe "123123123"
             ]
     postUserRegister' regularUser brig !!! do
       const 403 === statusCode
@@ -1587,7 +1587,7 @@ testRestrictedUserCreation opts brig = do
           object
             [ "name" .= Name "Alice",
               "email" .= fromEmail e,
-              "password" .= plainTextPasswordLegacyUnsafe "123123123"
+              "password" .= plainTextPassword6Unsafe "123123123"
             ]
     postUserRegister' regularUserNotPreActivated brig !!! do
       const 403 === statusCode
@@ -1599,7 +1599,7 @@ testRestrictedUserCreation opts brig = do
               "email" .= fromEmail e,
               "email_code" .= ("123456" :: Text),
               "team" .= object ["name" .= ("Alice team" :: Text), "icon" .= ("default" :: Text), "binding" .= True],
-              "password" .= plainTextPasswordLegacyUnsafe "123123123"
+              "password" .= plainTextPassword6Unsafe "123123123"
             ]
     postUserRegister' teamCreator brig !!! do
       const 403 === statusCode

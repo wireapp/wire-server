@@ -452,7 +452,7 @@ newBot tag = liftBotNet $ do
   keys <- liftIO $ awaitActivationMail mbox folders sndr email
   log Info $ botLogFields (userId user) tag . msg (val "Activate user")
   forM_ keys (uncurry activateKey >=> flip assertTrue "Activation failed.")
-  bot <- mkBot tag user (toLegacy pw)
+  bot <- mkBot tag user (plainTextPassword8To6 pw)
   -- TODO: addBotClient?
   incrBotsCreatedNew
   pure bot
@@ -983,7 +983,7 @@ randUser (Email loc dom) (BotTag tag) = do
   uuid <- nextRandom
   pwdUuid <- nextRandom
   let email = Email (loc <> "+" <> tag <> "-" <> pack (toString uuid)) dom
-  let passw = plainTextPasswordUnsafe (pack (toString pwdUuid))
+  let passw = plainTextPassword8Unsafe (pack (toString pwdUuid))
   pure
     ( NewUser
         { newUserDisplayName = Name (tag <> "-Wirebot-" <> pack (toString uuid)),
