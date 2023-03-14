@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2023 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,18 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+-- | related: https://github.com/nomeata/tasty-expected-failure
+module Test.Tasty.Pending (flakyTestCase) where
 
-import Federator.Run (run)
 import Imports
-import Util.Options (getOptions)
+import System.IO.Unsafe (unsafePerformIO)
+import Test.Tasty
+import Test.Tasty.HUnit
 
-main :: IO ()
-main = do
-  let desc = "Federation Service"
-      defaultPath = "/etc/wire/federator/conf/federator.yaml"
-  options <- getOptions desc Nothing defaultPath
-  run options
+flakyTestCase :: TestName -> Assertion -> TestTree
+flakyTestCase name test = testCase name test'
+  where
+    test' = when (runthem == Just "1") test
+    runthem = unsafePerformIO $ lookupEnv "RUN_FLAKY_TESTS"

@@ -47,7 +47,6 @@ import Data.Domain
 import qualified Data.Sequence as Seq
 import qualified Data.Set as Set
 import Data.Streaming.Network
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
 import qualified Data.Text.Lazy.Encoding as LText
@@ -59,9 +58,8 @@ import qualified Network.HTTP.Media as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
+import qualified Network.TLS as TLS
 import qualified Network.Wai.Utilities.Error as Wai
-import OpenSSL.Session (SSL, SSLContext)
-import qualified OpenSSL.Session as SSL
 import Servant.Client
 import Servant.Client.Core
 import Servant.Types.SourceT
@@ -124,7 +122,7 @@ connectSocket hostname port =
     $ getSocketFamilyTCP hostname port NS.AF_UNSPEC
 
 performHTTP2Request ::
-  Maybe SSLContext ->
+  Maybe TLS.ClientParams ->
   HTTP2.Request ->
   ByteString ->
   Int ->
@@ -140,42 +138,34 @@ performHTTP2Request mtlsConfig req hostname port = try $ do
     pure $ resp $> foldMap byteString b
 
 withHTTP2Request ::
-  Maybe SSLContext ->
+  Maybe TLS.ClientParams ->
   HTTP2.Request ->
   ByteString ->
   Int ->
   (StreamingResponse -> IO a) ->
   IO a
-withHTTP2Request mSSLCtx req hostname port k = do
+withHTTP2Request mtlsConfig req hostname port k = do
   let clientConfig =
         HTTP2.ClientConfig
-          { HTTP2.scheme = "https",
-            HTTP2.authority = hostname,
-            HTTP2.cacheLimit = 20
-          }
+          "https"
+          hostname
+          {- cacheLimit: -} 20
   E.handle (E.throw . FederatorClientHTTP2Exception) $
     bracket (connectSocket hostname port) NS.close $ \sock -> do
-      let withHTTP2Config k' = case mSSLCtx of
+      let withHTTP2Config k' = case mtlsConfig of
             Nothing -> bracket (HTTP2.allocSimpleConfig sock 4096) HTTP2.freeSimpleConfig k'
-            Just sslCtx -> do
-              ssl <- E.handle (E.throw . FederatorClientTLSException) $ do
-                ssl <- SSL.connection sslCtx sock
-                -- We need to strip trailing dot because openssl doesn't ignore
-                -- it. https://github.com/openssl/openssl/issues/11560
-                let hostnameStr =
-                      Text.unpack $ case Text.decodeUtf8 hostname of
-                        (Text.stripSuffix "." -> Just withoutTrailingDot) -> withoutTrailingDot
-                        noTrailingDot -> noTrailingDot
-                SSL.setTlsextHostName ssl hostnameStr
-                SSL.enableHostnameValidation ssl hostnameStr
-                SSL.connect ssl
-                pure ssl
-              bracket (allocTLSConfig ssl 4096) freeTLSConfig k'
+            -- FUTUREWORK(federation): Use openssl
+            Just tlsConfig -> do
+              ctx <- E.handle (E.throw . FederatorClientTLSException) $ do
+                ctx <- TLS.contextNew sock tlsConfig
+                TLS.handshake ctx
+                pure ctx
+              bracket (allocTLSConfig ctx 4096) freeTLSConfig k'
       withHTTP2Config $ \conf -> do
         HTTP2.run clientConfig conf $ \sendRequest ->
           sendRequest req $ \resp -> do
             let headers = headersFromTable (HTTP2.responseHeaders resp)
-                result = fromAction BS.null $ HTTP2.getResponseBodyChunk resp
+                result = fromAction BS.null (HTTP2.getResponseBodyChunk resp)
             case HTTP2.responseStatus resp of
               Nothing -> E.throw FederatorClientNoStatusCode
               Just status ->
@@ -361,23 +351,31 @@ versionNegotiation =
 freeTLSConfig :: HTTP2.Config -> IO ()
 freeTLSConfig cfg = free (HTTP2.confWriteBuffer cfg)
 
-allocTLSConfig :: SSL -> HTTP2.BufferSize -> IO HTTP2.Config
-allocTLSConfig ssl bufsize = do
+allocTLSConfig :: TLS.Context -> HTTP2.BufferSize -> IO HTTP2.Config
+allocTLSConfig ctx bufsize = do
   buf <- mallocBytes bufsize
   timmgr <- System.TimeManager.initialize $ 30 * 1000000
+  ref <- newIORef mempty
   let readData :: Int -> IO ByteString
-      -- Sometimes the frame header says that the payload length is 0. Reading 0
-      -- bytes multiple times seems to be causing errors in openssl. I cannot
-      -- figure out why. The previous implementation didn't try to read from the
-      -- socket when trying to read 0 bytes, so special handling for 0 maintains
-      -- that behaviour.
-      readData 0 = pure ""
-      readData n = SSL.read ssl n `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure mempty
+      readData n = do
+        chunk <- readIORef ref
+        if BS.length chunk >= n
+          then case BS.splitAt n chunk of
+            (result, chunk') -> do
+              writeIORef ref chunk'
+              pure result
+          else do
+            chunk' <- TLS.recvData ctx
+            if BS.null chunk'
+              then pure chunk
+              else do
+                modifyIORef ref (<> chunk')
+                readData n
   pure
     HTTP2.Config
       { HTTP2.confWriteBuffer = buf,
         HTTP2.confBufferSize = bufsize,
-        HTTP2.confSendAll = SSL.write ssl,
+        HTTP2.confSendAll = TLS.sendData ctx . LBS.fromStrict,
         HTTP2.confReadN = readData,
         HTTP2.confPositionReadMaker = HTTP2.defaultPositionReadMaker,
         HTTP2.confTimeoutManager = timmgr
