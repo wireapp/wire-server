@@ -42,11 +42,11 @@ summary() {
 # - run integration tests. If they fail, keep track of this, but still go and get logs, so we see what failed
 # - run all tests. Perhaps multiple flaky tests in multiple services exist, if so, we wish to see all problems
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
-printf '%s\n' "${tests[@]}" | parallel echo "Running helm tests for {}..."
-printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" \
+printf '%s\n' "${tests[@]}" | parallel -P "${HELM_PARALLELISM}" --retries 1 \
+    echo "Running helm tests for {}..." ';' \
     helm test -n "${NAMESPACE}" "${NAMESPACE}-${CHART}" --timeout 900s --filter name="${NAMESPACE}-${CHART}-{}-integration" '> logs-{};' \
     echo '$? > stat-{};' \
-    echo "==== Done testing {}. ====" '};' \
+    echo "==== Done testing {}. ====" ';' \
     kubectl -n "${NAMESPACE}" logs "${NAMESPACE}-${CHART}-{}-integration" '>> logs-{};'
 
 summary
