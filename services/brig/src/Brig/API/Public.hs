@@ -108,6 +108,7 @@ import qualified Wire.API.Connection as Public
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.API
+import Wire.API.Federation.Error
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.Internal.Brig as BrigInternalAPI
 import qualified Wire.API.Routes.Internal.Cannon as CannonInternalAPI
@@ -143,7 +144,6 @@ import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
 import Wire.Sem.Concurrency
 import Wire.Sem.Now (Now)
-import Wire.API.Federation.Error
 
 -- User API -----------------------------------------------------------
 
@@ -768,12 +768,11 @@ listUsersByIdsOrHandlesV3 self q = do
       localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
-    byIds
-      :: Local UserId
-      -> [Qualified UserId]
-      -> Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
+    byIds ::
+      Local UserId ->
+      [Qualified UserId] ->
+      Handler r ([(Qualified UserId, FederationError)], [Public.UserProfile])
     byIds lself uids = lift (API.lookupProfilesV3 lself uids) !>> fedError
-
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)

@@ -234,16 +234,16 @@ type UserAPI =
           :> Post '[JSON] [UserProfile]
       )
     :<|> Named
-      "list-users-by-ids-or-handles@V3"
-      ( Summary "List users"
-          :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
-          :> MakesFederatedCall 'Brig "get-users-by-ids"
-          :> ZUser
-          :> From 'V3
-          :> "list-users"
-          :> ReqBody '[JSON] ListUsersQuery
-          :> Post '[JSON] ListUsersById
-      )
+           "list-users-by-ids-or-handles@V3"
+           ( Summary "List users"
+               :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
+               :> MakesFederatedCall 'Brig "get-users-by-ids"
+               :> ZUser
+               :> From 'V3
+               :> "list-users"
+               :> ReqBody '[JSON] ListUsersQuery
+               :> Post '[JSON] ListUsersById
+           )
     :<|> Named
            "send-verification-code"
            ( Summary "Send a verification code to a given email address."

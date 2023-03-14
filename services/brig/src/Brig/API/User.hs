@@ -1441,8 +1441,8 @@ lookupProfiles self others =
 -- | Similar to lookupProfiles except it returns all results and all errors
 -- allowing for partial success.
 lookupProfilesV3 ::
-  ( Member GalleyProvider r
-  , Member (Concurrency 'Unsafe) r
+  ( Member GalleyProvider r,
+    Member (Concurrency 'Unsafe) r
   ) =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
@@ -1450,16 +1450,17 @@ lookupProfilesV3 ::
   [Qualified UserId] ->
   AppT r ([(Qualified UserId, FederationError)], [UserProfile])
 lookupProfilesV3 self others = do
-  t <- traverseConcurrently
-    (lookupProfilesFromDomain self)
-    (bucketQualified others)
+  t <-
+    traverseConcurrently
+      (lookupProfilesFromDomain self)
+      (bucketQualified others)
   let (l, r) = partitionEithers t
   pure (l >>= flattenUsers, join r)
   where
     flattenUsers :: (Qualified [UserId], FederationError) -> [(Qualified UserId, FederationError)]
     flattenUsers (l, e) =
       let mkUser u = Qualified u (qDomain l)
-      in (,e) . mkUser <$> qUnqualified l
+       in (,e) . mkUser <$> qUnqualified l
 
 lookupProfilesFromDomain ::
   (Member GalleyProvider r) =>

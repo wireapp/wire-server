@@ -49,6 +49,7 @@ import Data.Domain
 import Data.Handle
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
+import Data.LegalHold
 import Data.List1 (singleton)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
@@ -98,7 +99,6 @@ import Wire.API.User.Activation
 import Wire.API.User.Auth
 import qualified Wire.API.User.Auth as Auth
 import Wire.API.User.Client
-import Data.LegalHold
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> UserJournalWatcher -> TestTree
 tests _ at opts p b c ch g aws userJournalWatcher =
@@ -803,20 +803,21 @@ testMultipleUsersV3 opts brig = do
   -- A remote user that can be listed
   let evenFurtherAway = Domain "even-further-away.example.com"
   u5 <- Qualified <$> randomId <*> pure evenFurtherAway
-  let u5Profile = UserProfile
-        { profileQualifiedId = u5
-        , profileName = Name "u5"
-        , profilePict = Pict []
-        , profileAssets = []
-        , profileAccentId = ColourId 0
-        , profileDeleted = False
-        , profileService = Nothing
-        , profileHandle = Nothing
-        , profileExpire = Nothing
-        , profileTeam = Nothing
-        , profileEmail = Nothing
-        , profileLegalholdStatus = UserLegalHoldDisabled
-        }
+  let u5Profile =
+        UserProfile
+          { profileQualifiedId = u5,
+            profileName = Name "u5",
+            profilePict = Pict [],
+            profileAssets = [],
+            profileAccentId = ColourId 0,
+            profileDeleted = False,
+            profileService = Nothing,
+            profileHandle = Nothing,
+            profileExpire = Nothing,
+            profileTeam = Nothing,
+            profileEmail = Nothing,
+            profileLegalholdStatus = UserLegalHoldDisabled
+          }
       users = [u1, u2, u3]
       q = ListUsersByIds $ u5 : u4 : map userQualifiedId users
       expected =
@@ -831,10 +832,10 @@ testMultipleUsersV3 opts brig = do
   let fedMockResponse req = do
         -- Check that our allowed remote user is being asked for
         if frTargetDomain req == evenFurtherAway
-        -- Return the data for u5
-        then pure $ encode [u5Profile]
-        -- Otherwise mock an unavailable federation server
-        else throw $ MockErrorResponse Http.status500 "Down for maintenance"
+          then -- Return the data for u5
+            pure $ encode [u5Profile]
+          else -- Otherwise mock an unavailable federation server
+            throw $ MockErrorResponse Http.status500 "Down for maintenance"
       -- Galley isn't needed, but this is what mock federators are available.
       galleyHandler _ = error "not mocked"
   (response, _rpcCalls, _galleyCalls) <- liftIO $
@@ -846,11 +847,11 @@ testMultipleUsersV3 opts brig = do
             . path "list-users"
             . body (RequestBodyLBS (Aeson.encode q))
         )
-  
+
   pure response !!! do
-     const 200 === statusCode
-     const (Just expected) === result
-     const (pure $ pure expectedFailed) === resultFailed
+    const 200 === statusCode
+    const (Just expected) === result
+    const (pure $ pure expectedFailed) === resultFailed
   where
     result r =
       Set.fromList
