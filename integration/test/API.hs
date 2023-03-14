@@ -12,10 +12,11 @@ import System.Random
 randomEmail :: App String
 randomEmail = liftIO $ do
   n <- randomRIO (8, 15)
-  replicateM n pick
+  u <- replicateM n pick
+  pure $ u <> "@example.com"
   where
     chars :: Array.Array Int Char
-    chars = mkArray $ filter (/= '@') ['!' .. '~']
+    chars = mkArray $ ['A' .. 'Z'] <> ['a' .. 'z'] <> ['0' .. '9']
 
     mkArray :: [a] -> Array.Array Int a
     mkArray l = Array.listArray (0, length l - 1) l
@@ -48,7 +49,7 @@ createUser cu = do
   let password = fromMaybe defPassword cu.password
       name = fromMaybe email cu.name
   req <- baseRequest Brig "/i/users"
-  submit $
+  submit "POST" $
     addJSONObject
       [ "email" .= email,
         "name" .= name,
