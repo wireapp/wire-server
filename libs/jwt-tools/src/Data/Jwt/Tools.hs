@@ -40,10 +40,8 @@ import Control.Exception
 import Control.Monad.Trans.Except
 import Data.ByteString.Conversion
 import Data.String.Conversions (cs)
-import Foreign.C (CUChar (..))
 import Foreign.C.String (CString, newCString, peekCString)
 import Foreign.Ptr (Ptr, nullPtr)
-import Foreign.Storable (peek)
 import Imports
 import Network.HTTP.Types (StdMethod (..))
 
@@ -88,7 +86,7 @@ foreign import ccall unsafe "generate_dpop_access_token"
 
 foreign import ccall unsafe "free_dpop_access_token" free_dpop_access_token :: Ptr HsResult -> IO ()
 
-foreign import ccall unsafe "get_error" get_error :: Ptr HsResult -> Ptr CUChar
+foreign import ccall unsafe "get_error" get_error :: Ptr HsResult -> Word8
 
 foreign import ccall unsafe "get_token" get_token :: Ptr HsResult -> CString
 
@@ -113,9 +111,9 @@ generateDpopAccessTokenFfi dpopProof user client domain nonce uri method maxSkew
 
 getErrorFfi :: Ptr HsResult -> IO (Maybe Word8)
 getErrorFfi ptr = do
-  let errorPtr = get_error ptr
-  if errorPtr /= nullPtr
-    then Just . fromIntegral <$> peek errorPtr
+  let err = get_error ptr
+  if err /= 0
+    then pure $ Just err
     else pure Nothing
 
 getTokenFfi :: Ptr HsResult -> IO (Maybe String)
