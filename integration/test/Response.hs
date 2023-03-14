@@ -4,9 +4,10 @@ import App
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.ByteString.Lazy.Char8 as L8
+import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.IO as T
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
@@ -36,8 +37,9 @@ addJSON obj req =
           : HTTP.requestHeaders req
     }
 
-submit :: HTTP.Request -> App Response
-submit req = do
+submit :: ByteString -> HTTP.Request -> App Response
+submit method req0 = do
+  let req = req0 {HTTP.method = method}
   manager <- getManager
   res <- liftIO $ HTTP.httpLbs req manager
   pure $
@@ -53,11 +55,22 @@ showRequest r =
     <> " "
     <> uriToString id (HTTP.getUri r) ""
 
+getRequestBody :: HTTP.Request -> Maybe ByteString
+getRequestBody req = case HTTP.requestBody req of
+  HTTP.RequestBodyLBS lbs -> pure (L.toStrict lbs)
+  HTTP.RequestBodyBS bs -> pure bs
+  _ -> Nothing
+
 withResponse :: Response -> (Response -> App a) -> App a
 withResponse r k = onFailure (k r) $ do
   putStrLn $ "request: " <> showRequest r.request
+  case getRequestBody r.request of
+    Nothing -> pure ()
+    Just b -> do
+      putStrLn "request body:"
+      T.putStrLn (T.decodeUtf8 b)
   putStrLn "response body:"
-  L8.putStrLn (foldMap Aeson.encode r.json)
+  T.putStrLn (T.decodeUtf8 (L.toStrict (foldMap Aeson.encode r.json)))
 
 bindResponse :: App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
