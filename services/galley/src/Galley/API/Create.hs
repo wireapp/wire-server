@@ -23,7 +23,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Create
-  ( createGroupConversationV3,
+  ( createGroupConversationUpToV3,
     createGroupConversation,
     createProteusSelfConversation,
     createOne2OneConversation,
@@ -86,7 +86,7 @@ import Wire.API.Team.Permission hiding (self)
 
 -- | The public-facing endpoint for creating group conversations in the client
 -- API up to and including version 3.
-createGroupConversationV3 ::
+createGroupConversationUpToV3 ::
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member MemberStore r,
@@ -114,7 +114,7 @@ createGroupConversationV3 ::
   Maybe ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversationV3 lusr mCreatorClient conn newConv =
+createGroupConversationUpToV3 lusr mCreatorClient conn newConv =
   createGroupConversationGeneric
     lusr
     mCreatorClient
