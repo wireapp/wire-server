@@ -124,7 +124,6 @@ import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
-import Data.Password
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))
@@ -157,6 +156,7 @@ import Data.List1 as List1 (List1, singleton)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
+import Data.Password
 import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)

@@ -290,7 +290,8 @@ testObject_Event_user_14 =
       ConversationCode
         { conversationKey = Key {asciiKey = unsafeRange (fromRight undefined (validate "NEN=eLUWHXclTp=_2Nap"))},
           conversationCode = Value {asciiValue = unsafeRange (fromRight undefined (validate "lLz-9vR8ENum0kI-xWJs"))},
-          conversationUri = Nothing
+          conversationUri = Nothing,
+          conversationHasPassword = Nothing
         }
 
 testObject_Event_user_15 :: Event

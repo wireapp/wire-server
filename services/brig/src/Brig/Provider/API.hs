@@ -42,7 +42,6 @@ import Brig.Email (mkEmailKey)
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options (Settings (..))
 import qualified Brig.Options as Opt
-import Data.Password
 import Brig.Provider.DB (ServiceConn (..))
 import qualified Brig.Provider.DB as DB
 import Brig.Provider.Email
@@ -70,6 +69,7 @@ import qualified Data.List as List
 import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Fingerprint (..), FutureWork (FutureWork), Rsa)
+import Data.Password
 import Data.Predicate
 import Data.Qualified
 import Data.Range

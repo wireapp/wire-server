@@ -614,7 +614,7 @@ getCode lusr cnv = do
 
 returnCode :: Member CodeStore r => Code -> Sem r ConversationCode
 returnCode c = do
-  mkConversationCode (codeKey c) (codeValue c) False <$> E.getConversationCodeURI
+  mkConversationCode (codeKey c) (codeValue c) (codeHasPassword c) <$> E.getConversationCodeURI
 
 checkReusableCode ::
   forall db r.

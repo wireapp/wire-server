@@ -43,6 +43,7 @@ import Wire.API.Team
 import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
+import Data.Password (Password)
 
 -- Teams --------------------------------------------------------------------
 
@@ -288,8 +289,8 @@ updatePublicGroupState = "update conversation set public_group_state = ? where c
 insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Int32) ()
 insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope) VALUES (?, ?, ?, ?) USING TTL ?"
 
-lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId)
-lookupCode = "SELECT value, ttl(value), conversation FROM conversation_codes WHERE key = ? AND scope = ?"
+lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId, Maybe Password)
+lookupCode = "SELECT value, ttl(value), conversation, password FROM conversation_codes WHERE key = ? AND scope = ?"
 
 deleteCode :: PrepQuery W (Key, Scope) ()
 deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"

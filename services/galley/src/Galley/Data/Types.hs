@@ -41,6 +41,7 @@ import Galley.Data.Scope
 import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
+import Data.Password (Password)
 
 --------------------------------------------------------------------------------
 -- Code
@@ -50,18 +51,20 @@ data Code = Code
     codeValue :: !Value,
     codeTTL :: !Timeout,
     codeConversation :: !ConvId,
-    codeScope :: !Scope
+    codeScope :: !Scope,
+    codeHasPassword :: !Bool
   }
   deriving (Eq, Show, Generic)
 
-toCode :: Key -> Scope -> (Value, Int32, ConvId) -> Code
-toCode k s (val, ttl, cnv) =
+toCode :: Key -> Scope -> (Value, Int32, ConvId, Maybe Password) -> Code
+toCode k s (val, ttl, cnv, _mPw) =
   Code
     { codeKey = k,
       codeValue = val,
       codeTTL = Timeout (fromIntegral ttl),
       codeConversation = cnv,
-      codeScope = s
+      codeScope = s,
+      codeHasPassword = isJust _mPw
     }
 
 -- Note on key/value used for a conversation Code
@@ -81,7 +84,8 @@ generate cnv s t = do
         codeValue = val,
         codeConversation = cnv,
         codeTTL = t,
-        codeScope = s
+        codeScope = s,
+        codeHasPassword = False
       }
 
 mkKey :: MonadIO m => ConvId -> m Key
