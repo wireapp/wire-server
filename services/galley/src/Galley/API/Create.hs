@@ -189,7 +189,7 @@ createGroupConversationGeneric ::
   -- | The function that incorporates the failed to add remote users in the
   -- response. In the client API up to and including V3 this function simply
   -- ignores the first argument.
-  (Set (Qualified (Set UserId)) -> Local UserId -> Conversation -> Sem r resp) ->
+  (Set (Remote (Set UserId)) -> Local UserId -> Conversation -> Sem r resp) ->
   Sem r resp
 createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
@@ -220,10 +220,15 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
     (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
 
   -- NOTE: We only send (conversation) events to members of the conversation
-  failedToNotify <- notifyCreatedConversation lusr (Just conn) conv
-  -- TODO(md): Either remove the failed-to-add users at this point or avoid
-  -- adding them before trying to notify them.
+  failedToNotify <- notifyCreatedConversation lusr conn conv
+  -- We already added all the invitees, but now remove from the conversation
+  -- those that could not be notified
+  E.deleteMembers (convId conv) (toFlatUserList failedToNotify)
+
   convCreated failedToNotify lusr conv
+  where
+    toFlatUserList :: Set (Remote (Set a)) -> UserList a
+    toFlatUserList = ulFromRemotes . foldMap (traverse Set.toList)
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -619,11 +624,11 @@ groupConversationCreated ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
-  Set (Qualified (Set UserId)) ->
+  Set (Remote (Set UserId)) ->
   Local UserId ->
   Data.Conversation ->
   Sem r CreateGroupConversationResponse
-groupConversationCreated failedToAdd lusr cnv = do
+groupConversationCreated (Set.map tUntagged -> failedToAdd) lusr cnv = do
   conv <- conversationView lusr cnv
   pure . GroupConversationCreated $ CreateGroupConversation conv failedToAdd
 
@@ -641,7 +646,7 @@ notifyCreatedConversation ::
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
-  Sem r (Set (Qualified (Set UserId)))
+  Sem r (Set (Remote (Set UserId)))
 notifyCreatedConversation lusr conn c = do
   now <- input
   -- Ask remote server to store conversation membership and notify remote users

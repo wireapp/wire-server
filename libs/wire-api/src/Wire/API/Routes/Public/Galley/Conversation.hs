@@ -420,7 +420,7 @@ type ConversationAPI =
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZOptClient
-               :> ZConn
+               :> ZOptConn
                :> "conversations"
                :> ReqBody '[Servant.JSON] NewConv
                :> CreateGroupConversationVerb
