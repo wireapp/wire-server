@@ -124,7 +124,7 @@ import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
-import Brig.Password
+import Data.Password
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
 import Brig.Team.Types (ShowOrHideInvitationUrl (..))

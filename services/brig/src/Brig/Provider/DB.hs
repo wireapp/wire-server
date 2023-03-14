@@ -19,9 +19,7 @@ module Brig.Provider.DB where
 
 import Brig.Data.Instances ()
 import Brig.Email (EmailKey, emailKeyOrig, emailKeyUniq)
-import Brig.Password
--- import Brig.Provider.DB.Instances ()
-
+import Data.Password
 import Brig.Types.Instances ()
 import Brig.Types.Provider.Tag
 import Cassandra as C

@@ -42,7 +42,7 @@ import Brig.Email (mkEmailKey)
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options (Settings (..))
 import qualified Brig.Options as Opt
-import Brig.Password
+import Data.Password
 import Brig.Provider.DB (ServiceConn (..))
 import qualified Brig.Provider.DB as DB
 import Brig.Provider.Email
