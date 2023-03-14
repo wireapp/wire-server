@@ -147,7 +147,7 @@ tests s =
           test s "fail to create conversation when blocked by qualified member" postConvQualifiedFailBlocked,
           test s "fail to create conversation with remote users when remote user is not connected" postConvQualifiedNoConnection,
           test s "fail to create team conversation with remote users when remote user is not connected" postTeamConvQualifiedNoConnection,
-          test s "fail to create conversation with remote users when remote user's domain doesn't exist" postConvQualifiedNonExistentDomain,
+          test s "create conversation with optional remote users when remote user's domain doesn't exist" postConvQualifiedNonExistentDomain,
           test s "fail to create conversation with remote users when federation not configured" postConvQualifiedFederationNotEnabled,
           test s "create self conversation" postSelfConvOk,
           test s "create 1:1 conversation" postO2OConvOk,
@@ -2215,15 +2215,33 @@ postTeamConvQualifiedNoConnection = do
 
 postConvQualifiedNonExistentDomain :: TestM ()
 postConvQualifiedNonExistentDomain = do
-  alice <- randomUser
-  bob <- flip Qualified (Domain "non-existent.example.com") <$> randomId
-  connectWithRemoteUser alice bob
-  postConvQualified
-    alice
-    Nothing
-    defNewProteusConv {newConvQualifiedUsers = [bob]}
-    !!! do
-      const 422 === statusCode
+  let remoteDomain = Domain "non-existent.example.com"
+  (uAlice, alice) <- randomUserTuple
+  uBob <- randomId
+  let bob = Qualified uBob remoteDomain
+  connectWithRemoteUser uAlice bob
+  createdConv <-
+    responseJsonError
+      =<< postConvQualified
+        uAlice
+        Nothing
+        defNewProteusConv {newConvQualifiedUsers = [bob]}
+        <!! do
+          const 201 === statusCode
+  let members = cnvMembers . cgcConversation $ createdConv
+  liftIO $ do
+    assertEqual
+      "A remote domain was supposed to be unavailable"
+      (Map.singleton remoteDomain (Set.singleton uBob))
+      (cgcFailedToAdd createdConv)
+    assertEqual
+      "Only Alice should have been in the conversation"
+      []
+      (fmap omQualifiedId . cmOthers $ members)
+    assertEqual
+      "Alice is not her self in the conversation"
+      alice
+      (memId . cmSelf $ members)
 
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do
