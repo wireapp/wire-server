@@ -8,7 +8,16 @@ maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2023 Wire Swiss GmbH
 license:       AGPL-3.0-only
 license-file:  LICENSE
-build-type:    Simple
+build-type:    Custom
+
+custom-setup
+  setup-depends:
+      base
+    , Cabal
+    , containers
+    , filepath
+    , regex-posix
+    , regex-base
 
 common common-all
   default-language:   Haskell2010
@@ -69,9 +78,10 @@ executable integration-main
     App
     Config
     Response
+    SetupHelpers
     Run
-    Setup
     Test.Client
+    Moo
 
   build-depends:
     , aeson
