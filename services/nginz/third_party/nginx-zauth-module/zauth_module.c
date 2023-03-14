@@ -9,7 +9,7 @@
 typedef struct {
         ZauthKeystore * keystore;
         ZauthAcl *      acl;
-        OAuthJwk *      oauth_key;
+        OAuthPubJwk *   oauth_pub_key;
 } ZauthServerConf;
 
 typedef struct {
@@ -67,7 +67,7 @@ static void      zauth_empty_val      (ngx_http_variable_value_t *);
 
 // Utility functions
 static ngx_int_t zauth_handle_request (ngx_http_request_t *, const ZauthServerConf *, ZauthToken const *);
-static ngx_int_t oauth_handle_request(ngx_http_request_t *, OAuthJwk const *, ngx_str_t const);
+static ngx_int_t oauth_handle_request(ngx_http_request_t *, OAuthPubJwk const *, ngx_str_t const);
 
 static ngx_http_module_t zauth_module_ctx = {
         zauth_variables // pre-configuration
@@ -113,7 +113,7 @@ static ngx_command_t zauth_commands [] = {
         , NULL
         }
 
-      , { ngx_string ("oauth_key")
+      , { ngx_string ("oauth_pub_key")
         , NGX_HTTP_SRV_CONF | NGX_CONF_TAKE1
         , load_oauth_key
         , NGX_HTTP_SRV_CONF_OFFSET
@@ -177,8 +177,8 @@ static char * merge_srv_conf (ngx_conf_t * c, void * pc, void * cc) {
                 child->acl = parent->acl;
         }
 
-        if (child->oauth_key == NULL) {
-                child->oauth_key = parent->oauth_key;
+        if (child->oauth_pub_key == NULL) {
+                child->oauth_pub_key = parent->oauth_pub_key;
         }
 
         if (child->keystore == NULL) {
@@ -191,8 +191,8 @@ static char * merge_srv_conf (ngx_conf_t * c, void * pc, void * cc) {
                 return NGX_CONF_ERROR;
         }
 
-        if (child->oauth_key == NULL) {
-                ngx_conf_log_error(NGX_LOG_NOTICE, c, 0, "missing 'oauth_key'");
+        if (child->oauth_pub_key == NULL) {
+                ngx_conf_log_error(NGX_LOG_NOTICE, c, 0, "missing 'oauth_pub_key'");
         }
 
         return NGX_CONF_OK;
@@ -206,8 +206,8 @@ static void delete_srv_conf (void * data) {
         if (c->acl != NULL) {
                 zauth_acl_delete(c->acl);
         }
-        if (c->oauth_key != NULL) {
-                oauth_key_delete(c->oauth_key);
+        if (c->oauth_pub_key != NULL) {
+                oauth_key_delete(c->oauth_pub_key);
         }
 }
 
@@ -273,9 +273,9 @@ static char * load_oauth_key (ngx_conf_t * conf, ngx_command_t * cmd, void * dat
         }
 
         ngx_str_t * const fname = conf->args->elts;
-        OAuthResultStatus status = oauth_key_open(fname[1].data, fname[1].len, &sc->oauth_key);
+        OAuthResultStatus status = oauth_key_open(fname[1].data, fname[1].len, &sc->oauth_pub_key);
 
-        if (status != OAUTH_OK || sc->oauth_key == NULL) {
+        if (status != OAUTH_OK || sc->oauth_pub_key == NULL) {
                 ngx_conf_log_error(NGX_LOG_NOTICE, conf, 0, "failed to load oauth key [%d]", status);
         }
 
@@ -344,7 +344,7 @@ static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
         if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH) {
                 return zauth_handle_request(r, sc, ctx->token);
         } else if (ctx == NULL) {
-                return oauth_handle_request(r, sc->oauth_key, lc->oauth_scope);
+                return oauth_handle_request(r, sc->oauth_pub_key, lc->oauth_scope);
         } else {
                 return NGX_HTTP_UNAUTHORIZED;
         }
@@ -373,7 +373,7 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r, const ZauthServer
         return NGX_OK;
 }
 
-ngx_int_t oauth_handle_request(ngx_http_request_t *r, OAuthJwk const * key, ngx_str_t const scope) {
+ngx_int_t oauth_handle_request(ngx_http_request_t *r, OAuthPubJwk const * key, ngx_str_t const scope) {
         if (r->headers_in.authorization == NULL) {
                 return NGX_HTTP_UNAUTHORIZED;
         }

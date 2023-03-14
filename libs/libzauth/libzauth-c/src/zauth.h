@@ -58,7 +58,7 @@ typedef enum {
         OAUTH_PANIC              = 99,
 } OAuthResultStatus;
 
-typedef struct OAuthJwk      OAuthJwk;
+typedef struct OAuthPubJwk OAuthPubJwk;
 
 typedef struct {
   char *            uid;
@@ -71,8 +71,8 @@ void        zauth_keystore_delete(ZauthKeystore * store);
 ZauthResult zauth_acl_open(uint8_t const * fname, size_t len, ZauthAcl **);
 void        zauth_acl_delete(ZauthAcl * store);
 
-OAuthResultStatus oauth_key_open(uint8_t const * fname, size_t len, OAuthJwk **);
-void              oauth_key_delete(OAuthJwk * store);
+OAuthResultStatus oauth_key_open(uint8_t const * fname, size_t len, OAuthPubJwk **);
+void              oauth_key_delete(OAuthPubJwk * store);
 
 ZauthResult            zauth_token_parse(uint8_t const * str, size_t len, ZauthToken **);
 ZauthResult            zauth_token_verify(ZauthToken const *, ZauthKeystore const *);
@@ -83,7 +83,7 @@ uint8_t                zauth_token_version(ZauthToken const *);
 Range                  zauth_token_lookup(ZauthToken const *, uint8_t);
 ZauthResult            zauth_token_allowed(ZauthToken const *, ZauthAcl const *, uint8_t const * path, size_t len, uint8_t * result);
 void                   zauth_token_delete(ZauthToken *);
-OAuthResult            oauth_verify_token(OAuthJwk const *, uint8_t const * t, size_t t_len, uint8_t const * s, size_t s_len, uint8_t const * m, size_t m_len);
+OAuthResult            oauth_verify_token(OAuthPubJwk const *, uint8_t const * t, size_t t_len, uint8_t const * s, size_t s_len, uint8_t const * m, size_t m_len);
 OAuthResultStatus      oauth_result_uid_delete(char *);
 
 #ifdef __cplusplus

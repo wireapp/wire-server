@@ -30,7 +30,7 @@ nginx_conf:
   zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
   zauth_acl: /etc/wire/nginz/conf/zauth.acl
   basic_auth_file: /etc/wire/nginz/secrets/basic_auth.txt
-  oauth_key: /etc/wire/nginz/secrets/oauth_ed25519_pub.jwk
+  oauth_pub_key: /etc/wire/nginz/secrets/oauth_ed25519_pub.jwk
   worker_processes: auto
   worker_rlimit_nofile: 131072
   worker_connections: 65536

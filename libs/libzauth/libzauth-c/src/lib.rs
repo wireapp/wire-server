@@ -332,7 +332,7 @@ pub enum OAuthResultStatus {
     Panic = 99,
 }
 
-pub struct OAuthJwk(String);
+pub struct OAuthPubJwk(String);
 
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -407,7 +407,7 @@ impl From<OauthError> for OAuthResult {
 pub extern "C" fn oauth_key_open(
     f: *const u8,
     n: size_t,
-    k: *mut *mut OAuthJwk,
+    k: *mut *mut OAuthPubJwk,
 ) -> OAuthResultStatus {
     if f.is_null() {
         return OAuthResultStatus::NullArg;
@@ -420,7 +420,7 @@ pub extern "C" fn oauth_key_open(
             let mut txt = String::new();
             try_unwrap!(rdr.read_to_string(&mut txt));
             unsafe {
-                *k = Box::into_raw(Box::new(OAuthJwk(txt)));
+                *k = Box::into_raw(Box::new(OAuthPubJwk(txt)));
             }
             OAuthResultStatus::Ok
         },
@@ -429,7 +429,7 @@ pub extern "C" fn oauth_key_open(
 }
 
 #[no_mangle]
-pub extern "C" fn oauth_key_delete(a: *mut OAuthJwk) {
+pub extern "C" fn oauth_key_delete(a: *mut OAuthPubJwk) {
     catch_unwind_with(
         || {
             unsafe {
@@ -443,7 +443,7 @@ pub extern "C" fn oauth_key_delete(a: *mut OAuthJwk) {
 
 #[no_mangle]
 pub extern "C" fn oauth_verify_token(
-    jwk: &OAuthJwk,
+    jwk: &OAuthPubJwk,
     token: *const u8,
     token_len: size_t,
     scope: *const u8,
@@ -469,7 +469,7 @@ pub extern "C" fn oauth_verify_token(
                 uid: ptr::null(),
                 status: OAuthResultStatus::NullArg,
             };
-        }        
+        }
         let bytes = unsafe { slice::from_raw_parts(token, token_len) };
         let token = try_unwrap!(str::from_utf8(bytes));
         let bytes = unsafe { slice::from_raw_parts(scope, scope_len) };
