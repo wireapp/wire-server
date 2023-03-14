@@ -69,6 +69,9 @@ executable integration-main
     App
     Config
     Run
+    Setup
+    Test.Client
+    Response
 
   build-depends:
     , aeson
@@ -77,6 +80,7 @@ executable integration-main
     , data-default
     , http-client
     , http-types
+    , HUnit
     , imports
     , random
     , transformers
