@@ -69,6 +69,7 @@
 , insert-ordered-containers
 , iproute
 , iso639
+, jose
 , jwt-tools
 , lens
 , lens-aeson
@@ -214,6 +215,7 @@ mkDerivation {
     HsOpenSSL
     HsOpenSSL-x509-system
     html-entities
+    http-api-data
     http-client
     http-client-openssl
     http-media
@@ -222,6 +224,7 @@ mkDerivation {
     insert-ordered-containers
     iproute
     iso639
+    jose
     jwt-tools
     lens
     lens-aeson
@@ -332,6 +335,7 @@ mkDerivation {
     http-reverse-proxy
     http-types
     imports
+    jose
     lens
     lens-aeson
     metrics-wai

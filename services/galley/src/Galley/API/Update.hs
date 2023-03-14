@@ -488,13 +488,13 @@ addCodeUnqualified ::
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   UserId ->
-  ConnId ->
+  Maybe ConnId ->
   ConvId ->
   Sem r AddCodeResult
-addCodeUnqualified usr zcon cnv = do
+addCodeUnqualified usr mZcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode @db lusr zcon lcnv
+  addCode @db lusr mZcon lcnv
 
 addCode ::
   forall db r.
@@ -511,10 +511,10 @@ addCode ::
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Local ConvId ->
   Sem r AddCodeResult
-addCode lusr zcon lcnv = do
+addCode lusr mZcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
@@ -530,7 +530,7 @@ addCode lusr zcon lcnv = do
       now <- input
       conversationCode <- createCode code
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
-      pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
+      pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
     Just code -> do
       conversationCode <- createCode code
