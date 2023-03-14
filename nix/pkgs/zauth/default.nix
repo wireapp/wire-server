@@ -16,7 +16,7 @@ rustPlatform.buildRustPackage rec {
   src = nix-gitignore.gitignoreSourcePure [ ../../../.gitignore ] ../../../libs/libzauth;
   sourceRoot = "libzauth/libzauth-c";
 
-  cargoSha256 = "sha256-WVtCbmKHsBsNAeSHPxQyAmWVBpQFGthCKC2hJxmcMYI=";
+  cargoSha256 = "sha256-f/MNUrEQaPzSUHtnZ0jARMwBswS+Sh0Swe+2D+hpHF4=";
 
   patchLibs = lib.optionalString stdenv.isDarwin ''
     install_name_tool -id $out/lib/libzauth.dylib $out/lib/libzauth.dylib
