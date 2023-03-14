@@ -4,9 +4,13 @@ import App
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Lazy.Char8 as L8
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Types as HTTP
+import Network.URI (uriToString)
 
 data Response = Response
   { json :: Maybe Aeson.Value,
@@ -43,5 +47,17 @@ submit req = do
         status = HTTP.responseStatus res
       }
 
+showRequest :: HTTP.Request -> String
+showRequest r =
+  T.unpack (T.decodeUtf8 (HTTP.method r))
+    <> " "
+    <> uriToString id (HTTP.getUri r) ""
+
+withResponse :: Response -> (Response -> App a) -> App a
+withResponse r k = onFailure (k r) $ do
+  putStrLn $ "request: " <> showRequest r.request
+  putStrLn "response body:"
+  L8.putStrLn (foldMap Aeson.encode r.json)
+
 bindResponse :: App Response -> (Response -> App a) -> App a
-bindResponse r k = r >>= k
+bindResponse m k = m >>= \r -> withResponse r k

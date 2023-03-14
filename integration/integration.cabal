@@ -68,19 +68,22 @@ executable integration-main
     API
     App
     Config
+    Response
     Run
     Setup
     Test.Client
-    Response
 
   build-depends:
     , aeson
     , array
     , base
+    , bytestring
     , data-default
     , http-client
     , http-types
     , HUnit
     , imports
+    , network-uri
     , random
+    , text
     , transformers
