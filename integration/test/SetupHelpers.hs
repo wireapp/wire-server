@@ -1,4 +1,4 @@
-module Setup where
+module SetupHelpers where
 
 import qualified API
 import App

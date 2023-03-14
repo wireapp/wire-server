@@ -3,7 +3,7 @@ module Test.Client where
 import App
 import Data.Default
 import Imports
-import Setup
+import SetupHelpers
 
 testCantDeleteLHClient :: App ()
 testCantDeleteLHClient = do
