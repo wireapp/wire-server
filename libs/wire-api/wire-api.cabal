@@ -62,6 +62,7 @@ library
     Wire.API.MLS.SubConversation
     Wire.API.MLS.Welcome
     Wire.API.Notification
+    Wire.API.OAuth
     Wire.API.Properties
     Wire.API.Provider
     Wire.API.Provider.Bot
@@ -80,6 +81,7 @@ library
     Wire.API.Routes.Internal.Brig
     Wire.API.Routes.Internal.Brig.Connection
     Wire.API.Routes.Internal.Brig.EJPD
+    Wire.API.Routes.Internal.Brig.OAuth
     Wire.API.Routes.Internal.Cannon
     Wire.API.Routes.Internal.Cargohold
     Wire.API.Routes.Internal.Galley
@@ -95,6 +97,7 @@ library
     Wire.API.Routes.Named
     Wire.API.Routes.Public
     Wire.API.Routes.Public.Brig
+    Wire.API.Routes.Public.Brig.OAuth
     Wire.API.Routes.Public.Cannon
     Wire.API.Routes.Public.Cargohold
     Wire.API.Routes.Public.Galley
@@ -247,6 +250,7 @@ library
     , iproute                    >=1.5
     , iso3166-country-codes      >=0.2
     , iso639                     >=0.1
+    , jose
     , lens                       >=4.12
     , memory
     , metrics-wai

@@ -30,16 +30,19 @@ module Wire.API.Routes.Public
     ZBot,
     ZConversation,
     ZProvider,
+    DescriptionOAuthScope,
   )
 where
 
-import Control.Lens ((<>~))
+import Control.Lens ((%~), (<>~))
+import Data.ByteString.Conversion (toByteString)
 import Data.Domain
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import Data.Kind
 import Data.Metrics.Servant
 import Data.Qualified
+import Data.String.Conversions
 import Data.Swagger
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
@@ -50,6 +53,7 @@ import Servant.API.Modifiers
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Servant.Swagger (HasSwagger (toSwagger))
+import Wire.API.OAuth
 
 mapRequestArgument ::
   forall mods a b.
@@ -251,3 +255,20 @@ instance RoutesToPaths api => RoutesToPaths (ZAuthServant ztype opts :> api) whe
 -- FUTUREWORK: Make a PR to the servant-swagger package with this instance
 instance ToSchema a => ToSchema (Headers ls a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @a)
+
+data DescriptionOAuthScope (scope :: OAuthScope)
+
+instance (HasSwagger api, IsOAuthScope scope) => HasSwagger (DescriptionOAuthScope scope :> api) where
+  toSwagger _ = toSwagger (Proxy @api) & addScopeDescription
+    where
+      addScopeDescription :: Swagger -> Swagger
+      addScopeDescription = allOperations . description %~ Just . (<> "\nOAuth scope: `" <> cs (toByteString (toOAuthScope @scope)) <> "`") . fold
+
+instance (HasServer api ctx) => HasServer (DescriptionOAuthScope scope :> api) ctx where
+  type ServerT (DescriptionOAuthScope scope :> api) m = ServerT api m
+
+  route _ = route (Proxy @api)
+  hoistServerWithContext _ = hoistServerWithContext (Proxy @api)
+
+instance RoutesToPaths api => RoutesToPaths (DescriptionOAuthScope scope :> api) where
+  getRoutes = getRoutes @api

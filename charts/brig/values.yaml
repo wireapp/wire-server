@@ -87,6 +87,11 @@ config:
     setNonceTtlSecs: 300 # 5 minutes
     setDpopMaxSkewSecs: 1
     setDpopTokenExpirationTimeSecs: 300 # 5 minutes
+    setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
+    setOAuthAccessTokenExpirationTimeSecs: 900 # 15 minutes
+    setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
+    setOAuthEnabled: true
+    setOAuthMaxActiveRefreshTokens: 10
     # Disable one ore more API versions. Please make sure the configuration value is the same in all these charts:
     # brig, cannon, cargohold, galley, gundeck, proxy, spar.
     # setDisabledAPIVersions: [ 3 ]

@@ -27,7 +27,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
 -- | Wrap json content as plain 'LByteString'
--- This type is intented to be used to receive json content as 'LText'.
+-- This type is intended to be used to receive json content as 'LText'.
 -- Warning: There is no validation of the json content. It may be any string.
 newtype RawJson = RawJson {rawJsonBytes :: LByteString}
   deriving (Eq, Show)

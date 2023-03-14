@@ -146,10 +146,11 @@ import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
-import Wire.API.User
+import Wire.API.User.Identity (Email)
+import Wire.API.User.Profile (Locale)
 
 schemaVersion :: Int32
-schemaVersion = 73
+schemaVersion = 74
 
 -------------------------------------------------------------------------------
 -- Environment

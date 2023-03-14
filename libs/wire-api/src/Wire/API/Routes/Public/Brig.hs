@@ -49,12 +49,14 @@ import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
 import Wire.API.MakesFederatedCall
+import Wire.API.OAuth
 import Wire.API.Properties
 import Wire.API.Routes.Bearer
 import Wire.API.Routes.Cookies
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
+import Wire.API.Routes.Public.Brig.OAuth (OAuthAPI)
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
 import Wire.API.Routes.Version
@@ -89,6 +91,7 @@ type BrigAPI =
     :<|> CallingAPI
     :<|> TeamsAPI
     :<|> SystemSettingsAPI
+    :<|> OAuthAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
@@ -259,6 +262,7 @@ type SelfAPI =
   Named
     "get-self"
     ( Summary "Get your own profile"
+        :> DescriptionOAuthScope 'ReadSelf
         :> ZUser
         :> "self"
         :> Get '[JSON] SelfProfile
