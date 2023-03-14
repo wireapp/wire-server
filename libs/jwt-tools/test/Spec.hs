@@ -26,6 +26,7 @@ main = hspec $ do
   describe "generateDpopToken FFI when passing valid inputs" $ do
     it "should return an access token" $ do
       actual <- runExceptT $ generateDpopToken proof uid cid domain nonce uri method maxSkewSecs expires now pem
+      print actual
       isRight actual `shouldBe` True
   describe "generateDpopToken FFI when passing a wrong nonce value" $ do
     it "should return BackendNonceMismatchError" $ do
@@ -72,13 +73,13 @@ main = hspec $ do
       toResult (Just 18) (Just token) `shouldBe` Left ExpError
       toResult Nothing Nothing `shouldBe` Left UnknownError
   where
-    token = "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-    proof = Proof "eyJhbGciOiJFZERTQSIsInR5cCI6ImRwb3Arand0IiwiandrIjp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoiZ0tYSHpIV3QtRUh1N2ZQbmlWMXFXWGV2Rmk1eFNKd3RNcHJlSjBjdTZ3SSJ9fQ.eyJpYXQiOjE2NzgxMDcwMDksImV4cCI6MjA4ODA3NTAwOSwibmJmIjoxNjc4MTA3MDA5LCJzdWIiOiJpbXBwOndpcmVhcHA9WXpWbE1qRTVNelpqTTJKak5EQXdOMkpsWTJJd1lXTm1OVGszTW1FMVlqTS9lYWZhMDI1NzMwM2Q0MDYwQHdpcmUuY29tIiwianRpIjoiMmQzNzAzYTItNTc4Yi00MmRjLWE2MGUtYmM0NzA3OWVkODk5Iiwibm9uY2UiOiJRV1J4T1VaUVpYVnNTMlJZYjBGS05sWkhXbGgwYUV4amJUUmpTM2M1U2xnIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vd2lyZS5leGFtcGxlLmNvbS9jbGllbnRzLzE2OTMxODQ4MzIyNTQ3NTMxODcyL2FjY2Vzcy10b2tlbiIsImNoYWwiOiJZVE5HTkRSNlRqZHFabGRRZUVGYWVrMTZWMmhqYXpCVmJ6UlFWVXRWUlZJIn0.0J2sx5y0ubZ4NwmQhbKXDj6i5UWTx3cvuTPKbeXXOJFDamr-iFtE6sOnAQT90kfTx1cEoIyDfoUkj3h5GEanAA"
-    uid = UserId "c5e21936-c3bc-4007-becb-0acf5972a5b3"
-    cid = ClientId 16931848322547531872
+    token = ""
+    proof = Proof "eyJhbGciOiJFZERTQSIsInR5cCI6ImRwb3Arand0IiwiandrIjp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoidUhNR0paWllUbU9zOEdiaTdaRUJLT255TnJYYnJzNTI1dE1QQUZoYjBzbyJ9fQ.eyJpYXQiOjE2Nzg4MDUyNTgsImV4cCI6MjA4ODc3MzI1OCwibmJmIjoxNjc4ODA1MjU4LCJzdWIiOiJpbTp3aXJlYXBwPVpHSmlNRGRsT1RRM1pESTVOREU0TUdFM09UQmhOVGN6WkdWbU16VmtaRFUvN2M2MzExYTFjNDNjMmJhNkB3aXJlLmNvbSIsImp0aSI6ImQyOWFkYTQ2LTBjMzYtNGNiMS05OTVlLWFlMWNiYTY5M2IzNCIsIm5vbmNlIjoiYzB0RWNtOUNUME00TXpKU04zRjRkMEZIV0V4TGIxUm5aMDQ1U3psSFduTSIsImh0bSI6IlBPU1QiLCJodHUiOiJodHRwczovL3dpcmUuZXhhbXBsZS5jb20vY2xpZW50cy84OTYzMDI3MDY5ODc3MTAzNTI2L2FjY2Vzcy10b2tlbiIsImNoYWwiOiJaa3hVV25GWU1HbHFUVVpVU1hnNFdHdHBOa3h1WWpWU09XRnlVRU5hVGxnIn0.8p0lvdOPjJ8ogjjLP6QtOo216qD9ujP7y9vSOhdYb-O8ikmW09N00gjCf0iGT-ZkxBT-LfDE3eQx27tWQ3JPBQ"
+    uid = UserId "dbb07e94-7d29-4180-a790-a573def35dd5"
+    cid = ClientId 8963027069877103526
     domain = Domain "wire.com"
-    nonce = Nonce "QWRxOUZQZXVsS2RYb0FKNlZHWlh0aExjbTRjS3c5Slg"
-    uri = Uri "https://wire.example.com/clients/16931848322547531872/access-token"
+    nonce = Nonce "c0tEcm9CT0M4MzJSN3F4d0FHWExLb1RnZ045SzlHWnM"
+    uri = Uri "https://wire.example.com/clients/8963027069877103526/access-token"
     method = POST
     maxSkewSecs = MaxSkewSecs 5
     now = NowEpoch 5435234232
@@ -86,8 +87,8 @@ main = hspec $ do
     pem =
       PemBundle $
         "-----BEGIN PRIVATE KEY-----\n\
-        \MC4CAQAwBQYDK2VwBCIEIMROyHqEinw8EvFSNXp0X0suu6gMQvd9i/l9v9R9UnhH\n\
+        \MC4CAQAwBQYDK2VwBCIEIMkvahkqR9sHJSmFeCl3B7aJjsQGgwy++cccWTbuDyy+\n\
         \-----END PRIVATE KEY-----\n\
         \-----BEGIN PUBLIC KEY-----\n\
-        \MCowBQYDK2VwAyEA5pDR/Yo4pkKUIxIody2fEQ56eIOW7UqeDeF7FG7WudA=\n\
+        \MCowBQYDK2VwAyEAdYI38UdxksC0K4Qx6E9JK9YfGm+ehnY18oKmHL2YsZk=\n\
         \-----END PUBLIC KEY-----\n"
