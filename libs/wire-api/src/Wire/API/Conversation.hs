@@ -89,10 +89,12 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
+import Data.Domain
 import Data.Id
 import Data.List.Extra (disjointOrd)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1
+import qualified Data.Map as Map
 import Data.Misc
 import Data.Qualified
 import Data.Range (Range, fromRange, rangedSchema)
@@ -290,7 +292,7 @@ data CreateGroupConversation = CreateGroupConversation
   { cgcConversation :: Conversation,
     -- | Remote users that could not be added to the created group conversation
     -- because their backend was not reachable.
-    cgcFailedToAdd :: Set (Qualified (Set UserId))
+    cgcFailedToAdd :: Map Domain (Set UserId)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateGroupConversation)
@@ -306,10 +308,11 @@ instance ToSchema CreateGroupConversation where
         <*> (toFlatList . cgcFailedToAdd)
           .= field "failed_to_add" (fromFlatList <$> array schema)
     where
-      toFlatList :: Set (Qualified (Set a)) -> [Qualified a]
-      toFlatList = foldMap (traverse Set.toList)
-      fromFlatList :: Ord a => [Qualified a] -> Set (Qualified (Set a))
-      fromFlatList xs = Set.fromList (Set.fromList <$$> bucketQualified xs)
+      toFlatList :: Map Domain (Set a) -> [Qualified a]
+      toFlatList m =
+        join $ (\(d, s) -> flip Qualified d <$> Set.toList s) <$> Map.assocs m
+      fromFlatList :: Ord a => [Qualified a] -> Map Domain (Set a)
+      fromFlatList = fmap Set.fromList . indexQualified
 
 -- | Limited view of a 'Conversation'. Is used to inform users with an invite
 -- link about the conversation.

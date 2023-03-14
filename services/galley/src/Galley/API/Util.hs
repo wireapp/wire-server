@@ -757,19 +757,16 @@ registerRemoteConversationMemberships ::
   -- | The domain of the user that created the conversation
   Domain ->
   Data.Conversation ->
-  Sem r (Set (Remote (Set UserId)))
+  Sem r (Set (Remote UserId))
 registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
       rc = toConversationCreated now localDomain c
   fmap toSet $ runFederatedConcurrentlyEither allRemoteMembers $ \_ ->
     fedClient @'Galley @"on-conversation-created" rc
   where
-    toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote (Set x))
-    toSet rs =
-      let withoutErr :: [Either (Remote [x]) a] = first fst <$> rs
-          failuresOnly :: [Remote [x]] = foldMap (either (pure . id) mempty) withoutErr
-          elsAsSet :: [Remote (Set x)] = Set.fromList <$$> failuresOnly
-       in Set.fromList elsAsSet
+    toSet :: forall a x e. Ord x => [Either (Remote [x], e) a] -> Set (Remote x)
+    toSet =
+      Set.fromList . foldMap (either (sequenceA . fst) mempty)
 
 --------------------------------------------------------------------------------
 -- Legalhold

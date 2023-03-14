@@ -32,6 +32,7 @@ module Galley.API.Create
 where
 
 import Control.Lens hiding ((??))
+import Data.Domain
 import Data.Id
 import Data.List1 (list1)
 import Data.Misc (FutureWork (FutureWork))
@@ -189,7 +190,7 @@ createGroupConversationGeneric ::
   -- | The function that incorporates the failed to add remote users in the
   -- response. In the client API up to and including V3 this function simply
   -- ignores the first argument.
-  (Set (Remote (Set UserId)) -> Local UserId -> Conversation -> Sem r resp) ->
+  (Set (Remote UserId) -> Local UserId -> Conversation -> Sem r resp) ->
   Sem r resp
 createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
   (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
@@ -223,12 +224,9 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
   failedToNotify <- notifyCreatedConversation lusr conn conv
   -- We already added all the invitees, but now remove from the conversation
   -- those that could not be notified
-  E.deleteMembers (convId conv) (toFlatUserList failedToNotify)
+  E.deleteMembers (convId conv) . ulFromRemotes . Set.toList $ failedToNotify
 
   convCreated failedToNotify lusr conv
-  where
-    toFlatUserList :: Set (Remote (Set a)) -> UserList a
-    toFlatUserList = ulFromRemotes . foldMap (traverse Set.toList)
 
 ensureNoLegalholdConflicts ::
   ( Member (ErrorS 'MissingLegalholdConsent) r,
@@ -624,13 +622,17 @@ groupConversationCreated ::
   ( Member (Error InternalError) r,
     Member P.TinyLog r
   ) =>
-  Set (Remote (Set UserId)) ->
+  Set (Remote UserId) ->
   Local UserId ->
   Data.Conversation ->
   Sem r CreateGroupConversationResponse
-groupConversationCreated (Set.map tUntagged -> failedToAdd) lusr cnv = do
+groupConversationCreated failedToAdd lusr cnv = do
   conv <- conversationView lusr cnv
-  pure . GroupConversationCreated $ CreateGroupConversation conv failedToAdd
+  pure . GroupConversationCreated $
+    CreateGroupConversation conv (toMap failedToAdd)
+  where
+    toMap :: Ord a => Set (Remote a) -> Map Domain (Set a)
+    toMap = fmap Set.fromList . indexQualified @[] . foldMap (pure . tUntagged)
 
 -- | The return set contains all the remote users that could not be contacted.
 -- Consequently, they are not added to the member list. This behavior might be
@@ -646,7 +648,7 @@ notifyCreatedConversation ::
   Local UserId ->
   Maybe ConnId ->
   Data.Conversation ->
-  Sem r (Set (Remote (Set UserId)))
+  Sem r (Set (Remote UserId))
 notifyCreatedConversation lusr conn c = do
   now <- input
   -- Ask remote server to store conversation membership and notify remote users
