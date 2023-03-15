@@ -69,7 +69,6 @@ import qualified Data.List as List
 import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Fingerprint (..), FutureWork (FutureWork), Rsa)
-import Data.Password
 import Data.Predicate
 import Data.Qualified
 import Data.Range
@@ -105,6 +104,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.Event.Conversation as Public (Event)
+import Wire.API.Password
 import Wire.API.Provider
 import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Ext

@@ -89,12 +89,12 @@ import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
-import Data.Password
 import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Imports
+import Wire.API.Password
 import Wire.API.Provider.Service
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User

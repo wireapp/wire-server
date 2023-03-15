@@ -26,12 +26,12 @@ import Control.Arrow ((&&&))
 import Data.Id
 import Data.List1 (List1)
 import Data.Misc
-import Data.Password
 import Data.Range (Range, fromRange, rcast, rnil)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Imports
 import UnliftIO (mapConcurrently)
+import Wire.API.Password
 import Wire.API.Provider
 import Wire.API.Provider.Service hiding (updateServiceTags)
 import Wire.API.Provider.Service.Tag

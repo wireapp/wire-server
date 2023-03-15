@@ -24,7 +24,6 @@ library
     Data.List1
     Data.Misc
     Data.Nonce
-    Data.Password
     Data.PEMKeys
     Data.Qualified
     Data.Range
@@ -107,7 +106,6 @@ library
     , data-default           >=0.5
     , generic-random         >=1.4.0.0
     , hashable               >=1.2
-    , HsOpenSSL
     , http-api-data
     , imports
     , iproute                >=1.5
@@ -124,7 +122,6 @@ library
     , random                 >=1.1
     , schema-profunctor
     , scientific             >=0.3.4
-    , scrypt
     , servant-server
     , string-conversions
     , swagger2

@@ -36,6 +36,7 @@ import Wire.API.Conversation.Role
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.PublicGroupState
+import Wire.API.Password (Password)
 import Wire.API.Provider
 import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Galley.TeamsIntra
@@ -43,7 +44,6 @@ import Wire.API.Team
 import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
-import Data.Password (Password)
 
 -- Teams --------------------------------------------------------------------
 

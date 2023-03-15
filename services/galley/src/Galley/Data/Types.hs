@@ -41,7 +41,7 @@ import Galley.Data.Scope
 import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
-import Data.Password (Password)
+import Wire.API.Password (Password)
 
 --------------------------------------------------------------------------------
 -- Code

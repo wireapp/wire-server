@@ -156,7 +156,6 @@ import Data.List1 as List1 (List1, singleton)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
-import Data.Password
 import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
@@ -172,6 +171,7 @@ import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
+import Wire.API.Password
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamsIntra as Team
 import Wire.API.Team hiding (newTeam)
