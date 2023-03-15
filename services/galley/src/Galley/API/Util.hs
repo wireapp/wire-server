@@ -29,7 +29,7 @@ import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.List.Extra (chunksOf, nubOrd)
 import qualified Data.Map as Map
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6)
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
@@ -176,7 +176,7 @@ ensureReAuthorised ::
     Member (Error AuthenticationError) r
   ) =>
   UserId ->
-  Maybe PlainTextPassword ->
+  Maybe PlainTextPassword6 ->
   Maybe Code.Value ->
   Maybe VerificationAction ->
   Sem r ()

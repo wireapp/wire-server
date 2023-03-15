@@ -51,7 +51,7 @@ import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
 import Data.Range
@@ -137,6 +137,7 @@ tests _ at opts p b c ch g aws userJournalWatcher =
       test p "put /self/phone - 403" $ testPhoneUpdateBlacklisted b,
       test p "put /self/phone - 409" $ testPhoneUpdateConflict b,
       test p "head /self/password - 200/404" $ testPasswordSet b,
+      test p "put /self/password - 400" $ testPasswordSetInvalidPasswordLength b,
       test p "put /self/password - 200" $ testPasswordChange b,
       test p "put /self/locale - 200" $ testUserLocaleUpdate b userJournalWatcher,
       test p "post /activate/send - 200" $ testSendActivationCode opts b,
@@ -1096,6 +1097,28 @@ testPasswordSet brig = do
           [ "new_password" .= ("a_very_long_password" :: Text)
           ]
 
+testPasswordSetInvalidPasswordLength :: Brig -> Http ()
+testPasswordSetInvalidPasswordLength brig = do
+  p <- randomPhone
+  let newUser =
+        RequestBodyLBS . encode $
+          object
+            [ "name" .= ("Alice" :: Text),
+              "phone" .= fromPhone p
+            ]
+  rs <-
+    post (brig . path "/i/users" . contentJson . body newUser)
+      <!! const 201 === statusCode
+  let Just uid = userId <$> responseJsonMaybe rs
+  put (brig . path "/self/password" . contentJson . zUser uid . body shortPassword)
+    !!! const 400 === statusCode
+  where
+    shortPassword =
+      RequestBodyLBS . encode $
+        object
+          [ "new_password" .= ("secret" :: Text)
+          ]
+
 testPasswordChange :: Brig -> Http ()
 testPasswordChange brig = do
   (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
@@ -1115,7 +1138,7 @@ testPasswordChange brig = do
   put (brig . path "/self/password" . contentJson . zUser uid2 . body pwSet)
     !!! (const 403 === statusCode)
   where
-    newPass = PlainTextPassword "topsecret"
+    newPass = plainTextPassword6Unsafe "topsecret"
     pwChange =
       RequestBodyLBS . encode $
         object
@@ -1554,7 +1577,7 @@ testRestrictedUserCreation opts brig = do
             [ "name" .= Name "Alice",
               "email" .= fromEmail e,
               "email_code" .= ("123456" :: Text),
-              "password" .= PlainTextPassword "123123123"
+              "password" .= plainTextPassword6Unsafe "123123123"
             ]
     postUserRegister' regularUser brig !!! do
       const 403 === statusCode
@@ -1564,7 +1587,7 @@ testRestrictedUserCreation opts brig = do
           object
             [ "name" .= Name "Alice",
               "email" .= fromEmail e,
-              "password" .= PlainTextPassword "123123123"
+              "password" .= plainTextPassword6Unsafe "123123123"
             ]
     postUserRegister' regularUserNotPreActivated brig !!! do
       const 403 === statusCode
@@ -1576,7 +1599,7 @@ testRestrictedUserCreation opts brig = do
               "email" .= fromEmail e,
               "email_code" .= ("123456" :: Text),
               "team" .= object ["name" .= ("Alice team" :: Text), "icon" .= ("default" :: Text), "binding" .= True],
-              "password" .= PlainTextPassword "123123123"
+              "password" .= plainTextPassword6Unsafe "123123123"
             ]
     postUserRegister' teamCreator brig !!! do
       const 403 === statusCode

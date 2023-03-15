@@ -2154,7 +2154,7 @@ ensureClientCaps uid cid caps = do
   liftIO $ assertEqual ("ensureClientCaps: " <> show (uid, cid, caps)) (clientCapabilities clnt) caps
 
 -- TODO: Refactor, as used also in brig
-deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS
+deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword6 -> TestM ResponseLBS
 deleteClient u c pw = do
   b <- viewBrig
   delete $
@@ -2308,8 +2308,8 @@ otrRecipients =
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
 
-defPassword :: PlainTextPassword
-defPassword = PlainTextPassword "secret"
+defPassword :: PlainTextPassword6
+defPassword = plainTextPassword6Unsafe "topsecretdefaultpassword"
 
 randomEmail :: MonadIO m => m Email
 randomEmail = do

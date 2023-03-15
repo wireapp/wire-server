@@ -37,7 +37,7 @@ import Crypto.JWT hiding (params, uri)
 import Data.ByteString.Conversion
 import Data.Domain
 import Data.Id
-import Data.Misc (PlainTextPassword (PlainTextPassword))
+import Data.Misc
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Text.Ascii
@@ -90,7 +90,7 @@ registerOAuthClient (RegisterOAuthClientRequest name uri) = do
     createSecret = OAuthClientPlainTextSecret <$> rand32Bytes
 
     hashClientSecret :: MonadIO m => OAuthClientPlainTextSecret -> m Password
-    hashClientSecret = mkSafePassword . PlainTextPassword . toText . unOAuthClientPlainTextSecret
+    hashClientSecret = mkSafePassword . plainTextPassword8Unsafe . toText . unOAuthClientPlainTextSecret
 
 rand32Bytes :: MonadIO m => m AsciiBase16
 rand32Bytes = liftIO . fmap encodeBase16 $ randBytes 32
@@ -253,13 +253,15 @@ createAccessToken key uid cid scope = do
           signClaims key (newJWSHeader ((), algo)) claims
 
 verifyClientSecret :: OAuthClientPlainTextSecret -> OAuthClientId -> (Handler r) Bool
-verifyClientSecret secret cid = do
-  let plainTextPw = PlainTextPassword $ toText $ unOAuthClientPlainTextSecret secret
-  lift $
-    wrapClient $
-      lookupOAuthClientSecret cid <&> \case
-        Nothing -> False
-        Just pw -> verifyPassword plainTextPw pw
+verifyClientSecret secret cid =
+  case plainTextPassword6 $ toText $ unOAuthClientPlainTextSecret secret of
+    Nothing -> pure False
+    Just plainTextPw ->
+      lift $
+        wrapClient $
+          lookupOAuthClientSecret cid <&> \case
+            Nothing -> False
+            Just pw -> verifyPassword plainTextPw pw
 
 --------------------------------------------------------------------------------
 

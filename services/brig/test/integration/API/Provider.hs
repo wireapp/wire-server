@@ -48,7 +48,7 @@ import Data.Id hiding (client)
 import Data.Json.Util (toBase64Text)
 import Data.List1 (List1)
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc
 import Data.PEM
 import Data.Qualified
 import Data.Range
@@ -244,7 +244,7 @@ testPasswordResetProvider :: DB.ClientState -> Brig -> Http ()
 testPasswordResetProvider db brig = do
   prv <- randomProvider db brig
   let email = providerEmail prv
-  let newPw = PlainTextPassword "newsupersecret"
+  let newPw = plainTextPassword6Unsafe "newsupersecret"
   initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
   -- password reset with same password fails.
   resetPw defProviderPassword email !!! const 409 === statusCode
@@ -255,7 +255,7 @@ testPasswordResetProvider db brig = do
   loginProvider brig email newPw
     !!! const 200 === statusCode
   where
-    resetPw :: PlainTextPassword -> Email -> Http ResponseLBS
+    resetPw :: PlainTextPassword6 -> Email -> Http ResponseLBS
     resetPw newPw email = do
       -- Get the code directly from the DB
       gen <- Code.mkGen (Code.ForEmail email)
@@ -282,7 +282,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
         CompletePasswordReset
           (Code.codeKey vcodePw)
           (Code.codeValue vcodePw)
-          (PlainTextPassword "doesnotmatter")
+          (plainTextPassword6Unsafe "doesnotmatter")
   -- Activate the new email
   genNew <- Code.mkGen (Code.ForEmail newEmail)
   Just vcodeEm <- lookupCode db genNew Code.IdentityVerification
@@ -296,8 +296,8 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
   loginProvider brig origEmail defProviderPassword !!! const 403 === statusCode
   loginProvider brig newEmail defProviderPassword !!! const 200 === statusCode
   -- exercise the password change endpoint
-  let newPass = PlainTextPassword "newpass"
-  let pwChangeFail = PasswordChange (PlainTextPassword "notcorrect") newPass
+  let newPass = plainTextPassword6Unsafe "newpass"
+  let pwChangeFail = PasswordChange (plainTextPassword6Unsafe "notcorrect") newPass
   updateProviderPassword brig pid pwChangeFail !!! const 403 === statusCode
   let pwChange = PasswordChange defProviderPassword newPass
   updateProviderPassword brig pid pwChange !!! const 200 === statusCode
@@ -1069,7 +1069,7 @@ activateProvider brig key val =
 loginProvider ::
   Brig ->
   Email ->
-  PlainTextPassword ->
+  PlainTextPassword6 ->
   Http ResponseLBS
 loginProvider brig email pw =
   post $
@@ -1145,7 +1145,7 @@ completePasswordResetProvider brig e =
 deleteProvider ::
   Brig ->
   ProviderId ->
-  PlainTextPassword ->
+  PlainTextPassword6 ->
   Http ResponseLBS
 deleteProvider brig pid pw =
   delete $
@@ -1268,7 +1268,7 @@ deleteService ::
   Brig ->
   ProviderId ->
   ServiceId ->
-  PlainTextPassword ->
+  PlainTextPassword6 ->
   Http ResponseLBS
 deleteService brig pid sid pw =
   delete $
@@ -1687,8 +1687,8 @@ defProviderSummary = "A short summary of the integration test provider"
 defProviderDescr :: Text
 defProviderDescr = "A long description of an integration test provider"
 
-defProviderPassword :: PlainTextPassword
-defProviderPassword = PlainTextPassword "password"
+defProviderPassword :: PlainTextPassword6
+defProviderPassword = plainTextPassword6Unsafe "password"
 
 defServiceName :: Name
 defServiceName = Name "Test Service"

@@ -32,10 +32,14 @@ import qualified Bilge as Http
 import Bilge.Assert hiding (assert)
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opts
+import Brig.Password (Password, mkSafePassword)
 import Brig.Types.Intra
+import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
+import Cassandra hiding (Value)
 import qualified Cassandra as DB
+import Control.Arrow ((&&&))
 import Control.Lens (set, (^.))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry
@@ -45,7 +49,7 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword6, plainTextPassword6, plainTextPassword6Unsafe)
 import Data.Proxy
 import Data.Qualified
 import Data.Range (unsafeRange)
@@ -108,6 +112,7 @@ tests conf m z db b g n =
           test m "failure" (testLoginFailure b),
           test m "throttle" (testThrottleLogins conf b),
           test m "limit-retry" (testLimitRetries conf b),
+          test m "login with 6 character password" (testLoginWith6CharPassword b db),
           testGroup
             "sso-login"
             [ test m "email" (testEmailSsoLogin b),
@@ -182,6 +187,34 @@ tests conf m z db b g n =
         [ test m "reauthentication" (testReauthentication b)
         ]
     ]
+
+testLoginWith6CharPassword :: Brig -> DB.ClientState -> Http ()
+testLoginWith6CharPassword brig db = do
+  (uid, Just email) <- (userId &&& userEmail) <$> randomUser brig
+  checkLogin email defPassword 200
+  let pw6 = plainTextPassword6Unsafe "123456"
+  writeDirectlyToDB uid pw6
+  checkLogin email defPassword 403
+  checkLogin email pw6 200
+  where
+    checkLogin :: Email -> PlainTextPassword6 -> Int -> Http ()
+    checkLogin email pw expectedStatusCode =
+      login
+        brig
+        (PasswordLogin (PasswordLoginData (LoginByEmail email) pw Nothing Nothing))
+        PersistentCookie
+        !!! const expectedStatusCode === statusCode
+    -- Since 8 char passwords are required, when setting a password via the API,
+    -- we need to write this directly to the db, to be able to test this
+    writeDirectlyToDB :: UserId -> PlainTextPassword6 -> Http ()
+    writeDirectlyToDB uid pw =
+      liftIO (runClient db (updatePassword uid pw >> revokeAllCookies uid))
+    updatePassword :: MonadClient m => UserId -> PlainTextPassword6 -> m ()
+    updatePassword u t = do
+      p <- liftIO $ mkSafePassword t
+      retry x5 $ write userPasswordUpdate (params LocalQuorum (p, u))
+    userPasswordUpdate :: PrepQuery W (Password, UserId) ()
+    userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
@@ -382,7 +415,7 @@ testSendLoginCode brig = do
           object
             [ "name" .= ("Alice" :: Text),
               "phone" .= fromPhone p,
-              "password" .= ("secret" :: Text)
+              "password" .= ("topsecretdefaultpassword" :: Text)
             ]
   post (brig . path "/i/users" . contentJson . Http.body newUser)
     !!! const 201 === statusCode
@@ -563,7 +596,7 @@ testLoginFailure :: Brig -> Http ()
 testLoginFailure brig = do
   Just email <- userEmail <$> randomUser brig
   -- login with wrong password
-  let badpw = PlainTextPassword "wrongpassword"
+  let badpw = plainTextPassword6Unsafe "wrongpassword"
   login
     brig
     (PasswordLogin (PasswordLoginData (LoginByEmail email) badpw Nothing Nothing))
@@ -724,7 +757,7 @@ testWrongPasswordLegalHoldLogin :: Brig -> Galley -> Http ()
 testWrongPasswordLegalHoldLogin brig galley = do
   alice <- prepareLegalHoldUser brig galley
   -- attempt a legalhold login with a wrong password
-  legalHoldLogin brig (LegalHoldLogin alice (Just (PlainTextPassword "wrong-password")) Nothing) PersistentCookie !!! do
+  legalHoldLogin brig (LegalHoldLogin alice (plainTextPassword6 "wrong-password") Nothing) PersistentCookie !!! do
     const 403 === statusCode
     const (Just "invalid-credentials") === errorLabel
   -- attempt a legalhold login with a no password
@@ -1392,7 +1425,7 @@ testReauthentication b = do
   -- it's ok to not give a password in the request body, but if the user has a password set,
   -- response will be `forbidden`.
 
-  get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just $ PlainTextPassword "123456")) !!! do
+  get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (plainTextPassword6 "123456")) !!! do
     const 403 === statusCode
     const (Just "invalid-credentials") === errorLabel
   get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do
@@ -1469,7 +1502,7 @@ assertSaneAccessToken now uid tk = do
 errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text
 errorLabel = fmap Error.label . responseJsonMaybe
 
-remJson :: PlainTextPassword -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
+remJson :: PlainTextPassword6 -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
 remJson p l ids =
   object
     [ "password" .= p,

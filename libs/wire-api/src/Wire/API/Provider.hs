@@ -56,7 +56,7 @@ import Data.Aeson
 import Data.Aeson.TH
 import Data.Id
 import Data.Json.Util
-import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
+import Data.Misc (HttpsUrl (..), PlainTextPassword6, PlainTextPassword8)
 import Data.Range
 import Imports
 import Wire.API.Conversation.Code as Code
@@ -116,7 +116,7 @@ data NewProvider = NewProvider
     newProviderUrl :: HttpsUrl,
     newProviderDescr :: Range 1 1024 Text,
     -- | If none provided, a password is generated.
-    newProviderPassword :: Maybe PlainTextPassword
+    newProviderPassword :: Maybe PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewProvider)
@@ -145,7 +145,7 @@ data NewProviderResponse = NewProviderResponse
   { rsNewProviderId :: ProviderId,
     -- | The generated password, if none was provided
     -- in the 'NewProvider' request.
-    rsNewProviderPassword :: Maybe PlainTextPassword
+    rsNewProviderPassword :: Maybe PlainTextPassword8
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewProviderResponse)
@@ -214,7 +214,7 @@ instance FromJSON ProviderActivationResponse where
 -- | Input data for a provider login request.
 data ProviderLogin = ProviderLogin
   { providerLoginEmail :: Email,
-    providerLoginPassword :: PlainTextPassword
+    providerLoginPassword :: PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ProviderLogin)
@@ -237,7 +237,7 @@ instance FromJSON ProviderLogin where
 
 -- | Input data for a provider deletion request.
 newtype DeleteProvider = DeleteProvider
-  {deleteProviderPassword :: PlainTextPassword}
+  {deleteProviderPassword :: PlainTextPassword6}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
 
@@ -265,7 +265,7 @@ deriveJSON toJSONFieldName ''PasswordReset
 data CompletePasswordReset = CompletePasswordReset
   { cpwrKey :: Code.Key,
     cpwrCode :: Code.Value,
-    cpwrPassword :: PlainTextPassword
+    cpwrPassword :: PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CompletePasswordReset)
@@ -274,8 +274,8 @@ deriveJSON toJSONFieldName ''CompletePasswordReset
 
 -- | The payload for changing a password.
 data PasswordChange = PasswordChange
-  { cpOldPassword :: PlainTextPassword,
-    cpNewPassword :: PlainTextPassword
+  { cpOldPassword :: PlainTextPassword6,
+    cpNewPassword :: PlainTextPassword6
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PasswordChange)
