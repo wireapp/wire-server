@@ -253,7 +253,7 @@ createAccessToken key uid cid scope = do
           signClaims key (newJWSHeader ((), algo)) claims
 
 verifyClientSecret :: OAuthClientPlainTextSecret -> OAuthClientId -> (Handler r) Bool
-verifyClientSecret secret cid = do
+verifyClientSecret secret cid =
   case plainTextPassword6 $ toText $ unOAuthClientPlainTextSecret secret of
     Nothing -> pure False
     Just plainTextPw ->
