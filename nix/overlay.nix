@@ -103,21 +103,6 @@ self: super: {
     inherit (super) stdenv fetchurl;
   };
 
-  kubectl = staticBinaryInTarball {
-    pname = "kubectl";
-    version = "1.19.8";
-
-    darwinAmd64Url = "https://dl.k8s.io/v1.19.8/kubernetes-client-darwin-amd64.tar.gz";
-    darwinAmd64Sha256 = "23b847bb8b545c748e9078e7660c654eef74d15ccab8696d294f3d6c619c788e";
-
-    linuxAmd64Url = "https://dl.k8s.io/v1.19.8/kubernetes-client-linux-amd64.tar.gz";
-    linuxAmd64Sha256 = "8388ff8b5c676bdbb8fe07ef7077de937b0bf60154f302df5f248f38f95122aa";
-
-    binPath = "client/bin/kubectl";
-
-    inherit (super) stdenv fetchurl;
-  };
-
   kind = staticBinary {
     pname = "kind";
     version = "0.11.0";
