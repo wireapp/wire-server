@@ -16,7 +16,7 @@ import Network.URI (uriToString)
 
 data Response = Response
   { json :: Maybe Aeson.Value,
-    status :: HTTP.Status,
+    status :: Int,
     request :: HTTP.Request
   }
 
@@ -47,7 +47,7 @@ submit method req0 = do
     Response
       { json = Aeson.decode (HTTP.responseBody res),
         request = req,
-        status = HTTP.responseStatus res
+        status = HTTP.statusCode (HTTP.responseStatus res)
       }
 
 showRequest :: HTTP.Request -> String
@@ -62,18 +62,20 @@ getRequestBody req = case HTTP.requestBody req of
   HTTP.RequestBodyBS bs -> pure bs
   _ -> Nothing
 
-withResponse :: Response -> (Response -> App a) -> App a
+withResponse :: HasCallStack => Response -> (Response -> App a) -> App a
 withResponse r k = onFailure (k r) $ do
-  putStrLn $ "request: " <> showRequest r.request
+  putStrLn $ replicate 80 '-'
+  putStrLn $ "\x1b[38;5;11mrequest:\x1b[0m " <> showRequest r.request
   case getRequestBody r.request of
     Nothing -> pure ()
     Just b -> do
-      putStrLn "request body:"
+      putStrLn "\x1b[38;5;11mrequest body:\x1b[0m"
       T.putStrLn . T.decodeUtf8 $ case Aeson.decode (L.fromStrict b) of
         Just v -> L.toStrict (Aeson.encodePretty (v :: Aeson.Value))
         Nothing -> b
-  putStrLn "response body:"
+  putStrLn "\x1b[38;5;11mresponse body:\x1b[0m"
   T.putStrLn (T.decodeUtf8 (L.toStrict (foldMap Aeson.encodePretty r.json)))
+  putStrLn $ replicate 80 '-'
 
-bindResponse :: App Response -> (Response -> App a) -> App a
+bindResponse :: HasCallStack => App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k
