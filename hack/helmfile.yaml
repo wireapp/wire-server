@@ -85,7 +85,7 @@ releases:
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/ingress-nginx-controller'
     condition: {{ semverCompare ">= 1.23-0" .Values.kubeVersion }}
-values:
+    values:
       - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
 
   # on old clusters, install the old controller chart
