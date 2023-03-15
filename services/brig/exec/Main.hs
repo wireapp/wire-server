@@ -21,12 +21,13 @@ module Main
 where
 
 import Brig.Run (run)
+import GHC.Debug.Stub
 import Imports
 import OpenSSL (withOpenSSL)
 import Util.Options
 
 main :: IO ()
-main = withOpenSSL $ do
+main = withGhcDebug $ withOpenSSL $ do
   let desc = "Brig - User Service"
       defaultPath = "/etc/wire/brig/conf/brig.yaml"
   options <- getOptions desc Nothing defaultPath
