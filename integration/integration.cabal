@@ -78,9 +78,9 @@ executable integration-main
     API
     App
     Config
-    Moo
     Response
     Run
+    RunAllTests
     SetupHelpers
     Test.Client
 
