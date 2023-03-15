@@ -12,12 +12,13 @@ build-type:    Custom
 
 custom-setup
   setup-depends:
-      base
+    , base
     , Cabal
     , containers
+    , directory
     , filepath
-    , regex-posix
     , regex-base
+    , regex-posix
 
 common common-all
   default-language:   Haskell2010
@@ -77,11 +78,11 @@ executable integration-main
     API
     App
     Config
-    Response
-    SetupHelpers
-    Run
-    Test.Client
     Moo
+    Response
+    Run
+    SetupHelpers
+    Test.Client
 
   build-depends:
     , aeson
