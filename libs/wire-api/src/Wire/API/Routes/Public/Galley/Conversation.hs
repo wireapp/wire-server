@@ -25,6 +25,7 @@ import Imports hiding (head)
 import Servant hiding (WithStatus)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
 import Wire.API.Error
@@ -586,6 +587,22 @@ type ConversationAPI =
     -- this endpoint can lead to the following events being sent:
     -- - ConvCodeUpdate event to members, if code didn't exist before
     :<|> Named
+           "create-conversation-code-unqualified@v3"
+           ( Summary "Create or recreate a conversation code"
+               --  :> Until 'V4
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'GuestLinksDisabled
+               :> ZUser
+               :> ZConn
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "code"
+               :> CreateConversationCodeVerb
+           )
+    -- this endpoint can lead to the following events being sent:
+    -- - ConvCodeUpdate event to members, if code didn't exist before
+    :<|> Named
            "create-conversation-code-unqualified"
            ( Summary "Create or recreate a conversation code"
                :> CanThrow 'ConvAccessDenied
@@ -596,6 +613,7 @@ type ConversationAPI =
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "code"
+               :> ReqBody '[JSON] CreateConversationCodeRequest
                :> CreateConversationCodeVerb
            )
     :<|> Named

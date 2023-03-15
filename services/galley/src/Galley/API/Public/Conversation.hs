@@ -24,6 +24,7 @@ import Galley.API.Query
 import Galley.API.Update
 import Galley.App
 import Galley.Cassandra.TeamFeatures
+import Imports
 import Wire.API.Federation.API
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley.Conversation
@@ -57,7 +58,8 @@ conversationAPI =
     <@> mkNamedAPI @"join-conversation-by-id-unqualified" (callsFed joinConversationById)
     <@> mkNamedAPI @"join-conversation-by-code-unqualified" (callsFed (joinConversationByReusableCode @Cassandra))
     <@> mkNamedAPI @"code-check" (checkReusableCode @Cassandra)
-    <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualified @Cassandra)
+    <@> mkNamedAPI @"create-conversation-code-unqualified@v3" (addCodeUnqualified @Cassandra Nothing)
+    <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualified' @Cassandra)
     <@> mkNamedAPI @"get-conversation-guest-links-status" (getConversationGuestLinksStatus @Cassandra)
     <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
     <@> mkNamedAPI @"get-code" (getCode @Cassandra)

@@ -25,6 +25,7 @@ module Galley.API.Update
     joinConversationByReusableCode,
     joinConversationById,
     addCodeUnqualified,
+    addCodeUnqualified',
     rmCodeUnqualified,
     getCode,
     updateUnqualifiedConversationName,
@@ -468,7 +469,7 @@ deleteLocalConversation lusr con lcnv =
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
-addCodeUnqualified ::
+addCodeUnqualified' ::
   forall db r.
   ( Member CodeStore r,
     Member ConversationStore r,
@@ -486,8 +487,31 @@ addCodeUnqualified ::
   UserId ->
   ConnId ->
   ConvId ->
+  CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCodeUnqualified usr zcon cnv = do
+addCodeUnqualified' usr zcon cnv pw = addCodeUnqualified @db (Just pw) usr zcon cnv
+
+addCodeUnqualified ::
+  forall db r.
+  ( Member CodeStore r,
+    Member ConversationStore r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'GuestLinksDisabled) r,
+    Member ExternalAccess r,
+    Member GundeckAccess r,
+    Member (Input (Local ())) r,
+    Member (Input UTCTime) r,
+    Member (Input Opts) r,
+    Member (TeamFeatureStore db) r,
+    FeaturePersistentConstraint db GuestLinksConfig
+  ) =>
+  Maybe CreateConversationCodeRequest ->
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Sem r AddCodeResult
+addCodeUnqualified _mPw usr zcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
   addCode @db lusr zcon lcnv

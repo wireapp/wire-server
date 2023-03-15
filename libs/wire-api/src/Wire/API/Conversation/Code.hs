@@ -22,6 +22,7 @@ module Wire.API.Conversation.Code
   ( -- * ConversationCode
     ConversationCode (..),
     mkConversationCode,
+    CreateConversationCodeRequest (..),
 
     -- * re-exports
     Code.Key (..),
@@ -34,16 +35,15 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteString.Conversion (toByteString')
 -- FUTUREWORK: move content of Data.Code here?
 import Data.Code as Code
-import Data.Misc (HttpsUrl (HttpsUrl))
+import Data.Misc
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
 import qualified URI.ByteString as URI
-import Wire.API.Password (Password)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 newtype CreateConversationCodeRequest = CreateConversationCodeRequest
-  { cccrPassword :: Maybe Password
+  { cccrPassword :: Maybe PlainTextPassword
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateConversationCodeRequest
@@ -52,9 +52,8 @@ instance ToSchema CreateConversationCodeRequest where
   schema =
     objectWithDocModifier
       "CreateConversationCodeRequest"
-      (description ?~ "Contains conversation properties to update")
-      $ CreateConversationCodeRequest
-        <$> cccrPassword .= maybe_ (optField "password" schema)
+      (description ?~ "Optional request body for creating a conversation code with a password")
+      $ CreateConversationCodeRequest <$> cccrPassword .= maybe_ (optField "password" schema)
 
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,
