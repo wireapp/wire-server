@@ -27,6 +27,9 @@ printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh
 # FUTUREWORK: use helm functions instead, see https://wearezeta.atlassian.net/browse/SQPIT-723
 echo "Generating self-signed certificates..."
 
+KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq .serverVersion.major)"
+KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq .serverVersion.minor)"
+export KUBERNETES_VERSION="$KUBERNETES_VERSION_MAJOR.$KUBERNETES_VERSION_MINOR"
 export NAMESPACE_1="$NAMESPACE"
 export FEDERATION_DOMAIN_BASE="$NAMESPACE_1.svc.cluster.local"
 export FEDERATION_DOMAIN_1="federation-test-helper.$FEDERATION_DOMAIN_BASE"

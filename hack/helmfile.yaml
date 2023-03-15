@@ -18,6 +18,7 @@ environments:
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
+      - kubeVersion: {{ requiredEnv "KUBERNETES_VERSION" }}
       - imagePullPolicy: Always
       - redisStorageClass: hcloud-volumes
   kind:
@@ -26,6 +27,7 @@ environments:
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
+      - kubeVersion: {{ requiredEnv "KUBERNETES_VERSION" }}
       - imagePullPolicy: Never
       - redisStorageClass: standard
 
@@ -75,22 +77,22 @@ releases:
   - name: '{{ .Values.namespace }}-ingress-c'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/ingress-nginx-controller'
-    condition: semverCompare ">= 1.23-0" .Capabilities.KubeVersion.Version
+    condition: {{ semverCompare ">= 1.23-0" .Values.kubeVersion }}
     values:
       - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
 
   - name: '{{ .Values.namespace }}-ingress-c-2'
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/ingress-nginx-controller'
-    condition: semverCompare ">= 1.23-0" .Capabilities.KubeVersion.Version
-    values:
+    condition: {{ semverCompare ">= 1.23-0" .Values.kubeVersion }}
+values:
       - './helm_vars/ingress-nginx-controller/values.yaml.gotmpl'
 
   # on old clusters, install the old controller chart
   - name: '{{ .Values.namespace }}-ingress-co'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/nginx-ingress-controller'
-    condition: semverCompare "<= 1.20-0" .Capabilities.KubeVersion.Version
+    condition: {{ semverCompare "<= 1.20-0" .Values.kubeVersion }}
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml.gotmpl'
 
@@ -98,7 +100,7 @@ releases:
   - name: '{{ .Values.namespace }}-ingress-co-2'
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/nginx-ingress-controller'
-    condition: semverCompare "<= 1.20-0" .Capabilities.KubeVersion.Version
+    condition: {{ semverCompare "<= 1.20-0" .Values.kubeVersion }}
     values:
       - './helm_vars/nginx-ingress-controller/values.yaml.gotmpl'
 
