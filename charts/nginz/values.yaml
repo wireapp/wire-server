@@ -378,6 +378,9 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+    - path: /system/settings$
+      envs:
+      - all
     - path: /oauth/clients/([^/]*)$
       envs:
       - all
