@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Test.Client where
 
@@ -16,8 +15,20 @@ import SetupHelpers
 testCantDeleteLHClient :: HasCallStack => App ()
 testCantDeleteLHClient = do
   user <- randomUser def
-  bindResponse (addClient user def {ctype = "legalhold", internal = True}) $ \resp -> do
-    (@?=) resp.status 200
+  lhClientId <- bindResponse (addClient user def {ctype = "legalhold", internal = True}) $ \resp -> do
+    resp.status @?= 201
+    resp.json %. "id" & asString
+
+  bindResponse (deleteClient user Nothing lhClientId) $ \resp -> do
+    resp.status @?= 400
+
+testDeleteUnknownClient :: HasCallStack => App ()
+testDeleteUnknownClient = do
+  user <- randomUser def
+  let fakeClientId :: String = "deadbeefdeadbeef"
+  bindResponse (deleteClient user Nothing fakeClientId) $ \resp -> do
+    resp.status @?= 404
+    resp.json %. "label" %?= ("client-not-found" :: String)
 
 testOtherWithoutComments :: App ()
 testOtherWithoutComments = pure ()

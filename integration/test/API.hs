@@ -1,10 +1,4 @@
-module API
-  ( CreateUser (..),
-    createUser,
-    AddClient (..),
-    addClient,
-  )
-where
+module API where
 
 import App
 import Config
@@ -12,7 +6,6 @@ import Data.Aeson
 import qualified Data.Array as Array
 import Data.Default
 import Imports
-import JSON
 import Response
 import System.Random
 
@@ -34,7 +27,7 @@ randomEmail = liftIO $ do
       pure (chars Array.! i)
 
 defPassword :: String
-defPassword = "s3cret"
+defPassword = "hunter2!"
 
 data CreateUser = CreateUser
   { email :: Maybe String,
@@ -87,19 +80,43 @@ instance Default AddClient where
         password = defPassword
       }
 
-addClient :: Value -> AddClient -> App Response
+addClient ::
+  (HasCallStack, ProducesJSON user) =>
+  user ->
+  AddClient ->
+  App Response
 addClient user args = do
-  uid <- getId user
+  uid <- objId user
+  -- TODO: this is wrong?
   req <- baseRequest Brig $ "/i/clients/" <> uid
   pks <- maybe (fmap pure getPrekey) pure args.prekeys
   lpk <- maybe getLastPrekey pure args.lastPrekey
   submit "POST" $
-    addJSONObject
-      [ "prekeys" .= pks,
-        "lastkey" .= lpk,
-        "type" .= args.ctype,
-        "label" .= args.clabel,
-        "model" .= args.model,
-        "password" .= args.password
-      ]
-      req
+    req
+      & addJSONObject
+        [ "prekeys" .= pks,
+          "lastkey" .= lpk,
+          "type" .= args.ctype,
+          "label" .= args.clabel,
+          "model" .= args.model,
+          "password" .= args.password
+        ]
+
+deleteClient ::
+  (HasCallStack, ProducesJSON user, ProducesJSON client) =>
+  user ->
+  Maybe String ->
+  client ->
+  App Response
+deleteClient user mconn client = do
+  let conn = fromMaybe "0" mconn
+  uid <- user & objId
+  cid <- client & asString
+  req <- baseRequest Brig $ "/clients/" <> cid
+  submit "DELETE" $
+    req
+      & zUser uid
+      -- & zConnection conn
+      & addJSONObject
+        [ "password" .= defPassword
+        ]
