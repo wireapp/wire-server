@@ -130,6 +130,7 @@ tests s =
             [ test s "send application message" testAppMessage,
               test s "send remote application message" testRemoteAppMessage,
               test s "another participant sends an application message" testAppMessage2,
+              -- FUTUREWORK(elland): add happy path test as well
               test s "send message, remote users are unreachable" testAppMessageUnreachable
             ],
           testGroup
