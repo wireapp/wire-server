@@ -43,6 +43,8 @@
 , hex
 , hostname-validate
 , hscim
+, hspec
+, hspec-wai
 , http-api-data
 , http-media
 , http-types
@@ -51,6 +53,7 @@
 , iproute
 , iso3166-country-codes
 , iso639
+, jose
 , lens
 , lib
 , memory
@@ -87,6 +90,7 @@
 , tagged
 , tasty
 , tasty-expected-failure
+, tasty-hspec
 , tasty-hunit
 , tasty-quickcheck
 , text
@@ -154,6 +158,7 @@ mkDerivation {
     iproute
     iso3166-country-codes
     iso639
+    jose
     lens
     memory
     metrics-wai
@@ -223,6 +228,9 @@ mkDerivation {
     filepath
     hex
     hscim
+    hspec
+    hspec-wai
+    http-types
     imports
     iso3166-country-codes
     iso639
@@ -238,11 +246,13 @@ mkDerivation {
     saml2-web-sso
     schema-profunctor
     servant
+    servant-server
     servant-swagger-ui
     string-conversions
     swagger2
     tasty
     tasty-expected-failure
+    tasty-hspec
     tasty-hunit
     tasty-quickcheck
     text
@@ -253,6 +263,7 @@ mkDerivation {
     uri-bytestring
     uuid
     vector
+    wai
     wire-message-proto-lens
   ];
   license = lib.licenses.agpl3Only;

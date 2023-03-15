@@ -117,6 +117,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
+import System.Logger (Msg)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Code
@@ -406,7 +407,8 @@ updateConversationMessageTimer ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -439,7 +441,8 @@ updateConversationMessageTimerUnqualified ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -464,7 +467,8 @@ deleteLocalConversation ::
     Member MemberStore r,
     Member ProposalStore r,
     Member (Input UTCTime) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -493,13 +497,13 @@ addCodeUnqualified ::
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   UserId ->
-  ConnId ->
+  Maybe ConnId ->
   ConvId ->
   Sem r AddCodeResult
-addCodeUnqualified usr zcon cnv = do
+addCodeUnqualified usr mZcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode @db lusr zcon lcnv
+  addCode @db lusr mZcon lcnv
 
 addCode ::
   forall db r.
@@ -516,10 +520,10 @@ addCode ::
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
-  ConnId ->
+  Maybe ConnId ->
   Local ConvId ->
   Sem r AddCodeResult
-addCode lusr zcon lcnv = do
+addCode lusr mZcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
@@ -535,7 +539,7 @@ addCode lusr zcon lcnv = do
       now <- input
       conversationCode <- createCode code
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
-      pushConversationEvent (Just zcon) event (qualifyAs lusr (map lmId users)) bots
+      pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event
     Just code -> do
       conversationCode <- createCode code
@@ -661,9 +665,10 @@ joinConversationByReusableCode ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r,
     Member TeamStore r,
     Member (TeamFeatureStore db) r,
+    Member SubConversationStore r,
+    Member (Logger (Msg -> Msg)) r,
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
@@ -692,7 +697,8 @@ joinConversationById ::
     Member (Input UTCTime) r,
     Member MemberStore r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -714,8 +720,9 @@ joinConversation ::
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member MemberStore r,
+    Member TeamStore r,
     Member SubConversationStore r,
-    Member TeamStore r
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -737,6 +744,7 @@ joinConversation lusr zcon conv access = do
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
     lcuEvent
       <$> notifyConversationAction
+        False
         (sing @'ConversationJoinTag)
         (tUntagged lusr)
         False
@@ -933,7 +941,8 @@ updateOtherMemberLocalConv ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local ConvId ->
   Local UserId ->
@@ -959,7 +968,8 @@ updateOtherMemberUnqualified ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -985,7 +995,8 @@ updateOtherMember ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member MemberStore r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1298,7 +1309,8 @@ updateConversationName ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1323,7 +1335,8 @@ updateUnqualifiedConversationName ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -1344,7 +1357,8 @@ updateLocalConversationName ::
     Member FederatorAccess r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
-    Member SubConversationStore r
+    Member SubConversationStore r,
+    Member (Logger (Msg -> Msg)) r
   ) =>
   Local UserId ->
   ConnId ->

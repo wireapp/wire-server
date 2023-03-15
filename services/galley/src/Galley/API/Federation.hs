@@ -409,6 +409,7 @@ leaveConversation requestingDomain lc = do
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       _ <-
         notifyConversationAction
+          False
           SConversationLeaveTag
           (tUntagged leaver)
           False
@@ -537,6 +538,7 @@ onUserDeleted origDomain udcn = do
               removeUser (qualifyAs lc conv) (tUntagged deletedUser)
               void $
                 notifyConversationAction
+                  False
                   (sing @'ConversationLeaveTag)
                   untaggedDeletedUser
                   False

@@ -633,11 +633,64 @@ If there is no configuration for a domain, it's defaulted to `no_search`.
 
 This options determines whether development versions should be enabled. If set to `False`, all development versions are removed from the `supported` field of the `/api-version` endpoint. Note that they are still listed in the `development` field, and continue to work normally.
 
+### OAuth
+
+For more information on OAuth please refer to <https://docs.wire.com/developer/reference/oauth.html>.
+
+En-/Disable OAuth as follows (if not set the default is disabled):
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthEnabled: [true|false]
+```
+
+#### JWK
+
+The JSON Web Keys in `test/resources/oauth/` are used to sign and verify OAuth access tokens in the local integration tests.
+The path to the JWK can be configured in `brig.integration.yaml` as follows:
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthJwkKeyPair: test/resources/oauth/ed25519.jwk
+```
+
+A JWK can be generated with `didkit` e.g. Run `cargo install didkit-cli` to install and `didkit generate-ed25519-key` to generate a JWK.
+
+#### Expiration time
+
+Optionally, configure the OAuth authorization code, access token, and refresh token expiration time in seconds with the following settings:
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthAuthCodeExpirationTimeSecs: 300 # 5 minutes
+  setOAuthAccessTokenExpirationTimeSecs: 300 # 5 minutes
+  setOAuthRefreshTokenExpirationTimeSecs: 14515200 # 24 weeks
+```
+
+For more information on what these settings mean in particular, please refer to <https://docs.wire.com/developer/reference/oauth.html>.
+
+#### Max number of active refresh tokens
+
+The maximum number of active OAuth refresh tokens a user is allowed to have.  Built-in default:
+
+```yaml
+# [brig.yaml]
+optSettings:
+  # ...
+  setOAuthMaxActiveRefreshTokens: 10
+```
+
 #### Disabling API versions
 
 It is possible to disable one ore more API versions. When an API version is disabled it won't be advertised on the `GET /api-version` endpoint, neither in the `supported`, nor in the `development` section. Requests made to any endpoint of a disabled API version will result in the same error response as a request made to an API version that does not exist.
 
-Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar should to be configured with the same set of disable API versions in each service's values.yaml config files. 
+Each of the services brig, cannon, cargohold, galley, gundeck, proxy, spar should to be configured with the same set of disable API versions in each service's values.yaml config files.
 
 
 For example to disable API version v3, you need to configure:

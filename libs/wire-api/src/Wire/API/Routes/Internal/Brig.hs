@@ -56,6 +56,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MakesFederatedCall
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
+import Wire.API.Routes.Internal.Brig.OAuth (OAuthAPI)
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -348,6 +349,7 @@ type API =
            :<|> TeamsAPI
            :<|> UserAPI
            :<|> AuthAPI
+           :<|> OAuthAPI
        )
 
 type TeamsAPI =

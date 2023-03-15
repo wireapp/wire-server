@@ -609,7 +609,24 @@ data Settings = Settings
     setDpopTokenExpirationTimeSecsInternal :: !(Maybe Word64),
     -- | Path to a .pem file containing the server's public key and private key
     -- e.g. to sign JWT tokens
-    setPublicKeyBundle :: !(Maybe FilePath)
+    setPublicKeyBundle :: !(Maybe FilePath),
+    -- | Path to the public and private JSON web key pair used to sign OAuth access tokens
+    setOAuthJwkKeyPair :: !(Maybe FilePath),
+    -- | The expiration time of an OAuth access token in seconds.
+    -- use `setOAuthAccessTokenExpirationTimeSecs` as the getter function which always provides a default value
+    setOAuthAccessTokenExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- | The expiration time of an OAuth authorization code in seconds.
+    -- use `setOAuthAuthorizationCodeExpirationTimeSecs` as the getter function which always provides a default value
+    setOAuthAuthorizationCodeExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- | En-/Disable OAuth
+    -- use `setOAuthEnabled` as the getter function which always provides a default value
+    setOAuthEnabledInternal :: !(Maybe Bool),
+    -- | The expiration time of an OAuth refresh token in seconds.
+    -- use `setOAuthRefreshTokenExpirationTimeSecs` as the getter function which always provides a default value
+    setOAuthRefreshTokenExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- | The maximum number of active OAuth refresh tokens a user is allowed to have.
+    -- use `setOAuthMaxActiveRefreshTokens` as the getter function which always provides a default value
+    setOAuthMaxActiveRefreshTokensInternal :: !(Maybe Word32)
   }
   deriving (Show, Generic)
 
@@ -655,11 +672,41 @@ defaultDpopTokenExpirationTimeSecs = 30
 setDpopTokenExpirationTimeSecs :: Settings -> Word64
 setDpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . setDpopTokenExpirationTimeSecsInternal
 
+defaultOAuthAccessTokenExpirationTimeSecs :: Word64
+defaultOAuthAccessTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 3 -- 3 weeks
+
+setOAuthAccessTokenExpirationTimeSecs :: Settings -> Word64
+setOAuthAccessTokenExpirationTimeSecs = fromMaybe defaultOAuthAccessTokenExpirationTimeSecs . setOAuthAccessTokenExpirationTimeSecsInternal
+
+defaultOAuthAuthorizationCodeExpirationTimeSecs :: Word64
+defaultOAuthAuthorizationCodeExpirationTimeSecs = 300 -- 5 minutes
+
+setOAuthAuthorizationCodeExpirationTimeSecs :: Settings -> Word64
+setOAuthAuthorizationCodeExpirationTimeSecs = fromMaybe defaultOAuthAuthorizationCodeExpirationTimeSecs . setOAuthAuthorizationCodeExpirationTimeSecsInternal
+
+defaultOAuthEnabled :: Bool
+defaultOAuthEnabled = False
+
+setOAuthEnabled :: Settings -> Bool
+setOAuthEnabled = fromMaybe defaultOAuthEnabled . setOAuthEnabledInternal
+
+defaultOAuthRefreshTokenExpirationTimeSecs :: Word64
+defaultOAuthRefreshTokenExpirationTimeSecs = 60 * 60 * 24 * 7 * 4 * 6 -- 24 weeks
+
+setOAuthRefreshTokenExpirationTimeSecs :: Settings -> Word64
+setOAuthRefreshTokenExpirationTimeSecs = fromMaybe defaultOAuthRefreshTokenExpirationTimeSecs . setOAuthRefreshTokenExpirationTimeSecsInternal
+
+defaultOAuthMaxActiveRefreshTokens :: Word32
+defaultOAuthMaxActiveRefreshTokens = 10
+
+setOAuthMaxActiveRefreshTokens :: Settings -> Word32
+setOAuthMaxActiveRefreshTokens = fromMaybe defaultOAuthMaxActiveRefreshTokens . setOAuthMaxActiveRefreshTokensInternal
+
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
 --
 -- FUTUREWORK: it would be nice to have a system of feature configs that allows to coherently
--- express arbitrary logic accross personal and team accounts, teams, and instances; including
+-- express arbitrary logic across personal and team accounts, teams, and instances; including
 -- default values for new records, default for records that have a NULL value (eg., because
 -- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
 -- messages).  For now, we have something quick & simple.
@@ -838,6 +885,11 @@ instance FromJSON Settings where
               "setNonceTtlSecsInternal" -> "setNonceTtlSecs"
               "setDpopMaxSkewSecsInternal" -> "setDpopMaxSkewSecs"
               "setDpopTokenExpirationTimeSecsInternal" -> "setDpopTokenExpirationTimeSecs"
+              "setOAuthAuthorizationCodeExpirationTimeSecsInternal" -> "setOAuthAuthorizationCodeExpirationTimeSecs"
+              "setOAuthAccessTokenExpirationTimeSecsInternal" -> "setOAuthAccessTokenExpirationTimeSecs"
+              "setOAuthEnabledInternal" -> "setOAuthEnabled"
+              "setOAuthRefreshTokenExpirationTimeSecsInternal" -> "setOAuthRefreshTokenExpirationTimeSecs"
+              "setOAuthMaxActiveRefreshTokensInternal" -> "setOAuthMaxActiveRefreshTokens"
               other -> other
           }
 
@@ -866,7 +918,12 @@ Lens.makeLensesFor
     ("setEnableDevelopmentVersions", "enableDevelopmentVersions"),
     ("setRestrictUserCreation", "restrictUserCreation"),
     ("setEnableMLS", "enableMLS"),
-    ("setDisabledAPIVersions", "disabledAPIVersions")
+    ("setOAuthEnabledInternal", "oauthEnabledInternal"),
+    ("setOAuthAuthorizationCodeExpirationTimeSecsInternal", "oauthAuthorizationCodeExpirationTimeSecsInternal"),
+    ("setOAuthAccessTokenExpirationTimeSecsInternal", "oauthAccessTokenExpirationTimeSecsInternal"),
+    ("setDisabledAPIVersions", "disabledAPIVersions"),
+    ("setOAuthRefreshTokenExpirationTimeSecsInternal", "oauthRefreshTokenExpirationTimeSecsInternal"),
+    ("setOAuthMaxActiveRefreshTokensInternal", "oauthMaxActiveRefreshTokensInternal")
   ]
   ''Settings
 

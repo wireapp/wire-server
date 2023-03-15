@@ -22,7 +22,6 @@ where
 
 import Data.String.Conversions
 import Imports
-import OpenSSL (withOpenSSL)
 import System.Environment (withArgs)
 import qualified Test.Federator.IngressSpec
 import qualified Test.Federator.InwardSpec
@@ -30,7 +29,7 @@ import Test.Federator.Util (TestEnv, mkEnvFromOptions)
 import Test.Hspec
 
 main :: IO ()
-main = withOpenSSL $ do
+main = do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
   env <- withArgs wireArgs mkEnvFromOptions
   -- withArgs hspecArgs . hspec $ do

@@ -18,6 +18,7 @@ library
     Wire.Sem.Concurrency.IO
     Wire.Sem.Concurrency.Sequential
     Wire.Sem.FromUTC
+    Wire.Sem.Jwk
     Wire.Sem.Logger
     Wire.Sem.Logger.Level
     Wire.Sem.Logger.TinyLog
@@ -78,16 +79,20 @@ library
     -Wredundant-constraints
 
   build-depends:
-      base             >=4.6 && <5.0
+      aeson
+    , base                >=4.6 && <5.0
+    , bytestring
     , cassandra-util
     , HsOpenSSL
     , hspec
     , imports
+    , jose
     , polysemy
     , polysemy-check
     , polysemy-plugin
     , QuickCheck
     , saml2-web-sso
+    , string-conversions
     , time
     , tinylog
     , types-common

@@ -29,13 +29,15 @@ import Polysemy.Error (Error, mapError, runError)
 import Polysemy.TinyLog (TinyLog)
 import Wire.Sem.Concurrency
 import Wire.Sem.Concurrency.IO
+import Wire.Sem.Jwk
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ PublicKeyBundle,
+  '[ Jwk,
+     PublicKeyBundle,
      JwtTools,
      BlacklistPhonePrefixStore,
      BlacklistStore,
@@ -76,6 +78,7 @@ runBrigToIO e (AppT ma) = do
               . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
               . interpretJwtTools
               . interpretPublicKeyBundle
+              . interpretJwk
           )
     )
     $ runReaderT ma e

@@ -53,7 +53,7 @@ testVersion brig = do
       =<< get (brig . path "/api-version")
         <!! const 200 === statusCode
   liftIO $
-    vinfoSupported vinfo @?= supportedVersions \\ developmentVersions
+    (fromVersionNumber <$> vinfoSupported vinfo) @?= supportedVersions \\ developmentVersions
 
 testVersionV1 :: Brig -> Http ()
 testVersionV1 brig = do
@@ -62,7 +62,7 @@ testVersionV1 brig = do
       =<< get (apiVersion "v1" . brig . path "api-version")
         <!! const 200 === statusCode
   liftIO $
-    vinfoSupported vinfo @?= supportedVersions \\ developmentVersions
+    (fromVersionNumber <$> vinfoSupported vinfo) @?= supportedVersions \\ developmentVersions
 
 testDevVersion :: Opts -> Brig -> Http ()
 testDevVersion opts brig = withSettingsOverrides
@@ -73,7 +73,7 @@ testDevVersion opts brig = withSettingsOverrides
         =<< get (brig . path "/api-version")
           <!! const 200 === statusCode
     liftIO $
-      vinfoSupported vinfo @?= supportedVersions
+      (fromVersionNumber <$> vinfoSupported vinfo) @?= supportedVersions
 
 testUnsupportedVersion :: Brig -> Http ()
 testUnsupportedVersion brig = do
@@ -127,7 +127,7 @@ testDisabledVersionIsUnsupported opts brig = do
 testVersionDisabledSupportedVersion :: Opts -> Brig -> Http ()
 testVersionDisabledSupportedVersion opts brig = do
   vinfo <- getVersionInfo brig
-  liftIO $ filter (== V2) (vinfoSupported vinfo) @?= [V2]
+  liftIO $ filter (== VersionNumber V2) (vinfoSupported vinfo) @?= [VersionNumber V2]
   disabledVersionIsNotAdvertised opts brig V2
 
 testVersionDisabledDevelopmentVersion :: Opts -> Brig -> Http ()
@@ -135,7 +135,7 @@ testVersionDisabledDevelopmentVersion opts brig = do
   vinfo <- getVersionInfo brig
   for_ (listToMaybe (vinfoDevelopment vinfo)) $ \devVersion -> do
     liftIO $ filter (== devVersion) (vinfoDevelopment vinfo) @?= [devVersion]
-    disabledVersionIsNotAdvertised opts brig devVersion
+    disabledVersionIsNotAdvertised opts brig (fromVersionNumber devVersion)
 
 disabledVersionIsNotAdvertised :: Opts -> Brig -> Version -> Http ()
 disabledVersionIsNotAdvertised opts brig version =
@@ -147,8 +147,8 @@ disabledVersionIsNotAdvertised opts brig version =
     )
     $ do
       vinfo <- getVersionInfo brig
-      liftIO $ filter (== version) (vinfoSupported vinfo) @?= []
-      liftIO $ filter (== version) (vinfoDevelopment vinfo) @?= []
+      liftIO $ filter (== VersionNumber version) (vinfoSupported vinfo) @?= []
+      liftIO $ filter (== VersionNumber version) (vinfoDevelopment vinfo) @?= []
 
 getVersionInfo ::
   (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
