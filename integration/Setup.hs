@@ -19,7 +19,6 @@ import Distribution.Types.BuildInfo
 import Distribution.Types.Executable
 import Distribution.Types.UnqualComponentName
 import Distribution.Utils.Path
-import Language.Haskell.Exts
 import System.Directory
 import System.FilePath
 import Prelude
@@ -53,44 +52,40 @@ collectTests roots = concat <$> traverse findAllTests (map (<> "/Test") roots)
           concat <$> traverse findPaths (map (d </>) entries)
         else pure [d]
 
+contexts :: [a] -> [([a], a)]
+contexts = go [] []
+  where
+    go ctx res [] = res
+    go ctx res (x : xs) = go (x : ctx) ((ctx, x) : res) xs
+
 stripHaddock :: String -> String
 stripHaddock = \case
-  ' ' : '|' : ' ' : xs -> xs
-  ' ' : '|' : xs -> xs
-  ' ' : xs -> xs
+  '-' : '-' : ' ' : '|' : ' ' : xs -> xs
+  '-' : '-' : ' ' : '|' : xs -> xs
+  '-' : '-' : ' ' : xs -> xs
+  '-' : '-' : xs -> xs
   xs -> xs
 
-collectSummaryAndFullDesc :: [Comment] -> (String, String)
-collectSummaryAndFullDesc comments =
-  let commentLines = map (\(Comment _ _ s) -> stripHaddock s) comments
-   in case uncons commentLines of
+collectDescription :: [String] -> (String, String)
+collectDescription revLines =
+  let comments = reverse (map stripHaddock (takeWhile isComment revLines))
+   in case uncons comments of
         Nothing -> ("", "")
-        Just (summary, _) -> (summary, intercalate "\n" commentLines)
+        Just (summary, _) -> (summary, unlines comments)
 
-getTypeSig :: Decl l -> Maybe (l, [Name l], Type l)
-getTypeSig = \case
-  TypeSig l names type_ -> Just (l, names, type_)
-  _ -> Nothing
+isComment :: String -> Bool
+isComment ('-' : '-' : _) = True
+isComment _ = False
 
 collectTestsInModule :: FilePath -> IO [(String, String, String)]
 collectTestsInModule fn = do
   s <- readFile fn
-  let result = parseFileContentsWithComments defaultParseMode s
-  module_ <- case result of
-    ParseOk res -> pure (associateHaddock res)
-    ParseFailed _sloc msg -> error ("setup: Parsing failed: " <> msg)
-  decls <- case module_ of
-    Module _ _head _pragmas _imports decls -> pure decls
-    _ -> error "setup: Expecting regular module"
-  pure $ flip mapMaybe decls $ \decl -> do
-    ((_, comments), names, _type) <- getTypeSig decl
-    case names of
-      ((Ident _ n) : _) ->
-        case n of
-          ('t' : 'e' : 's' : 't' : _) ->
-            let (summary, full) = collectSummaryAndFullDesc comments
-             in Just (n, summary, full)
-          _ -> Nothing
+  let xs = contexts (lines s)
+  pure $ flip mapMaybe xs $ \(previousLines, line) -> do
+    case (words line) of
+      (name@('t' : 'e' : 's' : 't' : _) : "::" : _) -> do
+        let (summary, fullDesc) = collectDescription previousLines
+        pure (name, summary, fullDesc)
       _ -> Nothing
 
 testHooks :: UserHooks -> UserHooks
