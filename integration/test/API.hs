@@ -1,11 +1,18 @@
-module API where
+module API
+  ( CreateUser (..),
+    createUser,
+    AddClient (..),
+    addClient,
+  )
+where
 
 import App
 import Config
-import Data.Aeson ((.=))
+import Data.Aeson
 import qualified Data.Array as Array
 import Data.Default
 import Imports
+import JSON
 import Response
 import System.Random
 
@@ -55,5 +62,44 @@ createUser cu = do
         "name" .= name,
         "password" .= password,
         "icon" .= ("default" :: String)
+      ]
+      req
+
+data AddClient = AddClient
+  { ctype :: String,
+    internal :: Bool,
+    clabel :: String,
+    model :: String,
+    prekeys :: Maybe [Value],
+    lastPrekey :: Maybe Value,
+    password :: String
+  }
+
+instance Default AddClient where
+  def =
+    AddClient
+      { ctype = "permanent",
+        internal = False,
+        clabel = "Test Device",
+        model = "Test Model",
+        prekeys = Nothing,
+        lastPrekey = Nothing,
+        password = defPassword
+      }
+
+addClient :: Value -> AddClient -> App Response
+addClient user args = do
+  uid <- getId user
+  req <- baseRequest Brig $ "/i/clients/" <> uid
+  pks <- maybe (fmap pure getPrekey) pure args.prekeys
+  lpk <- maybe getLastPrekey pure args.lastPrekey
+  submit "POST" $
+    addJSONObject
+      [ "prekeys" .= pks,
+        "lastkey" .= lpk,
+        "type" .= args.ctype,
+        "label" .= args.clabel,
+        "model" .= args.model,
+        "password" .= args.password
       ]
       req
