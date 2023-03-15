@@ -17,8 +17,7 @@ custom-setup
     , containers
     , directory
     , filepath
-    , regex-base
-    , regex-posix
+    , haskell-src-exts
 
 common common-all
   default-language:   Haskell2010
