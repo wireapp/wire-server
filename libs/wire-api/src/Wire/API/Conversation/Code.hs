@@ -39,7 +39,22 @@ import Data.Schema
 import qualified Data.Swagger as S
 import Imports
 import qualified URI.ByteString as URI
+import Wire.API.Password (Password)
 import Wire.Arbitrary (Arbitrary, GenericUniform (..))
+
+newtype CreateConversationCodeRequest = CreateConversationCodeRequest
+  { cccrPassword :: Maybe Password
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema CreateConversationCodeRequest
+
+instance ToSchema CreateConversationCodeRequest where
+  schema =
+    objectWithDocModifier
+      "CreateConversationCodeRequest"
+      (description ?~ "Contains conversation properties to update")
+      $ CreateConversationCodeRequest
+        <$> cccrPassword .= maybe_ (optField "password" schema)
 
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,
