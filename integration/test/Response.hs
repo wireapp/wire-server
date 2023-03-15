@@ -3,6 +3,7 @@ module Response where
 import App
 import Config
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Text as T
@@ -68,9 +69,11 @@ withResponse r k = onFailure (k r) $ do
     Nothing -> pure ()
     Just b -> do
       putStrLn "request body:"
-      T.putStrLn (T.decodeUtf8 b)
+      T.putStrLn . T.decodeUtf8 $ case Aeson.decode (L.fromStrict b) of
+        Just v -> L.toStrict (Aeson.encodePretty (v :: Aeson.Value))
+        Nothing -> b
   putStrLn "response body:"
-  T.putStrLn (T.decodeUtf8 (L.toStrict (foldMap Aeson.encode r.json)))
+  T.putStrLn (T.decodeUtf8 (L.toStrict (foldMap Aeson.encodePretty r.json)))
 
 bindResponse :: App Response -> (Response -> App a) -> App a
 bindResponse m k = m >>= \r -> withResponse r k

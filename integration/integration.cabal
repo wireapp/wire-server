@@ -86,6 +86,7 @@ executable integration-main
 
   build-depends:
     , aeson
+    , aeson-pretty
     , array
     , base
     , bytestring
