@@ -93,7 +93,6 @@ executable integration-main
     , data-default
     , http-client
     , http-types
-    , HUnit
     , imports
     , network-uri
     , random
