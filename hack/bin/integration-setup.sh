@@ -18,9 +18,10 @@ charts=(fake-aws databases-ephemeral redis-cluster wire-server ingress-nginx-con
 mkdir -p ~/.parallel && touch ~/.parallel/will-cite
 printf '%s\n' "${charts[@]}" | parallel -P "${HELM_PARALLELISM}" "$DIR/update.sh" "$CHARTS_DIR/{}"
 
-KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq .serverVersion.major)"
-KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq .serverVersion.minor)"
+KUBERNETES_VERSION_MAJOR="$(kubectl version -o json | jq -r .serverVersion.major)"
+KUBERNETES_VERSION_MINOR="$(kubectl version -o json | jq -r .serverVersion.minor)"
 export KUBERNETES_VERSION="$KUBERNETES_VERSION_MAJOR.$KUBERNETES_VERSION_MINOR"
+echo "kubeVersion: $KUBERNETES_VERSION"
 echo "Generating self-signed certificates..."
 export FEDERATION_DOMAIN_BASE="$NAMESPACE.svc.cluster.local"
 export FEDERATION_DOMAIN="federation-test-helper.$FEDERATION_DOMAIN_BASE"

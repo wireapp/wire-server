@@ -18,7 +18,7 @@ environments:
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
-      - kubeVersion: {{ requiredEnv "KUBERNETES_VERSION" }}
+      - kubeVersion: {{ requiredEnv "KUBERNETES_VERSION" | quote }}
       - imagePullPolicy: Always
       - redisStorageClass: hcloud-volumes
   kind:
@@ -27,7 +27,7 @@ environments:
       - federationDomain: {{ requiredEnv "FEDERATION_DOMAIN_1" }}
       - namespaceFed2: {{ requiredEnv "NAMESPACE_2" }}
       - federationDomainFed2: {{ requiredEnv "FEDERATION_DOMAIN_2" }}
-      - kubeVersion: {{ requiredEnv "KUBERNETES_VERSION" }}
+      - kubeVersion: {{ requiredEnv "KUBERNETES_VERSION" | quote }}
       - imagePullPolicy: Never
       - redisStorageClass: standard
 
@@ -39,7 +39,7 @@ repositories:
     url: 'https://charts.bitnami.com/bitnami'
 
   - name: ingress
-    url: https://kubernetes.github.io/ingress-nginx
+    url: 'https://kubernetes.github.io/ingress-nginx'
 
 releases:
   - name: '{{ .Values.namespace }}-fake-aws'
@@ -94,7 +94,7 @@ releases:
     chart: '../.local/charts/nginx-ingress-controller'
     condition: {{ semverCompare "<= 1.20-0" .Values.kubeVersion }}
     values:
-      - './helm_vars/nginx-ingress-controller/values.yaml.gotmpl'
+      - './helm_vars/nginx-ingress-controller/values.yaml'
 
   # on old clusters, install the old controller chart
   - name: '{{ .Values.namespace }}-ingress-co-2'
@@ -102,7 +102,7 @@ releases:
     chart: '../.local/charts/nginx-ingress-controller'
     condition: {{ semverCompare "<= 1.20-0" .Values.kubeVersion }}
     values:
-      - './helm_vars/nginx-ingress-controller/values.yaml.gotmpl'
+      - './helm_vars/nginx-ingress-controller/values.yaml'
 
   - name: '{{ .Values.namespace }}-ingresses'
     namespace: '{{ .Values.namespace }}'
