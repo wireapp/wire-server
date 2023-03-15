@@ -29,6 +29,7 @@ import qualified API.OAuth
 import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
+import qualified API.Swagger
 import qualified API.SystemSettings as SystemSettings
 import qualified API.Team as Team
 import qualified API.TeamUserSearch as TeamUserSearch
@@ -113,6 +114,7 @@ instance FromJSON Config
 runTests :: Config -> Opts.Opts -> [String] -> IO ()
 runTests iConf brigOpts otherArgs = do
   let b = mkVersionedRequest $ brig iConf
+      brigNoImplicitVersion = mkRequest $ brig iConf
       c = mkVersionedRequest $ cannon iConf
       gd = mkVersionedRequest $ gundeck iConf
       ch = mkVersionedRequest $ cargohold iConf
@@ -159,6 +161,7 @@ runTests iConf brigOpts otherArgs = do
 
   let smtp = SMTP.tests mg lg
       versionApi = API.Version.tests mg brigOpts b
+      swaggerApi = API.Swagger.tests mg brigOpts brigNoImplicitVersion
       mlsApi = MLS.tests mg b brigOpts
       oauthAPI = API.OAuth.tests mg db b n brigOpts
 
@@ -184,6 +187,7 @@ runTests iConf brigOpts otherArgs = do
         federationEndpoints,
         internalApi,
         versionApi,
+        swaggerApi,
         mlsApi,
         smtp,
         oauthAPI
