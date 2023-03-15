@@ -55,7 +55,7 @@ collectTests roots = concat <$> traverse findAllTests (map (<> "/Test") roots)
 contexts :: [a] -> [([a], a)]
 contexts = go [] []
   where
-    go ctx res [] = res
+    go _ctx res [] = res
     go ctx res (x : xs) = go (x : ctx) ((ctx, x) : res) xs
 
 stripHaddock :: String -> String

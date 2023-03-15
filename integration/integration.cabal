@@ -22,7 +22,7 @@ common common-all
   default-language:   Haskell2010
   ghc-options:
     -Wall -Wpartial-fields -fwarn-tabs
-    -optP-Wno-nonportable-include-path -Wredundant-constraints
+    -optP-Wno-nonportable-include-path
 
   default-extensions:
     NoImplicitPrelude
@@ -76,7 +76,6 @@ executable integration-main
     API
     App
     Config
-    JSON
     Response
     Run
     RunAllTests
@@ -89,11 +88,13 @@ executable integration-main
     , array
     , base
     , bytestring
+    , case-insensitive
     , data-default
     , http-client
     , http-types
     , imports
     , network-uri
     , random
+    , scientific
     , text
     , transformers
