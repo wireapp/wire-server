@@ -211,20 +211,25 @@ createGroupConversationGeneric lusr mCreatorClient conn newConv convCreated = do
   -- protocol-specific validation is successful. Otherwise we might write the
   -- conversation to the database, and throw a validation error when the
   -- conversation is already in the database.
-  conv <- E.createConversation lcnv nc
+  failedToNotify <- do
+    conv <- E.createConversation lcnv nc
 
-  -- set creator client for MLS conversations
-  case (convProtocol conv, mCreatorClient) of
-    (ProtocolProteus, _) -> pure ()
-    (ProtocolMLS mlsMeta, Just c) ->
-      E.addMLSClients (cnvmlsGroupId mlsMeta) (tUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
-    (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
+    -- set creator client for MLS conversations
+    case (convProtocol conv, mCreatorClient) of
+      (ProtocolProteus, _) -> pure ()
+      (ProtocolMLS mlsMeta, Just c) ->
+        E.addMLSClients (cnvmlsGroupId mlsMeta) (tUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
+      (ProtocolMLS _mlsMeta, Nothing) -> throwS @'MLSMissingSenderClient
 
-  -- NOTE: We only send (conversation) events to members of the conversation
-  failedToNotify <- notifyCreatedConversation lusr conn conv
-  -- We already added all the invitees, but now remove from the conversation
-  -- those that could not be notified
-  E.deleteMembers (convId conv) . ulFromRemotes . Set.toList $ failedToNotify
+    -- NOTE: We only send (conversation) events to members of the conversation
+    failedToNotify <- notifyCreatedConversation lusr conn conv
+    -- We already added all the invitees, but now remove from the conversation
+    -- those that could not be notified
+    E.deleteMembers (convId conv) . ulFromRemotes . Set.toList $ failedToNotify
+    pure failedToNotify
+  conv <-
+    E.getConversation (tUnqualified lcnv)
+      >>= note (BadConvState (tUnqualified lcnv))
 
   convCreated failedToNotify lusr conv
 
