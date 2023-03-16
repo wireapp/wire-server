@@ -1407,7 +1407,10 @@ putMessageTimerUpdate u c acc = do
       . json acc
 
 postConvCode :: UserId -> ConvId -> TestM ResponseLBS
-postConvCode u c = do
+postConvCode = postConvCode' Nothing
+
+postConvCode' :: Maybe PlainTextPassword8 -> UserId -> ConvId -> TestM ResponseLBS
+postConvCode' mPw u c = do
   g <- viewGalley
   post $
     g
@@ -1415,7 +1418,7 @@ postConvCode u c = do
       . zUser u
       . zConn "conn"
       . zType "access"
-      . json (CreateConversationCodeRequest Nothing)
+      . json (CreateConversationCodeRequest mPw)
 
 postConvCodeCheck :: ConversationCode -> TestM ResponseLBS
 postConvCodeCheck code = do

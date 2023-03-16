@@ -286,8 +286,8 @@ updatePublicGroupState = "update conversation set public_group_state = ? where c
 
 -- Conversations accessible by code -----------------------------------------
 
-insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Int32) ()
-insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope) VALUES (?, ?, ?, ?) USING TTL ?"
+insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Maybe Password, Int32) ()
+insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope, password) VALUES (?, ?, ?, ?, ?) USING TTL ?"
 
 lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId, Maybe Password)
 lookupCode = "SELECT value, ttl(value), conversation, password FROM conversation_codes WHERE key = ? AND scope = ?"

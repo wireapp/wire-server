@@ -55,6 +55,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1 hiding (head)
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
+import Data.Misc
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -227,7 +228,8 @@ tests s =
           test s "post message qualified - remote owning backend - success" postMessageQualifiedRemoteOwningBackendSuccess,
           test s "join conversation" postJoinConvOk,
           test s "get code-access conversation information" testJoinCodeConv,
-          test s "join code-access conversation" postJoinCodeConvOk,
+          test s "join code-access conversation - no password" postJoinCodeConvOk,
+          test s "join code-access conversation - password" postJoinCodeConvWithPassword,
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "local and remote guests are removed when access changes" testAccessUpdateGuestRemoved,
@@ -1517,6 +1519,45 @@ postJoinCodeConvOk = do
     postJoinCodeConv dave payload !!! const 404 === statusCode
 
 -- @END
+
+postJoinCodeConvWithPassword :: TestM ()
+postJoinCodeConvWithPassword = do
+  _c <- view tsCannon
+  alice <- randomUser
+  qbob <- randomQualifiedUser
+  let bob = qUnqualified qbob
+  _eve <- ephemeralUser
+  _dave <- ephemeralUser
+  Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
+  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
+  let _qconv = Qualified conv (qDomain qbob)
+  let pw = plainTextPassword8Unsafe "password"
+  cCode <- decodeConvCodeEvent <$> postConvCode' (Just pw) alice conv
+  liftIO $ conversationHasPassword cCode @?= Just True
+  -- with ActivatedAccess, bob can join, but not eve
+  -- WS.bracketR c bob $ \(_wsB) -> do
+  postJoinCodeConv bob cCode !!! const 403 === statusCode
+
+--   -- non-admin cannot create invite link
+--   postConvCode bob conv !!! const 403 === statusCode
+--   -- test no-op
+--   postJoinCodeConv bob payload !!! const 204 === statusCode
+--   -- eve cannot join
+--   postJoinCodeConv eve payload !!! const 403 === statusCode
+--   void . liftIO $
+--     WS.assertMatchN (5 # Second) [wsA, wsB] $
+--       wsAssertMemberJoinWithRole qconv qbob [qbob] roleNameWireMember
+--   -- changing access to non-activated should give eve access
+--   Right accessRolesWithGuests <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
+--   let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRolesWithGuests
+--   putQualifiedAccessUpdate alice qconv nonActivatedAccess !!! const 200 === statusCode
+--   postJoinCodeConv eve payload !!! const 200 === statusCode
+--   -- guest cannot create invite link
+--   postConvCode eve conv !!! const 403 === statusCode
+--   -- after removing CodeAccess, no further people can join
+--   let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
+--   putQualifiedAccessUpdate alice qconv noCodeAccess !!! const 200 === statusCode
+--   postJoinCodeConv dave payload !!! const 404 === statusCode
 
 postConvertCodeConv :: TestM ()
 postConvertCodeConv = do

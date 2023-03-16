@@ -45,9 +45,10 @@ import Data.Misc
 import Galley.Data.Types
 import Imports
 import Polysemy
+import Wire.API.Password
 
 data CodeStore m a where
-  CreateCode :: Code -> CodeStore m ()
+  CreateCode :: Code -> Maybe Password -> CodeStore m ()
   GetCode :: Key -> Scope -> CodeStore m (Maybe Code)
   DeleteCode :: Key -> Scope -> CodeStore m ()
   MakeKey :: ConvId -> CodeStore m Key

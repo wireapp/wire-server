@@ -132,6 +132,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
+import Wire.API.Password (mkSafePassword)
 import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Public.Galley.Messaging
 import Wire.API.Routes.Public.Util (UpdateResult (..))
@@ -484,6 +485,7 @@ addCodeUnqualifiedWithReqBody ::
     Member GundeckAccess r,
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
+    Member (Embed IO) r,
     Member (Input Opts) r,
     Member (TeamFeatureStore db) r,
     FeaturePersistentConstraint db GuestLinksConfig
@@ -493,7 +495,7 @@ addCodeUnqualifiedWithReqBody ::
   ConvId ->
   CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCodeUnqualifiedWithReqBody usr mZcon cnv pw = addCodeUnqualified @db (Just pw) usr mZcon cnv
+addCodeUnqualifiedWithReqBody usr mZcon cnv req = addCodeUnqualified @db (Just req) usr mZcon cnv
 
 addCodeUnqualified ::
   forall db r.
@@ -507,6 +509,7 @@ addCodeUnqualified ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
+    Member (Embed IO) r,
     Member (TeamFeatureStore db) r,
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
@@ -515,10 +518,10 @@ addCodeUnqualified ::
   Maybe ConnId ->
   ConvId ->
   Sem r AddCodeResult
-addCodeUnqualified _mPw usr mZcon cnv = do
+addCodeUnqualified mReq usr mZcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode @db lusr mZcon lcnv
+  addCode @db lusr mZcon lcnv mReq
 
 addCode ::
   forall db r.
@@ -532,13 +535,15 @@ addCode ::
     Member (Input UTCTime) r,
     Member (Input Opts) r,
     Member (TeamFeatureStore db) r,
+    Member (Embed IO) r,
     FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
   Maybe ConnId ->
   Local ConvId ->
+  Maybe CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCode lusr mZcon lcnv = do
+addCode lusr mZcon lcnv mReq = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
@@ -550,9 +555,12 @@ addCode lusr mZcon lcnv = do
   case mCode of
     Nothing -> do
       code <- E.generateCode (tUnqualified lcnv) ReusableCode (Timeout 3600 * 24 * 365) -- one year FUTUREWORK: configurable
-      E.createCode code
+      mPw <- forM (cccrPassword =<< mReq) mkSafePassword
+      E.createCode code mPw
       now <- input
-      conversationCode <- createCode code
+      conversationCode <- do
+        cc <- createCode code
+        pure $ cc {conversationHasPassword = Just $ isJust mPw}
       let event = Event (tUntagged lcnv) Nothing (tUntagged lusr) now (EdConvCodeUpdate conversationCode)
       pushConversationEvent mZcon event (qualifyAs lusr (map lmId users)) bots
       pure $ CodeAdded event

@@ -33,6 +33,7 @@ import Galley.Options
 import Imports
 import Polysemy
 import Polysemy.Input
+import Wire.API.Password
 
 interpretCodeStoreToCassandra ::
   ( Member (Embed IO) r,
@@ -43,7 +44,7 @@ interpretCodeStoreToCassandra ::
   Sem r a
 interpretCodeStoreToCassandra = interpret $ \case
   GetCode k s -> embedClient $ lookupCode k s
-  CreateCode code -> embedClient $ insertCode code
+  CreateCode code mPw -> embedClient $ insertCode code mPw
   DeleteCode k s -> embedClient $ deleteCode k s
   MakeKey cid -> Code.mkKey cid
   GenerateCode cid s t -> Code.generate cid s t
@@ -51,18 +52,19 @@ interpretCodeStoreToCassandra = interpret $ \case
     view (options . optSettings . setConversationCodeURI) <$> input
 
 -- | Insert a conversation code
-insertCode :: Code -> Client ()
-insertCode c = do
+insertCode :: Code -> Maybe Password -> Client ()
+insertCode c mPw = do
   let k = codeKey c
   let v = codeValue c
   let cnv = codeConversation c
   let t = round (codeTTL c)
   let s = codeScope c
-  retry x5 (write Cql.insertCode (params LocalQuorum (k, v, cnv, s, t)))
+  retry x5 (write Cql.insertCode (params LocalQuorum (k, v, cnv, s, mPw, t)))
 
 -- | Lookup a conversation by code.
 lookupCode :: Key -> Scope -> Client (Maybe Code)
-lookupCode k s = fmap (toCode k s) <$> retry x1 (query1 Cql.lookupCode (params LocalQuorum (k, s)))
+lookupCode k s =
+  fmap (toCode k s) <$> retry x1 (query1 Cql.lookupCode (params LocalQuorum (k, s)))
 
 -- | Delete a code associated with the given conversation key
 deleteCode :: Key -> Scope -> Client ()
