@@ -137,11 +137,11 @@ let
       src = fetchgit {
         url = "https://gitlab.haskell.org/ghc/ghc-debug.git";
         rev = "ed3975717e27fd858f35b33359b94ef9a12735f3";
-        sha256 = "sha256-g2lbKt3+hToVFQvaHOa9dg4HqAL7YgReo8fy7wQavmY=";
+        sha256 = "sha256-BqAOmVjhU8TdrzWGKMQciZKJRyIacOikXzsU6TMBRMY=";
       };
       packages = {
-        ghc-debug-brick = "ghc-debug-brick";
-      }
+        ghc-debug-client = "client";
+      };
     };
     saml2-web-sso = {
       src = fetchgit {
