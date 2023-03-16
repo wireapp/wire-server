@@ -589,7 +589,7 @@ type ConversationAPI =
     :<|> Named
            "create-conversation-code-unqualified@v3"
            ( Summary "Create or recreate a conversation code"
-               --  :> Until 'V4
+               :> Until 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled
@@ -605,6 +605,7 @@ type ConversationAPI =
     :<|> Named
            "create-conversation-code-unqualified"
            ( Summary "Create or recreate a conversation code"
+               :> From 'V4
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'GuestLinksDisabled

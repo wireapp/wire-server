@@ -107,6 +107,7 @@ import Web.Cookie
 import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Code (CreateConversationCodeRequest (..))
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing
@@ -1414,6 +1415,7 @@ postConvCode u c = do
       . zUser u
       . zConn "conn"
       . zType "access"
+      . json (CreateConversationCodeRequest Nothing)
 
 postConvCodeCheck :: ConversationCode -> TestM ResponseLBS
 postConvCodeCheck code = do

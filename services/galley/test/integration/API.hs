@@ -1480,6 +1480,7 @@ postJoinCodeConvOk = do
   conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
   let qconv = Qualified conv (qDomain qbob)
   cCode <- decodeConvCodeEvent <$> postConvCode alice conv
+  liftIO $ conversationHasPassword cCode @?= Just False
   -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
   -- POST /code gives code,key,uri
   -- POST /join expects code,key

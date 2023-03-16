@@ -25,7 +25,7 @@ module Galley.API.Update
     joinConversationByReusableCode,
     joinConversationById,
     addCodeUnqualified,
-    addCodeUnqualified',
+    addCodeUnqualifiedWithReqBody,
     rmCodeUnqualified,
     getCode,
     updateUnqualifiedConversationName,
@@ -469,7 +469,7 @@ deleteLocalConversation lusr con lcnv =
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
-addCodeUnqualified' ::
+addCodeUnqualifiedWithReqBody ::
   forall db r.
   ( Member CodeStore r,
     Member ConversationStore r,
@@ -489,7 +489,7 @@ addCodeUnqualified' ::
   ConvId ->
   CreateConversationCodeRequest ->
   Sem r AddCodeResult
-addCodeUnqualified' usr zcon cnv pw = addCodeUnqualified @db (Just pw) usr zcon cnv
+addCodeUnqualifiedWithReqBody usr zcon cnv pw = addCodeUnqualified @db (Just pw) usr zcon cnv
 
 addCodeUnqualified ::
   forall db r.
@@ -558,7 +558,7 @@ addCode lusr zcon lcnv = do
   where
     createCode :: Code -> Sem r ConversationCode
     createCode code = do
-      mkConversationCode (codeKey code) (codeValue code) False <$> E.getConversationCodeURI
+      mkConversationCode (codeKey code) (codeValue code) (codeHasPassword code) <$> E.getConversationCodeURI
     ensureGuestsOrNonTeamMembersAllowed :: Data.Conversation -> Sem r ()
     ensureGuestsOrNonTeamMembersAllowed conv =
       unless
