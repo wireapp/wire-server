@@ -15,7 +15,6 @@
 , errors
 , exceptions
 , gitignoreSource
-, HsOpenSSL
 , hspec
 , hspec-discover
 , http-media
@@ -68,7 +67,6 @@ mkDerivation {
     either
     errors
     exceptions
-    HsOpenSSL
     http-media
     http-types
     http2

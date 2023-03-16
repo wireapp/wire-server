@@ -1,4 +1,17 @@
-## General
+## Authentication / Authorization
+
+The end-points in this API support differing authorization protocols:
+some are unauthenticated (`/api-version`, `/login`), some require
+[zauth](), and some support both [zauth]() and [oauth]().
+
+The end-points that require zauth are labelled so in the description
+below.  The end-points that support oauth as an alternative to zauth
+have the required oauth scopes listed in the same description.
+
+Futher reading:
+- https://docs.wire.com/developer/reference/oauth.html
+- https://github.com/wireapp/wire-server/blob/develop/libs/wire-api/src/Wire/API/Routes/Public.hs (search for HasSwagger instances)
+- `curl https://staging-nginz-https.zinfra.io/v4/api/swagger.json | jq '.security, .securityDefinitions`
 
 ### SSO Endpoints
 

@@ -1,0 +1,1 @@
+If you are using OAuth (`optSettings.setOAuthEnabled: true` in brig config): before the deployment of wire-server the private and public keys for OAuth have to be provided for `brig` and `nginz` (see `docs/src/developer/reference/oauth.md` for more information)

@@ -40,8 +40,8 @@ versionAPI = Named $ do
         | otherwise = Set.difference allVersions devVersions
   pure $
     VersionInfo
-      { vinfoSupported = toList supported,
-        vinfoDevelopment = toList devVersions,
+      { vinfoSupported = VersionNumber <$> toList supported,
+        vinfoDevelopment = VersionNumber <$> toList devVersions,
         vinfoFederation = isJust fed,
         vinfoDomain = dom
       }

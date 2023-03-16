@@ -1,1 +1,0 @@
-Team feature setting for MLS end-to-end identity was added and server setting `setEnableMls` is exposed via new authorized endpoint `GET /system/settings`

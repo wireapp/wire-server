@@ -6,6 +6,32 @@
 #include <zauth.h>
 #include <stdbool.h>
 
+typedef struct {
+        ZauthKeystore * keystore;
+        ZauthAcl *      acl;
+        OAuthPubJwk *   oauth_pub_key;
+} ZauthServerConf;
+
+typedef struct {
+        ngx_flag_t zauth; // 1=on, 0=off
+        ngx_str_t  oauth_scope;
+} ZauthLocationConf;
+
+enum {
+        CONTEXT_ZAUTH,
+        CONTEXT_OAUTH
+};
+
+typedef struct {
+        ngx_int_t tag;
+        union {
+          // valid if tag == CONTEXT_ZAUTH
+          ZauthToken * token;
+          // valid if tag == CONTEXT_OAUTH
+          char * user_id;
+        };
+} ZauthContext;
+
 // Configuration setup
 static void * create_srv_conf (ngx_conf_t *);
 static void * create_loc_conf (ngx_conf_t *);
@@ -13,35 +39,35 @@ static char * merge_loc_conf  (ngx_conf_t *, void *, void *);
 static char * merge_srv_conf  (ngx_conf_t *, void *, void *);
 static char * load_keystore   (ngx_conf_t *, ngx_command_t *, void *);
 static char * load_acl        (ngx_conf_t *, ngx_command_t *, void *);
+static char * load_oauth_key  (ngx_conf_t *, ngx_command_t *, void *);
 static void   delete_srv_conf (void *);
 
 // Module setup
-static ngx_int_t zauth_init           (ngx_conf_t *);
-static ngx_int_t zauth_parse_request  (ngx_http_request_t *);
-static ngx_int_t zauth_handle_request (ngx_http_request_t *);
+static ngx_int_t zauth_init                     (ngx_conf_t *);
+static ngx_int_t zauth_parse_request            (ngx_http_request_t *);
+static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t *);
 
 // Request Inspection
-static ZauthResult token_from_header (ngx_str_t const *, ZauthToken **);
-static ZauthResult token_from_query  (ngx_str_t const *, ZauthToken **);
-static void        delete_token      (void *);
+static ZauthResult    token_from_header    (ngx_str_t const *, ZauthToken **);
+static ZauthResult    token_from_query     (ngx_str_t const *, ZauthToken **);
+static ZauthContext * alloc_zauth_context  (ngx_http_request_t * r, ZauthToken *);
+static ZauthContext * alloc_oauth_context  (ngx_http_request_t * r, char *);
+static ngx_int_t      setup_zauth_context  (ngx_http_request_t * , ZauthContext *);
+static void           delete_zauth_context (void *);
 
 // Variable manipulation
 static ngx_int_t zauth_variables      (ngx_conf_t *);
 static ngx_int_t zauth_token_var      (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
+static ngx_int_t zauth_token_var_user (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_conn (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_var_conv (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_token_typeinfo (ngx_http_request_t *, ngx_http_variable_value_t *, uintptr_t);
 static ngx_int_t zauth_set_var        (ngx_pool_t *, ngx_http_variable_value_t *, Range);
 static void      zauth_empty_val      (ngx_http_variable_value_t *);
 
-typedef struct {
-        ZauthKeystore * keystore;
-        ZauthAcl *      acl;
-} ZauthServerConf;
-
-typedef struct {
-        ngx_flag_t toggle;
-} ZauthLocationConf;
+// Utility functions
+static ngx_int_t zauth_handle_request (ngx_http_request_t *, const ZauthServerConf *, ZauthToken const *);
+static ngx_int_t oauth_handle_request(ngx_http_request_t *, OAuthPubJwk const *, ngx_str_t const);
 
 static ngx_http_module_t zauth_module_ctx = {
         zauth_variables // pre-configuration
@@ -59,7 +85,15 @@ static ngx_command_t zauth_commands [] = {
         , NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1
         , ngx_conf_set_flag_slot
         , NGX_HTTP_LOC_CONF_OFFSET
-        , offsetof (ZauthLocationConf, toggle)
+        , offsetof (ZauthLocationConf, zauth)
+        , NULL
+        }
+
+      , { ngx_string ("oauth_scope")
+        , NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1
+        , ngx_conf_set_str_slot
+        , NGX_HTTP_LOC_CONF_OFFSET
+        , offsetof (ZauthLocationConf, oauth_scope)
         , NULL
         }
 
@@ -74,6 +108,14 @@ static ngx_command_t zauth_commands [] = {
       , { ngx_string ("zauth_acl")
         , NGX_HTTP_SRV_CONF | NGX_CONF_TAKE1
         , load_acl
+        , NGX_HTTP_SRV_CONF_OFFSET
+        , 0
+        , NULL
+        }
+
+      , { ngx_string ("oauth_pub_key")
+        , NGX_HTTP_SRV_CONF | NGX_CONF_TAKE1
+        , load_oauth_key
         , NGX_HTTP_SRV_CONF_OFFSET
         , 0
         , NULL
@@ -135,6 +177,10 @@ static char * merge_srv_conf (ngx_conf_t * c, void * pc, void * cc) {
                 child->acl = parent->acl;
         }
 
+        if (child->oauth_pub_key == NULL) {
+                child->oauth_pub_key = parent->oauth_pub_key;
+        }
+
         if (child->keystore == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, c, 0, "missing 'zauth_keystore'");
                 return NGX_CONF_ERROR;
@@ -143,6 +189,10 @@ static char * merge_srv_conf (ngx_conf_t * c, void * pc, void * cc) {
         if (child->acl == NULL) {
                 ngx_conf_log_error(NGX_LOG_EMERG, c, 0, "missing 'zauth_acl'");
                 return NGX_CONF_ERROR;
+        }
+
+        if (child->oauth_pub_key == NULL) {
+                ngx_conf_log_error(NGX_LOG_NOTICE, c, 0, "missing 'oauth_pub_key'");
         }
 
         return NGX_CONF_OK;
@@ -156,6 +206,9 @@ static void delete_srv_conf (void * data) {
         if (c->acl != NULL) {
                 zauth_acl_delete(c->acl);
         }
+        if (c->oauth_pub_key != NULL) {
+                oauth_key_delete(c->oauth_pub_key);
+        }
 }
 
 static void * create_loc_conf (ngx_conf_t * conf) {
@@ -166,7 +219,7 @@ static void * create_loc_conf (ngx_conf_t * conf) {
                 return NGX_CONF_ERROR;
         }
 
-        lc->toggle = NGX_CONF_UNSET;
+        lc->zauth = NGX_CONF_UNSET;
 
         return lc;
 }
@@ -174,7 +227,8 @@ static void * create_loc_conf (ngx_conf_t * conf) {
 static char * merge_loc_conf (ngx_conf_t * _, void * pc, void * cc) {
         ZauthLocationConf * parent = pc;
         ZauthLocationConf * child  = cc;
-        ngx_conf_merge_off_value(child->toggle, parent->toggle, 1);
+        ngx_conf_merge_off_value(child->zauth, parent->zauth, 1);
+        ngx_conf_merge_str_value(child->oauth_scope, parent->oauth_scope, NULL);
         return NGX_CONF_OK;
 }
 
@@ -212,6 +266,22 @@ static char * load_acl (ngx_conf_t * conf, ngx_command_t * cmd, void * data) {
         return NGX_CONF_OK;
 }
 
+static char * load_oauth_key (ngx_conf_t * conf, ngx_command_t * cmd, void * data) {
+        ZauthServerConf * sc = data;
+        if (sc == NULL) {
+                return NGX_CONF_ERROR;
+        }
+
+        ngx_str_t * const fname = conf->args->elts;
+        OAuthResultStatus status = oauth_key_open(fname[1].data, fname[1].len, &sc->oauth_pub_key);
+
+        if (status != OAUTH_OK || sc->oauth_pub_key == NULL) {
+                ngx_conf_log_error(NGX_LOG_NOTICE, conf, 0, "failed to load oauth key [%d]", status);
+        }
+
+        return NGX_CONF_OK;
+}
+
 // Module setup /////////////////////////////////////////////////////////////
 
 static ngx_int_t zauth_init (ngx_conf_t * conf) {
@@ -236,14 +306,14 @@ static ngx_int_t zauth_init (ngx_conf_t * conf) {
                 return NGX_ERROR;
         }
 
-        *h2 = zauth_handle_request;
+        *h2 = zauth_and_oauth_handle_request;
 
         return NGX_OK;
 }
 
 // Request Processing ///////////////////////////////////////////////////////
 
-static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
+static ngx_int_t zauth_and_oauth_handle_request (ngx_http_request_t * r) {
         ZauthServerConf const * sc =
                 ngx_http_get_module_srv_conf(r, zauth_module);
 
@@ -254,22 +324,33 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
         ZauthLocationConf const * lc =
                 ngx_http_get_module_loc_conf(r, zauth_module);
 
-        if (lc == NULL || lc->toggle != 1) {
+        // if zauth is off (used for unauthenticated endpoints) we do not need to handle oauth
+        if (lc == NULL || lc->zauth != 1) {
                 return NGX_DECLINED;
         }
 
-        ZauthToken const * tkn = ngx_http_get_module_ctx(r, zauth_module);
+        ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
 
         // internal redirects clear module contexts => try to parse again
-        if (tkn == NULL && r->internal) {
+        if (ctx == NULL && r->internal) {
                 ngx_int_t status = zauth_parse_request(r);
                 if (status != NGX_OK) {
                         return status;
                 } else {
-                        tkn = ngx_http_get_module_ctx(r, zauth_module);
+                        ctx = ngx_http_get_module_ctx(r, zauth_module);
                 }
         }
 
+        if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH) {
+                return zauth_handle_request(r, sc, ctx->token);
+        } else if (ctx == NULL) {
+                return oauth_handle_request(r, sc->oauth_pub_key, lc->oauth_scope);
+        } else {
+                return NGX_HTTP_UNAUTHORIZED;
+        }
+}
+
+static ngx_int_t zauth_handle_request (ngx_http_request_t * r, const ZauthServerConf * sc, ZauthToken const * tkn) {
         if (tkn == NULL) {
                 return NGX_HTTP_UNAUTHORIZED;
         }
@@ -292,8 +373,80 @@ static ngx_int_t zauth_handle_request (ngx_http_request_t * r) {
         return NGX_OK;
 }
 
-static void delete_token (void * data) {
-        zauth_token_delete((ZauthToken *) data);
+ngx_int_t oauth_handle_request(ngx_http_request_t *r, OAuthPubJwk const * key, ngx_str_t const scope) {
+        if (r->headers_in.authorization == NULL) {
+                return NGX_HTTP_UNAUTHORIZED;
+        }
+
+        ngx_str_t hdr = r->headers_in.authorization->value;
+
+        if (strncmp((char const *) hdr.data, "Bearer ", 7) == 0) {
+                OAuthResult res = oauth_verify_token(key, &hdr.data[7], hdr.len - 7, scope.data, scope.len, r->method_name.data, r->method_name.len);
+                if (res.status == OAUTH_OK) {
+                        ZauthContext * ctx = alloc_oauth_context(r, res.uid);
+                        if (ctx == NULL) return NGX_HTTP_INTERNAL_SERVER_ERROR; // for OOM-safety
+                        ngx_int_t e = setup_zauth_context(r, ctx);
+                        if (e != NGX_OK) {
+                                ngx_free(ctx);
+                                return e;
+                        }
+
+                        return NGX_OK;
+                } else if (res.status == OAUTH_INSUFFICIENT_SCOPE) {
+                        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0, "OAuth insufficient scope");
+                        return NGX_HTTP_FORBIDDEN;
+                } else {
+                        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0, "OAuth token verification failed with: %d", res.status);
+                        return NGX_HTTP_UNAUTHORIZED;
+                }
+        } else {
+                return NGX_HTTP_UNAUTHORIZED;
+        }
+}
+
+static ngx_int_t setup_zauth_context(ngx_http_request_t * r, ZauthContext * ctx) {
+        ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
+        if (finaliser == NULL) {
+                return NGX_ERROR;
+        }
+
+        finaliser->handler = delete_zauth_context;
+        finaliser->data = ctx;
+        ngx_http_set_ctx(r, ctx, zauth_module);
+
+        return NGX_OK;
+}
+
+static ZauthContext * alloc_zauth_context(ngx_http_request_t * r, ZauthToken * token) {
+        ZauthContext * ctx = ngx_alloc(sizeof(ZauthContext), r->connection->log);
+        if (ctx == NULL) {
+                return ctx;
+        }
+        ctx->tag = CONTEXT_ZAUTH;
+        ctx->token = token;
+        return ctx;
+}
+
+
+static ZauthContext * alloc_oauth_context(ngx_http_request_t * r, char * user_id) {
+        ZauthContext * ctx = ngx_alloc(sizeof(ZauthContext), r->connection->log);
+        if (ctx == NULL) {
+                return ctx;
+        }
+        ctx->tag = CONTEXT_OAUTH;
+        ctx->user_id = user_id;
+        return ctx;
+}
+
+static void delete_zauth_context(void * data) {
+        ZauthContext *ctx = data;
+        if (ctx->tag == CONTEXT_ZAUTH) {
+          zauth_token_delete(ctx->token);
+        }
+        else if (ctx->tag == CONTEXT_OAUTH) {
+          oauth_result_uid_delete(ctx->user_id);
+        }
+        ngx_free(ctx);
 }
 
 static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
@@ -323,15 +476,16 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
         }
 
         if (res == ZAUTH_OK && tkn != NULL) {
-                ngx_pool_cleanup_t * finaliser = ngx_pool_cleanup_add(r->pool, 0);
-                if (finaliser == NULL) {
-                        return NGX_ERROR;
+                ZauthContext * ctx = alloc_zauth_context(r, tkn);
+                if (ctx == NULL) return NGX_HTTP_INTERNAL_SERVER_ERROR; // for OOM-safety
+                ngx_int_t e = setup_zauth_context(r, ctx);
+                if (e != NGX_OK) {
+                        ngx_free(ctx);
+                        return e;
                 }
-                finaliser->handler = delete_token;
-                finaliser->data    = tkn;
-                ngx_http_set_ctx(r, tkn, zauth_module);
                 return NGX_OK;
         }
+
 
         if (res != ZAUTH_OK) {
                 ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0, "failed to parse token [%d]", res);
@@ -406,7 +560,7 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
         z_type_var->get_handler = zauth_token_typeinfo;
         z_bot_var->get_handler  = zauth_token_var;
         z_bot_var->data         = 'b';
-        z_user_var->get_handler = zauth_token_var;
+        z_user_var->get_handler = zauth_token_var_user;
         z_user_var->data        = 'u';
         z_client_var->get_handler = zauth_token_var;
         z_client_var->data        = 'i';
@@ -419,11 +573,14 @@ static ngx_int_t zauth_variables (ngx_conf_t * conf) {
 }
 
 static ngx_int_t zauth_token_typeinfo (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t _) {
-        ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
-        if (t == NULL) {
+        ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
+        if (ctx == NULL) {
                 return NGX_ERROR;
         }
-        switch (zauth_token_type(t)) {
+        if (ctx->tag != CONTEXT_ZAUTH) {
+                return NGX_OK;
+        }
+        switch (zauth_token_type(ctx->token)) {
                 case ZAUTH_TOKEN_TYPE_BOT: {
                         Range range = { (u_char*) "bot", 3 };
                         return zauth_set_var(r->pool, v, range);
@@ -456,20 +613,73 @@ static ngx_int_t zauth_token_typeinfo (ngx_http_request_t * r, ngx_http_variable
 }
 
 static ngx_int_t zauth_token_var (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t data) {
-        ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
-        if (t == NULL) {
-                return NGX_ERROR;
+        ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
+
+        // this function checks if the signature has been validated successfully,
+        // and if access is allowed (endpoint is either allowed or not denied) according to the access control list (ACL) configuration
+        bool zauth_is_authorized_and_allowed() {
+                if (ctx == NULL || ctx->tag != CONTEXT_ZAUTH) {
+                        return false;
+                }
+
+                ZauthToken const * t = ctx->token;
+
+                if (t == NULL) {
+                        return false;
+                }
+
+                if (zauth_token_verification(t) != ZAUTH_TOKEN_VERIFICATION_SUCCESS) {
+                        return false;
+                }
+
+                ZauthServerConf const * sc =
+                        ngx_http_get_module_srv_conf(r, zauth_module);
+
+                if (sc == NULL || sc->acl == NULL) {
+                        return false;
+                }
+
+                uint8_t is_allowed = 0;
+
+                ngx_int_t res = zauth_token_allowed(t, sc->acl, r->uri.data, r->uri.len, &is_allowed);
+
+                if (res != NGX_OK) {
+                        return false;
+                }
+
+                return is_allowed == 1;
         }
-        return zauth_set_var(r->pool, v, zauth_token_lookup(t, data));
+
+        // in this function client, provider, and bot ID is retrieved from the ZAuth token
+        // and assigned to variables that are used in the nginx config to set the corresponding headers (e.g. Z-Client, Z-Provider, ...).
+        // therefore we want to make sure that the token is authorized (has a valid signature)
+        // and access is allowed (endpoint is either allowed or not denied) according to the access control list (ACL) configuration
+        // before we set the variable
+        // otherwise 'zauth_token_lookup' will crash for OAuth requests
+        if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH && zauth_is_authorized_and_allowed()) {
+                return zauth_set_var(r->pool, v, zauth_token_lookup(ctx->token, data));
+        } else {
+                zauth_empty_val(v);
+                return NGX_OK;
+        }
+}
+
+static ngx_int_t zauth_token_var_user (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t _) {
+        ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
+        if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH) {
+                return zauth_set_var(r->pool, v, zauth_token_lookup(ctx->token, 'u'));
+        } else if (ctx != NULL && ctx->tag == CONTEXT_OAUTH) {
+                return zauth_set_var(r->pool, v, (Range) { (u_char*) ctx->user_id, strlen(ctx->user_id) });
+        } else {
+                zauth_empty_val(v);
+                return NGX_OK;
+        }
 }
 
 static ngx_int_t zauth_token_var_conn (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t _) {
-        ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
-        if (t == NULL) {
-                return NGX_ERROR;
-        }
-        if (zauth_token_type(t) == ZAUTH_TOKEN_TYPE_ACCESS || zauth_token_type(t) == ZAUTH_TOKEN_TYPE_LEGAL_HOLD_ACCESS) {
-                return zauth_set_var(r->pool, v, zauth_token_lookup(t, 'c'));
+        ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
+        if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH && (zauth_token_type(ctx->token) == ZAUTH_TOKEN_TYPE_ACCESS || zauth_token_type(ctx->token) == ZAUTH_TOKEN_TYPE_LEGAL_HOLD_ACCESS)) {
+                return zauth_set_var(r->pool, v, zauth_token_lookup(ctx->token, 'c'));
         } else {
                 zauth_empty_val(v);
                 return NGX_OK;
@@ -477,12 +687,9 @@ static ngx_int_t zauth_token_var_conn (ngx_http_request_t * r, ngx_http_variable
 }
 
 static ngx_int_t zauth_token_var_conv (ngx_http_request_t * r, ngx_http_variable_value_t * v, uintptr_t _) {
-        ZauthToken const * t = ngx_http_get_module_ctx(r, zauth_module);
-        if (t == NULL) {
-                return NGX_ERROR;
-        }
-        if (zauth_token_type(t) == ZAUTH_TOKEN_TYPE_BOT) {
-                return zauth_set_var(r->pool, v, zauth_token_lookup(t, 'c'));
+        ZauthContext const * ctx = ngx_http_get_module_ctx(r, zauth_module);
+        if (ctx != NULL && ctx->tag == CONTEXT_ZAUTH && zauth_token_type(ctx->token) == ZAUTH_TOKEN_TYPE_BOT) {
+                return zauth_set_var(r->pool, v, zauth_token_lookup(ctx->token, 'c'));
         } else {
                 zauth_empty_val(v);
                 return NGX_OK;

@@ -60,7 +60,7 @@ pregenSwagger :: Version -> Q Exp
 pregenSwagger v =
   embedLazyByteString
     =<< makeRelativeToProject
-      ("docs/swagger-v" <> T.unpack (toUrlPiece v) <> ".json")
+      ("docs/swagger-v" <> T.unpack (toUrlPiece (VersionNumber v)) <> ".json")
 
 swaggerPregenUIServer :: LByteString -> Server SwaggerDocsAPIBase
 swaggerPregenUIServer =

@@ -31,6 +31,7 @@ module Galley.API.Message
     QualifiedMismatch (..),
     mkQualifiedUserClients,
     clientMismatchStrategyApply,
+    collectFailedToSend,
   )
 where
 
@@ -217,11 +218,12 @@ checkMessageClients sender participantMap recipientMap mismatchStrat =
 getRemoteClients ::
   (Member FederatorAccess r) =>
   [RemoteMember] ->
-  Sem r (Map (Domain, UserId) (Set ClientId))
+  Sem r [Either (Remote [UserId], FederationError) (Map (Domain, UserId) (Set ClientId))]
 getRemoteClients remoteMembers =
   -- concatenating maps is correct here, because their sets of keys are disjoint
-  mconcat . map tUnqualified
-    <$> runFederatedConcurrently (map rmId remoteMembers) getRemoteClientsFromDomain
+  -- Use runFederatedConcurrentlyEither so we can catch federation errors and report to clients
+  -- which domains and users aren't contactable at the moment.
+  tUnqualified <$$$> runFederatedConcurrentlyEither (map rmId remoteMembers) getRemoteClientsFromDomain
   where
     getRemoteClientsFromDomain :: Remote [UserId] -> FederatorClient 'Brig (Map (Domain, UserId) (Set ClientId))
     getRemoteClientsFromDomain (tUntagged -> Qualified uids domain) =
@@ -424,8 +426,19 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
 
       -- get remote clients
       qualifiedRemoteClients <- getRemoteClients (convRemoteMembers conv)
-      let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients
-
+      let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients'
+          -- concatenating maps is correct here, because their sets of keys are disjoint
+          qualifiedRemoteClients' = mconcat $ rights qualifiedRemoteClients
+          -- Collect the list of users and their domains that we weren't able to fetch clients for.
+          failedToSendFetchingClients :: QualifiedUserClients
+          failedToSendFetchingClients =
+            QualifiedUserClients . mconcat $ extractUserMap . fst <$> lefts qualifiedRemoteClients
+            where
+              extractUserMap :: Remote [UserId] -> Map Domain (Map UserId (Set ClientId))
+              extractUserMap l = Map.singleton domain $ Map.fromList $ (,mempty) <$> users
+                where
+                  domain = qDomain $ tUntagged l
+                  users = tUnqualified l
       -- check if the sender client exists (as one of the clients in the conversation)
       unless
         ( Set.member
@@ -452,7 +465,6 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
             . runError @LegalholdConflicts
             $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
         throw e
-
       failedToSend <-
         sendMessages @'NormalMessage
           now
@@ -463,7 +475,49 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           botMap
           (qualifiedNewOtrMetadata msg)
           validMessages
-      pure otrResult {mssFailedToSend = failedToSend}
+
+      let -- List of the clients that are initially flagged as redundant.
+          redundant' = toDomUserClient $ qualifiedUserClients $ mssRedundantClients otrResult
+          -- List of users that we couldn't fetch clients for. Used to get their "redundant"
+          -- clients for reporting as failedToSend.
+          failed' = toDomUserClient $ qualifiedUserClients failedToSendFetchingClients
+          -- failedToSendFetchingClients doesn't contain client IDs, so those need to be excluded
+          -- from the filter search. We have to focus on only the domain and user. These clients
+          -- should be listed in the failedToSend field however, as tracking these clients is an
+          -- important part of the proteus protocol.
+          predicate (d, (u, _)) = any (\(d', (u', _)) -> d == d' && u == u') failed'
+          -- Failed users/clients aren't redundant
+          (failed, redundant) = partition predicate redundant'
+      pure
+        otrResult
+          { mssFailedToSend =
+              QualifiedUserClients $
+                collectFailedToSend
+                  [ qualifiedUserClients failedToSend,
+                    qualifiedUserClients failedToSendFetchingClients,
+                    fromDomUserClient failed
+                  ],
+            mssRedundantClients = QualifiedUserClients $ fromDomUserClient redundant
+          }
+  where
+    -- Get the triples for domains, users, and clients so we can easily filter
+    -- out the values from redundant clients that should be in failed to send.
+    toDomUserClient :: Map Domain (Map UserId (Set ClientId)) -> [(Domain, (UserId, Set ClientId))]
+    toDomUserClient m = do
+      (d, m') <- Map.assocs m
+      (d,) <$> Map.assocs m'
+    -- Rebuild the map, concatenating results along the way.
+    fromDomUserClient :: [(Domain, (UserId, Set ClientId))] -> Map Domain (Map UserId (Set ClientId))
+    fromDomUserClient = foldr buildUserClientMap mempty
+      where
+        buildUserClientMap :: (Domain, (UserId, Set ClientId)) -> Map Domain (Map UserId (Set ClientId)) -> Map Domain (Map UserId (Set ClientId))
+        buildUserClientMap (d, (u, c)) m = Map.alter (pure . Map.alter (pure . Set.union c . fromMaybe mempty) u . fromMaybe mempty) d m
+
+collectFailedToSend ::
+  Foldable f =>
+  f (Map Domain (Map UserId (Set ClientId))) ->
+  Map Domain (Map UserId (Set ClientId))
+collectFailedToSend = foldr (Map.unionWith (Map.unionWith Set.union)) mempty
 
 makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
 makeUserMap keys = (<> Map.fromSet (const mempty) keys)

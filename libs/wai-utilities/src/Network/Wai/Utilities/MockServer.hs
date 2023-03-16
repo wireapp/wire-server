@@ -44,6 +44,11 @@ withMockServer app = Codensity $ \k ->
     (liftIO . fst)
     (k . fromIntegral . snd)
 
+-- FUTUREWORK: Ignore HTTP2.ConnectionIsClosed after upgrading to more recent
+-- http2 library.
+ignoreHTTP2NonError :: Maybe Wai.Request -> SomeException -> IO ()
+ignoreHTTP2NonError = Warp.defaultOnException
+
 -- | Start a mock warp server on a random port, serving the given Wai application.
 --
 -- If the 'Warp.TLSSettings` argument is provided, start an HTTPS server,
@@ -66,6 +71,7 @@ startMockServer mtlsSettings app = do
           & Warp.setPort port
           & Warp.setGracefulCloseTimeout2 0 -- Defaults to 2 seconds, causes server stop to take very long
           & Warp.setBeforeMainLoop (putMVar serverStarted ())
+          & Warp.setOnException ignoreHTTP2NonError
 
   serverThread <- Async.async $ case mtlsSettings of
     Just tlsSettings -> Warp.runTLSSocket tlsSettings wsettings sock app
